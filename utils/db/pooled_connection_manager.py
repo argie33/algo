@@ -19,6 +19,7 @@ import logging
 import threading
 import time
 from collections import deque
+from typing import Any, Literal
 
 import psycopg2
 import psycopg2.pool
@@ -49,14 +50,14 @@ class IdleConnectionPool:
         self._pool = pool
         self._max_idle_sec = max_idle_sec
         self._cleanup_interval_sec = cleanup_interval_sec
-        self._idle_connections: deque = deque()
+        self._idle_connections: deque[dict[str, Any]] = deque()
         self._lock = threading.Lock()
         self._cleanup_thread: threading.Thread | None = None
         self._stop_cleanup = threading.Event()
 
         self._start_cleanup_thread()
 
-    def getconn(self):
+    def getconn(self) -> Any:
         """Get a connection from the pool.
 
         Returns:
@@ -69,7 +70,7 @@ class IdleConnectionPool:
 
         return self._pool.getconn()
 
-    def putconn(self, conn, close: bool = False):
+    def putconn(self, conn: Any, close: bool = False) -> None:
         """Return a connection to the pool or close it.
 
         Args:
@@ -88,11 +89,11 @@ class IdleConnectionPool:
 
         logger.debug(f"[IDLE_POOL] Connection returned to idle pool (idle connections: {len(self._idle_connections)})")
 
-    def _cleanup_stale_connections(self):
+    def _cleanup_stale_connections(self) -> None:
         """Close connections idle > max_idle_sec."""
         with self._lock:
             now = time.time()
-            active_connections = []
+            active_connections: list[dict[str, Any]] = []
             closed_count = 0
 
             for conn_info in self._idle_connections:
@@ -118,7 +119,7 @@ class IdleConnectionPool:
                     f"{len(self._idle_connections)} remaining idle"
                 )
 
-    def _cleanup_thread_run(self):
+    def _cleanup_thread_run(self) -> None:
         """Background thread that periodically cleans up idle connections."""
         logger.debug(
             f"[IDLE_POOL] Cleanup thread started "
@@ -133,21 +134,21 @@ class IdleConnectionPool:
 
         logger.debug("[IDLE_POOL] Cleanup thread stopped")
 
-    def _start_cleanup_thread(self):
+    def _start_cleanup_thread(self) -> None:
         """Start the background cleanup thread."""
         self._cleanup_thread = threading.Thread(
             target=self._cleanup_thread_run, daemon=True, name="IdleConnectionCleanup"
         )
         self._cleanup_thread.start()
 
-    def stop_cleanup(self):
+    def stop_cleanup(self) -> None:
         """Stop the cleanup thread (call on shutdown)."""
         logger.debug("[IDLE_POOL] Stopping cleanup thread...")
         self._stop_cleanup.set()
         if self._cleanup_thread:
             self._cleanup_thread.join(timeout=10)
 
-    def closeall(self):
+    def closeall(self) -> None:
         """Close all idle connections and the underlying pool."""
         self.stop_cleanup()
 
@@ -165,7 +166,7 @@ class IdleConnectionPool:
         except Exception as e:
             logger.warning(f"[IDLE_POOL] Error closing underlying pool: {e}")
 
-    def status(self) -> dict:
+    def status(self) -> dict[str, Any]:
         """Return current idle connection status."""
         with self._lock:
             return {
@@ -222,7 +223,7 @@ class PoolSemaphore:
 
         return acquired
 
-    def release(self, loader_name: str = "unknown"):
+    def release(self, loader_name: str = "unknown") -> None:
         """Release a slot back to the pool."""
         self._sem.release()
         with self._lock:
@@ -231,7 +232,7 @@ class PoolSemaphore:
             f"[POOL_SEMAPHORE] {loader_name} released slot ({self._active_count}/{self.max_concurrent} active)"
         )
 
-    def status(self) -> dict:
+    def status(self) -> dict[str, Any]:
         """Return current semaphore status."""
         with self._lock:
             return {
@@ -385,17 +386,17 @@ class PooledConnectionManager:
         """Check if a connection is currently held."""
         return self._conn is not None
 
-    def __enter__(self):
+    def __enter__(self) -> Any:
         """Context manager entry."""
         return self.acquire()
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> Literal[False]:
         """Context manager exit."""
         self.release()
         return False
 
 
-def get_pool_status() -> dict:
+def get_pool_status() -> dict[str, Any]:
     """Get current pool and semaphore status for monitoring."""
     from utils.db.connection import _get_connection_pool
 

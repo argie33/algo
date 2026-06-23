@@ -250,9 +250,9 @@ def fetch_health(c: None) -> dict[str, Any]:
             logger.error(error_msg)
             record_data_quality_issue("health", "validation", "invalid_response_type")
             return FetcherValidator.build_error_response(error_msg)
-        raw_sources = inner.get("sources")
+        raw_sources = inner.get("sources") or inner.get("items")
         if not isinstance(raw_sources, list):
-            error_msg = f"Health API 'sources' field must be list, got {type(raw_sources).__name__}"
+            error_msg = f"Health API 'sources'/'items' field must be list, got {type(raw_sources).__name__}"
             logger.error(error_msg)
             record_data_quality_issue("health", "validation", "sources_not_list")
             return FetcherValidator.build_error_response(error_msg)

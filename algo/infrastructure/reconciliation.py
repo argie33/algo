@@ -29,9 +29,9 @@ class DailyReconciliation:
     Uses broker adapter for position sync, analytics, and price auditing.
     """
 
-    def __init__(self, config):
-        self.config = config
-        self.trading_client = None  # Kept for backward compat
+    def __init__(self, config: dict[str, Any]) -> None:
+        self.config: dict[str, Any] = config
+        self.trading_client: bool | None = None  # Kept for backward compat
 
         # Initialize broker adapter (abstracted from Alpaca-specific implementation)
         try:
@@ -535,7 +535,7 @@ class DailyReconciliation:
             logger.error(f"Error in reconciliation: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
-    def reconcile_exit_fills(self, cur, reconcile_date) -> dict:
+    def reconcile_exit_fills(self, cur: Any, reconcile_date: Any) -> dict[str, Any]:
         """Update DB trade exit prices with actual Alpaca fill prices.
 
         Phase 4 marks trades 'closed' immediately using the last known market price
@@ -687,15 +687,15 @@ class DailyReconciliation:
             logger.warning(f"Exit fill reconciliation error: {e}")
             return {"updated": 0, "message": f"Error: {e}"}
 
-    def audit_stale_estimated_prices(self, cur) -> dict[Any, Any]:
+    def audit_stale_estimated_prices(self, cur: Any) -> dict[str, Any]:
         """Audit for trades with estimated exit prices (stub - returns empty result)."""
         return {"status": "OK", "stale_count": 0, "stale_symbols": [], "details": {}}
 
-    def sync_positions(self, cur):
+    def sync_positions(self, cur: Any) -> dict[str, Any]:
         """Sync broker positions via BrokerAdapter."""
         return self.broker.sync_positions(cur)
 
-    def _process_failed_imports(self, cur, alpaca_positions):
+    def _process_failed_imports(self, cur: Any, alpaca_positions: list[Any]) -> int:
         """Retry failed imports and alert on multiple failures."""
         if not alpaca_positions:
             raise RuntimeError(
@@ -903,7 +903,7 @@ class DailyReconciliation:
             logger.warning(f"Could not cleanup old failures: {e}")
         return retried
 
-    def compute_analytics_metrics(self, cur):
+    def compute_analytics_metrics(self, cur: Any) -> dict[str, Any]:
         """Compute analytics metrics (stub - returns empty result)."""
         return {
             "ic": {"valid": False, "ic": 0.0, "trade_count": 0},
@@ -915,11 +915,11 @@ class DailyReconciliation:
             },
         }
 
-    def compute_closed_trade_metrics(self, cur):
+    def compute_closed_trade_metrics(self, cur: Any) -> dict[str, Any]:
         """Compute closed trade metrics (stub - returns reason message)."""
         return {"reason": "Analytics not yet implemented"}
 
-    def check_partial_fills(self, cur) -> dict:
+    def check_partial_fills(self, cur: Any) -> dict[str, Any]:
         """Check for partial fills that haven't been reconciled with Alpaca.
 
         Detects when orders were only partially filled but the local DB thinks
@@ -1020,7 +1020,7 @@ class DailyReconciliation:
             logger.warning(f"Partial fill check error: {e}")
             return {"checked": 0, "mismatches": 0, "message": f"Error: {e}"}
 
-    def check_pending_reconciliations(self, cur) -> dict:
+    def check_pending_reconciliations(self, cur: Any) -> dict[str, Any]:
         """Identify and report on trades pending Phase 7 price reconciliation.
 
         Trades with estimated exit prices (Phase 4 pre-market exits) that haven't

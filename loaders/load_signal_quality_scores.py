@@ -279,7 +279,7 @@ class SignalQualityScoresLoader(OptimalLoader):
 
         return scores
 
-    def _fetch_buy_sell_signals(self, symbol: str, start: date, end: date) -> list[dict]:
+    def _fetch_buy_sell_signals(self, symbol: str, start: date, end: date) -> list[dict[str, Any]]:
         try:
             with DatabaseContext("read") as cur:
                 cur.execute(
@@ -294,7 +294,7 @@ class SignalQualityScoresLoader(OptimalLoader):
                 "Signal quality assessment requires valid signal data."
             ) from None
 
-    def _fetch_technical_data(self, symbol: str, start: date, end: date) -> list[dict]:
+    def _fetch_technical_data(self, symbol: str, start: date, end: date) -> list[dict[str, Any]]:
         from utils.db.context import DatabaseContext
 
         try:

@@ -391,7 +391,7 @@ def panel_orch(run: dict[str, Any] | None, cfg: dict[str, Any], risk: dict[str, 
     return Panel(body, title="[bold cyan]ORCHESTRATOR[/]", border_style="cyan", padding=(0, 1))
 
 
-def _format_exec_history_summary(exec_hist: list[Any]) -> list[Text]:
+def _format_exec_history_summary(exec_hist: list[Any] | None) -> list[Text]:
     """Format last N runs summary (used in panel_status and panel_algo_health)."""
     rows: list[Text] = []
     valid_hist = safe_get_list(exec_hist)
@@ -439,7 +439,7 @@ def _format_exec_history_summary(exec_hist: list[Any]) -> list[Text]:
     return rows
 
 
-def _format_recent_trade_events(act: dict[str, Any]) -> list[Text]:
+def _format_recent_trade_events(act: dict[str, Any] | None) -> list[Text]:
     """Format recent trade events (entry/exit/order)."""
     rows: list[Text] = []
     act_valid = act and not has_error(act)
@@ -916,10 +916,12 @@ def panel_status(
     cfg: dict[str, Any] | None = None,
 ) -> Panel:
     """Algo activity phases + data health + recent notifications + action counts + loader status."""
-    if _error_panel("health", hlth, "STATUS"):
-        return _error_panel("health", hlth, "STATUS")
-    if _error_panel("notifications", notifs, "STATUS"):
-        return _error_panel("notifications", notifs, "STATUS")
+    error_pnl = _error_panel("health", hlth, "STATUS")
+    if error_pnl is not None:
+        return error_pnl
+    error_pnl = _error_panel("notifications", notifs, "STATUS")
+    if error_pnl is not None:
+        return error_pnl
 
     rows: list[Text | Rule] = []
 
@@ -927,8 +929,8 @@ def panel_status(
     hlth_items = safe_get_list(hlth)
 
     # ── Run status + schedule + mode + trading config ────────────────────────────
-    run_valid = run and not has_error(run)
-    act_valid = act and not has_error(act)
+    run_valid = run and isinstance(run, dict) and not has_error(run)
+    act_valid = act and isinstance(act, dict) and not has_error(act)
     run_id_top = run.get("run_id", "") if run_valid else (act.get("run_id", "") if act_valid else "")
     run_at_top = run.get("run_at") if run_valid else (act.get("run_at") if act_valid else None)
     if run_id_top or run_at_top:
@@ -1225,20 +1227,22 @@ def panel_algo_health(
     risk: dict[str, Any] | None = None,
 ) -> Panel:
     """Focused 'did the algo work?' panel: run outcome → what it did → system health."""
-    if _error_panel("health", hlth, "HEALTH"):
-        return _error_panel("health", hlth, "HEALTH")
-    if _error_panel("notifications", notifs, "HEALTH"):
-        return _error_panel("notifications", notifs, "HEALTH")
+    hlth_err = _error_panel("health", hlth, "HEALTH")
+    if hlth_err is not None:
+        return hlth_err
+    notif_err = _error_panel("notifications", notifs, "HEALTH")
+    if notif_err is not None:
+        return notif_err
 
     rows: list[Text | Rule] = []
 
     # ── A: Run outcome ────────────────────────────────────────────────────────
-    run_valid = run and not has_error(run)
-    act_valid = act and not has_error(act)
+    run_valid = run and isinstance(run, dict) and not has_error(run)
+    act_valid = act and isinstance(act, dict) and not has_error(act)
     run_at = run.get("run_at") if run_valid else (act.get("run_at") if act_valid else None)
     age_s = f"  [dim]{fmt_age(run_at)}[/]" if run_at else ""
 
-    if run_valid:
+    if run_valid and isinstance(run, dict):
         # Validate critical fields exist upfront (fail-fast pattern)
         try:
             run_fields = safe_extract(
@@ -1256,7 +1260,10 @@ def panel_algo_health(
             errored = run_fields["errored"]
         except KeyError as e:
             logger.warning(f"Run data missing critical field: {e}")
-            return _error_panel("run", {"_error": f"Run data incomplete: {e}"}, "HEALTH")
+            error_pnl = _error_panel("run", {"_error": f"Run data incomplete: {e}"}, "HEALTH")
+            if error_pnl is not None:
+                return error_pnl
+            return Panel(Text("Run data incomplete"), border_style="red")
 
         if success and not halted:
             sts = f"[bold {G}]OK COMPLETED[/]"
@@ -1288,13 +1295,18 @@ def panel_algo_health(
     exits_exec = 0
     phase_badges: list = []
 
-    if run_valid and run.get("_source") == "exec_log":
+    if run_valid and isinstance(run, dict) and run.get("_source") == "exec_log":
         if "phase_results" not in run:
-            return 0
+            return Panel(
+                Text.from_markup("[dim]Phase results missing from run data[/]"),
+                title="[bold yellow]ALGO HEALTH[/]",
+                border_style="yellow",
+                padding=(0, 1),
+            )
         phase_results = run["phase_results"]
         phase_badges, signals_gen, entries_exec, exits_exec = _build_phase_badges_and_metrics(run, phase_results)
-    elif run_valid or act_valid:
-        src = run if run_valid else act
+    elif (run_valid and isinstance(run, dict)) or (act_valid and isinstance(act, dict)):
+        src = run if (run_valid and isinstance(run, dict)) else act
         phases_list = src.get("phase_results") or src.get("phases")
         if not phases_list:
             logger.warning(
@@ -1419,8 +1431,8 @@ def _build_results_panel(run: dict[str, Any] | None, act: dict[str, Any] | None,
         Rule(style="dim"),
     ]
 
-    run_valid = run and not has_error(run)
-    act_valid = act and not has_error(act)
+    run_valid = run and isinstance(run, dict) and not has_error(run)
+    act_valid = act and isinstance(act, dict) and not has_error(act)
     run_at = run.get("run_at") if run_valid else (act.get("run_at") if act_valid else None)
     age_s = f"  [dim]{fmt_age(run_at)}[/]" if run_at else ""
 
@@ -1620,14 +1632,20 @@ def panel_algo_health_expanded(
     risk: dict[str, Any] | None = None,
 ) -> Layout:
     """Full-screen algo health — dual column: data freshness (left) | run results (right)."""
-    if _error_panel("health", hlth, "HEALTH EXPANDED"):
-        return _error_panel("health", hlth, "HEALTH EXPANDED")
-    if _error_panel("notifications", notifs, "HEALTH EXPANDED"):
-        return _error_panel("notifications", notifs, "HEALTH EXPANDED")
+    hlth_err_exp = _error_panel("health", hlth, "HEALTH EXPANDED")
+    if hlth_err_exp is not None:
+        error_layout = Layout()
+        error_layout.split_row(Layout(hlth_err_exp))
+        return error_layout
+    notif_err_exp = _error_panel("notifications", notifs, "HEALTH EXPANDED")
+    if notif_err_exp is not None:
+        error_layout = Layout()
+        error_layout.split_row(Layout(notif_err_exp))
+        return error_layout
 
-    hlth_items, ready_to_trade = extract_health_items(hlth)
+    hlth_items, ready_to_trade = extract_health_items(hlth if hlth is not None else {})
     left_panel = _build_freshness_panel(hlth_items, ready_to_trade)
-    right_panel = _build_results_panel(run, act, algo_metrics, exec_hist, risk, notifs, audit)
+    right_panel = _build_results_panel(run, act, algo_metrics or [], exec_hist or [], risk, notifs, audit or [])
 
     dual = Layout()
     dual.split_row(

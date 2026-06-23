@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 
 import logging
+from collections.abc import Callable
 from datetime import date
-from typing import Any, Callable, cast
+from typing import Any, cast
 
 import psycopg2
 

@@ -19,7 +19,7 @@ import threading
 import time
 import uuid
 from datetime import date, datetime, timedelta
-from typing import Optional, cast
+from typing import Any, Optional, cast
 
 import psycopg2.sql
 
@@ -174,7 +174,7 @@ class PriceLoader(OptimalLoader):
         )
         return False
 
-    def _validate_schema_preflight(self):
+    def _validate_schema_preflight(self) -> None:
         """Pre-flight validation: Ensure table schema is correct before loading any data.
 
         CRITICAL: Validates that target table has all required columns with correct data types.
@@ -232,7 +232,7 @@ class PriceLoader(OptimalLoader):
             )
             raise RuntimeError(f"Schema validation could not complete: {e}") from e
 
-    def _verify_unique_constraint_exists(self, cur):
+    def _verify_unique_constraint_exists(self, cur: Any) -> None:
         """Verify that unique constraint on primary key exists (prevents duplicates).
 
         CRITICAL: Ensures that the database enforces uniqueness on (symbol, date).
@@ -1251,7 +1251,7 @@ class PriceLoader(OptimalLoader):
                     e,
                 )
 
-    def _try_fetch(self, symbol: str, start: date, end: date, max_retries: int = 5):
+    def _try_fetch(self, symbol: str, start: date, end: date, max_retries: int = 5) -> Any:
         """Try to fetch data from yfinance with retry logic for transient failures."""
         import random
         import time
@@ -1307,7 +1307,7 @@ class PriceLoader(OptimalLoader):
         # Should not reach here, but if we do, raise error
         raise RuntimeError(f"[{symbol}] Exhausted all fetch attempts without successful data fetch")
 
-    def transform(self, rows):
+    def transform(self, rows: list[Any]) -> list[dict[str, Any]]:
         """Validate and filter rows. Phase 1: Reject invalid ticks. Integrated validation framework."""
         return self.transformer.validate_and_transform(rows)
 

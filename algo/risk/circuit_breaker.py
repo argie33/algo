@@ -59,7 +59,7 @@ CHECK_LABELS = {
 }
 
 
-def _float(value, default=None, context=""):
+def _float(value: Any, default: float | None = None, context: str = "") -> float:
     """Convert to float safely, rejecting NaN/Infinity.
 
     CRITICAL: When default is NOT provided (None), raises on missing data.
@@ -850,7 +850,7 @@ class CircuitBreaker:
             "exceed_profit_cap": daily >= threshold,
         }
 
-    def _log_halt(self, results, cur):
+    def _log_halt(self, results: dict[str, Any], cur: Any) -> None:
         try:
             cur.execute(
                 """

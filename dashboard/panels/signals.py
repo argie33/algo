@@ -1,6 +1,8 @@
 """Signal analysis panel functions."""
 
 import logging
+from collections.abc import Callable
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -9,7 +11,7 @@ try:
 except ImportError as e:
     logger.warning(f"Panel registry not available: {e} - panels will not auto-register")
 
-    def register_panel(*args, **kwargs):
+    def register_panel(*args: Any, **kwargs: Any) -> Callable[[Any], Any]:
         if args and callable(args[0]):
             return args[0]
         return lambda fn: fn
@@ -52,7 +54,7 @@ from .data_extractors import (
 )
 
 
-def _format_signal_date(date_val):
+def _format_signal_date(date_val: Any) -> str:
     """Format date value for display."""
     if hasattr(date_val, "strftime"):
         return date_val.strftime("%b %d")
@@ -90,7 +92,7 @@ def _shorten_type(t: str) -> str:
     return t[:12]
 
 
-def _build_signal_header(sig_data: dict, scores_data: dict | None) -> tuple[list, int, int]:
+def _build_signal_header(sig_data: dict[str, Any], scores_data: dict[str, Any] | None) -> tuple[list[Text], int, int]:
     """Build signal header row (count, sparkline, grades, date).
 
     Returns empty rows if input validation fails (missing required structure).
@@ -115,11 +117,11 @@ def _build_signal_header(sig_data: dict, scores_data: dict | None) -> tuple[list
 
     buy_c = G if raw >= 5 else (Y if raw >= 1 else (DIM if total == 0 else R))
 
-    spark_s = ""
+    spark_s: str = ""
     trend_field = safe_get_field(overview, "trend", [])
-    trend = safe_get_list(trend_field) if trend_field else []
+    trend: list[Any] = safe_get_list(trend_field) if trend_field else []
     if trend and len(trend) >= 2:
-        counts = [
+        counts: list[int] = [
             (int(safe_get_field(t, "buy_n")) if safe_get_field(t, "buy_n") is not None else 0) for t in reversed(trend)
         ]
         max_b = max(counts) if counts else 1
@@ -127,9 +129,9 @@ def _build_signal_header(sig_data: dict, scores_data: dict | None) -> tuple[list
         spark_s = f"  [{CY}]{spark}[/]"
 
     near_field = safe_get_field(overview, "near", [])
-    near = safe_get_list(near_field) if near_field else []
-    n_near = len(near) if near else 0
-    near_hint = f"  [{CY}]{n_near} near[/]" if n_near else ""
+    near: list[Any] = safe_get_list(near_field) if near_field else []
+    n_near: int = len(near) if near else 0
+    near_hint: str = f"  [{CY}]{n_near} near[/]" if n_near else ""
 
     ga_s = f"{ga}" if ga is not None else "--"
     gb_s = f"{gb}" if gb is not None else "--"
@@ -146,7 +148,7 @@ def _build_signal_header(sig_data: dict, scores_data: dict | None) -> tuple[list
     return rows, raw, total
 
 
-def _build_grade_radar(sig_data: dict) -> list:
+def _build_grade_radar(sig_data: dict[str, Any]) -> list[Text]:
     """Build A-grade radar row or near-miss fallback.
 
     Returns empty list if input validation fails (missing required structure).
@@ -212,11 +214,11 @@ def _build_funnel_row(sig_eval_data: dict | None) -> list:
 
     if ev_tot is not None and ev_t5 is not None:
         ev_c = G if ev_t5 >= 20 else (Y if ev_t5 >= 5 else R)
-        rejected = safe_get_list(safe_get_field(funnel, "rejected", []))
+        rejected: list[Any] = safe_get_list(safe_get_field(funnel, "rejected", []))
 
-        blocks_s = ""
+        blocks_s: str = ""
         if rejected:
-            block_parts = []
+            block_parts: list[str] = []
             for rj in rejected[:3]:
                 reason_abbr = _shorten_reason(safe_get_field(rj, "evaluation_reason", ""))
                 description = safe_get_field(rj, "description", "")
@@ -228,16 +230,16 @@ def _build_funnel_row(sig_eval_data: dict | None) -> list:
                     block_parts.append(f"[dim]{reason_abbr}:{safe_get_field(rj, 'n', 0)}[/]")
             blocks_s = "  [dim]blocked:[/]  " + "  ".join(block_parts)
 
-        has_full_funnel = all(v is not None for v in [ev_t1, ev_t2, ev_t3, ev_t4])
+        has_full_funnel: bool = all(v is not None for v in [ev_t1, ev_t2, ev_t3, ev_t4])
         if has_full_funnel:
-            funnel_s = (
+            funnel_s: str = (
                 f"[dim]Funnel:[/] {ev_tot}[dim]→[/]{ev_t1}[dim]→[/]{ev_t2}"
                 f"[dim]→[/]{ev_t3}[dim]→[/]{ev_t4}[dim]→[/][{ev_c}]{ev_t5}[/]"
             )
         else:
-            funnel_s = f"[dim]{ev_tot} →[/] [{ev_c}]{ev_t5} qualified[/]"
+            funnel_s: str = f"[dim]{ev_tot} →[/] [{ev_c}]{ev_t5} qualified[/]"
 
-        avg_s = f"  [dim]avg score:[/][white]{ev_avg:.0f}[/]" if ev_avg is not None else ""
+        avg_s: str = f"  [dim]avg score:[/][white]{ev_avg:.0f}[/]" if ev_avg is not None else ""
         rows.append(Text.from_markup(funnel_s + avg_s + blocks_s))
 
     return rows
@@ -261,7 +263,7 @@ def _build_buy_signals_table(scored_with_signals: list, buy_sig_details: dict) -
             f"[{G}][bold]ACTIVE BUY SIGNALS ★[/][/] [dim]({len(scored_with_signals)} trades with price targets)[/]"
         )
     )
-    sig_table = Table(
+    sig_table: Table = Table(
         box=box.SIMPLE_HEAD,
         show_header=True,
         header_style="dim",
@@ -297,8 +299,8 @@ def _build_buy_signals_table(scored_with_signals: list, buy_sig_details: dict) -
             stop_lvl = None
             price = safe_get_field(score_item, "current_price")
 
-        rr_ratio = None
-        stop_lvl_guard = safe_float(stop_lvl, default=0.0) or 0.0
+        rr_ratio: float | None = None
+        stop_lvl_guard: float = safe_float(stop_lvl, default=0.0) or 0.0
         if buy_lvl is not None and stop_lvl is not None and stop_lvl_guard > 0:
             try:
                 buy_lvl_ratio = safe_float(buy_lvl, default=0.0) or 0.0
@@ -307,14 +309,14 @@ def _build_buy_signals_table(scored_with_signals: list, buy_sig_details: dict) -
             except (ValueError, TypeError, ZeroDivisionError):
                 pass
 
-        comp_v = safe_float(comp_score, default=0.0)
-        comp_c = _composite_score_color(comp_v)
-        swing_c = G if swing_score >= 80 else (CY if swing_score >= 70 else Y)
-        rr_c = G if rr_ratio and rr_ratio > 1.5 else (Y if rr_ratio and rr_ratio > 1 else (CY if rr_ratio else DIM))
+        comp_v: float = safe_float(comp_score, default=0.0)
+        comp_c: str = _composite_score_color(comp_v)
+        swing_c: str = G if swing_score >= 80 else (CY if swing_score >= 70 else Y)
+        rr_c: str = G if rr_ratio and rr_ratio > 1.5 else (Y if rr_ratio and rr_ratio > 1 else (CY if rr_ratio else DIM))
 
-        price_f = safe_float(price, default=None)
-        buy_lvl_f = safe_float(buy_lvl, default=None)
-        stop_lvl_f = safe_float(stop_lvl, default=None)
+        price_f: float | None = safe_float(price, default=None)
+        buy_lvl_f: float | None = safe_float(buy_lvl, default=None)
+        stop_lvl_f: float | None = safe_float(stop_lvl, default=None)
         sig_table.add_row(
             Text(sym, style=f"bold {G}"),
             Text(f"{comp_v:.0f}", style=comp_c),
@@ -330,7 +332,7 @@ def _build_buy_signals_table(scored_with_signals: list, buy_sig_details: dict) -
     return rows
 
 
-def _build_scores_table(top_scores: list) -> list[Text | Table | Rule]:
+def _build_scores_table(top_scores: list[Any]) -> list[Text | Table]:
     """Build stock quality scores table.
 
     Validates input is list before accessing items.
@@ -346,7 +348,7 @@ def _build_scores_table(top_scores: list) -> list[Text | Table | Rule]:
     rows.append(
         Text.from_markup(f"[{Y}][bold]TOP STOCK SCORES[/][/] [dim](additional candidates without active signals)[/]")
     )
-    t = Table(
+    t: Table = Table(
         box=box.SIMPLE_HEAD,
         show_header=True,
         header_style="dim",
@@ -374,17 +376,17 @@ def _build_scores_table(top_scores: list) -> list[Text | Table | Rule]:
         rs_pct = safe_get_field(sc, "rs_percentile")
         chg = safe_get_field(sc, "change_percent")
         sector = (safe_get_field(sc, "sector", ""))[:12]
-        comp_v = float(comp) if comp is not None else 0
-        sc_c = _composite_score_color(comp_v)
+        comp_v: float = float(comp) if comp is not None else 0
+        sc_c: str = _composite_score_color(comp_v)
 
         try:
-            chg_v = float(chg) if chg is not None and chg != "" else None
+            chg_v: float | None = float(chg) if chg is not None and chg != "" else None
         except (ValueError, TypeError):
             chg_v = None
-        chg_c = G if (chg_v or 0) > 0 else (R if (chg_v or 0) < 0 else DIM)
+        chg_c: str = G if (chg_v or 0) > 0 else (R if (chg_v or 0) < 0 else DIM)
 
         try:
-            rs_v = float(rs_pct) if rs_pct is not None and rs_pct != "" else None
+            rs_v: float | None = float(rs_pct) if rs_pct is not None and rs_pct != "" else None
         except (ValueError, TypeError):
             rs_v = None
 

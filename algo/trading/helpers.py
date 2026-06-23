@@ -10,7 +10,7 @@ This module consolidates repeated patterns across the trading system:
 
 import logging
 from decimal import Decimal, InvalidOperation
-from typing import Any, overload
+from typing import Any, cast, overload
 
 logger = logging.getLogger(__name__)
 
@@ -35,10 +35,11 @@ def safe_decimal(value: Any, default: Any = None) -> Decimal | float | None:
         return value
 
     try:
-        return Decimal(str(value))
+        return cast(Decimal, Decimal(str(value)))
     except (InvalidOperation, ValueError, TypeError) as e:
         logger.warning(f"safe_decimal conversion failed for {value!r}: {type(e).__name__}, using default {default!r}")
         return default
+
 def safe_float(value: Any, default: float | None = None) -> float | None:
     """Convert value to float safely, returning default on failure."""
     if value is None:
@@ -69,7 +70,7 @@ def safe_int(value: Any, default: int | None = None) -> int | None:
         return default
 
 
-def error_response(message: str, **extra_fields) -> dict[str, Any]:
+def error_response(message: str, **extra_fields: Any) -> dict[str, Any]:
     """Create a standardized error response dict.
 
     Args:
@@ -85,7 +86,7 @@ def error_response(message: str, **extra_fields) -> dict[str, Any]:
     }
 
 
-def success_response(data: Any = None, **extra_fields) -> dict[str, Any]:
+def success_response(data: Any = None, **extra_fields: Any) -> dict[str, Any]:
     """Create a standardized success response dict."""
     if data is None:
         data = {}
@@ -99,13 +100,18 @@ def success_response(data: Any = None, **extra_fields) -> dict[str, Any]:
     }
 
 
-def is_error_response(response: dict) -> bool:
+def is_error_response(response: dict[str, Any]) -> bool:
     """Check if a response dict is an error response."""
     return "_error" in response or "error" in response
 
 
-def extract_error(response: dict) -> str | None:
-    """Extract error message from response dict."""
-    if isinstance(response, dict):
-        return response.get("_error") or response.get("error")
-    return None
+def extract_error(response: dict[str, Any]) -> str | None:
+    """Extract error message from response dict.
+
+    Returns error message if present in _error or error field, None otherwise.
+    Raises ValueError if response is not a dict (malformed response).
+    """
+    if not isinstance(response, dict):
+        raise ValueError(f"Expected dict response, got {type(response).__name__}: {response!r}")
+    error_msg = response.get("_error") or response.get("error")
+    return error_msg

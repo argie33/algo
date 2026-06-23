@@ -15,11 +15,37 @@ import json
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from dashboard.api_data_layer import set_api_url
+from dashboard.api_data_layer import set_api_url, set_cognito_auth
 from dashboard.error_boundary import get_error_message, has_error
 from dashboard.fetchers import FETCHER_METADATA, load_all
 
 ET = ZoneInfo("America/New_York")
+
+
+def _setup_aws_auth() -> None:
+    """Set up Cognito auth and API URL for AWS mode."""
+    from dashboard.cognito_auth import get_cognito_auth as get_cognito_auth_instance
+    from dashboard.cognito_auth import save_tokens
+    from dashboard.credentials_provider import CredentialsProvider
+
+    try:
+        aws_url, _pool_id, _client_id = CredentialsProvider.fetch_secrets_manager_credentials()
+        set_api_url(aws_url)
+    except RuntimeError as e:
+        print(f"WARNING: Could not fetch credentials from Secrets Manager: {e}")
+        return
+
+    try:
+        auth = get_cognito_auth_instance(require_auth=True)
+        if auth.is_authenticated():
+            set_cognito_auth(auth)
+            save_tokens(auth)
+            print("Authenticated with Cognito")
+        else:
+            print("WARNING: Cognito auth partial - some endpoints may return 401")
+            set_cognito_auth(auth)
+    except RuntimeError as e:
+        print(f"WARNING: Cognito auth failed: {e}")
 
 
 def diagnose_fetchers():
@@ -46,6 +72,11 @@ def diagnose_fetchers():
     missing_fields = {}
 
     for key, result in data.items():
+        if isinstance(result, list):
+            # Some fetchers (algo_metrics, audit, exec_hist) intentionally return lists
+            success[key] = {"_list_response": True, "_items": result}
+            continue
+
         if not isinstance(result, dict):
             errors[key] = f"Non-dict response: {type(result)}"
             continue
@@ -82,8 +113,12 @@ def diagnose_fetchers():
             endpoint = meta.get("endpoint", "?") if meta else "?"
             desc = meta.get("desc", "") if meta else ""
             result = success[key]
-            field_count = len([k for k in result.keys() if not k.startswith("_")])
-            print(f"\n  {key:12} {endpoint:40} ({field_count} fields)")
+            if result.get("_list_response"):
+                field_count = len(result.get("_items", []))
+                print(f"\n  {key:12} {endpoint:40} ({field_count} items, list)")
+            else:
+                field_count = len([k for k in result.keys() if not k.startswith("_")])
+                print(f"\n  {key:12} {endpoint:40} ({field_count} fields)")
             if desc:
                 print(f"  {' ' * 12} {desc}")
         print()
@@ -233,6 +268,7 @@ def main():
         set_api_url("http://localhost:3001")
     else:
         print("Using AWS API")
+        _setup_aws_auth()
 
     if args.verbose:
         diagnose_fetchers_verbose()

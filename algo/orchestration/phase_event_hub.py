@@ -196,7 +196,9 @@ class PhaseEventHub:
             phase_num: Phase number
 
         Returns:
-            Current PhaseStatus or None if phase not found
+            Current PhaseStatus or None if phase has not completed yet
+
+        Raises ValueError if phase exists with invalid status string.
         """
         # Look backwards through history for most recent completion event
         for event in reversed(self.event_history):
@@ -205,8 +207,11 @@ class PhaseEventHub:
                 if status_str:
                     try:
                         return PhaseStatus(status_str)
-                    except ValueError:
-                        pass
+                    except ValueError as e:
+                        raise ValueError(
+                            f"Phase {phase_num} has invalid status '{status_str}' in event history. "
+                            f"Valid statuses: {', '.join(s.value for s in PhaseStatus)}"
+                        ) from e
         return None
 
     def clear_history(self) -> None:

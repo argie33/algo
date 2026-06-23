@@ -121,7 +121,7 @@ class SourceHealth:
                     self.name,
                     self.success_rate * 100,
                     error,
-                )  # noqa: E501
+                )
 
 
 class DataSourceRouter:

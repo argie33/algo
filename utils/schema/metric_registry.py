@@ -82,7 +82,7 @@ class MetricDefinition:
     critical_threshold: float | None = None
     trend_direction: str | None = None  # "higher_is_better" or "lower_is_better"
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if not self.display_name:
             self.display_name = self.name.replace("_", " ").title()
 

@@ -19,6 +19,7 @@ from typing import Any, cast
 import requests
 
 from algo.infrastructure import get_api_timeout
+from algo.trading.exceptions import OrderExecutionError
 from utils.validation import AlpacaResponseValidator
 
 logger = logging.getLogger(__name__)
@@ -196,7 +197,8 @@ class OrderManager:
     def get_order_fill_price(self, alpaca_order_id: str) -> float | None:
         """Query Alpaca for actual fill price of an order.
 
-        Returns: float or None if not filled yet
+        Returns: float if order is filled, None if not yet filled or paper mode
+        Raises RuntimeError if unable to verify status (API unreachable, invalid response)
         """
         if not self.alpaca_key or not self.alpaca_secret:
             raise RuntimeError("Alpaca credentials not configured")
@@ -231,16 +233,20 @@ class OrderManager:
 
                 if validation["status"] == "filled":
                     return cast(float, validation["filled_avg_price"])
+                return None
+            else:
+                raise RuntimeError(f"Alpaca API returned {resp.status_code} for order {alpaca_order_id}")
         except (requests.RequestException, requests.Timeout) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
-        return None
 
     def get_order_filled_quantity(self, alpaca_order_id: str) -> float | None:
         """Query Alpaca for actual filled quantity of an order.
 
         Includes retry logic with exponential backoff for transient failures.
 
-        Returns: int (filled_qty) or None if not available after retries
+        Returns: int (filled_qty) or None for paper mode orders
+
+        Raises OrderExecutionError if Alpaca API unreachable after retries.
         """
         if not self.alpaca_key or not self.alpaca_secret:
             raise RuntimeError("Alpaca credentials not configured")
@@ -282,19 +288,24 @@ class OrderManager:
                     wait_time = 2**attempt
                     time.sleep(wait_time)
                 else:
-                    logger.warning(
+                    logger.error(
                         f"Failed to get filled quantity for {alpaca_order_id} after {max_retries} attempts: {e}"
                     )
-        return None
+        raise OrderExecutionError(
+            f"Unable to verify filled quantity for order {alpaca_order_id} after {max_retries} retries. "
+            "Alpaca API unreachable. Cannot proceed without order fill confirmation."
+        )
 
     def verify_order_status(self, alpaca_order_id: str) -> str | None:
         """Re-query order status from Alpaca with retry logic.
 
         Returns: order status string ('filled', 'partially_filled', 'pending', 'cancelled', etc.)
-                 or None if unable to verify after retries
+                 or None for paper mode orders
+
+        Raises OrderExecutionError if unable to verify status after retries (non-paper mode).
         """
         if not self.alpaca_key or not self.alpaca_secret or not alpaca_order_id:
-            return None
+            raise RuntimeError("Cannot verify order status without credentials and order_id")
 
         if alpaca_order_id.startswith(("LOCAL-", "PENDING-")):
             return None
@@ -336,7 +347,10 @@ class OrderManager:
                     logger.error(
                         f"Failed to verify order status for {alpaca_order_id} after {max_retries} attempts: {e}"
                     )
-        return None
+        raise OrderExecutionError(
+            f"Unable to verify order status for {alpaca_order_id} after {max_retries} retries. "
+            "Alpaca API unreachable. Cannot proceed without status confirmation."
+        )
 
     def send_market_exit(self, symbol: str, shares: float, execution_mode: str) -> dict[str, Any]:
         """Send a market sell order to Alpaca.

@@ -11,7 +11,8 @@ THE RIGHT WAY: All database access goes through this context manager.
 """
 
 import logging
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 import psycopg2
 from psycopg2.extras import DictCursor

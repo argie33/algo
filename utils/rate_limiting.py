@@ -46,8 +46,8 @@ TRIGGER_OPERATION_WINDOW = 300  # 5 minutes for patrol endpoint
 # For distributed rate limiting across Lambda fleet, set use_dynamodb=True
 # =====================================================================
 
-_admin_rate_limits: dict[str, list] = {}  # {user_endpoint: [timestamps, ...]}
-_public_rate_limits: dict[str, list] = {}  # {endpoint: [timestamps, ...]}
+_admin_rate_limits: dict[str, list[float]] = {}  # {user_endpoint: [timestamps, ...]}
+_public_rate_limits: dict[str, list[float]] = {}  # {endpoint: [timestamps, ...]}
 
 
 def _get_admin_rate_limit_key(user_id: str, endpoint: str) -> str:

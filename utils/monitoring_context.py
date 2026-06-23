@@ -14,6 +14,7 @@ The context manager tracks duration and logs to logger. Integration points:
 
 import logging
 import time
+from collections.abc import Generator
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Any
@@ -36,7 +37,7 @@ class TimeBlock:
         "default": 2.0,  # 2s generic threshold
     }
 
-    def __init__(self, operation_name: str, log_level: str = "info", raise_on_slow: bool = False):
+    def __init__(self, operation_name: str, log_level: str = "info", raise_on_slow: bool = False) -> None:
         """
         Initialize timing context.
 
@@ -52,12 +53,12 @@ class TimeBlock:
         self.end_time: float = 0.0
         self.duration_ms: float = 0.0
 
-    def __enter__(self):
+    def __enter__(self) -> "TimeBlock":
         self.start_time = time.time()
         logger.log(self.log_level, f"[START] {self.operation_name}")
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         self.end_time = time.time()
         self.duration_ms = (self.end_time - self.start_time) * 1000
 
@@ -94,7 +95,7 @@ class TimeBlock:
 
 
 @contextmanager
-def time_operation(operation_name: str, log_level: str = "info"):
+def time_operation(operation_name: str, log_level: str = "info") -> Generator[None, None, None]:
     """
     Shorthand for timing an operation block.
 
@@ -142,7 +143,7 @@ def get_metrics_summary() -> dict[str, dict[str, Any]]:
     return summary
 
 
-def log_metrics_summary():
+def log_metrics_summary() -> None:
     """Log a summary of all recorded metrics."""
     summary = get_metrics_summary()
     if not summary:
@@ -165,7 +166,7 @@ def log_metrics_summary():
     logger.info("=" * 80)
 
 
-def clear_metrics_buffer():
+def clear_metrics_buffer() -> None:
     """Clear all recorded metrics."""
     global _metrics_buffer
     _metrics_buffer = {}

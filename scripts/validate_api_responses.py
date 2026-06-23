@@ -102,7 +102,7 @@ def is_dashboard_endpoint(file_path: str) -> bool:
     return any(normalized_path.endswith(route) for route in dashboard_routes)
 
 
-def main():
+def main() -> int:
     """Audit API response validation."""
     print("\n" + "=" * 80)
     print("API RESPONSE VALIDATION AUDIT")

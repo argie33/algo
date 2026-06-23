@@ -60,12 +60,12 @@ class _MockContext:
     log_group_name = "/local/algo-api"
     log_stream_name = "local"
 
-    def get_remaining_time_in_millis(self):
+    def get_remaining_time_in_millis(self) -> int:
         return 28000
 
 
 class _APIHandler(BaseHTTPRequestHandler):
-    def _cors_headers(self):
+    def _cors_headers(self) -> dict[str, str]:
         origin = self.headers.get("Origin", "")
         if origin.startswith("http://localhost"):
             return {
@@ -81,11 +81,11 @@ class _APIHandler(BaseHTTPRequestHandler):
             "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
         }
 
-    def _read_body(self):
+    def _read_body(self) -> str | None:
         length = int(self.headers.get("Content-Length", 0))
         return self.rfile.read(length).decode("utf-8") if length else None
 
-    def _build_event(self, method, body=None):
+    def _build_event(self, method: str, body: str | None = None) -> dict[str, Any]:
         parsed = urlparse(self.path)
         qs = parsed.query
         params = {k: v[0] for k, v in parse_qs(qs, keep_blank_values=True).items()} if qs else None
@@ -112,7 +112,7 @@ class _APIHandler(BaseHTTPRequestHandler):
             event["body"] = body
         return event
 
-    def _invoke(self, method, body=None):
+    def _invoke(self, method: str, body: str | None = None) -> None:
         if not _handler:
             self._write(503, '{"error":"Lambda handler not loaded — check startup logs"}')
             return
@@ -132,7 +132,7 @@ class _APIHandler(BaseHTTPRequestHandler):
         }
         self._write(status, body_out, lambda_headers)
 
-    def _write(self, status, body_str, extra=None):
+    def _write(self, status: int, body_str: str, extra: dict[str, str] | None = None) -> None:
         self.send_response(status)
         for k, v in self._cors_headers().items():
             self.send_header(k, v)
@@ -143,29 +143,29 @@ class _APIHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body_str.encode("utf-8"))
 
-    def do_GET(self):
+    def do_GET(self) -> None:
         self._invoke("GET")
 
-    def do_DELETE(self):
+    def do_DELETE(self) -> None:
         self._invoke("DELETE")
 
-    def do_POST(self):
+    def do_POST(self) -> None:
         self._invoke("POST", self._read_body())
 
-    def do_PUT(self):
+    def do_PUT(self) -> None:
         self._invoke("PUT", self._read_body())
 
-    def do_PATCH(self):
+    def do_PATCH(self) -> None:
         self._invoke("PATCH", self._read_body())
 
-    def do_OPTIONS(self):
+    def do_OPTIONS(self) -> None:
         self.send_response(200)
         for k, v in self._cors_headers().items():
             self.send_header(k, v)
         self.send_header("Content-Length", "0")
         self.end_headers()
 
-    def log_message(self, fmt, *args):
+    def log_message(self, fmt: str, *args: Any) -> None:
         status = args[1] if len(args) >= 2 else "?"
         logger.info(f"{self.command} {self.path} -> {status}")
 

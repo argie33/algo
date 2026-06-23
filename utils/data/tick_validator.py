@@ -116,7 +116,7 @@ class TickValidator:
         low: float | None,
         close: float | None,
         volume: int | None,
-    ):
+    ) -> None:
         """Check for required fields."""
         if open_price is None:
             self.errors.append("open_price is NULL")
@@ -135,7 +135,7 @@ class TickValidator:
         high: float,
         low: float,
         close: float,
-    ):
+    ) -> None:
         """Validate OHLC relationship: High >= max(O,C), Low <= min(O,C), all >= 0."""
         if open_price < 0:
             self.errors.append(f"open_price is negative: {open_price}")
@@ -159,7 +159,7 @@ class TickValidator:
         high: float,
         low: float,
         close: float,
-    ):
+    ) -> None:
         """Check prices are in reasonable range for the symbol."""
 
         prices = [open_price, high, low, close]
@@ -175,7 +175,7 @@ class TickValidator:
             # More than 50% spread = likely bad data
             self.errors.append(f"spread > 50%: {spread_pct:.1f}%")
 
-    def _check_volume_sanity(self, volume: int):
+    def _check_volume_sanity(self, volume: int) -> None:
         """Check volume is reasonable for the security type."""
         if volume < 0:
             self.errors.append(f"volume is negative: {volume}")
@@ -192,7 +192,7 @@ class TickValidator:
         # low-liquidity securities, and market-close thinly traded data.
         # OHLC logic and price bounds checks catch the real issues.
 
-    def _check_sequence(self, open_price: float, close: float):
+    def _check_sequence(self, open_price: float, close: float) -> None:
         """Check price didn't gap >30% from prior close (delisting/split detection)."""
         if not self.prior_close or self.prior_close == 0:
             return

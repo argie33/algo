@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 
-def validate_imports():
+def validate_imports() -> tuple[list[str], list[str]]:
     """Check that all Python files can be imported."""
     failed = []
     successful = []
@@ -84,7 +84,7 @@ def validate_imports():
     return successful, failed
 
 
-def main():
+def main() -> int:
     """Run validation."""
     print("\n" + "=" * 70)
     print("COMPREHENSIVE CI VALIDATION - Module Import Check")

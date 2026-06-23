@@ -25,7 +25,7 @@ class FilterWeight:
     category: str
     description: str
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.value < 0:
             raise ValueError(f"Weight {self.name} cannot be negative: {self.value}")
 
@@ -39,7 +39,7 @@ class FilterThreshold:
     value_type: str  # 'int', 'float', 'bool', 'str'
     description: str
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         # Validate type
         type_map = {"int": int, "float": float, "bool": bool, "str": str}
         if self.value_type not in type_map:

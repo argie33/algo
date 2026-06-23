@@ -96,7 +96,7 @@ def mkt_hours_str() -> tuple[str, str]:
     wd = n.weekday()
     t = n.hour * 60 + n.minute
 
-    def _fmt_mins(m):
+    def _fmt_mins(m: int) -> str:
         h, mm = divmod(m, 60)
         return f"{h}h{mm:02d}m" if h > 0 else f"{mm}m"
 
@@ -182,7 +182,7 @@ def _next_run_from_schedule(schedule: list) -> str:
     wd = now.weekday()
     t = now.hour * 60 + now.minute
 
-    def fmt(dt):
+    def fmt(dt: datetime) -> str:
         diff = dt - now
         mins = int(diff.total_seconds() / 60)
         if mins < 60:
@@ -191,7 +191,7 @@ def _next_run_from_schedule(schedule: list) -> str:
             return f"in {mins // 60}h{mins % 60:02d}m"
         return f"{dt.strftime('%a %I:%M %p')}"
 
-    def next_wkd(dt, off=1):
+    def next_wkd(dt: datetime, off: int = 1) -> datetime:
         d = dt + timedelta(days=off)
         while d.weekday() >= 5:
             d += timedelta(days=1)
@@ -252,7 +252,7 @@ def _next_run_hardcoded() -> str:
     wd = now.weekday()
     t = now.hour * 60 + now.minute
 
-    def fmt(dt):
+    def fmt(dt: datetime) -> str:
         diff = dt - now
         mins = int(diff.total_seconds() / 60)
         if mins < 60:
@@ -261,7 +261,7 @@ def _next_run_hardcoded() -> str:
             return f"in {mins // 60}h{mins % 60:02d}m"
         return f"{dt.strftime('%a %I:%M %p')}"
 
-    def next_wkd(dt, off=1):
+    def next_wkd(dt: datetime, off: int = 1) -> datetime:
         d = dt + timedelta(days=off)
         while d.weekday() >= 5:
             d += timedelta(days=1)
@@ -278,7 +278,7 @@ def _next_run_hardcoded() -> str:
     return f"prep {fmt(tgt)}"
 
 
-def hbar(cur, thr, w=6):
+def hbar(cur: Any, thr: Any, w: int = 6) -> str:
     thr_f = float(thr) if thr else 0
     cur_f = float(cur) if cur is not None else 0
     if thr_f > 0:
@@ -292,20 +292,20 @@ def hbar(cur, thr, w=6):
     return f"[{c}]{'█' * f}[/][dim]{'░' * (w - f)}[/]"
 
 
-def exp_bar(pct, w=12):
+def exp_bar(pct: Any, w: int = 12) -> str:
     f = int(min(float(pct or 0), 100) / 100 * w)
     tc = TIER_COLOR.get(_tier_formatter.format(pct), "dim")
     return f"[{tc}]{'█' * f}[/][dim]{'░' * (w - f)}[/]"
 
 
-def mini_bar(pts, max_pts, w=5):
+def mini_bar(pts: Any, max_pts: Any, w: int = 5) -> str:
     r = min(float(pts or 0) / float(max_pts or 1), 1.0)
     f = int(r * w)
     c = G if r >= 0.75 else (Y if r >= 0.35 else R)
     return f"[{c}]{'█' * f}[/][dim]{'░' * (w - f)}[/]"
 
 
-def sign(v) -> str:
+def sign(v: Any) -> str:
     """Return '+' for non-negative values, empty string for negative."""
     return _sign_formatter.format(v)
 

@@ -112,7 +112,7 @@ def get_api_route_endpoints() -> set[str]:
     return endpoints
 
 
-def main():
+def main() -> int:
     """Validate endpoint contracts."""
     print("\n" + "=" * 80)
     print("ENDPOINT CONTRACT VALIDATION")

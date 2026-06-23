@@ -21,13 +21,13 @@ class AdvancedFilters:
     This class focuses on the evaluation logic, not parameter definitions.
     """
 
-    def __init__(self, config):
+    def __init__(self, config: dict[str, Any]) -> None:
         self.config = config
-        self._strong_sectors = None
-        self._strong_industries = None
-        self._market_breadth = None
-        self._sector_full_ranking = None
-        self._signal_api = None  # SignalAPI, lazy-init
+        self._strong_sectors: dict[str, float] | None = None
+        self._strong_industries: dict[str, float] | None = None
+        self._market_breadth: dict[str, float] | None = None
+        self._sector_full_ranking: dict[str, int] | None = None
+        self._signal_api: SignalAPI | None = None  # SignalAPI, lazy-init
 
         # Validate critical signal filter config at init time (fail-fast)
         critical_config_keys = [
@@ -335,7 +335,7 @@ class AdvancedFilters:
 
     # ============= MOMENTUM =============
 
-    def _mansfield_rs_score(self, symbol, signal_date, cur):
+    def _mansfield_rs_score(self, symbol: str, signal_date: Any, cur: Any) -> tuple[float, float]:
         """Compute Mansfield-style RS percentile vs SPY.
 
         Raises:
@@ -350,7 +350,7 @@ class AdvancedFilters:
         pts = (rs_percentile / 100.0) * FilterRegistry.get_weight("momentum_rs")
         return pts, round(rs_percentile, 1)
 
-    def _sector_momentum_score(self, sector):
+    def _sector_momentum_score(self, sector: str | None) -> float:
         if not self._strong_sectors:
             raise ValueError("Sector ranking data not loaded — call load_market_context() first")
         if not sector:
@@ -369,7 +369,7 @@ class AdvancedFilters:
             FilterRegistry.get_weight("momentum_sector") * (1.0 - (rank - 1) / 10.0),
         )
 
-    def _industry_momentum_score(self, industry):
+    def _industry_momentum_score(self, industry: str | None) -> float:
         if self._strong_industries is None:
             raise ValueError("Industry ranking data not loaded — call load_market_context() first")
         if not industry:
@@ -381,7 +381,7 @@ class AdvancedFilters:
             )
         return FilterRegistry.get_weight("momentum_industry")
 
-    def _volume_confirmation_score(self, symbol, signal_date, cur):
+    def _volume_confirmation_score(self, symbol: str, signal_date: Any, cur: Any) -> tuple[float, float]:
         cur.execute(
             """
             WITH d AS (
@@ -416,7 +416,7 @@ class AdvancedFilters:
         )
         return pts, round(ratio, 2)
 
-    def _price_trend_score(self, symbol, signal_date, cur):
+    def _price_trend_score(self, symbol: str, signal_date: Any, cur: Any) -> float:
         """Multi-timeframe alignment (Elder Triple Screen):
         +2 pts each if 5d return positive, 20d return positive,
         +1 pt if also a BUY signal on weekly timeframe (very strong combo).
@@ -448,9 +448,9 @@ class AdvancedFilters:
             # Weekly data missing or unavailable — continue without bonus
             logger.debug(f"Weekly alignment data unavailable for {symbol}: {e} (continuing without bonus)")
 
-        return min(score, FilterRegistry.get_weight("momentum_price_trend"))
+        return min(score, FilterRegistry.get_weight("momentum_price_trend")) if isinstance(score, float) else float(score)
 
-    def _setup_quality_score(self, symbol, signal_date):
+    def _setup_quality_score(self, symbol: str, signal_date: Any) -> tuple[float, dict[str, Any]]:
         """Bonus pts for entering on a real base breakout / VCP (canonical swing setup).
 
         +3 pts: in identified base AND breakout imminent (within 2% of pivot)
@@ -499,7 +499,7 @@ class AdvancedFilters:
             "return_21d": power.get("return_21d"),
         }
 
-    def _period_return(self, symbol, end_date, lookback_days, cur):
+    def _period_return(self, symbol: str, end_date: Any, lookback_days: int, cur: Any) -> float:
         """Compute simple return over a lookback period.
 
         Raises:
@@ -532,7 +532,7 @@ class AdvancedFilters:
 
     # ============= QUALITY =============
 
-    def _ibd_composite_score(self, symbol, cur):
+    def _ibd_composite_score(self, symbol: str, cur: Any) -> tuple[float, dict[str, Any]]:
         cur.execute(
             """
             SELECT composite_score, quality_score, growth_score, momentum_score
@@ -569,7 +569,7 @@ class AdvancedFilters:
             "momentum": round(float(row[3]), 1) if row[3] is not None else None,
         }
 
-    def _financial_quality_score(self, symbol, cur):
+    def _financial_quality_score(self, symbol: str, cur: Any) -> tuple[float, float]:
         """Use stock_scores.quality_score as the financial quality signal."""
         cur.execute(
             """
@@ -598,7 +598,7 @@ class AdvancedFilters:
         )
         return pts, round(q, 1)
 
-    def _earnings_quality_score(self, symbol, cur):
+    def _earnings_quality_score(self, symbol: str, cur: Any) -> tuple[float, float]:
         """Compute earnings quality score from earnings_metrics.
 
         Returns 0 score if data unavailable (graceful degradation).
@@ -623,7 +623,7 @@ class AdvancedFilters:
 
     # ============= CATALYST =============
 
-    def _growth_score(self, symbol, cur):
+    def _growth_score(self, symbol: str, cur: Any) -> tuple[float, dict[str, Any]]:
         cur.execute(
             """
             SELECT revenue_growth_3y_cagr, eps_growth_3y_cagr,
@@ -660,7 +660,7 @@ class AdvancedFilters:
             "momentum": round(mom, 1),
         }
 
-    def _analyst_score(self, symbol, signal_date, cur):
+    def _analyst_score(self, symbol: str, signal_date: Any, cur: Any) -> tuple[float, dict[str, Any]]:
         cur.execute(
             """
             SELECT
@@ -696,7 +696,7 @@ class AdvancedFilters:
         )
         return pts, net
 
-    def _insider_score(self, symbol, signal_date, cur):
+    def _insider_score(self, symbol: str, signal_date: Any, cur: Any) -> tuple[float, float]:
         cur.execute(
             """
             SELECT
@@ -729,7 +729,7 @@ class AdvancedFilters:
 
     # ============= RISK =============
 
-    def _extension_pct(self, symbol, signal_date, entry_price, cur):
+    def _extension_pct(self, symbol: str, signal_date: Any, entry_price: float, cur: Any) -> float:
         """Calculate entry price extension above 50-day SMA.
 
         Raises:
@@ -745,7 +745,7 @@ class AdvancedFilters:
         sma_50 = float(row[0])
         return ((entry_price - sma_50) / sma_50) * 100.0
 
-    def _extension_risk_score(self, ext_pct):
+    def _extension_risk_score(self, ext_pct: float) -> float:
         if ext_pct is None:
             raise ValueError(
                 "Extension percentage required for risk scoring. "
@@ -766,7 +766,7 @@ class AdvancedFilters:
             return risk_ext_weight * 0.25
         return 0.0
 
-    def _earnings_proximity_score(self, days_to_earnings, block_window):
+    def _earnings_proximity_score(self, days_to_earnings: int | None, block_window: int) -> float:
         if days_to_earnings is None:
             raise ValueError(
                 "Days to earnings required for risk scoring. "
@@ -780,7 +780,7 @@ class AdvancedFilters:
             return risk_earnings_prox_weight
         return risk_earnings_prox_weight * (days_to_earnings - block_window) / (safe_days - block_window)
 
-    def _avg_dollar_volume(self, symbol, signal_date, cur):
+    def _avg_dollar_volume(self, symbol: str, signal_date: Any, cur: Any) -> float:
         """Calculate average daily dollar volume (close * volume) over 50 days.
 
         Raises:
@@ -802,7 +802,7 @@ class AdvancedFilters:
             )
         return float(row[0])
 
-    def _estimate_days_to_earnings(self, symbol, signal_date, cur):
+    def _estimate_days_to_earnings(self, symbol: str, signal_date: Any, cur: Any) -> int:
         """Estimate days until next earnings. Tries calendar → estimates → quarterly estimate.
 
         Raises:

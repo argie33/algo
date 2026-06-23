@@ -665,14 +665,17 @@ class EntryHandler:
         if order_status in ("filled", "partially_filled"):
             if self.context.execution_mode == "auto" and alpaca_order_id:
                 verified_status = self.context._verify_order_status(alpaca_order_id)
-                if verified_status not in ("filled", "partially_filled"):
-                    return verified_status or "unknown"
-                order_status = verified_status
+                if verified_status is None:
+                    pass
+                elif verified_status not in ("filled", "partially_filled"):
+                    return verified_status
+                else:
+                    order_status = verified_status
 
             actual_shares = shares
             if order_status == "partially_filled" and alpaca_order_id:
                 filled_qty = self.context._get_order_filled_quantity(alpaca_order_id)
-                if filled_qty and filled_qty > 0:
+                if filled_qty is not None and filled_qty > 0:
                     actual_shares = filled_qty
                     logger.info(_redact_for_logs(f"Partial fill: {actual_shares} of {shares} shares"))
 

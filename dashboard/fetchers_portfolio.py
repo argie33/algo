@@ -84,7 +84,7 @@ def fetch_portfolio(c: None) -> dict[str, Any]:
             response=port,
             required_fields=required_fields,
             source_name="fetch_portfolio",
-            max_age_seconds=432000,
+            max_age_seconds=604800,
             timestamp_field="last_run",
         )
         if not valid:
