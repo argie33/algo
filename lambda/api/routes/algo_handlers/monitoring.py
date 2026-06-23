@@ -112,11 +112,26 @@ def _get_last_run(cur: cursor) -> Any:
     errored = any(p.get("status") == "error" for p in phases)
     success = len(phases) > 0 and not errored and not halted
 
+    halted_phases = [p for p in phases if p.get("status") in ("halt", "halted")]
+    errored_phases = [p for p in phases if p.get("status") == "error"]
+    completed_phases = [p for p in phases if p.get("status") == "success"]
+
+    if halted and halted_phases:
+        run_summary = halted_phases[0].get("summary") or f"Halted in {halted_phases[0].get('action_type', 'unknown phase')}"
+    elif errored and errored_phases:
+        run_summary = errored_phases[0].get("error") or f"Error in {errored_phases[0].get('action_type', 'unknown phase')}"
+    elif success:
+        run_summary = f"Completed successfully ({len(completed_phases)} phases)"
+    else:
+        run_summary = None
+
     response_data = {
         "run_id": run_id,
         "run_at": run_at.isoformat() if run_at else None,
         "success": success,
         "halted": halted,
+        "errored": errored,
+        "summary": run_summary,
         "phases": phases,
     }
 

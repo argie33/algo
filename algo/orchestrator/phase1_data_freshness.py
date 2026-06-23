@@ -285,11 +285,16 @@ def run(
 
             from algo.infrastructure import MarketCalendar
 
-            last_trading_day = run_date - td(days=1)
-            while last_trading_day > run_date - td(days=10):
-                if MarketCalendar.is_trading_day(last_trading_day):
-                    break
-                last_trading_day -= td(days=1)
+            # If run_date itself is a trading day, require same-day prices (algo runs post-close).
+            # If run_date is a weekend/holiday, require prices from the most recent trading day.
+            if MarketCalendar.is_trading_day(run_date):
+                last_trading_day = run_date
+            else:
+                last_trading_day = run_date - td(days=1)
+                while last_trading_day > run_date - td(days=10):
+                    if MarketCalendar.is_trading_day(last_trading_day):
+                        break
+                    last_trading_day -= td(days=1)
 
             if max_date < last_trading_day:
                 from algo.orchestrator.phase_error_handling import (

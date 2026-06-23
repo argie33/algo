@@ -323,9 +323,9 @@ def run(
 
             if latest_price_date is None or latest_price_date != run_date:
                 msg = (
-                    f"[PHASE 6 CRITICAL] Price data is stale (latest: {latest_price_date}, run_date: {run_date}). "
-                    f"Cannot execute trades without current price data. "
-                    f"Phase 1 (Data Freshness) should have caught this. Verify loader pipeline."
+                    f"[PHASE 8 CRITICAL] Price data is not current (latest: {latest_price_date}, expected: {run_date}). "
+                    f"Cannot execute trades without today's price data. "
+                    f"EOD price loader may not have completed — check data_loader_status and CloudWatch logs."
                 )
 
                 logger.critical(msg)

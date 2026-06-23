@@ -251,12 +251,17 @@ def _get_rejection_funnel(cur: cursor) -> Any:
     try:
         today = date.today()
 
-        # Get all candidate counts in single query
+        # Get all candidate counts in single query using score thresholds for funnel tiers
         cur.execute("""
                 SELECT
                     COUNT(DISTINCT symbol) as total_signals,
-                    COUNT(DISTINCT symbol) as scored,
-                    COUNT(DISTINCT symbol) FILTER (WHERE score >= 60) as high_quality
+                    COUNT(DISTINCT symbol) FILTER (WHERE score > 0) as t1_count,
+                    COUNT(DISTINCT symbol) FILTER (WHERE score >= 40) as t2_count,
+                    COUNT(DISTINCT symbol) FILTER (WHERE score >= 50) as t3_count,
+                    COUNT(DISTINCT symbol) FILTER (WHERE score >= 55) as t4_count,
+                    COUNT(DISTINCT symbol) FILTER (WHERE score >= 60) as t5_count,
+                    ROUND(AVG(score)::numeric, 1) as avg_score,
+                    MAX(date) as signal_date
                 FROM swing_trader_scores
                 WHERE date >= CURRENT_DATE - INTERVAL '14 days'
             """)
@@ -268,7 +273,7 @@ def _get_rejection_funnel(cur: cursor) -> Any:
 
         row_data = safe_json_serialize(safe_dict_convert(row))
         # Fail-fast: required fields must be present
-        required_fields = ["total_signals", "scored", "high_quality"]
+        required_fields = ["total_signals", "t1_count", "t5_count"]
         missing = [f for f in required_fields if row_data.get(f) is None]
         if missing:
             error_msg = f"Signal data incomplete: missing {missing}"
@@ -276,50 +281,31 @@ def _get_rejection_funnel(cur: cursor) -> Any:
             return error_response(503, "incomplete_data", error_msg)
 
         initial_count = int(row_data["total_signals"])
-        scored_count = int(row_data["scored"])
-        high_quality_count = int(row_data["high_quality"])
+        t1_count = int(row_data["t1_count"])
+        t2_count = int(row_data["t2_count"] or 0)
+        t3_count = int(row_data["t3_count"] or 0)
+        t4_count = int(row_data["t4_count"] or 0)
+        high_quality_count = int(row_data["t5_count"])
+        computed_avg_score = float(row_data["avg_score"]) if row_data.get("avg_score") is not None else 0.0
+        signal_date = row_data.get("signal_date")
 
-        # Build funnel stages with rejection reasons
-        funnel = [
-            {
-                "stage": "All Signals Generated",
-                "count": initial_count,
-                "pct": 100,
-                "rejection_reason": None,
-                "rejection_count": 0,
-                "rejection_pct": 0,
-            }
-        ]
+        def _funnel_stage(stage: str, count: int, prior: int, reason: str | None) -> dict[str, Any]:
+            pct = round((count / initial_count * 100), 2) if initial_count else 0
+            rejected = prior - count
+            rej_pct = round((rejected / prior * 100), 2) if prior else 0
+            return {"stage": stage, "count": count, "pct": pct, "rejection_reason": reason, "rejection_count": rejected, "rejection_pct": rej_pct}
 
+        funnel = [{"stage": "All Evaluated", "count": initial_count, "pct": 100, "rejection_reason": None, "rejection_count": 0, "rejection_pct": 0}]
         if initial_count > 0:
-            scored_rejection = initial_count - scored_count
-            scored_pct = round((scored_count / initial_count * 100), 2) if initial_count else 0
-
-            funnel.append(
-                {
-                    "stage": "Passed Quality Filters",
-                    "count": scored_count,
-                    "pct": scored_pct,
-                    "rejection_reason": "Failed SQS calculation or data validation",
-                    "rejection_count": scored_rejection,
-                    "rejection_pct": (round((scored_rejection / initial_count * 100), 2) if initial_count else 0),
-                }
-            )
-
-            if scored_count > 0:
-                hq_rejection = scored_count - high_quality_count
-                hq_pct = round((high_quality_count / scored_count * 100), 2) if scored_count else 0
-
-                funnel.append(
-                    {
-                        "stage": "High-Quality Candidates (SQS ≥ 60)",
-                        "count": high_quality_count,
-                        "pct": hq_pct,
-                        "rejection_reason": "Low signal quality score (SQS < 60)",
-                        "rejection_count": hq_rejection,
-                        "rejection_pct": (round((hq_rejection / scored_count * 100), 2) if scored_count else 0),
-                    }
-                )
+            funnel.append(_funnel_stage("Scored (SQS > 0)", t1_count, initial_count, "Failed SQS calculation or data validation"))
+        if t1_count > 0:
+            funnel.append(_funnel_stage("Emerging (SQS ≥ 40)", t2_count, t1_count, "Insufficient momentum or trend"))
+        if t2_count > 0:
+            funnel.append(_funnel_stage("Developing (SQS ≥ 50)", t3_count, t2_count, "Below trend quality threshold"))
+        if t3_count > 0:
+            funnel.append(_funnel_stage("Quality (SQS ≥ 55)", t4_count, t3_count, "Near-threshold, below quality floor"))
+        if t4_count > 0:
+            funnel.append(_funnel_stage("High-Quality (SQS ≥ 60)", high_quality_count, t4_count, "Low signal quality score (SQS < 60)"))
 
         # Get detailed rejection reasons grouped by reason type (top reasons across all tiers)
         rejected_list = []
@@ -361,9 +347,13 @@ def _get_rejection_funnel(cur: cursor) -> Any:
             },
             "rejected": rejected_list,
             "total": initial_count,
-            "t1": initial_count - scored_count if initial_count > 0 else 0,
+            "t1": t1_count,
+            "t2": t2_count,
+            "t3": t3_count,
+            "t4": t4_count,
             "t5": high_quality_count,
-            "avg_score": 0,
+            "avg_score": computed_avg_score,
+            "signal_date": signal_date.isoformat() if hasattr(signal_date, "isoformat") else signal_date,
         }
         is_valid, validation_error = ResponseValidator.validate_endpoint_response("sig_eval", result)
         if not is_valid:
