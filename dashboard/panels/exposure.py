@@ -1,6 +1,9 @@
 """Portfolio exposure and risk factor panel functions."""
 
 import logging
+from typing import cast
+
+from rich.console import ConsoleRenderable, RichCast
 
 logger = logging.getLogger(__name__)
 
@@ -187,7 +190,7 @@ def panel_exposure_compact(exp_f):
 
 def panel_exposure_expanded(exp_f):
     """Full-screen exposure score detail — all 12 factors with values, thresholds, and signal context."""
-    rows = [
+    rows: list[Text | Rule | Table] = [
         Text.from_markup("[dim]press [/][bold blue]x[/][dim] to return to dashboard[/]"),
         Rule(style="dim"),
     ]
@@ -365,7 +368,7 @@ def panel_exposure_expanded(exp_f):
             )
 
     return Panel(
-        Group(*rows),
+        Group(*cast(list[ConsoleRenderable | RichCast | str], rows)),
         title="[bold blue]EXPOSURE SCORE - EXPANDED[/]  [dim][x] return[/]",
         border_style="blue",
         padding=(0, 1),

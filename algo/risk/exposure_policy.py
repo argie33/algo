@@ -336,9 +336,10 @@ if __name__ == "__main__":
         logger.info(f"  {active['tier']['description']}")
         logger.info("\nEntry Constraints:")
         constraints = p.get_entry_constraints()
-        for k, v in constraints.items():
-            if k not in ("as_of_date", "tier_name", "description"):
-                logger.info(f"  {k:30s} = {v}")
+        if constraints:
+            for k, v in constraints.items():
+                if k not in ("as_of_date", "tier_name", "description"):
+                    logger.info(f"  {k:30s} = {v}")
     else:
         logger.info("\nNo market exposure data — run algo_market_exposure.py first")
 

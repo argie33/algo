@@ -121,7 +121,7 @@ class CircuitBreaker:
         if not current_date:
             current_date = _date.today()
 
-        with DatabaseContext("write", cursor_factory=None) as cur:
+        with DatabaseContext("write") as cur:
             try:
                 results: dict[str, Any] = {
                     "halted": False,

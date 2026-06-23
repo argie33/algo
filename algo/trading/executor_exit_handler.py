@@ -82,8 +82,7 @@ class ExitHandler:
             return validation_error
 
         # After validation, we know exit_price is a valid float > 0
-        if exit_price is None or exit_price <= 0:
-            return {"success": False, "message": "Invalid exit price"}
+        assert exit_price is not None and exit_price > 0
         validated_exit_price = float(exit_price)
         # Main exit execution with transaction safety
         try:

@@ -104,9 +104,9 @@ class BalanceSheetLoader(OptimalLoader):
         assert period in ("annual", "quarterly")
         cfg = _PERIOD_CONFIG[period]
         self.period = period
-        self.table_name: str = cfg["table_name"]
-        self.primary_key: tuple[str, ...] = cfg["primary_key"]
-        self._schema_cols: frozenset[str] = cfg["schema_cols"]
+        self.table_name: str = cast(str, cfg["table_name"])
+        self.primary_key: tuple[str, ...] = cast(tuple[str, ...], cfg["primary_key"])
+        self._schema_cols: frozenset[str] = cast(frozenset[str], cfg["schema_cols"])
         self._field_mapping: dict[str, str] | None = cast(dict[str, str] | None, cfg.get("field_mapping"))
         super().__init__()
         self._sec_client = SecEdgarClient()

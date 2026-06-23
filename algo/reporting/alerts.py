@@ -18,6 +18,7 @@ import smtplib
 from datetime import datetime, timezone
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from typing import Any
 from urllib.parse import urlparse
 
 import requests
@@ -110,7 +111,7 @@ def _validate_webhook_url(url: str) -> bool:
 class AlertManager:
     """Send alerts via email, SNS, and webhook. Fails hard if no channels configured."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.email_from = os.getenv("ALERT_SMTP_FROM") or os.getenv("ALERT_EMAIL_FROM", "noreply@algo.local")
         self.email_to = [e.strip() for e in os.getenv("ALERT_EMAIL_TO", "").split(",") if e.strip()]
         self.smtp_host = os.getenv("ALERT_SMTP_HOST")
@@ -171,7 +172,7 @@ class AlertManager:
                 "or TWILIO_* (SMS). Cannot proceed without alert capability."
             )
 
-    def _get_sns_client(self):
+    def _get_sns_client(self) -> Any:
         if self._sns_client is None:
             import boto3
 
@@ -190,7 +191,7 @@ class AlertManager:
             logger.error(f"SNS publish failed: {e}")
             raise
 
-    def send_patrol_alert(self, patrol_run_id, counts, flagged_findings):
+    def send_patrol_alert(self, patrol_run_id: str, counts: dict[str, int], flagged_findings: list[dict[str, str]]) -> None:
         """Send CRITICAL alert when patrol finds issues. Fails hard on send failure.
 
         Args:
@@ -273,7 +274,7 @@ class AlertManager:
                 "Ops team may not have received notification of critical data issues."
             )
 
-    def send_position_alert(self, symbol, alert_type, message, details=None):
+    def send_position_alert(self, symbol: str, alert_type: str, message: str, details: dict[str, object] | None = None) -> None:
         """Send alert for position-related issues. Non-blocking (logs errors only).
 
         Args:
@@ -315,7 +316,7 @@ class AlertManager:
             except (requests.RequestException, RuntimeError, ConnectionError) as e:
                 logger.error(f"Position alert webhook failed (non-blocking): {e}")
 
-    def send_loader_alert(self, findings):
+    def send_loader_alert(self, findings: list[tuple[str, str, str]]) -> None:
         """Send alert when loader fails or data is stale. Non-blocking.
 
         Args:
@@ -380,7 +381,7 @@ class AlertManager:
             except Exception as e:
                 logger.error(f"Loader alert webhook failed (non-blocking): {e}")
 
-    def critical(self, message: str):
+    def critical(self, message: str) -> None:
         """Send a generic critical alert. Non-blocking.
 
         Args:
@@ -413,7 +414,7 @@ class AlertManager:
             except (RuntimeError, ValueError, ConnectionError) as e:
                 logger.error(f"Critical alert SMS failed (non-blocking): {e}")
 
-    def _send_email(self, subject, body):
+    def _send_email(self, subject: str, body: str) -> None:
         """Send email via SMTP."""
         if (
             not self.email_to
@@ -441,7 +442,7 @@ class AlertManager:
             logger.error(f"Email failed: {e}")
             raise
 
-    def _send_webhook(self, subject, critical, error, warn, findings):
+    def _send_webhook(self, subject: str, critical: int, error: int, warn: int, findings: list[dict[str, str]]) -> None:
         """Send Slack-compatible webhook."""
         if not self.webhook_url or not _validate_webhook_url(self.webhook_url):
             logger.warning(
@@ -485,7 +486,7 @@ class AlertManager:
             logger.error(f"Webhook delivery failed: {e}")
             raise
 
-    def _send_webhook_simple(self, title, message, alert_type):
+    def _send_webhook_simple(self, title: str, message: str, alert_type: str) -> None:
         """Send simple Slack webhook for position alerts."""
         if not self.webhook_url or not _validate_webhook_url(self.webhook_url):
             logger.warning(
@@ -512,7 +513,7 @@ class AlertManager:
             logger.error(f"Webhook delivery failed: {e}")
             raise
 
-    def _send_sms(self, message):
+    def _send_sms(self, message: str) -> None:
         """Send SMS via Twilio to all configured numbers."""
         if not self.twilio_client or not self.twilio_from:
             return
@@ -533,13 +534,13 @@ class NullAlertManager:
     All public methods from AlertManager are implemented as log-only no-ops.
     """
 
-    def send_patrol_alert(self, patrol_run_id, counts, flagged_findings) -> None:
+    def send_patrol_alert(self, patrol_run_id: str, counts: dict[str, int], flagged_findings: list[dict[str, str]]) -> None:
         logger.warning(f"[NULL_ALERTS] Patrol alert suppressed (no channels): run_id={patrol_run_id}")
 
-    def send_position_alert(self, symbol, alert_type, message, details=None) -> None:
+    def send_position_alert(self, symbol: str, alert_type: str, message: str, details: dict[str, object] | None = None) -> None:
         logger.warning(f"[NULL_ALERTS] Position alert suppressed: {symbol} {alert_type} — {message}")
 
-    def send_loader_alert(self, findings) -> None:
+    def send_loader_alert(self, findings: list[tuple[str, str, str]]) -> None:
         logger.warning(f"[NULL_ALERTS] Loader alert suppressed: {len(findings)} findings")
 
     def critical(self, message: str) -> None:

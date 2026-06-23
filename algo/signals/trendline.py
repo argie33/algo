@@ -10,7 +10,7 @@ HIGH CONFIDENCE ENTRY: Stage 2 + RS > 70 + Volume + Entry near trendline support
 
 import logging
 from datetime import date, timedelta
-from typing import Any
+from typing import Any, cast
 
 import psycopg2
 
@@ -43,7 +43,8 @@ class TrendlineSupport:
                     """,
                     (symbol, end_date - timedelta(days=days), end_date),
                 )
-                return cur.fetchall()
+                result = cur.fetchall()
+                return cast(list[Any], result) if result is not None else []
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(
                 f"Failed to fetch price history for {symbol}: {e}. "

@@ -118,7 +118,7 @@ class PipelineHealth:
     # Thanksgiving break (Wednesday → Monday = 5 days) does not trigger a VERY_STALE
     # critical halt in Phase 1. Phase 1's explicit staleness check uses trading-day-
     # aware comparison; PipelineHealth is a secondary check and should not over-block.
-    CRITICAL_TABLES = {
+    CRITICAL_TABLES: dict[str, dict[str, str | int]] = {
         "stock_symbols": {"date_column": "created_at", "sla_days": 30},
         "price_daily": {"date_column": "date", "sla_days": 5},
         "buy_sell_daily": {"date_column": "date", "sla_days": 5},

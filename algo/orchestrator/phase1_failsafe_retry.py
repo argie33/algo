@@ -213,7 +213,7 @@ def retry_loader(loader_name: str, symbols_missing: int, is_critical: bool) -> d
             "status_reason": str,   # 'success', 'timeout' (still running), or 'failed'
         }
     """
-    result = {
+    result: dict[str, bool | float | str | None] = {
         "retried": False,
         "recovered": False,
         "final_completion_pct": None,

@@ -213,7 +213,7 @@ class MarketHealthDailyLoader(OptimalLoader):
 
         return health_metrics
 
-    def _fetch_price_daily(self, symbol: str, start: date, end: date) -> list[dict[str, float | int | None]]:
+    def _fetch_price_daily(self, symbol: str, start: date, end: date) -> list[dict[str, float | int | str | None]]:
         try:
             with DatabaseContext("read") as cur:
                 cur.execute(

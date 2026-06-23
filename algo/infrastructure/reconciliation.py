@@ -5,7 +5,7 @@ import logging
 from datetime import date as _date_type
 from datetime import datetime, timedelta, timezone
 from decimal import ROUND_HALF_UP, Decimal
-from typing import Any
+from typing import Any, cast
 
 import psycopg2
 import requests
@@ -1200,7 +1200,7 @@ if __name__ == "__main__":
     from algo.infrastructure import get_config
 
     config = get_config()
-    reconciliation = DailyReconciliation(config)
+    reconciliation = DailyReconciliation(cast(dict[str, Any], config))
 
     result = reconciliation.run_daily_reconciliation()
     logger.info(f"Result: {result}")

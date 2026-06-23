@@ -11,9 +11,9 @@ try:
 except ImportError as e:
     logger.warning(f"Panel registry not available: {e} - panels will not auto-register")
 
-    def register_panel(*args: Any, **kwargs: Any) -> Callable[[Any], Any]:
+    def register_panel(*args: Any, **kwargs: Any) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
         if args and callable(args[0]):
-            return cast(Callable[[Any], Any], args[0])
+            return cast(Callable[[Callable[..., Any]], Callable[..., Any]], args[0])
         return lambda fn: fn
 
 
@@ -192,7 +192,7 @@ def _build_grade_radar(sig_data: dict[str, Any]) -> list[Text]:
     return rows
 
 
-def _build_funnel_row(sig_eval_data: dict | None) -> list[Text]:
+def _build_funnel_row(sig_eval_data: dict[str, Any] | None) -> list[Text]:
     """Build funnel arrow chain row with avg score and top blockers.
 
     Returns empty list if input is missing or has errors.
@@ -248,7 +248,7 @@ def _build_funnel_row(sig_eval_data: dict | None) -> list[Text]:
     return rows
 
 
-def _build_buy_signals_table(scored_with_signals: list, buy_sig_details: dict) -> list[Text | Table | Rule]:
+def _build_buy_signals_table(scored_with_signals: list[Any], buy_sig_details: dict[str, Any]) -> list[Text | Table | Rule]:
     """Build active buy signals table section.
 
     Validates input is list and dict before accessing fields.
@@ -413,13 +413,13 @@ def _build_scores_table(top_scores: list[Any]) -> list[Text | Table]:
     return rows
 
 
-@register_panel(
+@register_panel(  # type: ignore[untyped-decorator]
     "signals",
     endpoint_deps=["sig", "sig_eval", "scores"],
     optional=True,
     description="Signals",
 )
-def panel_signals_compact(sig, sig_eval=None, scores=None):
+def panel_signals_compact(sig: Any, sig_eval: Any = None, scores: Any = None) -> Panel | None:
     """Signals & screening — composite score top candidates with pipeline funnel context."""
     err_panel = _error_panel("signals", sig, "SIGNALS", border="magenta")
     if err_panel:
@@ -497,7 +497,7 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
     )
 
 
-def panel_signals_expanded(sig, sig_eval=None, scores=None):
+def panel_signals_expanded(sig: Any, sig_eval: Any = None, scores: Any = None) -> Panel | None:
     """Full-screen signals & scores - pipeline funnel context, detailed score breakdowns, and all top candidates."""
     err_panel = _error_panel("signals", sig, "SIGNALS", border="magenta")
     if err_panel:

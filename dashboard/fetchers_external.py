@@ -147,7 +147,8 @@ def fetch_economic_pulse(c: None) -> dict[str, Any]:
                             strict=True,
                             field_name=f"indicator.{i.get('series_id')}.rawValue",
                         )
-                        by_series[i["series_id"]] = val
+                        if val is not None and isinstance(val, float):
+                            by_series[i["series_id"]] = val
                     except Exception as e:
                         raise ValueError(f"Invalid indicator value for {i.get('series_id')}: {e}") from e
 
@@ -296,7 +297,12 @@ def fetch_sentiment(c: None) -> dict[str, Any]:
             record_data_quality_issue("sentiment", "validation", "missing_fields")
             return FetcherValidator.build_error_response(error_msg)
 
-        fg = float(d.get("fear_greed_index"))
+        fg_raw = d.get("fear_greed_index")
+        if fg_raw is None:
+            raise ValueError("fear_greed_index cannot be None after validation")
+        if not isinstance(fg_raw, (int, float, str)):
+            raise ValueError(f"fear_greed_index must be numeric, got {type(fg_raw)}")
+        fg = float(fg_raw)
         label = d.get("label")
         c_fg = R if fg <= 25 else (Y if fg <= 45 else (G if fg >= 75 else CY))
         return {

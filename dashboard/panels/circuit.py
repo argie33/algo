@@ -1,6 +1,9 @@
 """Circuit breaker status panel functions."""
 
 import logging
+from typing import cast
+
+from rich.console import ConsoleRenderable, RichCast
 
 logger = logging.getLogger(__name__)
 
@@ -109,7 +112,7 @@ def panel_circuit(cb):
         tbl.add_row(Text.from_markup(fmt_b(a)), Text.from_markup(fmt_b(b)))
     parts = [Text.from_markup(f"[{hc}][bold]{hs}[/bold][/]"), tbl]
     return Panel(
-        Group(*parts),
+        Group(*cast(list[ConsoleRenderable | RichCast | str], parts)),
         title="[bold blue]CIRCUIT BREAKERS[/]  [dim][b] expand[/]",
         border_style="blue",
         padding=(0, 1),
@@ -124,7 +127,7 @@ def panel_circuit(cb):
 )
 def panel_circuit_expanded(cb):
     """Full-screen circuit breaker status — wide bars, % utilization, per-breaker detail."""
-    rows = [
+    rows: list[Text | Rule | Table] = [
         Text.from_markup("[dim]press [/][bold blue]b[/][dim] to return to dashboard[/]"),
         Rule(style="dim"),
     ]
@@ -232,7 +235,7 @@ def panel_circuit_expanded(cb):
             )
 
     return Panel(
-        Group(*rows),
+        Group(*cast(list[ConsoleRenderable | RichCast | str], rows)),
         title="[bold blue]CIRCUIT BREAKERS - EXPANDED[/]  [dim][b] return[/]",
         border_style="blue",
         padding=(0, 1),

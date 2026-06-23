@@ -35,13 +35,16 @@ from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeoutError
 from dataclasses import dataclass, field
 from datetime import date
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import requests
 import yfinance as yf
 
 from algo.infrastructure import RateLimiter, retry
 from utils.infrastructure import EASTERN_TZ
+
+if TYPE_CHECKING:
+    from utils.external import SecEdgarClient
 
 logger = logging.getLogger(__name__)
 
@@ -133,8 +136,8 @@ class DataSourceRouter:
         self.last_source: str | None = None
 
         # Lazy clients — only construct when needed
-        self._alpaca = None
-        self._sec = None
+        self._alpaca: Any = None
+        self._sec: SecEdgarClient | None = None
 
     def _get_health(self, name: str) -> SourceHealth:
         with self._lock:

@@ -287,7 +287,7 @@ def panel_market_expanded(mkt, sentiment=None):
 def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=None, data_source="AWS"):
     """Compact market header - fits alongside exposure factors + monkey in the top row."""
     source_color = "cyan" if data_source == "LOCAL" else "dim"
-    rows = [
+    rows: list[Text | Rule] = [
         Text.from_markup(f"{mkt_s}  [dim]{ts}[/]  [dim]{elapsed:.1f}s[/]{refresh_s}  [{source_color}]{data_source}[/]")
     ]
     if mkt and not has_error(mkt):

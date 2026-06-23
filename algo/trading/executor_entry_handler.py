@@ -16,7 +16,7 @@ import time
 import uuid
 from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
-from typing import Any
+from typing import Any, cast
 
 import requests
 
@@ -287,7 +287,7 @@ class EntryHandler:
 
         # Execute entry transaction with locks
         try:
-            return self.context._with_cursor(_execute_entry_txn, acquire_locks=True)
+            return cast(dict[str, Any], self.context._with_cursor(_execute_entry_txn, acquire_locks=True))
         except Exception as e:
             logger.exception(f"Entry execution failed: {e}")
             raise
@@ -668,7 +668,7 @@ class EntryHandler:
                 if verified_status is None:
                     pass
                 elif verified_status not in ("filled", "partially_filled"):
-                    return verified_status
+                    return str(verified_status)
                 else:
                     order_status = verified_status
 

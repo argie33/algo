@@ -2,7 +2,7 @@
 
 import logging
 from datetime import date
-from typing import Any
+from typing import Any, cast
 
 from utils.infrastructure.circuit_breaker import CircuitBreaker, DataImportance
 
@@ -94,7 +94,7 @@ class PutCallRatioFetcher:
             if total_calls == 0:
                 return None
 
-            return total_puts / total_calls
+            return cast(float, float(total_puts / total_calls))
         except Exception as e:
             logger.warning(f"Put/call ratio fetch failed: {e}")
             raise

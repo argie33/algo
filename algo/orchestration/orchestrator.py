@@ -84,7 +84,7 @@ class Orchestrator:
 
         self.degraded_mode = False
         try:
-            self.alerts = AlertManager()
+            self.alerts: AlertManager | NullAlertManager = AlertManager()
         except RuntimeError as e:
             if self.dry_run:
                 logger.warning(f"[ALERTS] No alert channels configured — using null alerts for dry-run: {e}")

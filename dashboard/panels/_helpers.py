@@ -20,7 +20,7 @@ from ..utilities import (
 logger = logging.getLogger(__name__)
 
 
-def _score_cell(v):
+def _score_cell(v: Any) -> Text:
     """Colored 0-100 sub-score cell: green >=70, cyan >=50, yellow >=30, else red."""
     if v is None or v == "":
         return Text("--", style=DIM)
@@ -32,13 +32,13 @@ def _score_cell(v):
     return Text(f"{fv:.0f}", style=c)
 
 
-def _build_buy_sig_map(buy_sigs) -> dict:
+def _build_buy_sig_map(buy_sigs: Any) -> dict[str, float]:
     """Map symbol -> score from buy-signal records (normalized symbols).
 
     Uses signal_quality_score if present, falls back to swing_score if available,
     but logs warning if neither field is present (not silent fallback to 0).
     """
-    out: dict = {}
+    out: dict[str, float] = {}
     for bs in buy_sigs or []:
         if not isinstance(bs, dict):
             continue
@@ -64,7 +64,7 @@ def _build_buy_sig_map(buy_sigs) -> dict:
     return out
 
 
-def _swing_cell(swing_v):
+def _swing_cell(swing_v: Any) -> Text:
     """Swing-signal cell: ▲score colored by strength, or dim -- when absent."""
     if swing_v is None:
         return Text("--", style=DIM)
@@ -72,7 +72,7 @@ def _swing_cell(swing_v):
     return Text(f"▲{swing_v:.0f}", style=c)
 
 
-def _composite_score_color(v) -> str:
+def _composite_score_color(v: Any) -> str:
     """Color for composite scores: green >=80, cyan >=60, yellow >=40, else white."""
     return G if v >= 80 else (CY if v >= 60 else (Y if v >= 40 else "white"))
 
