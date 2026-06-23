@@ -138,8 +138,10 @@ def _build_signal_header(sig_data: dict[str, Any], scores_data: dict[str, Any] |
     if has_error(overview):
         return rows, 0, 0
 
-    raw = safe_get_field(overview, "n") or 0
-    total = safe_get_field(overview, "total") or 0
+    raw_val = safe_get_field(overview, "n")
+    raw = int(raw_val) if raw_val is not None and isinstance(raw_val, (int, float)) else 0
+    total_val = safe_get_field(overview, "total")
+    total = int(total_val) if total_val is not None and isinstance(total_val, (int, float)) else 0
     ds = _format_signal_date(safe_get_field(overview, "date"))
 
     grades_field = safe_get_field(overview, "grades", {})

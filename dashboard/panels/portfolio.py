@@ -264,8 +264,9 @@ def panel_performance_spark(
 
     wr_v, closed_wins, adj_l = _calculate_adjusted_win_rate(perf, pos)
     # closed_wins and adj_l are already validated by _calculate_adjusted_win_rate
-    closed_losses = perf.get("l") or 0
-    losing_open = adj_l - (closed_losses or 0)
+    l_val = perf.get("l")
+    closed_losses = int(l_val) if l_val is not None and isinstance(l_val, (int, float)) else 0
+    losing_open = adj_l - closed_losses
     avg_win_v = perf.get("avg_win")
     avg_loss_v = perf.get("avg_loss")
     avg_win_s = f"{avg_win_v:.1f}%" if avg_win_v is not None else "--"
@@ -452,7 +453,8 @@ def panel_portfolio_perf_expanded(  # noqa: C901
             "Cash:",
             fmt_money(cash),
         )
-        max_n = int(cfg.get("max_pos_n") or 0) if cfg else 0
+        max_n_val = cfg.get("max_pos_n") if cfg else None
+        max_n = int(max_n_val) if max_n_val is not None and isinstance(max_n_val, (int, float)) else 0
         slots_s = f"{npos}/{max_n}" if (npos is not None and max_n) else (str(npos) if npos is not None else "--")
         dr_s = f"{dr:+.2f}%" if dr is not None else "--"
         ptbl.add_row("Open Positions:", slots_s, "Day Return:", dr_s)
@@ -474,17 +476,22 @@ def panel_portfolio_perf_expanded(  # noqa: C901
     # ── Performance metrics ────────────────────────────────────────────────────
     if perf and not perf.get("_error") and not perf.get("_no_data"):
         rows.append(Text.from_markup("[dim bold]PERFORMANCE METRICS[/]"))
-        n = perf.get("n") or 0
-        w = perf.get("w") or 0
-        closed_losses = perf.get("l") or 0
-        streak = perf.get("streak") or 0
+        n_val = perf.get("n")
+        n = int(n_val) if n_val is not None and isinstance(n_val, (int, float)) else 0
+        w_val = perf.get("w")
+        w = int(w_val) if w_val is not None and isinstance(w_val, (int, float)) else 0
+        l_val = perf.get("l")
+        closed_losses = int(l_val) if l_val is not None and isinstance(l_val, (int, float)) else 0
+        streak_val = perf.get("streak")
+        streak = int(streak_val) if streak_val is not None and isinstance(streak_val, (int, float)) else 0
         pnl_val = perf.get("pnl")
         unrlzd_pnl = perf.get("unrealized_pnl")
         open_cnt = perf.get("open_count")
         pf = perf.get("profit_factor")
         sharpe_v = perf.get("sharpe")
         exp = perf.get("expectancy")
-        dd_v = perf.get("maxdd") or 0
+        dd_val = perf.get("maxdd")
+        dd_v = float(dd_val) if dd_val is not None and isinstance(dd_val, (int, float)) else 0
         avg_win = perf.get("avg_win")
         avg_loss = perf.get("avg_loss")
 

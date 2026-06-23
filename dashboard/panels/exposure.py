@@ -389,9 +389,11 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
             v = f.get("value")
             val_s = f"VIX {v:.1f}" if v is not None else "--"
         elif key == "new_highs_lows":
-            nh = f.get("new_highs") or 0
-            nl = f.get("new_lows") or 0
-            net = (nh if nh is not None else 0) - (nl if nl is not None else 0)
+            nh_val = f.get("new_highs")
+            nh = int(nh_val) if nh_val is not None and isinstance(nh_val, (int, float)) else 0
+            nl_val = f.get("new_lows")
+            nl = int(nl_val) if nl_val is not None and isinstance(nl_val, (int, float)) else 0
+            net = nh - nl
             val_s = f"NH:{nh} NL:{nl} net:{net:+d}"
         elif key == "credit_spread":
             v = f.get("value")
