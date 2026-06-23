@@ -55,64 +55,50 @@ class LambdaAPIClient:
 
         Returns:
             Response dict with 'statusCode' and 'body' (JSON parsed)
+
+        Raises:
+            RuntimeError if Lambda client is unavailable
+            json.JSONDecodeError if response payload is invalid
         """
-        try:
-            # Build the Lambda event (API Gateway v2 format)
-            event = {
-                "path": path,
-                "requestContext": {
-                    "http": {
-                        "method": method,
-                    }
-                },
-            }
-
-            if query_params:
-                event["rawQueryString"] = "&".join(f"{k}={v}" for k, v in query_params.items())
-
-            logger.debug(f"[Lambda] Invoking {self.function_name} with path={path}")
-
-            client = self._get_client()
-            if not client:
-                return {
-                    "statusCode": 500,
-                    "body": {"_error": "Lambda client unavailable"},
+        event = {
+            "path": path,
+            "requestContext": {
+                "http": {
+                    "method": method,
                 }
+            },
+        }
 
-            response = client.invoke(
-                FunctionName=self.function_name,
-                InvocationType="RequestResponse",
-                Payload=json.dumps(event),
-            )
+        if query_params:
+            event["rawQueryString"] = "&".join(f"{k}={v}" for k, v in query_params.items())
 
-            # Parse response
-            response_payload = json.loads(response["Payload"].read())
+        logger.debug(f"[Lambda] Invoking {self.function_name} with path={path}")
 
-            status_code = response_payload.get("statusCode", 500)
-            body = response_payload.get("body", "{}")
+        client = self._get_client()
+        if not client:
+            raise RuntimeError("Lambda client unavailable")
 
-            # Parse JSON body if it's a string
-            if isinstance(body, str):
-                try:
-                    body = json.loads(body)
-                except json.JSONDecodeError:
-                    body = {"_error": body}
+        response = client.invoke(
+            FunctionName=self.function_name,
+            InvocationType="RequestResponse",
+            Payload=json.dumps(event),
+        )
 
-            logger.debug(f"[Lambda] Response: {status_code}")
+        response_payload = json.loads(response["Payload"].read())
 
-            return {
-                "statusCode": status_code,
-                "body": body,
-                "_source": "lambda_direct",
-            }
+        status_code = response_payload.get("statusCode", 500)
+        body = response_payload.get("body", "{}")
 
-        except (json.JSONDecodeError, ValueError) as e:
-            logger.error(f"[Lambda] Invocation failed: {e}")
-            return {
-                "statusCode": 500,
-                "body": {"_error": f"Lambda invocation failed: {e!s}"},
-                "_source": "lambda_direct",
-            }
+        if isinstance(body, str):
+            body = json.loads(body)
+
+        logger.debug(f"[Lambda] Response: {status_code}")
+
+        return {
+            "statusCode": status_code,
+            "body": body,
+            "_source": "lambda_direct",
+        }
 
 
 # Singleton instance (thread-safe)
