@@ -50,7 +50,7 @@ class DailyReconciliation:
                 logger.warning("Failed to send initialization failure notification")
             raise ValueError(f"Reconciliation initialization failed: {e}") from e
 
-    def run_daily_reconciliation(self, reconcile_date=None, dry_run=False):
+    def run_daily_reconciliation(self, reconcile_date: Any = None, dry_run: bool = False) -> dict[str, Any]:
         """Run full daily reconciliation. If dry_run=True, skip Alpaca API calls and return mock data.
 
         CRITICAL SAFETY: dry_run mode must be explicitly enabled via ORCHESTRATOR_DRY_RUN environment variable
@@ -1093,11 +1093,11 @@ class DailyReconciliation:
             logger.warning(f"Failed to check pending reconciliations: {e}")
             return {"pending_count": 0, "message": f"Error: {e}"}
 
-    def _fetch_account(self):
+    def _fetch_account(self) -> Any:
         """Fetch account data from broker via BrokerAdapter."""
         return self.broker.fetch_account()
 
-    def _fetch_initial_capital(self, cur):
+    def _fetch_initial_capital(self, cur: Any) -> float:
         """Get the actual initial capital from broker account history (fail-fast).
 
         CRITICAL: Does NOT fall back to stale database snapshots. Initial capital is

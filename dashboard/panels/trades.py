@@ -120,7 +120,7 @@ def panel_recent_trades(trades: Any) -> Any:
 
     def _fmt_date(d: Any) -> str:
         if hasattr(d, "strftime"):
-            return d.strftime("%b%d")
+            return d.strftime("%b%d")  # type: ignore
         if isinstance(d, str) and len(d) >= 7:
             try:
                 from datetime import datetime as _dt
@@ -275,7 +275,7 @@ def panel_trades_expanded(trades: Any) -> Any:
 
     def _fd(d: Any) -> str:
         if hasattr(d, "strftime"):
-            return d.strftime("%b%d")
+            return d.strftime("%b%d")  # type: ignore
         if isinstance(d, str) and len(d) >= 7:
             try:
                 from datetime import datetime as _dt

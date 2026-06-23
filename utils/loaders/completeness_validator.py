@@ -40,7 +40,7 @@ class CompletenessResult:
     failure_reason: str | None = None
     recommendations: list[str] | None = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.recommendations is None:
             self.recommendations = []
 

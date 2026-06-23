@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 class ProductionReadinessCheck:
     """Comprehensive validation for production deployment."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.checks_passed = []
         self.checks_failed = []
         self.checks_warnings = []

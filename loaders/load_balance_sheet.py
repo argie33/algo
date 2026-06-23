@@ -111,7 +111,7 @@ class BalanceSheetLoader(OptimalLoader):
         super().__init__()
         self._sec_client = SecEdgarClient()
 
-    def fetch_incremental(self, symbol: str, since: date | None):
+    def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         try:
             cik = self._sec_client.symbol_to_cik(symbol)
         except ValueError as e:
@@ -157,7 +157,7 @@ class BalanceSheetLoader(OptimalLoader):
                 "Cannot proceed without fundamental data."
             ) from e
 
-    def transform(self, rows):
+    def transform(self, rows) -> list[dict[str, Any]]:
         transformed = []
         for r in rows:
             row: dict[str, Any] = {}

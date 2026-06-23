@@ -18,6 +18,7 @@ setup_imports()
 
 import logging
 from datetime import date, datetime, timezone
+from typing import Any
 
 from loaders.runner import run_loader
 from utils.optimal_loader import OptimalLoader
@@ -32,22 +33,22 @@ class PositioningMetricsLoader(OptimalLoader):
     primary_key = ("symbol",)
     watermark_field = "created_at"
 
-    def fetch_incremental(self, symbol: str, since: date | None):
+    def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Fetch positioning metrics for this symbol."""
         try:
             metrics = self._fetch_positioning_metrics(symbol)
             if metrics:
                 return [metrics]
-            return None
+            return []
         except Exception as e:
             err_str = str(e)
             if "404" in err_str or "Not Found" in err_str:
                 logger.debug("[%s] Not found (404), skipping", symbol)
-                return None
+                return []
             raise RuntimeError(f"Operation failed: {e}") from e
 
     @staticmethod
-    def _fetch_positioning_metrics(symbol: str) -> dict | None:
+    def _fetch_positioning_metrics(symbol: str) -> dict[str, Any] | None:
         """Fetch institutional ownership and short interest from yfinance via the rate-limiting wrapper.
 
         Skips symbols with market cap < $50M (illiquid stocks typically lack positioning data).
@@ -109,11 +110,11 @@ class PositioningMetricsLoader(OptimalLoader):
         except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def transform(self, rows):
+    def transform(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Rows are clean."""
         return rows
 
-    def _validate_row(self, row: dict) -> bool:
+    def _validate_row(self, row: dict[str, Any]) -> bool:
         """Validate positioning metrics row."""
         if not super()._validate_row(row):
             return False

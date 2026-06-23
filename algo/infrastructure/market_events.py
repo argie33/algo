@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 class MarketEventHandler:
     """Detect and respond to market events and halts."""
 
-    def __init__(self, config):
+    def __init__(self, config: Any) -> None:
         self.config = config
         self.alpaca_base_url = get_alpaca_base_url()
         cm = get_credential_manager()
@@ -103,7 +103,7 @@ class MarketEventHandler:
                 "APCA-API-SECRET-KEY": self.alpaca_secret,
             }
 
-            def fetch_quotes():
+            def fetch_quotes() -> dict[str, Any]:
                 url = f"{self.alpaca_base_url}/v2/stocks/SPY/quotes/latest"
                 try:
                     resp = requests.get(url, headers=headers, timeout=get_api_timeout())
@@ -117,7 +117,7 @@ class MarketEventHandler:
                 ) as e:
                     raise RuntimeError(f"Operation failed: {e}") from e
 
-            def fetch_bars():
+            def fetch_bars() -> dict[str, Any]:
                 url = f"{self.alpaca_base_url}/v2/stocks/SPY/bars/latest?timeframe=1day"
                 try:
                     resp = requests.get(url, headers=headers, timeout=get_market_data_timeout())

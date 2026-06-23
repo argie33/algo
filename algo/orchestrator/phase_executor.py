@@ -22,10 +22,10 @@ class PhaseDefinition:
     skip_if_halted: bool = True
     always_run: bool = False
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash((self.phase_num, self.phase_name))
 
-    def __eq__(self, other):
+    def __eq__(self, other: Any) -> bool:
         if isinstance(other, PhaseDefinition):
             return self.phase_num == other.phase_num
         return self.phase_num == other
@@ -151,7 +151,7 @@ class OrchestratorPhaseExecutor:
 
         return None
 
-    def execute_phase(self, phase_num: int | str, **kwargs) -> tuple[bool, str | None]:
+    def execute_phase(self, phase_num: int | str, **kwargs: Any) -> tuple[bool, str | None]:
         """Execute a single phase.
 
         ISSUE #7 FIX: Ensure all dependency failures are loud and actionable.

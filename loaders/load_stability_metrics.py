@@ -21,6 +21,7 @@ setup_imports()
 import logging
 import math
 from datetime import date, datetime, timezone
+from typing import Any
 
 from loaders.runner import run_loader
 from utils.db.context import DatabaseContext
@@ -36,7 +37,7 @@ class StabilityMetricsLoader(OptimalLoader):
     primary_key = ("symbol",)
     watermark_field = "created_at"
 
-    def fetch_incremental(self, symbol: str, since: date | None):
+    def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Compute stability metrics for this symbol."""
         try:
             metrics = self._compute_stability_metrics(symbol)
@@ -142,7 +143,7 @@ class StabilityMetricsLoader(OptimalLoader):
         except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def transform(self, rows):
+    def transform(self, rows) -> list[dict[str, Any]]:
         """Rows are clean."""
         return rows
 

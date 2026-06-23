@@ -716,7 +716,7 @@ class TradeExecutor:
         Returns: (success: bool, message: str or None)
         """
 
-        def do_update():
+        def do_update() -> None:
             cur.execute(
                 "SELECT quantity, current_stop_price FROM algo_positions WHERE position_id = %s",
                 (position_id,),
@@ -882,7 +882,7 @@ class TradeExecutor:
                 }
 
             # Check DB for this position
-            def _check_db_quantity(cur):
+            def _check_db_quantity(cur: Any) -> int:
                 cur.execute(
                     """
                     SELECT entry_quantity FROM algo_trades
@@ -917,7 +917,7 @@ class TradeExecutor:
                 }
 
             # Mismatch detected - correct DB to match Alpaca (source of truth)
-            def _correct_quantity(cur):
+            def _correct_quantity(cur: Any) -> None:
                 cur.execute(
                     """
                     UPDATE algo_trades

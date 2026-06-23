@@ -51,7 +51,7 @@ def _rdelta(r: Any, wk: str = "rank_1w_ago", wk4: str | None = None) -> str:
     return f"{arrow}{abs(delta)}"
 
 
-@register_panel(  # type: ignore[untyped-decorator]
+@register_panel(
     "sectors",
     endpoint_deps=["srank", "pos", "port"],
     optional=True,

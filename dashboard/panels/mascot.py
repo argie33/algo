@@ -125,7 +125,7 @@ except ImportError as e:
     def register_panel(*args: Any, **kwargs: Any) -> Any:  # type: ignore[no-redef]
         if args and callable(args[0]):
             return args[0]
-        return lambda fn: fn
+        return lambda fn: fn  # type: ignore[return-value]
 
 
 from ..utilities import (
@@ -179,7 +179,7 @@ def mascot_compact(data: dict[str, Any], frame: int) -> Panel:
     optional=False,
     description="Loading",
 )
-def loading_layout(frame: int, data_source: str = "AWS") -> Layout:  # type: ignore[no-redef]
+def loading_layout(frame: int, data_source: str = "AWS") -> Layout:
     """Show compact mascot in top-right corner with loading message below."""
     idx = LOAD_SEQ[(frame // 2) % len(LOAD_SEQ)]  # 4fps loading animation
     fi = _get_safe_frame_index(idx)

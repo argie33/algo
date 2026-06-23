@@ -38,7 +38,7 @@ DYNAMODB_FALLBACK_TIMEOUT_SEC = 15  # Timeout for DynamoDB operations
 class HaltFlagManager:
     """Manages halt flag with DynamoDB + RDS redundancy."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._dynamodb_failure_times = []  # Track failure timestamps for circuit breaker
         self._circuit_breaker_open = False
 

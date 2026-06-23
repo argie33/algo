@@ -37,6 +37,7 @@ Run:
 import logging
 import sys
 from datetime import date
+from typing import Any
 
 import requests
 
@@ -51,7 +52,7 @@ class AnalystSentimentLoader(OptimalLoader):
     primary_key = ("symbol", "date")
     watermark_field = "date"
 
-    def fetch_incremental(self, symbol: str, since: date | None):
+    def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Fetch analyst recommendations from yfinance and aggregate into sentiment."""
         try:
             from utils.external.yfinance import get_ticker
@@ -135,7 +136,7 @@ class AnalystSentimentLoader(OptimalLoader):
                 "Cannot generate signals without sentiment data."
             ) from e
 
-    def transform(self, rows):
+    def transform(self, rows) -> list[dict[str, Any]]:
         return rows
 
 

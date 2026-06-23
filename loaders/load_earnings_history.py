@@ -12,6 +12,7 @@ Run:
 """
 
 import logging
+from typing import Any
 
 logger = logging.getLogger(__name__)
 from datetime import date
@@ -25,7 +26,7 @@ class EarningsHistoryLoader(OptimalLoader):
     primary_key = ("symbol", "quarter")
     watermark_field = "earnings_date"
 
-    def fetch_incremental(self, symbol: str, since: date | None):
+    def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, str | float | None]]:
         """Fetch earnings history from yfinance earnings_dates."""
         try:
             from datetime import datetime
@@ -52,7 +53,7 @@ class EarningsHistoryLoader(OptimalLoader):
                     eps_actual = row.get("Reported EPS")
                     surprise_pct = row.get("Surprise(%)")
 
-                    def _float(v):
+                    def _float(v: Any) -> float | None:
                         try:
                             import math
 
@@ -92,7 +93,7 @@ class EarningsHistoryLoader(OptimalLoader):
 
             # Deduplicate by (symbol, quarter) - keep most recent earnings_date
             if rows:
-                seen: dict[tuple[str, str], dict] = {}
+                seen: dict[tuple[str, str], dict[str, str | float | None]] = {}
                 for row in rows:
                     key = (row["symbol"], row["quarter"])
                     if key not in seen or row["earnings_date"] > seen[key]["earnings_date"]:
@@ -105,10 +106,10 @@ class EarningsHistoryLoader(OptimalLoader):
             logger.error(error_msg)
             raise RuntimeError(error_msg) from e
 
-    def transform(self, rows):
+    def transform(self, rows: list[dict[str, str | float | None]]) -> list[dict[str, str | float | None]]:
         return rows
 
-    def _validate_row(self, row: dict) -> bool:
+    def _validate_row(self, row: dict[str, Any]) -> bool:
         if not super()._validate_row(row):
             return False
         return bool(row.get("quarter")) and bool(row.get("earnings_date"))

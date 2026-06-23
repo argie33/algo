@@ -32,7 +32,7 @@ class QualityMetricsLoader(OptimalLoader):
     primary_key = ("symbol",)
     watermark_field = "created_at"
 
-    def fetch_incremental(self, symbol: str, since: date | None):
+    def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Compute quality metrics from balance sheet and income statement."""
         income_row = fetch_one(
             """
@@ -59,15 +59,15 @@ class QualityMetricsLoader(OptimalLoader):
 
         # Require at least income statement; balance sheet is optional
         if not income_row:
-            return None
+            return []
 
         metrics = self._compute_metrics(symbol, income_row, balance_row)
         if metrics:
             return [metrics]
-        return None
+        return []
 
     @staticmethod
-    def _compute_metrics(symbol: str, income: tuple, balance: tuple | None) -> dict | None:
+    def _compute_metrics(symbol: str, income: tuple[Any, Any, Any], balance: tuple[Any, Any, Any, Any, Any, Any] | None) -> dict[str, Any]:
         """Compute quality metrics from financial data. Balance sheet is optional."""
         revenue, operating_income, net_income = income
         if balance:
@@ -156,7 +156,7 @@ class QualityMetricsLoader(OptimalLoader):
 
         return metrics
 
-    def transform(self, rows):
+    def transform(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """No transformation needed."""
         return rows
 

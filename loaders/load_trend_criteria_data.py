@@ -10,6 +10,7 @@ Run: python3 load_trend_criteria_data.py [--symbols AAPL,MSFT] [--parallelism 4]
 import logging
 import sys
 from datetime import date, timedelta
+from typing import Any
 
 import pandas as pd
 import psycopg2
@@ -62,7 +63,7 @@ class TrendCriteriaLoader(OptimalLoader):
 
         self._batch_context = {"end_date": end}
 
-    def fetch_incremental(self, symbol: str, since: date | None = None):
+    def fetch_incremental(self, symbol: str, since: date | None = None) -> list[dict[str, Any]]:
         # Use end date cached at batch start (avoids per-symbol SELECT on price_daily)
         end = (self._batch_context or {}).get("end_date")
         if end is None:

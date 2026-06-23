@@ -62,7 +62,7 @@ logger = logging.getLogger(__name__)
 _initialized = False
 
 
-def initialize_validators():
+def initialize_validators() -> None:
     """Initialize the global validator registry with all domain validators.
 
     Call this once at application startup (e.g., in main() or __init__).

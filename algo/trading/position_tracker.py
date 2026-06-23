@@ -117,7 +117,7 @@ class PositionTracker:
 
                 cur.execute(update_sql, params)
 
-            return cur.rowcount > 0
+            return bool(cur.rowcount > 0)
 
         success = OptimisticLockRetry.retry_on_race_condition(
             do_update,

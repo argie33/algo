@@ -409,7 +409,7 @@ class PositionSizer:
             result = cur.fetchone()
             if result is None:
                 raise ValueError("Position count query returned None")
-            return result[0]
+            return cast(int, result[0])
 
         result: Any = self._with_cursor(fetch_position_count)
         if result is not None:

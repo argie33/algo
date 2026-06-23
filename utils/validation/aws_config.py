@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 class AWSProductionConfigValidator:
     """Validates all configuration for production AWS deployment."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.checks_passed = []
         self.checks_failed = []
         self.checks_warnings = []

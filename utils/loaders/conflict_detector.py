@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 class LoaderConflictDetector:
     """Detect and alert on loader conflicts during concurrent pipeline runs."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.table_name = "data_loader_status"
 
     def check_concurrent_loaders(self) -> dict[str, Any]:
@@ -201,7 +201,7 @@ class LoaderConflictDetector:
                 "error": str(e),
             }
 
-    def log_conflict_status(self):
+    def log_conflict_status(self) -> None:
         """Log current conflict status (for debugging/monitoring)."""
         conflicts = self.check_concurrent_loaders()
 

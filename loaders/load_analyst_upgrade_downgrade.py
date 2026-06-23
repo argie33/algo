@@ -13,6 +13,7 @@ Run:
 import logging
 import sys
 from datetime import date
+from typing import Any
 
 import pandas as pd
 import requests
@@ -28,7 +29,7 @@ class AnalystRatingsLoader(OptimalLoader):
     primary_key = ("symbol", "date")
     watermark_field = "date"
 
-    def fetch_incremental(self, symbol: str, since: date | None):
+    def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Fetch analyst upgrades/downgrades from yfinance."""
         try:
             from utils.external.yfinance import get_ticker
@@ -86,7 +87,7 @@ class AnalystRatingsLoader(OptimalLoader):
                 "Cannot generate signals without analyst data."
             ) from e
 
-    def transform(self, rows):
+    def transform(self, rows) -> list[dict[str, Any]]:
         return rows
 
 

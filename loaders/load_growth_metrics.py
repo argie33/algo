@@ -26,7 +26,7 @@ class GrowthMetricsLoader(OptimalLoader):
     primary_key = ("symbol",)
     watermark_field = "created_at"
 
-    def fetch_incremental(self, symbol: str, since: date | None):
+    def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Compute multi-year growth metrics from annual income statement."""
         try:
             # Fetch up to 10 years of financials to calculate 1Y, 3Y, 5Y growth
@@ -42,23 +42,23 @@ class GrowthMetricsLoader(OptimalLoader):
             )
 
             if not rows or len(rows) < 1:
-                return None
+                return []
 
             # Sort by year ascending for easier calculation
-            rows = list(reversed(rows))
+            rows_list = list(reversed(rows))
 
-            latest = rows[-1]  # Most recent year
-            metrics = self._compute_metrics(symbol, latest, rows)
+            latest = rows_list[-1]  # Most recent year
+            metrics = self._compute_metrics(symbol, latest, rows_list)
 
             if metrics:
                 return [metrics]
-            return None
+            return []
 
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     @staticmethod
-    def _compute_metrics(symbol: str, latest: tuple, all_years: list) -> dict | None:
+    def _compute_metrics(symbol: str, latest: tuple[Any, Any, Any], all_years: list[Any]) -> dict[str, Any] | None:
         """Compute multi-year growth metrics."""
         _latest_year, latest_rev, latest_eps = latest
 
@@ -103,7 +103,7 @@ class GrowthMetricsLoader(OptimalLoader):
 
         return metrics
 
-    def transform(self, rows):
+    def transform(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """No transformation needed; metrics already computed."""
         return rows
 

@@ -78,30 +78,30 @@ def safe_get(data: Any, key: str, default: Any = None) -> Any:
     return default
 
 
-def safe_list(data: Any) -> list:
+def safe_list(data: Any) -> list[Any]:
     """Safely extract list from data, propagating errors instead of hiding them.
 
     Returns error dict on error, items list otherwise.
     Fail-fast: Returns error if data structure is malformed.
     """
     if has_error(data):
-        return cast(list, data)
+        return cast(list[Any], data)
     if isinstance(data, dict):
         if "items" in data:
             items = data["items"]
             if isinstance(items, list):
                 return items
             # Malformed: items exists but is not a list
-            return cast(list, {"_error": f"'items' is not a list: {type(items).__name__}"})
+            return cast(list[Any], {"_error": f"'items' is not a list: {type(items).__name__}"})
         elif "data" in data and isinstance(data["data"], list):
             return data["data"]
         else:
             # Malformed: dict has neither 'items' nor 'data' list
-            return cast(list, {"_error": "Response dict missing 'items' or 'data' field"})
+            return cast(list[Any], {"_error": "Response dict missing 'items' or 'data' field"})
     if isinstance(data, list):
         return data
     # Malformed: not a dict or list
-    return cast(list, {"_error": f"Expected list or dict, got {type(data).__name__}"})
+    return cast(list[Any], {"_error": f"Expected list or dict, got {type(data).__name__}"})
 
 
 def _classify_errors(
@@ -219,13 +219,13 @@ def error_summary_panel_expanded(data_dict: dict[str, Any]) -> Panel | None:
     )
 
 
-def make_panel_safe(panel_fn):
+def make_panel_safe(panel_fn: Any) -> Any:
     """Decorator to wrap panel functions with error handling.
 
     Catches rendering errors and returns an error panel instead of crashing.
     """
 
-    def wrapper(*args, **kwargs):
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
         try:
             return panel_fn(*args, **kwargs)
         except Exception as e:
