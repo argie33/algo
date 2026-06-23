@@ -52,8 +52,8 @@ class SpecializedChecker(BaseCheck):
         """Check earnings data freshness and coverage."""
         today = _date.today()
         sources = [
-            ("earnings_estimates", ["date_recorded", "date_range"], 7, WARN),
-            ("earnings_estimate_revisions", ["date_recorded", "date_range"], 14, WARN),
+            ("earnings_estimates", ["created_at", "quarter"], 7, WARN),
+            ("earnings_estimate_revisions", ["revision_date", "created_at"], 14, WARN),
             ("earnings_history", ["earnings_date", "quarter"], 120, WARN),
         ]
 
