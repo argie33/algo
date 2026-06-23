@@ -1733,7 +1733,7 @@ class PriceLoader(OptimalLoader):
 
     def _load_batch(self, symbols: list[str]) -> None:
         """Load a batch of symbols using batch API fetch (50x reduction in API calls)."""
-        wm_store = self._get_watermark()  # type: ignore[attr-defined]
+        wm_store = self._watermark
         # Determine the watermark date for all symbols in batch
         # (simplified: use same date for all, finest-grained would be per-symbol)
         if self._backfill_days > 0:
@@ -1741,8 +1741,8 @@ class PriceLoader(OptimalLoader):
             previous_date: date | None = datetime.now(EASTERN_TZ).date() - timedelta(days=self._backfill_days)
         else:
             # Use earliest watermark from batch
-            watermarks = [wm_store.get(s) if wm_store else None for s in symbols]
-            previous_dates = [self._parse_watermark_date(w) for w in watermarks]  # type: ignore[attr-defined]
+            watermarks = [wm_store.get(s) for s in symbols]
+            previous_dates: list[date | None] = [w if isinstance(w, date) else None for w in watermarks]
             valid_dates: list[date] = [d for d in previous_dates if d is not None]
             if valid_dates:
                 previous_date = min(valid_dates)
@@ -1798,7 +1798,7 @@ class PriceLoader(OptimalLoader):
                 chunk = rows[chunk_start : chunk_start + self.chunk_size]
                 is_final_chunk = chunk_start + self.chunk_size >= len(rows)
                 chunk_wm = new_wm if is_final_chunk else None
-                inserted += self._bulk_insert(  # type: ignore[attr-defined]
+                inserted += self._bulk_insert_mgr.bulk_insert(
                     chunk,
                     symbol=symbol if is_final_chunk else None,
                     new_watermark=chunk_wm,
