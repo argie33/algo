@@ -15,7 +15,7 @@ class PositionAnalyzer:
 
     @staticmethod
     def analyze_positions(
-        positions: list[tuple],
+        positions: list[tuple[Any, ...]],
     ) -> dict[str, Any]:
         """Analyze open positions and compute P&L breakdown.
 

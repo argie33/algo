@@ -2,7 +2,7 @@
 
 import json
 import logging
-from typing import Any
+from typing import Any, cast
 
 logger = logging.getLogger(__name__)
 
@@ -170,7 +170,7 @@ def _build_freshness_panel(hlth_items: list[Any], ready_to_trade: bool | None) -
     Returns:
         Rich Panel with freshness table
     """
-    left_rows: list[Text] = []
+    left_rows: list[Text | Table] = []
 
     if not hlth_items:
         msg = "⚠ Data health unavailable — loaders may not have run yet.\n"
@@ -932,8 +932,8 @@ def panel_status(
     # ── Run status + schedule + mode + trading config ────────────────────────────
     run_valid = run and isinstance(run, dict) and not has_error(run)
     act_valid = act and isinstance(act, dict) and not has_error(act)
-    run_id_top = run.get("run_id", "") if run_valid else (act.get("run_id", "") if act_valid else "")
-    run_at_top = run.get("run_at") if run_valid else (act.get("run_at") if act_valid else None)
+    run_id_top = cast(dict[str, Any], run).get("run_id", "") if run_valid else (cast(dict[str, Any], act).get("run_id", "") if act_valid else "")
+    run_at_top = cast(dict[str, Any], run).get("run_at") if run_valid else (cast(dict[str, Any], act).get("run_at") if act_valid else None)
     if run_id_top or run_at_top:
         sts = (
             "[bold bright_green]✓ COMPLETED[/]"
@@ -1016,7 +1016,7 @@ def panel_status(
     # Phase detail — named phases from exec_log with per-phase status and key data
     phase_badges = []
     run_source = (run.get("_source") if isinstance(run, dict) else None) if run_valid else None
-    if run_valid and run_source == "exec_log":
+    if run_valid and isinstance(run, dict) and run_source == "exec_log":
         halt_r = run.get("halt_reason", "")
         summary = run.get("summary", "")
         if run.get("halted") or halt_r:
@@ -1027,9 +1027,13 @@ def panel_status(
         elif summary and isinstance(summary, str):
             rows.append(Text.from_markup(f"[dim]{summary[:65]}[/]"))
 
-        if "phase_results" not in run:
-            rows.append(Text.from_markup("[dim]⚠ phase_results data missing[/]"))
-            return rows
+        if not isinstance(run, dict) or "phase_results" not in run:
+            return Panel(
+                Text.from_markup("[dim]⚠ phase_results data missing[/]"),
+                title="[bold yellow]ALGO HEALTH[/]",
+                border_style="yellow",
+                padding=(0, 1),
+            )
         phase_results = run["phase_results"]
         for p in phase_results:
             raw = (p.get("name") or p.get("phase", "")).lower()
@@ -1299,7 +1303,7 @@ def panel_algo_health(
     phase_badges: list = []
 
     if run_valid and isinstance(run, dict) and run.get("_source") == "exec_log":
-        if "phase_results" not in run:
+        if isinstance(run, dict) and "phase_results" not in run:
             return Panel(
                 Text.from_markup("[dim]Phase results missing from run data[/]"),
                 title="[bold yellow]ALGO HEALTH[/]",
@@ -1309,7 +1313,7 @@ def panel_algo_health(
         phase_results = run["phase_results"]
         phase_badges, signals_gen, entries_exec, exits_exec = _build_phase_badges_and_metrics(run, phase_results)
     elif (run_valid and isinstance(run, dict)) or (act_valid and isinstance(act, dict)):
-        src = run if (run_valid and isinstance(run, dict)) else act
+        src = run if (run_valid and isinstance(run, dict)) else (act if (act_valid and isinstance(act, dict)) else {})
         phases_list = src.get("phase_results") or src.get("phases")
         if not phases_list:
             logger.warning(

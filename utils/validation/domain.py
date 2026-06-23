@@ -44,7 +44,7 @@ class AlpacaOrderValidator(Validator):
             return ValidationResult(is_valid=False, errors=errors, context=context)
 
         all_errors = []
-        cleaned = {}
+        cleaned: dict[str, Any] = {}
 
         # Validate order_id
         order_id = data.get("id")

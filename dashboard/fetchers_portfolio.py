@@ -244,22 +244,28 @@ def fetch_perf(c: None) -> dict[str, Any]:
         equity_vals = safe_get_list(perf.get("equity_vals"))
         recent_rets = safe_get_list(perf.get("recent_rets"))
 
+        def _f(v: object) -> float | None:
+            try:
+                return float(v) if v is not None else None
+            except (TypeError, ValueError):
+                return None
+
         return {
             "n": n,
             "w": w,
             "l": losing,
-            "wr": perf.get("win_rate_pct"),
+            "wr": _f(perf.get("win_rate_pct")),
             "open_count": perf.get("open_losses_count") or perf.get("open_positions"),
-            "pnl": perf.get("total_pnl_dollars"),
+            "pnl": _f(perf.get("total_pnl_dollars")),
             "unrealized_pnl": perf.get("unrealized_pnl"),
             "streak": perf.get("current_streak"),
-            "sharpe": perf.get("sharpe_annualized"),
-            "maxdd": perf.get("max_drawdown_pct"),
-            "avg_win": perf.get("avg_win_pct"),
-            "avg_loss": perf.get("avg_loss_pct"),
-            "profit_factor": perf.get("profit_factor"),
-            "expectancy": perf.get("expectancy_r"),
-            "avg_r": perf.get("expectancy_r"),
+            "sharpe": _f(perf.get("sharpe_annualized")),
+            "maxdd": _f(perf.get("max_drawdown_pct")),
+            "avg_win": _f(perf.get("avg_win_pct")),
+            "avg_loss": _f(perf.get("avg_loss_pct")),
+            "profit_factor": _f(perf.get("profit_factor")),
+            "expectancy": _f(perf.get("expectancy_r")),
+            "avg_r": _f(perf.get("expectancy_r")),
             "equity_vals": equity_vals,
             "recent_rets": recent_rets,
         }

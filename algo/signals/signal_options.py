@@ -73,7 +73,7 @@ class SignalOptionsMixin:
                 "bonus_pts": bonus_pts,
             }
 
-        return self._with_cursor(_fetch_iv)  # type: ignore[attr-defined]
+        return self._with_cursor(_fetch_iv)  # type: ignore[no-any-return,attr-defined]
     def put_call_ratio_signal(self, symbol: str, eval_date: _date) -> dict[str, Any]:
         """
         Stock-level put/call ratio from options_chains.
@@ -126,7 +126,7 @@ class SignalOptionsMixin:
                 "bonus_pts": bonus_pts,
             }
 
-        return self._with_cursor(_fetch_pc_ratio)  # type: ignore[attr-defined]
+        return self._with_cursor(_fetch_pc_ratio)  # type: ignore[no-any-return,attr-defined]
     def implied_move_signal(
         self,
         symbol: str,
@@ -211,7 +211,7 @@ class SignalOptionsMixin:
                 "bonus_pts": bonus_pts,
             }
 
-        return self._with_cursor(_fetch_implied_move)  # type: ignore[attr-defined]
+        return self._with_cursor(_fetch_implied_move)  # type: ignore[no-any-return,attr-defined]
     def options_signal(self, symbol: str, eval_date: _date) -> dict[str, Any]:
         """
         Aggregate all options signals for use in momentum component scoring.
