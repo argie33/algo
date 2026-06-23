@@ -10,7 +10,7 @@ import random
 import threading
 import time
 from datetime import date, datetime, timedelta
-from typing import Any, cast
+from typing import Any
 
 logger = logging.getLogger(__name__)
 

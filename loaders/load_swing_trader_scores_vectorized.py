@@ -20,7 +20,6 @@ import sys
 import threading
 import time
 from datetime import date, datetime, timedelta
-from typing import Any
 from zoneinfo import ZoneInfo
 
 import pandas as pd

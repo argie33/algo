@@ -112,7 +112,7 @@ from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
-from dashboard.data_validation import safe_float
+from dashboard.data_validation import safe_float, safe_int
 
 from ..error_boundary import has_error
 from ..formatters import (
@@ -260,7 +260,7 @@ def _build_freshness_panel(hlth_items: list[Any], ready_to_trade: bool | None) -
         ic = G if ok else (Y if st == "empty" else R)
         ii = "✓" if ok else ("-" if st == "empty" else "✗")
         rc = "bold white" if role == "CRIT" else (Y if role == "IMP" else DIM)
-        row_count = r.get("row_count")
+        row_count = safe_int(r.get("row_count"), default=None)
         rc_s = f"{row_count:,}" if row_count is not None else "--"
         st_label = "ok" if ok else st.upper()
         all_tbl.add_row(
@@ -533,12 +533,12 @@ def _format_data_health_summary(hlth_items: list[Any]) -> list[Text]:
     else:
         for r in stale[:4]:
             nm = str((r.get("tbl", "") or "--")[:13])
-            age_hours = r.get("age_hours")
-            age_days = r.get("age")
+            age_hours = safe_float(r.get("age_hours"), default=None)
+            age_days = safe_float(r.get("age"), default=None)
             if age_hours is not None:
                 age_s = f"{age_hours:.0f}h" if age_hours < 24 else f"{age_hours / 24:.1f}d"
             elif age_days is not None:
-                age_s = f"{float(age_days):.1f}d"
+                age_s = f"{age_days:.1f}d"
             else:
                 age_s = "?"
             rc = r.get("role", "")
@@ -1659,8 +1659,8 @@ def _build_results_panel(  # noqa: C901
             right_rows.append(Text.from_markup(f"  [{ic}]{ii}[/] [dim]{dt_s}[/]  [{ic}]{s}[/]{hr_s}"))
 
     risk_dict_b = safe_get_dict(risk) if not has_error(risk) else {}
-    var95_b = risk_dict_b.get("var95") if risk_dict_b else None
-    if risk_dict_b and var95_b is not None and float(var95_b) > 0:
+    var95_b = safe_float(risk_dict_b.get("var95"), default=None) if risk_dict_b else None
+    if var95_b is not None and var95_b > 0:
         right_rows.append(Rule(style="dim"))
         var95_val_e = safe_float(var95_b, default=None)
         beta_val_e = safe_float(risk_dict_b.get("beta"), default=None)

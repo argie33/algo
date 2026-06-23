@@ -2,7 +2,7 @@
 
 import logging
 from datetime import date
-from typing import Any, cast
+from typing import Any
 
 from utils.infrastructure.circuit_breaker import CircuitBreaker, DataImportance
 
