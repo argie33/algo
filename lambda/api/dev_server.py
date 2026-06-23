@@ -59,12 +59,20 @@ def _load_db_credentials() -> dict[str, Any]:
                 f"host={host}, user={user}, password={'***' if password else None}"
             )
 
+        dbname = creds.get("dbname")
+        if not dbname:
+            raise ValueError("Database name (dbname) not found in Secrets Manager")
+
+        port = creds.get("port")
+        if not port:
+            raise ValueError("Database port not found in Secrets Manager")
+
         return {
             "host": host,
-            "port": creds.get("port", 5432),
+            "port": int(port),
             "user": user,
             "password": password,
-            "database": creds.get("dbname", "stocks"),
+            "database": dbname,
         }
     except (json.JSONDecodeError, ValueError) as e:
         error_msg = f"{type(e).__name__}: {str(e)[:200]}"
@@ -286,7 +294,10 @@ class APIHandler(BaseHTTPRequestHandler):
             # Parse response
             status_code = response.get("statusCode", 200)
             response_body = response.get("body", "{}")
-            response_headers = response.get("headers") or {}
+            response_headers = response.get("headers")
+            if response_headers is None:
+                logger.warning("[DEV_SERVER] Lambda handler returned response without headers dict")
+                response_headers = {}
 
             # Encode response body
             if isinstance(response_body, str):

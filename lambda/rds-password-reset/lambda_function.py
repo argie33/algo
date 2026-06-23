@@ -64,7 +64,7 @@ def lambda_handler(event, context):
     # All credentials must come from Secrets Manager or env vars, never hardcoded defaults
     db_host = os.environ.get("DB_HOST")
     db_port_str = os.environ.get("DB_PORT", "5432")
-    db_user = os.environ.get("DB_USER", "stocks")
+    db_user = os.environ.get("DB_USER")
     db_name = os.environ.get("DB_SYSTEM_DB", "postgres")
     new_password = os.environ.get("NEW_PASSWORD")
     secret_arn = os.environ.get("DB_SECRET_ARN")
@@ -72,6 +72,14 @@ def lambda_handler(event, context):
 
     if not db_host:
         error_msg = "DB_HOST environment variable is required"
+        logger.error(error_msg)
+        return {
+            "statusCode": 400,
+            "body": json.dumps({"error": error_msg}),
+        }
+
+    if not db_user:
+        error_msg = "DB_USER environment variable is required"
         logger.error(error_msg)
         return {
             "statusCode": 400,

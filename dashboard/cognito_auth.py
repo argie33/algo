@@ -208,10 +208,19 @@ def _get_aws_cfn_output(key: str) -> str | None:
     try:
         cfn_client = boto3.client("cloudformation", region_name="us-east-1")
         stacks = cfn_client.list_stacks(StackStatusFilter=["CREATE_COMPLETE", "UPDATE_COMPLETE"])
-        for stack in stacks.get("StackSummaries"):
+        stack_summaries = stacks.get("StackSummaries")
+
+        if not stack_summaries:
+            return None
+
+        for stack in stack_summaries:
             if "algo" in stack["StackName"].lower():
                 response = cfn_client.describe_stacks(StackName=stack["StackName"])
                 outputs = response["Stacks"][0].get("Outputs")
+
+                if not outputs:
+                    continue
+
                 for output in outputs:
                     if output["OutputKey"] == key:
                         return cast(str, output["OutputValue"])

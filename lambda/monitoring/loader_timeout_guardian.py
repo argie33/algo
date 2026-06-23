@@ -14,6 +14,7 @@ MAX DURATIONS (HARD LIMITS):
 import logging
 import os
 from datetime import datetime, timezone
+from typing import Any
 
 import boto3
 import psycopg2
@@ -37,20 +38,30 @@ MAX_RUNTIME_SECONDS = {
 }
 
 
-def get_max_runtime(loader_name):
+def get_max_runtime(loader_name: str) -> int:
     return MAX_RUNTIME_SECONDS.get(loader_name, MAX_RUNTIME_SECONDS["DEFAULT"])
 
 
-def lambda_handler(event, context):
+def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
     """Monitor and kill indefinitely-running loaders."""
     try:
+        # Validate database configuration
+        db_host = os.getenv("DB_HOST")
+        db_port = os.getenv("DB_PORT", "5432")
+        db_user = os.getenv("DB_USER")
+        db_password = os.getenv("DB_PASSWORD")
+        db_name = os.getenv("DB_NAME")
+
+        if not all([db_host, db_user, db_password, db_name]):
+            raise ValueError("Missing required database configuration (host, user, password, database)")
+
         # Connect to database
         conn = psycopg2.connect(
-            host=os.getenv("DB_HOST"),
-            port=int(os.getenv("DB_PORT", 5432)),
-            user=os.getenv("DB_USER"),
-            password=os.getenv("DB_PASSWORD"),
-            database=os.getenv("DB_NAME"),
+            host=db_host,
+            port=int(db_port),
+            user=db_user,
+            password=db_password,
+            database=db_name,
         )
 
         with conn.cursor() as cur:
@@ -130,23 +141,43 @@ def lambda_handler(event, context):
         return {"statusCode": 500, "body": str(e)}
 
 
-def kill_loader_task(loader_name):
+def kill_loader_task(loader_name: str) -> bool:
     """Find and kill ECS task running this loader."""
     try:
         # List tasks in algo cluster
         response = ecs.list_tasks(cluster="algo-dev", desiredStatus="RUNNING")
         task_arns = response.get("taskArns")
 
+        if not task_arns:
+            logger.warning("No running tasks found for cluster algo-dev")
+            return False
+
         # Try to match by task name/label - this is heuristic
         # In real deployment, tasks should have loader_name as label or environment variable
         for arn in task_arns:
             try:
                 task_detail = ecs.describe_tasks(cluster="algo-dev", tasks=[arn])
-                task = task_detail["tasks"][0]
+                tasks = task_detail.get("tasks")
+
+                if not tasks:
+                    logger.warning(f"No task details returned for {arn}")
+                    continue
+
+                task = tasks[0]
+                containers = task.get("containers")
+
+                if not containers:
+                    logger.debug(f"No containers found in task {arn.split('/')[-1]}")
+                    continue
 
                 # Check task definition or environment variables for loader_name
                 # This depends on how tasks are launched
-                container_env = task["containers"][0].get("environment")
+                container_env = containers[0].get("environment")
+
+                if not container_env:
+                    logger.debug(f"No environment variables in container for task {arn.split('/')[-1]}")
+                    continue
+
                 for env_var in container_env:
                     if env_var.get("name") == "LOADER_NAME" and env_var.get("value") == loader_name:
                         # Found it - stop the task

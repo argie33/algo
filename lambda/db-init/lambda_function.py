@@ -44,25 +44,65 @@ def get_credentials():
                 )
                 response = client.get_secret_value(SecretId=secret_arn)
                 secret = json.loads(response["SecretString"])
-                raw_host = os.environ.get("DB_ENDPOINT") or secret.get("host", "")
+                raw_host = os.environ.get("DB_ENDPOINT") or secret.get("host")
+                if not raw_host:
+                    raise ValueError("Database host not found in secrets or DB_ENDPOINT environment variable")
                 host = raw_host.split(":")[0] if ":" in raw_host else raw_host
+
+                db_port = secret.get("port")
+                if not db_port:
+                    raise ValueError("Database port not found in secrets")
+
+                db_name = os.environ.get("DB_NAME") or secret.get("dbname")
+                if not db_name:
+                    raise ValueError("Database name not found in environment or secrets")
+
+                db_user = secret.get("username")
+                if not db_user:
+                    raise ValueError("Database username not found in secrets")
+
+                db_password = secret.get("password")
+                if not db_password:
+                    raise ValueError("Database password not found in secrets")
+
                 return {
                     "host": host,
-                    "port": int(secret.get("port", DEFAULT_DB_PORT)),
-                    "database": os.environ.get("DB_NAME") or secret.get("dbname", "stocks"),
-                    "user": secret.get("username"),
-                    "password": secret.get("password"),
+                    "port": int(db_port),
+                    "database": db_name,
+                    "user": db_user,
+                    "password": db_password,
                 }
             except (json.JSONDecodeError, ValueError, KeyError, TypeError) as e:
                 logger.error(f"Failed to parse secrets: {e}")
-                # Fall through to env vars
+                raise
+
+        # Local dev mode: all credentials must be explicitly set
+        db_host = os.environ.get("DB_HOST")
+        if not db_host:
+            raise ValueError("DB_HOST not set in environment") from None
+
+        db_port_str = os.environ.get("DB_PORT")
+        if not db_port_str:
+            raise ValueError("DB_PORT not set in environment") from None
+
+        db_name = os.environ.get("DB_NAME")
+        if not db_name:
+            raise ValueError("DB_NAME not set in environment") from None
+
+        db_user = os.environ.get("DB_USER")
+        if not db_user:
+            raise ValueError("DB_USER not set in environment") from None
+
+        db_password = os.environ.get("DB_PASSWORD")
+        if not db_password:
+            raise ValueError("DB_PASSWORD not set in environment") from None
 
         return {
-            "host": os.environ.get("DB_HOST"),
-            "port": int(os.environ.get("DB_PORT", DEFAULT_DB_PORT)),
-            "database": os.environ.get("DB_NAME", "stocks"),
-            "user": os.environ.get("DB_USER"),
-            "password": os.environ.get("DB_PASSWORD"),
+            "host": db_host,
+            "port": int(db_port_str),
+            "database": db_name,
+            "user": db_user,
+            "password": db_password,
         }
 
 
