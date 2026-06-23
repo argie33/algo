@@ -221,7 +221,7 @@ class DataPatrolConfig:
                 ... (other loader contracts)
             }
         """
-        severity_warn, severity_error = "warn", "error"
+        severity_error = "error"
         return {
             "price_daily": {
                 "condition": "date >= CURRENT_DATE - INTERVAL '14 days'",
@@ -252,12 +252,6 @@ class DataPatrolConfig:
                 "min_rows": self.get("patrol_market_exposure_daily_2d_min", 2),
                 "severity": severity_error,
                 "description": "Market regime indicators updated after market close",
-            },
-            "market_breadth_daily": {
-                "condition": "date >= CURRENT_DATE - INTERVAL '2 days'",
-                "min_rows": self.get("patrol_market_breadth_2d_min", 100),
-                "severity": severity_warn,
-                "description": "Market breadth (% up, down, neutral) 1-4 records/day",
             },
         }
 

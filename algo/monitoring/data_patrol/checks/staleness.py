@@ -126,6 +126,11 @@ class StalenessChecker(BaseCheck):
         stale_critical_signals = []
 
         for tbl, col, freq, config_key, sev_on_stale in sources:
+            sp = f"sp_stale_{tbl}"
+            try:
+                cur.execute(f"SAVEPOINT {sp}")
+            except Exception:
+                pass
             try:
                 max_days = cast(int, self.config.get(config_key, 7))
                 tbl_safe = assert_safe_table(tbl)
@@ -190,6 +195,18 @@ class StalenessChecker(BaseCheck):
                     )
             except Exception as e:
                 self.log("staleness", ERROR, tbl, f"Check failed: {e}", None)
+                # Roll back to the per-table savepoint so subsequent table checks can run.
+                # psycopg2 leaves the connection in an aborted state after any error;
+                # without rollback, every following query fails with InFailedSqlTransaction.
+                try:
+                    cur.execute(f"ROLLBACK TO SAVEPOINT {sp}")
+                except Exception:
+                    pass
+            finally:
+                try:
+                    cur.execute(f"RELEASE SAVEPOINT {sp}")
+                except Exception:
+                    pass
 
         # Alert on stale critical signals
         if stale_critical_signals:
