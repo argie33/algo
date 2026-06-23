@@ -17,6 +17,7 @@ import signal
 import sys
 import threading
 from contextlib import contextmanager
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -110,15 +111,15 @@ class ExecutionTimeout:
     Usage: with ExecutionTimeout(max_seconds=5400, label="loader"):
     """
 
-    def __init__(self, max_seconds: int = 5400, label: str = "loader"):
+    def __init__(self, max_seconds: int = 5400, label: str = "loader") -> None:
         self.max_seconds = max_seconds
         self.label = label
-        self._context = None
+        self._context: Any = None
 
-    def __enter__(self):
+    def __enter__(self) -> Any:
         self._context = execution_timeout(self.max_seconds, self.label)
         return self._context.__enter__()
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> Any:
         if self._context:
             return self._context.__exit__(exc_type, exc_val, exc_tb)
