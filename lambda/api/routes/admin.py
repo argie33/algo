@@ -254,7 +254,6 @@ def _get_system_health(cur: cursor) -> Any:
     if last_price_date:
         last_price_date_typed: date = last_price_date  # type: ignore[assignment]
         today = datetime.now(timezone.utc).date()
-        age_days = (today - last_price_date_typed).days
         # Use trading-day-aware freshness: data is fresh if it's from the most
         # recent trading day. A hardcoded day threshold causes false 'degraded'
         # on 3-day holiday weekends where Friday data is 4 calendar days old.
@@ -280,7 +279,6 @@ def _get_system_health(cur: cursor) -> Any:
         health_data["status"] = "unhealthy"
 
     table_counts = {}
-    tables = ["stock_symbols", "price_daily", "algo_trades", "algo_positions"]
     try:
         cur.execute("""
             SELECT

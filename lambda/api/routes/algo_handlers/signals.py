@@ -337,7 +337,7 @@ def _get_rejection_funnel(cur: cursor) -> Any:
             )
 
             for row in cur.fetchall():
-                reason_text = row["rejection_reason"] or ""
+                reason_text = str(row["rejection_reason"] or "")
                 count = row["count"]
                 if not reason_text or count is None:
                     continue
@@ -365,10 +365,11 @@ def _get_rejection_funnel(cur: cursor) -> Any:
             "t5": high_quality_count,
             "avg_score": 0,
         }
-        is_valid, error_msg = ResponseValidator.validate_endpoint_response("sig_eval", result)
+        is_valid, validation_error = ResponseValidator.validate_endpoint_response("sig_eval", result)
         if not is_valid:
-            logger.error(f"Endpoint response validation failed: {error_msg}")
-            return error_response(500, "response_validation_error", error_msg or "Validation failed")
+            assert validation_error is not None
+            logger.error(f"Endpoint response validation failed: {validation_error}")
+            return error_response(500, "response_validation_error", validation_error)
         return json_response(200, result)
     except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
         logger.error(

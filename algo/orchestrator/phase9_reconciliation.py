@@ -211,6 +211,223 @@ def _compute_signal_attribution(run_date: _date, log_phase_result_fn: Callable) 
     return attr_result
 
 
+def _generate_daily_report(run_date: _date, log_phase_result_fn: Callable) -> None:
+    """Generate and validate daily finance report."""
+    from algo.reporting import DailyFinanceReport
+
+    try:
+        daily_report = DailyFinanceReport()
+        report = daily_report.generate(run_date)
+        report_text = daily_report.format_text(report)
+        logger.info(f"\n{report_text}")
+    except Exception as e:
+        logger.error(
+            f"Daily report generation failed (could not generate): {e}",
+            exc_info=True,
+        )
+        log_phase_result_fn(9, "daily_report", "warn", f"generation error: {str(e)[:60]}")
+        return
+
+    # Validate critical report data before use
+    try:
+        if not report or "portfolio" not in report:
+            raise ValueError("Daily report generated but missing portfolio data")
+        portfolio_data = report.get("portfolio")
+        if (
+            not portfolio_data
+            or "current_value" not in portfolio_data
+            or portfolio_data.get("current_value") is None
+        ):
+            raise ValueError("Portfolio data missing current_value")
+        if (
+            not portfolio_data
+            or "daily_pnl_pct" not in portfolio_data
+            or portfolio_data.get("daily_pnl_pct") is None
+        ):
+            raise ValueError("Portfolio data missing daily_pnl_pct")
+
+        # Log to algo_audit_log for historical tracking
+        try:
+            with DatabaseContext("write") as cur:
+                acquire_advisory_lock(cur, ALGO_AUDIT_LOG_LOCK_ID, "algo_audit_log")
+                try:
+                    cur.execute(
+                        """
+                        INSERT INTO algo_audit_log (
+                            action_type, action_date, symbol, details, created_at
+                        ) VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)
+                        """,
+                        (
+                            "daily_report",
+                            run_date,
+                            "PORTFOLIO",
+                            json.dumps(report),
+                        ),
+                    )
+                finally:
+                    release_advisory_lock(cur, ALGO_AUDIT_LOG_LOCK_ID, "algo_audit_log")
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            logger.critical(f"[AUDIT_FAILURE] Could not log daily report to audit log: {e}")
+            raise
+
+        # Portfolio data must be present for daily reporting
+        if not portfolio_data:
+            logger.critical("CRITICAL: Portfolio data missing from daily report. Cannot report account status.")
+            raise ValueError("Daily report missing portfolio_data. Cannot calculate current value or P&L.")
+        current_val = portfolio_data.get("current_value")
+        pnl_pct = portfolio_data.get("daily_pnl_pct")
+        if current_val is None:
+            logger.critical("CRITICAL: Portfolio current_value missing from daily report.")
+            raise ValueError("Daily report: current_value missing. Cannot report account status.")
+        if pnl_pct is None:
+            logger.critical("CRITICAL: Portfolio daily_pnl_pct missing from daily report.")
+            raise ValueError("Daily report: daily_pnl_pct missing. Cannot report P&L.")
+        log_phase_result_fn(
+            7,
+            "daily_report",
+            "success",
+            f"Portfolio ${current_val if isinstance(current_val, str) else f'{current_val:,.0f}'}, P&L {pnl_pct if isinstance(pnl_pct, str) else f'{pnl_pct:+.2f}%'}",
+        )
+    except ValueError as e:
+        logger.error(f"Daily report validation failed (generated but data incomplete): {e}")
+        log_phase_result_fn(9, "daily_report", "warn", f"validation error: {str(e)[:60]}")
+
+
+def _compute_performance_metrics(config: Any, run_date: _date, log_phase_result_fn: Callable) -> None:
+    """Compute and log live performance metrics."""
+    from algo.reporting import LivePerformance
+
+    perf_status = "warn"
+    perf_summary = "N/A"
+    try:
+        perf = LivePerformance(config)
+        perf_report = perf.generate_daily_report(run_date)
+        if perf_report and perf_report.get("status") == "ok":
+            perf_status = "success"
+            sharpe = perf_report.get("rolling_sharpe_252d")
+            win_rate = perf_report.get("win_rate_50t")
+            expectancy = perf_report.get("expectancy")
+            if sharpe is None or win_rate is None or expectancy is None:
+                missing = [
+                    k for k in ["rolling_sharpe_252d", "win_rate_50t", "expectancy"] if perf_report.get(k) is None
+                ]
+                logger.critical(
+                    f"CRITICAL: Performance metrics missing: {missing}. Cannot assess strategy quality."
+                )
+                raise ValueError(f"Performance report incomplete. Missing: {missing}. Strategy validation failed.")
+            perf_summary = f"Sharpe {sharpe}, Win rate {win_rate}%, Expectancy {expectancy}"
+        elif perf_report:
+            perf_message = perf_report.get("message")
+            if not perf_message:
+                logger.critical("CRITICAL: Performance report failed but no error message provided.")
+                raise ValueError(
+                    "Performance report generation failed without error details. Cannot diagnose issue."
+                )
+            perf_summary = perf_message
+        else:
+            logger.critical(
+                "CRITICAL: Performance report generation returned None. Cannot assess strategy quality."
+            )
+            raise ValueError("Performance report generation failed. Cannot proceed without performance metrics.")
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+        perf_summary = f"error: {str(e)[:60]}"
+    finally:
+        log_phase_result_fn(9, "performance", perf_status, perf_summary)
+
+
+def _compute_risk_metrics(config: Any, run_date: _date, log_phase_result_fn: Callable) -> None:
+    """Compute and log risk metrics."""
+    from algo.risk import ValueAtRisk
+
+    risk_status = "warn"
+    risk_summary = "N/A"
+    try:
+        risk = ValueAtRisk(config)
+        risk_report = risk.generate_daily_risk_report(run_date)
+        if risk_report and risk_report.get("status") == "ok":
+            risk_status = "success"
+            var_metrics = risk_report.get("var_metrics") if risk_report else None
+            var_pct = var_metrics.get("var_pct", "N/A") if var_metrics else "N/A"
+            concentration = risk_report.get("concentration") if risk_report else None
+            conc_pct = concentration.get("top_5_concentration_pct", "N/A") if concentration else "N/A"
+            alerts = risk_report.get("alerts") if risk_report else []
+            alerts_count = len(alerts) if alerts else 0
+            risk_summary = f"VaR {var_pct}%, Concentration {conc_pct}%" + (
+                f", {alerts_count} alerts" if alerts_count else ""
+            )
+        elif risk_report:
+            risk_summary = risk_report.get("message", "insufficient data")
+        else:
+            risk_summary = "failed to generate report"
+    except Exception as e:
+        risk_summary = f"error: {str(e)[:60]}"
+    finally:
+        log_phase_result_fn(9, "risk_metrics", risk_status, risk_summary)
+
+
+def _update_daily_metrics(run_date: _date, log_phase_result_fn: Callable) -> None:
+    """Update algo_metrics_daily with daily trade results."""
+    try:
+        row_data = None
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT
+                    COUNT(*) as total_actions,
+                    SUM(CASE WHEN action_type = 'BUY' THEN 1 ELSE 0 END) as entries,
+                    SUM(CASE WHEN action_type = 'SELL' THEN 1 ELSE 0 END) as exits,
+                    AVG(CAST(details->>'score' AS FLOAT)) as avg_signal_score
+                FROM algo_audit_log
+                WHERE DATE(created_at) = %s
+            """,
+                (run_date,),
+            )
+            row_data = cur.fetchone()
+
+        if row_data:
+            total_actions, entries, exits, avg_score = row_data
+            total_actions = total_actions if total_actions is not None else 0
+            entries = entries if entries is not None else 0
+            exits = exits if exits is not None else 0
+
+            with DatabaseContext("write") as write_cur:
+                acquire_advisory_lock(write_cur, ALGO_METRICS_DAILY_LOCK_ID, "algo_metrics_daily")
+                try:
+                    write_cur.execute(
+                        """
+                        INSERT INTO algo_metrics_daily (date, total_actions, entries, exits, avg_signal_score)
+                        VALUES (%s, %s, %s, %s, %s)
+                        ON CONFLICT (date) DO UPDATE SET
+                            total_actions = EXCLUDED.total_actions,
+                            entries = EXCLUDED.entries,
+                            exits = EXCLUDED.exits,
+                            avg_signal_score = EXCLUDED.avg_signal_score
+                    """,
+                        (
+                            run_date,
+                            total_actions,
+                            entries,
+                            exits,
+                            avg_score,
+                        ),
+                    )
+                finally:
+                    release_advisory_lock(write_cur, ALGO_METRICS_DAILY_LOCK_ID, "algo_metrics_daily")
+            metrics_status = "success"
+            metrics_summary = f"{total_actions} actions, {entries} entries, {exits} exits"
+            logger.info(f"Updated algo_metrics_daily: {metrics_summary}")
+        else:
+            logger.info("No trades recorded today (metrics not updated)")
+            metrics_status = "warn"
+            metrics_summary = "No trades recorded"
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+        logger.warning(f"Failed to update algo_metrics_daily: {e}")
+        metrics_summary = f"error: {str(e)[:60]}"
+        metrics_status = "warn"
+    finally:
+        log_phase_result_fn(9, "metrics_update", metrics_status, metrics_summary)
+
+
 def _optimize_weights(config: Any, run_date: _date, log_phase_result_fn: Callable) -> dict:
     """Run weight optimization."""
     from algo.orchestration import RegimeManager as _RegimeManager
@@ -359,10 +576,6 @@ def run(
     """
     try:
         from algo.infrastructure.reconciliation import DailyReconciliation
-        from algo.orchestration import WeightOptimizer
-        from algo.reporting import DailyFinanceReport
-        from algo.signals.attribution import SignalAttributionEngine
-        from algo.signals.trade_performance import SignalTradePerformancePopulator
 
         recon = DailyReconciliation(config)
         reconciliation_succeeded, result = _run_reconciliation_step(
@@ -388,218 +601,16 @@ def run(
         opt_result = _optimize_weights(config, run_date, log_phase_result_fn)
 
         # Step 4: Generate institutional daily report
-        try:
-            daily_report = DailyFinanceReport()
-            report = daily_report.generate(run_date)
-            report_text = daily_report.format_text(report)
-            logger.info(f"\n{report_text}")
-        except Exception as e:
-            logger.error(
-                f"Daily report generation failed (could not generate): {e}",
-                exc_info=True,
-            )
-            log_phase_result_fn(9, "daily_report", "warn", f"generation error: {str(e)[:60]}")
-        else:
-            # Validate critical report data before use
-            try:
-                if not report or "portfolio" not in report:
-                    raise ValueError("Daily report generated but missing portfolio data")
-                portfolio_data = report.get("portfolio")
-                if (
-                    not portfolio_data
-                    or "current_value" not in portfolio_data
-                    or portfolio_data.get("current_value") is None
-                ):
-                    raise ValueError("Portfolio data missing current_value")
-                if (
-                    not portfolio_data
-                    or "daily_pnl_pct" not in portfolio_data
-                    or portfolio_data.get("daily_pnl_pct") is None
-                ):
-                    raise ValueError("Portfolio data missing daily_pnl_pct")
-
-                # Log to algo_audit_log for historical tracking
-                try:
-                    with DatabaseContext("write") as cur:
-                        acquire_advisory_lock(cur, ALGO_AUDIT_LOG_LOCK_ID, "algo_audit_log")
-                        try:
-                            cur.execute(
-                                """
-                                INSERT INTO algo_audit_log (
-                                    action_type, action_date, symbol, details, created_at
-                                ) VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)
-                                """,
-                                (
-                                    "daily_report",
-                                    run_date,
-                                    "PORTFOLIO",
-                                    json.dumps(report),
-                                ),
-                            )
-                        finally:
-                            release_advisory_lock(cur, ALGO_AUDIT_LOG_LOCK_ID, "algo_audit_log")
-                except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                    logger.critical(f"[AUDIT_FAILURE] Could not log daily report to audit log: {e}")
-                    raise
-
-                # Portfolio data must be present for daily reporting
-                if not portfolio_data:
-                    logger.critical("CRITICAL: Portfolio data missing from daily report. Cannot report account status.")
-                    raise ValueError("Daily report missing portfolio_data. Cannot calculate current value or P&L.")
-                current_val = portfolio_data.get("current_value")
-                pnl_pct = portfolio_data.get("daily_pnl_pct")
-                if current_val is None:
-                    logger.critical("CRITICAL: Portfolio current_value missing from daily report.")
-                    raise ValueError("Daily report: current_value missing. Cannot report account status.")
-                if pnl_pct is None:
-                    logger.critical("CRITICAL: Portfolio daily_pnl_pct missing from daily report.")
-                    raise ValueError("Daily report: daily_pnl_pct missing. Cannot report P&L.")
-                log_phase_result_fn(
-                    7,
-                    "daily_report",
-                    "success",
-                    f"Portfolio ${current_val if isinstance(current_val, str) else f'{current_val:,.0f}'}, P&L {pnl_pct if isinstance(pnl_pct, str) else f'{pnl_pct:+.2f}%'}",
-                )
-            except ValueError as e:
-                logger.error(f"Daily report validation failed (generated but data incomplete): {e}")
-                log_phase_result_fn(9, "daily_report", "warn", f"validation error: {str(e)[:60]}")
+        _generate_daily_report(run_date, log_phase_result_fn)
 
         # Step 5: Compute and log live performance metrics
-        perf_status = "warn"
-        perf_summary = "N/A"
-        try:
-            from algo.reporting import LivePerformance
+        _compute_performance_metrics(config, run_date, log_phase_result_fn)
 
-            perf = LivePerformance(config)
-            perf_report = perf.generate_daily_report(run_date)
-            if perf_report and perf_report.get("status") == "ok":
-                perf_status = "success"
-                # Performance metrics must be present — don't default to 'N/A'
-                sharpe = perf_report.get("rolling_sharpe_252d")
-                win_rate = perf_report.get("win_rate_50t")
-                expectancy = perf_report.get("expectancy")
-                if sharpe is None or win_rate is None or expectancy is None:
-                    missing = [
-                        k for k in ["rolling_sharpe_252d", "win_rate_50t", "expectancy"] if perf_report.get(k) is None
-                    ]
-                    logger.critical(
-                        f"CRITICAL: Performance metrics missing: {missing}. Cannot assess strategy quality."
-                    )
-                    raise ValueError(f"Performance report incomplete. Missing: {missing}. Strategy validation failed.")
-                perf_summary = f"Sharpe {sharpe}, Win rate {win_rate}%, Expectancy {expectancy}"
-            elif perf_report:
-                # Performance report failed. Must have a message explaining why.
-                perf_message = perf_report.get("message")
-                if not perf_message:
-                    logger.critical("CRITICAL: Performance report failed but no error message provided.")
-                    raise ValueError(
-                        "Performance report generation failed without error details. Cannot diagnose issue."
-                    )
-                perf_summary = perf_message
-            else:
-                logger.critical(
-                    "CRITICAL: Performance report generation returned None. Cannot assess strategy quality."
-                )
-                raise ValueError("Performance report generation failed. Cannot proceed without performance metrics.")
-        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            perf_summary = f"error: {str(e)[:60]}"
-        finally:
-            log_phase_result_fn(9, "performance", perf_status, perf_summary)
+        # Step 6: Compute and log risk metrics
+        _compute_risk_metrics(config, run_date, log_phase_result_fn)
 
-        # Compute and log risk metrics
-        risk_status = "warn"
-        risk_summary = "N/A"
-        try:
-            from algo.risk import ValueAtRisk
-
-            risk = ValueAtRisk(config)
-            risk_report = risk.generate_daily_risk_report(run_date)
-            if risk_report and risk_report.get("status") == "ok":
-                risk_status = "success"
-                var_metrics = risk_report.get("var_metrics") if risk_report else None
-                var_pct = var_metrics.get("var_pct", "N/A") if var_metrics else "N/A"
-                concentration = risk_report.get("concentration") if risk_report else None
-                conc_pct = concentration.get("top_5_concentration_pct", "N/A") if concentration else "N/A"
-                alerts = risk_report.get("alerts") if risk_report else []
-                alerts_count = len(alerts) if alerts else 0
-                risk_summary = f"VaR {var_pct}%, Concentration {conc_pct}%" + (
-                    f", {alerts_count} alerts" if alerts_count else ""
-                )
-            elif risk_report:
-                risk_summary = risk_report.get("message", "insufficient data")
-            else:
-                risk_summary = "failed to generate report"
-        except Exception as e:
-            risk_summary = f"error: {str(e)[:60]}"
-        finally:
-            log_phase_result_fn(9, "risk_metrics", risk_status, risk_summary)
-
-        # Step 6: Update algo_metrics_daily with actual trade results from this run
-        metrics_status = "warn"
-        metrics_summary = "N/A"
-        try:
-            # FIX: Read data first, close context, then perform write in separate transaction
-            # Prevents nested transaction deadlocks and maintains ACID isolation
-            row_data = None
-            with DatabaseContext("read") as cur:
-                cur.execute(
-                    """
-                    SELECT
-                        COUNT(*) as total_actions,
-                        SUM(CASE WHEN action_type = 'BUY' THEN 1 ELSE 0 END) as entries,
-                        SUM(CASE WHEN action_type = 'SELL' THEN 1 ELSE 0 END) as exits,
-                        AVG(CAST(details->>'score' AS FLOAT)) as avg_signal_score
-                    FROM algo_audit_log
-                    WHERE DATE(created_at) = %s
-                """,
-                    (run_date,),
-                )
-                row_data = cur.fetchone()
-
-            if row_data:
-                total_actions, entries, exits, avg_score = row_data
-                # Explicitly handle None values from aggregate functions (when no matching rows exist)
-                # Using None -> 0 conversion is valid only for COUNT aggregates with no matching rows
-                total_actions = total_actions if total_actions is not None else 0
-                entries = entries if entries is not None else 0
-                exits = exits if exits is not None else 0
-
-                # Single write context for UPSERT (no nested contexts)
-                with DatabaseContext("write") as write_cur:
-                    acquire_advisory_lock(write_cur, ALGO_METRICS_DAILY_LOCK_ID, "algo_metrics_daily")
-                    try:
-                        write_cur.execute(
-                            """
-                            INSERT INTO algo_metrics_daily (date, total_actions, entries, exits, avg_signal_score)
-                            VALUES (%s, %s, %s, %s, %s)
-                            ON CONFLICT (date) DO UPDATE SET
-                                total_actions = EXCLUDED.total_actions,
-                                entries = EXCLUDED.entries,
-                                exits = EXCLUDED.exits,
-                                avg_signal_score = EXCLUDED.avg_signal_score
-                        """,
-                            (
-                                run_date,
-                                total_actions,
-                                entries,
-                                exits,
-                                avg_score,
-                            ),
-                        )
-                    finally:
-                        release_advisory_lock(write_cur, ALGO_METRICS_DAILY_LOCK_ID, "algo_metrics_daily")
-                metrics_status = "success"
-                metrics_summary = f"{total_actions} actions, {entries} entries, {exits} exits"
-                logger.info(f"Updated algo_metrics_daily: {metrics_summary}")
-            else:
-                logger.info("No trades recorded today (metrics not updated)")
-                metrics_status = "warn"
-                metrics_summary = "No trades recorded"
-        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.warning(f"Failed to update algo_metrics_daily: {e}")
-            metrics_summary = f"error: {str(e)[:60]}"
-        finally:
-            log_phase_result_fn(9, "metrics_update", metrics_status, metrics_summary)
+        # Step 7: Update algo_metrics_daily with actual trade results from this run
+        _update_daily_metrics(run_date, log_phase_result_fn)
 
         # Refresh materialized view so positions dashboard reflects current state.
         # This runs after reconciliation updates algo_positions from Broker.

@@ -4,22 +4,18 @@ import json
 import logging
 import os
 import threading
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 # Set up imports for Lambda API - ensures routes and api_utils are importable
 import setup_imports  # noqa: F401
 from psycopg2.extensions import cursor
-
-if TYPE_CHECKING:
-    from lambda_function import fetch_cloudfront_domain_from_secrets
-    from routes import health
 
 logger = logging.getLogger(__name__)
 
 
 # health is the only truly critical route — if it fails the API can't self-report its own status
 try:
-    from routes import health
+    from routes import health  # type: ignore[attr-defined]
 except ImportError as e:
     raise RuntimeError(f"CRITICAL: Failed to import routes.health (required for API to function): {e}") from e
 
@@ -279,7 +275,7 @@ def _add_cors_headers(response: Any) -> Any:
     if not allowed_origins_str:
         # Fallback: fetch CloudFront domain from Secrets Manager
         try:
-            from lambda_function import fetch_cloudfront_domain_from_secrets
+            from lambda_function import fetch_cloudfront_domain_from_secrets  # type: ignore[attr-defined]
 
             cf_domain, _ = fetch_cloudfront_domain_from_secrets()
         except (ImportError, AttributeError):

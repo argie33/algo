@@ -642,7 +642,7 @@ def get_db_password() -> str:
     Uses DB_SECRET_ARN in AWS Lambda, falls back to environment variables.
     """
     creds = get_db_credentials()
-    return creds["password"]
+    return cast(str, creds["password"])
 
 
 def get_db_config() -> dict[str, Any]:

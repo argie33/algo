@@ -249,10 +249,8 @@ def _dispatch(
 
     # Pre-trade impact calculation
     if method == "POST" and path == "/api/algo/pre-trade-impact":
-        if body is None:
-            raise_api_error(400, "bad_request", "Request body required")
         if not isinstance(body, dict):
-            raise_api_error(400, "bad_request", "Request body must be a JSON object")
+            raise_api_error(400, "bad_request", "Request body is required and must be a JSON object")
         return _calculate_pre_trade_impact(cur, body)
 
     # Position management endpoints

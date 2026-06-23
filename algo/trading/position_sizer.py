@@ -87,8 +87,10 @@ class PositionSizer:
                 logger.info(f"[PORTFOLIO] Using live Alpaca value: ${alpaca_value:,.2f}")
                 return alpaca_value
         except RuntimeError as e:
-            logger.warning(f"Live Alpaca fetch failed, attempting snapshot fallback: {e}")
-            # Fall through to snapshot attempt below
+            logger.critical(f"Live Alpaca portfolio value fetch CRITICAL FAILURE: {e}")
+            raise RuntimeError(
+                f"[POSITION_SIZE] Failed to fetch current portfolio equity from Alpaca (cannot size positions without current value): {e}"
+            ) from e
 
         def fetch_snapshot(cur):
             cur.execute("SELECT pg_advisory_lock(%s)", (PORTFOLIO_SNAPSHOT_LOCK_ID,))

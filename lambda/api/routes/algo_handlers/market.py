@@ -246,7 +246,7 @@ def _get_data_status(cur: cursor) -> Any:
                 if table_name in _fr:
                     logger.warning(f"Freshness rule for {table_name} missing max_age_days field")
             else:
-                max_age = int(str(max_age_raw))
+                max_age = int(str(max_age_raw)) if isinstance(max_age_raw, (int, str, float)) else 1
 
             if row_count is None or row_count == 0:
                 status = "empty"
