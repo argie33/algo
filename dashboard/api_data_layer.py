@@ -249,6 +249,7 @@ def api_call(endpoint: str, params: dict[str, Any] | None = None, method: str = 
         return {
             "_error": "API unavailable - circuit breaker open",
             "_circuit_open": True,
+            "_is_transient_503": True,
         }
 
     url = f"{API_BASE_URL}{endpoint}"
