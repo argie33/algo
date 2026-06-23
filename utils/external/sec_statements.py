@@ -6,7 +6,10 @@ These methods leverage the SecEdgarClient for company facts and aggregate multip
 GAAP concepts into structured financial statements.
 """
 
+import logging
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[dict[str, Any]]:
@@ -122,9 +125,13 @@ def _aggregate_concepts(
     # Extract concepts from all_facts (us-gaap taxonomy).
     # Some entities (ETFs, foreign filers) have CIKs but report under IFRS
     # or a non-US-GAAP taxonomy — return empty for those too.
-    facts = all_facts.get("facts") or {}
+    facts = all_facts.get("facts")
+    if facts is None:
+        logger.debug(f"SEC API returned no 'facts' in company filings for CIK {cik}")
+        return []
     us_gaap_facts = facts.get("us-gaap")
     if not us_gaap_facts:
+        logger.debug(f"SEC API has no US-GAAP facts for CIK {cik} (possibly IFRS filer)")
         return []
     rows: dict[Any, dict[str, Any]] = {}
     fp_filter = "FY" if period == "annual" else ("Q1", "Q2", "Q3", "Q4")

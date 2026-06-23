@@ -527,13 +527,18 @@ def get_cache_headers(cache_type: str = "no-cache") -> dict[str, str]:
 
 
 def get_bearer_token(event: dict) -> str | None:
-    """Extract Bearer token from Authorization header."""
-    headers = event.get("headers") or {}
-    auth_header = headers.get("Authorization")
+    """Extract Bearer token from Authorization header. CRITICAL: Missing auth header must be explicit None."""
+    headers = event.get("headers")
+    if headers is None:
+        logger.debug("No headers in event (no auth)")
+        return None
+    auth_header = headers.get("Authorization") or headers.get("authorization")
     if not auth_header:
-        auth_header = headers.get("authorization", "")
+        logger.debug("No Authorization header found")
+        return None
 
-    if not auth_header or not auth_header.startswith("Bearer "):
+    if not auth_header.startswith("Bearer "):
+        logger.warning("Authorization header does not start with 'Bearer '")
         return None
 
     return str(auth_header[7:])  # Remove 'Bearer ' prefix
@@ -687,11 +692,15 @@ def validate_bearer_token(token: str | None) -> tuple:
             )
 
         # Manually verify client identity from either claim
-        actual_client = payload.get("client_id")
+        actual_client = payload.get("client_id") or payload.get("aud")
         if not actual_client:
-            actual_client = payload.get("aud", "")
+            logger.warning("JWT missing both client_id and aud claims")
+            return (False, None, "Token missing client identity claim")
         if isinstance(actual_client, list):
-            actual_client = actual_client[0] if actual_client else ""
+            actual_client = actual_client[0] if actual_client else None
+        if not actual_client:
+            logger.warning("JWT aud claim is empty list")
+            return (False, None, "Token client identity empty")
         if actual_client != cognito_client_id:
             logger.warning(f"JWT client_id/aud mismatch: expected {cognito_client_id}, got {actual_client}")
             return (False, None, "Token client mismatch")
@@ -723,8 +732,10 @@ def validate_bearer_token(token: str | None) -> tuple:
 
         # SECURITY FIX S-08: Validate JWT scope claim (if present)
         # Scope is optional, but if Cognito is configured to issue scopes, validate them
-        token_scope = payload.get("scope", "").split()
+        scope_str = payload.get("scope")
+        token_scope = scope_str.split() if scope_str else []
         if token_scope:
+            logger.info(f"Token scopes: {token_scope}")
             # Example: if a user has read-only scope, they shouldn't be able to modify data
             # For now, just log it. In future: reject write operations for read-only users
             logger.debug(f"JWT scopes: {token_scope}")
@@ -787,21 +798,29 @@ def get_client_ip(event: dict) -> str:
     To log real user IPs, configure CloudFront to add a shared-secret custom header
     (e.g. x-origin-verify) and verify it here before trusting CF-Connecting-IP.
     """
-    _req_ctx = event.get("requestContext") or {}
-    # API GW v1: requestContext.identity.sourceIp
-    source_ip = (_req_ctx.get("identity") or {}).get("sourceIp", "")
-    if not source_ip:
+    _req_ctx = event.get("requestContext")
+    if _req_ctx:
+        # API GW v1: requestContext.identity.sourceIp
+        identity = _req_ctx.get("identity")
+        if identity:
+            source_ip = identity.get("sourceIp")
+            if source_ip:
+                return str(source_ip)
         # API GW v2: requestContext.http.sourceIp
-        source_ip = (_req_ctx.get("http") or {}).get("sourceIp", "")
-    if source_ip:
-        return str(source_ip)
+        http_ctx = _req_ctx.get("http")
+        if http_ctx:
+            source_ip = http_ctx.get("sourceIp")
+            if source_ip:
+                return str(source_ip)
 
     # Fallback for local/test invocations without requestContext
-    headers = event.get("headers") or {}
-    xff = headers.get("x-forwarded-for") or headers.get("X-Forwarded-For", "")
-    if xff:
-        return str(xff).split(",")[0].strip()
+    headers = event.get("headers")
+    if headers:
+        xff = headers.get("x-forwarded-for") or headers.get("X-Forwarded-For")
+        if xff:
+            return str(xff).split(",")[0].strip()
 
+    logger.debug("Could not determine sourceIp from event (local/test invocation)")
     return "unknown"
 
 

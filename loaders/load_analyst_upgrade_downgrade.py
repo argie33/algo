@@ -14,6 +14,7 @@ import logging
 import sys
 from datetime import date
 
+import pandas as pd
 import requests
 
 from loaders.runner import run_loader

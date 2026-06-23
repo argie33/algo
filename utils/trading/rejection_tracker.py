@@ -42,7 +42,9 @@ class RejectionTracker:
                 # Fail-fast if tier result missing (don't silently treat as rejected)
                 tier_result = tier_results.get(tier)
                 if tier_result is None:
-                    raise ValueError(f"Tier {tier} result missing from tier_results - cannot determine pass/fail status")
+                    raise ValueError(
+                        f"Tier {tier} result missing from tier_results - cannot determine pass/fail status"
+                    )
                 if not tier_result.get("pass", False):
                     rejected_at_tier = tier
                     break

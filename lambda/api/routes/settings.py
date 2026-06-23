@@ -74,7 +74,15 @@ def _get_settings(cur: cursor, jwt_claims: dict[str, Any]) -> dict[str, Any]:
         )
         row = rows[0] if rows else None
         if row:
-            preferences = row.get("preferences") or {}
+            preferences = row.get("preferences")
+            if preferences is None:
+                # User has no custom preferences (either new user or NULL in DB)
+                logger.debug(f"User {user_id} has no stored preferences (preferences is NULL)")
+                preferences = {}
+            elif not isinstance(preferences, dict):
+                # CRITICAL: preferences should be a dict (JSON), not string or other type
+                logger.error(f"User {user_id} has invalid preferences type: {type(preferences).__name__}")
+                raise ValueError(f"User preferences corrupted: expected dict, got {type(preferences).__name__}")
             stored = {
                 "theme": row["theme"] or "dark",
                 "notifications": (row["notifications"] if row["notifications"] is not None else True),

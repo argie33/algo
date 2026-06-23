@@ -9,6 +9,7 @@ logging, recovery strategies, and API responses. Each exception includes:
 """
 
 from enum import Enum
+from typing import Any
 
 
 class ErrorCategory(Enum):
@@ -28,7 +29,7 @@ class AlgoError(Exception):
         error_category: ErrorCategory = ErrorCategory.PERMANENT,
         retry_eligible: bool = False,
         recovery_suggestion: str | None = None,
-        context: dict | None = None,
+        context: dict[str, Any] | None = None,
     ):
         """Initialize error with structured error info.
 
