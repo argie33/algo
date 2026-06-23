@@ -313,7 +313,7 @@ class TradeAuditLogger:
 
     def log_portfolio_snapshot_audit(
         self,
-        snapshot_date,
+        snapshot_date: Any,
         total_portfolio_value: float,
         total_cash: float,
         position_count: int,

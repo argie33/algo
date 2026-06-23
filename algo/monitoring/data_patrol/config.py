@@ -18,13 +18,13 @@ class PatrolConfig:
     database queries and ensures patrol thresholds are managed centrally.
     """
 
-    def __init__(self, cur=None):
+    def __init__(self, cur: Any = None) -> None:
         """Legacy constructor for compatibility. Cursor parameter is ignored."""
         from algo.infrastructure import get_config
 
         self._config = get_config()
 
-    def load(self, cur) -> None:
+    def load(self, cur: Any) -> None:
         """Legacy method - reload AlgoConfig instead."""
         self._config.reload()
 

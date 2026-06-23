@@ -31,7 +31,7 @@ class BulkInsertManager:
         rows: list[dict[str, Any]],
         symbol: str | None = None,
         new_watermark: date | None = None,
-        watermark_mgr=None,
+        watermark_mgr: Any = None,
     ) -> int:
         """Bulk insert rows and atomically update watermark if provided.
 
@@ -152,7 +152,7 @@ class BulkInsertManager:
 
             return inserted
 
-    def _ensure_unique_constraint(self, cur) -> None:
+    def _ensure_unique_constraint(self, cur: Any) -> None:
         """Ensure primary_key columns have a UNIQUE constraint."""
         if self._constraint_checked or not self.primary_key or not self.table_name:
             return

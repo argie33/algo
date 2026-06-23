@@ -49,7 +49,7 @@ class WatermarkManager:
         return None
 
     @staticmethod
-    def _parse_watermark_date(value) -> date | None:
+    def _parse_watermark_date(value: Any) -> date | None:
         """Parse watermark value to date."""
         if value is None:
             return None

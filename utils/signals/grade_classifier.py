@@ -11,6 +11,7 @@ Thresholds are configurable via algo_config table.
 """
 
 import logging
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +29,7 @@ class GradeClassifier:
     }
 
     @staticmethod
-    def _load_config_val(key: str, default):
+    def _load_config_val(key: str, default: Any) -> Any:
         """Load a config value from AlgoConfig, with fallback to default."""
         try:
             from algo.infrastructure import get_config

@@ -79,7 +79,7 @@ class OptimalLoader:
         return max(values) if values else None
 
     @property
-    def router(self):
+    def router(self) -> Any:
         if self._router is None:
             from utils.data.source_router import DataSourceRouter
 

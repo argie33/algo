@@ -124,7 +124,7 @@ def _execute_fetcher_batch(
     fetcher_set: set[str],
     max_workers: int,
     timeout_sec: float,
-    one_func: Callable[[str, Callable[..., Any], float], tuple[str, Any]],
+    one_func: Callable[..., tuple[str, Any]],
     fetcher_timeout_dict: dict[str, float],
     batch_name: str,
 ) -> dict[str, Any]:
@@ -132,10 +132,10 @@ def _execute_fetcher_batch(
     out = {}
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
         items = {k: v for k, v in FETCHERS.items() if k in fetcher_set}
-        futures: dict[Future, Any] = {
+        futures: dict[Future[tuple[str, Any]], str] = {
             pool.submit(one_func, k, v, fetcher_timeout_dict.get(k, 8.0)): k for k, v in items.items()
         }
-        pending_futures = set(futures.keys())
+        pending_futures: set[Future[tuple[str, Any]]] = set(futures.keys())
 
         try:
             for f in as_completed(futures, timeout=timeout_sec):
@@ -288,6 +288,9 @@ def load_all() -> dict[str, Any]:
                 error_msg = format_fetcher_error(name, e)
                 logger.error(error_msg)
                 return name, {"_error": error_msg}
+
+        # Fallback return (should not be reached, but mypy requires it)
+        return name, {"_error": "Max retries exceeded"}
 
     critical_start_time = time.monotonic()
     critical_out = _execute_fetcher_batch(

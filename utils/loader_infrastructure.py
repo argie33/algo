@@ -5,6 +5,7 @@ import os
 import signal
 import threading
 import time
+from typing import Any
 
 import psycopg2
 
@@ -42,7 +43,7 @@ class LoaderInfrastructure:
             logger.debug(f"[{self.table_name}] Skipping signal handlers (not in main thread)")
             return
 
-        def handle_shutdown(signum, frame):
+        def handle_shutdown(signum: int, frame: Any) -> None:
             with self._shutdown_lock:
                 if not self._shutdown_requested:
                     self._shutdown_requested = True
@@ -87,7 +88,7 @@ class LoaderInfrastructure:
                 return
             self._heartbeat_running = True
 
-        def heartbeat_worker():
+        def heartbeat_worker() -> None:
             while self._heartbeat_running:
                 try:
                     time.sleep(self._heartbeat_interval)

@@ -527,7 +527,7 @@ def save_results(results: dict[str, Any]) -> int | None:
         raise RuntimeError(f"Operation failed: {e}") from e
 
 
-def main():
+def main() -> None:
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s %(message)s",

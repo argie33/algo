@@ -153,7 +153,7 @@ class WeightOptimizer:
         try:
             n = len(self.COMPONENTS)
 
-            def objective(w):
+            def objective(w: Any) -> Any:
                 return -np.dot(w, ic_array)  # Negative because we minimize
 
             # Constraints

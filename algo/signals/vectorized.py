@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 class VectorizedSignalGenerator:
     """Parallel signal computation for all symbols."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.lookback_days = 300  # 300 trading days ~ 1.2 years
         self.min_history = 50  # Minimum bars required for technical indicators
 

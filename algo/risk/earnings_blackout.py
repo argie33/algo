@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 class EarningsBlackout:
     """Enforce earnings date blackout windows."""
 
-    def __init__(self, config):
+    def __init__(self, config: Any) -> None:
         if config is None:
             raise ValueError("EarningsBlackout requires explicit config parameter (dependency injection)")
         self.config = config

@@ -26,7 +26,7 @@ class ThresholdConfig:
     """Unified threshold configuration — delegates to algo_config."""
 
     @staticmethod
-    def _get_config_value(key: str, default):
+    def _get_config_value(key: str, default: Any) -> Any:
         """Load a config value from AlgoConfig.
 
         Args:

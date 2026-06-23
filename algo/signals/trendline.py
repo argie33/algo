@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 class TrendlineSupport:
     """Detect and validate 2-point support trendlines."""
 
-    def __init__(self, lookback_days=130):
+    def __init__(self, lookback_days: int = 130) -> None:
         """
         Args:
             lookback_days: how far back to look for support line (default 130 = 6 months)

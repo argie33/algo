@@ -158,7 +158,7 @@ class DataProvenanceTracker:
         error_type: str,
         error_message: str,
         resolution: str,  # 'skipped', 'fallback', 'retried', 'failed'
-    ):
+    ) -> None:
         """
         Record that we encountered an error and how we resolved it.
 

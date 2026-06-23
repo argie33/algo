@@ -740,25 +740,29 @@ def _render_footer_expanded_view(
                     *_exp_top,
                     Panel("[red]Signals data unavailable[/]", border_style="red"),
                 )
-            return _expanded_layout(*_exp_top, panel_signals_expanded(sig, sig_eval, scores=scores))
+            sig_panel = panel_signals_expanded(sig, sig_eval, scores=scores)
+            if sig_panel is None:
+                return _expanded_layout(
+                    *_exp_top,
+                    Panel("[red]Signals panel unavailable[/]", border_style="red"),
+                )
+            return _expanded_layout(*_exp_top, sig_panel)
         case "health":
             if has_error(run) or has_error(hlth):
                 return _expanded_layout(
                     *_exp_top,
                     Panel("[red]Health data unavailable[/]", border_style="red"),
                 )
-            return _expanded_layout(
-                *_exp_top,
-                panel_algo_health_expanded(
-                    run,
-                    act,
-                    hlth,
-                    notifs,
-                    algo_metrics,
-                    audit,
-                    exec_hist,
-                    risk=risk,
-                ),
+            # panel_algo_health_expanded returns Layout, not Panel, so return it directly
+            return panel_algo_health_expanded(
+                run,
+                act,
+                hlth,
+                notifs,
+                algo_metrics,
+                audit,
+                exec_hist,
+                risk=risk,
             )
         case "sectors":
             if has_error(pos) or has_error(port):
@@ -1058,7 +1062,7 @@ def _run_watch_main_loop(
 
 
 def _run_watch_shutdown_threads(
-    active_threads: list, active_threads_lock: threading.Lock, shutdown: threading.Event
+    active_threads: list[Any], active_threads_lock: threading.Lock, shutdown: threading.Event
 ) -> None:
     """Gracefully shutdown all active threads."""
     shutdown.set()
@@ -1077,7 +1081,7 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
     """Watch mode: auto-refresh data every `interval` seconds, mascot dances continuously."""
     state = _WatchState()
     state_lock = threading.Lock()
-    active_threads: list = []
+    active_threads: list[Any] = []
     active_threads_lock = threading.Lock()
     shutdown = threading.Event()
 

@@ -103,7 +103,7 @@ class RenderRecovery:
 
     _lock = threading.Lock()
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.state = RenderState()
 
     def render_with_recovery(self, data: dict, render_fn: Callable[[dict], Layout]) -> tuple[Layout, str]:

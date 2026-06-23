@@ -41,7 +41,7 @@ class TCAEngine:
         shares_filled: int,
         side: str = "BUY",
         execution_latency_ms: int | None = None,
-    ):
+    ) -> dict[str, Any]:
         """Record a fill and compute slippage metrics.
 
         Args:

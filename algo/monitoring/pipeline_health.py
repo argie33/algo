@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from datetime import date as _date
 from datetime import datetime
 from enum import Enum
+from typing import Any
 
 import psycopg2
 
@@ -129,7 +130,7 @@ class PipelineHealth:
         "earnings_calendar": {"date_column": "created_at", "sla_days": 30},
     }
 
-    def check_table_health(self, cur, table_name: str, date_column: str, sla_days: int) -> TableHealth:
+    def check_table_health(self, cur: Any, table_name: str, date_column: str, sla_days: int) -> TableHealth:
         """Check health of a single table."""
         health = TableHealth(table_name=table_name, status=HealthStatus.ERROR, sla_days=sla_days)
 
@@ -238,7 +239,7 @@ class PipelineHealth:
 
         return status
 
-    def log_health_check(self, status: PipelineStatus):
+    def log_health_check(self, status: PipelineStatus) -> None:
         """Log pipeline health to database for historical tracking."""
         try:
             with DatabaseContext("write") as cur:
