@@ -148,10 +148,10 @@ def handle(
                 )
                 rows = cur.fetchall()
                 freshness = check_data_freshness(cur, "sector_performance", "date", warning_days=1)
-                return list_response(
+                return cast(dict[str, Any], list_response(
                     [safe_json_serialize(dict(r)) for r in rows],
                     data_freshness=freshness,
-                )
+                ))
         elif path in ("/api/sectors", "/api/sectors/performance"):
             limit_str = params.get("limit", [None])[0] if params else None
             limit = safe_limit(limit_str or "50000", max_val=50000)
@@ -372,7 +372,7 @@ def handle(
                 (sector_name, days),
             )
             rows = cur.fetchall()
-            return list_response([safe_json_serialize(dict(r)) for r in rows])
+            return cast(dict[str, Any], list_response([safe_json_serialize(dict(r)) for r in rows]))
         return cast(dict[str, Any], error_response(404, "not_found", f"No sector handler for {path}"))
     except (
         psycopg2.errors.UndefinedTable,

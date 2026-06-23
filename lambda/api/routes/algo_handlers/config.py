@@ -56,7 +56,7 @@ def _get_algo_config(cur: cursor) -> dict[str, Any]:
         logger.error(f"Config response validation failed: {error_msg}")
         return cast(dict[str, Any], error_response(500, "response_validation_error", error_msg))
 
-    return response
+    return cast(dict[str, Any], response)
 
 
 @db_route_handler("fetch algo config key")

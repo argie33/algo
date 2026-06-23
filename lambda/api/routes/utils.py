@@ -364,7 +364,7 @@ def extract_param(params: dict[str, Any] | None, key: str, required: bool = Fals
     return (
         value
         if value
-        else (default if not required else (raise_api_error(400, "BadRequest", f"Required parameter missing: {key}")))
+        else (default if not required else raise_api_error(400, "BadRequest", f"Required parameter missing: {key}"))
     )
 
 

@@ -148,7 +148,7 @@ def handle(
             if not is_valid:
                 logger.error(f"Endpoint response validation failed: {error_msg}")
                 return cast(dict[str, Any], error_response(500, "response_validation_error", error_msg))
-            return sentiment_data_result
+            return cast(dict[str, Any], sentiment_data_result)
         elif path == "/api/sentiment/divergence":
             rows = execute_with_timeout(
                 cur,

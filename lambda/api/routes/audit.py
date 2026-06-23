@@ -75,10 +75,13 @@ def handle(
             count_row = cur.fetchone()
             total = next(iter(safe_json_serialize(dict(count_row).values())), 0) if count_row else 0
             freshness = check_data_freshness(cur, "algo_audit_log", "created_at", warning_days=1)
-            return list_response(
-                [safe_json_serialize(dict(a)) for a in audits] if audits else [],
-                total=total,
-                data_freshness=freshness,
+            return cast(
+                dict[str, Any],
+                list_response(
+                    [safe_json_serialize(dict(a)) for a in audits] if audits else [],
+                    total=total,
+                    data_freshness=freshness,
+                ),
             )
 
         elif path == "/api/audit/trades" or path.startswith("/api/audit/trades?"):
@@ -101,10 +104,13 @@ def handle(
             count_row = cur.fetchone()
             total = next(iter(safe_json_serialize(dict(count_row).values())), 0) if count_row else 0
             freshness = check_data_freshness(cur, "algo_audit_log", "created_at", warning_days=1)
-            return list_response(
-                [safe_json_serialize(dict(a)) for a in audits] if audits else [],
-                total=total,
-                data_freshness=freshness,
+            return cast(
+                dict[str, Any],
+                list_response(
+                    [safe_json_serialize(dict(a)) for a in audits] if audits else [],
+                    total=total,
+                    data_freshness=freshness,
+                ),
             )
 
         elif path == "/api/audit/config" or path.startswith("/api/audit/config?"):
@@ -127,10 +133,13 @@ def handle(
             count_row = cur.fetchone()
             total = next(iter(safe_json_serialize(dict(count_row).values())), 0) if count_row else 0
             freshness = check_data_freshness(cur, "algo_audit_log", "created_at", warning_days=1)
-            return list_response(
-                [safe_json_serialize(dict(a)) for a in audits] if audits else [],
-                total=total,
-                data_freshness=freshness,
+            return cast(
+                dict[str, Any],
+                list_response(
+                    [safe_json_serialize(dict(a)) for a in audits] if audits else [],
+                    total=total,
+                    data_freshness=freshness,
+                ),
             )
 
         elif path == "/api/audit/safeguards" or path.startswith("/api/audit/safeguards?"):
@@ -153,10 +162,13 @@ def handle(
             count_row = cur.fetchone()
             total = next(iter(safe_json_serialize(dict(count_row).values())), 0) if count_row else 0
             freshness = check_data_freshness(cur, "algo_audit_log", "created_at", warning_days=1)
-            return list_response(
-                [safe_json_serialize(dict(a)) for a in audits] if audits else [],
-                total=total,
-                data_freshness=freshness,
+            return cast(
+                dict[str, Any],
+                list_response(
+                    [safe_json_serialize(dict(a)) for a in audits] if audits else [],
+                    total=total,
+                    data_freshness=freshness,
+                ),
             )
 
         return cast(dict[str, Any], error_response(404, "not_found", f"No audit handler for {path}"))

@@ -181,7 +181,7 @@ def _get_comprehensive_risk_dashboard(cur: cursor) -> dict[str, Any]:
         response = json_response(200, result)
         if freshness:
             response["data_freshness"] = freshness
-        return response
+        return cast(dict[str, Any], response)
     except (ValueError, ZeroDivisionError, TypeError) as e:
         code, error_type, message = handle_db_error(e, "fetch comprehensive risk dashboard")
         return cast(dict[str, Any], error_response(code, error_type, message))
@@ -332,7 +332,7 @@ def _get_position_sizing_audit(cur: cursor, days: int) -> dict[str, Any]:
                 }
             )
 
-        return list_response(items)
+        return cast(dict[str, Any], list_response(items))
     except (ValueError, ZeroDivisionError, TypeError) as e:
         code, error_type, message = handle_db_error(e, "fetch position sizing audit")
         return cast(dict[str, Any], error_response(code, error_type, message))
@@ -374,7 +374,7 @@ def _get_stop_loss_audit(cur: cursor, days: int) -> dict[str, Any]:
                 }
             )
 
-        return list_response(items)
+        return cast(dict[str, Any], list_response(items))
     except (ValueError, ZeroDivisionError, TypeError) as e:
         code, error_type, message = handle_db_error(e, "fetch stop loss audit")
         return cast(dict[str, Any], error_response(code, error_type, message))
@@ -416,7 +416,7 @@ def _get_exit_rules_distribution(cur: cursor, days: int) -> dict[str, Any]:
                 }
             )
 
-        return list_response(items)
+        return cast(dict[str, Any], list_response(items))
     except (ValueError, ZeroDivisionError, TypeError) as e:
         code, error_type, message = handle_db_error(e, "fetch exit rules distribution")
         return cast(dict[str, Any], error_response(code, error_type, message))

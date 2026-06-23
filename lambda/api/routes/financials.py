@@ -85,7 +85,7 @@ def handle(
             if not is_valid:
                 logger.error(f"Endpoint response validation failed: {error_msg}")
                 return cast(dict[str, Any], error_response(500, "response_validation_error", error_msg))
-            return result
+            return cast(dict[str, Any], result)
 
         if endpoint == "income-statement":
             if period == "quarterly":
@@ -109,7 +109,7 @@ def handle(
             if not is_valid:
                 logger.error(f"Endpoint response validation failed: {error_msg}")
                 return cast(dict[str, Any], error_response(500, "response_validation_error", error_msg))
-            return result
+            return cast(dict[str, Any], result)
 
         if endpoint == "balance-sheet":
             if period == "quarterly":
@@ -133,7 +133,7 @@ def handle(
             if not is_valid:
                 logger.error(f"Endpoint response validation failed: {error_msg}")
                 return cast(dict[str, Any], error_response(500, "response_validation_error", error_msg))
-            return result
+            return cast(dict[str, Any], result)
 
         if endpoint == "cash-flow":
             if period == "quarterly":
@@ -166,7 +166,7 @@ def handle(
             if not is_valid:
                 logger.error(f"Endpoint response validation failed: {error_msg}")
                 return cast(dict[str, Any], error_response(500, "response_validation_error", error_msg))
-            return result
+            return cast(dict[str, Any], result)
 
         return cast(dict[str, Any], error_response(404, "not_found", f"No financials handler for {path}"))
     except (

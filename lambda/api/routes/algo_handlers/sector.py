@@ -48,7 +48,7 @@ def _get_algo_evaluate(cur: cursor) -> dict[str, Any]:
             """)
         sig_row = cur.fetchone()
         if not sig_row or not sig_row.get("candidates_screened"):
-            return cast(dict[str, Any], json_response()
+            return cast(dict[str, Any], json_response(
                 200,
                 {
                     "stage": "no_data",
@@ -60,7 +60,7 @@ def _get_algo_evaluate(cur: cursor) -> dict[str, Any]:
                         "available_slots": 15,
                     },
                 },
-            )
+            ))
 
         # Current portfolio positions and constraints
         cur.execute("""
@@ -105,7 +105,7 @@ def _get_algo_evaluate(cur: cursor) -> dict[str, Any]:
         risk_row = cur.fetchone()
         if not risk_row:
             # No portfolio snapshot data yet (algo just started) — fail-fast
-            return cast(dict[str, Any], json_response()
+            return cast(dict[str, Any], json_response(
                 200,
                 {
                     "stage": "no_data",
@@ -128,7 +128,7 @@ def _get_algo_evaluate(cur: cursor) -> dict[str, Any]:
                         },
                     },
                 },
-            )
+            ))
 
         # Fail-fast: critical fields must be present
         critical_fields = [
@@ -142,13 +142,13 @@ def _get_algo_evaluate(cur: cursor) -> dict[str, Any]:
         missing = [f for f in critical_fields if risk_row.get(f) is None]
         if missing:
             logger.error(f"Portfolio snapshot data incomplete: missing {missing}")
-            return cast(dict[str, Any], json_response()
+            return cast(dict[str, Any], json_response(
                 503,
                 {
                     "stage": "incomplete_data",
                     "_error": f"Portfolio health metrics incomplete: {', '.join(missing)}",
                 },
-            )
+            ))
 
         today_return = risk_row.get("today_return_pct")
         unrealized_pnl_total = risk_row.get("unrealized_pnl_total")
@@ -168,15 +168,15 @@ def _get_algo_evaluate(cur: cursor) -> dict[str, Any]:
         missing_candidates = [f for f in candidate_fields if f not in sig_dict]
         if missing_candidates:
             logger.error(f"Signal candidate counts incomplete: missing {missing_candidates}")
-            return cast(dict[str, Any], json_response()
+            return cast(dict[str, Any], json_response(
                 503,
                 {
                     "stage": "incomplete_data",
                     "_error": f"Signal evaluation incomplete: {', '.join(missing_candidates)}",
                 },
-            )
+            ))
 
-        return cast(dict[str, Any], json_response()
+        return cast(dict[str, Any], json_response(
             200,
             {
                 "stage": "evaluated",
@@ -214,14 +214,14 @@ def _get_algo_evaluate(cur: cursor) -> dict[str, Any]:
                     },
                 },
             },
-        )
+        ))
     except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
         logger.error(
             f"Failed to evaluate algorithm: {type(e).__name__}: {e}\n  Operation: Evaluate algorithm with signals and constraints\n  Endpoint: GET /api/algo/evaluate"
         )
         raise
     except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
-        return cast(dict[str, Any], json_response()
+        return cast(dict[str, Any], json_response(
             200,
             {
                 "signals": {"total_candidates": 0},
@@ -229,7 +229,7 @@ def _get_algo_evaluate(cur: cursor) -> dict[str, Any]:
                 "sector_exposure": {},
                 "portfolio_health": {},
             },
-        )
+        ))
 
 
 @db_route_handler("get sector breadth")
@@ -287,7 +287,7 @@ def _get_sector_breadth(cur: cursor) -> dict[str, Any]:
             """)
         breadth = cur.fetchall()
         cur.execute("RELEASE SAVEPOINT sector_breadth_check")
-        return list_response([safe_json_serialize(safe_dict_convert(b)) for b in breadth])
+        return cast(dict[str, Any], list_response([safe_json_serialize(safe_dict_convert(b)) for b in breadth]))
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
@@ -358,7 +358,7 @@ def _get_sector_position_warnings(cur: cursor) -> dict[str, Any]:
                     }
                 )
 
-        return success_response({"warnings": warnings, "at_cap": at_cap})
+        return cast(dict[str, Any], success_response({"warnings": warnings, "at_cap": at_cap}))
 
     except (
         psycopg2.errors.UndefinedTable,
@@ -463,7 +463,7 @@ def _get_sector_rotation(cur: cursor, days: int = 180) -> dict[str, Any]:
         logger.error(f"Sector rotation response validation failed: {error_msg}")
         return cast(dict[str, Any], error_response(500, "response_validation_error", error_msg))
 
-    return response
+    return cast(dict[str, Any], response)
 
 
 @db_route_handler("get sector stage2")
@@ -500,7 +500,7 @@ def _get_sector_stage2(cur: cursor) -> dict[str, Any]:
                 ORDER BY pct_stage_2 DESC
             """)
         rows = cur.fetchall()
-        return list_response([safe_json_serialize(safe_dict_convert(r)) for r in rows])
+        return cast(dict[str, Any], list_response([safe_json_serialize(safe_dict_convert(r)) for r in rows]))
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,

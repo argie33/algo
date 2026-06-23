@@ -60,7 +60,7 @@ def _get_data_quality(cur: cursor) -> dict[str, Any]:
                 "warnings": 0,
                 "healthy": 0,
             }
-            return response
+            return cast(dict[str, Any], response)
 
         # Organize by table, keeping latest status per table
         tables_dict = {}
@@ -121,7 +121,7 @@ def _get_data_quality(cur: cursor) -> dict[str, Any]:
             "healthy": severity_counts["healthy"],
             "total_tables_checked": len(tables_dict),
         }
-        return response
+        return cast(dict[str, Any], response)
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
@@ -307,7 +307,7 @@ def _get_data_status(cur: cursor) -> dict[str, Any]:
             logger.error(f"Health response validation failed: {error_msg}")
             return cast(dict[str, Any], error_response(500, "response_validation_error", error_msg))
 
-        return response
+        return cast(dict[str, Any], response)
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
@@ -466,7 +466,7 @@ def _get_market_factors(cur: cursor) -> dict[str, Any]:
         row = cur.fetchone()
 
         if not row:
-            return cast(dict[str, Any], json_response()
+            return cast(dict[str, Any], json_response(
                 200,
                 {
                     "exposure_pct": None,
@@ -474,7 +474,7 @@ def _get_market_factors(cur: cursor) -> dict[str, Any]:
                     "regime": None,
                     "factors": {},
                 },
-            )
+            ))
 
         data_dict = safe_json_serialize(safe_dict_convert(row))
 
@@ -548,7 +548,7 @@ def _get_market_sentiment(cur: cursor) -> dict[str, Any]:
         else:
             trend = "BEARISH"
 
-    return cast(dict[str, Any], json_response()
+    return cast(dict[str, Any], json_response(
         200,
         {
             "sentiment": round(sentiment_score, 2) if sentiment_score else None,
@@ -557,7 +557,7 @@ def _get_market_sentiment(cur: cursor) -> dict[str, Any]:
             "bearish_pct": round(bearish, 1) if bearish else None,
             "neutral_pct": round(neutral, 1) if neutral else None,
         },
-    )
+    ))
 
 
 @db_route_handler("get markets")
@@ -578,7 +578,7 @@ def _get_markets(cur: cursor) -> dict[str, Any]:
             response["data"]["current"] = None
             response["data"]["active_tier"] = None
             response["data"]["history"] = []
-            return response
+            return cast(dict[str, Any], response)
 
         row = safe_json_serialize(safe_dict_convert(row))
 
@@ -677,18 +677,18 @@ def _get_markets(cur: cursor) -> dict[str, Any]:
                     except (ValueError, TypeError):
                         pass
             else:
-                return cast(dict[str, Any], error_response()
+                return cast(dict[str, Any], error_response(
                     503,
                     "data_unavailable",
                     "Market health data not available (market_health_daily empty)",
-                )
+                ))
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as mhe:
             logger.error(f"CRITICAL: Failed to fetch market_health_daily: {mhe}")
-            return cast(dict[str, Any], error_response()
+            return cast(dict[str, Any], error_response(
                 503,
                 "data_unavailable",
                 f"Market health unavailable: {type(mhe).__name__}",
-            )
+            ))
 
         # Fetch latest SPY close for dashboard header (critical for position sizing)
         spy_close = None
@@ -704,11 +704,11 @@ def _get_markets(cur: cursor) -> dict[str, Any]:
             spy_close = float(spy_row["close"])
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as spy_e:
             logger.error(f"CRITICAL: Failed to fetch SPY price: {spy_e}")
-            return cast(dict[str, Any], error_response()
+            return cast(dict[str, Any], error_response(
                 503,
                 "data_unavailable",
                 f"SPY price unavailable: {type(spy_e).__name__}",
-            )
+            ))
 
         current_date = row.get("date")
 
@@ -719,11 +719,11 @@ def _get_markets(cur: cursor) -> dict[str, Any]:
                 f"market exposure computation may not have run or vix_regime computation failed. "
                 f"Check market_exposure_daily and load_market_exposure_daily logs."
             )
-            return cast(dict[str, Any], error_response()
+            return cast(dict[str, Any], error_response(
                 503,
                 "data_unavailable",
                 "VIX regime data unavailable - cannot assess volatility risk",
-            )
+            ))
         vix_regime_obj = factors.get("vix_regime")
         if vix_regime_obj is None or vix_regime_obj.get("value") is None:
             logger.error(
@@ -731,11 +731,11 @@ def _get_markets(cur: cursor) -> dict[str, Any]:
                 f"VIX fetch from ^VIX or market_health_daily returned no data. "
                 f"Check load_market_health_daily logs and yfinance availability."
             )
-            return cast(dict[str, Any], error_response()
+            return cast(dict[str, Any], error_response(
                 503,
                 "data_unavailable",
                 "VIX data unavailable - cannot assess volatility risk",
-            )
+            ))
 
         response = list_response(sectors, total=len(sectors), limit=None, offset=None)
         response_data = {
@@ -756,7 +756,7 @@ def _get_markets(cur: cursor) -> dict[str, Any]:
         # Validate market response against contract schema
         ensure_valid_response("mkt", response["data"])
 
-        return response
+        return cast(dict[str, Any], response)
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
@@ -811,4 +811,4 @@ def _get_trend_criteria(cur: cursor) -> dict[str, Any]:
         },
     ]
 
-    return list_response(criteria, total=total_symbols, limit=None, offset=None)
+    return cast(dict[str, Any], list_response(criteria, total=total_symbols, limit=None, offset=None))

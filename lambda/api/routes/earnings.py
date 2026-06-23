@@ -73,7 +73,7 @@ def handle(
             if not is_valid:
                 logger.error(f"Earnings response validation failed: {error_msg}")
                 return cast(dict[str, Any], error_response(500, "response_validation_error", error_msg))
-            return result
+            return cast(dict[str, Any], result)
 
         limit = safe_limit(
             params.get("limit", [None])[0] if params else None,
@@ -109,7 +109,7 @@ def handle(
         if not is_valid:
             logger.error(f"Earnings response validation failed: {error_msg}")
             return cast(dict[str, Any], error_response(500, "response_validation_error", error_msg))
-        return result
+        return cast(dict[str, Any], result)
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,

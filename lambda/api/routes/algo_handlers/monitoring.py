@@ -66,12 +66,12 @@ def _get_algo_audit_log(cur: cursor, limit: int = 100, offset: int = 0, action_t
             (limit, offset),
         )
     rows = cur.fetchall()
-    return list_response(
+    return cast(dict[str, Any], list_response(
         [safe_json_serialize(safe_dict_convert(r)) for r in rows],
         total=total,
         limit=limit,
         offset=offset,
-    )
+    ))
 
 
 # FIXED Issue #6: Orchestrator execution history endpoints
@@ -189,7 +189,7 @@ def _get_notifications(cur: cursor, params: dict[str, Any] | None = None, jwt_cl
             logger.error(f"Notifications response validation failed: {error_msg}")
             return cast(dict[str, Any], error_response(500, "response_validation_error", error_msg))
 
-        return response
+        return cast(dict[str, Any], response)
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
@@ -218,7 +218,7 @@ def _get_patrol_log(cur: cursor, limit: int = 50, offset: int = 0) -> dict[str, 
         (limit, offset),
     )
     findings = cur.fetchall()
-    return list_response([safe_json_serialize(safe_dict_convert(f)) for f in findings], total=total)
+    return cast(dict[str, Any], list_response([safe_json_serialize(safe_dict_convert(f)) for f in findings], total=total))
 
 
 @db_route_handler("trigger data patrol")
@@ -235,11 +235,11 @@ def _trigger_data_patrol() -> dict[str, Any]:
         # FIXED Issue #19: Validate patrol task definition before attempting to run
         if not cluster_arn or not task_def_arn:
             logger.error("Patrol task not configured (missing ECS_CLUSTER_ARN or PATROL_TASK_DEFINITION_ARN)")
-            return cast(dict[str, Any], error_response()
+            return cast(dict[str, Any], error_response(
                 400,
                 "bad_request",
                 "Patrol service not configured (check environment variables)",
-            )
+            ))
 
         # Validate task definition ARN format
         if not task_def_arn.startswith("arn:aws:ecs:"):
@@ -276,7 +276,7 @@ def _trigger_data_patrol() -> dict[str, Any]:
         if response["tasks"]:
             task_arn = response["tasks"][0]["taskArn"]
             logger.info(f"Triggered data patrol ECS task: {task_arn}")
-            return cast(dict[str, Any], json_response()
+            return cast(dict[str, Any], json_response(
                 202,
                 {
                     "status": "triggered",
@@ -284,7 +284,7 @@ def _trigger_data_patrol() -> dict[str, Any]:
                     "task_arn": task_arn,
                     "task_id": task_arn.split("/")[-1],
                 },
-            )
+            ))
         else:
             logger.error(f"Failed to run patrol task: {response.get('failures')}")
             return cast(dict[str, Any], error_response(500, "internal_error", "Failed to trigger patrol task"))

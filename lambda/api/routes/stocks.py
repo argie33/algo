@@ -84,10 +84,10 @@ def handle(
                     max_attempts=1,
                 )
                 if not results:
-                    return list_response([])
+                    return cast(dict[str, Any], list_response([]))
             except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
                 logger.debug("[DEEP_VALUE] value_metrics table not found - financial data not loaded yet")
-                return list_response([])
+                return cast(dict[str, Any], list_response([]))
             except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
                 logger.error(f"[DEEP_VALUE] Database error checking value_metrics: {type(e).__name__}: {e}")
                 code, error_type, message = handle_db_error(e, "deep-value check")
@@ -258,13 +258,13 @@ def handle(
                     if not is_valid:
                         logger.error(f"Endpoint response validation failed: {error_msg}")
                         return cast(dict[str, Any], error_response(500, "response_validation_error", error_msg))
-                    return deep_value_result
+                    return cast(dict[str, Any], deep_value_result)
                 empty_result = list_response([])
                 is_valid, error_msg = ResponseValidator.validate_endpoint_response("stocks", empty_result)
                 if not is_valid:
                     logger.error(f"Endpoint response validation failed: {error_msg}")
                     return cast(dict[str, Any], error_response(500, "response_validation_error", error_msg))
-                return empty_result
+                return cast(dict[str, Any], empty_result)
             except (
                 psycopg2.errors.UndefinedTable,
                 psycopg2.errors.UndefinedColumn,

@@ -58,7 +58,7 @@ def _handle_market_status(cur: cursor) -> dict[str, Any]:
         logger.error(f"Market status response validation failed: {error_msg}")
         raise_api_error(500, "response_validation_error", error_msg)
 
-    return json_response(200, result, data_freshness=freshness)
+    return cast(dict[str, Any], json_response(200, result, data_freshness=freshness))
 
 
 def _handle_breadth(cur: cursor) -> dict[str, Any]:
@@ -128,10 +128,10 @@ def _handle_breadth(cur: cursor) -> dict[str, Any]:
         ) as e:
             raise RuntimeError(f"Market breadth freshness check failed - cannot verify data: {e}") from e
 
-    return list_response(
+    return cast(dict[str, Any], list_response(
         [safe_json_serialize(dict(b)) for b in breadth],
         data_freshness=freshness,
-    )
+    ))
 
 
 def _handle_technicals(cur: cursor) -> dict[str, Any]:
@@ -237,7 +237,7 @@ def _handle_technicals(cur: cursor) -> dict[str, Any]:
         base["mcclellan_oscillator"] = []
 
     freshness = check_data_freshness(cur, "market_health_daily", "date", warning_days=1)
-    return json_response(200, base, data_freshness=freshness)
+    return cast(dict[str, Any], json_response(200, base, data_freshness=freshness))
 
 
 def _handle_top_movers(cur: cursor) -> dict[str, Any]:
@@ -309,7 +309,7 @@ def _handle_top_movers(cur: cursor) -> dict[str, Any]:
         [m for m in valid_items if m.get("pct_change") < 0],
         key=lambda x: x["pct_change"],
     )[:10]
-    return json_response(200, {"gainers": gainers or [], "losers": losers or [], "items": items})
+    return cast(dict[str, Any], json_response(200, {"gainers": gainers or [], "losers": losers or [], "items": items}))
 
 
 def _handle_distribution_days(cur: cursor) -> dict[str, Any]:
@@ -372,7 +372,7 @@ def _handle_distribution_days(cur: cursor) -> dict[str, Any]:
                 "days": days,
             }
         cur.execute("RELEASE SAVEPOINT dist_days")
-        return json_response(200, result)
+        return cast(dict[str, Any], json_response(200, result))
     except (
         psycopg2.errors.QueryCanceled,
         psycopg2.errors.UndefinedTable,
@@ -384,6 +384,7 @@ def _handle_distribution_days(cur: cursor) -> dict[str, Any]:
         _rollback_savepoint(cur, "dist_days")
         logger.error(f"[DIST_DAYS] Error: {type(e).__name__}: {e}")
         raise_db_error(e, "distribution days query")
+        raise  # unreachable — raise_db_error is NoReturn
 
 
 def _handle_seasonality(cur: cursor) -> dict[str, Any]:
@@ -445,7 +446,7 @@ def _handle_seasonality(cur: cursor) -> dict[str, Any]:
         logger.error(f"[SEASONALITY] DOW query error: {type(e).__name__}")
         raise_db_error(e, "seasonality day of week query")
 
-    return json_response(
+    return cast(dict[str, Any], json_response(
         200,
         {
             "monthly": monthly_data or [],
@@ -539,7 +540,7 @@ def _handle_seasonality(cur: cursor) -> dict[str, Any]:
                 "monday_effect": ("Historically, Mondays trend lower" if dow_data else None),
             },
         },
-    )
+    ))
 
 
 def _handle_sentiment(cur: cursor, params: dict[str, Any] | None) -> dict[str, Any]:
@@ -691,7 +692,7 @@ def _handle_sentiment(cur: cursor, params: dict[str, Any] | None) -> dict[str, A
         raise_db_error(e, "fear/greed sentiment query")
 
     freshness = check_data_freshness(cur, "aaii_sentiment", "date", warning_days=1)
-    return json_response(200, sentiment_data, data_freshness=freshness)
+    return cast(dict[str, Any], json_response(200, sentiment_data, data_freshness=freshness))
 
 
 def _handle_naaim(cur: cursor) -> dict[str, Any]:
@@ -706,7 +707,7 @@ def _handle_naaim(cur: cursor) -> dict[str, Any]:
         """)
         rows = cur.fetchall()
         if not rows:
-            return json_response(
+            return cast(dict[str, Any], json_response(
                 200,
                 {
                     "current": None,
@@ -717,7 +718,7 @@ def _handle_naaim(cur: cursor) -> dict[str, Any]:
                         "extreme_bearish": False,
                     },
                 },
-            )
+            ))
 
         history = []
         for r in rows:
@@ -755,7 +756,7 @@ def _handle_naaim(cur: cursor) -> dict[str, Any]:
                 "below_50": curr_val <= 50 if curr_val is not None else None,
             }
 
-            return json_response(
+            return cast(dict[str, Any], json_response(
                 200,
                 {
                     "current": current["value"],
@@ -778,9 +779,9 @@ def _handle_naaim(cur: cursor) -> dict[str, Any]:
                         ),
                     },
                 },
-            )
+            ))
         else:
-            return json_response(200, {"current": None, "history": [], "signals": {}})
+            return cast(dict[str, Any], json_response(200, {"current": None, "history": [], "signals": {}}))
     except (ValueError, ZeroDivisionError, TypeError) as e:
         logger.error(f"[NAAIM] Error: {type(e).__name__}")
         raise_db_error(e, "NAAIM query")
@@ -805,7 +806,7 @@ def _get_fear_greed_history(cur: cursor, days: int = 30) -> dict[str, Any]:
     history_rows = cur.fetchall()
 
     if not history_rows:
-        return json_response(
+        return cast(dict[str, Any], json_response(
             200,
             {
                 "current": None,
@@ -813,7 +814,7 @@ def _get_fear_greed_history(cur: cursor, days: int = 30) -> dict[str, Any]:
                 "statistics": {"min": None, "max": None, "avg": None},
                 "signals": {"extreme_fear": False, "extreme_greed": False},
             },
-        )
+        ))
 
     history = [safe_json_serialize(dict(h)) for h in history_rows]
 
@@ -836,7 +837,7 @@ def _get_fear_greed_history(cur: cursor, days: int = 30) -> dict[str, Any]:
             "neutral": 45 <= curr_val <= 55 if curr_val is not None else None,
         }
 
-        return json_response(
+        return cast(dict[str, Any], json_response(
             200,
             {
                 "current": {
@@ -866,9 +867,9 @@ def _get_fear_greed_history(cur: cursor, days: int = 30) -> dict[str, Any]:
                     "extremity": ("extreme_fear" if curr_val < 25 else "extreme_greed" if curr_val > 75 else "normal"),
                 },
             },
-        )
+        ))
     else:
-        return json_response(
+        return cast(dict[str, Any], json_response(
             200,
             {
                 "current": None,
@@ -876,7 +877,7 @@ def _get_fear_greed_history(cur: cursor, days: int = 30) -> dict[str, Any]:
                 "statistics": {"min": None, "max": None, "avg": None},
                 "signals": {},
             },
-        )
+        ))
 
 
 @db_route_handler("get market latest")
@@ -917,7 +918,7 @@ def _get_market_latest(cur: cursor) -> dict[str, Any]:
     if recent_prices:
         result["prices"] = [safe_json_serialize(dict(p)) for p in recent_prices]
 
-    return json_response(200, result if result else {})
+    return cast(dict[str, Any], json_response(200, result if result else {}))
 
 
 def _parse_range_param(params: dict, default: int = 30) -> int:
@@ -948,7 +949,7 @@ def _get_correlation_matrix(cur: cursor) -> dict[str, Any]:
     cur.execute("RELEASE SAVEPOINT correlation_matrix")
 
     if not rows:
-        return json_response(
+        return cast(dict[str, Any], json_response(
             200,
             {
                 "correlations": [],
@@ -967,7 +968,7 @@ def _get_correlation_matrix(cur: cursor) -> dict[str, Any]:
                     },
                 },
             },
-        )
+        ))
 
     prices_by_symbol: dict[str, list[Any]] = {}
     for row in rows:
@@ -994,7 +995,7 @@ def _get_correlation_matrix(cur: cursor) -> dict[str, Any]:
 
     valid_symbols = [s for s in symbols if s in returns_by_symbol and len(returns_by_symbol[s]) >= 10]
     if len(valid_symbols) < 2:
-        return json_response(
+        return cast(dict[str, Any], json_response(
             200,
             {
                 "correlations": [],
@@ -1013,7 +1014,7 @@ def _get_correlation_matrix(cur: cursor) -> dict[str, Any]:
                     },
                 },
             },
-        )
+        ))
 
     def pearson_corr(x_ret: list[float], y_ret: list[float]) -> float | None:
         if len(x_ret) < 2 or len(y_ret) < 2:
@@ -1094,7 +1095,7 @@ def _get_correlation_matrix(cur: cursor) -> dict[str, Any]:
         portfolio_stability = "stable"
 
     freshness = check_data_freshness(cur, "price_daily", "date", warning_days=1)
-    return json_response(
+    return cast(dict[str, Any], json_response(
         200,
         {
             "correlations": correlations_data,
@@ -1120,7 +1121,7 @@ def _get_correlation_matrix(cur: cursor) -> dict[str, Any]:
             },
         },
         data_freshness=freshness,
-    )
+    ))
 
 
 @db_route_handler("get cap distribution")
@@ -1147,7 +1148,7 @@ def _get_cap_distribution(cur: cursor) -> dict[str, Any]:
     rows = cur.fetchall()
 
     if not rows:
-        return json_response(
+        return cast(dict[str, Any], json_response(
             200,
             {
                 "by_category": {},
@@ -1159,7 +1160,7 @@ def _get_cap_distribution(cur: cursor) -> dict[str, Any]:
                     "category_distribution": {},
                 },
             },
-        )
+        ))
 
     stocks = [safe_json_serialize(dict(r)) for r in rows]
     total_cap = sum(s["market_cap"] for s in stocks if s["market_cap"])
@@ -1216,7 +1217,7 @@ def _get_cap_distribution(cur: cursor) -> dict[str, Any]:
         }
 
     freshness = check_data_freshness(cur, "stock_symbols", "created_at", warning_days=7)
-    return json_response(
+    return cast(dict[str, Any], json_response(
         200,
         {
             "by_category": {
@@ -1238,7 +1239,7 @@ def _get_cap_distribution(cur: cursor) -> dict[str, Any]:
             },
         },
         data_freshness=freshness,
-    )
+    ))
 
 
 INDEX_SYMBOLS = ["^GSPC", "^IXIC", "^NYA", "^RUT"]
@@ -1380,8 +1381,8 @@ def _get_sector_overview(cur: cursor) -> dict[str, Any]:
             LIMIT 100
         """)
         rows = cur.fetchall()
-        return list_response([{"sector_name": r["sector"], "stock_count": r["stock_count"]} for r in rows])
-    return list_response([safe_json_serialize(dict(r)) for r in rows])
+        return cast(dict[str, Any], list_response([{"sector_name": r["sector"], "stock_count": r["stock_count"]} for r in rows]))
+    return cast(dict[str, Any], list_response([safe_json_serialize(dict(r)) for r in rows]))
 
 
 class _MarketHandlerRegistry:
@@ -1410,7 +1411,7 @@ class _MarketHandlerRegistry:
 
     def _wrap_fear_greed(self, cur: cursor, params: dict[str, Any] | None = None) -> dict[str, Any]:
         range_days = _parse_range_param(params) if params else 30
-        return _get_fear_greed_history(cur, range_days)
+        return cast(dict[str, Any], _get_fear_greed_history(cur, range_days))
 
     def get_handler(self, path: str) -> Any:
         """Get handler for path, handling aliases like /api/market → /api/market/status."""

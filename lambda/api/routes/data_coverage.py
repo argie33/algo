@@ -68,7 +68,7 @@ def get_price_coverage(cur: cursor) -> dict[str, Any]:
         zero_vol_pct = (zero_vol / total_rows * 100) if total_rows else 0
         invalid_pct = (invalid_prices / total_rows * 100) if total_rows else 0
 
-        return success_response(
+        return cast(dict[str, Any], success_response(
             {
                 "total_symbols": total_symbols,
                 "sp500_target": sp500_total,
@@ -81,7 +81,7 @@ def get_price_coverage(cur: cursor) -> dict[str, Any]:
                     "invalid_price_pct": round(invalid_pct, 2),
                 },
             }
-        )
+        ))
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
@@ -130,7 +130,7 @@ def get_technical_coverage(cur: cursor) -> dict[str, Any]:
 
         min_coverage = min(rsi_cov, ema_cov, atr_cov)
 
-        return success_response(
+        return cast(dict[str, Any], success_response(
             {
                 "symbols_with_technicals": symbols,
                 "latest_date": str(latest_date),
@@ -143,7 +143,7 @@ def get_technical_coverage(cur: cursor) -> dict[str, Any]:
                 "incomplete_rows": incomplete,
                 "status": "complete" if min_coverage >= 0.95 else "incomplete",
             }
-        )
+        ))
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
@@ -182,7 +182,7 @@ def get_market_data_coverage(cur: cursor) -> dict[str, Any]:
         econ_date = econ_row["latest_date"] if econ_row else None
         econ_count = econ_row["indicators"] if econ_row else 0
 
-        return success_response(
+        return cast(dict[str, Any], success_response(
             {
                 "market_health": {
                     "latest_date": str(mh_date),
@@ -196,7 +196,7 @@ def get_market_data_coverage(cur: cursor) -> dict[str, Any]:
                     "status": "available" if econ_count > 0 else "missing",
                 },
             }
-        )
+        ))
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
@@ -232,14 +232,14 @@ def get_loader_health(cur: cursor) -> dict[str, Any]:
             return cast(dict[str, Any], error_response(503, "no_loader_status", error_msg))
 
         stale_loaders = [row[0] for row in rows if row[1] in ("stale", "error") or row[1] is None]
-        return success_response(
+        return cast(dict[str, Any], success_response(
             {
                 "total_tracked": len(rows),
                 "stale_loaders": list(set(stale_loaders)),
                 "stale_count": len(set(stale_loaders)),
                 "status": "healthy" if not stale_loaders else "degraded",
             }
-        )
+        ))
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         raise Exception(f"Failed to retrieve loader health: {e}") from e
 

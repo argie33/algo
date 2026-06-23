@@ -1,6 +1,7 @@
 """Pydantic models for API request bodies - single source of truth for request validation."""
 
 import re
+from typing import cast
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -43,7 +44,7 @@ class TradePreviewRequest(BaseModel):
             entry_price = info.data["entry_price"]
             if v >= entry_price:
                 raise ValueError("Stop loss price must be below entry price")
-        return v
+        return cast(float | None, v)
 
 
 class ContactSubmissionRequest(BaseModel):
@@ -60,7 +61,7 @@ class ContactSubmissionRequest(BaseModel):
     def validate_email(cls, v) -> str:
         if not EMAIL_PATTERN.match(v):
             raise ValueError("Invalid email format")
-        return v
+        return cast(str, v)
 
     @field_validator("phone")
     @classmethod
@@ -105,7 +106,7 @@ class VerifyUserEmailRequest(BaseModel):
         # Allow email format or standard username format
         if not re.match(r"^[a-zA-Z0-9._\-@+]+$", v):
             raise ValueError("Username must contain only alphanumeric characters, dots, underscores, dashes, @ or +")
-        return v
+        return cast(str, v)
 
 
 class PreTradeImpactRequest(BaseModel):

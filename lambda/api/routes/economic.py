@@ -108,10 +108,10 @@ def _get_vix(cur: cursor) -> dict[str, Any]:
             timeout_sec=3,
         )
         freshness = check_data_freshness(cur, "market_health_daily", "date", warning_days=1)
-        return list_response(
+        return cast(dict[str, Any], list_response(
             [safe_json_serialize(dict(r)) for r in rows] if rows else [],
             data_freshness=freshness,
-        )
+        ))
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
@@ -161,10 +161,10 @@ def _get_calendar(cur: cursor, params: dict[str, Any]) -> dict[str, Any]:
         cur.execute(query, tuple(query_params))
         events = cur.fetchall()
         freshness = check_data_freshness(cur, "economic_calendar", "event_date", warning_days=7)
-        return list_response(
+        return cast(dict[str, Any], list_response(
             [safe_json_serialize(dict(e)) for e in events] if events else [],
             data_freshness=freshness,
-        )
+        ))
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,

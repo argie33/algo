@@ -42,11 +42,11 @@ def _calculate_pre_trade_impact(cur: cursor, body: dict[str, Any]) -> dict[str, 
             req = PreTradeImpactRequest(**body)
         except ValidationError as e:
             error_details = e.errors()[0] if e.errors() else {"msg": "Validation error"}
-            return cast(dict[str, Any], error_response()
+            return cast(dict[str, Any], error_response(
                 400,
                 "bad_request",
                 f"Invalid request: {error_details.get('msg', 'Validation failed')}",
-            )
+            ))
 
         symbol = req.symbol
 
@@ -117,7 +117,7 @@ def _calculate_pre_trade_impact(cur: cursor, body: dict[str, Any]) -> dict[str, 
         available_slots = max(0, max_positions - open_positions)
         sector_warning = sector and projected_sector_pct > 30
 
-        return cast(dict[str, Any], json_response()
+        return cast(dict[str, Any], json_response(
             200,
             {
                 "symbol": symbol,
@@ -143,7 +143,7 @@ def _calculate_pre_trade_impact(cur: cursor, body: dict[str, Any]) -> dict[str, 
                     ),
                 },
             },
-        )
+        ))
 
     except (
         psycopg2.errors.UndefinedTable,
@@ -168,11 +168,11 @@ def _calculate_trade_preview(cur: cursor, body: dict[str, Any]) -> dict[str, Any
             req = TradePreviewRequest(**body)
         except ValidationError as e:
             error_details = e.errors()[0] if e.errors() else {"msg": "Validation error"}
-            return cast(dict[str, Any], error_response()
+            return cast(dict[str, Any], error_response(
                 400,
                 "bad_request",
                 f"Invalid request: {error_details.get('msg', 'Validation failed')}",
-            )
+            ))
 
         symbol = req.symbol
         entry_price = req.entry_price
@@ -186,11 +186,11 @@ def _calculate_trade_preview(cur: cursor, body: dict[str, Any]) -> dict[str, Any
         portfolio_value = float(portfolio_row["total_portfolio_value"]) if portfolio_row else None
 
         if not portfolio_value or portfolio_value <= 0:
-            return cast(dict[str, Any], error_response()
+            return cast(dict[str, Any], error_response(
                 503,
                 "service_unavailable",
                 "Portfolio value unavailable for position sizing",
-            )
+            ))
 
         risk_amount = None
         if stop_loss_price and entry_price > stop_loss_price:
@@ -217,7 +217,7 @@ def _calculate_trade_preview(cur: cursor, body: dict[str, Any]) -> dict[str, Any
                     "profit_at_target": format_decimal_string(profit_total, precision=2),
                 }
 
-        return cast(dict[str, Any], json_response()
+        return cast(dict[str, Any], json_response(
             200,
             {
                 "symbol": symbol,
@@ -232,7 +232,7 @@ def _calculate_trade_preview(cur: cursor, body: dict[str, Any]) -> dict[str, Any
                 "targets": targets,
                 "portfolio_value": format_decimal_string(portfolio_value, precision=2),
             },
-        )
+        ))
 
     except (
         psycopg2.errors.UndefinedTable,
@@ -376,7 +376,7 @@ def _get_rejection_funnel(cur: cursor) -> dict[str, Any]:
         )
         raise
     except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
-        return cast(dict[str, Any], json_response()
+        return cast(dict[str, Any], json_response(
             200,
             {
                 "funnel": [],
@@ -388,7 +388,7 @@ def _get_rejection_funnel(cur: cursor) -> dict[str, Any]:
                 },
                 "rejected": [],
             },
-        )
+        ))
 
 
 _TIER_CONFIG = {
@@ -514,7 +514,7 @@ def _get_swing_scores(
             """).format(where_clause=where_clause)
         cur.execute(query, query_params)
         scores = cur.fetchall()
-        return list_response([safe_json_serialize(safe_dict_convert(s)) for s in scores])
+        return cast(dict[str, Any], list_response([safe_json_serialize(safe_dict_convert(s)) for s in scores]))
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
@@ -547,7 +547,7 @@ def _get_swing_scores_history(cur: cursor, days: int = 30) -> dict[str, Any]:
             (cutoff_date,),
         )
         history = cur.fetchall()
-        return list_response([safe_json_serialize(safe_dict_convert(h)) for h in history])
+        return cast(dict[str, Any], list_response([safe_json_serialize(safe_dict_convert(h)) for h in history]))
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,

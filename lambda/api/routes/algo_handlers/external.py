@@ -51,7 +51,7 @@ def _get_economic_calendar(cur: cursor) -> dict[str, Any]:
         if freshness.get("is_stale"):
             logger.warning(f"Economic calendar stale: {freshness.get('warning')}")
 
-        return list_response(events, total=len(events), data_freshness=freshness)
+        return cast(dict[str, Any], list_response(events, total=len(events), data_freshness=freshness))
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
@@ -93,11 +93,11 @@ def _get_sentiment(cur: cursor) -> dict[str, Any]:
         logger.warning(f"Sentiment data incomplete: fear_greed={fear_greed}, label={label}")
         return cast(dict[str, Any], error_response(503, "service_unavailable", "Sentiment data incomplete"))
 
-    return success_response(
+    return cast(dict[str, Any], success_response(
         {
             "date": data.get("date"),
             "fear_greed_index": float(fear_greed),
             "label": label,
             "data_freshness": freshness,
         }
-    )
+    ))

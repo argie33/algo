@@ -86,11 +86,11 @@ def _get_signals_stocks(
     try:
         valid_timeframes = {"daily"}
         if timeframe.lower() not in valid_timeframes:
-            return error_response(
+            return cast(dict[str, Any], error_response(
                 400,
                 "bad_request",
                 f'Unsupported timeframe: {timeframe}. Only "daily" is currently supported.',
-            )
+            ))
 
         cur.execute("SET LOCAL statement_timeout = '25000ms'")
         params: list[Any] = []
@@ -98,7 +98,7 @@ def _get_signals_stocks(
 
         if symbol_filter:
             if not re.match(r"^[A-Z0-9\-\^]{1,10}$", symbol_filter.upper()):
-                return error_response(400, "bad_request", "Invalid symbol format")
+                return cast(dict[str, Any], error_response(400, "bad_request", "Invalid symbol format"))
             symbol_clause = "AND b.symbol = %s"
             params.append(symbol_filter.upper())
 
@@ -175,8 +175,8 @@ def _get_signals_stocks(
         is_valid, error_msg = ResponseValidator.validate_endpoint_response("sig", signals_result)
         if not is_valid:
             logger.error(f"Endpoint response validation failed: {error_msg}")
-            return error_response(500, "response_validation_error", error_msg)
-        return signals_result
+            return cast(dict[str, Any], error_response(500, "response_validation_error", error_msg))
+        return cast(dict[str, Any], signals_result)
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
@@ -185,7 +185,7 @@ def _get_signals_stocks(
         Exception,
     ) as e:
         code, error_type, message = handle_db_error(e, "fetch stock signals")
-        return error_response(code, error_type, message)
+        return cast(dict[str, Any], error_response(code, error_type, message))
 
 
 @db_route_handler("fetch ETF signals")
@@ -240,8 +240,8 @@ def _get_signals_etf(cur: cursor, limit: int = 500) -> dict[str, Any]:
         is_valid, error_msg = ResponseValidator.validate_endpoint_response("sig", etf_signals_result)
         if not is_valid:
             logger.error(f"Endpoint response validation failed: {error_msg}")
-            return error_response(500, "response_validation_error", error_msg)
-        return etf_signals_result
+            return cast(dict[str, Any], error_response(500, "response_validation_error", error_msg))
+        return cast(dict[str, Any], etf_signals_result)
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
@@ -250,4 +250,4 @@ def _get_signals_etf(cur: cursor, limit: int = 500) -> dict[str, Any]:
         Exception,
     ) as e:
         code, error_type, message = handle_db_error(e, "fetch ETF signals")
-        return error_response(code, error_type, message)
+        return cast(dict[str, Any], error_response(code, error_type, message))

@@ -164,7 +164,7 @@ def handle(
             if not is_valid:
                 logger.error(f"Endpoint response validation failed: {error_msg}")
                 return cast(dict[str, Any], error_response(500, "response_validation_error", error_msg))
-            return trades_result
+            return cast(dict[str, Any], trades_result)
         elif path == "/api/trades/summary":
             if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(jwt_claims):
                 raise_api_error(403, "forbidden", "Admin access required")
@@ -280,7 +280,7 @@ def _create_manual_trade(cur: cursor, body: dict[str, Any], idempotency_key: str
         if signature:
             _store_idempotent_response(cur, signature, response)
 
-        return response
+        return cast(dict[str, Any], response)
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,

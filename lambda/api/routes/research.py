@@ -50,10 +50,10 @@ def handle(
                 timeout_sec=10,
             )
             freshness = check_data_freshness(cur, "backtest_runs", "created_at", warning_days=7)
-            return list_response(
+            return cast(dict[str, Any], list_response(
                 [safe_json_serialize(dict(b)) for b in backtests] if backtests else [],
                 data_freshness=freshness,
-            )
+            ))
         elif path.startswith("/api/research/backtests/"):
             run_id = path.split("/api/research/backtests/")[-1]
             try:
@@ -117,7 +117,7 @@ def handle(
             # Build response
             run_dict = safe_json_serialize(dict(backtest))
             freshness = check_data_freshness(cur, "backtest_runs", "created_at", warning_days=7)
-            return json_response(
+            return cast(dict[str, Any], json_response(
                 200,
                 {
                     "run": run_dict,
@@ -125,7 +125,7 @@ def handle(
                     "trade_pagination": {"total": total_trades_count},
                     "data_freshness": freshness,
                 },
-            )
+            ))
         return cast(dict[str, Any], error_response(404, "not_found", f"No research handler for {path}"))
     except (
         psycopg2.errors.UndefinedTable,
