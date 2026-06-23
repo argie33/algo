@@ -39,7 +39,7 @@ def _format_fetcher_error(fetcher_name: str, error: Exception) -> str:
         return f"Fetcher {fetcher_name} ({context}) - {error_type}"
 
 
-def _get_endpoint_path(fetcher_key: str, params: dict | None = None) -> str:
+def _get_endpoint_path(fetcher_key: str, params: dict[str, Any] | None = None) -> str:
     """Map fetcher key to full endpoint path with optional query parameters.
 
     Examples:
@@ -394,9 +394,13 @@ def fetch_activity(c: None) -> dict[str, Any]:
             return FetcherValidator.build_error_response(error_msg)
 
         run_at = items[0].get("action_date") if items else None
+        run_id = next(
+            (i.get("details", {}).get("run_id") for i in items if i.get("details", {}).get("run_id")),
+            None,
+        )
         phases = [i for i in items if (i.get("action_type") or "").startswith("phase_")]
         return {
-            "run_id": None,
+            "run_id": run_id,
             "run_at": run_at,
             "phases": phases,
             "recent_actions": items[:20],

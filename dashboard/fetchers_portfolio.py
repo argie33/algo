@@ -42,7 +42,7 @@ def _format_fetcher_error(fetcher_name: str, error: Exception) -> str:
         return f"Fetcher {fetcher_name} ({context}) - {error_type}"
 
 
-def _get_endpoint_path(fetcher_key: str, params: dict | None = None) -> str:
+def _get_endpoint_path(fetcher_key: str, params: dict[str, Any] | None = None) -> str:
     """Map fetcher key to full endpoint path with optional query parameters.
 
     Examples:
@@ -250,6 +250,13 @@ def fetch_perf(c: None) -> dict[str, Any]:
             except (TypeError, ValueError):
                 return None
 
+        # unrealized_pnl comes from portfolio endpoint (performance endpoint doesn't have it)
+        unrealized_pnl = perf.get("unrealized_pnl")
+        if unrealized_pnl is None:
+            port_data = api_call("/api/algo/portfolio")
+            if not port_data.get("_error") and isinstance(port_data.get("unrealized_pnl"), dict):
+                unrealized_pnl = port_data["unrealized_pnl"]
+
         return {
             "n": n,
             "w": w,
@@ -257,7 +264,7 @@ def fetch_perf(c: None) -> dict[str, Any]:
             "wr": _f(perf.get("win_rate_pct")),
             "open_count": perf.get("open_losses_count") or perf.get("open_positions"),
             "pnl": _f(perf.get("total_pnl_dollars")),
-            "unrealized_pnl": perf.get("unrealized_pnl"),
+            "unrealized_pnl": unrealized_pnl,
             "streak": perf.get("current_streak"),
             "sharpe": _f(perf.get("sharpe_annualized")),
             "maxdd": _f(perf.get("max_drawdown_pct")),
