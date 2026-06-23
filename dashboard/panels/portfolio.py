@@ -22,7 +22,7 @@ from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
-from dashboard.data_validation import safe_float, safe_int
+from dashboard.data_validation import StrictValidationError, safe_float, safe_int
 
 from ..formatters import (
     fmt_age,
@@ -51,10 +51,14 @@ def _calculate_adjusted_win_rate(perf: dict[str, Any] | None, pos: dict[str, Any
         wr_val = perf.get("wr") if perf else None
         w_val = perf.get("w") if perf else None
         l_val = perf.get("l") if perf else None
+        if wr_val is None or w_val is None or l_val is None:
+            raise ValueError("Performance data missing: cannot calculate win rate without w/l/wr counts")
         return (wr_val or 0), (w_val or 0), (l_val or 0)
 
-    closed_wins = perf.get("w") or 0
-    closed_losses = perf.get("l") or 0
+    closed_wins = perf.get("w")
+    closed_losses = perf.get("l")
+    if closed_wins is None or closed_losses is None:
+        raise ValueError("Performance data incomplete: missing win or loss count")
     losing_open = 0
 
     if pos and not pos.get("_error"):
@@ -91,8 +95,8 @@ def panel_portfolio(
     if err_panel:
         return err_panel
 
-    pv = safe_float(port["total_portfolio_value"], default=0.0)
-    cash = safe_float(port["total_cash"], default=0.0)
+    pv = safe_float(port["total_portfolio_value"], strict=True, field_name="total_portfolio_value")
+    cash = safe_float(port["total_cash"], strict=True, field_name="total_cash")
     npos = safe_int(port["position_count"], default=0)
     dr = safe_float(port.get("daily_return_pct"), default=None)
     urp = safe_float(port.get("unrealized_pnl_pct"), default=None)
@@ -144,12 +148,15 @@ def panel_portfolio(
 
     # Largest position
     if lgpos is not None:
-        lgpos_f = safe_float(lgpos, default=0.0)
-        lp_c = R if lgpos_f >= 20 else (Y if lgpos_f >= 15 else "white")
-        tbl.add_row(
-            cell("Largest Position:", f"[{lp_c}]{lgpos_f:.1f}%[/]"),
-            Text(""),
-        )
+        try:
+            lgpos_f = safe_float(lgpos, strict=True, field_name="largest_position_pct")
+            lp_c = R if lgpos_f >= 20 else (Y if lgpos_f >= 15 else "white")
+            tbl.add_row(
+                cell("Largest Position:", f"[{lp_c}]{lgpos_f:.1f}%[/]"),
+                Text(""),
+            )
+        except StrictValidationError:
+            logger.warning("Largest position value conversion failed")
 
     # Risk metrics (VaR, CVaR, Beta, concentration, Stressed VaR)
     # CRITICAL: Do NOT default NULL risk metrics to 0.0 — that hides missing data!
@@ -603,36 +610,51 @@ def panel_portfolio_perf_expanded(
         rows.append(Rule(style="dim"))
 
     # ── Risk metrics ──────────────────────────────────────────────────────────
-    if risk and not risk.get("_error") and risk.get("var95") and float(risk.get("var95") or 0) > 0:
-        rows.append(Text.from_markup("[dim bold]RISK METRICS[/]"))
-        rtbl = Table.grid(padding=(0, 3), expand=False)
-        rtbl.add_column("label", style="dim")
-        rtbl.add_column("val")
-        rtbl.add_column("label2", style="dim")
-        rtbl.add_column("val2")
-        beta_c = R if (risk.get("beta") or 0) >= 1.2 else (Y if (risk.get("beta") or 0) >= 0.8 else G)
-        conc_c = R if (risk.get("conc5") or 0) >= 35 else (Y if (risk.get("conc5") or 0) >= 25 else "white")
-        var_c = R if (risk.get("var95") or 0) >= 4 else (Y if (risk.get("var95") or 0) >= 2 else "white")
-        rtbl.add_row(
-            "VaR (95%):",
-            Text(f"{(risk.get('var95') or 0):.2f}%", style=var_c),
-            "CVaR (95%):",
-            Text(f"{(risk.get('cvar95') or 0):.2f}%", style=var_c),
-        )
-        rtbl.add_row(
-            "Portfolio Beta:",
-            Text(f"{(risk.get('beta') or 0):.2f}", style=beta_c),
-            "Top-5 Concentration:",
-            Text(f"{(risk.get('conc5') or 0):.0f}%", style=conc_c),
-        )
-        if risk.get("svar") and float(risk.get("svar") or 0) > 0:
-            rtbl.add_row(
-                "Stressed VaR:",
-                Text(f"{(risk.get('svar') or 0):.2f}%", style=R),
-                "Risk Date:",
-                Text(str(risk.get("date") or "--")[:10], style="dim"),
-            )
-        rows.append(rtbl)
+    var95_val = risk.get("var95") if risk and not risk.get("_error") else None
+    if var95_val is not None:
+        try:
+            var95_f = float(var95_val)
+            if var95_f > 0:
+                rows.append(Text.from_markup("[dim bold]RISK METRICS[/]"))
+                rtbl = Table.grid(padding=(0, 3), expand=False)
+                rtbl.add_column("label", style="dim")
+                rtbl.add_column("val")
+                rtbl.add_column("label2", style="dim")
+                rtbl.add_column("val2")
+
+                # Extract all risk metrics with explicit None checks
+                beta = safe_float(risk.get("beta"), default=None)
+                conc5 = safe_float(risk.get("conc5"), default=None)
+                cvar95 = safe_float(risk.get("cvar95"), default=None)
+                svar = safe_float(risk.get("svar"), default=None)
+                risk_date = risk.get("date")
+
+                beta_c = R if (beta or 0) >= 1.2 else (Y if (beta or 0) >= 0.8 else G)
+                conc_c = R if (conc5 or 0) >= 35 else (Y if (conc5 or 0) >= 25 else "white")
+                var_c = R if var95_f >= 4 else (Y if var95_f >= 2 else "white")
+
+                rtbl.add_row(
+                    "VaR (95%):",
+                    Text(f"{var95_f:.2f}%", style=var_c),
+                    "CVaR (95%):",
+                    Text(f"{(cvar95 or 0):.2f}%", style=var_c),
+                )
+                rtbl.add_row(
+                    "Portfolio Beta:",
+                    Text(f"{(beta or 0):.2f}", style=beta_c),
+                    "Top-5 Concentration:",
+                    Text(f"{(conc5 or 0):.0f}%", style=conc_c),
+                )
+                if svar is not None and svar > 0:
+                    rtbl.add_row(
+                        "Stressed VaR:",
+                        Text(f"{svar:.2f}%", style=R),
+                        "Risk Date:",
+                        Text(str(risk_date or "--")[:10], style="dim"),
+                    )
+                rows.append(rtbl)
+        except (ValueError, TypeError):
+            logger.warning(f"Risk metrics conversion failed: var95={var95_val}")
 
     # ── Position concentration ─────────────────────────────────────────────────
     if pos:

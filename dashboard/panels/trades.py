@@ -120,7 +120,7 @@ def panel_recent_trades(trades: Any) -> Any:
 
     def _fmt_date(d: Any) -> str:
         if hasattr(d, "strftime"):
-            return d.strftime("%b%d")  # type: ignore
+            return cast(Any, d).strftime("%b%d")
         if isinstance(d, str) and len(d) >= 7:
             try:
                 from datetime import datetime as _dt

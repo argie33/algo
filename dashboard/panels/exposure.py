@@ -25,7 +25,7 @@ from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
-from dashboard.data_validation import safe_float
+from dashboard.data_validation import StrictValidationError, safe_float
 
 from ..formatter_strategies import TierFormatter
 from ..formatters import mini_bar
@@ -145,7 +145,14 @@ def panel_exposure_compact(exp_f: Any) -> Any:
             items.append(f"[dim]{label}:[/] [yellow]⚠ N/A[/][dim] /{max_pts}[/]")
         else:
             pts_raw = f.get("pts")
-            pts = safe_float(pts_raw, default=0.0)
+            if pts_raw is None:
+                items.append(f"[dim]{label}:[/] [yellow]⚠ pts missing[/][dim] (data error)[/]")
+                continue
+            try:
+                pts = safe_float(pts_raw, strict=True, field_name=f"{label}_pts")
+            except StrictValidationError as e:
+                items.append(f"[dim]{label}:[/] [yellow]⚠ {str(e)[:30]}[/]")
+                continue
             bar = mini_bar(pts, max_pts, w=4)
             fc = G if pts >= max_pts * 0.75 else (Y if pts >= max_pts * 0.35 else R)
             det = factor_detail(key)
@@ -162,8 +169,26 @@ def panel_exposure_compact(exp_f: Any) -> Any:
         if isinstance(eco_raw, dict):
             eco = eco_raw
 
-    sr_pen = safe_float(sr.get("pts", 0) if sr else 0, default=0.0)
-    eco_pen = safe_float(eco.get("pts", 0) if eco else 0, default=0.0)
+    sr_pen = 0.0
+    eco_pen = 0.0
+    if sr:
+        sr_pts_raw = sr.get("pts")
+        if sr_pts_raw is None:
+            logger.warning("sector_rotation factor missing 'pts' field")
+        else:
+            try:
+                sr_pen = safe_float(sr_pts_raw, strict=True, field_name="sector_rotation_pts")
+            except StrictValidationError as e:
+                logger.warning(f"sector_rotation pts conversion failed: {e}")
+    if eco:
+        eco_pts_raw = eco.get("pts")
+        if eco_pts_raw is None:
+            logger.warning("economic_overlay factor missing 'pts' field")
+        else:
+            try:
+                eco_pen = safe_float(eco_pts_raw, strict=True, field_name="economic_overlay_pts")
+            except StrictValidationError as e:
+                logger.warning(f"economic_overlay pts conversion failed: {e}")
     if sr_pen < 0 and sr:
         sig = (sr.get("signal", "")).replace("_", " ")[:18]
         items.append(f"[dim]Sector Rotation:[/] [{R}]{sr_pen:+.0f}[/] [dim]{sig}[/]")
@@ -278,7 +303,32 @@ def panel_exposure_expanded(exp_f: Any) -> Any:
             continue
 
         pts_raw = f.get("pts")
-        pts = safe_float(pts_raw, default=0.0)
+        if pts_raw is None:
+            reason = (f.get("reason") or ("stale" if f.get("stale") else "no data"))[:18]
+            bar_s = Text.from_markup(f"[yellow]⚠ N/A{'':>10}[/]  [dim]--/{max_pts}[/]")
+            tbl.add_row(
+                Text(label, style="yellow"),
+                Text("--", style="yellow"),
+                Text(str(max_pts), style="dim"),
+                bar_s,
+                Text(f"⚠ {reason}", style="yellow"),
+                context,
+            )
+            continue
+        try:
+            pts = safe_float(pts_raw, strict=True, field_name=f"{label}_pts")
+        except StrictValidationError as e:
+            reason = f"invalid: {str(e)[:12]}"
+            bar_s = Text.from_markup(f"[red]✗ ERR{'':>12}[/]  [dim]--/{max_pts}[/]")
+            tbl.add_row(
+                Text(label, style="red"),
+                Text("--", style="red"),
+                Text(str(max_pts), style="dim"),
+                bar_s,
+                Text(f"✗ {reason}", style="red"),
+                context,
+            )
+            continue
         bar_f = int(min(pts / max_pts, 1.0) * 12) if max_pts > 0 else 0
         fc = G if pts >= max_pts * 0.75 else (Y if pts >= max_pts * 0.35 else R)
         bar_s = Text.from_markup(f"[{fc}]{'█' * bar_f}[/][dim]{'░' * (12 - bar_f)}[/]  [{fc}]{pts:.0f}/{max_pts}[/]")
@@ -348,8 +398,26 @@ def panel_exposure_expanded(exp_f: Any) -> Any:
         if isinstance(eco_raw, dict):
             eco = eco_raw
 
-    sr_pen = safe_float(sr.get("pts", 0) if sr else 0, default=0.0)
-    eco_pen = safe_float(eco.get("pts", 0) if eco else 0, default=0.0)
+    sr_pen = 0.0
+    eco_pen = 0.0
+    if sr:
+        sr_pts_raw = sr.get("pts")
+        if sr_pts_raw is None:
+            logger.warning("sector_rotation factor missing 'pts' field")
+        else:
+            try:
+                sr_pen = safe_float(sr_pts_raw, strict=True, field_name="sector_rotation_pts")
+            except StrictValidationError as e:
+                logger.warning(f"sector_rotation pts conversion failed: {e}")
+    if eco:
+        eco_pts_raw = eco.get("pts")
+        if eco_pts_raw is None:
+            logger.warning("economic_overlay factor missing 'pts' field")
+        else:
+            try:
+                eco_pen = safe_float(eco_pts_raw, strict=True, field_name="economic_overlay_pts")
+            except StrictValidationError as e:
+                logger.warning(f"economic_overlay pts conversion failed: {e}")
     if sr_pen != 0 or eco_pen != 0:
         rows.append(Rule(style="dim"))
         rows.append(Text.from_markup("[dim bold]ADJUSTMENTS[/]"))

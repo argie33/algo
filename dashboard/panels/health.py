@@ -656,21 +656,32 @@ def _extract_phase_metrics_from_pdata(pdata: dict[str, Any] | None) -> tuple[int
 
     Returns:
         (signals_gen, entries_exec, exits_exec) - all ints >= 0
+
+    Raises:
+        ValueError: If required metrics are missing (indicates incomplete phase execution).
     """
     if not pdata:
-        return 0, 0, 0
+        raise ValueError("Phase data missing - cannot determine if execution completed")
 
-    sg = pdata.get("signals_generated") or 0
-    ee = (pdata.get("entries_executed") or pdata.get("trades_executed")) or 0
-    xe = pdata.get("exits_executed") or 0
-    return int(sg) if sg else 0, int(ee) if ee else 0, int(xe) if xe else 0
+    sg = pdata.get("signals_generated")
+    ee = pdata.get("entries_executed") or pdata.get("trades_executed")
+    xe = pdata.get("exits_executed")
+
+    if sg is None:
+        raise ValueError("signals_generated missing from phase data")
+    if ee is None:
+        raise ValueError("entries_executed or trades_executed missing from phase data")
+    if xe is None:
+        raise ValueError("exits_executed missing from phase data")
+
+    return int(sg), int(ee), int(xe)
 
 
 def _parse_phase_data_json(pdata_raw: str | dict[str, Any] | None) -> dict[str, Any] | None:
     """Parse phase data field (may be string or dict)."""
     if isinstance(pdata_raw, str):
         try:
-            return json.loads(pdata_raw)  # type: ignore
+            return cast(dict[str, Any], json.loads(pdata_raw))
         except (json.JSONDecodeError, ValueError) as e:
             logger.warning(f"Failed to parse phase metrics data JSON: {e}")
             return None
@@ -735,13 +746,17 @@ def _build_phase_badges_and_metrics(run: dict[str, Any], phase_results: list[Any
         # Extract metrics from phase data
         pdata = p.get("data")
         pdata = _parse_phase_data_json(pdata)
-        sg, ee, xe = _extract_phase_metrics_from_pdata(pdata)
-        if sg:
-            signals_gen = max(signals_gen, sg)
-        if ee:
-            entries_exec = max(entries_exec, ee)
-        if xe:
-            exits_exec = max(exits_exec, xe)
+        try:
+            sg, ee, xe = _extract_phase_metrics_from_pdata(pdata)
+            if sg:
+                signals_gen = max(signals_gen, sg)
+            if ee:
+                entries_exec = max(entries_exec, ee)
+            if xe:
+                exits_exec = max(exits_exec, xe)
+        except ValueError as e:
+            phase_name = p.get("name", "unknown")
+            logger.warning(f"Phase {phase_name} metrics incomplete: {e}—check phase output for data corruption")
 
     return phase_badges, signals_gen, entries_exec, exits_exec
 

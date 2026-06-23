@@ -24,7 +24,7 @@ from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
-from dashboard.data_validation import safe_float
+from dashboard.data_validation import StrictValidationError, safe_float
 
 from ..error_boundary import has_error
 from ..formatters import (
@@ -303,13 +303,13 @@ def _build_buy_signals_table(scored_with_signals: list[Any], buy_sig_details: di
             price = safe_get_field(score_item, "current_price")
 
         rr_ratio: float | None = None
-        stop_lvl_guard: float = safe_float(stop_lvl, default=0.0) or 0.0
-        if buy_lvl is not None and stop_lvl is not None and stop_lvl_guard > 0:
+        if buy_lvl is not None and stop_lvl is not None:
             try:
-                buy_lvl_ratio = safe_float(buy_lvl, default=0.0) or 0.0
-                stop_lvl_ratio = safe_float(stop_lvl, default=0.0) or 0.0
-                rr_ratio = (buy_lvl_ratio - stop_lvl_ratio) / stop_lvl_ratio
-            except (ValueError, TypeError, ZeroDivisionError):
+                buy_lvl_ratio = safe_float(buy_lvl, strict=True, field_name="buylevel")
+                stop_lvl_ratio = safe_float(stop_lvl, strict=True, field_name="stoplevel")
+                if stop_lvl_ratio > 0:
+                    rr_ratio = (buy_lvl_ratio - stop_lvl_ratio) / stop_lvl_ratio
+            except (StrictValidationError, ValueError, TypeError, ZeroDivisionError):
                 pass
 
         comp_v: float = safe_float(comp_score, default=0.0)
