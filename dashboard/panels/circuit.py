@@ -1,7 +1,7 @@
 """Circuit breaker status panel functions."""
 
 import logging
-from typing import Any, cast
+from typing import Any, Callable, cast
 
 from rich.console import ConsoleRenderable, RichCast
 
@@ -12,9 +12,9 @@ try:
 except ImportError as e:
     logger.warning(f"Panel registry not available: {e} - panels will not auto-register")
 
-    def register_panel(*args: Any, **kwargs: Any) -> Any:
+    def register_panel(*args: Any, **kwargs: Any) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
         if args and callable(args[0]):
-            return args[0]
+            return cast(Callable[[Callable[..., Any]], Callable[..., Any]], args[0])
         return lambda fn: fn
 
 
