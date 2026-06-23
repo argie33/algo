@@ -1572,7 +1572,7 @@ class PriceLoader(OptimalLoader):
                             "interval": self.interval,
                         },
                     )
-                    if self._stats.get("rate_limit_error_duration_sec", 0) > 0:  # type: ignore
+                    if self._stats.get("rate_limit_error_duration_sec", 0) > 0:
                         m.put_metric(
                             "RateLimitErrorDuration",
                             self._stats["rate_limit_error_duration_sec"],
@@ -1658,7 +1658,7 @@ class PriceLoader(OptimalLoader):
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.warning("Failed to update data_loader_status for {self.table_name}: %s", e)
 
-    def run(self, symbols: list, parallelism: int = 1, backfill_days: int | None = None) -> dict:  # type: ignore
+    def run(self, symbols: list, parallelism: int = 1, backfill_days: int | None = None):  # type: ignore[override]
         """Override to use batch fetching (50x faster than per-symbol) + concurrent batches."""
         if backfill_days is not None:
             self._backfill_days = backfill_days
@@ -1719,7 +1719,7 @@ class PriceLoader(OptimalLoader):
 
     def _load_batch(self, symbols: list[str]) -> None:
         """Load a batch of symbols using batch API fetch (50x reduction in API calls)."""
-        wm_store = self._get_watermark()
+        wm_store = self._get_watermark()  # type: ignore[attr-defined]
 
         # Determine the watermark date for all symbols in batch
         # (simplified: use same date for all, finest-grained would be per-symbol)
@@ -1729,7 +1729,7 @@ class PriceLoader(OptimalLoader):
         else:
             # Use earliest watermark from batch
             watermarks = [wm_store.get(s) if wm_store else None for s in symbols]
-            previous_dates = [self._parse_watermark_date(w) for w in watermarks]
+            previous_dates = [self._parse_watermark_date(w) for w in watermarks]  # type: ignore[attr-defined]
             previous_date = (
                 min(d for d in previous_dates if d) if any(previous_dates) else None  # type: ignore[assignment]
             )
@@ -1745,25 +1745,23 @@ class PriceLoader(OptimalLoader):
                     "[{self.table_name}] %s: No rows fetched (watermark current), skipping",
                     symbol,
                 )
-                self._stats["symbols_skipped_by_watermark"] += 1  # type: ignore
-                self._stats[  # type: ignore
-                    "symbols_processed"
-                ] += 1  # Count as processed (no new data needed, not a failure)
+                self._stats["symbols_skipped_by_watermark"] += 1
+                self._stats["symbols_processed"] += 1  # Count as processed (no new data needed, not a failure)
                 continue
 
             logger.debug("[{self.table_name}] {symbol}: Fetched %s rows from batch", len(rows))
-            self._stats["rows_fetched"] += len(rows)  # type: ignore
+            self._stats["rows_fetched"] += len(rows)
 
             if self.router and self.router.last_source:
                 src = self.router.last_source
-                self._stats["source_distribution"][src] = (  # type: ignore
-                    self._stats["source_distribution"].get(src, 0) + 1  # type: ignore
+                self._stats["source_distribution"][src] = (
+                    self._stats["source_distribution"].get(src, 0) + 1
                 )
 
             rows = self.transform(rows)
             before_quality = len(rows)
             rows = [r for r in rows if self._validate_row(r)]
-            self._stats["rows_quality_dropped"] += before_quality - len(rows)  # type: ignore
+            self._stats["rows_quality_dropped"] += before_quality - len(rows)
 
             # Bloom dedup (cheap pre-filter)
             # SKIP for price_daily: EOD price data is immutable, dedup not needed
@@ -1775,7 +1773,7 @@ class PriceLoader(OptimalLoader):
                 self._stats["rows_dedup_skipped"] += before_dedup - len(rows)
 
             if not rows:
-                self._stats["symbols_processed"] += 1  # type: ignore
+                self._stats["symbols_processed"] += 1
                 continue
 
             # Calculate new watermark BEFORE insert
@@ -1787,7 +1785,7 @@ class PriceLoader(OptimalLoader):
                 chunk = rows[chunk_start : chunk_start + self.chunk_size]
                 is_final_chunk = chunk_start + self.chunk_size >= len(rows)
                 chunk_wm = new_wm if is_final_chunk else None
-                inserted += self._bulk_insert(
+                inserted += self._bulk_insert(  # type: ignore[attr-defined]
                     chunk,
                     symbol=symbol if is_final_chunk else None,
                     new_watermark=chunk_wm,
@@ -1798,8 +1796,8 @@ class PriceLoader(OptimalLoader):
                     key = ":".join(str(row.get(c, "")) for c in self.primary_key)
                     dedup.add(key)
 
-            self._stats["rows_inserted"] += inserted  # type: ignore
-            self._stats["symbols_processed"] += 1  # type: ignore
+            self._stats["rows_inserted"] += inserted
+            self._stats["symbols_processed"] += 1
 
 
 def _invalidate_phase1_cache():
@@ -2017,7 +2015,7 @@ def main():
     # SIGALRM only available on Unix; skip on Windows
     if hasattr(signal, "SIGALRM"):
         signal.signal(signal.SIGALRM, timeout_handler)
-        signal.alarm(execution_timeout_sec)
+        signal.alarm(execution_timeout_sec)  # type: ignore[attr-defined]
     else:
         logger.debug("[TIMEOUT] SIGALRM not available (Windows). Using process-level timeout instead.")
 
