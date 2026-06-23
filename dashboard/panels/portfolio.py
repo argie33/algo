@@ -227,10 +227,10 @@ def panel_performance_spark(
     sharpe_v = perf.get("sharpe")
     sharpe_s = f"{sharpe_v:.2f}" if sharpe_v is not None else "--"
 
-    wr_v, _adj_w, adj_l = _calculate_adjusted_win_rate(perf, pos)
-    closed_wins = perf.get("w") or 0
+    wr_v, closed_wins, adj_l = _calculate_adjusted_win_rate(perf, pos)
+    # closed_wins and adj_l are already validated by _calculate_adjusted_win_rate
     closed_losses = perf.get("l") or 0
-    losing_open = (adj_l or 0) - (closed_losses or 0)
+    losing_open = adj_l - (closed_losses or 0)
     avg_win_v = perf.get("avg_win")
     avg_loss_v = perf.get("avg_loss")
     avg_win_s = f"{avg_win_v:.1f}%" if avg_win_v is not None else "--"
@@ -453,8 +453,14 @@ def panel_portfolio_perf_expanded(
         avg_win = perf.get("avg_win")
         avg_loss = perf.get("avg_loss")
 
-        wr_v, _adj_w, adj_l = _calculate_adjusted_win_rate(perf, pos)
-        losing_open = (adj_l or 0) - (closed_losses or 0)
+        try:
+            wr_v, _adj_w, adj_l = _calculate_adjusted_win_rate(perf, pos)
+            losing_open = (adj_l or 0) - (closed_losses or 0)
+        except ValueError as e:
+            logger.warning(f"Win rate calculation failed: {e}")
+            wr_v = 0.0
+            adj_l = 0
+            losing_open = 0
         wr_label = "Win Rate (adj.):" if losing_open > 0 else "Win Rate:"
 
         wrc = G if wr_v >= 45 else (Y if wr_v >= 40 else R)
@@ -614,7 +620,7 @@ def panel_portfolio_perf_expanded(
     if var95_val is not None:
         try:
             var95_f = float(var95_val)
-            if var95_f > 0:
+            if var95_f > 0 and risk is not None:
                 rows.append(Text.from_markup("[dim bold]RISK METRICS[/]"))
                 rtbl = Table.grid(padding=(0, 3), expand=False)
                 rtbl.add_column("label", style="dim")
@@ -623,11 +629,13 @@ def panel_portfolio_perf_expanded(
                 rtbl.add_column("val2")
 
                 # Extract all risk metrics with explicit None checks
-                beta = safe_float(risk.get("beta"), default=None)
-                conc5 = safe_float(risk.get("conc5"), default=None)
-                cvar95 = safe_float(risk.get("cvar95"), default=None)
-                svar = safe_float(risk.get("svar"), default=None)
-                risk_date = risk.get("date")
+                # Mypy type narrowing: explicitly verify risk is not None
+                risk_dict: dict[str, Any] = risk
+                beta = safe_float(risk_dict.get("beta"), default=None)
+                conc5 = safe_float(risk_dict.get("conc5"), default=None)
+                cvar95 = safe_float(risk_dict.get("cvar95"), default=None)
+                svar = safe_float(risk_dict.get("svar"), default=None)
+                risk_date = risk_dict.get("date")
 
                 beta_c = R if (beta or 0) >= 1.2 else (Y if (beta or 0) >= 0.8 else G)
                 conc_c = R if (conc5 or 0) >= 35 else (Y if (conc5 or 0) >= 25 else "white")

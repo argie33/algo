@@ -288,27 +288,30 @@ def panel_orch(run: dict[str, Any] | None, cfg: dict[str, Any], risk: dict[str, 
 
     # VaR line — only show if table is populated with real data
     var_line = ""
-    risk_dict = safe_get_dict(risk) if risk and not has_error(risk) else {}
+    risk_dict = (safe_get_dict(risk) if risk and not has_error(risk) else None) or {}
     var95_check = risk_dict.get("var95") if risk_dict else None
-    var95_check_f = safe_float(var95_check, default=0.0)
-    if risk_dict and var95_check is not None and var95_check_f > 0:
-        risk_metrics = extract_risk_metrics(risk_dict)
-        if risk_metrics:
-            var95_val = risk_metrics["var95"]
-            beta_val = risk_metrics["beta"]
-            cvar95_val = risk_metrics["cvar95"]
-            conc5_val = risk_metrics["conc5"]
-            svar_val = risk_metrics["svar"]
-            beta_c = R if beta_val >= 1.2 else (Y if beta_val >= 0.8 else G)
-            var_c = HealthFormatter.var_color(var95_val)
-            svar_f = safe_float(svar_val, default=0.0)
-            svar_s = f"\n[dim]Stressed VaR:[/][{R}]{svar_f:.2f}%[/]" if svar_val is not None and svar_f > 0 else ""
-            var_line = (
-                f"\n[dim]VaR 95%:[/][{var_c}]{var95_val:.2f}%[/]"
-                f"  [dim]CVaR 95%:[/][{var_c}]{cvar95_val:.2f}%[/]"
-                f"  [dim]Portfolio Beta:[/][{beta_c}]{beta_val:.2f}[/]"
-                f"  [dim]Top-5 Conc:[/][white]{conc5_val:.0f}%[/]" + svar_s
-            )
+    if var95_check is not None:
+        try:
+            var95_check_f = float(var95_check)
+            if var95_check_f > 0:
+                risk_metrics = extract_risk_metrics(risk_dict)
+                var95_val = risk_metrics["var95"]
+                beta_val = risk_metrics["beta"]
+                cvar95_val = risk_metrics["cvar95"]
+                conc5_val = risk_metrics["conc5"]
+                svar_val = risk_metrics["svar"]
+                beta_c = R if beta_val >= 1.2 else (Y if beta_val >= 0.8 else G)
+                var_c = HealthFormatter.var_color(var95_val)
+                svar_f = float(svar_val) if svar_val is not None else 0.0
+                svar_s = f"\n[dim]Stressed VaR:[/][{R}]{svar_f:.2f}%[/]" if svar_f > 0 else ""
+                var_line = (
+                    f"\n[dim]VaR 95%:[/][{var_c}]{var95_val:.2f}%[/]"
+                    f"  [dim]CVaR 95%:[/][{var_c}]{cvar95_val:.2f}%[/]"
+                    f"  [dim]Portfolio Beta:[/][{beta_c}]{beta_val:.2f}[/]"
+                    f"  [dim]Top-5 Conc:[/][white]{conc5_val:.0f}%[/]" + svar_s
+                )
+        except (KeyError, ValueError, TypeError) as e:
+            logger.warning(f"Risk metrics extraction failed: {e}")
 
     if not run or has_error(run):
         error_msg = (
