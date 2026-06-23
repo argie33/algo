@@ -34,17 +34,17 @@ _tier_formatter = TierFormatter()
 _sign_formatter = SignFormatter()
 
 
-def fmt_age(ts):
+def fmt_age(ts: Any) -> str:
     """Format timestamp as age string."""
     return _age_formatter.format(ts)
 
 
-def fmt_money(v):
+def fmt_money(v: Any) -> str:
     """Format value as currency: $1.23, $12.34K, $1.23M."""
     return _money_formatter.format(v)
 
 
-def fmt_money_short(v):
+def fmt_money_short(v: Any) -> str:
     """Compact dollar format: $45K, $1.2M, $850 - for narrow table columns."""
     return _money_short_formatter.format(v)
 
