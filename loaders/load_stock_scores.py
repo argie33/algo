@@ -23,6 +23,7 @@ setup_imports()
 
 import logging
 from datetime import date, datetime, timezone
+from typing import Any
 
 import psycopg2
 
@@ -40,7 +41,7 @@ class StockScoresLoader(OptimalLoader):
     primary_key = ("symbol",)
     watermark_field: str = ""  # No date watermark, we compute all at once
 
-    def fetch_incremental(self, symbol: str, since: date | None):
+    def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Compute stock scores for this symbol.
 
         Returns list with score if computed, empty list if insufficient data.
@@ -51,7 +52,7 @@ class StockScoresLoader(OptimalLoader):
             return [score_result]
         return []
 
-    def _compute_stock_score(self, symbol: str) -> dict | None:
+    def _compute_stock_score(self, symbol: str) -> dict[str, Any] | None:
         """Compute composite stock score from REAL metrics only (no fake defaults).
 
         Only returns a score if stock has sufficient real data (>=50% completeness).
@@ -188,7 +189,7 @@ class StockScoresLoader(OptimalLoader):
         except Exception as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def _get_quality_metrics(self, cur, symbol: str) -> dict | None:
+    def _get_quality_metrics(self, cur: Any, symbol: str) -> dict[str, Any] | None:
         """Fetch quality metrics for symbol."""
         try:
             cur.execute(

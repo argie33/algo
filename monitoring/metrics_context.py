@@ -17,7 +17,7 @@ import os
 import time
 from contextlib import contextmanager
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Literal
 
 logger = logging.getLogger(__name__)
 
