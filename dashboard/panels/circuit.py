@@ -38,7 +38,7 @@ from ..utilities import (
 from ._helpers import _error_panel
 
 
-@register_panel(  # type: ignore[untyped-decorator]
+@register_panel(
     "circuit",
     endpoint_deps=["cb"],
     optional=False,
@@ -119,7 +119,7 @@ def panel_circuit(cb: Any) -> Panel:
     )
 
 
-@register_panel(  # type: ignore[untyped-decorator]
+@register_panel(
     "circuit_expanded",
     endpoint_deps=["cb"],
     optional=False,

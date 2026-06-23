@@ -162,7 +162,7 @@ def mascot_pose(data: dict[str, Any], frame: int) -> int:
     return _get_safe_frame_index(idx)
 
 
-@register_panel(  # type: ignore[untyped-decorator]
+@register_panel(
     "mascot",
     endpoint_deps=[],
     optional=False,
@@ -173,7 +173,7 @@ def mascot_compact(data: dict[str, Any], frame: int) -> Panel:
     return _render_cache.get_mascot_panel(fi, data)
 
 
-@register_panel(  # type: ignore[untyped-decorator]
+@register_panel(
     "loading",
     endpoint_deps=[],
     optional=False,

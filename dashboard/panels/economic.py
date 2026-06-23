@@ -107,7 +107,7 @@ def _build_calendar_rows(econ_cal: Any) -> list[Text | Rule]:
     return rows
 
 
-@register_panel(  # type: ignore[untyped-decorator]
+@register_panel(
     "eco",
     endpoint_deps=["eco"],
     optional=True,

@@ -63,7 +63,7 @@ def _extract_items(data: Any) -> list[Any] | dict[str, Any]:
     return []
 
 
-@register_panel(  # type: ignore[untyped-decorator]
+@register_panel(
     "trades",
     endpoint_deps=["trades"],
     optional=True,

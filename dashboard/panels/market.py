@@ -44,7 +44,7 @@ from .data_extractors import (
 )
 
 
-@register_panel(  # type: ignore[untyped-decorator]
+@register_panel(
     "market",
     endpoint_deps=["mkt", "sentiment"],
     optional=False,
@@ -156,7 +156,7 @@ def panel_market_full(mkt: Any, sentiment: Any = None) -> Panel:
     return Panel(txt, title="[bold blue]MARKET[/]", border_style="blue", padding=(0, 1))
 
 
-@register_panel(  # type: ignore[untyped-decorator]
+@register_panel(
     "market_expanded",
     endpoint_deps=["mkt", "sentiment"],
     optional=False,
@@ -283,7 +283,7 @@ def panel_market_expanded(mkt: Any, sentiment: Any = None) -> Panel:
     )
 
 
-@register_panel("header", endpoint_deps=["mkt", "sentiment"], optional=False, description="Header")  # type: ignore[untyped-decorator]
+@register_panel("header", endpoint_deps=["mkt", "sentiment"], optional=False, description="Header")
 def panel_header_market(mkt: Any, sentiment: Any, ts: Any, mkt_s: Any, elapsed: Any, refresh_s: str = "", cfg: Any = None, data_source: str = "AWS") -> Panel:
     """Compact market header - fits alongside exposure factors + monkey in the top row."""
     source_color = "cyan" if data_source == "LOCAL" else "dim"

@@ -40,7 +40,7 @@ from ._helpers import _error_panel
 _tier_formatter = TierFormatter()
 
 
-@register_panel(  # type: ignore[untyped-decorator]
+@register_panel(
     "exp",
     endpoint_deps=["exp"],
     optional=True,
