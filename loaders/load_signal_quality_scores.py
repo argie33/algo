@@ -726,7 +726,6 @@ def _log_signal_metrics():
     4. Seasonal variations (volume changes around earnings, Fed days, etc)
     """
 
-
     try:
         with DatabaseContext("read") as cur:
             # Count total signals and get latest date

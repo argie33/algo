@@ -19,7 +19,7 @@ from utils.db import DatabaseContext
 logger = logging.getLogger(__name__)
 
 
-def validate_environment():
+def validate_environment() -> None:
     """Validate that all required environment variables are set at startup.
 
     Fails FAST with RuntimeError if any critical credential is missing.
@@ -797,11 +797,7 @@ class AlgoConfig:
         "patrol_staleness_aaii_sentiment": ("7", "int", "Days before aaii_sentiment considered stale"),
         "patrol_staleness_earnings_history": ("120", "int", "Days before earnings_history considered stale"),
         # Data Patrol Volume Thresholds
-        "patrol_high_volume_threshold": (
-            "100000000",
-            "int",
-            "Volume sanity check: daily volume above this = suspicious",
-        ),
+        "patrol_high_volume_threshold": ("100000000", "int", "Volume sanity check: daily volume above this = suspicious"),
         "patrol_low_volume_threshold": ("1000", "int", "Volume sanity check: daily volume below this = suspicious"),
         "patrol_new_low_volume_alert": ("5", "int", "Alert when N stocks hit 52w volume lows"),
         # Data Patrol Quality Thresholds
@@ -835,13 +831,13 @@ class AlgoConfig:
                 return entry[3]
         return "Other"
 
-    def __init__(self):
+    def __init__(self) -> None:
         import time
 
         t0 = time.time()
         logger.info("[AlgoConfig] __init__ starting")
-        self._config = {}
-        self._sources = {}  # Track source of each config value: "default" or "database"
+        self._config: dict[str, Any] = {}
+        self._sources: dict[str, str] = {}  # Track source of each config value: "default" or "database"
         self._validate_schema_consistency()
         self._load_defaults()
         t1 = time.time()
@@ -858,7 +854,7 @@ class AlgoConfig:
         self._audit_config_sources()
 
     @property
-    def risk(self):
+    def risk(self) -> Any:
         """Get RiskConfig specialist (lazy-loaded on first access).
 
         Returns:
@@ -875,7 +871,7 @@ class AlgoConfig:
         return self._risk_config
 
     @property
-    def circuit_breaker(self):
+    def circuit_breaker(self) -> Any:
         """Get CircuitBreakerConfig specialist (lazy-loaded on first access).
 
         Returns:
@@ -892,7 +888,7 @@ class AlgoConfig:
         return self._circuit_breaker_config
 
     @property
-    def data_patrol(self):
+    def data_patrol(self) -> Any:
         """Get DataPatrolConfig specialist (lazy-loaded on first access).
 
         Returns:
@@ -909,7 +905,7 @@ class AlgoConfig:
         return self._data_patrol_config
 
     @property
-    def timeout(self):
+    def timeout(self) -> Any:
         """Get TimeoutConfig specialist (lazy-loaded on first access).
 
         Returns:
@@ -927,7 +923,7 @@ class AlgoConfig:
         return self._timeout_config
 
     @property
-    def execution(self):
+    def execution(self) -> Any:
         """Get ExecutionConfig specialist (lazy-loaded on first access).
 
         Returns:
@@ -945,7 +941,7 @@ class AlgoConfig:
         return self._execution_config
 
     @property
-    def economic_stress(self):
+    def economic_stress(self) -> Any:
         """Get EconomicStressConfig specialist (lazy-loaded on first access).
 
         Returns:
@@ -963,7 +959,7 @@ class AlgoConfig:
         return self._economic_stress_config
 
     @property
-    def trading(self):
+    def trading(self) -> Any:
         """Get TradingConfig specialist (lazy-loaded on first access).
 
         Returns:
@@ -981,7 +977,7 @@ class AlgoConfig:
             self._trading_config = TradingConfig(self)
         return self._trading_config
 
-    def _validate_schema_consistency(self):
+    def _validate_schema_consistency(self) -> None:
         """Verify that VALIDATION_SCHEMA and DEFAULTS are in sync.
 
         Every key in DEFAULTS must be in VALIDATION_SCHEMA (with type consistency).
@@ -1027,7 +1023,7 @@ class AlgoConfig:
         if warnings:
             logger.warning("[AlgoConfig] Schema/defaults consistency warnings:\n" + "\n".join(warnings))
 
-    def _load_defaults(self):
+    def _load_defaults(self) -> None:
         """Load default configuration."""
         for key, default_entry in self.DEFAULTS.items():
             # Handle both 3-tuple and 4-tuple formats
@@ -1035,7 +1031,7 @@ class AlgoConfig:
             self._config[key] = self._parse_value(value, dtype)
             self._sources[key] = "default"
 
-    def _load_from_database(self):
+    def _load_from_database(self) -> None:
         """Load configuration from database, overriding defaults.
 
         If a critical safety threshold is invalid, rejects the value and uses the
@@ -1106,7 +1102,7 @@ class AlgoConfig:
                 f"System will not trade with undefined safety configuration. Caused by: {e}"
             ) from e
 
-    def _normalize_db_type(self, db_type: str) -> str:
+    def _normalize_db_type(self, db_type: str | None) -> str:
         """Convert PostgreSQL type names to schema type names.
 
         Database stores PostgreSQL native types like 'integer', 'double precision', etc.
@@ -1118,7 +1114,7 @@ class AlgoConfig:
         db_type_lower = db_type.lower().strip()
 
         # Map PostgreSQL types to schema types
-        type_mapping = {
+        type_mapping: dict[str, str] = {
             "integer": "int",
             "int": "int",
             "bigint": "int",
@@ -1138,18 +1134,18 @@ class AlgoConfig:
 
         return type_mapping.get(db_type_lower, "string")
 
-    def _parse_value(self, value, dtype):
+    def _parse_value(self, value: Any, dtype: str) -> Any:
         """Parse configuration value to correct type."""
         if dtype == "int":
             return int(value)
         elif dtype == "float":
             return float(value)
         elif dtype == "bool":
-            return value.lower() in ("true", "1", "yes")
+            return str(value).lower() in ("true", "1", "yes")
         else:
             return str(value)
 
-    def _validate_value(self, key, value, dtype):
+    def _validate_value(self, key: str, value: Any, dtype: str) -> bool:
         """Validate that a config value is within acceptable bounds using schema.
 
         If key is not in schema, performs backward-compatible basic validation.
@@ -1197,7 +1193,7 @@ class AlgoConfig:
 
         return True
 
-    def _validate_r_multiple_ordering(self):
+    def _validate_r_multiple_ordering(self) -> None:
         """Verify t1 < t2 < t3 R-multiple targets (called after full config load)."""
         try:
             # Fail-fast: R-multiples are critical and must be explicitly configured
@@ -1223,7 +1219,7 @@ class AlgoConfig:
             logger.error(f"Config validation failed: {e}")
             raise
 
-    def _validate_critical_thresholds(self):
+    def _validate_critical_thresholds(self) -> None:
         """Fail-fast validation: critical safety thresholds must be within safe ranges.
 
         Checks all keys marked as critical in VALIDATION_SCHEMA. Raises RuntimeError
@@ -1289,7 +1285,7 @@ class AlgoConfig:
         if warnings:
             logger.warning("[AlgoConfig] Critical threshold warnings:\n" + "\n".join(warnings))
 
-    def _validate_config_interdependencies(self):
+    def _validate_config_interdependencies(self) -> None:
         """Validate configuration interdependencies at startup.
 
         Checks for conflicting values that create impossible or dead-code scenarios.
@@ -1440,13 +1436,13 @@ class AlgoConfig:
         except (ZeroDivisionError, TypeError) as e:
             logger.warning(f"[AlgoConfig] Interdependency validation error: {e}")
 
-    def get_critical_thresholds_summary(self):
+    def get_critical_thresholds_summary(self) -> dict[str, dict[str, Any]]:
         """Return a dict of all critical safety thresholds and their current values.
 
         Useful for monitoring, dashboards, and admin verification.
         Format: {key: {"value": X, "min": Y, "max": Z, "source": "database"}}
         """
-        summary = {}
+        summary: dict[str, dict[str, Any]] = {}
         for key, (
             _schema_type,
             min_val,
@@ -1464,7 +1460,7 @@ class AlgoConfig:
                 }
         return summary
 
-    def _audit_config_sources(self):
+    def _audit_config_sources(self) -> None:
         """Log audit trail of config sources and critical threshold status.
 
         Helps detect silent fallbacks, schema inconsistencies, and unsafe thresholds.
@@ -1500,7 +1496,7 @@ class AlgoConfig:
                 f"Verify algo_config table is properly populated."
             )
 
-    def get(self, key, default=None):
+    def get(self, key: str, default: Any = None) -> Any:
         """Get configuration value with type validation.
 
         FIXED Issue #8: Validates that the retrieved value matches the expected type.
@@ -1614,7 +1610,7 @@ class AlgoConfig:
         except ValueError as e:
             logger.error(f"[CONFIG OVERRIDE] Invalid value for {key}: {e}  -” ignored")
 
-    def set(self, key, value, value_type, description="", changed_by="system"):
+    def set(self, key: str, value: Any, value_type: str, description: str = "", changed_by: str = "system") -> bool:
         """Set configuration value in database, memory, and audit log.
 
         For critical safety thresholds: if the value is invalid, rejects it and instead
@@ -1701,11 +1697,11 @@ class AlgoConfig:
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """Convert config to dictionary for compatibility with code expecting dict."""
         return dict(self._config)
 
-    def initialize_defaults(self):
+    def initialize_defaults(self) -> bool:
         """Initialize all default configs in database."""
         try:
             with DatabaseContext("write") as cur:
@@ -1723,7 +1719,7 @@ class AlgoConfig:
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def reload(self):
+    def reload(self) -> None:
         """Reload configuration from database with full validation.
 
         Ensures hot-reloaded values pass the same critical safety checks as startup.
@@ -1754,7 +1750,7 @@ class AlgoConfig:
         self._audit_config_sources()
         logger.info("[AlgoConfig] Reload completed with validation")
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<AlgoConfig {len(self._config)} keys>"
 
 
@@ -1763,7 +1759,7 @@ _instance = None
 _instance_lock = threading.Lock()
 
 
-def get_config():
+def get_config() -> AlgoConfig:
     """Get or create global config instance (thread-safe).
 
     Uses double-checked locking to prevent race conditions during initialization.

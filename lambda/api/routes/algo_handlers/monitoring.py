@@ -31,9 +31,7 @@ logger = logging.getLogger(__name__)
 
 
 @db_route_handler("get algo audit log")
-def _get_algo_audit_log(
-    cur: cursor, limit: int = 100, offset: int = 0, action_type: str | None = None
-) -> Any:
+def _get_algo_audit_log(cur: cursor, limit: int = 100, offset: int = 0, action_type: str | None = None) -> Any:
     """Return algo audit log entries with pagination."""
     if action_type:
         cur.execute(

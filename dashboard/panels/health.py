@@ -2,6 +2,7 @@
 
 import json
 import logging
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -658,11 +659,11 @@ def _extract_phase_metrics_from_pdata(pdata: dict | None) -> tuple[int, int, int
     return int(sg) if sg else 0, int(ee) if ee else 0, int(xe) if xe else 0
 
 
-def _parse_phase_data_json(pdata_raw: str | dict | None) -> dict | None:
+def _parse_phase_data_json(pdata_raw: str | dict | None) -> dict[str, Any] | None:
     """Parse phase data field (may be string or dict)."""
     if isinstance(pdata_raw, str):
         try:
-            return json.loads(pdata_raw)
+            return json.loads(pdata_raw)  # type: ignore
         except (json.JSONDecodeError, ValueError) as e:
             logger.warning(f"Failed to parse phase metrics data JSON: {e}")
             return None
@@ -671,7 +672,7 @@ def _parse_phase_data_json(pdata_raw: str | dict | None) -> dict | None:
     return None
 
 
-def _format_health_data_stale_section(stale: list, hlth_list: list) -> str:
+def _format_health_data_stale_section(stale: list, hlth_list: list[Any] | None) -> str:
     """Format data health when stale tables exist."""
     crit_stale = [r for r in stale if r.get("role") == "CRIT"]
     if crit_stale:
@@ -806,7 +807,7 @@ def _format_algo_actions_and_activity(
     return rows
 
 
-def _format_run_history_summary(valid_hist: list) -> list[Text]:
+def _format_run_history_summary(valid_hist: list[Any] | None) -> list[Text]:
     """Format run history badges and summary stats."""
     rows: list[Text] = []
     if not valid_hist:
@@ -849,9 +850,9 @@ def _format_run_history_summary(valid_hist: list) -> list[Text]:
     return rows
 
 
-def _format_risk_snapshot(risk_dict: dict) -> list[Text]:
+def _format_risk_snapshot(risk_dict: dict) -> list[Text | Rule]:
     """Format risk metrics (VaR, CVaR, Beta, Concentration)."""
-    rows: list[Text] = []
+    rows: list[Text | Rule] = []
     var95_val = risk_dict.get("var95")
     if not var95_val or float(var95_val) <= 0:
         return rows
@@ -879,9 +880,9 @@ def _format_risk_snapshot(risk_dict: dict) -> list[Text]:
     return rows
 
 
-def _format_notifications_section(valid_notifs: list) -> list[Text]:
+def _format_notifications_section(valid_notifs: list) -> list[Text | Rule]:
     """Format notifications summary."""
-    rows: list[Text] = []
+    rows: list[Text | Rule] = []
     if not valid_notifs:
         return rows
 

@@ -34,7 +34,7 @@ from utils.validation import DatabaseResultValidator
 logger = logging.getLogger(__name__)
 
 
-def get_price_coverage(cur: cursor)  -> Any:
+def get_price_coverage(cur: cursor) -> Any:
     """Get price_daily coverage metrics."""
     try:
         rows = execute_with_timeout(
@@ -93,7 +93,7 @@ def get_price_coverage(cur: cursor)  -> Any:
         return error_response(code, error_type, message)
 
 
-def get_technical_coverage(cur: cursor)  -> Any:
+def get_technical_coverage(cur: cursor) -> Any:
     """Get technical_data_daily coverage and completeness."""
     try:
         cur.execute("SET LOCAL statement_timeout = '20s'")
@@ -155,7 +155,7 @@ def get_technical_coverage(cur: cursor)  -> Any:
         return error_response(code, error_type, message)
 
 
-def get_market_data_coverage(cur: cursor)  -> Any:
+def get_market_data_coverage(cur: cursor) -> Any:
     """Get market_health_daily and other market data coverage."""
     try:
         # Market health
@@ -208,7 +208,7 @@ def get_market_data_coverage(cur: cursor)  -> Any:
         return error_response(code, error_type, message)
 
 
-def get_loader_health(cur: cursor)  -> Any:
+def get_loader_health(cur: cursor) -> Any:
     """Get recent loader execution health from patrol log or direct table freshness checks."""
     try:
         # Try to get patrol data first
@@ -244,7 +244,7 @@ def get_loader_health(cur: cursor)  -> Any:
         raise Exception(f"Failed to retrieve loader health: {e}") from e
 
 
-def _safe_call(cur: cursor, fn: Any)  -> Any:
+def _safe_call(cur: cursor, fn: Any) -> Any:
     """Call fn(cur) with SAVEPOINT isolation so a failed query doesn't abort the outer tx.
 
     Each sub-function raises exceptions on errors, which are caught here.
@@ -278,7 +278,7 @@ def _safe_call(cur: cursor, fn: Any)  -> Any:
         return error_response(code, error_type, message)
 
 
-def get_overall_coverage_summary(cur: cursor)  -> Any:
+def get_overall_coverage_summary(cur: cursor) -> Any:
     """Get overall data coverage summary."""
     summary = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -324,7 +324,7 @@ def handle(
     params: dict[str, Any],
     body: dict[str, Any] | None = None,
     jwt_claims: dict[str, Any] | None = None,
-)  -> Any:
+) -> Any:
     """Handle GET /api/data-coverage request."""
     if method != "GET":
         return error_response(405, "method_not_allowed", "Method not allowed. Only GET is supported.")

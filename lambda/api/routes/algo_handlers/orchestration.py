@@ -130,7 +130,9 @@ def _get_orchestrator_execution_recent(cur: cursor, days: int = 7, limit: int = 
             items = [safe_json_serialize(safe_dict_convert(r)) for r in rows]
             return list_response(items, total=len(rows), limit=limit)
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as ser_e:
-            raise RuntimeError(f"Orchestrator execution serialization failed: {type(ser_e).__name__}: {ser_e}") from ser_e
+            raise RuntimeError(
+                f"Orchestrator execution serialization failed: {type(ser_e).__name__}: {ser_e}"
+            ) from ser_e
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         raise RuntimeError(f"Orchestrator execution recent query failed: {type(e).__name__}: {e}") from e
 

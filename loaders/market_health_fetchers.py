@@ -38,7 +38,6 @@ class VIXFetcher:
     def _fetch_vix_data(self, start: date, end: date) -> dict[str, Any]:
         """Internal VIX fetch implementation."""
         try:
-
             import yfinance
 
             vix_data = yfinance.download("^VIX", start=start, end=end, progress=False)
@@ -81,7 +80,6 @@ class PutCallRatioFetcher:
     def _fetch_put_call_ratio(self, eval_date: date) -> float | None:
         """Internal put/call fetch implementation."""
         try:
-
             import yfinance
 
             spx_options = yfinance.Ticker("^SPX")

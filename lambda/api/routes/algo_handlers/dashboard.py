@@ -306,9 +306,7 @@ def _get_algo_status(cur: cursor) -> Any:
 
 
 @db_route_handler("fetch algo trades")
-def _get_algo_trades(
-    cur: cursor, limit: int = 200, user_id: str | None = None, status: str | None = None
-) -> Any:
+def _get_algo_trades(cur: cursor, limit: int = 200, user_id: str | None = None, status: str | None = None) -> Any:
     """Get recent trades with all fields for frontend (scoped to user if user_id provided, filtered by status if provided)."""
     where_parts: list[str] = []
     params: list[Any] = []

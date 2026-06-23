@@ -182,9 +182,7 @@ def _compute_signal_attribution(run_date: _date, log_phase_result_fn: Callable) 
             ic_pvalue = ic_data.get("ic_pvalue")
             if ic_value is None:
                 logger.critical(f"CRITICAL: IC value missing for component {comp}. Cannot validate signal quality.")
-                raise ValueError(
-                    f"IC calculation failed for {comp}: missing 'ic_value'. Signal validation incomplete."
-                )
+                raise ValueError(f"IC calculation failed for {comp}: missing 'ic_value'. Signal validation incomplete.")
             if ic_pvalue is None:
                 logger.critical(
                     f"CRITICAL: IC p-value missing for component {comp}. Cannot validate signal significance."
@@ -233,17 +231,9 @@ def _generate_daily_report(run_date: _date, log_phase_result_fn: Callable) -> No
         if not report or "portfolio" not in report:
             raise ValueError("Daily report generated but missing portfolio data")
         portfolio_data = report.get("portfolio")
-        if (
-            not portfolio_data
-            or "current_value" not in portfolio_data
-            or portfolio_data.get("current_value") is None
-        ):
+        if not portfolio_data or "current_value" not in portfolio_data or portfolio_data.get("current_value") is None:
             raise ValueError("Portfolio data missing current_value")
-        if (
-            not portfolio_data
-            or "daily_pnl_pct" not in portfolio_data
-            or portfolio_data.get("daily_pnl_pct") is None
-        ):
+        if not portfolio_data or "daily_pnl_pct" not in portfolio_data or portfolio_data.get("daily_pnl_pct") is None:
             raise ValueError("Portfolio data missing daily_pnl_pct")
 
         # Log to algo_audit_log for historical tracking
@@ -311,23 +301,17 @@ def _compute_performance_metrics(config: Any, run_date: _date, log_phase_result_
                 missing = [
                     k for k in ["rolling_sharpe_252d", "win_rate_50t", "expectancy"] if perf_report.get(k) is None
                 ]
-                logger.critical(
-                    f"CRITICAL: Performance metrics missing: {missing}. Cannot assess strategy quality."
-                )
+                logger.critical(f"CRITICAL: Performance metrics missing: {missing}. Cannot assess strategy quality.")
                 raise ValueError(f"Performance report incomplete. Missing: {missing}. Strategy validation failed.")
             perf_summary = f"Sharpe {sharpe}, Win rate {win_rate}%, Expectancy {expectancy}"
         elif perf_report:
             perf_message = perf_report.get("message")
             if not perf_message:
                 logger.critical("CRITICAL: Performance report failed but no error message provided.")
-                raise ValueError(
-                    "Performance report generation failed without error details. Cannot diagnose issue."
-                )
+                raise ValueError("Performance report generation failed without error details. Cannot diagnose issue.")
             perf_summary = perf_message
         else:
-            logger.critical(
-                "CRITICAL: Performance report generation returned None. Cannot assess strategy quality."
-            )
+            logger.critical("CRITICAL: Performance report generation returned None. Cannot assess strategy quality.")
             raise ValueError("Performance report generation failed. Cannot proceed without performance metrics.")
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         perf_summary = f"error: {str(e)[:60]}"
@@ -578,9 +562,7 @@ def run(
         from algo.infrastructure.reconciliation import DailyReconciliation
 
         recon = DailyReconciliation(config)
-        reconciliation_succeeded, result = _run_reconciliation_step(
-            config, run_date, log_phase_result_fn, dry_run
-        )
+        reconciliation_succeeded, result = _run_reconciliation_step(config, run_date, log_phase_result_fn, dry_run)
 
         # CRITICAL: Validate that local P&L matches Broker P&L
         _validate_pnl_step(recon, result, log_phase_result_fn)

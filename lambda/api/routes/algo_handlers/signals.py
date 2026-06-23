@@ -468,9 +468,7 @@ def _get_rejection_reason_description(reason: str) -> str:
 
 
 @db_route_handler("fetch swing scores")
-def _get_swing_scores(
-    cur: cursor, limit: int = 100, min_score: float | None = None, symbol: str | None = None
-) -> Any:
+def _get_swing_scores(cur: cursor, limit: int = 100, min_score: float | None = None, symbol: str | None = None) -> Any:
     """Get swing trade candidates with scoring."""
     try:
         # Use psycopg2.sql for safe SQL composition
