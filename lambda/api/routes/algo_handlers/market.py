@@ -3,7 +3,7 @@
 import json
 import logging
 from datetime import date, datetime, timedelta, timezone
-from typing import Any, cast
+from typing import Any
 
 import psycopg2
 import psycopg2.errors
@@ -60,7 +60,7 @@ def _get_data_quality(cur: cursor) -> dict[str, Any]:
                 "warnings": 0,
                 "healthy": 0,
             }
-            return cast(dict[str, Any], response)
+            return response
 
         # Organize by table, keeping latest status per table
         tables_dict = {}
@@ -121,7 +121,7 @@ def _get_data_quality(cur: cursor) -> dict[str, Any]:
             "healthy": severity_counts["healthy"],
             "total_tables_checked": len(tables_dict),
         }
-        return cast(dict[str, Any], response)
+        return response
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
@@ -131,7 +131,7 @@ def _get_data_quality(cur: cursor) -> dict[str, Any]:
     ) as e:
         code, error_type, message = handle_db_error(e, "check data quality")
         logger.error(f"Failed to check data quality: {error_type} - {message}")
-        return cast(dict[str, Any], error_response(code, error_type, message))
+        return error_response(code, error_type, message)
 
 
 @db_route_handler("fetch data status")
@@ -305,9 +305,9 @@ def _get_data_status(cur: cursor) -> dict[str, Any]:
         is_valid, error_msg = ResponseValidator.validate_endpoint_response("health", response["data"])
         if not is_valid:
             logger.error(f"Health response validation failed: {error_msg}")
-            return cast(dict[str, Any], error_response(500, "response_validation_error", error_msg))
+            return error_response(500, "response_validation_error", error_msg)
 
-        return cast(dict[str, Any], response)
+        return response
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
@@ -316,7 +316,7 @@ def _get_data_status(cur: cursor) -> dict[str, Any]:
         Exception,
     ) as e:
         code, error_type, message = handle_db_error(e, "fetch data status")
-        return cast(dict[str, Any], error_response(code, error_type, message))
+        return error_response(code, error_type, message)
 
 
 def _normalize_market_health(mh: dict) -> dict[str, Any]:
@@ -379,7 +379,7 @@ def _get_market(cur: cursor) -> dict[str, Any]:
         """)
         mh = cur.fetchone()
         if not mh:
-            return cast(dict[str, Any], error_response(503, "data_unavailable", "Market health data unavailable"))
+            return error_response(503, "data_unavailable", "Market health data unavailable")
         mh_raw = safe_json_serialize(safe_dict_convert(mh))
         market_health = _normalize_market_health(mh_raw)
 
@@ -391,7 +391,7 @@ def _get_market(cur: cursor) -> dict[str, Any]:
         """)
         exp = cur.fetchone()
         if not exp:
-            return cast(dict[str, Any], error_response(503, "data_unavailable", "Market exposure data unavailable"))
+            return error_response(503, "data_unavailable", "Market exposure data unavailable")
         exp_raw = safe_json_serialize(safe_dict_convert(exp))
         exposure = _normalize_exposure(exp_raw)
 
@@ -414,7 +414,7 @@ def _get_market(cur: cursor) -> dict[str, Any]:
         """)
         spy_row = cur.fetchone()
         if not spy_row or spy_row["close"] is None:
-            return cast(dict[str, Any], error_response(503, "data_unavailable", "SPY price data unavailable"))
+            return error_response(503, "data_unavailable", "SPY price data unavailable")
         spy_close = float(spy_row["close"])
 
         data = {
@@ -437,7 +437,7 @@ def _get_market(cur: cursor) -> dict[str, Any]:
             "fed_rate_environment": market_health["fed_rate_environment"],
         }
 
-        return cast(dict[str, Any], json_response(200, data))
+        return json_response(200, data)
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
@@ -448,7 +448,7 @@ def _get_market(cur: cursor) -> dict[str, Any]:
         logger.error(
             f"Failed to fetch market: {type(e).__name__}: {e}\n  Operation: Query market_health_daily with date filter\n  Endpoint: GET /api/algo/market"
         )
-        return cast(dict[str, Any], error_response(503, "service_unavailable", "Failed to fetch market data"))
+        return error_response(503, "service_unavailable", "Failed to fetch market data")
 
 
 @db_route_handler("get market factors")
@@ -466,15 +466,7 @@ def _get_market_factors(cur: cursor) -> dict[str, Any]:
         row = cur.fetchone()
 
         if not row:
-            return cast(dict[str, Any], json_response(
-                200,
-                {
-                    "exposure_pct": None,
-                    "raw_score": None,
-                    "regime": None,
-                    "factors": {},
-                },
-            ))
+            return error_response(503, "data_unavailable", "Market exposure factors data not yet available")
 
         data_dict = safe_json_serialize(safe_dict_convert(row))
 
@@ -498,7 +490,7 @@ def _get_market_factors(cur: cursor) -> dict[str, Any]:
             "factors": factors,
         }
 
-        return cast(dict[str, Any], json_response(200, data))
+        return json_response(200, data)
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
@@ -509,7 +501,7 @@ def _get_market_factors(cur: cursor) -> dict[str, Any]:
         logger.error(
             f"Failed to fetch market factors: {type(e).__name__}: {e}\n  Operation: Calculate market exposure factors\n  Endpoint: GET /api/algo/market-factors"
         )
-        return cast(dict[str, Any], error_response(503, "service_unavailable", "Failed to fetch market factors"))
+        return error_response(503, "service_unavailable", "Failed to fetch market factors")
 
 
 @db_route_handler("get market sentiment")
@@ -529,10 +521,10 @@ def _get_market_sentiment(cur: cursor) -> dict[str, Any]:
     row = cur.fetchone()
 
     if not row:
-        return cast(dict[str, Any], error_response(503, "no_data", "Market sentiment data not yet available"))
+        return error_response(503, "no_data", "Market sentiment data not yet available")
 
     if row.get("sentiment_score") is None:
-        return cast(dict[str, Any], error_response(503, "incomplete_data", "Market sentiment data incomplete"))
+        return error_response(503, "incomplete_data", "Market sentiment data incomplete")
 
     sentiment_score = float(row["sentiment_score"])
     bullish = None  # Not available in market_sentiment view
@@ -548,7 +540,7 @@ def _get_market_sentiment(cur: cursor) -> dict[str, Any]:
         else:
             trend = "BEARISH"
 
-    return cast(dict[str, Any], json_response(
+    return json_response(
         200,
         {
             "sentiment": round(sentiment_score, 2) if sentiment_score else None,
@@ -557,7 +549,7 @@ def _get_market_sentiment(cur: cursor) -> dict[str, Any]:
             "bearish_pct": round(bearish, 1) if bearish else None,
             "neutral_pct": round(neutral, 1) if neutral else None,
         },
-    ))
+    )
 
 
 @db_route_handler("get markets")
@@ -574,11 +566,7 @@ def _get_markets(cur: cursor) -> dict[str, Any]:
         row = cur.fetchone()
 
         if not row:
-            response = list_response([], total=0, limit=None, offset=None)
-            response["data"]["current"] = None
-            response["data"]["active_tier"] = None
-            response["data"]["history"] = []
-            return cast(dict[str, Any], response)
+            return error_response(503, "data_unavailable", "Market exposure data not yet available")
 
         row = safe_json_serialize(safe_dict_convert(row))
 
@@ -677,18 +665,18 @@ def _get_markets(cur: cursor) -> dict[str, Any]:
                     except (ValueError, TypeError):
                         pass
             else:
-                return cast(dict[str, Any], error_response(
+                return error_response(
                     503,
                     "data_unavailable",
                     "Market health data not available (market_health_daily empty)",
-                ))
+                )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as mhe:
             logger.error(f"CRITICAL: Failed to fetch market_health_daily: {mhe}")
-            return cast(dict[str, Any], error_response(
+            return error_response(
                 503,
                 "data_unavailable",
                 f"Market health unavailable: {type(mhe).__name__}",
-            ))
+            )
 
         # Fetch latest SPY close for dashboard header (critical for position sizing)
         spy_close = None
@@ -700,15 +688,15 @@ def _get_markets(cur: cursor) -> dict[str, Any]:
             """)
             spy_row = cur.fetchone()
             if not spy_row or spy_row["close"] is None:
-                return cast(dict[str, Any], error_response(503, "data_unavailable", "SPY price data not available"))
+                return error_response(503, "data_unavailable", "SPY price data not available")
             spy_close = float(spy_row["close"])
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as spy_e:
             logger.error(f"CRITICAL: Failed to fetch SPY price: {spy_e}")
-            return cast(dict[str, Any], error_response(
+            return error_response(
                 503,
                 "data_unavailable",
                 f"SPY price unavailable: {type(spy_e).__name__}",
-            ))
+            )
 
         current_date = row.get("date")
 
@@ -719,11 +707,11 @@ def _get_markets(cur: cursor) -> dict[str, Any]:
                 f"market exposure computation may not have run or vix_regime computation failed. "
                 f"Check market_exposure_daily and load_market_exposure_daily logs."
             )
-            return cast(dict[str, Any], error_response(
+            return error_response(
                 503,
                 "data_unavailable",
                 "VIX regime data unavailable - cannot assess volatility risk",
-            ))
+            )
         vix_regime_obj = factors.get("vix_regime")
         if vix_regime_obj is None or vix_regime_obj.get("value") is None:
             logger.error(
@@ -731,11 +719,11 @@ def _get_markets(cur: cursor) -> dict[str, Any]:
                 f"VIX fetch from ^VIX or market_health_daily returned no data. "
                 f"Check load_market_health_daily logs and yfinance availability."
             )
-            return cast(dict[str, Any], error_response(
+            return error_response(
                 503,
                 "data_unavailable",
                 "VIX data unavailable - cannot assess volatility risk",
-            ))
+            )
 
         response = list_response(sectors, total=len(sectors), limit=None, offset=None)
         response_data = {
@@ -756,7 +744,7 @@ def _get_markets(cur: cursor) -> dict[str, Any]:
         # Validate market response against contract schema
         ensure_valid_response("mkt", response["data"])
 
-        return cast(dict[str, Any], response)
+        return response
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
@@ -767,7 +755,7 @@ def _get_markets(cur: cursor) -> dict[str, Any]:
         logger.error(
             f"Failed to fetch markets: {type(e).__name__}: {e}\n  Operation: Query market_exposure_daily\n  Endpoint: GET /api/algo/markets"
         )
-        return cast(dict[str, Any], error_response(503, "service_unavailable", "Failed to fetch markets data"))
+        return error_response(503, "service_unavailable", "Failed to fetch markets data")
 
 
 @db_route_handler("get trend criteria")
@@ -785,7 +773,7 @@ def _get_trend_criteria(cur: cursor) -> dict[str, Any]:
     """)
     row = cur.fetchone()
     if not row or int(row["total_symbols"]) == 0:
-        return cast(dict[str, Any], error_response(503, "no_data", "Trend template data not yet available"))
+        return error_response(503, "no_data", "Trend template data not yet available")
 
     total_symbols = int(row["total_symbols"])
     criteria = [
@@ -811,4 +799,4 @@ def _get_trend_criteria(cur: cursor) -> dict[str, Any]:
         },
     ]
 
-    return cast(dict[str, Any], list_response(criteria, total=total_symbols, limit=None, offset=None))
+    return list_response(criteria, total=total_symbols, limit=None, offset=None)

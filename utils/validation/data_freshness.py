@@ -160,7 +160,10 @@ class FreshnessValidator:
                                 return True
                             break
             except Exception as e:
-                logger.debug(f"Could not check trading day for {data_name}: {e}. Using strict freshness check.")
+                logger.warning(
+                    f"Could not check trading day for {data_name}: {e}. "
+                    f"Falling back to strict freshness validation for {data_name}."
+                )
 
         if age > max_age:
             raise StaleDataError(

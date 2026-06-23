@@ -2,7 +2,7 @@
 
 import logging
 import re
-from typing import Any, cast
+from typing import Any
 
 import psycopg2
 import psycopg2.errors
@@ -47,7 +47,7 @@ def handle(
         if symbol and path == f"/api/stocks/{symbol}":
             # Validate symbol format before using in query
             if not re.match(r"^[A-Z0-9\-\^]{1,10}$", symbol.upper()):
-                return cast(dict[str, Any], error_response(400, "bad_request", "Invalid symbol format"))
+                return error_response(400, "bad_request", "Invalid symbol format")
             cur.execute("SET LOCAL statement_timeout = '3000ms'")
             cur.execute(
                 """
@@ -65,9 +65,9 @@ def handle(
                 is_valid, error_msg = ResponseValidator.validate_endpoint_response("stocks", stock_result)
                 if not is_valid:
                     logger.error(f"Endpoint response validation failed: {error_msg}")
-                    return cast(dict[str, Any], error_response(500, "response_validation_error", error_msg))
-                return cast(dict[str, Any], json_response(200, stock_result))
-            return cast(dict[str, Any], error_response(404, "not_found", f"Stock {symbol} not found"))
+                    return error_response(500, "response_validation_error", error_msg)
+                return json_response(200, stock_result)
+            return error_response(404, "not_found", f"Stock {symbol} not found")
 
         if path == "/api/stocks/deep-value":
             limit = safe_limit(
@@ -84,14 +84,14 @@ def handle(
                     max_attempts=1,
                 )
                 if not results:
-                    return cast(dict[str, Any], list_response([]))
+                    return list_response([])
             except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
                 logger.debug("[DEEP_VALUE] value_metrics table not found - financial data not loaded yet")
-                return cast(dict[str, Any], list_response([]))
+                return list_response([])
             except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
                 logger.error(f"[DEEP_VALUE] Database error checking value_metrics: {type(e).__name__}: {e}")
                 code, error_type, message = handle_db_error(e, "deep-value check")
-                return cast(dict[str, Any], error_response(code, error_type, message))
+                return error_response(code, error_type, message)
             try:
                 deep_value_query = (
                     """
@@ -257,14 +257,14 @@ def handle(
                     is_valid, error_msg = ResponseValidator.validate_endpoint_response("stocks", deep_value_result)
                     if not is_valid:
                         logger.error(f"Endpoint response validation failed: {error_msg}")
-                        return cast(dict[str, Any], error_response(500, "response_validation_error", error_msg))
-                    return cast(dict[str, Any], deep_value_result)
+                        return error_response(500, "response_validation_error", error_msg)
+                    return deep_value_result
                 empty_result = list_response([])
                 is_valid, error_msg = ResponseValidator.validate_endpoint_response("stocks", empty_result)
                 if not is_valid:
                     logger.error(f"Endpoint response validation failed: {error_msg}")
-                    return cast(dict[str, Any], error_response(500, "response_validation_error", error_msg))
-                return cast(dict[str, Any], empty_result)
+                    return error_response(500, "response_validation_error", error_msg)
+                return empty_result
             except (
                 psycopg2.errors.UndefinedTable,
                 psycopg2.errors.UndefinedColumn,
@@ -273,17 +273,17 @@ def handle(
                     f"Deep-value query failed - schema error: {type(e).__name__}: {e}",
                     extra={"operation": "deep-value"},
                 )
-                return cast(dict[str, Any], error_response(
+                return error_response(
                     503,
                     "schema_error",
                     "Database schema mismatch - please check RDS migrations",
-                ))
+                )
             except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
                 logger.error(
                     f"Deep-value query failed - database error: {type(e).__name__}: {e}",
                     extra={"operation": "deep-value"},
                 )
-                return cast(dict[str, Any], error_response(503, "connection_error", "Database connection failed - please retry"))
+                return error_response(503, "connection_error", "Database connection failed - please retry")
 
         limit = safe_limit(
             params.get("limit", [None])[0] if params else None,
@@ -299,7 +299,7 @@ def handle(
 
         if search:
             if len(search) > 200:
-                return cast(dict[str, Any], error_response(400, "bad_request", "Search query too long (max 200 characters)"))
+                return error_response(400, "bad_request", "Search query too long (max 200 characters)")
             where_clauses.append("(ss.symbol ILIKE %s OR ss.security_name ILIKE %s)")
             query_params.extend([f"%{search}%", f"%{search}%"])
         if sector:
@@ -351,8 +351,8 @@ def handle(
         is_valid, error_msg = ResponseValidator.validate_endpoint_response("stocks", stocks_list_result)
         if not is_valid:
             logger.error(f"Endpoint response validation failed: {error_msg}")
-            return cast(dict[str, Any], error_response(500, "response_validation_error", error_msg))
-        return cast(dict[str, Any], json_response(200, stocks_list_result))
+            return error_response(500, "response_validation_error", error_msg)
+        return json_response(200, stocks_list_result)
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
@@ -361,4 +361,4 @@ def handle(
         Exception,
     ) as e:
         code, error_type, message = handle_db_error(e, "handle stocks")
-        return cast(dict[str, Any], error_response(code, error_type, message))
+        return error_response(code, error_type, message)

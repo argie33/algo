@@ -2,7 +2,7 @@
 
 import logging
 import os
-from typing import Any, cast
+from typing import Any
 
 import psycopg2
 import psycopg2.errors
@@ -50,7 +50,7 @@ def handle(
     """Handle /api/audit/* endpoints."""
     # Require admin authorization for all audit endpoints (bypass in dev mode)
     if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(jwt_claims):
-        return cast(dict[str, Any], error_response(403, "forbidden", "Admin access required to view audit logs"))
+        return error_response(403, "forbidden", "Admin access required to view audit logs")
 
     try:
         limit_str = params.get("limit", [None])[0] if params else None
@@ -75,13 +75,10 @@ def handle(
             count_row = cur.fetchone()
             total = next(iter(safe_json_serialize(dict(count_row).values())), 0) if count_row else 0
             freshness = check_data_freshness(cur, "algo_audit_log", "created_at", warning_days=1)
-            return cast(
-                dict[str, Any],
-                list_response(
-                    [safe_json_serialize(dict(a)) for a in audits] if audits else [],
-                    total=total,
-                    data_freshness=freshness,
-                ),
+            return list_response(
+                [safe_json_serialize(dict(a)) for a in audits] if audits else [],
+                total=total,
+                data_freshness=freshness,
             )
 
         elif path == "/api/audit/trades" or path.startswith("/api/audit/trades?"):
@@ -104,13 +101,10 @@ def handle(
             count_row = cur.fetchone()
             total = next(iter(safe_json_serialize(dict(count_row).values())), 0) if count_row else 0
             freshness = check_data_freshness(cur, "algo_audit_log", "created_at", warning_days=1)
-            return cast(
-                dict[str, Any],
-                list_response(
-                    [safe_json_serialize(dict(a)) for a in audits] if audits else [],
-                    total=total,
-                    data_freshness=freshness,
-                ),
+            return list_response(
+                [safe_json_serialize(dict(a)) for a in audits] if audits else [],
+                total=total,
+                data_freshness=freshness,
             )
 
         elif path == "/api/audit/config" or path.startswith("/api/audit/config?"):
@@ -133,13 +127,10 @@ def handle(
             count_row = cur.fetchone()
             total = next(iter(safe_json_serialize(dict(count_row).values())), 0) if count_row else 0
             freshness = check_data_freshness(cur, "algo_audit_log", "created_at", warning_days=1)
-            return cast(
-                dict[str, Any],
-                list_response(
-                    [safe_json_serialize(dict(a)) for a in audits] if audits else [],
-                    total=total,
-                    data_freshness=freshness,
-                ),
+            return list_response(
+                [safe_json_serialize(dict(a)) for a in audits] if audits else [],
+                total=total,
+                data_freshness=freshness,
             )
 
         elif path == "/api/audit/safeguards" or path.startswith("/api/audit/safeguards?"):
@@ -162,16 +153,13 @@ def handle(
             count_row = cur.fetchone()
             total = next(iter(safe_json_serialize(dict(count_row).values())), 0) if count_row else 0
             freshness = check_data_freshness(cur, "algo_audit_log", "created_at", warning_days=1)
-            return cast(
-                dict[str, Any],
-                list_response(
-                    [safe_json_serialize(dict(a)) for a in audits] if audits else [],
-                    total=total,
-                    data_freshness=freshness,
-                ),
+            return list_response(
+                [safe_json_serialize(dict(a)) for a in audits] if audits else [],
+                total=total,
+                data_freshness=freshness,
             )
 
-        return cast(dict[str, Any], error_response(404, "not_found", f"No audit handler for {path}"))
+        return error_response(404, "not_found", f"No audit handler for {path}")
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
@@ -180,4 +168,4 @@ def handle(
         Exception,
     ) as e:
         code, error_type, message = handle_db_error(e, "handle audit")
-        return cast(dict[str, Any], error_response(code, error_type, message))
+        return error_response(code, error_type, message)

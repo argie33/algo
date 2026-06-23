@@ -206,7 +206,12 @@ class PositionContext:
         if self.target_hits == 0 and self.t1_price is not None and self.cur_price >= self.t1_price:
             if self._was_target_hit_today(self.t1_hit_time):
                 return False, None
-            require_pb = bool(self.config.get("require_target_pullback", False))
+            if "require_target_pullback" not in self.config:
+                raise ValueError(
+                    "Exit engine config missing 'require_target_pullback' flag. "
+                    "Cannot proceed with target exits without explicit configuration."
+                )
+            require_pb = bool(self.config["require_target_pullback"])
             if not require_pb or engine._is_pulling_back(self.cur, self.symbol, self.current_date):
                 return (
                     True,
@@ -224,7 +229,12 @@ class PositionContext:
         if self.target_hits == 1 and self.t2_price is not None and self.cur_price >= self.t2_price:
             if self._was_target_hit_today(self.t2_hit_time):
                 return False, None
-            require_pb = bool(self.config.get("require_target_pullback", False))
+            if "require_target_pullback" not in self.config:
+                raise ValueError(
+                    "Exit engine config missing 'require_target_pullback' flag. "
+                    "Cannot proceed with target exits without explicit configuration."
+                )
+            require_pb = bool(self.config["require_target_pullback"])
             if not require_pb or engine._is_pulling_back(self.cur, self.symbol, self.current_date):
                 stop_for_t2 = max(self.active_stop, self.t1_price) if self.t1_price is not None else self.active_stop
                 return (

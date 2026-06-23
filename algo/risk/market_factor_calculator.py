@@ -124,8 +124,11 @@ class MarketFactorCalculator:
             row = cur.fetchone()
             return bool(row and row[0]) if row else False
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.debug(f"Market confirmation check failed: {e}")
-            return False
+            logger.error(f"Market confirmation check failed: {e}", exc_info=True)
+            raise RuntimeError(
+                f"Cannot determine market confirmation status: database query failed ({e}). "
+                f"Cannot proceed with trading without valid market data."
+            ) from e
 
     # ============= Factor Implementations =============
 
@@ -242,7 +245,9 @@ class MarketFactorCalculator:
             row = cur.fetchone()
             cur.execute("RELEASE SAVEPOINT sp_put_call")
             if not row or row[0] is None:
-                raise RuntimeError(f"Put/call ratio data unavailable for {eval_date} — cannot proceed with incomplete market context")
+                raise RuntimeError(
+                    f"Put/call ratio data unavailable for {eval_date} — cannot proceed with incomplete market context"
+                )
             pcr = float(row[0])
             score = max(0, min(100, (pcr - 0.7) * 100))
             return {"put_call_ratio": round(pcr, 2), "score": score}

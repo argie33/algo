@@ -698,9 +698,15 @@ class ValueAtRisk:
                     )
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.error(f"Failed to persist risk report: {e}", exc_info=True)
+                raise RuntimeError(
+                    f"Risk report persistence failed: {e}. "
+                    f"Cannot allow trading without valid risk metrics recorded in database."
+                ) from e
 
             return result
 
         except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.error(f"Daily risk report generation error: {e}", exc_info=True)
-            return {"status": "error", "message": str(e)}
+            raise RuntimeError(
+                f"Risk calculation failed: {e}. Cannot generate valid risk metrics for trading decisions."
+            ) from e

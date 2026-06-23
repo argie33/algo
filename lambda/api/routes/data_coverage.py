@@ -15,7 +15,7 @@ For use in dashboard and automated monitoring.
 import logging
 from datetime import date as _date
 from datetime import datetime, timezone
-from typing import Any, cast
+from typing import Any
 
 import psycopg2
 import psycopg2.errors
@@ -55,7 +55,7 @@ def get_price_coverage(cur: cursor) -> dict[str, Any]:
 
         row = DatabaseResultValidator.safe_get_first_row(rows, "price coverage")
         if not row:
-            return cast(dict[str, Any], error_response(503, "no_data", "Price data not yet available"))
+            return error_response(503, "no_data", "Price data not yet available")
 
         total_symbols = row["total_symbols"]
         sp500_total = row["sp500_total"]
@@ -68,7 +68,7 @@ def get_price_coverage(cur: cursor) -> dict[str, Any]:
         zero_vol_pct = (zero_vol / total_rows * 100) if total_rows else 0
         invalid_pct = (invalid_prices / total_rows * 100) if total_rows else 0
 
-        return cast(dict[str, Any], success_response(
+        return success_response(
             {
                 "total_symbols": total_symbols,
                 "sp500_target": sp500_total,
@@ -81,7 +81,7 @@ def get_price_coverage(cur: cursor) -> dict[str, Any]:
                     "invalid_price_pct": round(invalid_pct, 2),
                 },
             }
-        ))
+        )
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
@@ -90,7 +90,7 @@ def get_price_coverage(cur: cursor) -> dict[str, Any]:
         Exception,
     ) as e:
         code, error_type, message = handle_db_error(e, "get price coverage")
-        return cast(dict[str, Any], error_response(code, error_type, message))
+        return error_response(code, error_type, message)
 
 
 def get_technical_coverage(cur: cursor) -> dict[str, Any]:
@@ -112,7 +112,7 @@ def get_technical_coverage(cur: cursor) -> dict[str, Any]:
 
         row = cur.fetchone()
         if not row:
-            return cast(dict[str, Any], error_response(503, "no_data", "Technical data not yet available"))
+            return error_response(503, "no_data", "Technical data not yet available")
 
         symbols, latest_date, _total_rows, rsi_cov, ema_cov, atr_cov, incomplete = row
 
@@ -126,11 +126,11 @@ def get_technical_coverage(cur: cursor) -> dict[str, Any]:
                 missing_indicators.append("atr")
             error_msg = f"Technical data incomplete: missing coverage for {', '.join(missing_indicators)}"
             logger.error(error_msg)
-            return cast(dict[str, Any], error_response(503, "incomplete_data", error_msg))
+            return error_response(503, "incomplete_data", error_msg)
 
         min_coverage = min(rsi_cov, ema_cov, atr_cov)
 
-        return cast(dict[str, Any], success_response(
+        return success_response(
             {
                 "symbols_with_technicals": symbols,
                 "latest_date": str(latest_date),
@@ -143,7 +143,7 @@ def get_technical_coverage(cur: cursor) -> dict[str, Any]:
                 "incomplete_rows": incomplete,
                 "status": "complete" if min_coverage >= 0.95 else "incomplete",
             }
-        ))
+        )
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
@@ -152,7 +152,7 @@ def get_technical_coverage(cur: cursor) -> dict[str, Any]:
         Exception,
     ) as e:
         code, error_type, message = handle_db_error(e, "get technical coverage")
-        return cast(dict[str, Any], error_response(code, error_type, message))
+        return error_response(code, error_type, message)
 
 
 def get_market_data_coverage(cur: cursor) -> dict[str, Any]:
@@ -182,7 +182,7 @@ def get_market_data_coverage(cur: cursor) -> dict[str, Any]:
         econ_date = econ_row["latest_date"] if econ_row else None
         econ_count = econ_row["indicators"] if econ_row else 0
 
-        return cast(dict[str, Any], success_response(
+        return success_response(
             {
                 "market_health": {
                     "latest_date": str(mh_date),
@@ -196,7 +196,7 @@ def get_market_data_coverage(cur: cursor) -> dict[str, Any]:
                     "status": "available" if econ_count > 0 else "missing",
                 },
             }
-        ))
+        )
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
@@ -205,7 +205,7 @@ def get_market_data_coverage(cur: cursor) -> dict[str, Any]:
         Exception,
     ) as e:
         code, error_type, message = handle_db_error(e, "get market data coverage")
-        return cast(dict[str, Any], error_response(code, error_type, message))
+        return error_response(code, error_type, message)
 
 
 def get_loader_health(cur: cursor) -> dict[str, Any]:
@@ -229,17 +229,17 @@ def get_loader_health(cur: cursor) -> dict[str, Any]:
         if not rows:
             error_msg = "Loader health data unavailable: data_loader_status table is empty or no recent updates"
             logger.error(error_msg)
-            return cast(dict[str, Any], error_response(503, "no_loader_status", error_msg))
+            return error_response(503, "no_loader_status", error_msg)
 
         stale_loaders = [row[0] for row in rows if row[1] in ("stale", "error") or row[1] is None]
-        return cast(dict[str, Any], success_response(
+        return success_response(
             {
                 "total_tracked": len(rows),
                 "stale_loaders": list(set(stale_loaders)),
                 "stale_count": len(set(stale_loaders)),
                 "status": "healthy" if not stale_loaders else "degraded",
             }
-        ))
+        )
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         raise Exception(f"Failed to retrieve loader health: {e}") from e
 
@@ -275,7 +275,7 @@ def _safe_call(cur: cursor, fn: Any) -> dict[str, Any]:
             logger.warning(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(rollback_err).__name__}: {rollback_err}")
         logger.warning(f"[COVERAGE_CHECK] Coverage check function failed: {type(e).__name__}: {e}")
         code, error_type, message = handle_db_error(e, "data coverage check")
-        return cast(dict[str, Any], error_response(code, error_type, message))
+        return error_response(code, error_type, message)
 
 
 def get_overall_coverage_summary(cur: cursor) -> dict[str, Any]:
@@ -327,12 +327,12 @@ def handle(
 ) -> dict[str, Any]:
     """Handle GET /api/data-coverage request."""
     if method != "GET":
-        return cast(dict[str, Any], error_response(405, "method_not_allowed", "Method not allowed. Only GET is supported."))
+        return error_response(405, "method_not_allowed", "Method not allowed. Only GET is supported.")
 
     try:
         summary = get_overall_coverage_summary(cur)
         # Return data wrapped in standard response format
-        return cast(dict[str, Any], json_response(200, summary))
+        return json_response(200, summary)
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
@@ -341,4 +341,4 @@ def handle(
         Exception,
     ) as e:
         code, error_type, message = handle_db_error(e, "handle data coverage")
-        return cast(dict[str, Any], error_response(code, error_type, message))
+        return error_response(code, error_type, message)

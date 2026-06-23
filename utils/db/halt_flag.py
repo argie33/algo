@@ -140,13 +140,27 @@ class HaltFlagManager:
                 return False, None
 
             item = response["Item"]
-            halt_flag = item.get("halt_flag", False)
+
+            if "halt_flag" not in item:
+                raise RuntimeError(
+                    "Halt flag item corrupted: missing required 'halt_flag' field. "
+                    "DynamoDB item must contain halt_flag field (True/False). "
+                    "This is a data integrity issue that prevents safe operation."
+                )
+
+            halt_flag = item["halt_flag"]
             if not halt_flag:
                 return False, None
 
-            # Parse halt details
-            reason = item.get("reason", "Unknown")
-            triggered_at = item.get("triggered_at", "")
+            if "reason" not in item or "triggered_at" not in item:
+                raise RuntimeError(
+                    "Halt flag item corrupted: missing required fields (reason, triggered_at). "
+                    "When halt_flag=True, both reason and triggered_at must be present. "
+                    "Cannot proceed without knowing halt reason and trigger time."
+                )
+
+            reason = item["reason"]
+            triggered_at = item["triggered_at"]
             halt_count = item.get("halt_count", 1)
 
             # Check if halt is from previous trading day (auto-expiry)

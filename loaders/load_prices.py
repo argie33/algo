@@ -1199,7 +1199,11 @@ class PriceLoader(OptimalLoader):
                     )
                 except Exception as alert_err:
                     logger.debug("Could not send rate limit alert: %s", alert_err)
-                return dict.fromkeys(symbols)
+                raise RuntimeError(
+                    f"yfinance rate limiting persisted for {error_duration / 60:.1f}min despite batch reduction. "
+                    f"Cannot load prices—circuit breaker triggered after {self._rate_limit_errors} rate limit errors. "
+                    f"EOD pipeline must halt to prevent stale price data from being loaded."
+                )
 
         try:
             result = self._execute_batch_fetch(symbols, start, end)

@@ -1,7 +1,7 @@
 """Route: scores"""
 
 import logging
-from typing import Any, cast
+from typing import Any
 
 import psycopg2
 import psycopg2.errors
@@ -56,20 +56,17 @@ def handle(
                 "symbol",
             ]
             if sort_by not in allowed_sorts:
-                return cast(
-                    dict[str, Any],
-                    error_response(
-                        400,
-                        "bad_request",
-                        f"Sort must be one of: {', '.join(allowed_sorts)}",
-                    ),
+                return error_response(
+                    400,
+                    "bad_request",
+                    f"Sort must be one of: {', '.join(allowed_sorts)}",
                 )
             if sort_order not in ["asc", "desc"]:
-                return cast(dict[str, Any], error_response(400, "bad_request", 'Sort order must be "asc" or "desc"'))
+                return error_response(400, "bad_request", 'Sort order must be "asc" or "desc"')
 
             return _get_stock_scores(cur, limit, offset, sort_by, sort_order, sp500_only == "true", symbol)
         else:
-            return cast(dict[str, Any], error_response(404, "not_found", f"No scores handler for {path}"))
+            return error_response(404, "not_found", f"No scores handler for {path}")
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
@@ -77,8 +74,8 @@ def handle(
         psycopg2.DatabaseError,
         Exception,
     ) as e:
-        _code, _error_type, _message = handle_db_error(e, "handle scores")
-        return cast(str, handle_db_error(e, "handle scores"))
+        code, error_type, message = handle_db_error(e, "handle scores")
+        return error_response(code, error_type, message)
 
 
 def _get_stock_scores(
@@ -119,7 +116,7 @@ def _get_stock_scores(
             import re
 
             if not re.match(r"^[A-Z0-9\-\^]{1,10}$", symbol.upper()):
-                return cast(dict[str, Any], error_response(400, "bad_request", "Invalid symbol format"))
+                return error_response(400, "bad_request", "Invalid symbol format")
             where_clause += " AND sc.symbol = %s"
             params_list.append(symbol.upper())
 
@@ -318,13 +315,10 @@ def _get_stock_scores(
                 f"Scores endpoint: filtered out {prices_missing_count} scores due to missing price data. "
                 f"yfinance data loading issue - cannot provide score data without prices."
             )
-            return cast(
-                dict[str, Any],
-                error_response(
-                    503,
-                    "data_unavailable",
-                    f"Price data unavailable for {prices_missing_count} symbols. yfinance data loader needs attention.",
-                ),
+            return error_response(
+                503,
+                "data_unavailable",
+                f"Price data unavailable for {prices_missing_count} symbols. yfinance data loader needs attention.",
             )
 
         # Check data freshness
@@ -340,8 +334,8 @@ def _get_stock_scores(
         is_valid, error_msg = ResponseValidator.validate_endpoint_response("scores", result)
         if not is_valid:
             logger.error(f"Endpoint response validation failed: {error_msg}")
-            return cast(dict[str, Any], error_response(500, "response_validation_error", error_msg))
-        return cast(dict[str, Any], result)
+            return error_response(500, "response_validation_error", error_msg)
+        return result
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
@@ -350,4 +344,4 @@ def _get_stock_scores(
         Exception,
     ) as e:
         code, error_type, message = handle_db_error(e, "handle scores")
-        return cast(dict[str, Any], error_response(code, error_type, message))
+        return error_response(code, error_type, message)

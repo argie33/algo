@@ -9,13 +9,25 @@ Sanitizes API response data:
 """
 
 import logging
-from typing import Any
+from typing import Any, overload
 
 logger = logging.getLogger(__name__)
 
 
 class APIResponseValidator:
     """Validates and sanitizes API responses to prevent null value issues."""
+
+    @staticmethod
+    @overload
+    def sanitize_response(data: dict[str, Any], path: str = "root") -> dict[str, Any]: ...
+
+    @staticmethod
+    @overload
+    def sanitize_response(data: list[Any], path: str = "root") -> list[Any]: ...
+
+    @staticmethod
+    @overload
+    def sanitize_response(data: None, path: str = "root") -> None: ...
 
     @staticmethod
     def sanitize_response(data: Any, path: str = "root") -> Any:

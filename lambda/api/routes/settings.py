@@ -2,7 +2,7 @@
 
 import json
 import logging
-from typing import Any, cast
+from typing import Any
 
 import psycopg2
 import psycopg2.errors
@@ -38,18 +38,18 @@ def handle(
 ) -> dict[str, Any]:
     """Handle /api/settings endpoints."""
     if jwt_claims is None:
-        return cast(dict[str, Any], error_response(401, "unauthorized", "Authentication required"))
+        return error_response(401, "unauthorized", "Authentication required")
 
     if path != "/api/settings":
-        return cast(dict[str, Any], error_response(404, "not_found", f"No settings handler for {path}"))
+        return error_response(404, "not_found", f"No settings handler for {path}")
 
     if method == "GET":
         return _get_settings(cur, jwt_claims)
     if method in ("POST", "PUT", "PATCH"):
         if not body:
-            return cast(dict[str, Any], error_response(400, "bad_request", "Request body is required"))
+            return error_response(400, "bad_request", "Request body is required")
         return _save_settings(cur, body, jwt_claims)
-    return cast(dict[str, Any], error_response(405, "method_not_allowed", f"{method} not supported"))
+    return error_response(405, "method_not_allowed", f"{method} not supported")
 
 
 def _get_settings(cur: cursor, jwt_claims: dict[str, Any]) -> dict[str, Any]:
@@ -60,7 +60,7 @@ def _get_settings(cur: cursor, jwt_claims: dict[str, Any]) -> dict[str, Any]:
     """
     user_id = jwt_claims.get("sub")
     if not user_id:
-        return cast(dict[str, Any], error_response(401, "unauthorized", "User identity required"))
+        return error_response(401, "unauthorized", "User identity required")
 
     try:
         rows = execute_with_timeout(
@@ -80,11 +80,11 @@ def _get_settings(cur: cursor, jwt_claims: dict[str, Any]) -> dict[str, Any]:
                 "notifications": (row["notifications"] if row["notifications"] is not None else True),
                 **preferences,
             }
-            return cast(dict[str, Any], json_response(200, {**_DEFAULTS, **stored}))
-        return cast(dict[str, Any], json_response(200, dict(_DEFAULTS)))
+            return json_response(200, {**_DEFAULTS, **stored})
+        return json_response(200, dict(_DEFAULTS))
     except (psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
         code, error_type, message = handle_db_error(e, "get settings")
-        return cast(dict[str, Any], error_response(code, error_type, message))
+        return error_response(code, error_type, message)
 
 
 def _save_settings(cur: cursor, body: dict[str, Any], jwt_claims: dict[str, Any]) -> dict[str, Any]:
@@ -95,7 +95,7 @@ def _save_settings(cur: cursor, body: dict[str, Any], jwt_claims: dict[str, Any]
     """
     user_id = jwt_claims.get("sub")
     if not user_id:
-        return cast(dict[str, Any], error_response(401, "unauthorized", "User identity required"))
+        return error_response(401, "unauthorized", "User identity required")
 
     try:
         theme = body.get("theme", "dark")
@@ -104,12 +104,12 @@ def _save_settings(cur: cursor, body: dict[str, Any], jwt_claims: dict[str, Any]
 
         # Validate arbitrary preference keys - limit to 50 keys to prevent storage abuse
         if len(other_prefs) > 50:
-            return cast(dict[str, Any], error_response(400, "bad_request", "Too many preference fields (max 50)"))
+            return error_response(400, "bad_request", "Too many preference fields (max 50)")
 
         # Validate preference JSON size - limit to 10KB
         prefs_json = json.dumps(other_prefs)
         if len(prefs_json.encode("utf-8")) > 10240:  # 10KB
-            return cast(dict[str, Any], error_response(400, "bad_request", "Preferences too large (max 10KB)"))
+            return error_response(400, "bad_request", "Preferences too large (max 10KB)")
 
         # notifications column is BOOLEAN; if frontend sends a dict (per-type toggles),
         # store it in preferences JSONB so it survives the round-trip intact.
@@ -132,7 +132,7 @@ def _save_settings(cur: cursor, body: dict[str, Any], jwt_claims: dict[str, Any]
             (user_id, theme, notifications, prefs_json),
         )
 
-        return cast(dict[str, Any], json_response(200, {"success": True, "message": "Settings saved"}))
+        return json_response(200, {"success": True, "message": "Settings saved"})
     except (psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
         code, error_type, message = handle_db_error(e, "save settings")
-        return cast(dict[str, Any], error_response(code, error_type, message))
+        return error_response(code, error_type, message)

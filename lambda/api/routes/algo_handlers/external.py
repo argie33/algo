@@ -1,7 +1,7 @@
 """Route: algo"""
 
 import logging
-from typing import Any, cast
+from typing import Any
 
 import psycopg2
 import psycopg2.errors
@@ -51,7 +51,7 @@ def _get_economic_calendar(cur: cursor) -> dict[str, Any]:
         if freshness.get("is_stale"):
             logger.warning(f"Economic calendar stale: {freshness.get('warning')}")
 
-        return cast(dict[str, Any], list_response(events, total=len(events), data_freshness=freshness))
+        return list_response(events, total=len(events), data_freshness=freshness)
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
@@ -60,7 +60,7 @@ def _get_economic_calendar(cur: cursor) -> dict[str, Any]:
         Exception,
     ) as e:
         code, error_type, message = handle_db_error(e, "get economic calendar")
-        return cast(dict[str, Any], error_response(code, error_type, message))
+        return error_response(code, error_type, message)
 
 
 @db_route_handler("get sentiment")
@@ -83,7 +83,7 @@ def _get_sentiment(cur: cursor) -> dict[str, Any]:
 
     if row is None:
         logger.warning("Sentiment data missing: market_sentiment table is empty")
-        return cast(dict[str, Any], error_response(503, "service_unavailable", "Sentiment data unavailable"))
+        return error_response(503, "service_unavailable", "Sentiment data unavailable")
 
     data = safe_dict_convert(row)
     fear_greed = data.get("fear_greed_index")
@@ -91,13 +91,13 @@ def _get_sentiment(cur: cursor) -> dict[str, Any]:
 
     if fear_greed is None or label is None:
         logger.warning(f"Sentiment data incomplete: fear_greed={fear_greed}, label={label}")
-        return cast(dict[str, Any], error_response(503, "service_unavailable", "Sentiment data incomplete"))
+        return error_response(503, "service_unavailable", "Sentiment data incomplete")
 
-    return cast(dict[str, Any], success_response(
+    return success_response(
         {
             "date": data.get("date"),
             "fear_greed_index": float(fear_greed),
             "label": label,
             "data_freshness": freshness,
         }
-    ))
+    )

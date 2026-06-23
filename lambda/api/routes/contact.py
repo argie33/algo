@@ -5,7 +5,7 @@ import os
 import re
 from datetime import datetime, timezone
 from time import time
-from typing import Any, cast
+from typing import Any
 
 import psycopg2
 import psycopg2.errors
@@ -161,25 +161,25 @@ def handle(
     try:
         if path == "/api/contact/submissions":
             if not jwt_claims or not jwt_claims.get("sub"):
-                return cast(dict[str, Any], error_response(401, "unauthorized", "Authentication required"))
+                return error_response(401, "unauthorized", "Authentication required")
             if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(jwt_claims):
                 logger.warning(f"Unauthorized contact submissions access attempt by {jwt_claims.get('sub')}")
-                return cast(dict[str, Any], error_response(403, "forbidden", "Admin access required"))
+                return error_response(403, "forbidden", "Admin access required")
             if method == "GET":
                 return _get_submissions(cur, params)
-            return cast(dict[str, Any], error_response(405, "method_not_allowed", "GET required"))
+            return error_response(405, "method_not_allowed", "GET required")
 
         if path == "/api/contact":
             if method == "POST":
                 if not body:
-                    return cast(dict[str, Any], error_response(400, "bad_request", "Request body is required"))
+                    return error_response(400, "bad_request", "Request body is required")
                 return _submit_contact(cur, body)
-            return cast(dict[str, Any], error_response(405, "method_not_allowed", "POST required"))
+            return error_response(405, "method_not_allowed", "POST required")
 
-        return cast(dict[str, Any], error_response(404, "not_found", f"No contact handler for {path}"))
+        return error_response(404, "not_found", f"No contact handler for {path}")
     except Exception as e:
         logger.error(f"[CONTACT] unhandled {type(e).__name__}: {e}", exc_info=True)
-        return cast(dict[str, Any], error_response(500, "internal_error", "An error occurred processing your request"))
+        return error_response(500, "internal_error", "An error occurred processing your request")
 
 
 def _submit_contact(cur: cursor, body: dict[str, Any]) -> dict[str, Any]:
@@ -192,8 +192,8 @@ def _submit_contact(cur: cursor, body: dict[str, Any]) -> dict[str, Any]:
             error_detail = errors[0]
             field = error_detail.get("loc", ("unknown",))[0]
             msg = error_detail.get("msg", "Validation failed")
-            return cast(dict[str, Any], error_response(400, "bad_request", f"Invalid {field}: {msg}"))
-        return cast(dict[str, Any], error_response(400, "bad_request", "Invalid request"))
+            return error_response(400, "bad_request", f"Invalid {field}: {msg}")
+        return error_response(400, "bad_request", "Invalid request")
 
     name = req.name
     email = req.email
@@ -205,13 +205,13 @@ def _submit_contact(cur: cursor, body: dict[str, Any]) -> dict[str, Any]:
     # attacker enumerate whether an email has submitted recently.
     if _is_contact_spam(email):
         logger.warning(f"Contact rate limit hit (silenced to caller): ...@{email.split('@')[-1]}")
-        return cast(dict[str, Any], json_response(
+        return json_response(
             200,
             {
                 "success": True,
                 "message": "Thank you for reaching out. We'll get back to you soon.",
             },
-        ))
+        )
 
     try:
         # Try with phone column first (migration 007 adds it; falls back gracefully if not yet applied)
@@ -240,23 +240,23 @@ def _submit_contact(cur: cursor, body: dict[str, Any]) -> dict[str, Any]:
                 (name, email, subject, message, datetime.now(timezone.utc)),
             )
         logger.info(f"Contact form submission from ...@{email.split('@')[-1]}")
-        return cast(dict[str, Any], json_response(
+        return json_response(
             200,
             {
                 "success": True,
                 "message": "Thank you for reaching out. We'll get back to you soon.",
             },
-        ))
+        )
     except psycopg2.errors.UndefinedTable:
         logger.error("contact_submissions table missing; unable to process submission")
-        return cast(dict[str, Any], error_response(
+        return error_response(
             503,
             "service_unavailable",
             "Contact service unavailable. Please try again later.",
-        ))
+        )
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         code, error_type, message = handle_db_error(e, "submit_contact")
-        return cast(dict[str, Any], error_response(code, error_type, message))
+        return error_response(code, error_type, message)
 
 
 def _get_submissions(cur: cursor, params: dict[str, Any]) -> dict[str, Any]:
@@ -285,10 +285,10 @@ def _get_submissions(cur: cursor, params: dict[str, Any]) -> dict[str, Any]:
                 (limit,),
                 timeout_sec=8,
             )
-        return cast(dict[str, Any], list_response(rows, total=len(rows)))
+        return list_response(rows, total=len(rows))
     except psycopg2.errors.UndefinedTable:
         logger.error("contact_submissions table missing; unable to list submissions")
-        return cast(dict[str, Any], error_response(503, "service_unavailable", "Contact service unavailable."))
+        return error_response(503, "service_unavailable", "Contact service unavailable.")
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         code, error_type, message = handle_db_error(e, "get_submissions")
-        return cast(dict[str, Any], error_response(code, error_type, message))
+        return error_response(code, error_type, message)

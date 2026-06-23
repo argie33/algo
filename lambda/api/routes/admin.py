@@ -5,7 +5,7 @@ import os
 import sys
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 import boto3
 import psycopg2
@@ -48,7 +48,9 @@ def _check_admin_access(jwt_claims: "dict | JWTClaims | None") -> bool:
     return bool(CognitoValidator.validate_admin_access(jwt_claims))
 
 
-def _audit_log_admin_action(cur: cursor, user_id: str, endpoint: str, status: str = "success", details: str = "") -> None:
+def _audit_log_admin_action(
+    cur: cursor, user_id: str, endpoint: str, status: str = "success", details: str = ""
+) -> None:
     """Log all admin actions for accountability."""
     try:
         import json as _json
@@ -175,7 +177,7 @@ def _get_loader_status(cur: cursor) -> dict[str, Any]:
     rows = cur.fetchall()
 
     if not rows:
-        response = cast(dict[str, Any], list_response([], total=0, limit=None, offset=None))
+        response = list_response([], total=0, limit=None, offset=None)
         response["data"]["status"] = "no_runs"
         response["data"]["message"] = "No loader runs recorded yet"
         return response
@@ -216,7 +218,7 @@ def _get_loader_status(cur: cursor) -> dict[str, Any]:
     ) as e:
         logger.warning(f"[LOADER_STATUS] Freshness check failed: {type(e).__name__}: {e}")
         freshness = None
-    response = cast(dict[str, Any], list_response(loaders, total=len(loaders), limit=None, offset=None))
+    response = list_response(loaders, total=len(loaders), limit=None, offset=None)
     response["data"]["status"] = "ok"
     response["data"]["summary"] = {
         "total": len(loaders),
@@ -305,7 +307,7 @@ def _get_system_health(cur: cursor) -> dict[str, Any]:
 
     health_data["tables"] = table_counts
     health_data["timestamp"] = datetime.now(timezone.utc).isoformat()
-    return cast(dict[str, Any], json_response(200, health_data))
+    return json_response(200, health_data)
 
 
 @db_route_handler("get database stats")
@@ -337,7 +339,7 @@ def _get_database_stats(cur: cursor) -> dict[str, Any]:
     stats["table_count"] = safe_json_serialize(dict(table_count_row)).get("table_count", 0) if table_count_row else 0
 
     stats["timestamp"] = datetime.now(timezone.utc).isoformat()
-    return cast(dict[str, Any], json_response(200, stats))
+    return json_response(200, stats)
 
 
 @db_route_handler("get data quality")
@@ -388,13 +390,13 @@ def _get_data_quality(cur: cursor) -> dict[str, Any]:
     # Overall status
     quality["status"] = "healthy" if invalid_prices == 0 else "degraded"
 
-    return cast(dict[str, Any], json_response(200, quality))
+    return json_response(200, quality)
 
 
 def _verify_user_email(body: "dict[str, Any] | None" = None) -> dict[str, Any]:
     """Verify a user's email in Cognito (dev/testing only)."""
     if not body:
-        return cast(dict[str, Any], error_response(400, "bad_request", "Request body is required"))
+        return error_response(400, "bad_request", "Request body is required")
     try:
         req = VerifyUserEmailRequest(**body)
     except ValidationError as e:
@@ -403,15 +405,15 @@ def _verify_user_email(body: "dict[str, Any] | None" = None) -> dict[str, Any]:
             error_detail = errors[0]
             field = error_detail.get("loc", ("unknown",))[0]
             msg = error_detail.get("msg", "Validation failed")
-            return cast(dict[str, Any], error_response(400, "bad_request", f"Invalid {field}: {msg}"))
-        return cast(dict[str, Any], error_response(400, "bad_request", "Invalid request"))
+            return error_response(400, "bad_request", f"Invalid {field}: {msg}")
+        return error_response(400, "bad_request", "Invalid request")
 
     try:
         cognito_user_pool_id = os.getenv("COGNITO_USER_POOL_ID", "").strip()
         cognito_region = os.getenv("COGNITO_REGION", "us-east-1").strip()
 
         if not cognito_user_pool_id:
-            return cast(dict[str, Any], error_response(503, "service_unavailable", "Cognito service not configured"))
+            return error_response(503, "service_unavailable", "Cognito service not configured")
 
         cognito_client = boto3.client("cognito-idp", region_name=cognito_region)
         username = req.username
@@ -426,37 +428,37 @@ def _verify_user_email(body: "dict[str, Any] | None" = None) -> dict[str, Any]:
         # Validate Cognito response
         if not isinstance(response, dict):
             logger.error(f"Invalid Cognito response type: {type(response).__name__}. Expected dict.")
-            return cast(dict[str, Any], error_response(503, "cognito_error", "Invalid response from Cognito service"))
+            return error_response(503, "cognito_error", "Invalid response from Cognito service")
 
         # Check for error in response
         if response.get("Error"):
             error_msg = response["Error"].get("Message", "Unknown error")
             logger.error(f"Cognito error: {error_msg}")
-            return cast(dict[str, Any], error_response(503, "cognito_error", f"Cognito error: {error_msg}"))
+            return error_response(503, "cognito_error", f"Cognito error: {error_msg}")
 
         # Verify HTTP status indicates success
         response_metadata = response.get("ResponseMetadata") or {}
         http_status = response_metadata.get("HTTPStatusCode")
         if http_status not in (200, 201):
             logger.error(f"Cognito returned unexpected status code: {http_status}. Expected 200 or 201.")
-            return cast(dict[str, Any], error_response(
+            return error_response(
                 503,
                 "cognito_error",
                 f"Cognito operation failed with status {http_status}",
-            ))
+            )
 
         logger.info(f"Email verified for user: {username}")
-        return cast(dict[str, Any], json_response(
+        return json_response(
             200,
             {
                 "status": "success",
                 "message": f"Email verified for {username}",
                 "username": username,
             },
-        ))
+        )
     except Exception as e:
         error_str = str(e)
         if "UserNotFoundException" in error_str:
-            return cast(dict[str, Any], error_response(404, "not_found", f"User not found: {body.get('username')}"))
+            return error_response(404, "not_found", f"User not found: {body.get('username')}")
         logger.error(f"Failed to verify email: {e}")
-        return cast(dict[str, Any], error_response(503, "service_unavailable", "Failed to verify email with Cognito service"))
+        return error_response(503, "service_unavailable", "Failed to verify email with Cognito service")

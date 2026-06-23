@@ -340,7 +340,9 @@ def raise_db_error(error: Exception, context: str = "database operation") -> NoR
         raise ServiceUnavailable(message)
 
 
-def extract_param(params: dict[str, Any] | None, key: str, required: bool = False, default: str | None = None) -> str | None:
+def extract_param(
+    params: dict[str, Any] | None, key: str, required: bool = False, default: str | None = None
+) -> str | None:
     """Extract parameter from CGI-style params dict (dict of lists).
 
     Args:
@@ -792,7 +794,9 @@ def handle_db_error(
     return status_code, error_type, message
 
 
-def db_route_handler(operation_name: str, default_error_response: Any = None) -> Callable[[Callable[..., dict[str, Any]]], Callable[..., dict[str, Any]]]:
+def db_route_handler(
+    operation_name: str, default_error_response: Any = None
+) -> Callable[[Callable[..., dict[str, Any]]], Callable[..., dict[str, Any]]]:
     """Decorator for route handlers to standardize database error handling.
 
     Eliminates redundant try-except blocks by wrapping function with:

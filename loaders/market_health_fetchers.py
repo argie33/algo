@@ -150,10 +150,20 @@ class YieldCurveFetcher:
             result = {}
             for item in data["data"]:
                 if start <= pd.to_datetime(item["date"]).date() <= end:
+                    yield_2y = item.get("2Y")
+                    yield_10y = item.get("10Y")
+
+                    if yield_2y is None or yield_10y is None:
+                        raise ValueError(
+                            f"Yield curve data missing required field(s) on {item['date']}: "
+                            f"2Y={yield_2y}, 10Y={yield_10y}. "
+                            f"Cannot proceed with incomplete yield curve data."
+                        )
+
                     result[item["date"]] = {
-                        "yield_2y": float(item.get("2Y", 0)),
-                        "yield_10y": float(item.get("10Y", 0)),
-                        "yield_spread": float(item.get("10Y", 0)) - float(item.get("2Y", 0)),
+                        "yield_2y": float(yield_2y),
+                        "yield_10y": float(yield_10y),
+                        "yield_spread": float(yield_10y) - float(yield_2y),
                     }
             return result
         except Exception as e:
@@ -177,13 +187,26 @@ class BreadthFetcher:
 
             result = {}
             for item in data.get("data", []):
-                result[item["date"]] = {
-                    "advances": item.get("advances", 0),
-                    "declines": item.get("declines", 0),
-                    "unchanged": item.get("unchanged", 0),
-                    "advance_decline_ratio": (
-                        item.get("advances", 0) / item.get("declines", 1) if item.get("declines", 0) > 0 else 0
-                    ),
+                date_key = item.get("date")
+                advances = item.get("advances")
+                declines = item.get("declines")
+                unchanged = item.get("unchanged")
+
+                if date_key is None or advances is None or declines is None or unchanged is None:
+                    raise ValueError(
+                        f"Breadth data missing required field(s): "
+                        f"date={date_key}, advances={advances}, declines={declines}, unchanged={unchanged}. "
+                        f"Cannot proceed with incomplete market breadth data."
+                    )
+
+                if declines <= 0:
+                    raise ValueError(f"Cannot calculate A/D ratio for {date_key}: declines={declines} (must be > 0)")
+
+                result[date_key] = {
+                    "advances": advances,
+                    "declines": declines,
+                    "unchanged": unchanged,
+                    "advance_decline_ratio": advances / declines,
                 }
             return result
         except Exception as e:

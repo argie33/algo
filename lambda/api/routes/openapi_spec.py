@@ -1,7 +1,7 @@
 """Route: openapi_spec - Serve OpenAPI specification and UI."""
 
 import logging
-from typing import Any, cast
+from typing import Any
 
 from openapi_spec import generate_openapi_spec
 from routes.utils import error_response, json_response
@@ -30,7 +30,7 @@ def handle(
     elif path == "/api/redoc" or path.startswith("/api/redoc?"):
         return _handle_redoc_ui()
     else:
-        return cast(int, error_response(404, "not_found", "OpenAPI endpoint not found"))
+        return error_response(404, "not_found", "OpenAPI endpoint not found")
 
 
 def _handle_openapi_json() -> dict[str, Any]:
@@ -44,10 +44,10 @@ def _handle_openapi_json() -> dict[str, Any]:
     """
     try:
         spec = generate_openapi_spec()
-        return cast(dict[str, Any], json_response(200, spec))
+        return json_response(200, spec)
     except Exception as e:
         logger.error(f"Error generating OpenAPI spec: {e}", exc_info=True)
-        return cast(dict[str, Any], error_response(500, "internal_error", "Failed to generate OpenAPI specification"))
+        return error_response(500, "internal_error", "Failed to generate OpenAPI specification")
 
 
 def _handle_swagger_ui() -> dict[str, Any]:

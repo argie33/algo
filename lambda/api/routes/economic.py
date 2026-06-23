@@ -1,7 +1,7 @@
 """Route: economic"""
 
 import logging
-from typing import Any, cast
+from typing import Any
 
 import psycopg2
 import psycopg2.errors
@@ -66,7 +66,7 @@ def handle(
                 break
 
         if not handler_name:
-            return cast(dict[str, Any], error_response(404, "not_found", f"No economic handler for {path}"))
+            return error_response(404, "not_found", f"No economic handler for {path}")
 
         # Get handler function from module globals
         handler_func = globals()[str(handler_name)]
@@ -90,7 +90,7 @@ def handle(
             extra={"operation": "get economic data"},
         )
         code, error_type, message = handle_db_error(e, "get economic data")
-        return cast(dict[str, Any], error_response(code, error_type, message))
+        return error_response(code, error_type, message)
 
 
 def _get_vix(cur: cursor) -> dict[str, Any]:
@@ -108,10 +108,10 @@ def _get_vix(cur: cursor) -> dict[str, Any]:
             timeout_sec=3,
         )
         freshness = check_data_freshness(cur, "market_health_daily", "date", warning_days=1)
-        return cast(dict[str, Any], list_response(
+        return list_response(
             [safe_json_serialize(dict(r)) for r in rows] if rows else [],
             data_freshness=freshness,
-        ))
+        )
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
@@ -124,7 +124,7 @@ def _get_vix(cur: cursor) -> dict[str, Any]:
             extra={"operation": "get VIX data"},
         )
         code, error_type, message = handle_db_error(e, "get VIX data")
-        return cast(dict[str, Any], error_response(code, error_type, message))
+        return error_response(code, error_type, message)
 
 
 def _get_calendar(cur: cursor, params: dict[str, Any]) -> dict[str, Any]:
@@ -161,10 +161,10 @@ def _get_calendar(cur: cursor, params: dict[str, Any]) -> dict[str, Any]:
         cur.execute(query, tuple(query_params))
         events = cur.fetchall()
         freshness = check_data_freshness(cur, "economic_calendar", "event_date", warning_days=7)
-        return cast(dict[str, Any], list_response(
+        return list_response(
             [safe_json_serialize(dict(e)) for e in events] if events else [],
             data_freshness=freshness,
-        ))
+        )
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
@@ -177,7 +177,7 @@ def _get_calendar(cur: cursor, params: dict[str, Any]) -> dict[str, Any]:
             extra={"operation": "get economic calendar"},
         )
         code, error_type, message = handle_db_error(e, "get economic calendar")
-        return cast(dict[str, Any], error_response(code, error_type, message))
+        return error_response(code, error_type, message)
 
 
 def _get_leading_indicators(cur: cursor) -> dict[str, Any]:
@@ -384,9 +384,9 @@ def _get_leading_indicators(cur: cursor) -> dict[str, Any]:
         is_valid, error_msg = ResponseValidator.validate_endpoint_response("economic/indicators", result)
         if not is_valid:
             logger.error(f"Economic indicators response validation failed: {error_msg}")
-            return cast(dict[str, Any], error_response(500, "response_validation_error", error_msg))
+            return error_response(500, "response_validation_error", error_msg)
 
-        return cast(dict[str, Any], json_response(200, result))
+        return json_response(200, result)
 
     except (
         psycopg2.errors.UndefinedTable,
@@ -400,7 +400,7 @@ def _get_leading_indicators(cur: cursor) -> dict[str, Any]:
             extra={"operation": "get leading indicators"},
         )
         code, error_type, message = handle_db_error(e, "get leading indicators")
-        return cast(dict[str, Any], error_response(code, error_type, message))
+        return error_response(code, error_type, message)
 
 
 def _get_yield_curve_full(cur: cursor) -> dict[str, Any]:
@@ -529,9 +529,9 @@ def _get_yield_curve_full(cur: cursor) -> dict[str, Any]:
         is_valid, error_msg = ResponseValidator.validate_endpoint_response("economic/yield-curve", result)
         if not is_valid:
             logger.error(f"Economic yield curve response validation failed: {error_msg}")
-            return cast(dict[str, Any], error_response(500, "response_validation_error", error_msg))
+            return error_response(500, "response_validation_error", error_msg)
 
-        return cast(dict[str, Any], json_response(200, result))
+        return json_response(200, result)
 
     except (
         psycopg2.errors.UndefinedTable,
@@ -545,4 +545,4 @@ def _get_yield_curve_full(cur: cursor) -> dict[str, Any]:
             extra={"operation": "get yield curve"},
         )
         code, error_type, message = handle_db_error(e, "get yield curve")
-        return cast(dict[str, Any], error_response(code, error_type, message))
+        return error_response(code, error_type, message)

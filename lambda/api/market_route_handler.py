@@ -23,7 +23,13 @@ class MarketStatusHandler(MarketHandlerStrategy):
             SELECT date, market_trend, market_stage, vix_level, put_call_ratio
             FROM market_health_daily ORDER BY date DESC LIMIT 1
         """)
-        return {"status": 200, "data": dict(cur.fetchone() or {})}
+        row = cur.fetchone()
+        if row is None:
+            raise RuntimeError(
+                "Market health data unavailable: no rows in market_health_daily table. "
+                "Cannot return market status without valid daily market health data."
+            )
+        return {"status": 200, "data": dict(row)}
 
 
 class MarketBreadthHandler(MarketHandlerStrategy):

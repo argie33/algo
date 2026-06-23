@@ -2,7 +2,7 @@
 
 import logging
 from datetime import datetime, timezone
-from typing import Any, cast
+from typing import Any
 
 from psycopg2.extensions import cursor
 
@@ -54,9 +54,9 @@ def _get_algo_config(cur: cursor) -> dict[str, Any]:
     is_valid, error_msg = ResponseValidator.validate_endpoint_response("cfg", response["data"])
     if not is_valid:
         logger.error(f"Config response validation failed: {error_msg}")
-        return cast(dict[str, Any], error_response(500, "response_validation_error", error_msg))
+        return error_response(500, "response_validation_error", error_msg)
 
-    return cast(dict[str, Any], response)
+    return response
 
 
 @db_route_handler("fetch algo config key")
@@ -67,7 +67,9 @@ def _get_algo_config_key(cur: cursor, key: str) -> dict[str, Any]:
         (key,),
     )
     row = cur.fetchone()
-    return cast(dict[str, Any], json_response(200, safe_json_serialize(safe_dict_convert(row)) if row else {}))
+    if not row:
+        return error_response(404, "not_found", f"Configuration key not found: {key}")
+    return json_response(200, safe_json_serialize(safe_dict_convert(row)))
 
 
 @db_route_handler("reset algo config key")
@@ -75,7 +77,7 @@ def _reset_algo_config_key(cur: cursor, key: str, actor: str) -> dict[str, Any]:
     """Reset a configuration key to its default value (TIER 5: Reset capability)."""
     # Validate the key exists
     if key not in AlgoConfig.DEFAULTS:
-        return cast(dict[str, Any], error_response(404, "not_found", f"Config key not found: {key}"))
+        return error_response(404, "not_found", f"Config key not found: {key}")
 
     default_val = AlgoConfig.DEFAULTS[key][0]
 
@@ -105,7 +107,7 @@ def _reset_algo_config_key(cur: cursor, key: str, actor: str) -> dict[str, Any]:
 
     logger.info(f"[TIER5] Config reset by {actor}: {key} = {default_val} (was {old_value})")
 
-    return cast(dict[str, Any], json_response(
+    return json_response(
         200,
         {
             "status": "success",
@@ -116,27 +118,27 @@ def _reset_algo_config_key(cur: cursor, key: str, actor: str) -> dict[str, Any]:
             "updated_at": datetime.now(timezone.utc).isoformat(),
             "updated_by": actor,
         },
-    ))
+    )
 
 
 @db_route_handler("update algo config key")
 def _update_algo_config_key(cur: cursor, key: str, body: dict[str, Any], actor: str) -> dict[str, Any]:
     """Update a configuration key (TIER 4: Configuration Editing)."""
     if not body or "value" not in body:
-        return cast(dict[str, Any], error_response(400, "bad_request", "value required in request body"))
+        return error_response(400, "bad_request", "value required in request body")
 
     # Validate the key exists and get its type
     cur.execute("SELECT key, value_type FROM algo_config WHERE key = %s", (key,))
     row = cur.fetchone()
     if row is None:
-        return cast(dict[str, Any], error_response(404, "not_found", f"Config key not found: {key}"))
+        return error_response(404, "not_found", f"Config key not found: {key}")
 
     new_value = body.get("value")
 
     # Validate the new value against AlgoConfig constraints
     try:
         if not AlgoConfig.DEFAULTS.get(key):
-            return cast(dict[str, Any], error_response(400, "bad_request", f"Unknown config key: {key}"))
+            return error_response(400, "bad_request", f"Unknown config key: {key}")
 
         expected_type = AlgoConfig.DEFAULTS[key][1]
         # Validate bounds and type
@@ -144,7 +146,7 @@ def _update_algo_config_key(cur: cursor, key: str, body: dict[str, Any], actor: 
         config._validate_value(key, str(new_value), expected_type)
     except ValueError as e:
         logger.warning(f"Config validation failed for {key}={new_value}: {e}")
-        return cast(dict[str, Any], error_response(400, "bad_request", f"Invalid value for {key}: {e!s}"))
+        return error_response(400, "bad_request", f"Invalid value for {key}: {e!s}")
 
     # Get old value for audit
     cur.execute("SELECT value FROM algo_config WHERE key = %s", (key,))
@@ -172,7 +174,7 @@ def _update_algo_config_key(cur: cursor, key: str, body: dict[str, Any], actor: 
 
     logger.info(f"[TIER4] Config updated by {actor}: {key} = {new_value} (was {old_value})")
 
-    return cast(dict[str, Any], json_response(
+    return json_response(
         200,
         {
             "status": "success",
@@ -182,4 +184,4 @@ def _update_algo_config_key(cur: cursor, key: str, body: dict[str, Any], actor: 
             "updated_at": datetime.now(timezone.utc).isoformat(),
             "updated_by": actor,
         },
-    ))
+    )

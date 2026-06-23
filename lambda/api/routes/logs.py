@@ -27,7 +27,7 @@ Body: {
 
 import json
 import logging
-from typing import Any, cast
+from typing import Any
 
 import boto3
 from psycopg2.extensions import cursor
@@ -73,10 +73,10 @@ def handle(
     """
 
     if method != "POST":
-        return cast(dict[str, Any], error_response(405, "method_not_allowed", "Only POST is supported"))
+        return error_response(405, "method_not_allowed", "Only POST is supported")
 
     if not body:
-        return cast(dict[str, Any], error_response(400, "missing_body", "Request body required"))
+        return error_response(400, "missing_body", "Request body required")
 
     try:
         logs = body.get("logs")
@@ -85,7 +85,7 @@ def handle(
         environment = body.get("environment", "unknown")
 
         if not logs:
-            return cast(dict[str, Any], success_response({"logged": 0, "message": "No logs to process"}))
+            return success_response({"logged": 0, "message": "No logs to process"})
 
         # Create log stream for this user/session
         stream_name = f"{environment}/{user_id}/{session_id[:8]}"
@@ -158,29 +158,29 @@ def handle(
             except (json.JSONDecodeError, ValueError) as e:
                 logger.error(f"Failed to put logs to CloudWatch: {e}")
                 # Still return success to avoid breaking frontend
-                return cast(dict[str, Any], success_response(
+                return success_response(
                     {
                         "logged": len(log_events),
                         "message": "Logs received (CloudWatch delivery failed)",
                         "warning": "Local logging may be unavailable",
                     }
-                ))
+                )
 
-        return cast(dict[str, Any], success_response(
+        return success_response(
             {
                 "logged": len(log_events),
                 "sessionId": session_id,
                 "message": f"Logged {len(log_events)} events to CloudWatch",
             }
-        ))
+        )
 
     except (ValueError, ZeroDivisionError, TypeError) as e:
         logger.error(f"Log handler error: {e}", exc_info=True)
         # Return success anyway - don't break frontend if logging fails
-        return cast(dict[str, Any], success_response(
+        return success_response(
             {
                 "logged": 0,
                 "message": "Log handler error (frontend not affected)",
                 "error": str(e)[:100],
             }
-        ))
+        )
