@@ -156,7 +156,7 @@ def handle(
 
 
 @db_route_handler("get loader status")
-def _get_loader_status(cur: cursor) -> dict[str, Any]:
+def _get_loader_status(cur: cursor) -> Any:
     """Get status of all data loaders from data_loader_status table.
 
     Reads from data_loader_status, which OptimalLoader updates after each run
@@ -231,7 +231,7 @@ def _get_loader_status(cur: cursor) -> dict[str, Any]:
 
 
 @db_route_handler("get system health")
-def _get_system_health(cur: cursor) -> dict[str, Any]:
+def _get_system_health(cur: cursor) -> Any:
     """Get overall system health status."""
     health_data: dict[str, Any] = {"status": "healthy", "components": {}}
     cur.execute("SET LOCAL statement_timeout = '3000ms'")
@@ -311,7 +311,7 @@ def _get_system_health(cur: cursor) -> dict[str, Any]:
 
 
 @db_route_handler("get database stats")
-def _get_database_stats(cur: cursor) -> dict[str, Any]:
+def _get_database_stats(cur: cursor) -> Any:
     """Get database statistics (schema-safe version - no table name exposure)."""
     stats = {}
     cur.execute("SET LOCAL statement_timeout = '5000ms'")
@@ -343,7 +343,7 @@ def _get_database_stats(cur: cursor) -> dict[str, Any]:
 
 
 @db_route_handler("get data quality")
-def _get_data_quality(cur: cursor) -> dict[str, Any]:
+def _get_data_quality(cur: cursor) -> Any:
     """Get data quality metrics."""
     quality: dict[str, Any] = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -393,7 +393,7 @@ def _get_data_quality(cur: cursor) -> dict[str, Any]:
     return json_response(200, quality)
 
 
-def _verify_user_email(body: "dict[str, Any] | None" = None) -> dict[str, Any]:
+def _verify_user_email(body: "dict[str, Any] | None" = None) -> Any:
     """Verify a user's email in Cognito (dev/testing only)."""
     if not body:
         return error_response(400, "bad_request", "Request body is required")

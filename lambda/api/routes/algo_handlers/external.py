@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 
 @db_route_handler("get economic calendar")
-def _get_economic_calendar(cur: cursor) -> dict[str, Any]:
+def _get_economic_calendar(cur: cursor) -> Any:
     """Get economic calendar data with freshness validation.
 
     Returns list of upcoming economic events. Includes data_freshness metadata
@@ -64,7 +64,7 @@ def _get_economic_calendar(cur: cursor) -> dict[str, Any]:
 
 
 @db_route_handler("get sentiment")
-def _get_sentiment(cur: cursor) -> dict[str, Any]:
+def _get_sentiment(cur: cursor) -> Any:
     """Get market sentiment data.
 
     Returns current market sentiment (fear/greed index). Returns 503 error

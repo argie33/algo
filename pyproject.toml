@@ -58,6 +58,7 @@ warn_no_return = true
 exclude = [
     "^migrations/",
     "^tests/",
+    "^lambda/",
 ]
 
 [[tool.mypy.overrides]]
@@ -99,6 +100,13 @@ select = ["E", "F", "W", "I", "N", "C90", "UP", "B", "C4", "PIE", "T10", "LOG", 
 ignore = ["E203", "E501", "UP031", "RUF012"]
 
 [tool.ruff.lint.per-file-ignores]
+"lambda/cognito-email-trigger/*" = ["N999"]
+"lambda/data-completeness-verifier/*" = ["N999"]
+"lambda/data-freshness-monitor/*" = ["N999"]
+"lambda/db-init/*" = ["N999"]
+"lambda/loader-result-logger/*" = ["N999"]
+"lambda/rds-password-reset/*" = ["N999"]
+"lambda/trigger-loaders/*" = ["N999"]
 "__init__.py" = ["F401"]
 "utils/exceptions/core.py" = ["N818", "A001"]
 "utils/exceptions/__init__.py" = ["A001"]

@@ -47,7 +47,7 @@ class AlgoError(Exception):
         self.recovery_suggestion = recovery_suggestion
         self.context = context or {}
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """Convert exception to structured dict for API responses."""
         return {
             "_error": self.message,
@@ -66,7 +66,7 @@ class DataLoadError(AlgoError):
         source: str,
         message: str,
         retry_eligible: bool = True,
-        context: dict | None = None,
+        context: dict[str, Any] | None = None,
     ):
         """Init data load error.
 
@@ -100,7 +100,7 @@ class ValidationError(AlgoError):
         field: str,
         value: object,
         expected: str,
-        context: dict | None = None,
+        context: dict[str, Any] | None = None,
     ):
         """Init validation error.
 
@@ -132,7 +132,7 @@ class ConfigError(AlgoError):
         self,
         config_key: str,
         message: str,
-        context: dict | None = None,
+        context: dict[str, Any] | None = None,
     ):
         """Init config error.
 
@@ -159,7 +159,7 @@ class CircuitBreakerError(AlgoError):
         breaker_name: str,
         failure_count: int,
         threshold: int,
-        context: dict | None = None,
+        context: dict[str, Any] | None = None,
     ):
         """Init circuit breaker error.
 
@@ -191,7 +191,7 @@ class PortfolioError(AlgoError):
         self,
         message: str,
         retry_eligible: bool = False,
-        context: dict | None = None,
+        context: dict[str, Any] | None = None,
     ):
         """Init portfolio error."""
         super().__init__(
@@ -210,7 +210,7 @@ class PositionError(AlgoError):
         self,
         symbol: str,
         message: str,
-        context: dict | None = None,
+        context: dict[str, Any] | None = None,
     ):
         """Init position error."""
         ctx = {"symbol": symbol, **(context or {})}
@@ -229,7 +229,7 @@ class DataContractError(AlgoError):
     def __init__(
         self,
         message: str,
-        context: dict | None = None,
+        context: dict[str, Any] | None = None,
     ):
         """Init data contract error."""
         super().__init__(
@@ -247,7 +247,7 @@ class MissingPhaseDataError(DataContractError):
     def __init__(
         self,
         message: str,
-        context: dict | None = None,
+        context: dict[str, Any] | None = None,
     ):
         """Init missing phase data error."""
         super().__init__(message, context)
@@ -261,7 +261,7 @@ class DataSourceError(AlgoError):
         request_desc: str,
         sources_attempted: list[str],
         last_error: Exception | None = None,
-        context: dict | None = None,
+        context: dict[str, Any] | None = None,
     ):
         """Init data source error.
 
@@ -293,7 +293,7 @@ class LockAcquisitionError(AlgoError):
         self,
         lock_key: str,
         reason: str,
-        context: dict | None = None,
+        context: dict[str, Any] | None = None,
     ):
         """Init lock acquisition error.
 

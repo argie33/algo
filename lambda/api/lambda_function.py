@@ -718,6 +718,8 @@ def validate_bearer_token(token: str | None) -> tuple:
             return (False, None, "Token expired")
 
         # O-1: Check server-side revocation (user called POST /api/logout)
+        # SECURITY FIX S-22: Token revocation must NOT silently fail. If we can't verify
+        # revocation status, we must reject the token to prevent bypass via blocklist unavailability.
         jti = payload.get("jti")
         if jti:
             try:
@@ -725,8 +727,13 @@ def validate_bearer_token(token: str | None) -> tuple:
 
                 if is_revoked(jti):
                     return (False, None, "Token has been revoked")
+            except (ImportError, AttributeError):
+                # is_revoked module not available — revocation feature disabled, allow token
+                logger.debug("Token revocation unavailable (blocklist module not found)")
             except Exception as e:
-                logger.warning(f"Blocklist check failed (non-fatal): {e}")
+                # Blocklist service unreachable or error — fail secure by rejecting token
+                logger.error(f"[TOKEN_REVOCATION_FAILED] Cannot verify token revocation: {e} — rejecting token")
+                return (False, None, "Token revocation verification failed (security check required)")
 
         logger.info(f"JWT validated: user={payload.get('sub')}, valid until {payload.get('exp')}")
 
@@ -995,15 +1002,18 @@ if not IMPORT_ERROR:
 def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     """Handle API Gateway v2 (HTTP API) requests by routing to extracted handler modules."""
     # Credential cache uses 5-minute TTL to balance freshness with API costs
-    # No need to clear on every invocation — expired entries are automatically skipped
+    # Expired entries are automatically skipped; clearing cache is optional for rotation speed.
     try:
         from config.credential_manager import clear_expired_credentials
 
         clear_expired_credentials()
-    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-        raise RuntimeError(
-            f"Unexpected error: {e}"
-        ) from e  # If we can't clear expired creds, continue anyway (non-fatal)
+    except (ImportError, AttributeError):
+        # Credential manager not available — skip cache clearing (non-critical for this invocation)
+        logger.debug("Credential cache clearing unavailable (module not found)")
+    except Exception as e:
+        # Cache clearing should never fail — it's just removing old entries from dict
+        logger.error(f"[CREDENTIAL_CACHE] Failed to clear expired credentials: {e}", exc_info=True)
+        # Don't fail the request for this non-critical operation, but log prominently
 
     # Extract path and method before ANY checks so health/CORS always work
     path = event.get("rawPath", event.get("path", "/"))

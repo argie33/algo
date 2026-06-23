@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 
 @db_route_handler("get data quality")
-def _get_data_quality(cur: cursor) -> dict[str, Any]:
+def _get_data_quality(cur: cursor) -> Any:
     """Get detailed data quality summary by table from latest data_patrol_log run."""
     try:
         # Get patrol log entries from last 24 hours
@@ -135,7 +135,7 @@ def _get_data_quality(cur: cursor) -> dict[str, Any]:
 
 
 @db_route_handler("fetch data status")
-def _get_data_status(cur: cursor) -> dict[str, Any]:
+def _get_data_status(cur: cursor) -> Any:
     """Get data freshness status with summary for ServiceHealth/AlgoTradingDashboard.
 
     Uses same trading-day-aware freshness logic as Phase 1 orchestrator to avoid
@@ -363,7 +363,7 @@ def _normalize_exposure(exp: dict) -> dict[str, Any]:
 
 
 @db_route_handler("get market")
-def _get_market(cur: cursor) -> dict[str, Any]:
+def _get_market(cur: cursor) -> Any:
     """Get simplified market data for dashboard. Returns market_health_daily + exposure data."""
     try:
         cur.execute("SET LOCAL statement_timeout = '8000ms'")
@@ -452,7 +452,7 @@ def _get_market(cur: cursor) -> dict[str, Any]:
 
 
 @db_route_handler("get market factors")
-def _get_market_factors(cur: cursor) -> dict[str, Any]:
+def _get_market_factors(cur: cursor) -> Any:
     """Get market exposure factors for dashboard display."""
     try:
         cur.execute("SET LOCAL statement_timeout = '8000ms'")
@@ -505,7 +505,7 @@ def _get_market_factors(cur: cursor) -> dict[str, Any]:
 
 
 @db_route_handler("get market sentiment")
-def _get_market_sentiment(cur: cursor) -> dict[str, Any]:
+def _get_market_sentiment(cur: cursor) -> Any:
     """Return latest market sentiment score and trend."""
     # market_sentiment view provides: date, fear_greed_index, label, put_call_ratio, vix, sentiment_score
     cur.execute("""

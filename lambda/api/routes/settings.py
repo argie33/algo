@@ -83,9 +83,18 @@ def _get_settings(cur: cursor, jwt_claims: dict[str, Any]) -> dict[str, Any]:
                 # CRITICAL: preferences should be a dict (JSON), not string or other type
                 logger.error(f"User {user_id} has invalid preferences type: {type(preferences).__name__}")
                 raise ValueError(f"User preferences corrupted: expected dict, got {type(preferences).__name__}")
+
+            # SECURITY FIX: Fail fast on NULL notifications field instead of silently defaulting
+            # The notifications column is BOOLEAN NOT NULL; if NULL appears, it indicates a
+            # schema mismatch or data corruption. Don't mask it with a fallback.
+            notifications = row.get("notifications")
+            if notifications is None:
+                logger.error(f"User {user_id} has NULL notifications field (schema error or data corruption)")
+                raise ValueError("User notifications field is NULL — schema error or data corruption")
+
             stored = {
                 "theme": row["theme"] or "dark",
-                "notifications": (row["notifications"] if row["notifications"] is not None else True),
+                "notifications": notifications,
                 **preferences,
             }
             return json_response(200, {**_DEFAULTS, **stored})
