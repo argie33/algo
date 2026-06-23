@@ -78,7 +78,7 @@ class TradingConfig:
         Returns:
             True if value was set as requested; False if rejected/fail-closed
         """
-        return self.parent.set(key, value, value_type, description, changed_by)  # type: ignore[return-value]
+        return self.parent.set(key, value, value_type, description, changed_by)  # type: ignore[no-any-return]
 
     def get_stock_filter_config(self) -> dict[str, Any]:
         """Get all stock quality gates (liquidity, price, volume).
