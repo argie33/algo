@@ -227,4 +227,6 @@ def get_db_connection(max_retries: int = 3, timeout: int = 10, debug: bool = Fal
             last_error = e
             _handle_retry_sleep(attempt, max_retries, debug, "Connection failed", e)
 
-    raise (last_error if last_error else psycopg2.OperationalError("Failed to get pooled connection"))
+    raise psycopg2.OperationalError(
+        f"Failed to get pooled connection after {max_retries + 1} attempts: {last_error}"
+    ) from last_error
