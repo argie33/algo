@@ -855,10 +855,16 @@ def _format_algo_actions_and_activity(
             d_s = d.strftime("%d") if hasattr(d, "strftime") else str(d or "")[-2:]
             en = m.get("entries")
             ex = m.get("exits")
-            en_s = str(int(en)) if en is not None else "--"
-            ex_s = str(int(ex)) if ex is not None else "--"
-            e_c = G if en is not None and en > 0 else DIM
-            x_c = Y if ex is not None and ex > 0 else DIM
+            try:
+                en_i = int(en) if en is not None else 0
+                ex_i = int(ex) if ex is not None else 0
+            except (TypeError, ValueError):
+                en_i = 0
+                ex_i = 0
+            en_s = str(en_i) if en is not None else "--"
+            ex_s = str(ex_i) if ex is not None else "--"
+            e_c = G if en_i > 0 else DIM
+            x_c = Y if ex_i > 0 else DIM
             day_parts.append(f"[dim]{d_s}:[/][{e_c}]{en_s}↑[/][{x_c}]{ex_s}↓[/]")
         rows.append(Text.from_markup("[dim]5d activity:[/] " + "  ".join(day_parts)))
 
