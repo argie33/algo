@@ -1004,9 +1004,10 @@ def panel_status(
 
         # Show phases_completed/halted/errored counts from the run object
         if run_valid:
-            n_done = HealthFormatter.pc(run.get("phases_completed"))
-            n_hlt = HealthFormatter.pc(run.get("phases_halted"))
-            n_err = HealthFormatter.pc(run.get("phases_errored"))
+            run_cast = cast(dict[str, Any], run)
+            n_done = HealthFormatter.pc(run_cast.get("phases_completed"))
+            n_hlt = HealthFormatter.pc(run_cast.get("phases_halted"))
+            n_err = HealthFormatter.pc(run_cast.get("phases_errored"))
             if n_done + n_hlt + n_err > 0:
                 done_s = f"[{G}]{n_done} phases OK[/]"
                 hlt_s = f"  [{Y}]{n_hlt} halted[/]" if n_hlt else ""
@@ -1091,15 +1092,16 @@ def panel_status(
         if phase_badges:
             rows.append(Text.from_markup("  ".join(phase_badges)))
 
-        n_ok = HealthFormatter.pc(run.get("phases_completed"))
-        n_hlt = HealthFormatter.pc(run.get("phases_halted"))
-        n_err = HealthFormatter.pc(run.get("phases_errored"))
+        run_cast2 = cast(dict[str, Any], run)
+        n_ok = HealthFormatter.pc(run_cast2.get("phases_completed"))
+        n_hlt = HealthFormatter.pc(run_cast2.get("phases_halted"))
+        n_err = HealthFormatter.pc(run_cast2.get("phases_errored"))
         if n_ok + n_hlt + n_err > 0:
             ok_s = f"[{G}]{n_ok} phases done[/]"
             hlt_s = f"  [{Y}]{n_hlt} halted[/]" if n_hlt else ""
             err_s = f"  [{R}]{n_err} errored[/]" if n_err else ""
             rows.append(Text.from_markup(f"  {ok_s}{hlt_s}{err_s}"))
-    elif act_valid:
+    elif act_valid and isinstance(act, dict):
         phases_list = act.get("phases")
         if not phases_list:
             logger.warning(
@@ -1443,25 +1445,26 @@ def _build_results_panel(run: dict[str, Any] | None, act: dict[str, Any] | None,
     run_at = (run.get("run_at") if isinstance(run, dict) else None) if run_valid else (act.get("run_at") if isinstance(act, dict) and act_valid else None)
     age_s = f"  [dim]{fmt_age(run_at)}[/]" if run_at else ""
 
-    if run_valid:
+    if run_valid and isinstance(run, dict):
+        run_b = cast(dict[str, Any], run)
         sts = (
             f"[bold {G}]OK COMPLETED[/]"
-            if run.get("success") and not run.get("halted")
-            else (f"[bold {Y}]~ HALTED[/]" if run.get("halted") else f"[bold {R}]X ERROR[/]")
+            if run_b.get("success") and not run_b.get("halted")
+            else (f"[bold {Y}]~ HALTED[/]" if run_b.get("halted") else f"[bold {R}]X ERROR[/]")
         )
         rid = run.get("run_id", "")
         right_rows.append(Text.from_markup(f"{sts}{age_s}  [dim]{rid}[/]"))
         halt_r = run.get("halt_reason", "")
         summary = run.get("summary", "")
         if run.get("halted") or halt_r:
-            for label, detail in _best_halt_reason(halt_r, run.get("phase_results") or []):
+            for label, detail in _best_halt_reason(halt_r, run_b.get("phase_results") or []):
                 prefix = f"{label}: " if label else ""
                 right_rows.append(Text.from_markup(f"  [{Y}]-> {prefix}{detail}[/]"))
         elif summary:
             right_rows.append(Text.from_markup(f"  [dim]{summary}[/]"))
 
     phase_badges_e: list = []
-    if run_valid and run.get("_source") == "exec_log":
+    if run_valid and isinstance(run, dict) and run.get("_source") == "exec_log":
         if "phase_results" in run:
             for p in safe_get_list(run["phase_results"]) or []:
                 raw = (p.get("name") or p.get("phase", "")).lower()
@@ -1475,7 +1478,7 @@ def _build_results_panel(run: dict[str, Any] | None, act: dict[str, Any] | None,
         right_rows.append(Text.from_markup("  ".join(phase_badges_e)))
 
     signals_gen = entries_exec = exits_exec = 0
-    if run_valid and run.get("_source") == "exec_log":
+    if run_valid and isinstance(run, dict) and run.get("_source") == "exec_log":
         if "phase_results" in run:
             for p in safe_get_list(run["phase_results"]) or []:
                 pdata = p.get("data")
