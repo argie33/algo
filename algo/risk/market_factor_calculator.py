@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 class MarketFactorCalculator:
     """Calculate individual market exposure factors."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         pass
 
     @staticmethod
@@ -39,7 +39,7 @@ class MarketFactorCalculator:
 
         return score * weight / 100.0, weight
 
-    def _pct_above_ma(self, eval_date, ma_days: int, cur) -> dict[str, Any]:
+    def _pct_above_ma(self, eval_date: Any, ma_days: int, cur: Any) -> dict[str, Any]:
         """Calculate % of stocks trading above N-day MA.
 
         Linear scale: 20% = 0 pts, 50% = 50 pts, 80% = 100 pts
@@ -68,7 +68,7 @@ class MarketFactorCalculator:
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Breadth calculation failed: {e}") from e
 
-    def _vix_score(self, vix: float, rising: bool, term_structure=None) -> tuple[float, dict[str, Any]]:
+    def _vix_score(self, vix: float, rising: bool, term_structure: float | None = None) -> tuple[float, dict[str, Any]]:
         """Score VIX level and term structure.
 
         Level tiers: <15=100, 15-25=80, 25-35=40, 35+=0
@@ -100,7 +100,7 @@ class MarketFactorCalculator:
             "term_structure": round(term_structure, 2) if term_structure else None,
         }
 
-    def _has_market_confirmation(self, eval_date, cur) -> bool:
+    def _has_market_confirmation(self, eval_date: Any, cur: Any) -> bool:
         """Check for volume-backed rally confirmation (hard gate).
 
         True if: volume today > 20-day average AND price > previous close
@@ -132,7 +132,7 @@ class MarketFactorCalculator:
 
     # ============= Factor Implementations =============
 
-    def trend_30wk(self, eval_date, cur) -> dict[str, Any]:
+    def trend_30wk(self, eval_date: Any, cur: Any) -> dict[str, Any]:
         """Trend factor: SPY vs 30-week MA."""
         try:
             cur.execute(
@@ -159,7 +159,7 @@ class MarketFactorCalculator:
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Trend calculation failed: {e}") from e
 
-    def spy_momentum(self, eval_date, cur) -> dict[str, Any]:
+    def spy_momentum(self, eval_date: Any, cur: Any) -> dict[str, Any]:
         """SPY 12-month momentum (TSMOM)."""
         try:
             cur.execute(
@@ -191,7 +191,7 @@ class MarketFactorCalculator:
         except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(f"Momentum calculation failed: {e}") from e
 
-    def selling_pressure(self, eval_date, cur) -> dict[str, Any]:
+    def selling_pressure(self, eval_date: Any, cur: Any) -> dict[str, Any]:
         """Heavy-volume down days in last 25 sessions."""
         try:
             cur.execute(
@@ -220,7 +220,7 @@ class MarketFactorCalculator:
         except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(f"Selling pressure calculation failed: {e}") from e
 
-    def vix_regime(self, eval_date, cur) -> dict[str, Any]:
+    def vix_regime(self, eval_date: Any, cur: Any) -> dict[str, Any]:
         """VIX level + term structure."""
         try:
             cur.execute(
@@ -237,7 +237,7 @@ class MarketFactorCalculator:
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"VIX regime calculation failed: {e}") from e
 
-    def put_call_ratio(self, eval_date, cur) -> dict[str, Any]:
+    def put_call_ratio(self, eval_date: Any, cur: Any) -> dict[str, Any]:
         """Put/call ratio (contrarian indicator)."""
         try:
             cur.execute("SAVEPOINT sp_put_call")
@@ -262,7 +262,7 @@ class MarketFactorCalculator:
                 pass
             raise RuntimeError(f"Put/call ratio calculation failed: {e}") from e
 
-    def new_highs_lows(self, eval_date, cur) -> dict[str, Any]:
+    def new_highs_lows(self, eval_date: Any, cur: Any) -> dict[str, Any]:
         """52-week new highs vs new lows."""
         try:
             cur.execute("SAVEPOINT sp_nhnl")
@@ -308,7 +308,7 @@ class MarketFactorCalculator:
             )
             return {"new_highs": None, "new_lows": None, "score": 50.0}
 
-    def ad_line(self, eval_date, cur) -> dict[str, Any]:
+    def ad_line(self, eval_date: Any, cur: Any) -> dict[str, Any]:
         """Advance/decline line vs SPY."""
         try:
             cur.execute("SAVEPOINT sp_ad_line")
@@ -344,7 +344,7 @@ class MarketFactorCalculator:
             )
             return {"direction": None, "score": 50.0}
 
-    def credit_spread(self, eval_date, cur) -> dict[str, Any]:
+    def credit_spread(self, eval_date: Any, cur: Any) -> dict[str, Any]:
         """High-yield credit spread (HY OAS)."""
         try:
             cur.execute("SAVEPOINT sp_credit")
@@ -376,7 +376,7 @@ class MarketFactorCalculator:
             )
             return {"hy_oas": None, "score": 50.0}
 
-    def aaii(self, eval_date, cur) -> dict[str, Any]:
+    def aaii(self, eval_date: Any, cur: Any) -> dict[str, Any]:
         """AAII sentiment (contrarian at extremes only)."""
         try:
             cur.execute("SAVEPOINT sp_aaii")
@@ -415,7 +415,7 @@ class MarketFactorCalculator:
             )
             return {"bullish": None, "bearish": None, "score": 0.0}
 
-    def naaim(self, eval_date, cur) -> dict[str, Any]:
+    def naaim(self, eval_date: Any, cur: Any) -> dict[str, Any]:
         """NAAIM exposure (contrarian positioning)."""
         try:
             cur.execute("SAVEPOINT sp_naaim")
