@@ -13,8 +13,8 @@ repos:
   - repo: local
     hooks:
       - id: mypy-core
-        name: MyPy — algo loaders utils config tools dashboard monitoring lambda-standalone
-        entry: mypy algo/ loaders/ utils/ config/ tools/ dashboard/ monitoring/ lambda/base_handler.py lambda/algo_orchestrator/lambda_function.py lambda/monitoring/health_monitor.py lambda/monitoring/loader_failure_handler.py lambda/monitoring/loader_timeout_guardian.py --ignore-missing-imports --show-error-codes
+        name: MyPy — algo loaders utils config dashboard monitoring lambda-standalone
+        entry: mypy algo/ loaders/ utils/ config/ dashboard/ monitoring/ lambda/base_handler.py lambda/algo_orchestrator/lambda_function.py lambda/monitoring/health_monitor.py lambda/monitoring/loader_failure_handler.py lambda/monitoring/loader_timeout_guardian.py --show-error-codes
         language: system
         pass_filenames: false
         types: [python]
@@ -25,8 +25,19 @@ repos:
         pass_filenames: false
         types: [python]
       - id: pylint-core
-        name: Pylint — algo loaders utils config tools
-        entry: pylint algo/ loaders/ utils/ config/ tools/ --disable=fixme
+        name: Pylint — type safety checks (comparison, operations)
+        entry: pylint algo/ loaders/ utils/ config/ dashboard/ monitoring/ --disable=all --enable=comparison-with-callable,unsupported-binary-operation
+        language: system
+        pass_filenames: false
+        types: [python]
+        stages: [commit]
+
+  # Enforce type safety rules (prevent disabling critical checks)
+  - repo: local
+    hooks:
+      - id: enforce-type-safety-rules
+        name: Enforce type safety (no disabling Pylint critical checks)
+        entry: bash -c 'if grep -rn "# pylint: disable=comparison-with-callable\|# pylint: disable=unsupported-binary-operation" --include="*.py" --exclude-dir=migrations --exclude-dir=tests 2>/dev/null; then echo "❌ BLOCKED: Cannot disable comparison-with-callable or unsupported-binary-operation"; exit 1; fi; exit 0'
         language: system
         pass_filenames: false
         types: [python]

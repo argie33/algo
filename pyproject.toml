@@ -88,6 +88,19 @@ ignore = ["E203", "E501", "UP031", "RUF012"]
 "migrations/versions/*" = ["E402", "F401"]  # Migrations: imports after schema setup
 "tests/*" = ["E402", "F401", "S101"]  # Tests: setup code, unused fixtures, assertions
 "conftest.py" = ["E402"]  # Pytest config: setup before imports
+"dashboard/dashboard.py" = ["E402"]  # Dashboard: sys.path setup before imports
+"dashboard/panel_registry.py" = ["E402"]  # Panel registry: sys.path setup before imports
+"dashboard/panels/circuit.py" = ["E402"]  # Panels: TYPE_CHECKING conditional imports
+"dashboard/panels/economic.py" = ["E402"]  # Panels: TYPE_CHECKING conditional imports
+"dashboard/panels/exposure.py" = ["E402"]  # Panels: TYPE_CHECKING conditional imports
+"dashboard/panels/health.py" = ["E402"]  # Panels: TYPE_CHECKING conditional imports
+"dashboard/panels/market.py" = ["E402"]  # Panels: TYPE_CHECKING conditional imports
+"dashboard/panels/mascot.py" = ["E402"]  # Panels: TYPE_CHECKING conditional imports
+"dashboard/panels/portfolio.py" = ["E402"]  # Panels: TYPE_CHECKING conditional imports
+"dashboard/panels/positions.py" = ["E402"]  # Panels: TYPE_CHECKING conditional imports
+"dashboard/panels/sectors.py" = ["E402"]  # Panels: TYPE_CHECKING conditional imports
+"dashboard/panels/signals.py" = ["E402"]  # Panels: TYPE_CHECKING conditional imports
+"dashboard/panels/trades.py" = ["E402"]  # Panels: TYPE_CHECKING conditional imports
 
 [tool.ruff.lint.mccabe]
 max-complexity = 20
@@ -107,6 +120,11 @@ target-version = ['py310']
 include = '\.pyi?$'
 
 [tool.pylint.messages_control]
+enable = [
+    "comparison-with-callable",  # Catch dict >= int type mismatches
+    "unsupported-binary-operation",  # Catch invalid operations (e.g., dict + int)
+    "wrong-import-order",  # Enforce import ordering
+]
 disable = [
     # Disabled because Ruff handles line-length better with auto-fix capability.
     "line-too-long",
@@ -118,14 +136,6 @@ disable = [
     "no-member",
     # Disabled: Ruff checks this more comprehensively.
     "duplicate-code",
-
-    # ⚠️  DO NOT DISABLE WITHOUT STRONG JUSTIFICATION:
-    # These indicate real design issues. Use inline ignores instead.
-    # "too-many-arguments",
-    # "too-many-locals",
-    # "too-many-statements",
-    # "too-many-branches",
-    # "too-few-public-methods",
 ]
 
 [tool.pylint.variables]

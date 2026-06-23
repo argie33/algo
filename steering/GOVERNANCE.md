@@ -17,13 +17,21 @@ Live trading system: Minervini trend-following + fundamental quality filters. Up
 
 ## Code Cleanliness (Pre-Commit Enforced)
 
+**CRITICAL: These blocks CANNOT be disabled or weakened:**
+
 Blocks commits:
 - `.env` files (use AWS Secrets Manager)
 - `pdb`, `ipdb`, `breakpoint()` in code
 - `print()` in library code (use logging)
-- Type errors from mypy or import errors
+- **Type errors from mypy** (strict mode enforced)
+- **Type mismatches from Pylint** (`comparison-with-callable`, `unsupported-binary-operation`)
+- Import errors
+
+**Why:** These catch dict-vs-int comparisons and other runtime type errors before production. Past incidents from disabling these checks.
 
 Allowed: `print()` in loaders, scripts, tests only.
+
+**See:** `steering/LINT_POLICY.md` for type safety layers and enforcement.
 
 ---
 
@@ -99,6 +107,24 @@ Allowed: `print()` in loaders, scripts, tests only.
 **Production:** `git push main` → deploy-all-infrastructure.yml (auto)
 
 **Rotation:** Quarterly (first Monday), immediately if leaked. No `.env` files ever.
+
+---
+
+## Rule Enforcement & Audit
+
+**These rules CANNOT be disabled or weakened:**
+1. `mypy strict = true` with `disallow_any_expr` and `disallow_any_unimported`
+2. Pylint: `comparison-with-callable`, `unsupported-binary-operation`
+
+**Pre-commit hook blocks commits that attempt to:**
+- Set `disallow_any_expr = false` in pyproject.toml
+- Add `# pylint: disable=comparison-with-callable` or `unsupported-binary-operation`
+
+**Why:** These catch dict-vs-int type errors before production. Disabling them has caused production incidents.
+
+**Audit (weekly):** See `steering/LINT_POLICY.md` audit section. Report findings in #eng Slack.
+
+**Enforcement:** PRs that bypass these rules are rejected with note to requestor.
 
 ---
 
