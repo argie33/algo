@@ -98,12 +98,16 @@ def _get_markets_cached() -> dict[str, Any]:
                         return stale_data
                 except Exception as e:
                     logger.warning(f"Stale cache fallback failed: {e}")
+                # Don't cache 503 error - let next call retry the API
+                return data
 
-            _markets_cache["result"] = data
+            # Only cache successful responses (no _error field)
+            if not data.get("_error"):
+                _markets_cache["result"] = data
             return data
         except Exception as e:
             error_result = {"_error": str(e)}
-            _markets_cache["result"] = error_result
+            # Don't cache errors - let next call retry
             return error_result
 
 
