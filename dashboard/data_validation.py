@@ -297,7 +297,7 @@ def validate_field_types(data: dict[str, Any], type_spec: dict[str, type], sourc
     return True
 
 
-def log_data_issue(fetcher_name: str, field_name: str, issue: str, value: Any = None):
+def log_data_issue(fetcher_name: str, field_name: str, issue: str, value: Any = None) -> None:
     """Log a data issue from a fetcher function."""
     if value is not None:
         logger.warning(f"{fetcher_name}.{field_name}: {issue} (value: {value!r})")

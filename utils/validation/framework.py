@@ -54,7 +54,7 @@ class ValidationResult:
 class Validator(ABC):
     """Base class for all validators."""
 
-    def __init__(self, name: str = "", context: str = ""):
+    def __init__(self, name: str = "", context: str = "") -> None:
         self.name = name or self.__class__.__name__
         self.context = context
 
@@ -72,11 +72,11 @@ class TypeValidator(Validator):
     def __init__(
         self,
         expected_type: str,
-        min_val=None,
-        max_val=None,
-        min_length=None,
-        max_length=None,
-    ):
+        min_val: Any = None,
+        max_val: Any = None,
+        min_length: Any = None,
+        max_length: Any = None,
+    ) -> None:
         super().__init__()
         self.expected_type = expected_type.lower()
         self.min_val = min_val
@@ -143,7 +143,7 @@ class TypeValidator(Validator):
 class EnumValidator(Validator):
     """Validates that value is one of allowed enum values."""
 
-    def __init__(self, allowed_values: list[str], case_sensitive: bool = False):
+    def __init__(self, allowed_values: list[str], case_sensitive: bool = False) -> None:
         super().__init__()
         self.allowed_values = [str(v) for v in allowed_values]
         self.case_sensitive = case_sensitive
@@ -180,7 +180,7 @@ class PhaseValidator(Validator):
         "skipped",
     }
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__("PhaseValidator")
 
     def validate(self, data: Any, context: str = "") -> ValidationResult:
@@ -217,11 +217,11 @@ class PhaseValidator(Validator):
 class ValidatorRegistry:
     """Central registry of all validators."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._validators: dict[str, Validator] = {}
         self._metadata: dict[str, dict[str, str]] = {}
 
-    def register(self, name: str, validator: Validator, description: str = ""):
+    def register(self, name: str, validator: Validator, description: str = "") -> None:
         self._validators[name] = validator
         self._metadata[name] = {
             "validator_class": validator.__class__.__name__,
@@ -573,7 +573,7 @@ def validate_field_types(data: dict[str, Any], type_spec: dict[str, type], sourc
     return True
 
 
-def log_data_issue(fetcher_name: str, field_name: str, issue: str, value: Any = None):
+def log_data_issue(fetcher_name: str, field_name: str, issue: str, value: Any = None) -> None:
     """Log a data issue from a fetcher function."""
     if value is not None:
         logger.warning(f"{fetcher_name}.{field_name}: {issue} (value: {value!r})")

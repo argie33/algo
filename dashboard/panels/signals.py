@@ -330,7 +330,7 @@ def _build_buy_signals_table(scored_with_signals: list, buy_sig_details: dict) -
     return rows
 
 
-def _build_scores_table(top_scores: list) -> list:
+def _build_scores_table(top_scores: list) -> list[Text | Table | Rule]:
     """Build stock quality scores table.
 
     Validates input is list before accessing items.

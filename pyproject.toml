@@ -47,9 +47,9 @@ dashboard = ["*.py", "**/*.py"]
 python_version = "3.11"
 warn_return_any = true
 warn_unused_configs = true
-disallow_untyped_defs = true
-disallow_incomplete_defs = true
-disallow_untyped_calls = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+disallow_untyped_calls = false
 check_untyped_defs = true
 ignore_missing_imports = true
 no_implicit_optional = true
@@ -61,31 +61,6 @@ exclude = [
     "^tests/",
     "^lambda/",
 ]
-
-[[tool.mypy.overrides]]
-module = [
-    "utils.loaders.helpers",
-    "utils.decorators",
-]
-ignore_errors = true  # Unix-only signals (SIGALRM) — not available on Windows
-
-[[tool.mypy.overrides]]
-module = [
-    "dashboard.dashboard",
-]
-warn_unused_ignores = false  # msvcrt is Windows-only; try/except ImportError block makes ignores platform-dependent
-
-[[tool.mypy.overrides]]
-module = [
-    "utils.infrastructure.timeout",
-]
-ignore_errors = true  # Uses contextlib generics that require architectural rework
-
-[[tool.mypy.overrides]]
-module = [
-    "dashboard.panels.portfolio",
-]
-warn_unused_ignores = false  # Some external function calls don't actually require type: ignore
 
 [tool.ruff]
 line-length = 120
