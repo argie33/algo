@@ -53,7 +53,7 @@ class SignalQueryBuilder:
         self.alias = alias
         self.supplementary_sources: list[str] = []
         self.context_sources: list[str] = []
-        self.filters: list[tuple] = []
+        self.filters: list[tuple[str, list[Any]]] = []
 
     def add_supplementary(self, sources: list[str]) -> "SignalQueryBuilder":
         """Add supplementary data sources."""

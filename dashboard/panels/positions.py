@@ -37,7 +37,7 @@ from ..utilities import (
 )
 
 
-@register_panel(
+@register_panel(  # type: ignore[untyped-decorator]
     "positions",
     endpoint_deps=["pos", "trades"],
     optional=True,

@@ -8,6 +8,7 @@ import sys
 import zipfile
 from datetime import date
 from io import BytesIO
+from typing import Any
 
 import pandas as pd
 import requests
@@ -27,7 +28,7 @@ class AAIISentimentLoader(OptimalLoader):
     primary_key = ("date",)
     watermark_field = "date"
 
-    def fetch_global(self, since: date | None) -> list[dict] | None:
+    def fetch_global(self, since: date | None) -> list[dict[str, Any]] | None:
         """Fetch AAII sentiment data from Excel file."""
         # Set socket-level timeout to catch hanging connections early
         socket.setdefaulttimeout(60.0)

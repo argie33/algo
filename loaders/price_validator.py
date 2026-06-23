@@ -59,7 +59,7 @@ class PriceValidator:
             logger.error(f"Schema validation failed: {e}")
             return False
 
-    def validate_price_row(self, row: dict) -> bool:
+    def validate_price_row(self, row: dict[str, Any]) -> bool:
         """Validate a single price row."""
         # Check required fields
         if self.validation_rules.get("close_required") and row.get("close") is None:
@@ -213,7 +213,7 @@ class PriceValidator:
             logger.warning(f"[MARKET_CLOSE] Could not verify market close availability: {e}")
             return False
 
-    def validate_row(self, row: dict) -> bool:
+    def validate_row(self, row: dict[str, Any]) -> bool:
         """Validate a single price row for quality."""
         if not row:
             return False

@@ -307,7 +307,7 @@ class VectorizedSignalGenerator:
         return results
 
     @staticmethod
-    def _rolling_mean(arr: np.ndarray, window: int) -> np.ndarray:
+    def _rolling_mean(arr: np.ndarray[Any, Any], window: int) -> np.ndarray[Any, Any]:
         """Compute rolling mean. Handles NaNs, pads with NaN for short windows."""
         if len(arr) < window:
             return np.full(len(arr), np.nan)

@@ -42,7 +42,7 @@ from ..utilities import (
 from .data_extractors import safe_get_field
 
 
-def _extract_items(data: Any) -> list | dict:
+def _extract_items(data: Any) -> list[Any] | dict[str, Any]:
     """Extract items list from various data structure formats.
 
     Fail-fast: Propagates error dicts instead of silently returning empty list.
@@ -63,7 +63,7 @@ def _extract_items(data: Any) -> list | dict:
     return []
 
 
-@register_panel(
+@register_panel(  # type: ignore[untyped-decorator]
     "trades",
     endpoint_deps=["trades"],
     optional=True,

@@ -9,6 +9,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
+from typing import Any
 
 from rich.layout import Layout
 from rich.markup import escape
@@ -53,7 +54,7 @@ class RenderState:
     max_retries_transient: int = 10  # Retry transient errors up to 10 times
     max_retries_permanent: int = 3  # Give up on permanent errors sooner
     max_retries_unknown: int = 5  # Conservative for unknown errors
-    error_log: list = field(default_factory=list)  # Track all errors for diagnostics
+    error_log: list[tuple[datetime, str, str]] = field(default_factory=list)  # Track all errors for diagnostics
 
     def get_recovery_status(self) -> str:
         """Generate human-readable recovery status."""
@@ -106,7 +107,7 @@ class RenderRecovery:
     def __init__(self) -> None:
         self.state = RenderState()
 
-    def render_with_recovery(self, data: dict, render_fn: Callable[[dict], Layout]) -> tuple[Layout, str]:
+    def render_with_recovery(self, data: dict[str, Any], render_fn: Callable[[dict[str, Any]], Layout]) -> tuple[Layout, str]:
         """Attempt to render with automatic retry on transient errors.
 
         Args:

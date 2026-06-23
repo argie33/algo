@@ -4,6 +4,7 @@
 import logging
 import sys
 from datetime import date
+from typing import Any
 
 import psycopg2
 
@@ -25,7 +26,7 @@ class SignalThemesLoader(OptimalLoader):
     primary_key = ("symbol", "date")
     watermark_field = "created_at"
 
-    def fetch_global(self, since: date | None) -> list[dict] | None:
+    def fetch_global(self, since: date | None) -> list[dict[str, Any]] | None:
         """Fetch and group signal themes from quality scores."""
         try:
             # Get the latest price data date

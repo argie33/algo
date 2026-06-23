@@ -1127,7 +1127,7 @@ class DailyReconciliation:
             "Reconciliation requires live broker history for accurate P&L — cannot proceed."
         )
 
-    def validate_pnl(self, broker_equity: float, local_equity: float) -> dict:
+    def validate_pnl(self, broker_equity: float, local_equity: float) -> dict[str, Any]:
         """Validate that local P&L matches Alpaca P&L within tolerance.
 
         Args:

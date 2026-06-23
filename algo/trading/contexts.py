@@ -57,8 +57,8 @@ class TradeContext:
     stop_reasoning: str | None = None
 
     # COMPONENT DATA (optional)
-    swing_components: dict | None = None
-    advanced_components: dict | None = None
+    swing_components: dict[str, Any] | None = None
+    advanced_components: dict[str, Any] | None = None
 
     def __post_init__(self) -> None:
         """Convert prices to Decimal for consistency."""

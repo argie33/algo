@@ -141,7 +141,7 @@ class WeightOptimizer:
         except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def _solve_weights(self, ic_array: np.ndarray) -> dict[str, int] | None:
+    def _solve_weights(self, ic_array: np.ndarray[Any, Any]) -> dict[str, int] | None:
         """
         Solve constrained optimization for weights.
 

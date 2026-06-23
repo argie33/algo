@@ -118,7 +118,7 @@ class TrendCriteriaLoader(OptimalLoader):
 
         return results
 
-    def _fetch_price_daily(self, symbol: str, start: date, end: date) -> list[dict]:
+    def _fetch_price_daily(self, symbol: str, start: date, end: date) -> list[dict[str, Any]]:
         with DatabaseContext("read") as cur:
             cur.execute(
                 "SELECT date, close, volume FROM price_daily "
@@ -137,7 +137,7 @@ class TrendCriteriaLoader(OptimalLoader):
                 for r in rows
             ]
 
-    def _compute_trend_criteria(self, symbol: str, rows: list[dict]) -> list[dict]:
+    def _compute_trend_criteria(self, symbol: str, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         df = pd.DataFrame(rows)
         df["date"] = pd.to_datetime(df["date"])
         df = df.sort_values("date").reset_index(drop=True)

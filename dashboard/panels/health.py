@@ -661,7 +661,7 @@ def _extract_phase_metrics_from_pdata(pdata: dict[str, Any] | None) -> tuple[int
     return int(sg) if sg else 0, int(ee) if ee else 0, int(xe) if xe else 0
 
 
-def _parse_phase_data_json(pdata_raw: str | dict | None) -> dict[str, Any] | None:
+def _parse_phase_data_json(pdata_raw: str | dict[str, Any] | None) -> dict[str, Any] | None:
     """Parse phase data field (may be string or dict)."""
     if isinstance(pdata_raw, str):
         try:
@@ -1303,7 +1303,7 @@ def panel_algo_health(
     signals_gen = 0
     entries_exec = 0
     exits_exec = 0
-    phase_badges: list = []
+    phase_badges: list[str] = []
 
     if run_valid and isinstance(run, dict) and run.get("_source") == "exec_log":
         if isinstance(run, dict) and "phase_results" not in run:
@@ -1463,7 +1463,7 @@ def _build_results_panel(run: dict[str, Any] | None, act: dict[str, Any] | None,
         elif summary:
             right_rows.append(Text.from_markup(f"  [dim]{summary}[/]"))
 
-    phase_badges_e: list = []
+    phase_badges_e: list[str] = []
     if run_valid and isinstance(run, dict) and run.get("_source") == "exec_log":
         if "phase_results" in run:
             for p in safe_get_list(run["phase_results"]) or []:

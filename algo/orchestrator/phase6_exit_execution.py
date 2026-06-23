@@ -28,10 +28,10 @@ def run(
     dry_run: bool,
     alerts: AlertManager,
     verbose: bool,
-    log_phase_result_fn: Callable,
+    log_phase_result_fn: Callable[..., Any],
     position_recs: list[dict[str, Any]],
     exposure_actions: list[dict[str, Any]],
-    check_halt_flag: Callable | None = None,
+    check_halt_flag: Callable[..., Any] | None = None,
 ) -> PhaseResult:
     """Execute Phase 6: Exit Execution.
 

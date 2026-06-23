@@ -59,7 +59,7 @@ class TableHealth:
         }
         return self.table_name in critical_tables
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "table": self.table_name,
             "status": self.status.value,
@@ -97,7 +97,7 @@ class PipelineStatus:
             return 0.0
         return (self.healthy_count / self.total_count) * 100
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "timestamp": self.timestamp.isoformat(),
             "is_healthy": self.is_healthy,

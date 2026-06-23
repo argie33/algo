@@ -77,7 +77,7 @@ def _composite_score_color(v: Any) -> str:
     return G if v >= 80 else (CY if v >= 60 else (Y if v >= 40 else "white"))
 
 
-def _best_halt_reason(top_level: str, phase_results: list) -> list[tuple[str, str]]:
+def _best_halt_reason(top_level: str, phase_results: list[Any]) -> list[tuple[str, str]]:
     """Return a list of (phase_label, reason) pairs drawn from phase-level data.
 
     Falls back to top_level if no per-phase detail is found.

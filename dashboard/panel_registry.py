@@ -50,7 +50,7 @@ class PanelDefinition:
 
     name: str
     endpoint_deps: list[str]  # Endpoint names this panel depends on
-    render_fn: Callable | None = None  # Function to call to render panel
+    render_fn: Callable[..., Any] | None = None  # Function to call to render panel
     optional: bool = False  # If True, dashboard renders without this panel
     description: str = ""  # Human-readable description
 

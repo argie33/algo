@@ -165,7 +165,7 @@ def _types_compatible(actual: str, expected: str) -> bool:
     return actual_type == expected_type
 
 
-def validate_row_data_types(row: dict, table_name: str = "") -> list[str]:
+def validate_row_data_types(row: dict[str, Any], table_name: str = "") -> list[str]:
     """Validate that row data can be converted to expected types.
 
     Args:

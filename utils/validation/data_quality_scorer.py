@@ -58,7 +58,7 @@ class DataQualityScorer:
         return 1.0 - (duplicates / len(rows))
 
     @staticmethod
-    def score_validity(rows: list[dict[str, Any]], validators: dict[str, Callable]) -> float:
+    def score_validity(rows: list[dict[str, Any]], validators: dict[str, Callable[..., Any]]) -> float:
         """Score data validity based on custom validators (0-1)."""
         if not rows or not validators:
             return 1.0
@@ -84,7 +84,7 @@ class DataQualityScorer:
         rows: list[dict[str, Any]],
         required_fields: set[str],
         key_fields: list[str],
-        validators: dict[str, Callable] | None = None,
+        validators: dict[str, Callable[..., Any]] | None = None,
     ) -> dict[str, float]:
         """Calculate overall data quality score."""
         if validators is None:

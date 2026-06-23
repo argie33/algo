@@ -177,7 +177,7 @@ class SignalAttributionEngine:
             logger.error(f"IC computation failed: {e}")
             return {comp: {"ic_value": 0, "ic_pvalue": 1.0, "sample_size": 0} for comp in self.COMPONENTS}
 
-    def compute_ic_by_regime(self, report_date: _date, lookback_trades: int = 40) -> dict[str, dict]:
+    def compute_ic_by_regime(self, report_date: _date, lookback_trades: int = 40) -> dict[str, dict[str, Any]]:
         """
         Compute IC broken down by market regime.
 

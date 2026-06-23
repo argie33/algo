@@ -4,6 +4,7 @@
 import json
 import sys
 from datetime import datetime, timezone
+from typing import Any
 
 import boto3
 
@@ -13,7 +14,7 @@ class CredentialRotationChecker:
         self.region = region
         self.secretsmanager = boto3.client("secretsmanager", region_name=region)
 
-    def get_credential_status(self) -> dict | None:
+    def get_credential_status(self) -> dict[str, Any] | None:
         """Retrieve credential status from Secrets Manager."""
         try:
             response = self.secretsmanager.get_secret_value(SecretId="algo/developer-credentials")
@@ -29,7 +30,7 @@ class CredentialRotationChecker:
             )
             raise
 
-    def check_grace_period(self, creds: dict) -> tuple[bool, str]:
+    def check_grace_period(self, creds: dict[str, Any]) -> tuple[bool, str]:
         """Check if grace period is active and return status."""
         status = creds.get("status")
 
@@ -71,7 +72,7 @@ class CredentialRotationChecker:
         except Exception as e:
             return False, f"Credentials are INVALID: {e!s}"
 
-    def get_rotation_timeline(self, creds: dict) -> dict:
+    def get_rotation_timeline(self, creds: dict[str, Any]) -> dict[str, Any]:
         """Extract rotation timeline information."""
         return {
             "rotation_date": creds.get("rotation_date"),

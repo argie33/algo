@@ -44,7 +44,7 @@ class GradeClassifier:
     def classify(
         score: float,
         config_prefix: str = "grade",
-        thresholds: dict | None = None,
+        thresholds: dict[str, int] | None = None,
     ) -> str:
         """
         Classify a numeric score into a letter grade.
@@ -110,7 +110,7 @@ class GradeClassifier:
         return GradeClassifier.classify(score, config_prefix="advanced_filters")
 
     @staticmethod
-    def get_thresholds(config_prefix: str = "grade") -> dict:
+    def get_thresholds(config_prefix: str = "grade") -> dict[str, Any]:
         """
         Get current thresholds for a grading system.
 

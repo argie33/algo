@@ -39,7 +39,7 @@ def extract_field(data: dict[str, Any], field_name: str, default: Any = None) ->
     return data.get(field_name, default)
 
 
-def extract_items_list(data: dict[str, Any]) -> list:
+def extract_items_list(data: dict[str, Any]) -> list[Any]:
     """Extract items array from paginated API response.
 
     Raises DataExtractionError if response contains _error field.
@@ -160,7 +160,7 @@ class DashboardDataExtractor:
         """Extract economic indicators."""
         return cast(dict[str, Any], extract_data_or_empty(self.data.get("eco"), dict))
 
-    def notifications(self) -> list:
+    def notifications(self) -> list[Any]:
         """Extract notifications."""
         notifs = self.data.get("notifs")
         return notifs if isinstance(notifs, list) else []

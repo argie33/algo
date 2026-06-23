@@ -37,7 +37,7 @@ class EarningsCalendarLoader(OptimalLoader):
                 return True
             return False
 
-    def fetch_incremental(self, symbol: str, since: date | None) -> list[dict] | None:
+    def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]] | None:
         """Fetch earnings dates from yfinance for a symbol with retry logic.
 
         Keeps historical earnings (past 60 days) to properly gate blackout windows.

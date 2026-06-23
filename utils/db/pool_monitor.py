@@ -88,7 +88,7 @@ class RDSPoolMonitor:
             logger.error(f"Failed to get RDS pool status: {e}")
             return {"_error": str(e), "timestamp": datetime.now().isoformat()}
 
-    def get_slow_queries(self, min_duration_sec: float = 5.0) -> list:
+    def get_slow_queries(self, min_duration_sec: float = 5.0) -> list[dict[str, Any]]:
         """Identify slow-running queries that might be holding connections.
 
         Args:

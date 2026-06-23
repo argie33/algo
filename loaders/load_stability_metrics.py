@@ -47,7 +47,7 @@ class StabilityMetricsLoader(OptimalLoader):
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def _compute_stability_metrics(self, symbol: str) -> dict | None:
+    def _compute_stability_metrics(self, symbol: str) -> dict[str, Any] | None:
         """Compute volatility from price_daily and beta from yfinance."""
         try:
             with DatabaseContext("read") as cur:
@@ -147,7 +147,7 @@ class StabilityMetricsLoader(OptimalLoader):
         """Rows are clean."""
         return cast(list[dict[str, Any]], rows)
 
-    def _validate_row(self, row: dict) -> bool:
+    def _validate_row(self, row: dict[str, Any]) -> bool:
         """Validate stability metrics row."""
         if not super()._validate_row(row):
             return False

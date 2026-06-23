@@ -5,6 +5,7 @@ import logging
 import socket
 import sys
 from datetime import date
+from typing import Any
 
 import requests
 
@@ -22,7 +23,7 @@ class FearGreedIndexLoader(OptimalLoader):
     primary_key = ("date",)
     watermark_field = "date"
 
-    def fetch_global(self, since: date | None) -> list[dict] | None:
+    def fetch_global(self, since: date | None) -> list[dict[str, Any]] | None:
         """Fetch Fear & Greed Index from CNN."""
         import time
 
@@ -64,7 +65,7 @@ class FearGreedIndexLoader(OptimalLoader):
                     )
 
                 # CNN API two known formats:
-                # New: {"fear_and_greed": {...current dict...}, "fear_and_greed_historical": {"data": [{"x": ms_ts, "y": val, "rating": "..."}]}}
+                # New: {"fear_and_greed": {...current dict[str, Any]...}, "fear_and_greed_historical": {"data": [{"x": ms_ts, "y": val, "rating": "..."}]}}
                 # Old: {"fear_and_greed": [{"x": ms_ts, "y": val, "rating": "..."}]}
                 raw = data.get("fear_and_greed")
                 if isinstance(raw, dict):
@@ -95,7 +96,7 @@ class FearGreedIndexLoader(OptimalLoader):
                 else:
                     entries = raw
 
-                rows = []
+                rows: list[dict[str, Any]] = []
                 for entry in entries:
                     try:
                         from datetime import datetime as _dt
@@ -134,7 +135,7 @@ class FearGreedIndexLoader(OptimalLoader):
                 # CNN API includes today's date in both fear_and_greed_historical
                 # AND the current reading appended above. Deduplicate by date,
                 # keeping the last occurrence (current reading wins).
-                seen: dict = {}
+                seen: dict[str, Any] = {}
                 for r in rows:
                     seen[r["date"]] = r
                 rows = list(seen.values())

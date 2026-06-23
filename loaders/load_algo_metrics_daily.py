@@ -4,6 +4,7 @@
 import logging
 import sys
 from datetime import date, datetime, timezone
+from typing import Any
 
 from loaders.runner import run_loader
 from utils.db.context import DatabaseContext
@@ -20,7 +21,7 @@ class AlgoMetricsDailyLoader(OptimalLoader):
     primary_key = ("date",)
     watermark_field = "date"
 
-    def fetch_global(self, since: date | None) -> list[dict] | None:
+    def fetch_global(self, since: date | None) -> list[dict[str, Any]] | None:
         """Compute daily algo metrics from audit log."""
         try:
             now_utc = datetime.now(timezone.utc)

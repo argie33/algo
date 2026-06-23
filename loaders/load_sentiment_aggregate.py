@@ -4,6 +4,7 @@
 import logging
 import sys
 from datetime import date
+from typing import Any
 
 import psycopg2
 
@@ -24,7 +25,7 @@ class SentimentAggregateLoader(OptimalLoader):
     primary_key = ("date",)
     watermark_field = "date"
 
-    def fetch_global(self, since: date | None) -> list[dict] | None:
+    def fetch_global(self, since: date | None) -> list[dict[str, Any]] | None:
         """Fetch and aggregate sentiment data from AAII and NAAIM."""
         from utils.db.context import DatabaseContext
 

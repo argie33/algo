@@ -251,7 +251,7 @@ def extract_items_and_error(data: Any) -> tuple[list[Any], str | None]:
         )
 
 
-def validate_data_freshness(data: dict, max_age_hours: int = 24, field_name: str = "timestamp") -> bool:
+def validate_data_freshness(data: dict[str, Any], max_age_hours: int = 24, field_name: str = "timestamp") -> bool:
     """Validate data freshness by checking timestamp field age.
 
     Returns True if data is fresh or timestamp unavailable, logs warning if stale.

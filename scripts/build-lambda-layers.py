@@ -9,14 +9,14 @@ import subprocess
 import sys
 import zipfile
 from pathlib import Path
-from typing import ClassVar
+from typing import Any, ClassVar
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
 
 class LambdaLayerBuilder:
-    LAYERS: ClassVar[dict] = {
+    LAYERS: ClassVar[dict[str, Any]] = {
         "shared_deps": {
             "requirements": "terraform/lambda-layer-requirements.txt",
             "source_dirs": [],

@@ -61,7 +61,7 @@ def safe_get_dict(data: Any) -> dict[str, Any] | None:
     return data
 
 
-def safe_get_list(data: Any) -> list | None:
+def safe_get_list(data: Any) -> list[Any] | None:
     """Get list from data if not error. Returns None if data is None (optional field).
 
     Fail-fast: Raises if data is error dict or is invalid type (not None, list, or dict with error).
@@ -164,7 +164,7 @@ def extract_run_info(run: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def extract_health_items(hlth: dict[str, Any] | list) -> tuple[list, bool | None]:
+def extract_health_items(hlth: dict[str, Any] | list[Any]) -> tuple[list[Any], bool | None]:
     """Extract health items and ready_to_trade status (error already checked).
 
     Args:

@@ -75,7 +75,7 @@ def _calculate_adjusted_win_rate(perf: dict[str, Any] | None, pos: dict[str, Any
     return adjusted_wr, closed_wins, closed_losses + losing_open
 
 
-@register_panel(
+@register_panel(  # type: ignore[untyped-decorator]
     "portfolio",
     endpoint_deps=["port", "cfg", "risk", "perf"],
     optional=False,
@@ -189,7 +189,7 @@ def panel_portfolio(
     )
 
 
-@register_panel(
+@register_panel(  # type: ignore[untyped-decorator]
     "performance",
     endpoint_deps=["per", "trades", "perf_anl"],
     optional=True,
@@ -358,7 +358,7 @@ def panel_performance_spark(
     )
 
 
-@register_panel(
+@register_panel(  # type: ignore[untyped-decorator]
     "portfolio_expanded",
     endpoint_deps=["port", "cfg", "risk", "perf", "perf_anl", "pos"],
     optional=True,

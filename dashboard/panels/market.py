@@ -44,13 +44,13 @@ from .data_extractors import (
 )
 
 
-@register_panel(
+@register_panel(  # type: ignore[untyped-decorator]
     "market",
     endpoint_deps=["mkt", "sentiment"],
     optional=False,
     description="Market",
 )
-def panel_market_full(mkt: Any, sentiment: Any = None) -> Any:
+def panel_market_full(mkt: Any, sentiment: Any = None) -> Panel:
     """Market regime + internals combined."""
     err_panel = _error_panel("market", mkt, "MARKET", border="blue")
     if err_panel:
@@ -156,13 +156,13 @@ def panel_market_full(mkt: Any, sentiment: Any = None) -> Any:
     return Panel(txt, title="[bold blue]MARKET[/]", border_style="blue", padding=(0, 1))
 
 
-@register_panel(
+@register_panel(  # type: ignore[untyped-decorator]
     "market_expanded",
     endpoint_deps=["mkt", "sentiment"],
     optional=False,
     description="Market Expanded",
 )
-def panel_market_expanded(mkt: Any, sentiment: Any = None) -> Any:
+def panel_market_expanded(mkt: Any, sentiment: Any = None) -> Panel:
     """Full-screen market internals — regime, breadth, sentiment, macro."""
     rows: list[Text | Rule | Table] = [
         Text.from_markup("[dim]press [/][bold blue]m[/][dim] to return to dashboard[/]"),
@@ -283,8 +283,8 @@ def panel_market_expanded(mkt: Any, sentiment: Any = None) -> Any:
     )
 
 
-@register_panel("header", endpoint_deps=["mkt", "sentiment"], optional=False, description="Header")
-def panel_header_market(mkt: Any, sentiment: Any, ts: Any, mkt_s: Any, elapsed: Any, refresh_s: str = "", cfg: Any = None, data_source: str = "AWS") -> Any:
+@register_panel("header", endpoint_deps=["mkt", "sentiment"], optional=False, description="Header")  # type: ignore[untyped-decorator]
+def panel_header_market(mkt: Any, sentiment: Any, ts: Any, mkt_s: Any, elapsed: Any, refresh_s: str = "", cfg: Any = None, data_source: str = "AWS") -> Panel:
     """Compact market header - fits alongside exposure factors + monkey in the top row."""
     source_color = "cyan" if data_source == "LOCAL" else "dim"
     rows: list[Text | Rule] = [

@@ -78,7 +78,7 @@ class PriceTransformer:
         except (ValueError, TypeError):
             return None
 
-    def transform_batch(self, rows: list[dict], symbol: str) -> list[dict]:
+    def transform_batch(self, rows: list[dict[str, Any]], symbol: str) -> list[dict[str, Any]]:
         """Transform a batch of price rows.
 
         Args:

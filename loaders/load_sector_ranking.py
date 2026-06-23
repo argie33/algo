@@ -4,6 +4,7 @@
 import logging
 import sys
 from datetime import date
+from typing import Any
 
 import psycopg2
 
@@ -21,7 +22,7 @@ class SectorRankingLoader(OptimalLoader):
     primary_key = ("sector_name", "date")
     watermark_field = "date"
 
-    def fetch_global(self, since: date | None) -> list[dict] | None:
+    def fetch_global(self, since: date | None) -> list[dict[str, Any]] | None:
         """Compute sector rankings from stock scores and company profile data."""
         try:
             row = fetch_latest("price_daily", "date")

@@ -21,7 +21,7 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 # Global metrics buffer (persisted per session or sent to CloudWatch)
-_metrics_buffer: dict[str, list] = {}
+_metrics_buffer: dict[str, list[Any]] = {}
 
 
 class TimeBlock:

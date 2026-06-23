@@ -73,7 +73,7 @@ def _check_path_traversal(url: str) -> bool:
     return any(char in url for char in ["../", "..\\", "%2e%2e"])
 
 
-def validate_url(url: str, allowed_domains: list[str] | None = None) -> tuple:
+def validate_url(url: str, allowed_domains: list[str] | None = None) -> tuple[bool, str | None]:
     """
     Validate URL for SSRF safety.
 
@@ -108,7 +108,7 @@ def validate_url(url: str, allowed_domains: list[str] | None = None) -> tuple:
     return True, None
 
 
-def validate_redirect_url(original_url: str, redirect_url: str, allowed_domains: list[str] | None = None) -> tuple:
+def validate_redirect_url(original_url: str, redirect_url: str, allowed_domains: list[str] | None = None) -> tuple[bool, str | None]:
     """
     Validate a redirect target to prevent SSRF via redirects.
 

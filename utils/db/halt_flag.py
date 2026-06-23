@@ -273,7 +273,7 @@ class HaltFlagManager:
         logger.error("[HALT_FLAG_SET_FAILED] Could not set halt flag in RDS (source of truth)")
         return False
 
-    def _set_halt_flag_dynamodb(self, halt_data: dict, now_utc: datetime) -> bool:
+    def _set_halt_flag_dynamodb(self, halt_data: dict[str, Any], now_utc: datetime) -> bool:
         """Set halt flag in DynamoDB. Returns True if successful."""
         try:
             import boto3
@@ -295,7 +295,7 @@ class HaltFlagManager:
             self._record_dynamodb_failure()
             return False
 
-    def _set_halt_flag_rds(self, halt_data: dict, now_et: datetime) -> bool:
+    def _set_halt_flag_rds(self, halt_data: dict[str, Any], now_et: datetime) -> bool:
         """Set halt flag in RDS. Returns True if successful."""
         try:
             with DatabaseContext("write") as cur:

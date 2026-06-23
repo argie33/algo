@@ -67,8 +67,8 @@ class DataProvenanceTracker:
 
         self.run_id: str | None = None
         self.start_time: datetime | None = None
-        self.ticks_recorded: list[dict] = []
-        self.error_log: list[dict] = []
+        self.ticks_recorded: list[dict[str, Any]] = []
+        self.error_log: list[dict[str, Any]] = []
 
     def start_run(
         self,

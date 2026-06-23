@@ -83,7 +83,7 @@ def record_loader_run(loader_name: str, run_date: date, success: bool, error_mes
         logger.warning(f"[FAILURE_TRACKING] Could not record loader run: {e}")
 
 
-def calculate_failure_trends(loader_name: str) -> dict | None:
+def calculate_failure_trends(loader_name: str) -> dict[str, Any] | None:
     """Calculate rolling failure rates for a loader (7-day and 30-day).
 
     Args:

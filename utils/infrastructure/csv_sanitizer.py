@@ -48,7 +48,7 @@ def sanitize_for_csv(value: Any) -> str:
     return str_val
 
 
-def sanitize_dict_for_csv(record: dict) -> dict:
+def sanitize_dict_for_csv(record: dict[str, Any]) -> dict[str, str]:
     """
     Sanitize all values in a dictionary for CSV export.
 
@@ -61,7 +61,7 @@ def sanitize_dict_for_csv(record: dict) -> dict:
     return {key: sanitize_for_csv(value) for key, value in record.items()}
 
 
-def sanitize_list_for_csv(records: list) -> list:
+def sanitize_list_for_csv(records: list[dict[str, Any]]) -> list[dict[str, str]]:
     """
     Sanitize all values in a list of dictionaries for CSV export.
 

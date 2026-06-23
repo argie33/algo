@@ -9,6 +9,7 @@ import re
 import socket
 import sys
 from datetime import date
+from typing import Any
 
 import psycopg2
 import requests
@@ -56,7 +57,7 @@ class StockSymbolsLoader(OptimalLoader):
     primary_key = ("symbol",)
     watermark_field = "created_at"
 
-    def fetch_global(self, since: date | None) -> list[dict] | None:
+    def fetch_global(self, since: date | None) -> list[dict[str, Any]] | None:
         """Fetch all stock symbols from NASDAQ/NYSE with timeout protection.
 
         Also populates etf_symbols table with ETF-flagged symbols so that
@@ -151,7 +152,7 @@ class StockSymbolsLoader(OptimalLoader):
         except (requests.RequestException, requests.Timeout, json.JSONDecodeError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def _upsert_etf_symbols(self, etf_rows: list[dict]) -> None:
+    def _upsert_etf_symbols(self, etf_rows: list[dict[str, Any]]) -> None:
         """Replace ETF symbols in etf_symbols table to keep it in sync with source data.
 
         Truncates the table first to ensure it only contains current ETFs from NASDAQ/NYSE,

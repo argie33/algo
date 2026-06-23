@@ -36,7 +36,7 @@ from ._helpers import _error_panel
 from .data_extractors import extract_economic_indicators
 
 
-def _build_calendar_rows(econ_cal: Any) -> list:
+def _build_calendar_rows(econ_cal: Any) -> list[Text | Rule]:
     """Extract and format economic calendar events."""
     rows: list[Text | Rule] = []
     # Fail-fast: return early if API error detected
@@ -107,18 +107,18 @@ def _build_calendar_rows(econ_cal: Any) -> list:
     return rows
 
 
-@register_panel(
+@register_panel(  # type: ignore[untyped-decorator]
     "eco",
     endpoint_deps=["eco"],
     optional=True,
     description="Economic Pulse",
 )
-def panel_economic_pulse(eco: Any, econ_cal: Any = None) -> Any:
+def panel_economic_pulse(eco: Any, econ_cal: Any = None) -> Panel:
     """Economic factors the algo uses to calculate market exposure score."""
     err_panel = _error_panel("economic pulse", eco, "ECONOMIC INPUTS", border="bright_magenta")
     if err_panel:
         return err_panel
-    rows: list = []
+    rows: list[Any] = []
 
     indicators = extract_economic_indicators(eco)
     t10 = indicators.get("t10")

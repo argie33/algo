@@ -7,6 +7,7 @@ import socket
 import sys
 from datetime import date
 from io import StringIO
+from typing import Any
 
 import pandas as pd
 import requests
@@ -27,7 +28,7 @@ class SP500ConstituentsLoader(OptimalLoader):
     primary_key = ("symbol",)
     watermark_field = "created_at"
 
-    def fetch_global(self, since: date | None) -> list[dict] | None:
+    def fetch_global(self, since: date | None) -> list[dict[str, Any]] | None:
         """Fetch S&P 500 symbols from Wikipedia with timeout protection."""
         # Set socket-level timeout to catch hanging connections early
         socket.setdefaulttimeout(15.0)

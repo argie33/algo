@@ -4,6 +4,7 @@
 import logging
 import sys
 from datetime import date
+from typing import Any
 
 import pandas as pd
 import requests
@@ -26,7 +27,7 @@ class NAAIMExposureLoader(OptimalLoader):
     primary_key = ("date",)
     watermark_field = "date"
 
-    def fetch_global(self, since: date | None) -> list[dict] | None:
+    def fetch_global(self, since: date | None) -> list[dict[str, Any]] | None:
         """Fetch NAAIM Exposure Index from website."""
         try:
             url = "https://www.naaim.org/programs/naaim-exposure-index/"

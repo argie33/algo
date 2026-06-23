@@ -38,13 +38,13 @@ from ..utilities import (
 from ._helpers import _error_panel
 
 
-@register_panel(
+@register_panel(  # type: ignore[untyped-decorator]
     "circuit",
     endpoint_deps=["cb"],
     optional=False,
     description="Circuit breaker status",
 )
-def panel_circuit(cb: Any) -> Any:
+def panel_circuit(cb: Any) -> Panel:
     err_panel = _error_panel("circuit breakers", cb, "CIRCUIT BREAKERS", border="blue")
     if err_panel:
         return err_panel
@@ -119,13 +119,13 @@ def panel_circuit(cb: Any) -> Any:
     )
 
 
-@register_panel(
+@register_panel(  # type: ignore[untyped-decorator]
     "circuit_expanded",
     endpoint_deps=["cb"],
     optional=False,
     description="Circuit Breakers Expanded",
 )
-def panel_circuit_expanded(cb: Any) -> Any:
+def panel_circuit_expanded(cb: Any) -> Panel:
     """Full-screen circuit breaker status — wide bars, % utilization, per-breaker detail."""
     rows: list[Text | Rule | Table] = [
         Text.from_markup("[dim]press [/][bold blue]b[/][dim] to return to dashboard[/]"),

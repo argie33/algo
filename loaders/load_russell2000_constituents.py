@@ -6,6 +6,7 @@ import logging
 import socket
 import sys
 from datetime import date
+from typing import Any
 
 import requests
 
@@ -23,7 +24,7 @@ class Russell2000ConstituentsLoader(OptimalLoader):
     primary_key = ("symbol",)
     watermark_field = "created_at"
 
-    def fetch_global(self, since: date | None) -> list[dict] | None:
+    def fetch_global(self, since: date | None) -> list[dict[str, Any]] | None:
         """Fetch Russell 2000 symbols from data source with timeout protection."""
         # Set socket-level timeout to catch hanging connections early
         socket.setdefaulttimeout(15.0)

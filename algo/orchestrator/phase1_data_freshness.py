@@ -41,7 +41,7 @@ def run(
     dry_run: bool,
     alerts: AlertManager,
     verbose: bool,
-    log_phase_result_fn: Callable,
+    log_phase_result_fn: Callable[..., Any],
 ) -> PhaseResult:
     """Execute Phase 1: Verify pipeline-loaded tables are fresh.
 

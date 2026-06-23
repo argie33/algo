@@ -257,14 +257,14 @@ class QueryCache(Generic[T]):
 
 
 # Global cache instances - one per expensive query type
-_GLOBAL_CACHES: dict[str, QueryCache] = {}
+_GLOBAL_CACHES: dict[str, QueryCache[Any]] = {}
 
 
 def get_or_create_cache(
     cache_name: str,
     ttl_seconds: int = 300,
     max_entries: int = 10000,
-) -> QueryCache:
+) -> QueryCache[Any]:
     """Get or create global cache instance.
 
     Useful for caches that should persist across function calls

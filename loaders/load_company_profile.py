@@ -4,6 +4,7 @@
 import logging
 import sys
 from datetime import date
+from typing import Any
 
 from loaders.runner import run_loader
 from utils.external.yfinance import get_ticker
@@ -19,7 +20,7 @@ class CompanyProfileLoader(OptimalLoader):
     primary_key = ("ticker",)
     watermark_field = "created_at"
 
-    def fetch_incremental(self, symbol: str, since: date | None) -> list[dict] | None:
+    def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]] | None:
         """Fetch company info from yfinance for a symbol."""
         ticker = get_ticker(symbol)
         if not ticker:
@@ -32,7 +33,7 @@ class CompanyProfileLoader(OptimalLoader):
             if not info or not isinstance(info, dict):
                 raise RuntimeError(
                     f"[COMPANY_PROFILE] {symbol}: ticker.info is {type(info).__name__} or empty. "
-                    "Cannot fetch company profile without valid info dict."
+                    "Cannot fetch company profile without valid info dict[str, Any]."
                 )
             market_cap = info.get("marketCap") or info.get("market_cap")
 

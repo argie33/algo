@@ -8,6 +8,7 @@ Maintains position state and trade history for analysis and compliance.
 import logging
 from datetime import date
 from decimal import Decimal
+from typing import Any
 
 import psycopg2
 
@@ -235,7 +236,7 @@ class TradeRecorder:
                 f"Failed to update price for {symbol}: {e}. Cannot proceed without updating position price."
             ) from e
 
-    def get_open_positions(self) -> list:
+    def get_open_positions(self) -> list[dict[str, Any]]:
         """Get all currently open positions.
 
         Returns:

@@ -133,7 +133,7 @@ class FredEconomicDataLoader(OptimalLoader):
             }
         )
 
-    def fetch_global(self, since: date | None) -> list[dict] | None:
+    def fetch_global(self, since: date | None) -> list[dict[str, Any]] | None:
         """Fetch FRED economic data for all configured series with circuit breaker and freshness validation."""
         api_key = get_fred_api_key()
         if not api_key:
@@ -178,7 +178,7 @@ class FredEconomicDataLoader(OptimalLoader):
                         sid: str = series_id,
                         sd: str = start_date,
                         ed: str = end_date,
-                    ) -> dict:
+                    ) -> dict[str, Any]:
                         """Inner function to wrap API call for circuit breaker."""
                         params = {
                             "series_id": sid,
@@ -204,7 +204,7 @@ class FredEconomicDataLoader(OptimalLoader):
 
                     if not isinstance(resp_data, dict):
                         raise RuntimeError(
-                            f"FRED API response for {series_id} is not a dict: {type(resp_data).__name__}. "
+                            f"FRED API response for {series_id} is not a dict[str, Any]: {type(resp_data).__name__}. "
                             "This indicates an API schema change. Check FRED API documentation."
                         )
                     observations = resp_data.get("observations")

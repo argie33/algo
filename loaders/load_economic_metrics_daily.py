@@ -12,6 +12,7 @@ Pre-computes daily economic metrics for dashboard consumption:
 import logging
 import sys
 from datetime import date, datetime
+from typing import Any
 
 import psycopg2
 
@@ -34,7 +35,7 @@ class EconomicMetricsDailyLoader(OptimalLoader):
     # Allow multiple updates per day
     allow_multiple_updates_per_day = True
 
-    def fetch_global(self, since: date | None) -> list[dict] | None:
+    def fetch_global(self, since: date | None) -> list[dict[str, Any]] | None:
         """Compute daily economic metrics from source data.
 
         Metrics:

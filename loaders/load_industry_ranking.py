@@ -4,6 +4,7 @@
 import logging
 import sys
 from datetime import date
+from typing import Any
 
 from loaders.runner import run_loader
 from utils.db.context import DatabaseContext
@@ -23,7 +24,7 @@ class IndustryRankingLoader(OptimalLoader):
     primary_key = ("industry", "date_recorded")
     watermark_field = "date_recorded"
 
-    def fetch_global(self, since: date | None) -> list[dict] | None:
+    def fetch_global(self, since: date | None) -> list[dict[str, Any]] | None:
         """Compute industry rankings from stock scores and company profile data."""
         try:
             with DatabaseContext("read") as cur:

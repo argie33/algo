@@ -28,7 +28,7 @@ class ValueMetricsLoader(OptimalLoader):
     primary_key = ("symbol",)
     watermark_field = "updated_at"
 
-    def fetch_incremental(self, symbol: str, since: date | None) -> list[dict] | None:
+    def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]] | None:
         """Fetch value metrics from yfinance for a symbol.
 
         Skips symbols with market cap < $50M (illiquid/penny stocks won't have reliable metrics).
