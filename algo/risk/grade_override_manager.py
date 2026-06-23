@@ -25,14 +25,32 @@ def is_grade_override_enabled() -> bool:
     Returns: bool (True if override is active and enabled)
     """
     config = get_config()
-    return bool(config.get("grade_override_enabled", False))
+    grade_override_val = config.get("grade_override_enabled")
+    if grade_override_val is None:
+        logger.warning("grade_override_enabled config missing, assuming disabled")
+        return False
+    return bool(grade_override_val)
 
 
 def get_override_duration_minutes() -> int:
-    """Get configured max duration for override in minutes."""
+    """Get configured max duration for override in minutes.
+
+    CRITICAL: If grade override is enabled, duration config MUST be present.
+    Fail fast to prevent grade override running indefinitely.
+    """
     config = get_config()
-    val = config.get("grade_override_max_duration_minutes", 60)
-    return int(val) if val is not None else 60
+    is_enabled = config.get("grade_override_enabled")
+
+    if not is_enabled:
+        return 60  # Default when override not enabled
+
+    val = config.get("grade_override_max_duration_minutes")
+    if val is None:
+        raise ValueError(
+            "CRITICAL: grade_override_enabled is True but grade_override_max_duration_minutes config missing. "
+            "Cannot use grade override without explicit time limit. Set max duration in minutes."
+        )
+    return int(val)
 
 
 def get_override_state() -> tuple[bool, datetime | None, int | None]:

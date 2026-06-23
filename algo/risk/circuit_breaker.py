@@ -667,7 +667,11 @@ class CircuitBreaker:
             return {"halted": False, "reason": "Insufficient history"}
         cur_val, week_ago_val = float(row[0]), float(row[1])
         weekly = ((cur_val - week_ago_val) / week_ago_val * 100.0) if week_ago_val > 0 else 0
-        threshold = -float(self.config.get("max_weekly_loss_pct", 5.0))
+        max_weekly_val = self.config.get("max_weekly_loss_pct")
+        if max_weekly_val is None:
+            logger.error("CRITICAL: max_weekly_loss_pct config missing. Cannot enforce weekly loss circuit breaker.")
+            return {"halted": True, "reason": "CRITICAL: max_weekly_loss_pct config missing"}
+        threshold = -float(max_weekly_val)
         return {
             "halted": weekly <= threshold,
             "reason": (
@@ -789,7 +793,11 @@ class CircuitBreaker:
         Sector concentration is a soft limit; the circuit breaker warns but does not block.
         """
         try:
-            max_sector_positions = int(self.config.get("max_positions_per_sector", 5))
+            max_sector_val = self.config.get("max_positions_per_sector")
+            if max_sector_val is None:
+                logger.error("CRITICAL: max_positions_per_sector config missing. Cannot enforce sector concentration limits.")
+                return {"halted": True, "reason": "CRITICAL: max_positions_per_sector config missing"}
+            max_sector_positions = int(max_sector_val)
 
             cur.execute("""
                 SELECT ap.symbol, COALESCE(cp.sector, 'Unknown') AS sector
@@ -839,7 +847,11 @@ class CircuitBreaker:
         if not row or row[0] is None:
             return {"halted": False, "reason": "No today snapshot yet"}
         daily = float(row[0])
-        threshold = float(self.config.get("daily_profit_cap_pct", 2.0))
+        daily_profit_val = self.config.get("daily_profit_cap_pct")
+        if daily_profit_val is None:
+            logger.error("CRITICAL: daily_profit_cap_pct config missing. Cannot enforce daily profit cap check.")
+            return {"halted": True, "reason": "CRITICAL: daily_profit_cap_pct config missing"}
+        threshold = float(daily_profit_val)
         # This check is a SOFT warning, not a halt — it's logged but doesn't block trading
         # Orchestrator uses this to skip NEW entries only, not to exit existing positions
         return {

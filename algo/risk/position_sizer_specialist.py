@@ -11,8 +11,20 @@ class PositionSizerSpecialist:
     def __init__(self, config: Any) -> None:
         """Initialize with config."""
         self.config = config
-        self.base_risk_pct = float(config.get("base_risk_pct", 0.75))
-        self.max_position_size_pct = float(config.get("max_position_size_pct", 6.3))
+        base_risk_val = config.get("base_risk_pct")
+        if base_risk_val is None:
+            raise ValueError(
+                "CRITICAL: base_risk_pct config missing. "
+                "Cannot initialize PositionSizerSpecialist without explicit base risk percentage."
+            )
+        max_size_val = config.get("max_position_size_pct")
+        if max_size_val is None:
+            raise ValueError(
+                "CRITICAL: max_position_size_pct config missing. "
+                "Cannot initialize PositionSizerSpecialist without explicit max position size threshold."
+            )
+        self.base_risk_pct = float(base_risk_val)
+        self.max_position_size_pct = float(max_size_val)
 
     def calculate_shares(
         self,

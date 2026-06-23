@@ -26,8 +26,20 @@ class EarningsBlackout:
         if config is None:
             raise ValueError("EarningsBlackout requires explicit config parameter (dependency injection)")
         self.config = config
-        self.days_before = int(self.config.get("earnings_blackout_days_before", 7))
-        self.days_after = int(self.config.get("earnings_blackout_days_after", 3))
+        days_before_val = self.config.get("earnings_blackout_days_before")
+        if days_before_val is None:
+            raise ValueError(
+                "CRITICAL: earnings_blackout_days_before config missing. "
+                "Cannot enforce earnings blackout without explicit days-before threshold."
+            )
+        days_after_val = self.config.get("earnings_blackout_days_after")
+        if days_after_val is None:
+            raise ValueError(
+                "CRITICAL: earnings_blackout_days_after config missing. "
+                "Cannot enforce earnings blackout without explicit days-after threshold."
+            )
+        self.days_before = int(days_before_val)
+        self.days_after = int(days_after_val)
 
     def run(self, symbol: str, eval_date: _date) -> dict[str, Any]:
         """Check if eval_date is in earnings blackout window (Issue #27: trading day aware).

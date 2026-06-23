@@ -343,8 +343,8 @@ def run_backtest(
     win_count = len(winning_trades)
     loss_count = len(losing_trades)
     win_rate_pct = (win_count / total_trades * 100) if total_trades > 0 else 0
-    best_trade = max((t["profit_loss_pct"] for t in completed_trades), default=0)
-    worst_trade = min((t["profit_loss_pct"] for t in completed_trades), default=0)
+    best_trade = max((t["profit_loss_pct"] for t in completed_trades)) if total_trades > 0 else None
+    worst_trade = min((t["profit_loss_pct"] for t in completed_trades)) if total_trades > 0 else None
     avg_hold = sum(t["holding_days"] for t in completed_trades) / total_trades if total_trades > 0 else 0
 
     gross_profit = sum(t["profit_loss_dollars"] for t in winning_trades)
@@ -393,8 +393,8 @@ def run_backtest(
         "winning_trades": win_count,
         "losing_trades": loss_count,
         "avg_trade_return_pct": round(avg_trade_return_pct, 4),
-        "best_trade_pct": round(best_trade, 4),
-        "worst_trade_pct": round(worst_trade, 4),
+        "best_trade_pct": round(best_trade, 4) if best_trade is not None else None,
+        "worst_trade_pct": round(worst_trade, 4) if worst_trade is not None else None,
         "avg_holding_days": round(avg_hold, 2),
         "parameters": {
             "min_composite_score": min_composite,
@@ -491,8 +491,22 @@ def save_results(results: dict[str, Any]) -> int | None:
                         )
                     exit_price = exit_price_raw
                     qty = trade["entry_quantity"]
-                    pnl = trade.get("profit_loss_dollars", 0)
-                    pnl_pct = trade.get("profit_loss_pct", 0)
+                    pnl_raw = trade.get("profit_loss_dollars")
+                    if pnl_raw is None:
+                        raise RuntimeError(
+                            f"Trade missing profit_loss_dollars (symbol={trade.get('symbol')}, "
+                            f"entry_date={trade.get('entry_date')}). "
+                            "Backtest trades must always have explicit P&L calculations."
+                        )
+                    pnl = pnl_raw
+                    pnl_pct_raw = trade.get("profit_loss_pct")
+                    if pnl_pct_raw is None:
+                        raise RuntimeError(
+                            f"Trade missing profit_loss_pct (symbol={trade.get('symbol')}, "
+                            f"entry_date={trade.get('entry_date')}). "
+                            "Backtest trades must always have explicit P&L calculations."
+                        )
+                    pnl_pct = pnl_pct_raw
                     cur.execute(
                         """
                         INSERT INTO backtest_trades (
