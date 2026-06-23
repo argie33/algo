@@ -23,8 +23,8 @@ from typing import Any
 from .framework import (
     PhaseValidator,
     ValidationResult,
-    ValidatorRegistry,
     Validator,
+    ValidatorRegistry,
 )
 
 logger = logging.getLogger(__name__)

@@ -132,13 +132,16 @@ def handle(
             _audit_log_admin_action(cur, user_id, path, "success")
             return result
         elif path == "/api/admin/verify-user-email" and method == "POST":
-            result = _verify_user_email(dict(body) if body else None)
+            if not body:
+                return error_response(400, "missing_body", "Request body required for email verification")
+            result = _verify_user_email(dict(body))
+            username = body.get('username', 'unknown')
             _audit_log_admin_action(
                 cur,
                 user_id,
                 path,
                 "success",
-                f"verified: {(body or {}).get('username', 'unknown')}",
+                f"verified: {username}",
             )
             return result
 
@@ -430,7 +433,14 @@ def _verify_user_email(body: "dict[str, Any] | None" = None) -> Any:
             return error_response(503, "cognito_error", f"Cognito error: {error_msg}")
 
         # Verify HTTP status indicates success
-        response_metadata = response.get("ResponseMetadata") or {}
+        response_metadata = response.get("ResponseMetadata")
+        if response_metadata is None:
+            logger.error("Cognito API response missing ResponseMetadata - response is malformed")
+            return error_response(
+                503,
+                "cognito_error",
+                "Cognito service error: invalid response format",
+            )
         http_status = response_metadata.get("HTTPStatusCode")
         if http_status not in (200, 201):
             logger.error(f"Cognito returned unexpected status code: {http_status}. Expected 200 or 201.")

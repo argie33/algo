@@ -4,6 +4,7 @@ import json
 import logging
 import os
 from datetime import datetime, timezone
+from typing import Any
 
 import boto3
 
@@ -22,7 +23,7 @@ CRITICAL_LOADERS = {
 }
 
 
-def lambda_handler(event, context):
+def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
     """Log loader failure and decide whether to halt (fail-closed) or continue (fail-open).
 
     CRITICAL LOADERS (FAIL-CLOSED):

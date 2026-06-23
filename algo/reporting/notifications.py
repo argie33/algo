@@ -161,9 +161,13 @@ Time:         {event["created_at"].strftime("%H:%M:%S")}
         symbol: str | None = None,
         details: dict[str, Any] | None = None,
     ) -> None:
-        """Save notification to database."""
-        try:
-            with DatabaseContext("write") as cur:
+        """Save notification to database.
+
+        Raises:
+            RuntimeError: If database save fails (notification logging is critical for operator awareness)
+        """
+        with DatabaseContext("write") as cur:
+            try:
                 cur.execute(
                     """
                     INSERT INTO algo_notifications
@@ -180,8 +184,12 @@ Time:         {event["created_at"].strftime("%H:%M:%S")}
                     ),
                 )
                 logger.info(f"[NOTIF] Saved to DB: {title}")
-        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.error(f"[NOTIF] DB save failed: {e}")
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+                raise RuntimeError(
+                    f"CRITICAL: Failed to save notification to database. "
+                    f"Operators may not be alerted to {severity} events. "
+                    f"Title: {title}. Database error: {e}"
+                ) from e
 
     def _send_notification(
         self,
@@ -192,17 +200,23 @@ Time:         {event["created_at"].strftime("%H:%M:%S")}
         symbol: str | None = None,
         details: dict[str, Any] | None = None,
     ) -> None:
-        """Send notification via email, webhook, and database."""
-        try:
-            # Save to database
-            self._save_notification(kind, severity, subject, message, symbol, details)
+        """Send notification via email, webhook, and database.
 
-            # Send email alert
+        Raises:
+            RuntimeError: If any critical notification component fails
+        """
+        self._save_notification(kind, severity, subject, message, symbol, details)
+
+        try:
             if self.alert_manager.email_to:
                 self.alert_manager._send_email(subject=f"[ALGO] {subject}", body=message)
             logger.info(f"[NOTIF] Sent: {subject}")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.error(f"[NOTIF] Send failed: {e}")
+            raise RuntimeError(
+                f"CRITICAL: Failed to send notification: {subject}. "
+                f"Operators may not receive alerts. "
+                f"Database error: {e}"
+            ) from e
 
 
 def notify(

@@ -48,7 +48,7 @@ def _setup_aws_auth() -> None:
         print(f"WARNING: Cognito auth failed: {e}")
 
 
-def diagnose_fetchers() -> None:
+def diagnose_fetchers() -> None:  # noqa: C901
     """Load all data and show detailed diagnostic report."""
     print("\n" + "=" * 80)
     print("Dashboard Data Diagnostic Report")

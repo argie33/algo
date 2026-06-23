@@ -107,7 +107,9 @@ class RenderRecovery:
     def __init__(self) -> None:
         self.state = RenderState()
 
-    def render_with_recovery(self, data: dict[str, Any], render_fn: Callable[[dict[str, Any]], Layout]) -> tuple[Layout, str]:
+    def render_with_recovery(
+        self, data: dict[str, Any], render_fn: Callable[[dict[str, Any]], Layout]
+    ) -> tuple[Layout, str]:
         """Attempt to render with automatic retry on transient errors.
 
         Args:

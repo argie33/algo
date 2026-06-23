@@ -343,8 +343,8 @@ def run_backtest(
     win_count = len(winning_trades)
     loss_count = len(losing_trades)
     win_rate_pct = (win_count / total_trades * 100) if total_trades > 0 else 0
-    best_trade = max((t["profit_loss_pct"] for t in completed_trades)) if total_trades > 0 else None
-    worst_trade = min((t["profit_loss_pct"] for t in completed_trades)) if total_trades > 0 else None
+    best_trade = max(t["profit_loss_pct"] for t in completed_trades) if total_trades > 0 else None
+    worst_trade = min(t["profit_loss_pct"] for t in completed_trades) if total_trades > 0 else None
     avg_hold = sum(t["holding_days"] for t in completed_trades) / total_trades if total_trades > 0 else 0
 
     gross_profit = sum(t["profit_loss_dollars"] for t in winning_trades)

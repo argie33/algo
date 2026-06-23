@@ -622,7 +622,9 @@ class PositionMonitor:
                 f"Cannot mark order as cancelled in DB without broker confirmation."
             )
 
-    def _auto_cancel_stale_order(self, trade_id: str, symbol: str, qty: int, price: float, age_minutes: int, cur: Any) -> None:
+    def _auto_cancel_stale_order(
+        self, trade_id: str, symbol: str, qty: int, price: float, age_minutes: int, cur: Any
+    ) -> None:
         """Cancel a stale pending order on Alpaca and mark as cancelled in DB.
 
         Attempts Alpaca API cancellation first. Marks trade as cancelled in DB + adds audit log
@@ -732,7 +734,15 @@ class PositionMonitor:
             float(row[3]) if row[3] is not None else None,
         )
 
-    def _compute_trailing_stop(self, entry_price: float, active_stop: float, cur_price: float, atr: float | None, sma_50: float | None, target_hits: int) -> float:
+    def _compute_trailing_stop(
+        self,
+        entry_price: float,
+        active_stop: float,
+        cur_price: float,
+        atr: float | None,
+        sma_50: float | None,
+        target_hits: int,
+    ) -> float:
         """Stop ratchets up only.
 
         - Before T1: keep initial stop OR use 50-DMA (whichever higher) capped at entry-2*ATR
@@ -870,7 +880,9 @@ class PositionMonitor:
             return "strengthening"
         return "stable"
 
-    def _max_unrealized_pct(self, symbol: str, trade_date: Any, current_date: Any, entry_price: float, cur: Any) -> float:
+    def _max_unrealized_pct(
+        self, symbol: str, trade_date: Any, current_date: Any, entry_price: float, cur: Any
+    ) -> float:
         """Highest closing price since entry, expressed as % gain."""
         if entry_price <= 0:
             raise PositionValidationError(

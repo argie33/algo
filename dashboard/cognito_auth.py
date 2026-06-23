@@ -229,7 +229,7 @@ def _get_aws_cfn_output(key: str) -> str | None:
     return None
 
 
-def get_cognito_auth(require_auth: bool = True, interactive: bool = True) -> CognitoAuth | None:
+def get_cognito_auth(require_auth: bool = True, interactive: bool = True) -> CognitoAuth | None:  # noqa: C901
     """
     Dynamically get authenticated Cognito instance.
 

@@ -649,7 +649,7 @@ def _render_dashboard_body(
     )
 
 
-def _render_footer_expanded_view(
+def _render_footer_expanded_view(  # noqa: C901
     view_mode: str,
     hdr_panel: Panel,
     exp_panel: Panel,

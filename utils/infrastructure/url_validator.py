@@ -108,7 +108,9 @@ def validate_url(url: str, allowed_domains: list[str] | None = None) -> tuple[bo
     return True, None
 
 
-def validate_redirect_url(original_url: str, redirect_url: str, allowed_domains: list[str] | None = None) -> tuple[bool, str | None]:
+def validate_redirect_url(
+    original_url: str, redirect_url: str, allowed_domains: list[str] | None = None
+) -> tuple[bool, str | None]:
     """
     Validate a redirect target to prevent SSRF via redirects.
 

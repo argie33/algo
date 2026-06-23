@@ -39,10 +39,10 @@ class LambdaResponse:
     @staticmethod
     def success(data: dict[str, Any] | None = None, message: str = "Success") -> "LambdaResponse":
         """Create a successful response."""
-        return LambdaResponse(
-            200,
-            {"status": "success", "message": message, **(data or {})},
-        )
+        body = {"status": "success", "message": message}
+        if data is not None:
+            body.update(data)
+        return LambdaResponse(200, body)
 
     @staticmethod
     def error(error_msg: str, status_code: int = 500, error_type: str | None = None) -> "LambdaResponse":
@@ -81,7 +81,7 @@ class LambdaHandler(ABC):
     - Response formatting
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize handler with logging."""
         self._setup_logging()
 

@@ -217,7 +217,9 @@ def _detect_upstream_data_quality_drift(run_date: _date, signal_source: str) -> 
     return drift
 
 
-def _check_liquidity_parallel(candidate: dict[str, Any], run_date: _date, config: dict[str, Any] | None = None) -> tuple[dict[str, Any], bool]:
+def _check_liquidity_parallel(
+    candidate: dict[str, Any], run_date: _date, config: dict[str, Any] | None = None
+) -> tuple[dict[str, Any], bool]:
     """Check liquidity for a single candidate. Returns (candidate, passed)."""
     try:
         liquidity = LiquidityChecks(config=config if config is not None else {})

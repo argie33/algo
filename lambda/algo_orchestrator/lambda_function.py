@@ -12,6 +12,7 @@ import os
 import sys
 from datetime import date as _date
 from pathlib import Path
+from typing import Any
 
 import psycopg2
 
@@ -30,7 +31,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from algo.orchestration import Orchestrator  # noqa: E402
 
 
-def lambda_handler(event, context):
+def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
     """
     Lambda entry point for Algo Orchestrator.
 

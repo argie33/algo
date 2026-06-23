@@ -154,7 +154,9 @@ def compute_performance_metrics(cur: Any, metric_date: date | None = None) -> di
         raise
 
 
-def _compute_advanced_metrics(cur: Any, metric_date: date) -> tuple[float | None, float | None, float, float, float | None]:
+def _compute_advanced_metrics(
+    cur: Any, metric_date: date
+) -> tuple[float | None, float | None, float, float, float | None]:
     """Compute Sharpe, Sortino, max drawdown, CAGR, and Calmar ratios using MetricsCalculator."""
     try:
         # Fetch all portfolio snapshots

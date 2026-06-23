@@ -99,7 +99,15 @@ def get_endpoint_path(fetcher_key: str, params: dict[str, Any] | None = None) ->
 
 def is_api_error(response: dict[str, Any]) -> bool:
     """Check if API response indicates an error."""
-    return "_error" in response or response.get("statusCode", 200) >= 400
+    if "_error" in response:
+        return True
+    status = response.get("statusCode", 200)
+    if not isinstance(status, int):
+        try:
+            status = int(status)
+        except (ValueError, TypeError):
+            return False
+    return status >= 400
 
 
 def get_error_message(response: dict[str, Any]) -> str:

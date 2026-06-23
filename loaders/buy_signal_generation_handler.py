@@ -245,7 +245,9 @@ class BuySignalGenerationHandler:
 
         return signal_type, strength, reason, buylevel, stoplevel
 
-    def _compute_volume_surge(self, volume: float | None, rows: list[dict[str, Any]], i: int) -> tuple[float | None, bool]:
+    def _compute_volume_surge(
+        self, volume: float | None, rows: list[dict[str, Any]], i: int
+    ) -> tuple[float | None, bool]:
         """Compute volume surge: compare to 20-bar average volume."""
         vol_surge = None
         volume_surge_capped = False

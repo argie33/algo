@@ -191,7 +191,9 @@ class AlertManager:
             logger.error(f"SNS publish failed: {e}")
             raise
 
-    def send_patrol_alert(self, patrol_run_id: str, counts: dict[str, int], flagged_findings: list[dict[str, str]]) -> None:
+    def send_patrol_alert(
+        self, patrol_run_id: str, counts: dict[str, int], flagged_findings: list[dict[str, str]]
+    ) -> None:
         """Send CRITICAL alert when patrol finds issues. Fails hard on send failure.
 
         Args:
@@ -274,7 +276,9 @@ class AlertManager:
                 "Ops team may not have received notification of critical data issues."
             )
 
-    def send_position_alert(self, symbol: str, alert_type: str, message: str, details: dict[str, object] | None = None) -> None:
+    def send_position_alert(
+        self, symbol: str, alert_type: str, message: str, details: dict[str, object] | None = None
+    ) -> None:
         """Send alert for position-related issues. Non-blocking (logs errors only).
 
         Args:
@@ -536,12 +540,15 @@ class NullAlertManager(AlertManager):
 
     def __init__(self) -> None:
         """Initialize without checking for alert channels (dry-run friendly)."""
-        pass
 
-    def send_patrol_alert(self, patrol_run_id: str, counts: dict[str, int], flagged_findings: list[dict[str, str]]) -> None:
+    def send_patrol_alert(
+        self, patrol_run_id: str, counts: dict[str, int], flagged_findings: list[dict[str, str]]
+    ) -> None:
         logger.warning(f"[NULL_ALERTS] Patrol alert suppressed (no channels): run_id={patrol_run_id}")
 
-    def send_position_alert(self, symbol: str, alert_type: str, message: str, details: dict[str, object] | None = None) -> None:
+    def send_position_alert(
+        self, symbol: str, alert_type: str, message: str, details: dict[str, object] | None = None
+    ) -> None:
         logger.warning(f"[NULL_ALERTS] Position alert suppressed: {symbol} {alert_type} — {message}")
 
     def send_loader_alert(self, findings: list[tuple[str, str, str]]) -> None:

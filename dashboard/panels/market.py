@@ -15,18 +15,39 @@ else:
         from panel_registry import register_panel
     except ImportError as e:
         logger.warning(f"Panel registry not available: {e} - panels will not auto-register")
+        from typing import TypeVar, overload
 
+        _F = TypeVar("_F", bound=Callable[..., Any])
+
+        @overload
         def register_panel(
             name: str,
             endpoint_deps: list[str],
-            render_fn: Callable[..., Any] | None = None,
+            render_fn: None = None,
             optional: bool = False,
             description: str = "",
-        ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
-            if render_fn is not None:
-                return cast(Callable[[Callable[..., Any]], Callable[..., Any]], render_fn)
+        ) -> Callable[[_F], _F]: ...
 
-            def passthrough_decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
+        @overload
+        def register_panel(
+            name: str,
+            endpoint_deps: list[str],
+            render_fn: _F,
+            optional: bool = False,
+            description: str = "",
+        ) -> _F: ...
+
+        def register_panel(  # type: ignore[misc]
+            name: str,
+            endpoint_deps: list[str],
+            render_fn: _F | None = None,
+            optional: bool = False,
+            description: str = "",
+        ) -> Callable[[_F], _F] | _F:
+            if render_fn is not None:
+                return render_fn
+
+            def passthrough_decorator(fn: _F) -> _F:
                 return fn
 
             return passthrough_decorator
@@ -38,6 +59,7 @@ from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
+from ..data_validation import safe_float, safe_int
 from ..error_boundary import has_error
 from ..formatters import (
     exp_bar,
@@ -78,7 +100,9 @@ def panel_market_full(mkt: Any, sentiment: Any = None) -> Panel:
     vix = mkt.get("vix")
     spy_raw = mkt.get("spy")
 
-    # Critical fields validation (should never be None after successful fetch)
+    # Validate and convert critical fields to safe types
+    vix = safe_float(vix, strict=False)
+    spy_raw = safe_float(spy_raw, strict=False)
     if vix is None or spy_raw is None:
         return Panel(
             Text.from_markup(
@@ -91,15 +115,15 @@ def panel_market_full(mkt: Any, sentiment: Any = None) -> Panel:
 
     dist = mkt.get("dist", "N/A")
     stage = mkt.get("stage", "N/A")
-    spy_chg = mkt.get("spy_chg")
+    spy_chg = safe_float(mkt.get("spy_chg"), strict=False)
     trend = mkt.get("trend", "")
     halts = safe_get_list(mkt.get("halts")) or []
-    upvol = mkt.get("upvol")
-    adr = mkt.get("adr")
-    nh = mkt.get("nh")
-    nl = mkt.get("nl")
-    pcr = mkt.get("pcr")
-    bmom = mkt.get("bmom")
+    upvol = safe_float(mkt.get("upvol"), strict=False)
+    adr = safe_float(mkt.get("adr"), strict=False)
+    nh = safe_int(mkt.get("nh"), strict=False)
+    nl = safe_int(mkt.get("nl"), strict=False)
+    pcr = safe_float(mkt.get("pcr"), strict=False)
+    bmom = safe_float(mkt.get("bmom"), strict=False)
     fed = mkt.get("fed")
 
     # Derived values from extracted fields (critical fields guaranteed non-None)
@@ -120,7 +144,7 @@ def panel_market_full(mkt: Any, sentiment: Any = None) -> Panel:
         else DIM
     )
 
-    spy_s = f"SPY:[white]${float(spy_raw):.2f}[/]"
+    spy_s = f"SPY:[white]${spy_raw:.2f}[/]"
     if spy_chg is not None:
         spy_chg_s = f" [{G if spy_chg >= 0 else R}]{sign(spy_chg)}{spy_chg:.1f}%[/]"
         spy_s += spy_chg_s
@@ -132,12 +156,12 @@ def panel_market_full(mkt: Any, sentiment: Any = None) -> Panel:
         + f"  {spy_s}",
     ]
     if upvol is not None:
-        adr_s = f"  [dim]Adv/Dec:[/][white]{float(adr):.1f}[/]" if adr is not None else ""
+        adr_s = f"  [dim]Adv/Dec:[/][white]{adr:.1f}[/]" if adr is not None else ""
         nhnl_s = f"  [dim]NH-NL:[/][{nhnl_c}]{sign(nhnl)}{int(nhnl)}[/]" if nhnl is not None else ""
         lines.append(
-            f"[dim]Up Volume:[/][{uvc}]{float(upvol):.0f}%[/]{adr_s}  [dim]New Highs:[/][{G}]{nh or '--'!s}[/] [dim]Lows:[/][{R}]{nl or '--'!s}[/]{nhnl_s}"
+            f"[dim]Up Volume:[/][{uvc}]{upvol:.0f}%[/]{adr_s}  [dim]New Highs:[/][{G}]{nh or '--'!s}[/] [dim]Lows:[/][{R}]{nl or '--'!s}[/]{nhnl_s}"
         )
-    ycs = mkt.get("ycs")
+    ycs = safe_float(mkt.get("ycs"), strict=False)
     bmom_pcr = []
     if pcr is not None:
         bmom_pcr.append(f"[dim]Put/Call:[/][{pcr_c}]{pcr:.3f}[/]")
@@ -192,7 +216,8 @@ def panel_market_expanded(mkt: Any, sentiment: Any = None) -> Panel:
     exp = mkt.get("pct")
     exp_s = f"{float(exp):.0f}%" if exp is not None else "--"
     bar = exp_bar(exp or 0, w=14)
-    vix = mkt.get("vix")
+    vix_raw = mkt.get("vix")
+    vix = safe_float(vix_raw, strict=False)
     vc = DIM if vix is None else (R if vix >= 30 else (Y if vix >= 20 else G))
     vix_s = f"{vix:.1f}" if vix is not None else "--"
     rows.append(
@@ -202,23 +227,23 @@ def panel_market_expanded(mkt: Any, sentiment: Any = None) -> Panel:
     )
     rows.append(Rule(style="dim"))
 
-    spy_raw = mkt.get("spy")
-    spy_chg = mkt.get("spy_chg")
+    spy_raw = safe_float(mkt.get("spy"), strict=False)
+    spy_chg = safe_float(mkt.get("spy_chg"), strict=False)
     stage = str(mkt.get("stage", "--"))
     trend = (mkt.get("trend", "")).upper() or "--"
-    dist = mkt.get("dist")
+    dist = safe_float(mkt.get("dist"), strict=False)
     _fed_raw = mkt.get("fed")
     fed = "--" if (_fed_raw is None or str(_fed_raw).lower() in ("unknown", "n/a", "none", "")) else str(_fed_raw)
-    ycs = mkt.get("ycs")
-    upvol = mkt.get("upvol")
-    adr = mkt.get("adr")
-    nh = mkt.get("nh")
-    nl = mkt.get("nl")
-    pcr = mkt.get("pcr")
-    bmom = mkt.get("bmom")
+    ycs = safe_float(mkt.get("ycs"), strict=False)
+    upvol = safe_float(mkt.get("upvol"), strict=False)
+    adr = safe_float(mkt.get("adr"), strict=False)
+    nh = safe_int(mkt.get("nh"), strict=False)
+    nl = safe_int(mkt.get("nl"), strict=False)
+    pcr = safe_float(mkt.get("pcr"), strict=False)
+    bmom = safe_float(mkt.get("bmom"), strict=False)
     halts = safe_get_list(mkt.get("halts")) or []
 
-    spy_s = f"${float(spy_raw):.2f}" if spy_raw else "--"
+    spy_s = f"${spy_raw:.2f}" if spy_raw else "--"
     spy_chg_c = G if (spy_chg or 0) >= 0 else R
     spy_chg_s = f"{sign(spy_chg)}{spy_chg:.2f}%" if spy_chg is not None else "--"
     dist_c = R if (dist or 0) >= 5 else (Y if (dist or 0) >= 3 else G)
@@ -298,7 +323,16 @@ def panel_market_expanded(mkt: Any, sentiment: Any = None) -> Panel:
 
 
 @register_panel("header", endpoint_deps=["mkt", "sentiment"], optional=False, description="Header")
-def panel_header_market(mkt: Any, sentiment: Any, ts: Any, mkt_s: Any, elapsed: Any, refresh_s: str = "", cfg: Any = None, data_source: str = "AWS") -> Panel:
+def panel_header_market(
+    mkt: Any,
+    sentiment: Any,
+    ts: Any,
+    mkt_s: Any,
+    elapsed: Any,
+    refresh_s: str = "",
+    cfg: Any = None,
+    data_source: str = "AWS",
+) -> Panel:
     """Compact market header - fits alongside exposure factors + monkey in the top row."""
     source_color = "cyan" if data_source == "LOCAL" else "dim"
     rows: list[Text | Rule] = [
@@ -311,34 +345,34 @@ def panel_header_market(mkt: Any, sentiment: Any, ts: Any, mkt_s: Any, elapsed: 
         exp = mkt.get("pct")
         exp_s = f"{float(exp):.0f}%" if exp is not None else "--"
         bar = exp_bar(exp or 0, w=8)
-        vix_val = mkt.get("vix")
+        vix_val = safe_float(mkt.get("vix"), strict=False)
         vix = f"{vix_val:.1f}" if vix_val is not None else "--"
-        vc = DIM if mkt.get("vix") is None else (R if mkt.get("vix") >= 30 else (Y if mkt.get("vix") >= 20 else G))
+        vc = DIM if vix_val is None else (R if vix_val >= 30 else (Y if vix_val >= 20 else G))
         dist = str(mkt.get("dist", "--"))
         stage = str(mkt.get("stage", "--"))
         trend_raw = (mkt.get("trend", "")).upper()
         trend_s = f"  [dim]Trend:[/][white]{trend_raw[:10]}[/]" if trend_raw else ""
-        spy_raw = mkt.get("spy")
-        spy_chg = mkt.get("spy_chg")
+        spy_raw = safe_float(mkt.get("spy"), strict=False)
+        spy_chg = safe_float(mkt.get("spy_chg"), strict=False)
         spy_chg_s = (
             f" [{G if (spy_chg or 0) >= 0 else R}]{sign(spy_chg or 0)}{spy_chg:.1f}%[/]" if spy_chg is not None else ""
         )
-        spy_s = f"  SPY:[white]${float(spy_raw):.2f}[/]{spy_chg_s}" if spy_raw else ""
+        spy_s = f"  SPY:[white]${spy_raw:.2f}[/]{spy_chg_s}" if spy_raw else ""
         rows.append(
             Text.from_markup(
                 f"[{tc}][bold]{lbl}[/]  [dim]Exp:[/][{tc}]{exp_s}[/]{bar}  "
                 f"VIX:[{vc}]{vix}[/]  [dim]Dist. Days:[/][white]{dist}[/]  [dim]Stage:[/][white]{stage}[/]{trend_s}{spy_s}"
             )
         )
-        upvol = mkt.get("upvol")
-        nh = mkt.get("nh")
-        nl = mkt.get("nl")
-        adr = mkt.get("adr")
+        upvol = safe_float(mkt.get("upvol"), strict=False)
+        nh = safe_int(mkt.get("nh"), strict=False)
+        nl = safe_int(mkt.get("nl"), strict=False)
+        adr = safe_float(mkt.get("adr"), strict=False)
         if upvol is not None:
             uvc = G if upvol >= 60 else (Y if upvol >= 50 else R)
             nhnl = (nh - nl) if (nh is not None and nl is not None) else None
             nhnl_c = (G if (nhnl or 0) >= 50 else (Y if (nhnl or 0) >= 0 else R)) if nhnl is not None else DIM
-            adr_s = f"  [dim]Adv/Dec:[/][white]{float(adr or 0):.1f}[/]" if adr is not None else ""
+            adr_s = f"  [dim]Adv/Dec:[/][white]{adr:.1f}[/]" if adr is not None else ""
             nhnl_s = (
                 f"[dim]New Hi-Lo:[/][{nhnl_c}]{sign(nhnl or 0)}{int(nhnl or 0)}[/]"
                 if nhnl is not None
@@ -346,14 +380,14 @@ def panel_header_market(mkt: Any, sentiment: Any, ts: Any, mkt_s: Any, elapsed: 
             )
             rows.append(
                 Text.from_markup(
-                    f"[dim]Up Volume:[/][{uvc}]{float(upvol or 0):.0f}%[/]{adr_s}  "
+                    f"[dim]Up Volume:[/][{uvc}]{upvol:.0f}%[/]{adr_s}  "
                     f"[dim]New High:[/][{G}]{nh or '--'!s}[/] [dim]New Low:[/][{R}]{nl or '--'!s}[/]  "
                     f"{nhnl_s}"
                 )
             )
-        pcr = mkt.get("pcr")
-        bmom = mkt.get("bmom")
-        ycs = mkt.get("ycs")
+        pcr = safe_float(mkt.get("pcr"), strict=False)
+        bmom = safe_float(mkt.get("bmom"), strict=False)
+        ycs = safe_float(mkt.get("ycs"), strict=False)
         fed = mkt.get("fed")
         _fed_ok = fed and str(fed).lower() not in ("unknown", "n/a", "none", "")
         parts4 = []

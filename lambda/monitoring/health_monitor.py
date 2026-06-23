@@ -13,6 +13,7 @@ import json
 import logging
 import os
 from datetime import datetime, timezone
+from typing import Any
 
 import boto3
 import psycopg2
@@ -28,7 +29,7 @@ cloudwatch = boto3.client("cloudwatch")
 sns = boto3.client("sns")
 
 
-def check_loader_health() -> tuple[str, list[dict]]:
+def check_loader_health() -> tuple[str, list[dict[str, Any]]]:
     """Check if critical loaders have run recently.
 
     Returns: (status, issues_list)
@@ -117,7 +118,7 @@ def check_loader_health() -> tuple[str, list[dict]]:
         return "unhealthy", [{"problem": f"Health check error: {str(e)[:50]}", "status": "ERROR"}]
 
 
-def check_data_freshness() -> tuple[str, list[dict]]:
+def check_data_freshness() -> tuple[str, list[dict[str, Any]]]:
     """Check if critical data tables have recent data.
 
     Returns: (status, stale_tables)
@@ -186,7 +187,7 @@ def check_data_freshness() -> tuple[str, list[dict]]:
         return "unhealthy", [{"problem": f"Freshness check error: {str(e)[:50]}"}]
 
 
-def send_metric(metric_name: str, value: float, unit: str = "None", dimensions: dict | None = None):
+def send_metric(metric_name: str, value: float, unit: str = "None", dimensions: dict[str, str] | None = None) -> None:
     """Send custom CloudWatch metric."""
     try:
         cloudwatch.put_metric_data(
@@ -205,7 +206,7 @@ def send_metric(metric_name: str, value: float, unit: str = "None", dimensions: 
         logger.error(f"Failed to send metric {metric_name}: {e}")
 
 
-def send_alert(subject: str, message: str):
+def send_alert(subject: str, message: str) -> None:
     """Send SNS alert (REQUIRED in production)."""
     sns_topic = os.environ.get("SNS_ALERT_TOPIC_ARN")
     if not sns_topic:
@@ -221,7 +222,7 @@ def send_alert(subject: str, message: str):
         raise
 
 
-def handler(event, context):
+def handler(event: Any, context: Any) -> dict[str, Any]:
     """Health monitor Lambda handler."""
     logger.info("Starting operational health check...")
 

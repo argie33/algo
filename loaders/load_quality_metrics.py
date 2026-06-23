@@ -67,7 +67,9 @@ class QualityMetricsLoader(OptimalLoader):
         return []
 
     @staticmethod
-    def _compute_metrics(symbol: str, income: tuple[Any, Any, Any], balance: tuple[Any, Any, Any, Any, Any, Any] | None) -> dict[str, Any]:
+    def _compute_metrics(
+        symbol: str, income: tuple[Any, Any, Any], balance: tuple[Any, Any, Any, Any, Any, Any] | None
+    ) -> dict[str, Any]:
         """Compute quality metrics from financial data. Balance sheet is optional."""
         revenue, operating_income, net_income = income
         if balance:

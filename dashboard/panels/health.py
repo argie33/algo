@@ -154,6 +154,7 @@ def _format_phase_badge(phase_status: str | None) -> tuple[str, str]:
     """Format phase status string to (color, icon) badge tuple."""
     return HealthFormatter.format_phase_badge(phase_status or "")
 
+
 # Severity to color mapping
 SEV_COLORS = {"critical": R, "warning": Y, "info": CY, "debug": DIM}
 
@@ -730,7 +731,9 @@ def _format_health_data_stale_section(stale: list[Any], hlth_list: list[Any] | N
     return f"{rtt_pfx}" + "  ".join(stale_parts)
 
 
-def _format_health_data_fresh_section(hlth_list: list[Any], crit: list[Any], ready_to_trade: bool | None, ages: list[float | None]) -> str:
+def _format_health_data_fresh_section(
+    hlth_list: list[Any], crit: list[Any], ready_to_trade: bool | None, ages: list[float | None]
+) -> str:
     """Format data health when all tables are fresh."""
     if ready_to_trade is False:
         rtt_badge = f"[bold {R}]✗ NOT READY[/]"
@@ -908,8 +911,14 @@ def _format_risk_snapshot(risk_dict: dict[str, Any]) -> list[Text | Rule]:
     cvar95_val = risk_dict.get("cvar95")
     svar_val = risk_dict.get("svar")
 
-    beta_c = R if (beta_val is not None and beta_val >= 1.2) else (Y if (beta_val is not None and beta_val >= 0.8) else G)
-    conc_c = R if (conc5_val is not None and conc5_val >= 35) else (Y if (conc5_val is not None and conc5_val >= 25) else "white")
+    beta_c = (
+        R if (beta_val is not None and beta_val >= 1.2) else (Y if (beta_val is not None and beta_val >= 0.8) else G)
+    )
+    conc_c = (
+        R
+        if (conc5_val is not None and conc5_val >= 35)
+        else (Y if (conc5_val is not None and conc5_val >= 25) else "white")
+    )
     var_c = HealthFormatter.var_color(var95_val)
 
     risk_parts = [
@@ -948,7 +957,7 @@ def _format_notifications_section(valid_notifs: list[Any]) -> list[Text | Rule]:
     return rows
 
 
-def panel_status(
+def panel_status(  # noqa: C901
     act: dict[str, Any] | None,
     hlth: dict[str, Any] | list[Any] | None,
     notifs: list[Any],
@@ -975,8 +984,16 @@ def panel_status(
     # ── Run status + schedule + mode + trading config ────────────────────────────
     run_valid = run and isinstance(run, dict) and not has_error(run)
     act_valid = act and isinstance(act, dict) and not has_error(act)
-    run_id_top = cast(dict[str, Any], run).get("run_id", "") if run_valid else (cast(dict[str, Any], act).get("run_id", "") if act_valid else "")
-    run_at_top = cast(dict[str, Any], run).get("run_at") if run_valid else (cast(dict[str, Any], act).get("run_at") if act_valid else None)
+    run_id_top = (
+        cast(dict[str, Any], run).get("run_id", "")
+        if run_valid
+        else (cast(dict[str, Any], act).get("run_id", "") if act_valid else "")
+    )
+    run_at_top = (
+        cast(dict[str, Any], run).get("run_at")
+        if run_valid
+        else (cast(dict[str, Any], act).get("run_at") if act_valid else None)
+    )
     if run_id_top or run_at_top:
         sts = (
             "[bold bright_green]✓ COMPLETED[/]"
@@ -984,7 +1001,11 @@ def panel_status(
             else (
                 "[bold yellow]~ HALTED[/]"
                 if (run_valid and isinstance(run, dict) and run.get("halted"))
-                else ("[bold bright_red]✗ ERROR[/]" if (run_valid and isinstance(run, dict) and run.get("errored")) else "[dim]RUN[/]")
+                else (
+                    "[bold bright_red]✗ ERROR[/]"
+                    if (run_valid and isinstance(run, dict) and run.get("errored"))
+                    else "[dim]RUN[/]"
+                )
             )
         )
         age_s = f"  [dim]{fmt_age(run_at_top)}[/]" if run_at_top else ""
@@ -1268,7 +1289,7 @@ def panel_status(
     )
 
 
-def panel_algo_health(
+def panel_algo_health(  # noqa: C901
     run: dict[str, Any] | None,
     act: dict[str, Any] | None,
     hlth: dict[str, Any] | list[Any] | None,
@@ -1291,7 +1312,11 @@ def panel_algo_health(
     # ── A: Run outcome ────────────────────────────────────────────────────────
     run_valid = run and isinstance(run, dict) and not has_error(run)
     act_valid = act and isinstance(act, dict) and not has_error(act)
-    run_at = (run.get("run_at") if isinstance(run, dict) else None) if run_valid else (act.get("run_at") if isinstance(act, dict) and act_valid else None)
+    run_at = (
+        (run.get("run_at") if isinstance(run, dict) else None)
+        if run_valid
+        else (act.get("run_at") if isinstance(act, dict) and act_valid else None)
+    )
     age_s = f"  [dim]{fmt_age(run_at)}[/]" if run_at else ""
 
     if run_valid and isinstance(run, dict):
@@ -1424,8 +1449,16 @@ def panel_algo_health(
             conc5_val = risk_dict.get("conc5")
             cvar95_val = risk_dict.get("cvar95")
             svar_val = risk_dict.get("svar")
-            beta_c = R if beta_val is not None and beta_val >= 1.2 else (Y if beta_val is not None and beta_val >= 0.8 else G)
-            conc_c = R if conc5_val is not None and conc5_val >= 35 else (Y if conc5_val is not None and conc5_val >= 25 else "white")
+            beta_c = (
+                R
+                if beta_val is not None and beta_val >= 1.2
+                else (Y if beta_val is not None and beta_val >= 0.8 else G)
+            )
+            conc_c = (
+                R
+                if conc5_val is not None and conc5_val >= 35
+                else (Y if conc5_val is not None and conc5_val >= 25 else "white")
+            )
             var_c = HealthFormatter.var_color(var95_val)
             risk_parts = [
                 f"[dim]VaR 95%:[/][{var_c}]{var95_val:.2f}%[/]",
@@ -1464,7 +1497,15 @@ def panel_algo_health(
     )
 
 
-def _build_results_panel(run: dict[str, Any] | None, act: dict[str, Any] | None, algo_metrics: list[Any], exec_hist: list[Any], risk: dict[str, Any] | None, notifs: list[Any], audit: list[Any]) -> Panel:
+def _build_results_panel(  # noqa: C901
+    run: dict[str, Any] | None,
+    act: dict[str, Any] | None,
+    algo_metrics: list[Any],
+    exec_hist: list[Any],
+    risk: dict[str, Any] | None,
+    notifs: list[Any],
+    audit: list[Any],
+) -> Panel:
     """Build RIGHT panel: run results, history, risk, notifications, audit.
 
     Args:
@@ -1486,7 +1527,11 @@ def _build_results_panel(run: dict[str, Any] | None, act: dict[str, Any] | None,
 
     run_valid = run and isinstance(run, dict) and not has_error(run)
     act_valid = act and isinstance(act, dict) and not has_error(act)
-    run_at = (run.get("run_at") if isinstance(run, dict) else None) if run_valid else (act.get("run_at") if isinstance(act, dict) and act_valid else None)
+    run_at = (
+        (run.get("run_at") if isinstance(run, dict) else None)
+        if run_valid
+        else (act.get("run_at") if isinstance(act, dict) and act_valid else None)
+    )
     age_s = f"  [dim]{fmt_age(run_at)}[/]" if run_at else ""
 
     if run_valid and isinstance(run, dict):

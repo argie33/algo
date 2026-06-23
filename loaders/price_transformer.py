@@ -171,7 +171,9 @@ class PriceTransformer:
                 f"MarketCalendar failed—cannot proceed without trading day validation."
             ) from e
 
-    def _validate_row_trading_day(self, row_date_str: Any, row_date: Any, trading_day_set: set[Any] | None, symbol: str | None, tracker: Any) -> bool:
+    def _validate_row_trading_day(
+        self, row_date_str: Any, row_date: Any, trading_day_set: set[Any] | None, symbol: str | None, tracker: Any
+    ) -> bool:
         """Validate if row is from a trading day."""
         from algo.infrastructure import MarketCalendar
 
@@ -194,7 +196,9 @@ class PriceTransformer:
                 ) from e
         return is_trading_day
 
-    def _validate_row_prices(self, row: dict[str, Any], symbol: str | None, prior_close_by_symbol: dict[str, float | None], tracker: Any) -> tuple[bool, str | None]:
+    def _validate_row_prices(
+        self, row: dict[str, Any], symbol: str | None, prior_close_by_symbol: dict[str, float | None], tracker: Any
+    ) -> tuple[bool, str | None]:
         """Validate price fields in row."""
         from utils.data.tick_validator import validate_price_tick
 
@@ -237,7 +241,11 @@ class PriceTransformer:
         return is_valid, errors[0] if errors else None
 
     def _process_row(
-        self, row: dict[str, Any], trading_day_set: set[Any] | None, prior_close_by_symbol: dict[str, float | None], tracker: Any
+        self,
+        row: dict[str, Any],
+        trading_day_set: set[Any] | None,
+        prior_close_by_symbol: dict[str, float | None],
+        tracker: Any,
     ) -> tuple[bool, int, int]:
         """Process single row; returns (was_valid, non_trading_count, parse_error_count)."""
         row_date_str: str | None = row.get("date")

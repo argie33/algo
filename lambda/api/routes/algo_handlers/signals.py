@@ -293,19 +293,43 @@ def _get_rejection_funnel(cur: cursor) -> Any:
             pct = round((count / initial_count * 100), 2) if initial_count else 0
             rejected = prior - count
             rej_pct = round((rejected / prior * 100), 2) if prior else 0
-            return {"stage": stage, "count": count, "pct": pct, "rejection_reason": reason, "rejection_count": rejected, "rejection_pct": rej_pct}
+            return {
+                "stage": stage,
+                "count": count,
+                "pct": pct,
+                "rejection_reason": reason,
+                "rejection_count": rejected,
+                "rejection_pct": rej_pct,
+            }
 
-        funnel = [{"stage": "All Evaluated", "count": initial_count, "pct": 100, "rejection_reason": None, "rejection_count": 0, "rejection_pct": 0}]
+        funnel = [
+            {
+                "stage": "All Evaluated",
+                "count": initial_count,
+                "pct": 100,
+                "rejection_reason": None,
+                "rejection_count": 0,
+                "rejection_pct": 0,
+            }
+        ]
         if initial_count > 0:
-            funnel.append(_funnel_stage("Scored (SQS > 0)", t1_count, initial_count, "Failed SQS calculation or data validation"))
+            funnel.append(
+                _funnel_stage("Scored (SQS > 0)", t1_count, initial_count, "Failed SQS calculation or data validation")
+            )
         if t1_count > 0:
             funnel.append(_funnel_stage("Emerging (SQS ≥ 40)", t2_count, t1_count, "Insufficient momentum or trend"))
         if t2_count > 0:
             funnel.append(_funnel_stage("Developing (SQS ≥ 50)", t3_count, t2_count, "Below trend quality threshold"))
         if t3_count > 0:
-            funnel.append(_funnel_stage("Quality (SQS ≥ 55)", t4_count, t3_count, "Near-threshold, below quality floor"))
+            funnel.append(
+                _funnel_stage("Quality (SQS ≥ 55)", t4_count, t3_count, "Near-threshold, below quality floor")
+            )
         if t4_count > 0:
-            funnel.append(_funnel_stage("High-Quality (SQS ≥ 60)", high_quality_count, t4_count, "Low signal quality score (SQS < 60)"))
+            funnel.append(
+                _funnel_stage(
+                    "High-Quality (SQS ≥ 60)", high_quality_count, t4_count, "Low signal quality score (SQS < 60)"
+                )
+            )
 
         # Get detailed rejection reasons grouped by reason type (top reasons across all tiers)
         rejected_list = []

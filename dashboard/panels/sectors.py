@@ -2,7 +2,7 @@
 
 import logging
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 logger = logging.getLogger(__name__)
 
@@ -13,18 +13,39 @@ else:
         from panel_registry import register_panel
     except ImportError as e:
         logger.warning(f"Panel registry not available: {e} - panels will not auto-register")
+        from typing import TypeVar, overload
 
+        _F = TypeVar("_F", bound=Callable[..., Any])
+
+        @overload
         def register_panel(
             name: str,
             endpoint_deps: list[str],
-            render_fn: Callable[..., Any] | None = None,
+            render_fn: None = None,
             optional: bool = False,
             description: str = "",
-        ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
-            if render_fn is not None:
-                return cast(Callable[[Callable[..., Any]], Callable[..., Any]], render_fn)
+        ) -> Callable[[_F], _F]: ...
 
-            def passthrough_decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
+        @overload
+        def register_panel(
+            name: str,
+            endpoint_deps: list[str],
+            render_fn: _F,
+            optional: bool = False,
+            description: str = "",
+        ) -> _F: ...
+
+        def register_panel(  # type: ignore[misc]
+            name: str,
+            endpoint_deps: list[str],
+            render_fn: _F | None = None,
+            optional: bool = False,
+            description: str = "",
+        ) -> Callable[[_F], _F] | _F:
+            if render_fn is not None:
+                return render_fn
+
+            def passthrough_decorator(fn: _F) -> _F:
                 return fn
 
             return passthrough_decorator
@@ -71,7 +92,7 @@ def _rdelta(r: Any, wk: str = "rank_1w_ago", wk4: str | None = None) -> str:
     optional=True,
     description="Sectors",
 )
-def panel_sector_compact(srank: Any, pos: Any, port: Any, sec_rot: Any = None, irank: Any = None) -> Panel:
+def panel_sector_compact(srank: Any, pos: Any, port: Any, sec_rot: Any = None, irank: Any = None) -> Panel:  # noqa: C901
     """Rotation + holdings (max 2) + sector leaders (1 pair) + industries (2 pairs) = 8 lines."""
     err = _error_panel("srank", srank, "SECTORS")
     if err is not None:
@@ -231,7 +252,7 @@ def panel_sector_compact(srank: Any, pos: Any, port: Any, sec_rot: Any = None, i
     )
 
 
-def panel_sectors_expanded(srank: Any, pos: Any, port: Any, sec_rot: Any = None, irank: Any = None) -> Panel:
+def panel_sectors_expanded(srank: Any, pos: Any, port: Any, sec_rot: Any = None, irank: Any = None) -> Panel:  # noqa: C901
     """Full-screen sectors - all sector and industry rankings, full portfolio breakdown."""
     err = _error_panel("srank", srank, "SECTORS")
     if err is not None:

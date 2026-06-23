@@ -248,7 +248,9 @@ class DataSourceRouter:
         return cast(dict[str, list[dict[str, Any]] | None], results if results else dict.fromkeys(symbols))
 
     @retry(max_attempts=2, base_delay=2.0, exceptions=(Exception,))
-    def _fetch_yfinance_ohlcv(self, symbol: str, start: date, end: date, interval: str = "1d") -> list[dict[str, Any]] | None:
+    def _fetch_yfinance_ohlcv(
+        self, symbol: str, start: date, end: date, interval: str = "1d"
+    ) -> list[dict[str, Any]] | None:
         if yf is None:
             logger.error("[yfinance] yfinance not installed")
             return None
@@ -327,7 +329,9 @@ class DataSourceRouter:
             raise
 
     @retry(max_attempts=2, base_delay=2.0, exceptions=(Exception,))
-    def _fetch_yfinance_ohlcv_batch(self, symbols: list[str], start: date, end: date, interval: str = "1d") -> dict[str, list[dict[str, Any]] | None]:
+    def _fetch_yfinance_ohlcv_batch(
+        self, symbols: list[str], start: date, end: date, interval: str = "1d"
+    ) -> dict[str, list[dict[str, Any]] | None]:
         """Batch fetch multiple symbols in one API call. Returns dict[symbol] -> rows."""
         if yf is None:
             logger.error("[yfinance] yfinance not installed")

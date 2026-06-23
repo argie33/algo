@@ -6,6 +6,8 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
+import psycopg2
+
 from utils.db import DatabaseContext
 
 logger = logging.getLogger(__name__)
@@ -36,18 +38,21 @@ class AuditManager:
             review_data: Review result dict with scores, flags, recommendation
             current_date: Current date
             cur: Database cursor
-        """
-        try:
-            audit_entry = {
-                "symbol": symbol,
-                "review_date": str(current_date),
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "health_score": review_data.get("health_score"),
-                "recommendation": review_data.get("recommendation"),
-                "flags": review_data.get("flags", {}),
-                "stop_price": review_data.get("stop_price"),
-            }
 
+        Raises:
+            RuntimeError: If audit logging fails (audit trail is critical for compliance)
+        """
+        audit_entry = {
+            "symbol": symbol,
+            "review_date": str(current_date),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "health_score": review_data.get("health_score"),
+            "recommendation": review_data.get("recommendation"),
+            "flags": review_data.get("flags", {}),
+            "stop_price": review_data.get("stop_price"),
+        }
+
+        try:
             cur.execute(
                 """
                 INSERT INTO position_monitor_audit
@@ -56,8 +61,14 @@ class AuditManager:
                 """,
                 (symbol, current_date, json.dumps(audit_entry)),
             )
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            raise RuntimeError(
+                f"CRITICAL: Audit log failed for {symbol} position review. "
+                f"Audit trail is required for compliance and risk tracking. "
+                f"Database error: {e}"
+            ) from e
         except Exception as e:
-            logger.error(f"[AUDIT] Failed to log review for {symbol}: {e}")
+            raise RuntimeError(f"CRITICAL: Audit log failed for {symbol} position review: {e}") from e
 
     def log_stop_adjustment(
         self,
@@ -77,6 +88,9 @@ class AuditManager:
             reason: Reason for adjustment
             current_date: Current date
             cur: Database cursor
+
+        Raises:
+            RuntimeError: If audit logging fails (risk management audit trail is critical)
         """
         try:
             cur.execute(
@@ -87,8 +101,15 @@ class AuditManager:
                 """,
                 (symbol, current_date, old_stop, new_stop, reason),
             )
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            raise RuntimeError(
+                f"CRITICAL: Audit log failed for {symbol} stop adjustment "
+                f"(${old_stop:.2f} -> ${new_stop:.2f}). "
+                f"Risk management requires audit trail. "
+                f"Database error: {e}"
+            ) from e
         except Exception as e:
-            logger.error(f"[AUDIT] Failed to log stop adjustment for {symbol}: {e}")
+            raise RuntimeError(f"CRITICAL: Audit log failed for {symbol} stop adjustment: {e}") from e
 
     def log_exit_recommendation(
         self,
@@ -106,9 +127,12 @@ class AuditManager:
             recommendation: Exit recommendation (HOLD, MONITOR_CLOSELY, CONSIDER_EXIT)
             current_date: Current date
             cur: Database cursor
+
+        Raises:
+            RuntimeError: If audit logging fails (exit decisions require audit trail)
         """
-        try:
-            if recommendation == "CONSIDER_EXIT":
+        if recommendation == "CONSIDER_EXIT":
+            try:
                 cur.execute(
                     """
                     INSERT INTO position_exit_recommendations
@@ -117,8 +141,16 @@ class AuditManager:
                     """,
                     (symbol, current_date, reason),
                 )
-        except Exception as e:
-            logger.error(f"[AUDIT] Failed to log exit recommendation for {symbol}: {e}")
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+                raise RuntimeError(
+                    f"CRITICAL: Audit log failed for {symbol} exit recommendation. "
+                    f"Exit decision audit trail is required. "
+                    f"Database error: {e}"
+                ) from e
+            except Exception as e:
+                raise RuntimeError(
+                    f"CRITICAL: Audit log failed for {symbol} exit recommendation: {e}"
+                ) from e
 
     def get_position_history(self, symbol: str, lookback_days: int = 30, cur: Any = None) -> list[dict[str, Any]]:
         """Retrieve recent position review history.

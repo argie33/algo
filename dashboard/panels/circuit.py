@@ -15,18 +15,39 @@ else:
         from panel_registry import register_panel
     except ImportError as e:
         logger.warning(f"Panel registry not available: {e} - panels will not auto-register")
+        from typing import TypeVar, overload
 
+        _F = TypeVar("_F", bound=Callable[..., Any])
+
+        @overload
         def register_panel(
             name: str,
             endpoint_deps: list[str],
-            render_fn: Callable[..., Any] | None = None,
+            render_fn: None = None,
             optional: bool = False,
             description: str = "",
-        ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
-            if render_fn is not None:
-                return cast(Callable[[Callable[..., Any]], Callable[..., Any]], render_fn)
+        ) -> Callable[[_F], _F]: ...
 
-            def passthrough_decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
+        @overload
+        def register_panel(
+            name: str,
+            endpoint_deps: list[str],
+            render_fn: _F,
+            optional: bool = False,
+            description: str = "",
+        ) -> _F: ...
+
+        def register_panel(  # type: ignore[misc]
+            name: str,
+            endpoint_deps: list[str],
+            render_fn: _F | None = None,
+            optional: bool = False,
+            description: str = "",
+        ) -> Callable[[_F], _F] | _F:
+            if render_fn is not None:
+                return render_fn
+
+            def passthrough_decorator(fn: _F) -> _F:
                 return fn
 
             return passthrough_decorator
@@ -229,15 +250,7 @@ def panel_circuit_expanded(cb: Any) -> Panel:
             tbl.add_row(
                 Text(
                     lbl,
-                    style=(
-                        f"bold {R}"
-                        if fired
-                        else (
-                            "white"
-                            if util_high
-                            else "dim"
-                        )
-                    ),
+                    style=(f"bold {R}" if fired else ("white" if util_high else "dim")),
                 ),
                 Text(cur_s, style=R if fired else "white"),
                 Text(thr_s, style="dim"),

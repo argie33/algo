@@ -492,7 +492,9 @@ class TradeExecutor:
 
         return True, "", None
 
-    def _process_validation_result(self, check_name: str, result: tuple[Any, ...]) -> tuple[bool, str, dict[str, Any] | None]:
+    def _process_validation_result(
+        self, check_name: str, result: tuple[Any, ...]
+    ) -> tuple[bool, str, dict[str, Any] | None]:
         """Process validation check result using strategy pattern.
 
         Delegates to handler that knows how to unpack each check type's result tuple.

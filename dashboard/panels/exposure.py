@@ -15,18 +15,39 @@ else:
         from panel_registry import register_panel
     except ImportError as e:
         logger.warning(f"Panel registry not available: {e} - panels will not auto-register")
+        from typing import TypeVar, overload
 
+        _F = TypeVar("_F", bound=Callable[..., Any])
+
+        @overload
         def register_panel(
             name: str,
             endpoint_deps: list[str],
-            render_fn: Callable[..., Any] | None = None,
+            render_fn: None = None,
             optional: bool = False,
             description: str = "",
-        ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
-            if render_fn is not None:
-                return cast(Callable[[Callable[..., Any]], Callable[..., Any]], render_fn)
+        ) -> Callable[[_F], _F]: ...
 
-            def passthrough_decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
+        @overload
+        def register_panel(
+            name: str,
+            endpoint_deps: list[str],
+            render_fn: _F,
+            optional: bool = False,
+            description: str = "",
+        ) -> _F: ...
+
+        def register_panel(  # type: ignore[misc]
+            name: str,
+            endpoint_deps: list[str],
+            render_fn: _F | None = None,
+            optional: bool = False,
+            description: str = "",
+        ) -> Callable[[_F], _F] | _F:
+            if render_fn is not None:
+                return render_fn
+
+            def passthrough_decorator(fn: _F) -> _F:
                 return fn
 
             return passthrough_decorator
@@ -60,7 +81,7 @@ _tier_formatter = TierFormatter()
     optional=True,
     description="Exposure",
 )
-def panel_exposure_compact(exp_f: Any) -> Any:
+def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
     """Exposure score breakdown - compact 2-col layout."""
     err_panel = _error_panel("exposure factors", exp_f, "EXPOSURE FACTORS", border="blue")
     if err_panel:
@@ -227,7 +248,7 @@ def panel_exposure_compact(exp_f: Any) -> Any:
     )
 
 
-def panel_exposure_expanded(exp_f: Any) -> Any:
+def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
     """Full-screen exposure score detail — all 12 factors with values, thresholds, and signal context."""
     rows: list[Text | Rule | Table] = [
         Text.from_markup("[dim]press [/][bold blue]x[/][dim] to return to dashboard[/]"),

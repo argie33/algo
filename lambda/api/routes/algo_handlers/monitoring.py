@@ -117,9 +117,13 @@ def _get_last_run(cur: cursor) -> Any:
     completed_phases = [p for p in phases if p.get("status") == "success"]
 
     if halted and halted_phases:
-        run_summary = halted_phases[0].get("summary") or f"Halted in {halted_phases[0].get('action_type', 'unknown phase')}"
+        run_summary = (
+            halted_phases[0].get("summary") or f"Halted in {halted_phases[0].get('action_type', 'unknown phase')}"
+        )
     elif errored and errored_phases:
-        run_summary = errored_phases[0].get("error") or f"Error in {errored_phases[0].get('action_type', 'unknown phase')}"
+        run_summary = (
+            errored_phases[0].get("error") or f"Error in {errored_phases[0].get('action_type', 'unknown phase')}"
+        )
     elif success:
         run_summary = f"Completed successfully ({len(completed_phases)} phases)"
     else:
@@ -147,7 +151,8 @@ def _get_notifications(
 ) -> Any:
     """Get recent notifications. System broadcasts visible to all authenticated users."""
     try:
-        params = params or {}
+        if params is None:
+            params = {}
         kind = params.get("kind", [None])[0] if params.get("kind") else None
         severity = params.get("severity", [None])[0] if params.get("severity") else None
         unread = params.get("unread", [None])[0] if params.get("unread") else None

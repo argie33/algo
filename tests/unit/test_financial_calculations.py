@@ -28,6 +28,9 @@ class TestPositionSizer:
             "risk_reduction_at_minus_10": 0.5,
             "risk_reduction_at_minus_15": 0.25,
             "risk_reduction_at_minus_20": 0.0,
+            "vix_caution_threshold": 20.0,
+            "vix_max_threshold": 30.0,
+            "vix_caution_risk_reduction": 0.5,
         }
 
     @pytest.fixture
@@ -97,11 +100,11 @@ class TestPositionSizer:
         assert max_positions > 0
 
     @patch("utils.db.DatabaseContext")
-    def test_get_portfolio_value_none_config(self, mock_db):
+    def test_get_portfolio_value_none_config(self, mock_db, config):
         """Verify portfolio value calculation with valid data."""
         from algo.trading.position_sizer import PositionSizer
 
-        sizer = PositionSizer({"base_risk_pct": 0.75})
+        sizer = PositionSizer(config)
 
         # Mock alpaca equity fetch
         with patch.object(sizer, "_fetch_live_alpaca_equity", return_value=None):

@@ -13,18 +13,39 @@ else:
         from panel_registry import register_panel
     except ImportError as e:
         logger.warning(f"Panel registry not available: {e} - panels will not auto-register")
+        from typing import TypeVar, overload
 
+        _F = TypeVar("_F", bound=Callable[..., Any])
+
+        @overload
         def register_panel(
             name: str,
             endpoint_deps: list[str],
-            render_fn: Callable[..., Any] | None = None,
+            render_fn: None = None,
             optional: bool = False,
             description: str = "",
-        ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
-            if render_fn is not None:
-                return cast(Callable[[Callable[..., Any]], Callable[..., Any]], render_fn)
+        ) -> Callable[[_F], _F]: ...
 
-            def passthrough_decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
+        @overload
+        def register_panel(
+            name: str,
+            endpoint_deps: list[str],
+            render_fn: _F,
+            optional: bool = False,
+            description: str = "",
+        ) -> _F: ...
+
+        def register_panel(  # type: ignore[misc]
+            name: str,
+            endpoint_deps: list[str],
+            render_fn: _F | None = None,
+            optional: bool = False,
+            description: str = "",
+        ) -> Callable[[_F], _F] | _F:
+            if render_fn is not None:
+                return render_fn
+
+            def passthrough_decorator(fn: _F) -> _F:
                 return fn
 
             return passthrough_decorator
@@ -261,7 +282,9 @@ def _build_funnel_row(sig_eval_data: dict[str, Any] | None) -> list[Text]:
     return rows
 
 
-def _build_buy_signals_table(scored_with_signals: list[Any], buy_sig_details: dict[str, Any]) -> list[Text | Table | Rule]:
+def _build_buy_signals_table(
+    scored_with_signals: list[Any], buy_sig_details: dict[str, Any]
+) -> list[Text | Table | Rule]:
     """Build active buy signals table section.
 
     Validates input is list and dict before accessing fields.

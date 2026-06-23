@@ -23,8 +23,8 @@ __all__ = [
     "Phase5Contract",
     "Phase6Contract",
     "PositionRecommendation",
-    "validate_dependency_executed",
     "extract_required_data",
+    "validate_dependency_executed",
 ]
 
 

@@ -333,7 +333,9 @@ class SignalPatternsMixin:
 
         return cast(dict[str, Any], self._with_cursor(_classify_with_cursor))
 
-    def base_type_stop(self, symbol: str, eval_date: Any, entry_price: float, atr: float | None = None) -> dict[str, Any]:
+    def base_type_stop(
+        self, symbol: str, eval_date: Any, entry_price: float, atr: float | None = None
+    ) -> dict[str, Any]:
         """Compute optimal stop loss based on the SPECIFIC base type detected.
 
         Different chart bases have proven-optimal stop placements per the canon:

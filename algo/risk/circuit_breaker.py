@@ -795,7 +795,9 @@ class CircuitBreaker:
         try:
             max_sector_val = self.config.get("max_positions_per_sector")
             if max_sector_val is None:
-                logger.error("CRITICAL: max_positions_per_sector config missing. Cannot enforce sector concentration limits.")
+                logger.error(
+                    "CRITICAL: max_positions_per_sector config missing. Cannot enforce sector concentration limits."
+                )
                 return {"halted": True, "reason": "CRITICAL: max_positions_per_sector config missing"}
             max_sector_positions = int(max_sector_val)
 
