@@ -1795,7 +1795,14 @@ class PriceLoader(OptimalLoader):
 
             if dedup and self.primary_key:
                 for row in rows:
-                    key = ":".join(str(row.get(c, "")) for c in self.primary_key)
+                    # Fail-fast if primary key columns missing (dedup key would be invalid)
+                    for col in self.primary_key:
+                        if col not in row or row[col] is None:
+                            raise ValueError(
+                                f"Row missing required primary key column '{col}' - "
+                                f"deduplication requires all primary key columns to be present"
+                            )
+                    key = ":".join(str(row[c]) for c in self.primary_key)
                     dedup.add(key)
 
             self._stats["rows_inserted"] += inserted

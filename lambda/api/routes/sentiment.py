@@ -175,7 +175,9 @@ def handle(
             is_valid, error_msg = ResponseValidator.validate_endpoint_response("sentiment", divergence_result)
             if not is_valid:
                 logger.error(f"Endpoint response validation failed: {error_msg}")
-                return error_response(500, "response_validation_error", error_msg or "Sentiment divergence validation failed")
+                return error_response(
+                    500, "response_validation_error", error_msg or "Sentiment divergence validation failed"
+                )
             return divergence_result
         elif path.startswith("/api/sentiment/analyst/insights/"):
             symbol = path.split("/api/sentiment/analyst/insights/")[-1].upper()
@@ -262,7 +264,9 @@ def handle(
             is_valid, error_msg = ResponseValidator.validate_endpoint_response("sentiment", analyst_result)
             if not is_valid:
                 logger.error(f"Endpoint response validation failed: {error_msg}")
-                return error_response(500, "response_validation_error", error_msg or "Analyst sentiment validation failed")
+                return error_response(
+                    500, "response_validation_error", error_msg or "Analyst sentiment validation failed"
+                )
             return json_response(200, analyst_result)
         elif path.startswith("/api/sentiment/social/insights/"):
             symbol = path.split("/api/sentiment/social/insights/")[-1].upper()
@@ -345,7 +349,9 @@ def handle(
             is_valid, error_msg = ResponseValidator.validate_endpoint_response("sentiment", social_result)
             if not is_valid:
                 logger.error(f"Endpoint response validation failed: {error_msg}")
-                return error_response(500, "response_validation_error", error_msg or "Social sentiment validation failed")
+                return error_response(
+                    500, "response_validation_error", error_msg or "Social sentiment validation failed"
+                )
             return json_response(200, social_result)
         elif path == "/api/sentiment/vix":
             return _get_vix_data(cur)
@@ -377,7 +383,9 @@ def handle(
                 is_valid, error_msg = ResponseValidator.validate_endpoint_response("sentiment", default_result)
                 if not is_valid:
                     logger.error(f"Endpoint response validation failed: {error_msg}")
-                    return error_response(500, "response_validation_error", error_msg or "Default sentiment validation failed")
+                    return error_response(
+                        500, "response_validation_error", error_msg or "Default sentiment validation failed"
+                    )
                 return json_response(200, default_result)
             return error_response(503, "no_data", "Sentiment data not available")
         return error_response(404, "not_found", f"No sentiment handler for {path}")

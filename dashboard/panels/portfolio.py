@@ -82,8 +82,8 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
     if err_panel:
         return err_panel
 
-    pv = safe_float(port["total_portfolio_value"], default=0.0)
-    cash = safe_float(port["total_cash"], default=0.0)
+    pv = safe_float(port["total_portfolio_value"], default=None)
+    cash = safe_float(port["total_cash"], default=None)
     npos = safe_int(port["position_count"], default=0)
     dr = safe_float(port.get("daily_return_pct"), default=None)
     urp = safe_float(port.get("unrealized_pnl_pct"), default=None)
@@ -94,8 +94,9 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
     max_n = safe_int(cfg.get("max_pos_n") if cfg else None, default=0)
     snap_s = f"  [dim]{fmt_age(snap)}[/]" if snap is not None else ""
 
-    # Header: portfolio value + age
-    header = Text.from_markup(f"[bold white]{fmt_money(pv)}[/]{snap_s}")
+    # Header: portfolio value + age. CRITICAL: Must show error if pv is None
+    pv_display = fmt_money(pv) if pv is not None else "[red]DATA UNAVAILABLE[/]"
+    header = Text.from_markup(f"[bold white]{pv_display}[/]{snap_s}")
 
     # 2-column grid — keeps labels from wrapping
     def cell(label, value_markup):
@@ -105,7 +106,8 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
     tbl.add_column("left", ratio=1)
     tbl.add_column("right", ratio=1)
 
-    # Cash / Positions
+    # Cash / Positions. CRITICAL: Must show error if cash is None
+    cash_display = fmt_money(cash) if cash is not None else "[red]DATA UNAVAILABLE[/]"
     if npos is not None:
         if max_n:
             _sb = mini_bar(npos, max_n, w=4)
@@ -115,7 +117,7 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
     else:
         pos_val = "[dim]--[/]"
     tbl.add_row(
-        cell("Cash:", f"[white]{fmt_money(cash)}[/]"),
+        cell("Cash:", f"[white]{cash_display}[/]"),
         cell("Positions:", pos_val),
     )
 
@@ -136,12 +138,13 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
 
     # Largest position
     if lgpos is not None:
-        lgpos_f = safe_float(lgpos, default=0.0)
-        lp_c = R if lgpos_f >= 20 else (Y if lgpos_f >= 15 else "white")
-        tbl.add_row(
-            cell("Largest Position:", f"[{lp_c}]{lgpos_f:.1f}%[/]"),
-            Text(""),
-        )
+        lgpos_f = safe_float(lgpos, default=None)
+        if lgpos_f is not None:
+            lp_c = R if lgpos_f >= 20 else (Y if lgpos_f >= 15 else "white")
+            tbl.add_row(
+                cell("Largest Position:", f"[{lp_c}]{lgpos_f:.1f}%[/]"),
+                Text(""),
+            )
 
     # Risk metrics (VaR, CVaR, Beta, concentration, Stressed VaR)
     # CRITICAL: Do NOT default NULL risk metrics to 0.0 — that hides missing data!

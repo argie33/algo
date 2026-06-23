@@ -773,7 +773,9 @@ class MarketExposure:
         if not vix_row or vix_row[0] is None:
             # Fallback to market_health_daily if ^VIX missing
             cur.execute(
-                "SELECT vix_level FROM market_health_daily WHERE date <= %s AND vix_level IS NOT NULL ORDER BY date DESC LIMIT 1",
+                """SELECT vix_level FROM market_health_daily
+                   WHERE date <= %s AND vix_level IS NOT NULL
+                   ORDER BY date DESC LIMIT 1""",
                 (eval_date,),
             )
             r2 = cur.fetchone()
@@ -1288,6 +1290,14 @@ class MarketExposure:
 
     def _persist(self, eval_date, result):
         try:
+            # Validate required fields FIRST (fail-fast, before using them)
+            if "distribution_days" not in result:
+                raise ValueError("Market exposure result missing required 'distribution_days' field")
+            if "factors" not in result or not isinstance(result["factors"], dict):
+                raise ValueError("Market exposure result missing or invalid 'factors' field")
+            if "halt_reasons" not in result or not isinstance(result["halt_reasons"], list):
+                raise ValueError("Market exposure result missing or invalid 'halt_reasons' field")
+
             # Determine tier from regime
             regime = result.get("regime")
             if not regime:
@@ -1309,8 +1319,8 @@ class MarketExposure:
             else:
                 tier = "tier_4_correction"
 
-            # Can enter if no halt reasons
-            is_entry_allowed = len(result.get("halt_reasons", [])) == 0
+            # Can enter if no halt reasons (now safe because validated above)
+            is_entry_allowed = len(result["halt_reasons"]) == 0
 
             # Map exposure score to long/short allocations
             exposure_pct = result["exposure_pct"]
@@ -1320,14 +1330,6 @@ class MarketExposure:
             else:
                 long_exp = 0
                 short_exp = abs(exposure_pct)
-
-            # Validate required fields for database persistence
-            if "distribution_days" not in result:
-                raise ValueError("Market exposure result missing required 'distribution_days' field")
-            if "factors" not in result or not isinstance(result["factors"], dict):
-                raise ValueError("Market exposure result missing or invalid 'factors' field")
-            if "halt_reasons" not in result or not isinstance(result["halt_reasons"], list):
-                raise ValueError("Market exposure result missing or invalid 'halt_reasons' field")
 
             factors_json = json.dumps(result["factors"])
             halt_reasons_json = json.dumps(result["halt_reasons"])
@@ -1368,7 +1370,9 @@ class MarketExposure:
                     ),
                 )
             logger.info(
-                f"persist market_exposure OK for {eval_date}: {exposure_pct}% exposure ({tier}), entry_allowed={is_entry_allowed}"
+                f"persist market_exposure OK for {eval_date}: "
+                f"{exposure_pct}% exposure ({tier}), "
+                f"entry_allowed={is_entry_allowed}"
             )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.error(f"persist market_exposure failed for {eval_date}: {e}", exc_info=True)
@@ -1409,7 +1413,8 @@ def read_market_regime(eval_date: _date) -> dict:
             row = cur.fetchone()
             if row is None:
                 logger.warning(
-                    f"[MARKET REGIME] No market_exposure_daily data on or before {eval_date} — halting entries (fail-closed)"
+                    f"[MARKET REGIME] No market_exposure_daily data on or "
+                    f"before {eval_date} — halting entries (fail-closed)"
                 )
                 return {
                     "is_entry_allowed": False,
@@ -1433,7 +1438,8 @@ def read_market_regime(eval_date: _date) -> dict:
             # Validate exposure_pct is not NULL — critical for position sizing
             if exposure_pct is None:
                 logger.critical(
-                    f"[MARKET REGIME] market_exposure_daily for {eval_date} has NULL exposure_pct — halting entries (fail-closed)"
+                    f"[MARKET REGIME] market_exposure_daily for {eval_date} "
+                    f"has NULL exposure_pct — halting entries (fail-closed)"
                 )
                 return {
                     "is_entry_allowed": False,

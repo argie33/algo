@@ -180,8 +180,11 @@ def handle(
                     COALESCE(cp.industry, 'Unknown') AS industry,
                     vm.market_cap,
                     lp.current_price,
-                    (lp.current_price IS NULL OR s52.high_52w IS NULL OR s52.low_52w IS NULL) AS _is_fallback,
-                    (qm.symbol IS NULL OR (qm.roe IS NULL AND qm.operating_margin IS NULL AND qm.net_margin IS NULL)) AS _financial_data_unavailable,
+                    (lp.current_price IS NULL OR s52.high_52w IS NULL
+                     OR s52.low_52w IS NULL) AS _is_fallback,
+                    (qm.symbol IS NULL OR (qm.roe IS NULL
+                     AND qm.operating_margin IS NULL
+                     AND qm.net_margin IS NULL)) AS _financial_data_unavailable,
                     ROUND((
                         sc.value_score * 0.5 +
                         sc.quality_score * 0.3 +
@@ -205,17 +208,25 @@ def handle(
                     s52.high_52w AS high_52w,
                     s52.low_52w AS low_52w,
                     NULL::numeric AS high_3y,
-                    ROUND(((s52.high_52w - lp.current_price) / NULLIF(s52.high_52w, 0) * 100)::numeric, 2) AS drop_from_52w_high_pct,
+                    ROUND(((s52.high_52w - lp.current_price)
+                           / NULLIF(s52.high_52w, 0)
+                           * 100)::numeric, 2) AS drop_from_52w_high_pct,
                     NULL::numeric AS drop_from_3y_high_pct,
                     sm.sector_median_pe AS sector_median_pe,
                     mm.market_median_pe AS market_median_pe,
-                    ROUND(((sm.sector_median_pe - vm.pe_ratio) / NULLIF(sm.sector_median_pe, 0) * 100)::numeric, 2) AS discount_vs_sector_pe_pct,
-                    ROUND(((mm.market_median_pe - vm.pe_ratio) / NULLIF(mm.market_median_pe, 0) * 100)::numeric, 2) AS discount_vs_market_pe_pct,
+                    ROUND(((sm.sector_median_pe - vm.pe_ratio)
+                           / NULLIF(sm.sector_median_pe, 0) * 100)::numeric,
+                          2) AS discount_vs_sector_pe_pct,
+                    ROUND(((mm.market_median_pe - vm.pe_ratio)
+                           / NULLIF(mm.market_median_pe, 0) * 100)::numeric,
+                          2) AS discount_vs_market_pe_pct,
                     ROUND((lp.current_price / NULLIF(vm.pb_ratio, 0))::numeric, 2) AS intrinsic_value_per_share,
                     ROUND(gm.revenue_growth_3y::numeric, 2) AS revenue_growth_3y_pct,
                     ROUND(gm.eps_growth_3y::numeric, 2) AS eps_growth_3y_pct,
                     ROUND(gm.revenue_growth_1y::numeric, 2) AS revenue_growth_yoy_pct,
-                    ROUND(((fg.fcf_cur - fg.fcf_pri) / NULLIF(ABS(fg.fcf_pri), 0) * 100)::numeric, 2) AS fcf_growth_yoy_pct,
+                    ROUND(((fg.fcf_cur - fg.fcf_pri)
+                           / NULLIF(ABS(fg.fcf_pri), 0) * 100)::numeric,
+                          2) AS fcf_growth_yoy_pct,
                     NULL::numeric AS sustainable_growth_pct,
                     ROUND((md.op_margin_cur - md.op_margin_pri)::numeric, 2) AS op_margin_trend_pp,
                     ROUND((md.gross_margin_cur - md.gross_margin_pri)::numeric, 2) AS gross_margin_trend_pp,
@@ -257,13 +268,17 @@ def handle(
                     is_valid, error_msg = ResponseValidator.validate_endpoint_response("stocks", deep_value_result)
                     if not is_valid:
                         logger.error(f"Endpoint response validation failed: {error_msg}")
-                        return error_response(500, "response_validation_error", error_msg or "Deep value validation failed")
+                        return error_response(
+                            500, "response_validation_error", error_msg or "Deep value validation failed"
+                        )
                     return deep_value_result
                 empty_result = list_response([])
                 is_valid, error_msg = ResponseValidator.validate_endpoint_response("stocks", empty_result)
                 if not is_valid:
                     logger.error(f"Endpoint response validation failed: {error_msg}")
-                    return error_response(500, "response_validation_error", error_msg or "Stocks list validation failed")
+                    return error_response(
+                        500, "response_validation_error", error_msg or "Stocks list validation failed"
+                    )
                 return empty_result
             except (
                 psycopg2.errors.UndefinedTable,

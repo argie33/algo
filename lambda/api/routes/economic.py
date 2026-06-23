@@ -384,7 +384,9 @@ def _get_leading_indicators(cur: cursor) -> dict[str, Any]:
         is_valid, error_msg = ResponseValidator.validate_endpoint_response("economic/indicators", result)
         if not is_valid:
             logger.error(f"Economic indicators response validation failed: {error_msg}")
-            return error_response(500, "response_validation_error", error_msg or "Economic indicators validation failed")
+            return error_response(
+                500, "response_validation_error", error_msg or "Economic indicators validation failed"
+            )
 
         return json_response(200, result)
 
@@ -409,10 +411,15 @@ def _get_yield_curve_full(cur: cursor) -> dict[str, Any]:
         cur.execute("""
                 WITH latest AS (
                     SELECT series_id, date, value,
-                           ROW_NUMBER() OVER (PARTITION BY series_id ORDER BY date DESC) as rn
+                           ROW_NUMBER() OVER (PARTITION BY series_id
+                                              ORDER BY date DESC) as rn
                     FROM economic_data
-                    WHERE series_id IN ('DGS3MO', 'DGS6MO', 'DGS1', 'DGS2', 'DGS3', 'DGS5', 'DGS7', 'DGS10', 'DGS20', 'DGS30', 'T10Y3M', 'T10Y2Y',
-                                       'BAMLH0A0HYM2', 'BAMLC0A0CM', 'VIXCLS', 'T5YIE', 'T10YIE', 'STLFSI4', 'ANFCI')
+                    WHERE series_id IN (
+                        'DGS3MO', 'DGS6MO', 'DGS1', 'DGS2', 'DGS3',
+                        'DGS5', 'DGS7', 'DGS10', 'DGS20', 'DGS30',
+                        'T10Y3M', 'T10Y2Y', 'BAMLH0A0HYM2', 'BAMLC0A0CM',
+                        'VIXCLS', 'T5YIE', 'T10YIE', 'STLFSI4', 'ANFCI'
+                    )
                 )
                 SELECT series_id, date, value
                 FROM latest
@@ -424,7 +431,10 @@ def _get_yield_curve_full(cur: cursor) -> dict[str, Any]:
                 SELECT series_id, date, value
                 FROM economic_data
                 WHERE date >= CURRENT_DATE - INTERVAL '24 months'
-                AND series_id IN ('T10Y2Y', 'BAMLH0A0HYM2', 'BAMLC0A0CM', 'VIXCLS', 'T5YIE', 'T10YIE', 'STLFSI4', 'ANFCI')
+                AND series_id IN (
+                    'T10Y2Y', 'BAMLH0A0HYM2', 'BAMLC0A0CM', 'VIXCLS',
+                    'T5YIE', 'T10YIE', 'STLFSI4', 'ANFCI'
+                )
                 ORDER BY series_id, date
             """)
         history_rows = cur.fetchall()

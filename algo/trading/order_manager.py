@@ -267,8 +267,12 @@ class OrderManager:
                     except (requests.RequestException, requests.Timeout) as e:
                         raise RuntimeError(f"Operation failed: {e}") from e
                     filled_qty = data.get("filled_qty")
-                    if filled_qty is not None:
-                        return int(filled_qty)
+                    if filled_qty is None:
+                        logger.error(
+                            f"[ORDER_MANAGER] Alpaca response missing 'filled_qty' for order {alpaca_order_id}"
+                        )
+                        raise ValueError(f"Order {alpaca_order_id}: Alpaca response missing filled_qty (required)")
+                    return int(filled_qty)
                 else:
                     if attempt < max_retries - 1:
                         wait_time = 2**attempt
@@ -313,7 +317,11 @@ class OrderManager:
                         error_msg = f"Order status response is invalid JSON for {alpaca_order_id}: {e}. Response text: {resp.text[:200]}"
                         logger.error(error_msg)
                         raise ValueError(error_msg) from e
-                    return cast(str | None, data.get("status"))
+                    status = data.get("status")
+                    if status is None:
+                        logger.error(f"[ORDER_MANAGER] Alpaca response missing 'status' for order {alpaca_order_id}")
+                        raise ValueError(f"Order {alpaca_order_id}: Alpaca response missing status field (required)")
+                    return cast(str, status)
                 else:
                     if attempt < max_retries - 1:
                         wait_time = 2**attempt

@@ -5,7 +5,7 @@ import time
 from collections.abc import Callable
 from datetime import date, datetime, timezone
 from functools import wraps
-from typing import Any, NoReturn
+from typing import Any, NoReturn, cast
 
 import psycopg2
 import psycopg2.errors
@@ -301,7 +301,7 @@ def error_response(code: int, typ: str, msg: str | None) -> dict[str, Any]:
 
     msg = sanitize_error_message(msg or "")
 
-    return {"statusCode": code, "errorType": typ, "message": msg, "_error": msg}
+    return cast(dict[str, Any], {"statusCode": code, "errorType": typ, "message": msg, "_error": msg})
 
 
 def raise_db_error(error: Exception, context: str = "database operation") -> NoReturn:
@@ -447,7 +447,7 @@ def execute_with_timeout(
     timeout_sec: int = 10,
     max_attempts: int = 2,
     backoff_multiplier: float = 1.5,
-) -> Any:
+) -> list[Any]:
     """Execute query with automatic timeout handling and exponential backoff retry.
 
     ALL database queries should use this wrapper to prevent hanging queries.

@@ -209,7 +209,10 @@ class MarketFactorCalculator:
             )
             row = cur.fetchone()
             if row:
-                dist = int(row[0]) or 0
+                # Fail-fast if data missing (don't silently convert None to 0)
+                if row[0] is None:
+                    raise ValueError("Selling pressure: distribution days count is NULL in database (missing data)")
+                dist = int(row[0])
                 # 0-2 = 100, 3-4 = 60, 5+ = 20
                 score = 100.0 if dist <= 2 else (60.0 if dist <= 4 else 20.0)
                 return {"heavy_down_days": dist, "count": dist, "score": score}

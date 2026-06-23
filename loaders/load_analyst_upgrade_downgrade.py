@@ -52,14 +52,21 @@ class AnalystRatingsLoader(OptimalLoader):
             results = []
             for idx, row in upgrades_downgrades.iterrows():
                 ud_date = idx.date() if hasattr(idx, "date") else idx
+                # Fail-fast if critical analyst rating fields missing
+                for field in ["Firm", "To Grade", "Action"]:
+                    if field not in row or (isinstance(row[field], float) and pd.isna(row[field])):
+                        raise ValueError(
+                            f"Analyst upgrade/downgrade record for {symbol} missing required field '{field}' - "
+                            f"cannot proceed without complete analyst data"
+                        )
                 results.append(
                     {
                         "symbol": symbol,
                         "action_date": ud_date,
-                        "firm": row.get("Firm", ""),
-                        "new_rating": row.get("To Grade", ""),
-                        "old_rating": row.get("From Grade"),
-                        "action": row.get("Action", ""),
+                        "firm": str(row["Firm"]).strip(),
+                        "new_rating": str(row["To Grade"]).strip(),
+                        "old_rating": str(row.get("From Grade", "")).strip() or None,
+                        "action": str(row["Action"]).strip(),
                     }
                 )
 

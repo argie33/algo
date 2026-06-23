@@ -49,12 +49,18 @@ class NewHighsLowsFactor(MarketFactorStrategy):
             if not row:
                 raise ValueError("New highs/lows factor: no breadth data available")
 
-            nh = int(row[0] or 0)
-            nl = int(row[1] or 0)
+            # Fail-fast if data missing (don't silently convert None to 0)
+            if row[0] is None:
+                raise ValueError("New highs/lows factor: new_highs_count is NULL in database (missing data)")
+            if row[1] is None:
+                raise ValueError("New highs/lows factor: new_lows_count is NULL in database (missing data)")
+
+            nh = int(row[0])
+            nl = int(row[1])
             total = nh + nl
 
             if total == 0:
-                raise ValueError("New highs/lows factor: no new highs or new lows data")
+                raise ValueError("New highs/lows factor: both new_highs and new_lows are zero (no breadth change)")
 
             nh_pct = nh * 100.0 / total
             net = nh - nl

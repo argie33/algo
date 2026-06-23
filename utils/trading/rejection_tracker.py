@@ -39,13 +39,31 @@ class RejectionTracker:
         def _log_rejection(cur):
             rejected_at_tier = None
             for tier in [1, 2, 3, 4, 5]:
-                if not (tier_results.get(tier) or {}).get("pass", False):
+                # Fail-fast if tier result missing (don't silently treat as rejected)
+                tier_result = tier_results.get(tier)
+                if tier_result is None:
+                    raise ValueError(f"Tier {tier} result missing from tier_results - cannot determine pass/fail status")
+                if not tier_result.get("pass", False):
                     rejected_at_tier = tier
                     break
 
             rejection_reason = ""
             if rejected_at_tier:
-                rejection_reason = (tier_results.get(rejected_at_tier) or {}).get("reason", "Unknown")
+                tier_result = tier_results.get(rejected_at_tier)
+                if tier_result is None:
+                    rejection_reason = "TIER_RESULT_MISSING"
+                else:
+                    rejection_reason = tier_result.get("reason", "Unknown")
+
+            # Extract tier results explicitly (fail-fast if missing)
+            tier_pass = {}
+            tier_reason = {}
+            for tier in [1, 2, 3, 4, 5]:
+                result = tier_results.get(tier)
+                if result is None:
+                    raise ValueError(f"Tier {tier} result missing - cannot extract pass/reason")
+                tier_pass[tier] = result.get("pass", False)
+                tier_reason[tier] = result.get("reason", "")
 
             cur.execute(
                 """
@@ -62,15 +80,15 @@ class RejectionTracker:
                     entry_price,
                     rejected_at_tier,
                     rejection_reason,
-                    (tier_results.get(1) or {}).get("pass", False),
-                    (tier_results.get(2) or {}).get("pass", False),
-                    (tier_results.get(2) or {}).get("reason", ""),
-                    (tier_results.get(3) or {}).get("pass", False),
-                    (tier_results.get(3) or {}).get("reason", ""),
-                    (tier_results.get(4) or {}).get("pass", False),
-                    (tier_results.get(4) or {}).get("reason", ""),
-                    (tier_results.get(5) or {}).get("pass", False),
-                    (tier_results.get(5) or {}).get("reason", ""),
+                    tier_pass[1],
+                    tier_pass[2],
+                    tier_reason[2],
+                    tier_pass[3],
+                    tier_reason[3],
+                    tier_pass[4],
+                    tier_reason[4],
+                    tier_pass[5],
+                    tier_reason[5],
                     advanced_results.get("reason", "") if advanced_results else None,
                 ),
             )

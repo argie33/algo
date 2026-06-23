@@ -197,8 +197,7 @@ class CashFlowLoader(OptimalLoader):
         fy = row.get("fiscal_year")
         if not (fy and 1990 < fy < 2100):
             raise ValueError(
-                f"Cash flow row has invalid fiscal_year={fy}: {row}. "
-                f"Fiscal year must be between 1990 and 2100."
+                f"Cash flow row has invalid fiscal_year={fy}: {row}. Fiscal year must be between 1990 and 2100."
             )
 
         if self.period == "quarterly" and row.get("fiscal_quarter") is None:
