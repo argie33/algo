@@ -186,7 +186,9 @@ class DailyReconciliation:
                 if pending_result["pending_count"] > 0:
                     logger.info("\n1b3. Pending Reconciliations:")
                     logger.info(f"   {pending_result['message']}")
-                    if pending_result.get("stuck_count", 0) > 0:
+                    from dashboard.data_validation import safe_int
+                    stuck_count = safe_int(pending_result.get("stuck_count"), default=0)
+                    if stuck_count > 0:
                         pending_list = pending_result.get("pending")
                         if pending_list is None:
                             raise RuntimeError(

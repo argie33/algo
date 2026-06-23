@@ -1662,11 +1662,11 @@ def _build_results_panel(  # noqa: C901
     var95_b = risk_dict_b.get("var95") if risk_dict_b else None
     if risk_dict_b and var95_b is not None and float(var95_b) > 0:
         right_rows.append(Rule(style="dim"))
-        var95_val_e = var95_b
-        beta_val_e = risk_dict_b.get("beta")
-        conc5_val_e = risk_dict_b.get("conc5")
-        cvar95_val_e = risk_dict_b.get("cvar95")
-        svar_val_e = risk_dict_b.get("svar")
+        var95_val_e = safe_float(var95_b, default=None)
+        beta_val_e = safe_float(risk_dict_b.get("beta"), default=None)
+        conc5_val_e = safe_float(risk_dict_b.get("conc5"), default=None)
+        cvar95_val_e = safe_float(risk_dict_b.get("cvar95"), default=None)
+        svar_val_e = safe_float(risk_dict_b.get("svar"), default=None)
         beta_c = (
             R
             if beta_val_e is not None and beta_val_e >= 1.2
@@ -1677,7 +1677,7 @@ def _build_results_panel(  # noqa: C901
             if conc5_val_e is not None and conc5_val_e >= 35
             else (Y if conc5_val_e is not None and conc5_val_e >= 25 else "white")
         )
-        var_c = R if var95_val_e >= 4 else (Y if var95_val_e >= 2 else "white")
+        var_c = R if var95_val_e is not None and var95_val_e >= 4 else (Y if var95_val_e is not None and var95_val_e >= 2 else "white")
         risk_parts_e = [
             f"[dim]VaR95:[/][{var_c}]{var95_val_e:.2f}%[/]",
         ]
@@ -1687,8 +1687,8 @@ def _build_results_panel(  # noqa: C901
             risk_parts_e.append(f"[dim]Beta:[/][{beta_c}]{beta_val_e:.2f}[/]")
         if conc5_val_e is not None:
             risk_parts_e.append(f"[dim]Top5:[/][{conc_c}]{conc5_val_e:.0f}%[/]")
-        if svar_val_e and float(svar_val_e) > 0:
-            risk_parts_e.append(f"[dim]StressVaR:[/][{R}]{float(svar_val_e):.2f}%[/]")
+        if svar_val_e is not None and svar_val_e > 0:
+            risk_parts_e.append(f"[dim]StressVaR:[/][{R}]{svar_val_e:.2f}%[/]")
         right_rows.append(Text.from_markup("  ".join(risk_parts_e)))
 
     valid_notifs = safe_get_list(notifs)

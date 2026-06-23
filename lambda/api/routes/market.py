@@ -301,13 +301,19 @@ def _handle_top_movers(cur: cursor) -> Any:
         _rollback_savepoint(cur, "top_movers")
 
     items = [safe_json_serialize(dict(m)) for m in movers] if movers else []
-    valid_items = [m for m in items if m.get("pct_change") is not None]
+    from dashboard.data_validation import safe_float
+    valid_items = []
+    for m in items:
+        pct_val = safe_float(m.get("pct_change"), default=None)
+        if pct_val is not None:
+            m["pct_change"] = pct_val
+            valid_items.append(m)
     gainers = sorted(
-        [m for m in valid_items if m.get("pct_change") >= 0],
-        key=lambda x: -(x["pct_change"]),
+        [m for m in valid_items if m["pct_change"] >= 0],
+        key=lambda x: -x["pct_change"],
     )[:10]
     losers = sorted(
-        [m for m in valid_items if m.get("pct_change") < 0],
+        [m for m in valid_items if m["pct_change"] < 0],
         key=lambda x: x["pct_change"],
     )[:10]
     return json_response(200, {"gainers": gainers or [], "losers": losers or [], "items": items})
@@ -403,16 +409,17 @@ def _handle_seasonality(cur: cursor) -> Any:
             ORDER BY month
         """)
         monthly_rows = cur.fetchall()
+        from dashboard.data_validation import safe_float
         for r in monthly_rows:
             r_dict = dict(r)
             monthly_data.append(r_dict)
-            avg_ret = r_dict.get("avg_return")
+            avg_ret = safe_float(r_dict.get("avg_return"), default=None)
             if avg_ret is not None:
-                if not best_month or (best_month.get("avg_return") is None or avg_ret > best_month.get("avg_return")):
+                best_ret = safe_float(best_month.get("avg_return"), default=None) if best_month else None
+                worst_ret = safe_float(worst_month.get("avg_return"), default=None) if worst_month else None
+                if best_ret is None or avg_ret > best_ret:
                     best_month = r_dict
-                if not worst_month or (
-                    worst_month.get("avg_return") is None or avg_ret < worst_month.get("avg_return")
-                ):
+                if worst_ret is None or avg_ret < worst_ret:
                     worst_month = r_dict
     except psycopg2.errors.QueryCanceled as e:
         logger.error(f"[SEASONALITY] Monthly query timeout: {type(e).__name__}")
@@ -434,11 +441,13 @@ def _handle_seasonality(cur: cursor) -> Any:
         for r in dow_rows:
             r_dict = dict(r)
             dow_data.append(r_dict)
-            avg_ret = r_dict.get("avg_return")
+            avg_ret = safe_float(r_dict.get("avg_return"), default=None)
             if avg_ret is not None:
-                if not best_dow or (best_dow.get("avg_return") is None or avg_ret > best_dow.get("avg_return")):
+                best_ret = safe_float(best_dow.get("avg_return"), default=None) if best_dow else None
+                worst_ret = safe_float(worst_dow.get("avg_return"), default=None) if worst_dow else None
+                if best_ret is None or avg_ret > best_ret:
                     best_dow = r_dict
-                if not worst_dow or (worst_dow.get("avg_return") is None or avg_ret < worst_dow.get("avg_return")):
+                if worst_ret is None or avg_ret < worst_ret:
                     worst_dow = r_dict
     except psycopg2.errors.QueryCanceled as e:
         logger.error(f"[SEASONALITY] DOW query timeout: {type(e).__name__}")

@@ -67,7 +67,9 @@ def _handle_basic(cur: cursor) -> Any:
     has_critical = False
 
     # C-4 FIX: Report API route import failures in health check
-    if import_status.get("failed_routes", 0) > 0:
+    from dashboard.data_validation import safe_int
+    failed_routes = safe_int(import_status.get("failed_routes"), default=0)
+    if failed_routes > 0:
         health["api_route_imports"] = {
             "status": "degraded",
             "failed_count": import_status["failed_routes"],

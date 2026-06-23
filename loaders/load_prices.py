@@ -1579,7 +1579,9 @@ class PriceLoader(OptimalLoader):
                             "interval": self.interval,
                         },
                     )
-                    if self._stats.get("rate_limit_error_duration_sec", 0) > 0:
+                    from dashboard.data_validation import safe_float
+                    rate_limit_duration = safe_float(self._stats.get("rate_limit_error_duration_sec"), default=0)
+                    if rate_limit_duration > 0:
                         m.add_metric(
                             "RateLimitErrorDuration",
                             self._stats["rate_limit_error_duration_sec"],

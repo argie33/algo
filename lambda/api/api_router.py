@@ -191,8 +191,12 @@ def _wrap_response(response: Any) -> Any:
     # Errors are returned as-is (already include errorType and _error)
     if response.get("errorType"):
         return response
-    if response.get("statusCode", 200) >= 400:
-        return response
+    status_code = response.get("statusCode", 200)
+    try:
+        if int(status_code) >= 400:
+            return response
+    except (ValueError, TypeError):
+        pass
 
     # Fix double-nested data issue: if data contains only a 'data' field (or data + extra fields), unwrap it
     if response.get("statusCode") == 200 and "data" in response:

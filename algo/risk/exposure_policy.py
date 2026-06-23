@@ -243,7 +243,8 @@ class ExposurePolicy:
         r_mult = ((cur_price_float - entry_price) / risk_per_share) if risk_per_share > 0 else 0
 
         # 1. CORRECTION TIER + force_exit_negative_r: cut losers
-        if tier.get("force_exit_negative_r") and r_mult < 0:
+        force_exit_neg = tier.get("force_exit_negative_r", False)
+        if force_exit_neg and r_mult < 0:
             return {
                 "trade_id": trade_id,
                 "symbol": symbol,
