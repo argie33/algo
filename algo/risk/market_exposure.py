@@ -56,6 +56,8 @@ Output:
 Persists daily to market_exposure_daily table for dashboard / audit.
 """
 
+from __future__ import annotations
+
 import json
 import logging
 from collections.abc import Callable
