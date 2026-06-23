@@ -44,6 +44,8 @@ class MarketFactorCalculator:
 
         Linear scale: 20% = 0 pts, 50% = 50 pts, 80% = 100 pts
         Uses most recent available date on or before eval_date (technical_data_daily may lag prices).
+
+        Raises: RuntimeError if breadth data missing (required for market exposure calculation)
         """
         try:
             cur.execute(
@@ -67,19 +69,9 @@ class MarketFactorCalculator:
                 score = (pct - 20) / 0.6 if pct >= 20 else 0
                 score = min(100, max(0, score))
                 return {"value": pct, "score": score}
-            logger.warning(
-                "[breadth_%ddma] No data in technical_data_daily on or before %s; using neutral score 50",
-                ma_days,
-                eval_date,
-            )
-            return {"value": None, "score": 50.0}
+            raise RuntimeError(f"No breadth data in technical_data_daily on or before {eval_date} (SMA {ma_days} day)")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.warning(
-                "[breadth_%ddma] Query failed (table may be missing): %s; using neutral score 50",
-                ma_days,
-                e,
-            )
-            return {"value": None, "score": 50.0}
+            raise RuntimeError(f"Breadth {ma_days}-day MA query failed: {e}") from e
 
     def _vix_score(self, vix: float, rising: bool, term_structure: float | None = None) -> tuple[float, dict[str, Any]]:
         """Score VIX level and term structure.
@@ -251,7 +243,10 @@ class MarketFactorCalculator:
             raise RuntimeError(f"VIX regime calculation failed: {e}") from e
 
     def put_call_ratio(self, eval_date: Any, cur: Any) -> dict[str, Any]:
-        """Put/call ratio (contrarian indicator)."""
+        """Put/call ratio (contrarian indicator).
+
+        Raises: RuntimeError if data missing (required for market exposure calculation)
+        """
         try:
             cur.execute("SAVEPOINT sp_put_call")
             cur.execute(
@@ -261,11 +256,7 @@ class MarketFactorCalculator:
             row = cur.fetchone()
             cur.execute("RELEASE SAVEPOINT sp_put_call")
             if not row or row[0] is None:
-                logger.warning(
-                    "[put_call_ratio] No data in options_daily for %s; using neutral score 50",
-                    eval_date,
-                )
-                return {"put_call_ratio": None, "score": 50.0}
+                raise RuntimeError(f"No put/call ratio data in options_daily for {eval_date}")
             pcr = float(row[0])
             score = max(0, min(100, (pcr - 0.7) * 100))
             return {"put_call_ratio": round(pcr, 2), "score": score}
@@ -275,14 +266,13 @@ class MarketFactorCalculator:
                 cur.execute("RELEASE SAVEPOINT sp_put_call")
             except Exception:
                 pass
-            logger.warning(
-                "[put_call_ratio] Query failed (table may be missing): %s; using neutral score 50",
-                e,
-            )
-            return {"put_call_ratio": None, "score": 50.0}
+            raise RuntimeError(f"Put/call ratio query failed: {e}") from e
 
     def new_highs_lows(self, eval_date: Any, cur: Any) -> dict[str, Any]:
-        """52-week new highs vs new lows."""
+        """52-week new highs vs new lows.
+
+        Raises: RuntimeError if data missing (required for market exposure calculation)
+        """
         try:
             cur.execute("SAVEPOINT sp_nhnl")
             cur.execute(
@@ -294,15 +284,12 @@ class MarketFactorCalculator:
             )
             row = cur.fetchone()
             cur.execute("RELEASE SAVEPOINT sp_nhnl")
-            if row and row[0] and row[1]:
-                nh_val = int(row[0])
-                nl_val = int(row[1])
-                nh = nh_val if nh_val is not None else 0
-                nl = nl_val if nl_val is not None else 0
+            if row and row[0] is not None and row[1] is not None:
+                nh = int(row[0])
+                nl = int(row[1])
                 total = nh + nl
                 if total > 0:
                     nh_pct = nh * 100 / total
-                    # NH% > 80 = 100, 50-80 = 70, 20-50 = 30, < 20 = 0
                     score = 100.0 if nh_pct > 80 else (70.0 if nh_pct > 50 else (30.0 if nh_pct > 20 else 0.0))
                     return {
                         "new_highs": nh,
@@ -310,25 +297,20 @@ class MarketFactorCalculator:
                         "nh_pct": round(nh_pct, 1),
                         "score": score,
                     }
-            logger.warning(
-                "[new_highs_lows] No data in market_breadth for %s; using neutral score 50",
-                eval_date,
-            )
-            return {"new_highs": None, "new_lows": None, "score": 50.0}
+            raise RuntimeError(f"No new highs/lows data in market_breadth for {eval_date}")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             try:
                 cur.execute("ROLLBACK TO SAVEPOINT sp_nhnl")
                 cur.execute("RELEASE SAVEPOINT sp_nhnl")
             except Exception:
                 pass
-            logger.warning(
-                "[new_highs_lows] Query failed (table may be missing): %s; using neutral score 50",
-                e,
-            )
-            return {"new_highs": None, "new_lows": None, "score": 50.0}
+            raise RuntimeError(f"New highs/lows query failed: {e}") from e
 
     def ad_line(self, eval_date: Any, cur: Any) -> dict[str, Any]:
-        """Advance/decline line vs SPY."""
+        """Advance/decline line vs SPY.
+
+        Raises: RuntimeError if data missing (required for market exposure calculation)
+        """
         try:
             cur.execute("SAVEPOINT sp_ad_line")
             cur.execute(
@@ -342,29 +324,24 @@ class MarketFactorCalculator:
             )
             row = cur.fetchone()
             cur.execute("RELEASE SAVEPOINT sp_ad_line")
-            if row and row[0]:
+            if row is not None and row[0] is not None:
                 direction = row[0]
                 score = 100.0 if direction == "up" else 0.0
                 return {"direction": direction, "score": score}
-            logger.warning(
-                "[ad_line] No data in ad_line_daily for %s; using neutral score 50",
-                eval_date,
-            )
-            return {"direction": None, "score": 50.0}
+            raise RuntimeError(f"No advance/decline line data in ad_line_daily on or before {eval_date}")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             try:
                 cur.execute("ROLLBACK TO SAVEPOINT sp_ad_line")
                 cur.execute("RELEASE SAVEPOINT sp_ad_line")
             except Exception:
                 pass
-            logger.warning(
-                "[ad_line] Query failed (table may be missing): %s; using neutral score 50",
-                e,
-            )
-            return {"direction": None, "score": 50.0}
+            raise RuntimeError(f"Advance/decline line query failed: {e}") from e
 
     def credit_spread(self, eval_date: Any, cur: Any) -> dict[str, Any]:
-        """High-yield credit spread (HY OAS)."""
+        """High-yield credit spread (HY OAS).
+
+        Raises: RuntimeError if data missing (required for market exposure calculation)
+        """
         try:
             cur.execute("SAVEPOINT sp_credit")
             cur.execute(
@@ -373,30 +350,24 @@ class MarketFactorCalculator:
             )
             row = cur.fetchone()
             cur.execute("RELEASE SAVEPOINT sp_credit")
-            if row and row[0]:
+            if row is not None and row[0] is not None:
                 oas = float(row[0])
-                # Higher OAS = higher stress = lower score. 300bps = 100, 500bps = 0
                 score = max(0, min(100, 100 - (oas - 300) / 2))
                 return {"hy_oas": round(oas, 0), "score": score}
-            logger.warning(
-                "[credit_spread] No data in credit_spreads for %s; using neutral score 50",
-                eval_date,
-            )
-            return {"hy_oas": None, "score": 50.0}
+            raise RuntimeError(f"No HY OAS data in credit_spreads on or before {eval_date}")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             try:
                 cur.execute("ROLLBACK TO SAVEPOINT sp_credit")
                 cur.execute("RELEASE SAVEPOINT sp_credit")
             except Exception:
                 pass
-            logger.warning(
-                "[credit_spread] Query failed (table may be missing): %s; using neutral score 50",
-                e,
-            )
-            return {"hy_oas": None, "score": 50.0}
+            raise RuntimeError(f"Credit spread query failed: {e}") from e
 
     def aaii(self, eval_date: Any, cur: Any) -> dict[str, Any]:
-        """AAII sentiment (contrarian at extremes only)."""
+        """AAII sentiment (contrarian at extremes only).
+
+        Raises: RuntimeError if data missing (required for market exposure calculation)
+        """
         try:
             cur.execute("SAVEPOINT sp_aaii")
             cur.execute(
@@ -405,11 +376,10 @@ class MarketFactorCalculator:
             )
             row = cur.fetchone()
             cur.execute("RELEASE SAVEPOINT sp_aaii")
-            if row and row[0] and row[1]:
+            if row and row[0] is not None and row[1] is not None:
                 bull = float(row[0])
                 bear = float(row[1])
                 spread = bull - bear
-                # Contrarian: spread > 15 or < -15 = extreme = 100, neutral = 0
                 score = min(100, max(0, (abs(spread) - 15) * 5))
                 return {
                     "bullish": round(bull, 1),
@@ -417,22 +387,14 @@ class MarketFactorCalculator:
                     "spread": round(spread, 1),
                     "score": score,
                 }
-            logger.warning(
-                "[aaii] No data in aaii_sentiment for %s; using neutral score 0",
-                eval_date,
-            )
-            return {"bullish": None, "bearish": None, "score": 0.0}
+            raise RuntimeError(f"No AAII sentiment data on or before {eval_date}")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             try:
                 cur.execute("ROLLBACK TO SAVEPOINT sp_aaii")
                 cur.execute("RELEASE SAVEPOINT sp_aaii")
             except Exception:
                 pass
-            logger.warning(
-                "[aaii] Query failed (table may be missing): %s; using neutral score 0",
-                e,
-            )
-            return {"bullish": None, "bearish": None, "score": 0.0}
+            raise RuntimeError(f"AAII sentiment query failed: {e}") from e
 
     def naaim(self, eval_date: Any, cur: Any) -> dict[str, Any]:
         """NAAIM exposure (contrarian positioning). Uses most recent weekly reading."""
@@ -444,24 +406,15 @@ class MarketFactorCalculator:
             )
             row = cur.fetchone()
             cur.execute("RELEASE SAVEPOINT sp_naaim")
-            if row and row[0]:
+            if row is not None and row[0] is not None:
                 exp = float(row[0])
-                # NAAIM scale: > 80 = greed = lower score, < 30 = fear = higher score
                 score = min(100, max(0, 100 - exp / 2))
                 return {"exposure": round(exp, 1), "score": score}
-            logger.warning(
-                "[naaim] No data in naaim on or before %s; using neutral score 50",
-                eval_date,
-            )
-            return {"exposure": None, "score": 50.0}
+            raise RuntimeError(f"No NAAIM data on or before {eval_date}")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             try:
                 cur.execute("ROLLBACK TO SAVEPOINT sp_naaim")
                 cur.execute("RELEASE SAVEPOINT sp_naaim")
             except Exception:
                 pass
-            logger.warning(
-                "[naaim] Query failed (table may be missing): %s; using neutral score 50",
-                e,
-            )
-            return {"exposure": None, "score": 50.0}
+            raise RuntimeError(f"NAAIM query failed: {e}") from e
