@@ -366,7 +366,13 @@ def _unwrap_api_response(response: dict[str, Any]) -> dict[str, Any]:
     # Extract the data field (endpoints wrap payloads in 'data' via _wrap_response)
     # This is the only field that contains actual application data
     if "data" in response:
-        payload = cast(dict[str, Any], response["data"])
+        data_field = response["data"]
+        # Only treat as payload if it's actually a dict; otherwise it's malformed
+        if isinstance(data_field, dict):
+            payload = cast(dict[str, Any], data_field)
+        else:
+            # Data field is malformed (string, list, etc) - mark as error
+            payload = {"_error": f"Response data field is {type(data_field).__name__}, expected dict"}
     else:
         # Fallback for error responses that have no 'data' field
         # Keep statusCode but remove other metadata markers
@@ -374,5 +380,6 @@ def _unwrap_api_response(response: dict[str, Any]) -> dict[str, Any]:
 
     # Preserve statusCode at top level so callers can distinguish errors from success
     result: dict[str, Any] = {"statusCode": status_code}
-    result.update(payload)
+    if isinstance(payload, dict):
+        result.update(payload)
     return result

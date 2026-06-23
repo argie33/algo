@@ -101,6 +101,62 @@ def test_data_fetcher_error_detection():
     print("[OK] Error detection via statusCode works")
 
 
+class TestUnwrapWithMalformedData:
+    """Test that _unwrap_api_response handles corrupted data gracefully."""
+
+    def test_statuscode_as_string(self):
+        """If statusCode is string instead of int, should still preserve it."""
+        response = {"statusCode": "200"}  # String instead of int
+        unwrapped = _unwrap_api_response(response)
+        assert unwrapped["statusCode"] == "200", "statusCode should be preserved as-is"
+
+    def test_data_as_string_instead_of_dict(self):
+        """If data is string instead of dict, update() should handle gracefully."""
+        response = {"statusCode": 200, "data": "corrupted_string"}
+        # Should not crash - just return what's passed
+        result = _unwrap_api_response(response)
+        assert result is not None
+
+    def test_items_as_string_instead_of_list(self):
+        """If items is string instead of list, len() downstream might fail."""
+        response = {"statusCode": 200, "items": "not_a_list"}
+        unwrapped = _unwrap_api_response(response)
+        assert unwrapped["items"] == "not_a_list", "Should preserve malformed items"
+
+    def test_nested_dict_is_string(self):
+        """If nested dict is string, accessing its fields crashes."""
+        response = {
+            "statusCode": 200,
+            "data": {"portfolio": "not_a_dict"}
+        }
+        unwrapped = _unwrap_api_response(response)
+        # This preserves the malformed structure
+        # Downstream code should handle or this should be caught earlier
+        assert unwrapped["portfolio"] == "not_a_dict"
+
+    def test_pagination_missing(self):
+        """If pagination is missing from response, should handle gracefully."""
+        response = {
+            "statusCode": 200,
+            "items": [{"id": 1}],
+            # Missing "pagination"
+        }
+        unwrapped = _unwrap_api_response(response)
+        assert "pagination" not in unwrapped or unwrapped.get("pagination") is None
+
+    def test_response_not_dict(self):
+        """If response itself is not a dict, should return as-is."""
+        response = "not_a_dict"  # type: ignore
+        result = _unwrap_api_response(response)  # type: ignore
+        assert result == "not_a_dict"
+
+    def test_response_is_none(self):
+        """If response is None, should handle gracefully."""
+        response = None  # type: ignore
+        result = _unwrap_api_response(response)  # type: ignore
+        assert result is None
+
+
 if __name__ == "__main__":
     try:
         test_unwrap_single_object_response()
@@ -109,6 +165,17 @@ if __name__ == "__main__":
         test_unwrap_preserves_metadata()
         test_unwrap_empty_response()
         test_data_fetcher_error_detection()
+
+        # Test malformed data scenarios
+        malformed_tests = TestUnwrapWithMalformedData()
+        malformed_tests.test_statuscode_as_string()
+        malformed_tests.test_data_as_string_instead_of_dict()
+        malformed_tests.test_items_as_string_instead_of_list()
+        malformed_tests.test_nested_dict_is_string()
+        malformed_tests.test_pagination_missing()
+        malformed_tests.test_response_not_dict()
+        malformed_tests.test_response_is_none()
+
         print("\n[PASS] All tests passed! Issue 1.1 response consistency fix verified.")
         sys.exit(0)
     except AssertionError as e:
