@@ -43,6 +43,7 @@ class MarketFactorCalculator:
         """Calculate % of stocks trading above N-day MA.
 
         Linear scale: 20% = 0 pts, 50% = 50 pts, 80% = 100 pts
+        Uses most recent available date on or before eval_date (technical_data_daily may lag prices).
         """
         try:
             cur.execute(
@@ -51,22 +52,34 @@ class MarketFactorCalculator:
                     SUM(CASE WHEN close > sma_{ma_days} THEN 1 ELSE 0 END) * 100.0 / COUNT(*)
                     as pct_above
                 FROM technical_data_daily
-                WHERE date = %s AND sma_{ma_days} IS NOT NULL
+                WHERE date = (
+                    SELECT MAX(date) FROM technical_data_daily
+                    WHERE date <= %s AND sma_{ma_days} IS NOT NULL
+                )
+                AND sma_{ma_days} IS NOT NULL
                 """,
                 (eval_date,),
             )
             row = cur.fetchone()
             if row and row[0] is not None:
                 pct = float(row[0])
-                if pct is None:
-                    raise ValueError(f"Breadth percentage is not numeric: {row[0]}")
                 # Linear: 20% → 0, 50% → 50, 80% → 100
                 score = (pct - 20) / 0.6 if pct >= 20 else 0
                 score = min(100, max(0, score))
                 return {"value": pct, "score": score}
-            raise RuntimeError("No breadth data available for calculation")
+            logger.warning(
+                "[breadth_%ddma] No data in technical_data_daily on or before %s; using neutral score 50",
+                ma_days,
+                eval_date,
+            )
+            return {"value": None, "score": 50.0}
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            raise RuntimeError(f"Breadth calculation failed: {e}") from e
+            logger.warning(
+                "[breadth_%ddma] Query failed (table may be missing): %s; using neutral score 50",
+                ma_days,
+                e,
+            )
+            return {"value": None, "score": 50.0}
 
     def _vix_score(self, vix: float, rising: bool, term_structure: float | None = None) -> tuple[float, dict[str, Any]]:
         """Score VIX level and term structure.
@@ -248,9 +261,11 @@ class MarketFactorCalculator:
             row = cur.fetchone()
             cur.execute("RELEASE SAVEPOINT sp_put_call")
             if not row or row[0] is None:
-                raise RuntimeError(
-                    f"Put/call ratio data unavailable for {eval_date} — cannot proceed with incomplete market context"
+                logger.warning(
+                    "[put_call_ratio] No data in options_daily for %s; using neutral score 50",
+                    eval_date,
                 )
+                return {"put_call_ratio": None, "score": 50.0}
             pcr = float(row[0])
             score = max(0, min(100, (pcr - 0.7) * 100))
             return {"put_call_ratio": round(pcr, 2), "score": score}
@@ -260,7 +275,11 @@ class MarketFactorCalculator:
                 cur.execute("RELEASE SAVEPOINT sp_put_call")
             except Exception:
                 pass
-            raise RuntimeError(f"Put/call ratio calculation failed: {e}") from e
+            logger.warning(
+                "[put_call_ratio] Query failed (table may be missing): %s; using neutral score 50",
+                e,
+            )
+            return {"put_call_ratio": None, "score": 50.0}
 
     def new_highs_lows(self, eval_date: Any, cur: Any) -> dict[str, Any]:
         """52-week new highs vs new lows."""

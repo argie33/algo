@@ -120,7 +120,7 @@ def main() -> int:
         return 0
 
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-        logger.error(f"Market exposure loader failed: {e}", exc_info=True)
+        logger.error(f"Market exposure loader failed (database error): {e}", exc_info=True)
         try:
             with DatabaseContext("write") as cur:
                 cur.execute(
@@ -129,6 +129,17 @@ def main() -> int:
                 )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as db_err:
             logger.error(f"Failed to update loader status: {db_err}")
+        return 1
+    except Exception as e:
+        logger.error(f"Market exposure loader failed ({type(e).__name__}): {e}", exc_info=True)
+        try:
+            with DatabaseContext("write") as cur:
+                cur.execute(
+                    "UPDATE data_loader_status SET status = %s, last_updated = NOW(), error_message = %s WHERE table_name = %s",
+                    ("FAILED", f"{type(e).__name__}: {str(e)[:180]}", table_name),
+                )
+        except Exception:
+            pass
         return 1
 
 
