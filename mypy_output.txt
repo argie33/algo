@@ -1,0 +1,5 @@
+monitoring\metrics_context.py:108: error: "bool" is invalid as return type for "__exit__" that always returns False  [exit-return]
+monitoring\metrics_context.py:108: note: Use "typing.Literal[False]" as the return type or change it to "None"
+monitoring\metrics_context.py:108: note: If return type of "__exit__" implies that it may return True, the context manager may swallow exceptions
+pyproject.toml: note: unused section(s): module = ['dashboard.dashboard', 'dashboard.panels.portfolio', 'utils.decorators', 'utils.infrastructure.timeout', 'utils.loaders.helpers']
+Found 1 error in 1 file (checked 5 source files)

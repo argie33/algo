@@ -88,7 +88,7 @@ class Orchestrator:
         except RuntimeError as e:
             if self.dry_run:
                 logger.warning(f"[ALERTS] No alert channels configured — using null alerts for dry-run: {e}")
-                self.alerts = NullAlertManager()  # type: ignore[assignment]
+                self.alerts = NullAlertManager()
             else:
                 raise
 
@@ -883,7 +883,7 @@ class Orchestrator:
             from algo.reporting import MetricsPublisher
 
             with MetricsPublisher(dry_run=self.dry_run) as m:
-                m.put_orchestrator_result(result["success"], self.phase_results)
+                m.put_orchestrator_result(bool(result["success"]), {str(k): v for k, v in self.phase_results.items()})
 
                 # Signal count from phase 5 summary
                 if 5 in self.phase_results:

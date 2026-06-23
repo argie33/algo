@@ -54,7 +54,7 @@ _GLOBAL_YFINANCE_LIMITER = None
 _GLOBAL_LIMITER_LOCK = threading.Lock()
 
 
-def get_global_yfinance_limiter():
+def get_global_yfinance_limiter() -> RateLimiter:
     """Get or create the global yfinance rate limiter (shared across all loaders).
 
     Uses 30 calls/min (2s interval) to conservatively throttle requests and prevent
@@ -121,13 +121,13 @@ class SourceHealth:
                     self.name,
                     self.success_rate * 100,
                     error,
-                )
+                )  # noqa: E501
 
 
 class DataSourceRouter:
     """Routes data fetches across providers with fallback + health tracking."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._health: dict[str, SourceHealth] = {}
         self._lock = threading.Lock()
         self.last_source: str | None = None
@@ -144,7 +144,7 @@ class DataSourceRouter:
 
     def _try_chain(
         self,
-        sources: list[tuple],  # [(name, callable), ...]
+        sources: list[tuple[str, Callable[[], Any]]],
         request_desc: str,
     ) -> Any | None:
         """Try sources in order, skipping paused ones, recording outcomes.
@@ -447,7 +447,7 @@ class DataSourceRouter:
 
     # ============== FUNDAMENTALS ==============
 
-    def fetch_balance_sheet(self, symbol: str, period: str = "annual"):
+    def fetch_balance_sheet(self, symbol: str, period: str = "annual") -> Any | None:
         """Balance sheet rows. SEC EDGAR primary (free, official)."""
         sources = [
             ("sec_edgar", lambda: self._sec_balance_sheet(symbol, period)),
@@ -455,37 +455,37 @@ class DataSourceRouter:
         ]
         return self._try_chain(sources, f"BalanceSheet[{symbol} {period}]")
 
-    def fetch_income_statement(self, symbol: str, period: str = "annual"):
+    def fetch_income_statement(self, symbol: str, period: str = "annual") -> Any | None:
         sources = [
             ("sec_edgar", lambda: self._sec_income(symbol, period)),
             ("yfinance", lambda: self._yf_income(symbol, period)),
         ]
         return self._try_chain(sources, f"Income[{symbol} {period}]")
 
-    def fetch_cash_flow(self, symbol: str, period: str = "annual"):
+    def fetch_cash_flow(self, symbol: str, period: str = "annual") -> Any | None:
         sources = [
             ("sec_edgar", lambda: self._sec_cash_flow(symbol, period)),
             ("yfinance", lambda: self._yf_cash_flow(symbol, period)),
         ]
         return self._try_chain(sources, f"CashFlow[{symbol} {period}]")
 
-    def _sec_client(self):
+    def _sec_client(self) -> Any:
         if self._sec is None:
             from utils.external import SecEdgarClient
 
             self._sec = SecEdgarClient()
         return self._sec
 
-    def _sec_balance_sheet(self, symbol: str, period: str):
+    def _sec_balance_sheet(self, symbol: str, period: str) -> Any:
         return self._sec_client().get_balance_sheet(symbol, period)
 
-    def _sec_income(self, symbol: str, period: str):
+    def _sec_income(self, symbol: str, period: str) -> Any:
         return self._sec_client().get_income_statement(symbol, period)
 
-    def _sec_cash_flow(self, symbol: str, period: str):
+    def _sec_cash_flow(self, symbol: str, period: str) -> Any:
         return self._sec_client().get_cash_flow(symbol, period)
 
-    def _yf_balance_sheet(self, symbol: str, period: str):
+    def _yf_balance_sheet(self, symbol: str, period: str) -> Any:
         try:
             from utils.external import get_ticker
 
@@ -503,11 +503,11 @@ class DataSourceRouter:
         except TimeoutError as e:
             raise TimeoutError(f"yfinance balance_sheet timeout for {symbol}") from e
 
-    def _yf_income(self, symbol: str, period: str):
+    def _yf_income(self, symbol: str, period: str) -> Any:
         try:
             from utils.external import get_ticker
 
-            def fetch():
+            def fetch() -> Any:
                 # Use wrapper's get_ticker to ensure rate-limited access
                 ticker = get_ticker(symbol)
                 if not ticker:
@@ -521,11 +521,11 @@ class DataSourceRouter:
         except TimeoutError as e:
             raise TimeoutError(f"yfinance income_stmt timeout for {symbol}") from e
 
-    def _yf_cash_flow(self, symbol: str, period: str):
+    def _yf_cash_flow(self, symbol: str, period: str) -> Any:
         try:
             from utils.external import get_ticker
 
-            def fetch():
+            def fetch() -> Any:
                 # Use wrapper's get_ticker to ensure rate-limited access
                 ticker = get_ticker(symbol)
                 if not ticker:
@@ -541,14 +541,14 @@ class DataSourceRouter:
 
     # ============== EARNINGS ==============
 
-    def fetch_earnings(self, symbol: str):
+    def fetch_earnings(self, symbol: str) -> Any | None:
         sources = [
             ("yfinance", lambda: self._yf_earnings(symbol)),
             ("sec_edgar", lambda: self._sec_eps(symbol)),
         ]
         return self._try_chain(sources, f"Earnings[{symbol}]")
 
-    def _yf_earnings(self, symbol: str):
+    def _yf_earnings(self, symbol: str) -> Any:
         try:
             from utils.external import get_ticker
 

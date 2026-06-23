@@ -95,11 +95,13 @@ class AlpacaBrokerAdapter(BrokerAdapter):
     def fetch_portfolio_history(self) -> list[float]:
         """Fetch historical portfolio equity values from Alpaca REST API.
 
-        Returns list of equity values (oldest first), or empty list if unavailable.
+        Returns list of equity values (oldest first).
+        Raises ValueError if credentials missing or fetch fails (fail-fast).
         """
         if not self.alpaca_sync.alpaca_key or not self.alpaca_sync.alpaca_secret:
-            logger.debug("No Alpaca credentials available for portfolio history fetch")
-            return []
+            raise ValueError(
+                "CRITICAL: Alpaca credentials missing. Cannot fetch portfolio history without valid API credentials."
+            )
 
         try:
             resp = requests.get(
@@ -117,8 +119,13 @@ class AlpacaBrokerAdapter(BrokerAdapter):
                     equity_list = data.get("equity")
                     if equity_list:
                         return [float(val) for val in equity_list]
-            logger.debug(f"Alpaca portfolio history unavailable (HTTP {resp.status_code})")
-            return []
+                raise ValueError(
+                    f"Alpaca portfolio history API returned invalid response: missing 'equity' field. "
+                    f"Response keys: {list(data.keys())}"
+                )
+            raise ValueError(
+                f"Alpaca portfolio history fetch failed with HTTP {resp.status_code}: {resp.text[:150]}"
+            )
         except (
             requests.RequestException,
             requests.Timeout,
@@ -126,8 +133,7 @@ class AlpacaBrokerAdapter(BrokerAdapter):
             KeyError,
             TypeError,
         ) as e:
-            logger.debug(f"Could not fetch Alpaca portfolio history: {e}")
-            return []
+            raise ValueError(f"Cannot fetch Alpaca portfolio history: {e}") from e
 
     def fetch_closed_orders(self, since=None) -> list[dict]:
         """Fetch closed/filled orders from Alpaca REST API.
@@ -137,10 +143,13 @@ class AlpacaBrokerAdapter(BrokerAdapter):
 
         Returns:
             List of order dicts from Alpaca API
+
+        Raises ValueError if fetch fails (fail-fast, no silent fallback to empty list).
         """
         if not self.alpaca_sync.alpaca_key or not self.alpaca_sync.alpaca_secret:
-            logger.debug("No Alpaca credentials available for closed orders fetch")
-            return []
+            raise ValueError(
+                "CRITICAL: Alpaca credentials missing. Cannot fetch closed orders without valid API credentials."
+            )
 
         try:
             url = f"{self.alpaca_sync.alpaca_base_url}/v2/orders"
@@ -159,21 +168,30 @@ class AlpacaBrokerAdapter(BrokerAdapter):
             )
             if resp.status_code == 200:
                 orders = resp.json()
-                return orders if isinstance(orders, list) else []
-            logger.debug(f"Alpaca closed orders fetch returned HTTP {resp.status_code}")
-            return []
+                if not isinstance(orders, list):
+                    raise ValueError(
+                        f"Alpaca API returned non-list response for closed orders: {type(orders).__name__}"
+                    )
+                return orders
+            raise ValueError(
+                f"Alpaca closed orders fetch failed with HTTP {resp.status_code}: {resp.text[:150]}"
+            )
         except (requests.RequestException, requests.Timeout, ValueError, KeyError) as e:
-            logger.debug(f"Could not fetch Alpaca closed orders: {e}")
-            return []
+            raise ValueError(f"Cannot fetch Alpaca closed orders: {e}") from e
 
     def fetch_initial_capital(self) -> float | None:
         """Fetch initial portfolio equity from Alpaca portfolio history.
 
         Returns:
-            Initial capital (first equity value), or None if unavailable
+            Initial capital (first equity value), or None if history is empty
+
+        Raises ValueError if portfolio history fetch fails (fail-fast).
         """
-        history = self.fetch_portfolio_history()
-        if history:
-            return float(history[0])
-        logger.debug("No Alpaca portfolio history available to determine initial capital")
-        return None
+        try:
+            history = self.fetch_portfolio_history()
+            if history:
+                return float(history[0])
+            logger.warning("Alpaca portfolio history is empty — cannot determine initial capital")
+            return None
+        except ValueError as e:
+            raise ValueError(f"Cannot determine initial capital: {e}") from e

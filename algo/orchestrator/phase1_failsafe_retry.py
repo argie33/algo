@@ -233,7 +233,7 @@ def retry_loader(loader_name: str, symbols_missing: int, is_critical: bool) -> d
             # Monitor loader status
             recovered, final_pct, status_reason = monitor_loader_retry(loader_name, RETRY_MONITOR_TIMEOUT_SECONDS)
             result["recovered"] = recovered
-            result["final_completion_pct"] = final_pct  # type: ignore[assignment]
+            result["final_completion_pct"] = final_pct
             result["status_reason"] = status_reason
 
     except (RuntimeError, ValueError, TimeoutError) as e:

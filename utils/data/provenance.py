@@ -51,9 +51,9 @@ class DataProvenanceTracker:
         self,
         loader_name: str,
         table_name: str,
-        db_conn=None,  # Deprecated: kept for backwards compatibility, no longer used
+        db_conn: Any = None,  # Deprecated: kept for backwards compatibility, no longer used
         in_memory: bool = False,
-    ):
+    ) -> None:
         """
         Args:
             loader_name: Name of the loader (e.g., 'loadpricedaily')
@@ -73,7 +73,7 @@ class DataProvenanceTracker:
     def start_run(
         self,
         source_api: str = "unknown",
-        parameters: dict | None = None,
+        parameters: dict[str, Any] | None = None,
     ) -> str:
         """
         Start a new loader run. Returns run_id (UUID).
@@ -188,8 +188,8 @@ class DataProvenanceTracker:
     def end_run(
         self,
         success: bool,
-        summary: dict | None = None,
-    ):
+        summary: dict[str, Any] | None = None,
+    ) -> None:
         """
         Mark the run as complete.
 
@@ -276,8 +276,8 @@ class DataProvenanceTracker:
     def _insert_loader_run(
         self,
         source_api: str,
-        parameters: dict | None,
-    ):
+        parameters: dict[str, Any] | None,
+    ) -> None:
         """Insert the loader run record."""
         try:
             with DatabaseContext("write") as cur:
@@ -300,7 +300,7 @@ class DataProvenanceTracker:
         except (json.JSONDecodeError, ValueError) as e:
             logger.error(f"Failed to insert loader run: {e}", exc_info=True)
 
-    def _insert_provenance_record(self, record: dict):
+    def _insert_provenance_record(self, record: dict[str, Any]) -> None:
         """Insert a provenance record for a tick."""
         try:
             with DatabaseContext("write") as cur:
@@ -329,7 +329,7 @@ class DataProvenanceTracker:
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.error(f"Failed to insert provenance record for {record.get('symbol')}: {e}")
 
-    def _insert_error_record(self, error_record: dict):
+    def _insert_error_record(self, error_record: dict[str, Any]) -> None:
         """Insert an error record."""
         try:
             with DatabaseContext("write") as cur:
@@ -356,8 +356,8 @@ class DataProvenanceTracker:
         self,
         success: bool,
         duration_seconds: float,
-        summary: dict | None,
-    ):
+        summary: dict[str, Any] | None,
+    ) -> None:
         """Mark the loader run as complete."""
         if not self.run_id:
             return

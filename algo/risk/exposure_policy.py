@@ -345,7 +345,9 @@ if __name__ == "__main__":
     actions = p.review_existing_positions()
     logger.info(f"\n\nPosition Review: {len(actions)} actions recommended")
     for a in actions:
-        logger.info(f"  {a['symbol']:6s} → {a['action'].upper():15s}  R={a.get('r_multiple', 0):+.2f}  {a['reason']}")
+        r_multiple = a.get('r_multiple')
+        r_display = f"{r_multiple:+.2f}" if r_multiple is not None else "MISSING"
+        logger.info(f"  {a['symbol']:6s} → {a['action'].upper():15s}  R={r_display}  {a['reason']}")
         if a.get("new_stop"):
             logger.info(f"            new_stop=${a['new_stop']:.2f}")
 

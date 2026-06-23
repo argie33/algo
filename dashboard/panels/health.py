@@ -39,7 +39,7 @@ class HealthFormatter:
             return R, "✗"
 
     @staticmethod
-    def fmt_age(r: dict) -> str:
+    def fmt_age(r: dict[str, Any]) -> str:
         """Format age from health item dict."""
         from dashboard.data_validation import safe_float
 
@@ -54,7 +54,7 @@ class HealthFormatter:
         return "?"
 
     @staticmethod
-    def fmt_updated(r: dict) -> str:
+    def fmt_updated(r: dict[str, Any]) -> str:
         """Format last_updated/latest timestamp from health item dict."""
         lat = r.get("last_updated") or r.get("latest")
         if lat is not None and hasattr(lat, "strftime"):
@@ -64,7 +64,7 @@ class HealthFormatter:
         return str(lat or "")[:5]
 
     @staticmethod
-    def pc(v) -> int:
+    def pc(v: list[Any] | int) -> int:
         """Count phases: convert list or int to count."""
         if isinstance(v, list):
             return len(v)
@@ -160,7 +160,7 @@ PHASE_DATA_KEYS = (
 )
 
 
-def _build_freshness_panel(hlth_items: list, ready_to_trade: bool | None) -> Panel:
+def _build_freshness_panel(hlth_items: list[Any], ready_to_trade: bool | None) -> Panel:
     """Build LEFT panel: data freshness table with status summary.
 
     Args:
@@ -256,7 +256,7 @@ def _build_freshness_panel(hlth_items: list, ready_to_trade: bool | None) -> Pan
     )
 
 
-def panel_orch(run, cfg, risk=None):
+def panel_orch(run: dict[str, Any] | None, cfg: dict[str, Any], risk: dict[str, Any] | None = None) -> Panel:
     if _error_panel("config", cfg, "ORCHESTRATION"):
         return _error_panel("config", cfg, "ORCHESTRATION")
 
@@ -390,7 +390,7 @@ def panel_orch(run, cfg, risk=None):
     return Panel(body, title="[bold cyan]ORCHESTRATOR[/]", border_style="cyan", padding=(0, 1))
 
 
-def _format_exec_history_summary(exec_hist: list) -> list[Text]:
+def _format_exec_history_summary(exec_hist: list[Any]) -> list[Text]:
     """Format last N runs summary (used in panel_status and panel_algo_health)."""
     rows: list[Text] = []
     valid_hist = safe_get_list(exec_hist)
@@ -438,7 +438,7 @@ def _format_exec_history_summary(exec_hist: list) -> list[Text]:
     return rows
 
 
-def _format_recent_trade_events(act: dict) -> list[Text]:
+def _format_recent_trade_events(act: dict[str, Any]) -> list[Text]:
     """Format recent trade events (entry/exit/order)."""
     rows: list[Text] = []
     act_valid = act and not has_error(act)
@@ -479,7 +479,7 @@ def _format_recent_trade_events(act: dict) -> list[Text]:
     return rows
 
 
-def _format_data_health_summary(hlth_items: list) -> list[Text]:
+def _format_data_health_summary(hlth_items: list[Any]) -> list[Text]:
     """Format data health section (stale tables only)."""
     rows: list[Text] = []
     if not hlth_items:
@@ -521,7 +521,7 @@ def _format_data_health_summary(hlth_items: list) -> list[Text]:
     return rows
 
 
-def _format_loader_status(loader: list) -> list[Text]:
+def _format_loader_status(loader: list[Any]) -> list[Text]:
     """Format data loader status section."""
     rows: list[Text] = []
     valid_loader = safe_get_list(loader) or []
@@ -553,7 +553,7 @@ def _format_loader_status(loader: list) -> list[Text]:
     return rows
 
 
-def _format_notifications_summary(notifs: list) -> list[Text]:
+def _format_notifications_summary(notifs: list[Any]) -> list[Text]:
     """Format notifications section."""
     rows: list[Text] = []
     valid_notifs = safe_get_list(notifs)
@@ -572,7 +572,7 @@ def _format_notifications_summary(notifs: list) -> list[Text]:
     return rows
 
 
-def _format_daily_metrics_summary(algo_metrics: list) -> list[Text]:
+def _format_daily_metrics_summary(algo_metrics: list[Any]) -> list[Text]:
     """Format daily trade activity summary."""
     rows: list[Text] = []
     valid_metrics = safe_get_list(algo_metrics)
@@ -595,7 +595,7 @@ def _format_daily_metrics_summary(algo_metrics: list) -> list[Text]:
     return rows
 
 
-def _format_audit_log_summary(audit: list) -> list[Text]:
+def _format_audit_log_summary(audit: list[Any]) -> list[Text]:
     """Format audit log section (notable actions only)."""
     rows: list[Text] = []
     valid_audit = safe_get_list(audit)
@@ -625,7 +625,7 @@ def _format_audit_log_summary(audit: list) -> list[Text]:
 # ── Helper functions for panel_algo_health() ──────────────────────────────────
 
 
-def _age_h(r: dict) -> float | None:
+def _age_h(r: dict[str, Any]) -> float | None:
     """Extract age in hours from health item dict."""
     ah = r.get("age_hours")
     if ah is not None:
@@ -636,7 +636,7 @@ def _age_h(r: dict) -> float | None:
     return None
 
 
-def _age_fmt_c(r: dict) -> str:
+def _age_fmt_c(r: dict[str, Any]) -> str:
     """Format age with hours/days suffix."""
     h = _age_h(r)
     if h is None:
@@ -644,7 +644,7 @@ def _age_fmt_c(r: dict) -> str:
     return f"{h:.0f}h" if h < 24 else f"{h / 24:.1f}d"
 
 
-def _extract_phase_metrics_from_pdata(pdata: dict | None) -> tuple[int, int, int]:
+def _extract_phase_metrics_from_pdata(pdata: dict[str, Any] | None) -> tuple[int, int, int]:
     """Extract signals_generated, entries_executed, exits_executed from phase data.
 
     Returns:
@@ -672,7 +672,7 @@ def _parse_phase_data_json(pdata_raw: str | dict | None) -> dict[str, Any] | Non
     return None
 
 
-def _format_health_data_stale_section(stale: list, hlth_list: list[Any] | None) -> str:
+def _format_health_data_stale_section(stale: list[Any], hlth_list: list[Any] | None) -> str:
     """Format data health when stale tables exist."""
     crit_stale = [r for r in stale if r.get("role") == "CRIT"]
     if crit_stale:
@@ -689,7 +689,7 @@ def _format_health_data_stale_section(stale: list, hlth_list: list[Any] | None) 
     return f"{rtt_pfx}" + "  ".join(stale_parts)
 
 
-def _format_health_data_fresh_section(hlth_list: list, crit: list, ready_to_trade: bool | None, ages: list) -> str:
+def _format_health_data_fresh_section(hlth_list: list[Any], crit: list[Any], ready_to_trade: bool | None, ages: list[float | None]) -> str:
     """Format data health when all tables are fresh."""
     if ready_to_trade is False:
         rtt_badge = f"[bold {R}]✗ NOT READY[/]"
@@ -705,7 +705,7 @@ def _format_health_data_fresh_section(hlth_list: list, crit: list, ready_to_trad
     return f"{rtt_badge}  [dim]{n_total} tables fresh[/]{crit_s}{oldest_s}"
 
 
-def _build_phase_badges_and_metrics(run: dict, phase_results: list) -> tuple[list, int, int, int]:
+def _build_phase_badges_and_metrics(run: dict[str, Any], phase_results: list[Any]) -> tuple[list[str], int, int, int]:
     """Build phase badges and extract aggregated metrics from phase results.
 
     Returns:
@@ -739,7 +739,7 @@ def _build_phase_badges_and_metrics(run: dict, phase_results: list) -> tuple[lis
     return phase_badges, signals_gen, entries_exec, exits_exec
 
 
-def _build_phase_badges_from_audit(phases_list: list) -> list:
+def _build_phase_badges_from_audit(phases_list: list[Any]) -> list[str]:
     """Build phase badges from audit log format."""
     phase_badges = []
     for p in phases_list:
@@ -761,7 +761,7 @@ def _build_phase_badges_from_audit(phases_list: list) -> list:
 
 
 def _format_algo_actions_and_activity(
-    signals_gen: int, entries_exec: int, exits_exec: int, today_m: dict, valid_metrics: list
+    signals_gen: int, entries_exec: int, exits_exec: int, today_m: dict[str, Any], valid_metrics: list[Any]
 ) -> list[Text]:
     """Format 'what did the algo do' summary and 5-day activity strip."""
     rows: list[Text] = []
@@ -850,7 +850,7 @@ def _format_run_history_summary(valid_hist: list[Any] | None) -> list[Text]:
     return rows
 
 
-def _format_risk_snapshot(risk_dict: dict) -> list[Text | Rule]:
+def _format_risk_snapshot(risk_dict: dict[str, Any]) -> list[Text | Rule]:
     """Format risk metrics (VaR, CVaR, Beta, Concentration)."""
     rows: list[Text | Rule] = []
     var95_val = risk_dict.get("var95")
@@ -863,8 +863,8 @@ def _format_risk_snapshot(risk_dict: dict) -> list[Text | Rule]:
     cvar95_val = risk_dict.get("cvar95")
     svar_val = risk_dict.get("svar")
 
-    beta_c = R if beta_val >= 1.2 else (Y if beta_val >= 0.8 else G)  # type: ignore[operator]
-    conc_c = R if conc5_val >= 35 else (Y if conc5_val >= 25 else "white")  # type: ignore[operator]
+    beta_c = R if beta_val >= 1.2 else (Y if beta_val >= 0.8 else G)
+    conc_c = R if conc5_val >= 35 else (Y if conc5_val >= 25 else "white")
     var_c = HealthFormatter.var_color(var95_val)
 
     risk_parts = [
@@ -880,7 +880,7 @@ def _format_risk_snapshot(risk_dict: dict) -> list[Text | Rule]:
     return rows
 
 
-def _format_notifications_section(valid_notifs: list) -> list[Text | Rule]:
+def _format_notifications_section(valid_notifs: list[Any]) -> list[Text | Rule]:
     """Format notifications summary."""
     rows: list[Text | Rule] = []
     if not valid_notifs:
@@ -904,23 +904,23 @@ def _format_notifications_section(valid_notifs: list) -> list[Text | Rule]:
 
 
 def panel_status(
-    act,
-    hlth,
-    notifs,
-    algo_metrics=None,
-    loader=None,
-    audit=None,
-    run=None,
-    exec_hist=None,
-    cfg=None,
-):
+    act: dict[str, Any] | None,
+    hlth: dict[str, Any] | list[Any] | None,
+    notifs: list[Any],
+    algo_metrics: list[Any] | None = None,
+    loader: list[Any] | None = None,
+    audit: list[Any] | None = None,
+    run: dict[str, Any] | None = None,
+    exec_hist: list[Any] | None = None,
+    cfg: dict[str, Any] | None = None,
+) -> Panel:
     """Algo activity phases + data health + recent notifications + action counts + loader status."""
     if _error_panel("health", hlth, "STATUS"):
         return _error_panel("health", hlth, "STATUS")
     if _error_panel("notifications", notifs, "STATUS"):
         return _error_panel("notifications", notifs, "STATUS")
 
-    rows: list = []
+    rows: list[Text | Rule] = []
 
     # Extract items from data dicts using safe helpers
     hlth_items = safe_get_list(hlth)
@@ -1214,22 +1214,22 @@ def panel_status(
 
 
 def panel_algo_health(
-    run,
-    act,
-    hlth,
-    notifs,
-    algo_metrics=None,
-    audit=None,
-    exec_hist=None,
-    risk=None,
-):
+    run: dict[str, Any] | None,
+    act: dict[str, Any] | None,
+    hlth: dict[str, Any] | list[Any] | None,
+    notifs: list[Any],
+    algo_metrics: list[Any] | None = None,
+    audit: list[Any] | None = None,
+    exec_hist: list[Any] | None = None,
+    risk: dict[str, Any] | None = None,
+) -> Panel:
     """Focused 'did the algo work?' panel: run outcome → what it did → system health."""
     if _error_panel("health", hlth, "HEALTH"):
         return _error_panel("health", hlth, "HEALTH")
     if _error_panel("notifications", notifs, "HEALTH"):
         return _error_panel("notifications", notifs, "HEALTH")
 
-    rows: list = []
+    rows: list[Text | Rule] = []
 
     # ── A: Run outcome ────────────────────────────────────────────────────────
     run_valid = run and not has_error(run)
@@ -1358,8 +1358,8 @@ def panel_algo_health(
             conc5_val = risk_dict.get("conc5")
             cvar95_val = risk_dict.get("cvar95")
             svar_val = risk_dict.get("svar")
-            beta_c = R if beta_val >= 1.2 else (Y if beta_val >= 0.8 else G)  # type: ignore[operator]
-            conc_c = R if conc5_val >= 35 else (Y if conc5_val >= 25 else "white")  # type: ignore[operator]
+            beta_c = R if beta_val >= 1.2 else (Y if beta_val >= 0.8 else G)
+            conc_c = R if conc5_val >= 35 else (Y if conc5_val >= 25 else "white")
             var_c = HealthFormatter.var_color(var95_val)
             risk_parts = [
                 f"[dim]VaR 95%:[/][{var_c}]{var95_val:.2f}%[/]",
@@ -1398,7 +1398,7 @@ def panel_algo_health(
     )
 
 
-def _build_results_panel(run, act, algo_metrics, exec_hist, risk, notifs, audit) -> Panel:
+def _build_results_panel(run: dict[str, Any] | None, act: dict[str, Any] | None, algo_metrics: list[Any], exec_hist: list[Any], risk: dict[str, Any] | None, notifs: list[Any], audit: list[Any]) -> Panel:
     """Build RIGHT panel: run results, history, risk, notifications, audit.
 
     Args:
@@ -1413,7 +1413,7 @@ def _build_results_panel(run, act, algo_metrics, exec_hist, risk, notifs, audit)
     Returns:
         Rich Panel with run results and history
     """
-    right_rows: list = [
+    right_rows: list[Text | Rule] = [
         Text.from_markup("[dim]press [/][bold yellow]h[/][dim] to return to dashboard[/]"),
         Rule(style="dim"),
     ]
@@ -1609,15 +1609,15 @@ def _build_results_panel(run, act, algo_metrics, exec_hist, risk, notifs, audit)
 
 
 def panel_algo_health_expanded(
-    run,
-    act,
-    hlth,
-    notifs,
-    algo_metrics=None,
-    audit=None,
-    exec_hist=None,
-    risk=None,
-):
+    run: dict[str, Any] | None,
+    act: dict[str, Any] | None,
+    hlth: dict[str, Any] | list[Any] | None,
+    notifs: list[Any],
+    algo_metrics: list[Any] | None = None,
+    audit: list[Any] | None = None,
+    exec_hist: list[Any] | None = None,
+    risk: dict[str, Any] | None = None,
+) -> Layout:
     """Full-screen algo health — dual column: data freshness (left) | run results (right)."""
     if _error_panel("health", hlth, "HEALTH EXPANDED"):
         return _error_panel("health", hlth, "HEALTH EXPANDED")

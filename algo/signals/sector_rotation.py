@@ -22,6 +22,7 @@ composite score by 5-10 points (handled in algo_market_exposure.py).
 import json
 import logging
 from datetime import date as _date
+from typing import Any
 
 import psycopg2
 
@@ -56,12 +57,12 @@ SECTOR_ETF = {
 class SectorRotationDetector:
     """Detect defensive sector leadership patterns."""
 
-    def __init__(self, config=None):
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
         if config is not None and not isinstance(config, dict):
             raise TypeError(f"config must be a dict, got {type(config).__name__}")
         self.config = config
 
-    def compute(self, eval_date=None):
+    def compute(self, eval_date: _date | None = None) -> dict[str, Any]:
         """Run sector rotation analysis for the eval_date.
 
         Uses sector_ranking table (we don't have sector ETF price history).
@@ -80,7 +81,7 @@ class SectorRotationDetector:
             metrics = self._compute_sector_metrics(defensive, cyclical)
             signal = self._determine_rotation_signal(metrics["defensive_lead_score"], metrics["weeks_persistent"])
 
-            result = {
+            result: dict[str, Any] = {
                 "eval_date": str(eval_date),
                 "signal": signal,
                 "defensive_lead_score": round(metrics["defensive_lead_score"], 1),
@@ -100,7 +101,7 @@ class SectorRotationDetector:
         except Exception as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def _fetch_and_validate_sector_data(self, eval_date):
+    def _fetch_and_validate_sector_data(self, eval_date: _date) -> dict[str, dict[str, Any]]:
         """Fetch sector ranking data and validate each row."""
         with DatabaseContext("read") as cur:
             cur.execute(
@@ -119,7 +120,7 @@ class SectorRotationDetector:
             )
             rows = cur.fetchall()
 
-        sector_data = {}
+        sector_data: dict[str, dict[str, Any]] = {}
         for sector_name, rank, momentum, r1w, r4w, r12w in rows:
             if rank is None:
                 continue
@@ -141,7 +142,7 @@ class SectorRotationDetector:
             }
         return sector_data
 
-    def _validate_sector_row(self, sector_name, r1w, r4w, r12w, momentum, eval_date):
+    def _validate_sector_row(self, sector_name: str, r1w: Any, r4w: Any, r12w: Any, momentum: Any, eval_date: _date) -> None:
         """Validate a single sector row for missing data."""
         if r1w is None:
             logger.warning(f"[SECTOR ROTATION] {sector_name}: missing 1w rank data for {eval_date}")
@@ -167,7 +168,7 @@ class SectorRotationDetector:
                 f"Sector {sector_name} missing momentum_score for {eval_date} — incomplete sector_ranking data"
             )
 
-    def _validate_sector_coverage(self, sector_data, eval_date):
+    def _validate_sector_coverage(self, sector_data: dict[str, dict[str, Any]], eval_date: _date) -> None:
         """Validate that we have both defensive and cyclical sectors."""
         if not sector_data:
             raise ValueError(f"No sector ranking data found for {eval_date} — sector_ranking table may be empty")
@@ -181,7 +182,7 @@ class SectorRotationDetector:
                 f"missing defensive={missing_defensive}, missing cyclical={missing_cyclical}"
             )
 
-    def _compute_sector_metrics(self, defensive, cyclical):
+    def _compute_sector_metrics(self, defensive: list[dict[str, Any]], cyclical: list[dict[str, Any]]) -> dict[str, Any]:
         """Compute all sector rotation metrics."""
         def_imp_4w = sum(d["rank_improvement_4w"] for d in defensive) / len(defensive)
         cyc_imp_4w = sum(d["rank_improvement_4w"] for d in cyclical) / len(cyclical)
@@ -208,7 +209,7 @@ class SectorRotationDetector:
             "weeks_persistent": weeks_persistent,
         }
 
-    def _compute_weeks_persistent(self, defensive, cyclical, def_imp_4w, cyc_imp_4w):
+    def _compute_weeks_persistent(self, defensive: list[dict[str, Any]], cyclical: list[dict[str, Any]], def_imp_4w: float, cyc_imp_4w: float) -> int:
         """Compute how many weeks defensive has outperformed across different time windows."""
         return sum(
             [
@@ -228,7 +229,7 @@ class SectorRotationDetector:
             ]
         )
 
-    def _determine_rotation_signal(self, defensive_lead_score, weeks_persistent):
+    def _determine_rotation_signal(self, defensive_lead_score: float, weeks_persistent: int) -> str:
         """Determine rotation signal based on score and persistence."""
         if defensive_lead_score >= 75 and weeks_persistent >= 3:
             return "severe_defensive_rotation"
@@ -238,7 +239,7 @@ class SectorRotationDetector:
             return "mild_defensive_lead"
         return "neutral"
 
-    def _exposure_penalty(self, lead_score, weeks):
+    def _exposure_penalty(self, lead_score: float, weeks: int) -> int:
         """Recommend market exposure reduction in pts based on signal severity."""
         if lead_score >= 75 and weeks >= 3:
             return 10
@@ -248,9 +249,9 @@ class SectorRotationDetector:
             return 2
         return 0
 
-    def _persist(self, eval_date, result):
+    def _persist(self, eval_date: _date, result: dict[str, Any]) -> None:
         try:
-            details_dict = {
+            details_dict: dict[str, Any] = {
                 "defensive_lead_score": result.get("defensive_lead_score"),
                 "cyclical_weak_score": result.get("cyclical_weak_score"),
                 "defensive_rank_improvement_4w": result.get("defensive_rank_improvement_4w"),

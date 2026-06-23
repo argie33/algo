@@ -287,7 +287,7 @@ class EntryHandler:
 
         # Execute entry transaction with locks
         try:
-            return self.context._with_cursor(_execute_entry_txn, acquire_locks=True)  # type: ignore[no-any-return]
+            return self.context._with_cursor(_execute_entry_txn, acquire_locks=True)
         except Exception as e:
             logger.exception(f"Entry execution failed: {e}")
             raise

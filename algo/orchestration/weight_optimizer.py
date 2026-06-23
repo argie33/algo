@@ -17,8 +17,7 @@ from typing import Any, ClassVar
 try:
     import numpy as np
 except ImportError:
-    np = None  # type: ignore[assignment]
-
+    np = None
 try:
     from scipy.optimize import minimize
 except ImportError:
@@ -277,7 +276,7 @@ class WeightOptimizer:
             delta = 100 - sum(blended.values())
             if delta != 0:
                 # Adjust largest component
-                largest_comp = max(blended, key=blended.get)  # type: ignore[arg-type]
+                largest_comp = max(blended, key=blended.get)
                 blended[largest_comp] += delta
 
             # Track changes as dicts (consumed by phase7 as change['component'] etc.)

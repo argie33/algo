@@ -77,8 +77,7 @@ class DataPatrolConfig:
         Returns:
             True if value was set as requested; False if rejected/fail-closed
         """
-        return self.parent.set(key, value, value_type, description, changed_by)  # type: ignore[no-any-return]
-
+        return self.parent.set(key, value, value_type, description, changed_by)
     def get_staleness_windows(self) -> dict[str, int]:
         """Get data patrol staleness thresholds (days) for all data types.
 

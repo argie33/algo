@@ -252,7 +252,7 @@ def _get_system_health(cur: cursor) -> Any:
     price_row = cur.fetchone()
     last_price_date = next(iter(safe_json_serialize(dict(price_row).values())), 0) if price_row else 0
     if last_price_date:
-        last_price_date_typed: date = last_price_date  # type: ignore[assignment]
+        last_price_date_typed: date = last_price_date
         today = datetime.now(timezone.utc).date()
         # Use trading-day-aware freshness: data is fresh if it's from the most
         # recent trading day. A hardcoded day threshold causes false 'degraded'

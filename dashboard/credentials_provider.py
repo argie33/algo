@@ -20,13 +20,14 @@ class CredentialsProvider:
             os.environ["AWS_PROFILE"] = default_profile
 
     @staticmethod
-    def fetch_secrets_manager_credentials() -> tuple[str | None, str | None, str | None]:
+    def fetch_secrets_manager_credentials() -> tuple[str, str, str]:
         """Fetch dashboard credentials from AWS Secrets Manager.
 
-        Fails fast on credential load failures - credentials are required, not optional.
+        CRITICAL: Fails fast on any credential missing. No fallback behavior.
+        Credentials are required for AWS mode — missing values are fatal errors.
 
         Returns: (dashboard_api_url, cognito_user_pool_id, cognito_client_id)
-        Raises: RuntimeError if credentials cannot be fetched
+        Raises: RuntimeError if any credential missing or unavailable
         """
         import json
 
@@ -39,36 +40,47 @@ class CredentialsProvider:
             secret_name = os.getenv("DASHBOARD_SECRETS_NAME", "algo/dashboard-config")
             response = secrets_client.get_secret_value(SecretId=secret_name)
 
-            if "SecretString" in response:
-                secret = json.loads(response["SecretString"])
-                return (
-                    secret.get("api_url") or secret.get("dashboard_api_url"),
-                    secret.get("cognito_user_pool_id"),
-                    secret.get("cognito_user_pool_client_id") or secret.get("cognito_client_id"),
-                )
-            raise RuntimeError(f"No SecretString in response from {secret_name}")
+            if "SecretString" not in response:
+                raise RuntimeError(f"No SecretString in response from {secret_name}")
+
+            secret = json.loads(response["SecretString"])
+
+            api_url = secret.get("api_url") or secret.get("dashboard_api_url")
+            if not api_url:
+                raise RuntimeError(f"dashboard_api_url not found in {secret_name}")
+
+            pool_id = secret.get("cognito_user_pool_id")
+            if not pool_id:
+                raise RuntimeError(f"cognito_user_pool_id not found in {secret_name}")
+
+            client_id = secret.get("cognito_user_pool_client_id") or secret.get("cognito_client_id")
+            if not client_id:
+                raise RuntimeError(f"cognito_client_id not found in {secret_name}")
+
+            return (api_url, pool_id, client_id)
+        except RuntimeError:
+            raise
         except Exception as e:
             msg = f"Failed to fetch dashboard credentials from Secrets Manager: {e}"
             logger.error(msg)
             raise RuntimeError(msg) from e
 
     @staticmethod
-    def fetch_terraform_credentials() -> tuple[str | None, str | None, str | None]:
+    def fetch_terraform_credentials() -> tuple[str, str, str]:
         """Fetch dashboard credentials from Terraform outputs.
 
-        Fails fast on credential load failures when Terraform is available.
+        CRITICAL: Fails fast. Raises RuntimeError if credentials cannot be obtained.
+        No fallback behavior — missing Terraform credentials are a fatal error for AWS mode.
 
         Returns: (dashboard_api_url, cognito_user_pool_id, cognito_client_id)
-        Raises: RuntimeError if Terraform is available but credentials cannot be extracted
+        Raises: RuntimeError if Terraform unavailable or credentials missing
         """
         tf_dir = CredentialsProvider._find_terraform_directory()
         if not tf_dir:
-            logger.debug("Terraform directory not found; skipping Terraform credentials")
-            return None, None, None
+            raise RuntimeError("Terraform directory not found. Credentials required for AWS mode.")
 
         if not CredentialsProvider._check_terraform_installed():
-            logger.debug("Terraform not installed; skipping Terraform credentials")
-            return None, None, None
+            raise RuntimeError("Terraform not installed. Credentials required for AWS mode.")
 
         try:
             if not CredentialsProvider._init_terraform(tf_dir):
@@ -78,11 +90,19 @@ class CredentialsProvider:
             if not outputs:
                 raise RuntimeError(f"No outputs from Terraform in {tf_dir}")
 
-            return (
-                CredentialsProvider._extract_tf_value(outputs, "dashboard_api_url"),
-                CredentialsProvider._extract_tf_value(outputs, "cognito_user_pool_id"),
-                CredentialsProvider._extract_tf_value(outputs, "cognito_client_id"),
-            )
+            api_url = CredentialsProvider._extract_tf_value(outputs, "dashboard_api_url")
+            if not api_url:
+                raise RuntimeError("dashboard_api_url not found in Terraform outputs")
+
+            pool_id = CredentialsProvider._extract_tf_value(outputs, "cognito_user_pool_id")
+            if not pool_id:
+                raise RuntimeError("cognito_user_pool_id not found in Terraform outputs")
+
+            client_id = CredentialsProvider._extract_tf_value(outputs, "cognito_client_id")
+            if not client_id:
+                raise RuntimeError("cognito_client_id not found in Terraform outputs")
+
+            return (api_url, pool_id, client_id)
         except RuntimeError:
             raise
         except Exception as e:
@@ -124,8 +144,11 @@ class CredentialsProvider:
             return False
 
     @staticmethod
-    def _get_terraform_outputs(tf_dir: str) -> dict | None:
-        """Get Terraform outputs as JSON."""
+    def _get_terraform_outputs(tf_dir: str) -> dict[str, object]:
+        """Get Terraform outputs as JSON.
+
+        Raises RuntimeError if outputs cannot be retrieved.
+        """
         try:
             result = subprocess.run(
                 ["terraform", "output", "-json"],
@@ -137,20 +160,35 @@ class CredentialsProvider:
             )
             import json
 
-            return json.loads(result.stdout)  # type: ignore[no-any-return]
+            return json.loads(result.stdout)
+        except subprocess.CalledProcessError as e:
+            raise RuntimeError(f"Terraform output command failed: {e.stderr}") from e
         except Exception as e:
-            logger.warning(f"Failed to get Terraform outputs: {e}")
-            return None
+            raise RuntimeError(f"Failed to get Terraform outputs: {e}") from e
 
     @staticmethod
-    def _extract_tf_value(outputs: dict, key: str) -> str | None:
-        """Extract string value from Terraform output."""
+    def _extract_tf_value(outputs: dict[str, object], key: str) -> str:
+        """Extract string value from Terraform output.
+
+        Raises RuntimeError if value missing or invalid.
+        """
         try:
-            value = outputs.get(key, {}).get("value")
-            return str(value) if value else None
+            if key not in outputs:
+                raise RuntimeError(f"Key '{key}' not found in Terraform outputs")
+
+            output_entry = outputs[key]
+            if not isinstance(output_entry, dict):
+                raise RuntimeError(f"Terraform output '{key}' is not a dict: {type(output_entry)}")
+
+            value = output_entry.get("value")
+            if not value:
+                raise RuntimeError(f"No value found for Terraform output '{key}'")
+
+            return str(value)
+        except RuntimeError:
+            raise
         except Exception as e:
-            logger.warning(f"Failed to extract Terraform value '{key}': {e}")
-            return None
+            raise RuntimeError(f"Failed to extract Terraform value '{key}': {e}") from e
 
     @staticmethod
     def validate_api_url(url: str) -> bool:

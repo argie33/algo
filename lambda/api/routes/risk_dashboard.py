@@ -115,7 +115,7 @@ def _get_comprehensive_risk_dashboard(cur: cursor) -> Any:
                     risk_reduction = 0.75
                 else:
                     risk_reduction = 0.0
-                result["vix_metrics"] = {  # type: ignore[assignment]
+                result["vix_metrics"] = {
                     "vix_level": vix,
                     "caution_threshold": 25.0,
                     "halt_threshold": 35.0,
@@ -144,7 +144,7 @@ def _get_comprehensive_risk_dashboard(cur: cursor) -> Any:
             )
             row = rows[0] if rows else None
             if row:
-                result["position_sizing_stats"] = {  # type: ignore[assignment]
+                result["position_sizing_stats"] = {
                     "trades_30d": row["total_trades"],
                     "avg_cascade_multiplier": (float(row["avg_cascade"]) if row["avg_cascade"] else None),
                     "min_cascade_multiplier": (float(row["min_cascade"]) if row["min_cascade"] else None),
@@ -177,7 +177,7 @@ def _get_comprehensive_risk_dashboard(cur: cursor) -> Any:
             rules = {}
             for row in exit_rows:
                 rules[row["exit_rule"]] = row["count"]
-            result["exit_rules_distribution"] = rules  # type: ignore[assignment]
+            result["exit_rules_distribution"] = rules
         except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(f"Critical risk metric unavailable: exit rules calculation failed: {e}") from e
 

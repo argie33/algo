@@ -30,8 +30,7 @@ def safe_decimal(value: Any, default: Any = None) -> Decimal | float | None:
         Decimal if conversion succeeds, else default
     """
     if value is None:
-        return default  # type: ignore[no-any-return]
-
+        return default
     if isinstance(value, Decimal):
         return value
 
@@ -39,9 +38,7 @@ def safe_decimal(value: Any, default: Any = None) -> Decimal | float | None:
         return Decimal(str(value))
     except (InvalidOperation, ValueError, TypeError) as e:
         logger.warning(f"safe_decimal conversion failed for {value!r}: {type(e).__name__}, using default {default!r}")
-        return default  # type: ignore[no-any-return]
-
-
+        return default
 def safe_float(value: Any, default: float | None = None) -> float | None:
     """Convert value to float safely, returning default on failure."""
     if value is None:

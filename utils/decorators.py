@@ -15,6 +15,7 @@ import logging
 import threading
 import time
 from collections.abc import Callable
+from typing import Any
 
 import psycopg2
 import requests
@@ -24,10 +25,10 @@ logger = logging.getLogger(__name__)
 
 def db_route_handler(
     operation_name: str,
-    default_error_response=None,
+    default_error_response: Any = None,
     role: str = "read",
     timeout_sec: int | None = None,
-):
+) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Catch database errors, log, return standardized error response.
 
     Usage:
@@ -46,9 +47,9 @@ def db_route_handler(
         Decorated function that catches database errors
     """
 
-    def decorator(func: Callable) -> Callable:
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         @functools.wraps(func)
-        def wrapper(*args, **kwargs):
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
             from utils.error_handlers import make_error_response
 
             try:
@@ -73,7 +74,7 @@ def external_api_handler(
     max_retries: int = 3,
     backoff_initial: float = 1.0,
     backoff_multiplier: float = 2.0,
-):
+) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Catch external API errors with automatic retry and timeout.
 
     Usage:
@@ -93,9 +94,9 @@ def external_api_handler(
         Decorated function with retry logic
     """
 
-    def decorator(func: Callable) -> Callable:
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         @functools.wraps(func)
-        def wrapper(*args, **kwargs):
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
             from utils.error_handlers import make_error_response, retry_with_backoff
 
             def execute_with_timeout():
@@ -138,8 +139,8 @@ def external_api_handler(
 
 def validation_handler(
     operation_name: str,
-    schema_class: type | None = None,
-):
+    schema_class: type[Any] | None = None,
+) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Validate input with automatic schema validation.
 
     Usage:
@@ -161,9 +162,9 @@ def validation_handler(
         Decorated function with validation
     """
 
-    def decorator(func: Callable) -> Callable:
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         @functools.wraps(func)
-        def wrapper(*args, **kwargs):
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
             from utils.error_handlers import make_error_response
 
             try:
@@ -202,7 +203,7 @@ def validation_handler(
 def timeout_handler(
     operation_name: str,
     timeout_sec: int = 25,
-):
+) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Enforce timeout on operation.
 
     Usage:
@@ -218,9 +219,9 @@ def timeout_handler(
         Decorated function with timeout enforcement
     """
 
-    def decorator(func: Callable) -> Callable:
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         @functools.wraps(func)
-        def wrapper(*args, **kwargs):
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
             import signal
 
             from utils.error_handlers import make_error_response
@@ -258,7 +259,7 @@ def timeout_handler(
 def transactional(
     operation_name: str,
     should_rollback: bool = True,
-):
+) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Wrap transaction with automatic rollback on error.
 
     Usage:
@@ -276,9 +277,9 @@ def transactional(
         Decorated function with transaction handling
     """
 
-    def decorator(func: Callable) -> Callable:
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         @functools.wraps(func)
-        def wrapper(*args, **kwargs):
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
             from utils.error_handlers import make_error_response
 
             cur = args[0] if args else None
@@ -312,7 +313,7 @@ def loader_operation(
     operation_type: str = "insert",
     symbol: str | None = None,
     correlation_id: str | None = None,
-):
+) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Wrap loader operation with auto-logging and status tracking.
 
     Usage:
@@ -330,9 +331,9 @@ def loader_operation(
         Decorated function with error tracking
     """
 
-    def decorator(func: Callable) -> Callable:
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         @functools.wraps(func)
-        def wrapper(*args, **kwargs):
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
             from utils.error_handlers import log_error_with_context
 
             start_time = time.time()
@@ -369,7 +370,7 @@ def rate_limit_handler(
     operation_name: str,
     max_requests: int = 10,
     window_seconds: int = 60,
-):
+) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Rate limit operation to prevent abuse.
 
     Usage:
@@ -390,9 +391,9 @@ def rate_limit_handler(
     request_times: list[float] = []
     lock = threading.Lock()
 
-    def decorator(func: Callable) -> Callable:
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         @functools.wraps(func)
-        def wrapper(*args, **kwargs):
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
             from utils.error_handlers import make_error_response
             from utils.exceptions import RateLimitedError
 
@@ -427,7 +428,7 @@ def circuit_breaker(
     operation_name: str,
     failure_threshold: int = 5,
     recovery_timeout_sec: int = 300,
-):
+) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Circuit breaker pattern: fail-fast after N consecutive failures.
 
     Usage:
@@ -444,12 +445,12 @@ def circuit_breaker(
         Decorated function with circuit breaker
     """
     failures = 0
-    last_failure_time = None
+    last_failure_time: float | None = None
     lock = threading.Lock()
 
-    def decorator(func: Callable) -> Callable:
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         @functools.wraps(func)
-        def wrapper(*args, **kwargs):
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
             nonlocal failures, last_failure_time
 
             with lock:

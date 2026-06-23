@@ -2,6 +2,7 @@
 
 import logging
 from datetime import date
+from typing import Any, Callable
 
 import psycopg2
 
@@ -13,7 +14,7 @@ logger = logging.getLogger(__name__)
 class RejectionTracker:
     """Track signal rejections through filter pipeline for explainability."""
 
-    def _with_cursor(self, operation):
+    def _with_cursor(self, operation: Callable[[Any], Any]) -> Any:
         """Execute operation with cursor via DatabaseContext."""
         try:
             with DatabaseContext("write") as cur:
@@ -23,7 +24,7 @@ class RejectionTracker:
                 f"Database operation failed: {e}. Cannot proceed without rejection tracking database."
             ) from e
 
-    def __init__(self):
+    def __init__(self) -> None:
         pass
 
     def log_rejection(
@@ -31,12 +32,12 @@ class RejectionTracker:
         eval_date: date,
         symbol: str,
         entry_price: float,
-        tier_results: dict,
-        advanced_results: dict | None = None,
-    ):
+        tier_results: dict[int, dict[str, Any]],
+        advanced_results: dict[str, Any] | None = None,
+    ) -> None:
         """Log signal rejection with reason at each tier."""
 
-        def _log_rejection(cur):
+        def _log_rejection(cur: Any) -> None:
             rejected_at_tier = None
             for tier in [1, 2, 3, 4, 5]:
                 # Fail-fast if tier result missing (don't silently treat as rejected)
@@ -58,8 +59,8 @@ class RejectionTracker:
                     rejection_reason = tier_result.get("reason", "Unknown")
 
             # Extract tier results explicitly (fail-fast if missing)
-            tier_pass = {}
-            tier_reason = {}
+            tier_pass: dict[int, bool] = {}
+            tier_reason: dict[int, str] = {}
             for tier in [1, 2, 3, 4, 5]:
                 result = tier_results.get(tier)
                 if result is None:
@@ -106,10 +107,10 @@ class RejectionTracker:
         symbol: str,
         tier_0_reason: str,
         entry_price: float | None = None,
-    ):
+    ) -> None:
         """Log signal rejection at pre-tier stage (before Tier 1)."""
 
-        def _log_pre_tier(cur):
+        def _log_pre_tier(cur: Any) -> None:
             cur.execute(
                 """
                 INSERT INTO filter_rejection_log
@@ -133,10 +134,10 @@ class RejectionTracker:
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.error(f"Failed to log pre-tier rejection for {symbol}: {e}")
 
-    def get_rejection_funnel(self, eval_date: date):
+    def get_rejection_funnel(self, eval_date: date) -> dict[str, Any]:
         """Get rejection counts by tier for funnel visualization."""
 
-        def _get_funnel(cur):
+        def _get_funnel(cur: Any) -> dict[str, Any]:
             cur.execute(
                 """
                 SELECT
@@ -205,10 +206,10 @@ class RejectionTracker:
                 f"Failed to get rejection funnel: {e}. Cannot proceed without rejection funnel data."
             ) from e
 
-    def get_rejection_reasons(self, eval_date: date, tier: int, limit: int = 20):
+    def get_rejection_reasons(self, eval_date: date, tier: int, limit: int = 20) -> list[dict[str, Any]]:
         """Get top rejection reasons for a specific tier."""
 
-        def _get_reasons(cur):
+        def _get_reasons(cur: Any) -> list[dict[str, Any]]:
             col_name = f"tier_{tier}_reason"  # noqa: F841
             cur.execute(
                 """
@@ -225,7 +226,7 @@ class RejectionTracker:
                 (eval_date, limit),
             )
 
-            results = []
+            results: list[dict[str, Any]] = []
             for row in cur.fetchall():
                 results.append(
                     {
@@ -245,10 +246,10 @@ class RejectionTracker:
                 f"Failed to get rejection reasons for tier {tier}: {e}. Cannot proceed without rejection analysis."
             ) from e
 
-    def get_signals_by_rejection_status(self, eval_date: date):
+    def get_signals_by_rejection_status(self, eval_date: date) -> dict[str, Any]:
         """Get summary of signals by whether they were rejected and at which tier."""
 
-        def _get_status(cur):
+        def _get_status(cur: Any) -> dict[str, Any]:
             cur.execute(
                 """
                 SELECT

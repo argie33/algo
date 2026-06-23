@@ -82,8 +82,7 @@ class ExitHandler:
             return validation_error
 
         # After validation, we know exit_price is a valid float > 0
-        validated_exit_price = float(exit_price)  # type: ignore[arg-type]
-
+        validated_exit_price = float(exit_price)
         # Main exit execution with transaction safety
         try:
             if cur is not None:
@@ -109,7 +108,7 @@ class ExitHandler:
                     ),
                     acquire_locks=True,
                 )
-                return result  # type: ignore[no-any-return]
+                return result
         except AuditLogError as e:
             logger.critical(f"Audit log failure during exit (data integrity risk): {e}")
             return {"success": False, "message": f"Audit log failure: {e}"}
@@ -164,7 +163,7 @@ class ExitHandler:
             if cur is not None:
                 return _raise_stop(cur)
             else:
-                return self.context._with_cursor(_raise_stop)  # type: ignore[no-any-return]
+                return self.context._with_cursor(_raise_stop)
         except DatabaseError as e:
             logger.error(f"Database error raising stop: {e}")
             return {"success": False, "message": f"Database error: {e}"}

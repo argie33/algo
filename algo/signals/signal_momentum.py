@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 class SignalMomentumMixin:
     """Momentum and breakout signals."""
 
-    def _with_cursor(self, operation):
+    def _with_cursor(self, operation: Any) -> Any:
         """Execute an operation with a cursor via DatabaseContext."""
         try:
             with DatabaseContext("read") as cur:
@@ -23,8 +23,8 @@ class SignalMomentumMixin:
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def td_sequential(self, symbol: str, eval_date) -> dict[str, Any]:
-        def _fetch_data(cur):
+    def td_sequential(self, symbol: str, eval_date: Any) -> dict[str, Any]:
+        def _fetch_data(cur: Any) -> dict[str, Any]:
             # M6: Compute count fresh from price data each time
             # Count inherently resets daily as it's based on bar-by-bar closes
             cur.execute(
@@ -159,30 +159,28 @@ class SignalMomentumMixin:
                 "combo_13_complete": combo_13_complete,
             }
 
-        return self._with_cursor(_fetch_data)  # type: ignore[no-any-return]
-
-    def power_trend(self, symbol: str, eval_date) -> dict[str, Any]:
+        return self._with_cursor(_fetch_data)
+    def power_trend(self, symbol: str, eval_date: Any) -> dict[str, Any]:
         """
         Minervini "Power Trend" indicator: 20%+ gain in 21 trading days.
         These are the strongest setups for stocks already in motion.
         """
 
-        def _compute(cur):
-            ret_21 = self._period_return(cur, symbol, eval_date, 21)  # type: ignore[attr-defined]
+        def _compute(cur: Any) -> dict[str, Any]:
+            ret_21 = self._period_return(cur, symbol, eval_date, 21)
             return {
                 "power_trend": ret_21 is not None and ret_21 >= 0.20,
                 "return_21d": round(ret_21 * 100, 2) if ret_21 is not None else None,
             }
 
-        return self._with_cursor(_compute)  # type: ignore[no-any-return]
-
-    def pivot_breakout(self, symbol: str, eval_date) -> dict[str, Any]:
+        return self._with_cursor(_compute)
+    def pivot_breakout(self, symbol: str, eval_date: Any) -> dict[str, Any]:
         """
         Livermore-style pivot point: price closing decisively above the highest
         high of the prior 20 trading days, on volume > 50d avg.
         """
 
-        def _check_pivot(cur):
+        def _check_pivot(cur: Any) -> dict[str, Any]:
             cur.execute(
                 """
                 WITH d AS (
@@ -215,12 +213,12 @@ class SignalMomentumMixin:
             }
 
         try:
-            return self._with_cursor(_check_pivot)  # type: ignore[no-any-return]
+            return self._with_cursor(_check_pivot)
         except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.debug(f"Pivot breakout check failed: {e}")
             return {"breakout": False}
 
-    def pocket_pivot(self, symbol: str, eval_date, lookback_days: int = 10) -> dict[str, Any]:
+    def pocket_pivot(self, symbol: str, eval_date: Any, lookback_days: int = 10) -> dict[str, Any]:
         """
         Pocket Pivot (re-accumulation signal): an up day where volume >= highest
         down-day volume in the prior lookback_days.
@@ -228,7 +226,7 @@ class SignalMomentumMixin:
         Indicates institutional absorption of selling pressure and setup for breakout.
         """
 
-        def _check_pocket(cur):
+        def _check_pocket(cur: Any) -> dict[str, Any]:
             cur.execute(
                 """
                 WITH daily AS (
@@ -298,9 +296,8 @@ class SignalMomentumMixin:
 
             return {"pocket_pivot": False}
 
-        return self._with_cursor(_check_pocket)  # type: ignore[no-any-return]
-
-    def distribution_days(self, symbol: str, eval_date, lookback: int = 25) -> int:
+        return self._with_cursor(_check_pocket)
+    def distribution_days(self, symbol: str, eval_date: Any, lookback: int = 25) -> int:
         """
         IBD-style distribution day count. A distribution day is when:
           - Close is down >= 0.2% from prior close
@@ -310,7 +307,7 @@ class SignalMomentumMixin:
         Fails fast on database errors—distribution data is required for signal filtering.
         """
 
-        def _count_dist(cur):
+        def _count_dist(cur: Any) -> int:
             cur.execute(
                 """
                 WITH d AS (

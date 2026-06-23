@@ -43,7 +43,7 @@ class TrendlineSupport:
                     """,
                     (symbol, end_date - timedelta(days=days), end_date),
                 )
-                return cur.fetchall()  # type: ignore[no-any-return]
+                return cur.fetchall()
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(
                 f"Failed to fetch price history for {symbol}: {e}. "

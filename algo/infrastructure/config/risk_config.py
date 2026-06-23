@@ -75,8 +75,7 @@ class RiskConfig:
         Returns:
             True if value was set as requested; False if rejected/fail-closed
         """
-        return self.parent.set(key, value, value_type, description, changed_by)  # type: ignore[no-any-return]
-
+        return self.parent.set(key, value, value_type, description, changed_by)
     def get_base_risk(self) -> float:
         """Get base risk % per trade."""
         return cast(float, self.get("base_risk_pct", 0.75))

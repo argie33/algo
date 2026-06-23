@@ -1178,10 +1178,10 @@ class PriceLoader(OptimalLoader):
                         )
                         return reduced_attempt
 
-                # If all reduced sizes failed, emit alert and fail gracefully
+                # All reduced sizes failed — circuit breaker triggered, fail immediately
                 logger.critical(
-                    f"[CIRCUIT BREAKER] Rate limiting persisted {error_duration / 60:.1f}min despite batch size reduction. "
-                    "yfinance API experiencing degradation. Failing batch. Check yfinance API status."
+                    f"[CIRCUIT_BREAKER] Rate limiting persisted {error_duration / 60:.1f}min despite batch size reduction. "
+                    "yfinance API experiencing degradation. Cannot proceed without price data. Failing fast."
                 )
                 try:
                     from algo.reporting import AlertManager
@@ -1199,7 +1199,11 @@ class PriceLoader(OptimalLoader):
                     )
                 except Exception as alert_err:
                     logger.debug("Could not send rate limit alert: %s", alert_err)
-                return dict.fromkeys(symbols)
+
+                raise RuntimeError(
+                    f"[CIRCUIT_BREAKER] Rate limiting persisted {error_duration / 60:.1f}min despite batch reduction. "
+                    "yfinance API severely degraded. Cannot fetch price data."
+                ) from None
 
         try:
             result = self._execute_batch_fetch(symbols, start, end)
@@ -1561,9 +1565,9 @@ class PriceLoader(OptimalLoader):
             from algo.reporting import MetricsPublisher
 
             with MetricsPublisher() as m:
-                m.put_loader_result(self.table_name, self._stats)
+                m.put_loader_result(self.table_name, dict(self._stats))
                 if self._rate_limit_errors > 0:
-                    m.put_metric(
+                    m.add_metric(
                         "RateLimitErrors",
                         self._rate_limit_errors,
                         unit="Count",
@@ -1573,7 +1577,7 @@ class PriceLoader(OptimalLoader):
                         },
                     )
                     if self._stats.get("rate_limit_error_duration_sec", 0) > 0:
-                        m.put_metric(
+                        m.add_metric(
                             "RateLimitErrorDuration",
                             self._stats["rate_limit_error_duration_sec"],
                             unit="Seconds",
@@ -1605,7 +1609,14 @@ class PriceLoader(OptimalLoader):
                 raise RuntimeError(f"[{self.table_name}] Load stats incomplete: 'symbols_processed' not tracked.")
             symbols_successfully_loaded = self._stats.get("symbols_processed", 0)
             if not isinstance(symbols_successfully_loaded, int):
-                symbols_successfully_loaded = 0
+                logger.error(
+                    f"[{self.table_name}] Load stats corruption: 'symbols_processed' is {type(symbols_successfully_loaded).__name__} "
+                    f"(expected int): {symbols_successfully_loaded!r}"
+                )
+                raise RuntimeError(
+                    f"[{self.table_name}] Stats tracking is broken — 'symbols_processed' should be int, not {type(symbols_successfully_loaded).__name__}. "
+                    f"Cannot determine loader completion state. Data load status is UNKNOWN."
+                )
 
             completion_pct = (symbols_successfully_loaded / symbols_expected * 100) if symbols_expected > 0 else 100.0
 
@@ -1658,7 +1669,7 @@ class PriceLoader(OptimalLoader):
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.warning("Failed to update data_loader_status for {self.table_name}: %s", e)
 
-    def run(self, symbols: list, parallelism: int = 1, backfill_days: int | None = None):  # type: ignore[override]
+    def run(self, symbols: list, parallelism: int = 1, backfill_days: int | None = None):
         """Override to use batch fetching (50x faster than per-symbol) + concurrent batches."""
         if backfill_days is not None:
             self._backfill_days = backfill_days
@@ -1719,8 +1730,7 @@ class PriceLoader(OptimalLoader):
 
     def _load_batch(self, symbols: list[str]) -> None:
         """Load a batch of symbols using batch API fetch (50x reduction in API calls)."""
-        wm_store = self._get_watermark()  # type: ignore[attr-defined]
-
+        wm_store = self._get_watermark()
         # Determine the watermark date for all symbols in batch
         # (simplified: use same date for all, finest-grained would be per-symbol)
         if self._backfill_days > 0:
@@ -1729,9 +1739,9 @@ class PriceLoader(OptimalLoader):
         else:
             # Use earliest watermark from batch
             watermarks = [wm_store.get(s) if wm_store else None for s in symbols]
-            previous_dates = [self._parse_watermark_date(w) for w in watermarks]  # type: ignore[attr-defined]
+            previous_dates = [self._parse_watermark_date(w) for w in watermarks]
             previous_date = (
-                min(d for d in previous_dates if d) if any(previous_dates) else None  # type: ignore[assignment]
+                min(d for d in previous_dates if d) if any(previous_dates) else None
             )
 
         # Batch fetch all symbols at once
@@ -1785,7 +1795,7 @@ class PriceLoader(OptimalLoader):
                 chunk = rows[chunk_start : chunk_start + self.chunk_size]
                 is_final_chunk = chunk_start + self.chunk_size >= len(rows)
                 chunk_wm = new_wm if is_final_chunk else None
-                inserted += self._bulk_insert(  # type: ignore[attr-defined]
+                inserted += self._bulk_insert(
                     chunk,
                     symbol=symbol if is_final_chunk else None,
                     new_watermark=chunk_wm,

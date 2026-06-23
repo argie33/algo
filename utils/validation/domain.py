@@ -82,7 +82,7 @@ class AlpacaOrderValidator(Validator):
                 if price_float < 0:
                     all_errors.append(f"{context}: filled_avg_price must be non-negative, got {price_float}")
                 else:
-                    cleaned["filled_avg_price"] = price_float  # type: ignore[assignment]
+                    cleaned["filled_avg_price"] = price_float
             except (ValueError, TypeError):
                 all_errors.append(f"{context}: filled_avg_price not numeric: {filled_avg_price!r}")
 
@@ -95,19 +95,18 @@ class AlpacaOrderValidator(Validator):
             elif len(legs) < 2:
                 all_errors.append(f"{context}: bracket order requires 2+ legs, got {len(legs)}")
             else:
-                cleaned["legs"] = legs  # type: ignore[assignment]
+                cleaned["legs"] = legs
         else:
             if legs is not None:
                 cleaned["legs"] = legs
 
         cleaned["order_class"] = order_class
         if data.get("cancel_reason"):
-            cleaned["rejection_reason"] = data.get("cancel_reason")  # type: ignore[assignment]
+            cleaned["rejection_reason"] = data.get("cancel_reason")
         elif data.get("failed_reason"):
-            cleaned["rejection_reason"] = data.get("failed_reason")  # type: ignore[assignment]
+            cleaned["rejection_reason"] = data.get("failed_reason")
         elif data.get("reason"):
-            cleaned["rejection_reason"] = data.get("reason")  # type: ignore[assignment]
-
+            cleaned["rejection_reason"] = data.get("reason")
         return ValidationResult(
             is_valid=len(all_errors) == 0,
             errors=all_errors,

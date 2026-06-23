@@ -29,7 +29,7 @@ class Phase2Contract(TypedDict, total=False):
     """Data contract: what Phase 2 (Circuit Breakers) produces."""
 
     status: str  # "ok", "halted"
-    checks: dict[str, dict[str, Any]]  # {check_name: {halted, label, reason}}
+    checks: dict[str, dict[str, Any] | None]  # {check_name: {halted, label, reason}}
     breaker_triggered: bool
 
 
@@ -298,4 +298,5 @@ def extract_required_data(phase_num: int | str, data: dict[str, Any], *keys: str
             f"Expected: {list(keys)}. Available: {list(data.keys())}"
         )
 
-    return tuple(data[k] for k in keys)
+    result: tuple[Any, ...] = tuple(data[k] for k in keys)
+    return result

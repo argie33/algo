@@ -173,7 +173,11 @@ def next_run_str() -> str:
 
 
 def _next_run_from_schedule(schedule: list) -> str:
-    """Calculate next run from dynamic schedule (list of {hour, minute} dicts)."""
+    """Calculate next run from dynamic schedule (list of {hour, minute} dicts).
+
+    CRITICAL: Validates that all schedule entries have required hour/minute fields.
+    Missing fields indicate corrupted configuration — raise error instead of defaulting.
+    """
     now = datetime.now(ET)
     wd = now.weekday()
     t = now.hour * 60 + now.minute
@@ -193,41 +197,51 @@ def _next_run_from_schedule(schedule: list) -> str:
             d += timedelta(days=1)
         return d
 
+    def validate_schedule_entry(s: dict) -> tuple[int, int]:
+        """Validate schedule entry has required fields. Fail fast if corrupted."""
+        if "hour" not in s or "minute" not in s:
+            raise ValueError(
+                f"Schedule entry missing required fields: {s}. "
+                f"All schedule entries must have 'hour' and 'minute' fields. "
+                f"Corrupted configuration prevents safe scheduling."
+            )
+        hour = s["hour"]
+        minute = s["minute"]
+        if not isinstance(hour, int) or not isinstance(minute, int):
+            raise ValueError(
+                f"Schedule entry has invalid types: hour={type(hour).__name__}, minute={type(minute).__name__}. "
+                f"Both must be integers. Entry: {s}"
+            )
+        if not (0 <= hour <= 23) or not (0 <= minute <= 59):
+            raise ValueError(
+                f"Schedule entry has invalid time values: {hour:02d}:{minute:02d}. "
+                f"Hour must be 0-23, minute must be 0-59. Entry: {s}"
+            )
+        return hour, minute
+
     if wd >= 5:
         next_day = next_wkd(now)
         if schedule:
-            sched = sorted(schedule, key=lambda s: s.get("hour", 0) * 60 + s.get("minute", 0))
+            sched = sorted(schedule, key=lambda s: validate_schedule_entry(s)[0] * 60 + validate_schedule_entry(s)[1])
             first_run = sched[0]
-            run_dt = next_day.replace(
-                hour=first_run.get("hour", 9),
-                minute=first_run.get("minute", 30),
-                second=0,
-                microsecond=0,
-            )
+            hour, minute = validate_schedule_entry(first_run)
+            run_dt = next_day.replace(hour=hour, minute=minute, second=0, microsecond=0)
             return f"orch {fmt(run_dt)}"
         return f"orch {fmt(next_day.replace(hour=9, minute=30, second=0, microsecond=0))}"
 
-    today_runs = sorted(schedule, key=lambda s: s.get("hour", 0) * 60 + s.get("minute", 0))
+    today_runs = sorted(schedule, key=lambda s: validate_schedule_entry(s)[0] * 60 + validate_schedule_entry(s)[1])
     for run in today_runs:
-        run_t = run.get("hour", 9) * 60 + run.get("minute", 30)
+        hour, minute = validate_schedule_entry(run)
+        run_t = hour * 60 + minute
         if run_t > t:
-            run_dt = now.replace(
-                hour=run.get("hour", 9),
-                minute=run.get("minute", 30),
-                second=0,
-                microsecond=0,
-            )
+            run_dt = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
             return f"orch {fmt(run_dt)}"
 
     next_day = next_wkd(now)
     if today_runs:
         first_run = today_runs[0]
-        run_dt = next_day.replace(
-            hour=first_run.get("hour", 9),
-            minute=first_run.get("minute", 30),
-            second=0,
-            microsecond=0,
-        )
+        hour, minute = validate_schedule_entry(first_run)
+        run_dt = next_day.replace(hour=hour, minute=minute, second=0, microsecond=0)
         return f"orch {fmt(run_dt)}"
     return f"orch {fmt(next_day.replace(hour=9, minute=30, second=0, microsecond=0))}"
 

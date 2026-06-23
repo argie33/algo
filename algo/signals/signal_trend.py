@@ -156,8 +156,7 @@ class SignalTrendMixin:
             logger.debug(f"[MINERVINI] trend_template_data stale for {symbol}; computing on-the-fly")
             return self._compute_minervini_from_prices(cur, symbol, eval_date)
 
-        return self._with_cursor(_fetch_trend)  # type: ignore[attr-defined, no-any-return]
-
+        return self._with_cursor(_fetch_trend)  # type: ignore[attr-defined]
     def weinstein_stage(self, symbol: str, eval_date) -> dict[str, Any]:
         """
         Read pre-computed Weinstein 4-stage classification from trend_template_data.
@@ -198,8 +197,7 @@ class SignalTrendMixin:
                 "slope_pct": None,
             }
 
-        return self._with_cursor(_fetch_stage)  # type: ignore[attr-defined, no-any-return]
-
+        return self._with_cursor(_fetch_stage)  # type: ignore[attr-defined]
     def mansfield_rs(self, symbol: str, eval_date, lookback: int = 252) -> dict[str, Any]:
         """
         Compute Mansfield Relative Strength: (stock_return / spy_return) - 1.
@@ -218,14 +216,14 @@ class SignalTrendMixin:
 
         def _compute_rs(cur):
             try:
-                stock_ret = self._period_return(cur, symbol, eval_date, lookback)  # type: ignore[attr-defined]
+                stock_ret = self._period_return(cur, symbol, eval_date, lookback)
             except (ValueError, RuntimeError) as e:
                 raise ValueError(
                     f"Mansfield RS calculation failed for {symbol}: could not compute stock return: {e}"
                 ) from e
 
             try:
-                spy_ret = self._period_return(cur, "SPY", eval_date, lookback)  # type: ignore[attr-defined]
+                spy_ret = self._period_return(cur, "SPY", eval_date, lookback)
             except (ValueError, RuntimeError) as e:
                 raise ValueError(f"Mansfield RS calculation failed: could not compute SPY return: {e}") from e
 
@@ -242,8 +240,7 @@ class SignalTrendMixin:
                 "spy_return_pct": round(spy_ret * 100, 2),
             }
 
-        return self._with_cursor(_compute_rs)  # type: ignore[attr-defined, no-any-return]
-
+        return self._with_cursor(_compute_rs)
     def stage2_phase(self, symbol: str, eval_date) -> dict[str, Any]:
         """Alias for weinstein_stage() for backwards compatibility."""
         return self.weinstein_stage(symbol, eval_date)

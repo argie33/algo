@@ -365,7 +365,7 @@ def panel_exposure_expanded(exp_f):
             )
 
     return Panel(
-        Group(*rows),  # type: ignore[arg-type]
+        Group(*rows),
         title="[bold blue]EXPOSURE SCORE - EXPANDED[/]  [dim][x] return[/]",
         border_style="blue",
         padding=(0, 1),

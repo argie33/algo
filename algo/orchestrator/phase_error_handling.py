@@ -66,7 +66,7 @@ class PhaseError:
         }
 
 
-def log_phase_error(phase_num: int | str, error: PhaseError, log_fn=None) -> None:
+def log_phase_error(phase_num: int | str, error: PhaseError, log_fn: Any = None) -> None:
     """Log phase error with structured information.
 
     Args:

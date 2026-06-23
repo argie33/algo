@@ -16,10 +16,10 @@ class MetricsPublisher:
 
     def __init__(self, dry_run: bool = False):
         self._dry_run = dry_run
-        self._client = None
-        self._batch: list[dict] = []
+        self._client: Any = None
+        self._batch: list[dict[str, Any]] = []
 
-    def _cw(self):
+    def _cw(self) -> Any:
         if self._client is None:
             try:
                 import boto3
@@ -83,7 +83,7 @@ class MetricsPublisher:
 
     # ── Public API ────────────────────────────────────────────────────────────
 
-    def put_orchestrator_result(self, success: bool, phase_results: dict) -> None:
+    def put_orchestrator_result(self, success: bool, phase_results: dict[str, Any]) -> None:
         """Publish overall run success/failure + per-phase breakdown."""
         self._emit("OrchestratorSuccess", 1 if success else 0)
         self._emit("OrchestratorFailure", 0 if success else 1)
@@ -126,7 +126,7 @@ class MetricsPublisher:
             dimensions={"Loader": loader},
         )
 
-    def put_loader_result(self, loader: str, stats: dict) -> None:
+    def put_loader_result(self, loader: str, stats: dict[str, Any]) -> None:
         """Publish OptimalLoader run stats (rows_inserted, symbols_failed, duration_sec)."""
         dims = {"Loader": loader}
         self._emit(
@@ -171,8 +171,8 @@ class MetricsPublisher:
         """Call at end of run to send any remaining buffered metrics."""
         self._flush()
 
-    def __enter__(self):
+    def __enter__(self) -> "MetricsPublisher":
         return self
 
-    def __exit__(self, *_):
+    def __exit__(self, *_: Any) -> None:
         self.flush()

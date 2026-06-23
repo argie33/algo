@@ -70,8 +70,7 @@ class ExecutionConfig:
         Returns:
             True if value was set as requested; False if rejected
         """
-        return self.parent.set(key, value, value_type, description, changed_by)  # type: ignore[no-any-return]
-
+        return self.parent.set(key, value, value_type, description, changed_by)
     def get_execution_mode(self) -> str:
         """Get execution mode (paper|dry|review|auto).
 

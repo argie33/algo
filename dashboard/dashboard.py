@@ -35,8 +35,8 @@ try:
     import msvcrt
 
     def _keypress() -> str:
-        if msvcrt.kbhit():  # type: ignore[attr-defined]
-            ch = msvcrt.getch()  # type: ignore[attr-defined]
+        if msvcrt.kbhit():
+            ch = msvcrt.getch()
             return str(ch.decode("utf-8", errors="ignore").lower())
         return ""
 
@@ -51,13 +51,13 @@ except ImportError:
         if select.select([sys.stdin], [], [], 0)[0]:
             try:
                 fd = sys.stdin.fileno()
-                old_settings = termios.tcgetattr(fd)  # type: ignore[attr-defined,unused-ignore]
+                old_settings = termios.tcgetattr(fd)  # type: ignore[attr-defined]
                 try:
-                    tty.setraw(fd)  # type: ignore[attr-defined,unused-ignore]
+                    tty.setraw(fd)  # type: ignore[attr-defined]
                     ch = sys.stdin.read(1).lower()
                     return ch if ch else ""
                 finally:
-                    termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)  # type: ignore[attr-defined,unused-ignore]
+                    termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)  # type: ignore[attr-defined]
             except (OSError, AttributeError, ValueError):
                 return ""
         return ""
@@ -202,26 +202,27 @@ _REGISTRY_FAILED = False
 PANEL_REGISTRY = None
 
 if os.environ.get("SKIP_PANEL_REGISTRY"):
-    logger.info("Panel registry disabled via SKIP_PANEL_REGISTRY")
+    logger.info("Panel registry disabled via SKIP_PANEL_REGISTRY environment variable")
     _REGISTRY_SKIPPED = True
 else:
     try:
         PANEL_REGISTRY = _get_panel_registry()
     except ImportError as e:
-        logger.error(
+        msg = (
             f"Panel registry import failed: {e}\n"
-            "  This usually means a required dependency is missing.\n"
-            "  Try: pip install -r requirements.txt\n"
-            "  Dashboard will continue with graceful fallback."
+            "This usually means a required dependency is missing.\n"
+            "Try: pip install -r requirements.txt\n"
+            "Dashboard requires the panel registry to function. Failing fast."
         )
-        _REGISTRY_FAILED = True
+        logger.critical(msg)
+        sys.exit(1)
     except Exception as e:
-        logger.error(
-            f"Unexpected error initializing panel registry: {type(e).__name__}: {e}",
-            exc_info=True,
+        msg = (
+            f"Unexpected error initializing panel registry: {type(e).__name__}: {e}\n"
+            "Panel registry is required for dashboard functionality. Failing fast."
         )
-        logger.error("Panel registry initialization failed. Dashboard will continue with graceful fallback.")
-        _REGISTRY_FAILED = True
+        logger.critical(msg, exc_info=True)
+        sys.exit(1)
 
 
 def _validate_watch_interval(value):
@@ -1155,37 +1156,40 @@ def _fetch_and_validate_aws_credentials() -> tuple[str, str, str]:
         return env_url, env_pool, env_client
 
     logger.info("AWS mode: Fetching dashboard credentials...")
-    aws_url, pool_id, client_id = CredentialsProvider.fetch_secrets_manager_credentials()
-
-    if not aws_url:
-        logger.info("Secrets Manager unavailable, trying Terraform...")
-        aws_url, pool_id, client_id = CredentialsProvider.fetch_terraform_credentials()
-
-    if not aws_url:
+    try:
+        aws_url, pool_id, client_id = CredentialsProvider.fetch_secrets_manager_credentials()
+        logger.info("Credentials loaded from AWS Secrets Manager")
+    except RuntimeError as secrets_err:
+        logger.info(f"Secrets Manager unavailable: {secrets_err}")
         try:
-            CONSOLE.print("[bold red]ERROR:[/] Dashboard credentials not found")
-            CONSOLE.print("")
-            CONSOLE.print("[bold cyan]To automate setup:[/]")
-            CONSOLE.print("[yellow]Run this to set up local dev environment:[/]")
-            CONSOLE.print("[cyan]   scripts/setup-local-dev.ps1[/]")
-            CONSOLE.print("")
-            CONSOLE.print("[bold cyan]Or manually:[/]")
-            CONSOLE.print("[yellow]1. Fetch AWS credentials:[/]")
-            CONSOLE.print("[cyan]   scripts/refresh-aws-credentials.ps1[/]")
-            CONSOLE.print("")
-            CONSOLE.print("[yellow]2. Dashboard will auto-fetch from Secrets Manager / Terraform[/]")
-            CONSOLE.print("[dim]After GitHub Actions deploy completes, run setup-local-dev.ps1 to refresh[/]")
-        except Exception as e:
-            logger.error(
-                f"Dashboard credentials not found. "
-                f"To automate setup, run: scripts/setup-local-dev.ps1"
-                f"Or manually:\n"
-                f"  1. Run: scripts/refresh-aws-credentials.ps1\n"
-                f"  2. Dashboard will auto-fetch from Secrets Manager / Terraform\n"
-                f"  After GitHub Actions deploy completes, run setup-local-dev.ps1 to refresh\n"
-                f"\n(Failed to display full message: {type(e).__name__})\n"
-            )
-        sys.exit(1)
+            aws_url, pool_id, client_id = CredentialsProvider.fetch_terraform_credentials()
+            logger.info("Credentials loaded from Terraform")
+        except RuntimeError as tf_err:
+            try:
+                CONSOLE.print("[bold red]ERROR:[/] Dashboard credentials not found")
+                CONSOLE.print("")
+                CONSOLE.print("[bold cyan]To automate setup:[/]")
+                CONSOLE.print("[yellow]Run this to set up local dev environment:[/]")
+                CONSOLE.print("[cyan]   scripts/setup-local-dev.ps1[/]")
+                CONSOLE.print("")
+                CONSOLE.print("[bold cyan]Or manually:[/]")
+                CONSOLE.print("[yellow]1. Fetch AWS credentials:[/]")
+                CONSOLE.print("[cyan]   scripts/refresh-aws-credentials.ps1[/]")
+                CONSOLE.print("")
+                CONSOLE.print("[yellow]2. Dashboard will auto-fetch from Secrets Manager / Terraform[/]")
+                CONSOLE.print("[dim]After GitHub Actions deploy completes, run setup-local-dev.ps1 to refresh[/]")
+            except Exception as display_err:
+                logger.error(
+                    f"Dashboard credentials not found.\n"
+                    f"  Secrets Manager: {secrets_err}\n"
+                    f"  Terraform: {tf_err}\n"
+                    f"To automate setup, run: scripts/setup-local-dev.ps1\n"
+                    f"Or manually:\n"
+                    f"  1. Run: scripts/refresh-aws-credentials.ps1\n"
+                    f"  2. Dashboard will auto-fetch from Secrets Manager / Terraform\n"
+                    f"(Failed to display full message: {type(display_err).__name__})\n"
+                )
+            sys.exit(1)
 
     return cast(tuple[str, str, str], (aws_url, pool_id, client_id))
 

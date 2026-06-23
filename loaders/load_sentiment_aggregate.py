@@ -56,8 +56,7 @@ class SentimentAggregateLoader(OptimalLoader):
 
                 # Aggregate: normalized average of both metrics (0-100 scale)
                 aggregate_sentiment = (aaii_bullish + naaim_bullish) / 2.0
-                record_date = max(aaii_date, naaim_date)  # type: ignore[type-var]
-
+                record_date = max(aaii_date, naaim_date)
                 logger.info(
                     f"Sentiment: AAII={aaii_bullish:.1f}% + NAAIM={naaim_bullish:.1f}% = {aggregate_sentiment:.1f}"
                 )

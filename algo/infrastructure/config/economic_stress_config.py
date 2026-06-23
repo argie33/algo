@@ -72,7 +72,7 @@ class EconomicStressConfig:
         Returns:
             True if value was set as requested; False if rejected
         """
-        return self.parent.set(key, value, value_type, description, changed_by)  # type: ignore[no-any-return]
+        return self.parent.set(key, value, value_type, description, changed_by)
 
     def get_yield_curve_stress(self) -> dict[str, int]:
         """Get yield curve inversion stress scores.

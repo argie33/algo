@@ -11,7 +11,7 @@ THE RIGHT WAY: All database access goes through this context manager.
 """
 
 import logging
-from typing import Any
+from typing import Any, Callable
 
 import psycopg2
 from psycopg2.extras import DictCursor
@@ -34,13 +34,13 @@ class _ErrorLoggedCursor:
     - Operational context (extracted from params if possible)
     """
 
-    def __init__(self, cursor, operation_name: str = "db_operation"):
+    def __init__(self, cursor: Any, operation_name: str = "db_operation") -> None:
         self.cursor = cursor
         self.operation_name = operation_name
         self.last_query: str | None = None
         self.last_args: Any | None = None
 
-    def execute(self, query: str, args=None):
+    def execute(self, query: str, args: Any = None) -> Any:
         """Execute query with error logging."""
         self.last_query = query
         self.last_args = args
@@ -57,7 +57,7 @@ class _ErrorLoggedCursor:
             )
             raise
 
-    def executemany(self, query: str, args):
+    def executemany(self, query: str, args: Any) -> Any:
         """Execute many with error logging."""
         self.last_query = query
         self.last_args = args
@@ -74,40 +74,40 @@ class _ErrorLoggedCursor:
             )
             raise
 
-    def fetchone(self):
+    def fetchone(self) -> Any:
         return self.cursor.fetchone()
 
-    def fetchall(self):
+    def fetchall(self) -> Any:
         return self.cursor.fetchall()
 
-    def fetchmany(self, size: int | None = None):
+    def fetchmany(self, size: int | None = None) -> Any:
         return self.cursor.fetchmany(size)
 
-    def close(self):
+    def close(self) -> Any:
         return self.cursor.close()
 
     @property
-    def description(self):
+    def description(self) -> Any:
         return self.cursor.description
 
     @property
-    def rowcount(self):
+    def rowcount(self) -> Any:
         return self.cursor.rowcount
 
     @property
-    def connection(self):
+    def connection(self) -> Any:
         return self.cursor.connection
 
-    def __enter__(self):
+    def __enter__(self) -> "_ErrorLoggedCursor":
         return self
 
-    def __exit__(self, *args):
+    def __exit__(self, *args: Any) -> Any:
         return self.cursor.__exit__(*args)
 
-    def __iter__(self):
+    def __iter__(self) -> Any:
         return iter(self.cursor)
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         return getattr(self.cursor, name)
 
 
@@ -118,11 +118,11 @@ class _CorrelationIdCursor:
     back to specific loader runs.
     """
 
-    def __init__(self, cursor, correlation_id: str):
+    def __init__(self, cursor: Any, correlation_id: str) -> None:
         self.cursor = cursor
         self.correlation_id = correlation_id
 
-    def execute(self, query: str, args=None):
+    def execute(self, query: str, args: Any = None) -> Any:
         """Execute with correlation_id comment appended."""
         # For psycopg2.sql objects with arguments, don't convert to string
         # (breaks parameter binding). Just pass the object directly.
@@ -138,47 +138,47 @@ class _CorrelationIdCursor:
             return self.cursor.execute(query_str)
         return self.cursor.execute(query_str, args)
 
-    def executemany(self, query: str, args):
+    def executemany(self, query: str, args: Any) -> Any:
         """Execute many with correlation_id comment appended."""
         query_str = query.as_string(self.cursor) if hasattr(query, "as_string") else str(query or "")
         if query_str and not query_str.strip().startswith("--"):
             query_str = f"{query_str} /* correlation_id: {self.correlation_id} */"
         return self.cursor.executemany(query_str, args)
 
-    def fetchone(self):
+    def fetchone(self) -> Any:
         return self.cursor.fetchone()
 
-    def fetchall(self):
+    def fetchall(self) -> Any:
         return self.cursor.fetchall()
 
-    def fetchmany(self, size: int | None = None):
+    def fetchmany(self, size: int | None = None) -> Any:
         return self.cursor.fetchmany(size)
 
-    def close(self):
+    def close(self) -> Any:
         return self.cursor.close()
 
     @property
-    def description(self):
+    def description(self) -> Any:
         return self.cursor.description
 
     @property
-    def rowcount(self):
+    def rowcount(self) -> Any:
         return self.cursor.rowcount
 
     @property
-    def connection(self):
+    def connection(self) -> Any:
         return self.cursor.connection
 
-    def __enter__(self):
+    def __enter__(self) -> "_CorrelationIdCursor":
         return self
 
-    def __exit__(self, *args):
+    def __exit__(self, *args: Any) -> Any:
         return self.cursor.__exit__(*args)
 
-    def __iter__(self):
+    def __iter__(self) -> Any:
         return iter(self.cursor)
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         return getattr(self.cursor, name)
 
 
@@ -219,10 +219,10 @@ class DatabaseContext:
         self,
         role: str = "read",
         timeout: int = 30,
-        cursor_factory=DictCursor,
+        cursor_factory: Callable[..., Any] = DictCursor,
         correlation_id: str | None = None,
         enable_correlation_tracking: bool = True,
-    ):
+    ) -> None:
         """Initialize context.
 
         Args:
@@ -252,13 +252,13 @@ class DatabaseContext:
         try:
             from utils.infrastructure import get_correlation_id
 
-            cid = get_correlation_id()
+            cid: str | None = get_correlation_id()
             return cid if cid else None
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.warning(f"Failed to get correlation ID for tracing: {e}")
             return None
 
-    def __enter__(self):
+    def __enter__(self) -> _ErrorLoggedCursor:
         """Enter context - get database connection.
 
         OPTIMIZATION: Check for a pooled connection first (set by OptimalLoader).
@@ -314,7 +314,7 @@ class DatabaseContext:
             )
             raise
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """Exit context - cleanup connection.
 
         OPTIMIZATION: If connection is externally managed (from pooled context),

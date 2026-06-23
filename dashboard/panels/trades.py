@@ -207,7 +207,7 @@ def panel_trades_expanded(trades):
     if not closed:
         rows.append(Text("no closed trades yet", style="dim"))
         return Panel(
-            Group(*rows),  # type: ignore[arg-type]
+            Group(*rows),
             title="[bold cyan]TRADE HISTORY - EXPANDED[/]  [dim][t] return[/]",
             border_style="cyan",
             padding=(0, 1),
@@ -345,7 +345,7 @@ def panel_trades_expanded(trades):
 
     age_s = f"  [dim]{fmt_age(trades_timestamp)}[/]" if trades_timestamp is not None else ""
     return Panel(
-        Group(*rows),  # type: ignore[arg-type]
+        Group(*rows),
         title=f"[bold cyan]TRADE HISTORY ({total} closed)[/]{age_s}  [dim][t] return[/]",
         border_style="cyan",
         padding=(0, 1),

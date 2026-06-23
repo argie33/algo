@@ -18,7 +18,7 @@ class SignalOptionsMixin:
     """Options-based signals for bonus alpha scoring."""
 
     def iv_rank_signal(self, symbol: str, eval_date: _date) -> dict[str, Any]:
-        def _fetch_iv(cur):
+        def _fetch_iv(cur: Any) -> dict[str, Any]:
             cur.execute(
                 """
                 SELECT current_iv, iv_52w_high, iv_52w_low FROM iv_history
@@ -73,8 +73,7 @@ class SignalOptionsMixin:
                 "bonus_pts": bonus_pts,
             }
 
-        return self._with_cursor(_fetch_iv)  # type: ignore[attr-defined, no-any-return]
-
+        return self._with_cursor(_fetch_iv)  # type: ignore[attr-defined]
     def put_call_ratio_signal(self, symbol: str, eval_date: _date) -> dict[str, Any]:
         """
         Stock-level put/call ratio from options_chains.
@@ -89,7 +88,7 @@ class SignalOptionsMixin:
             }
         """
 
-        def _fetch_pc_ratio(cur):
+        def _fetch_pc_ratio(cur: Any) -> dict[str, Any]:
             cur.execute(
                 """
                 SELECT
@@ -127,8 +126,7 @@ class SignalOptionsMixin:
                 "bonus_pts": bonus_pts,
             }
 
-        return self._with_cursor(_fetch_pc_ratio)  # type: ignore[attr-defined, no-any-return]
-
+        return self._with_cursor(_fetch_pc_ratio)  # type: ignore[attr-defined]
     def implied_move_signal(
         self,
         symbol: str,
@@ -149,7 +147,7 @@ class SignalOptionsMixin:
             }
         """
 
-        def _fetch_implied_move(cur):
+        def _fetch_implied_move(cur: Any) -> dict[str, Any]:
             cur.execute(
                 """
                 SELECT DISTINCT ON (symbol, quote_date)
@@ -213,8 +211,7 @@ class SignalOptionsMixin:
                 "bonus_pts": bonus_pts,
             }
 
-        return self._with_cursor(_fetch_implied_move)  # type: ignore[attr-defined, no-any-return]
-
+        return self._with_cursor(_fetch_implied_move)  # type: ignore[attr-defined]
     def options_signal(self, symbol: str, eval_date: _date) -> dict[str, Any]:
         """
         Aggregate all options signals for use in momentum component scoring.

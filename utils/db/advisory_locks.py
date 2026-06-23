@@ -67,7 +67,7 @@ def release_advisory_lock(cursor: Any, lock_id: int, table_name: str = "unknown"
         logger.warning(f"Failed to release advisory lock for {table_name}: {e}")
 
 
-def with_advisory_lock(cursor: Any, lock_id: int, table_name: str, operation):
+def with_advisory_lock(cursor: Any, lock_id: int, table_name: str, operation: Any) -> Any:
     """Context-manager style lock with guaranteed release.
 
     Args:

@@ -442,9 +442,6 @@ class SignalQualityScoresLoader(OptimalLoader):
                     "Institutional ownership is critical for quality scoring. Cannot compute scores without this data."
                 )
 
-            vcp_rows = vcp_rows or []
-            positioning_data = positioning_data or {}
-
             bs_df = pd.DataFrame(buy_sell_rows)
             if bs_df.empty:
                 raise RuntimeError(

@@ -68,7 +68,7 @@ API_MAX_RETRIES = 3
 API_MAX_BACKOFF = 30
 
 
-def set_api_url(url: str):
+def set_api_url(url: str) -> None:
     """Set API base URL at runtime (used by -local mode)."""
     global API_BASE_URL
     API_BASE_URL = url
@@ -105,24 +105,24 @@ _http_session.mount("http://", _http_adapter)
 _http_session.mount("https://", _http_adapter)
 
 # Cognito auth support
-_cognito_auth = None
+_cognito_auth: Any = None
 _cognito_auth_lock = threading.Lock()
 
 
-def set_cognito_auth(auth):
+def set_cognito_auth(auth: Any) -> None:
     """Set the Cognito authentication instance for API calls."""
     global _cognito_auth
     with _cognito_auth_lock:
         _cognito_auth = auth
 
 
-def get_cognito_auth():
+def get_cognito_auth() -> Any:
     """Get the current Cognito authentication instance."""
     with _cognito_auth_lock:
         return _cognito_auth
 
 
-def _check_circuit_breaker():
+def _check_circuit_breaker() -> bool:
     """Check if circuit breaker is open; attempt half-open state after reset time."""
     global _circuit_breaker_state
     global _circuit_breaker_failures
@@ -137,7 +137,7 @@ def _check_circuit_breaker():
         return True
 
 
-def _record_api_failure():
+def _record_api_failure() -> None:
     """Record API failure, open circuit breaker if threshold exceeded."""
     global _circuit_breaker_state
     global _circuit_breaker_failures
@@ -151,7 +151,7 @@ def _record_api_failure():
                 _circuit_breaker_reset_time = time.time()
 
 
-def _record_api_success():
+def _record_api_success() -> None:
     """Record API success, close circuit breaker if in half-open state."""
     global _circuit_breaker_state, _circuit_breaker_failures
     with _circuit_breaker_lock:
@@ -161,7 +161,7 @@ def _record_api_success():
             _circuit_breaker_failures = 0
 
 
-def cache_response(endpoint: str, data: dict) -> None:
+def cache_response(endpoint: str, data: dict[str, Any]) -> None:
     """Cache successful API response for fallback during outages."""
     if not isinstance(data, dict) or data.get("_error"):
         return
@@ -172,7 +172,7 @@ def cache_response(endpoint: str, data: dict) -> None:
         }
 
 
-def get_cached_response(endpoint: str, mark_stale: bool = False) -> dict | None:
+def get_cached_response(endpoint: str, mark_stale: bool = False) -> dict[str, Any] | None:
     """Get cached response if available.
 
     Args:
@@ -218,7 +218,7 @@ def get_cached_response(endpoint: str, mark_stale: bool = False) -> dict | None:
     return cached_data
 
 
-def api_call(endpoint: str, params: dict | None = None, method: str = "GET") -> dict:
+def api_call(endpoint: str, params: dict[str, Any] | None = None, method: str = "GET") -> dict[str, Any]:
     """Call API endpoint with exponential backoff retry logic and circuit breaker.
 
     Returns dict with 'data' key on success, '_error' on failure.
@@ -251,7 +251,7 @@ def api_call(endpoint: str, params: dict | None = None, method: str = "GET") -> 
         }
 
     url = f"{API_BASE_URL}{endpoint}"
-    headers = {"Content-Type": "application/json"}
+    headers: dict[str, str] = {"Content-Type": "application/json"}
 
     # Add Cognito authorization if available
     with _cognito_auth_lock:
@@ -344,7 +344,7 @@ def api_call(endpoint: str, params: dict | None = None, method: str = "GET") -> 
     return {"_error": "API call failed"}
 
 
-def _unwrap_api_response(response: dict) -> dict:
+def _unwrap_api_response(response: dict[str, Any]) -> dict[str, Any]:
     """Unwrap standardized API response wrapper while preserving error status.
 
     All API responses follow the format: {statusCode: 200, data: {...}, ...metadata}
@@ -359,20 +359,20 @@ def _unwrap_api_response(response: dict) -> dict:
         statusCode >= 400 to distinguish errors from successful empty responses.
     """
     if not isinstance(response, dict):
-        return cast(dict, response)
+        return cast(dict[str, Any], response)
 
     status_code = response.get("statusCode", 200)
 
     # Extract the data field (endpoints wrap payloads in 'data' via _wrap_response)
     # This is the only field that contains actual application data
     if "data" in response:
-        payload = cast(dict, response["data"])
+        payload = cast(dict[str, Any], response["data"])
     else:
         # Fallback for error responses that have no 'data' field
         # Keep statusCode but remove other metadata markers
         payload = {k: v for k, v in response.items() if k not in ("statusCode", "headers")}
 
     # Preserve statusCode at top level so callers can distinguish errors from success
-    result = {"statusCode": status_code}
+    result: dict[str, Any] = {"statusCode": status_code}
     result.update(payload)
     return result

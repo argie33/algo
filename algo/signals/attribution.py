@@ -16,8 +16,7 @@ import psycopg2
 try:
     import numpy as np
 except ImportError:
-    np = None  # type: ignore[assignment]
-
+    np = None
 try:
     from scipy import stats
 except ImportError:

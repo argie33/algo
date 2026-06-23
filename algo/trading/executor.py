@@ -171,10 +171,10 @@ class TradeExecutor:
             with_cursor_fn=self._with_cursor,
             validate_entry_conditions_fn=self._validate_entry_conditions,
             submit_and_validate_order_fn=self._submit_and_validate_order,
-            cancel_bracket_orders_fn=self._cancel_bracket_orders,  # type: ignore[attr-defined]
-            verify_order_status_fn=self._verify_order_status,  # type: ignore[attr-defined]
-            get_order_filled_quantity_fn=self._get_order_filled_quantity,  # type: ignore[attr-defined]
-            send_alpaca_exit_fn=self._send_alpaca_exit,  # type: ignore[attr-defined]
+            cancel_bracket_orders_fn=self._cancel_bracket_orders,
+            verify_order_status_fn=self._verify_order_status,
+            get_order_filled_quantity_fn=self._get_order_filled_quantity,
+            send_alpaca_exit_fn=self._send_alpaca_exit,
             update_position_with_retry_fn=self._update_position_with_retry,
         )
 
@@ -484,7 +484,7 @@ class TradeExecutor:
         ]
 
         for check_fn, args, check_name in checks:
-            result = check_fn(*args)  # type: ignore[operator]
+            result = check_fn(*args)
             check_failed, error_msg, status_dict = self._process_validation_result(check_name, result)
             if check_failed:
                 return check_failed, error_msg, status_dict
@@ -551,16 +551,16 @@ class TradeExecutor:
             logger.error(f"Alpaca API error getting portfolio value: {e}")
             raise DataUnavailableError(f"Cannot reach Alpaca: {e}") from e
 
-    def _cancel_bracket_orders(self, alpaca_order_id: str) -> dict[str, Any]:
+    def _cancel_bracket_orders(self, alpaca_order_id: str) -> dict[str, Any]:  # type: ignore[no-untyped-def]
         return self.order_manager.cancel_bracket_orders(alpaca_order_id)
 
-    def _verify_order_status(self, alpaca_order_id: str) -> str | None:
+    def _verify_order_status(self, alpaca_order_id: str) -> str | None:  # type: ignore[no-untyped-def]
         return self.order_manager.verify_order_status(alpaca_order_id)
 
-    def _get_order_filled_quantity(self, alpaca_order_id: str) -> float | None:
+    def _get_order_filled_quantity(self, alpaca_order_id: str) -> float | None:  # type: ignore[no-untyped-def]
         return self.order_manager.get_order_filled_quantity(alpaca_order_id)
 
-    def _send_alpaca_exit(self, symbol: str, shares: float) -> dict[str, Any]:
+    def _send_alpaca_exit(self, symbol: str, shares: float) -> dict[str, Any]:  # type: ignore[no-untyped-def]
         return self.order_manager.send_market_exit(symbol, shares, self.execution_mode)
 
     # ---------- Entry ----------
@@ -703,13 +703,13 @@ class TradeExecutor:
 
     def _update_position_with_retry(
         self,
-        cur,
+        cur: Any,
         position_id: int,
         new_qty: float,
         new_stop_price: float | None = None,
         full_exit: bool = False,
         exit_stage: str | None = None,
-    ) -> tuple:
+    ) -> tuple[bool, str | None]:
         """Update position with retry logic for race condition safety.
 
         Handles concurrent updates by re-reading position before each retry.
@@ -788,7 +788,7 @@ class TradeExecutor:
         exit_fraction: float = 1.0,
         exit_stage: str | None = None,
         new_stop_price: float | None = None,
-        cur: Any | None = None,
+        cur: Any | None = None,  # type: ignore[name-defined]
     ) -> dict[str, Any]:
         """Exit all or part of a position with guaranteed transaction atomicity.
 

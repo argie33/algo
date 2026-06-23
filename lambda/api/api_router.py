@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 # health is the only truly critical route — if it fails the API can't self-report its own status
 try:
-    from routes import health  # type: ignore[attr-defined]
+    from routes import health
 except ImportError as e:
     raise RuntimeError(f"CRITICAL: Failed to import routes.health (required for API to function): {e}") from e
 
@@ -275,8 +275,7 @@ def _add_cors_headers(response: Any) -> Any:
     if not allowed_origins_str:
         # Fallback: fetch CloudFront domain from Secrets Manager
         try:
-            from lambda_function import fetch_cloudfront_domain_from_secrets  # type: ignore[attr-defined]
-
+            from lambda_function import fetch_cloudfront_domain_from_secrets
             cf_domain, _ = fetch_cloudfront_domain_from_secrets()
         except (ImportError, AttributeError):
             cf_domain = None
