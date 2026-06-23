@@ -122,7 +122,7 @@ def _best_halt_reason(top_level: str, phase_results: list) -> list[tuple[str, st
     return found
 
 
-def _fmt_phases_halted(phases_halted) -> str:
+def _fmt_phases_halted(phases_halted: Any) -> str:
     """Turn a phases_halted array into a compact human-readable label."""
     if not phases_halted:
         return ""

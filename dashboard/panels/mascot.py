@@ -122,10 +122,10 @@ try:
 except ImportError as e:
     logger.warning(f"Panel registry not available: {e} - panels will not auto-register")
 
-    def register_panel(*args: Any, **kwargs: Any) -> Any:  # type: ignore[no-redef]
+    def register_panel(*args: Any, **kwargs: Any) -> Any:
         if args and callable(args[0]):
             return args[0]
-        return lambda fn: fn  # type: ignore[return-value]
+        return lambda fn: fn
 
 
 from ..utilities import (

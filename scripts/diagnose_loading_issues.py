@@ -3,6 +3,7 @@
 
 import sys
 from datetime import date, datetime
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from utils.db.context import DatabaseContext
@@ -10,7 +11,7 @@ from utils.db.context import DatabaseContext
 EASTERN = ZoneInfo("America/New_York")
 
 
-def check_table_data(table_name: str, description: str) -> dict:
+def check_table_data(table_name: str, description: str) -> dict[str, Any]:
     """Check if a table has recent data."""
     try:
         with DatabaseContext("read") as cur:
@@ -64,7 +65,7 @@ def check_table_data(table_name: str, description: str) -> dict:
         }
 
 
-def main():
+def main() -> None:
     print("=" * 100)
     print("DATA LOADING DIAGNOSTIC REPORT")
     print(f"Generated: {datetime.now(EASTERN).strftime('%Y-%m-%d %H:%M:%S %Z')}")

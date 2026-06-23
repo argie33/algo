@@ -65,7 +65,7 @@ class DashboardOrchestrator:
                 "data_source": self.data_source,
             }
 
-    def set_state(self, **kwargs) -> None:
+    def set_state(self, **kwargs: Any) -> None:
         """Set state values thread-safely."""
         with self._state_lock:
             for key, value in kwargs.items():

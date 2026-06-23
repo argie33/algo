@@ -178,7 +178,7 @@ class ValueAtRisk:
         except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def _fetch_portfolio_snapshots(self, cur: Any, lookback_days: int) -> list:
+    def _fetch_portfolio_snapshots(self, cur: Any, lookback_days: int) -> list[Any]:
         """Fetch portfolio snapshots from database."""
         cur.execute(
             """
@@ -190,7 +190,7 @@ class ValueAtRisk:
         )
         return list(cur.fetchall())
 
-    def _validate_snapshot_count(self, rows: list) -> None:
+    def _validate_snapshot_count(self, rows: list[Any]) -> None:
         """Validate that we have sufficient snapshot data."""
         if len(rows) < 5:
             logger.critical(f"CVaR calculation failed: only {len(rows)} portfolio snapshots found (minimum 5 required)")
@@ -198,7 +198,7 @@ class ValueAtRisk:
         if len(rows) < 30:
             logger.warning(f"Risk metrics using limited historical data: {len(rows)} snapshots (recommend 30+)")
 
-    def _extract_portfolio_values(self, rows: list) -> list[Decimal]:
+    def _extract_portfolio_values(self, rows: list[Any]) -> list[Decimal]:
         """Extract and validate portfolio values from snapshot rows."""
         values = []
         for i, row in enumerate(rows):
@@ -246,7 +246,7 @@ class ValueAtRisk:
 
         return returns
 
-    def _validate_tail_losses(self, tail_losses: list) -> None:
+    def _validate_tail_losses(self, tail_losses: list[Any]) -> None:
         """Validate that we have tail loss events."""
         if not tail_losses:
             logger.critical("CVaR calculation failed: no tail loss events in historical data")

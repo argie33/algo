@@ -106,7 +106,7 @@ def generate_password(length: int = 32) -> str:
     return password
 
 
-def handler(event, context):
+def handler(event: Any, context: Any) -> dict[str, Any]:
     """
     Main Lambda handler for RDS credential rotation.
 

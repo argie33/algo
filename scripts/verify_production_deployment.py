@@ -57,7 +57,7 @@ def check_ecs_services() -> bool:
                 task_def = deployments[0].get("taskDefinition", "unknown")
                 logger.info(f"  Task Definition: {task_def.split('/')[-1]}")
 
-            return True
+        return True
     except Exception as e:
         logger.error(f"  ❌ Failed to check ECS services: {e}")
         return False

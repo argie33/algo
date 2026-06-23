@@ -13,7 +13,9 @@ Both must pass. Neither requires a live database.
 import argparse
 import logging
 import sys
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -65,8 +67,8 @@ def check_safety_gate_fires() -> list[str]:
     failures = []
     for key in ["min_signal_quality_score", "halt_drawdown_pct", "max_daily_loss_pct"]:
         # Inject zero for this key via _load_from_database
-        def make_injector(k):
-            def inject_zero(self):
+        def make_injector(k: str) -> Callable[[Any], None]:
+            def inject_zero(self: Any) -> None:
                 self._config[k] = 0
 
             return inject_zero

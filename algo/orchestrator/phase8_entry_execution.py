@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 
 
 def _batch_fetch_technical_data(
-    symbols_with_precomputed: dict[str, dict], run_date: _date, period: int = 14
+    symbols_with_precomputed: dict[str, dict[str, Any]], run_date: _date, period: int = 14
 ) -> dict[str, dict[str, float | None]]:
     """Batch-fetch missing ATR and SMA_50 data, using pre-computed values from Phase 5 when available.
 

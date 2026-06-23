@@ -149,7 +149,7 @@ class SignalsDailyLoader(OptimalLoader):
                 "Cannot proceed without shared batch data (end_date, price/tech coverage, symbol watermarks) from None."
             ) from e
 
-    def fetch_incremental(self, symbol: str, since: date | None):
+    def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Generate signals from technical data."""
         from datetime import datetime, timezone
 
@@ -462,7 +462,7 @@ class SignalsDailyLoader(OptimalLoader):
     )
     decimal84_max = 9999.9999
 
-    def transform(self, rows):
+    def transform(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Cap DECIMAL(8,4) columns to prevent numeric field overflow on high-price stocks."""
         for row in rows:
             capped_cols = []
@@ -479,7 +479,7 @@ class SignalsDailyLoader(OptimalLoader):
         return rows
 
 
-def main():
+def main() -> int:
     parser = argparse.ArgumentParser(description="Load daily trading signals")
     parser.add_argument("--symbols", type=str, help="Comma-separated symbols")
     parser.add_argument(

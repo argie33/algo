@@ -169,7 +169,7 @@ def _fmt_phases_halted(phases_halted: Any) -> str:
     return ", ".join(names[:3])
 
 
-def _error_panel(data_name: str, data: Any, title: str, border="magenta") -> Panel | None:
+def _error_panel(data_name: str, data: Any, title: str, border: str = "magenta") -> Panel | None:
     """Create a panel showing granular error info for failed data sources."""
     if not data:
         return Panel(

@@ -12,6 +12,7 @@ import logging
 import sys
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 # Add project root for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -22,7 +23,7 @@ logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
 
 
-def get_db_connection() -> object | None:
+def get_db_connection() -> Any:
     """Get database connection with graceful failure for CI environment.
 
     Returns None if connection fails (CI runners are outside VPC).
@@ -37,7 +38,7 @@ def get_db_connection() -> object | None:
         return None
 
 
-def check_data_freshness(conn: object | None) -> bool:
+def check_data_freshness(conn: Any) -> bool:
     """Check if key data tables have recent data."""
     if not conn:
         return False
@@ -107,7 +108,8 @@ def check_loader_status() -> bool:
         return True
 
     finally:
-        conn.close()
+        if conn is not None:
+            conn.close()
 
 
 def main() -> None:

@@ -12,11 +12,12 @@ SECURITY: Always sanitize values before writing to CSV/Excel exports.
 """
 
 import logging
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
-def sanitize_for_csv(value) -> str:
+def sanitize_for_csv(value: Any) -> str:
     """
     Sanitize value for safe CSV/Excel export.
 

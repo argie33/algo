@@ -73,10 +73,10 @@ class AnalystSentimentLoader(OptimalLoader):
             recs = ticker.recommendations
 
             if recs is None or recs.empty:
-                return None
+                return []
 
             # Group by date and aggregate sentiment counts
-            sentiment_by_date = {}
+            sentiment_by_date: dict[Any, dict[str, int]] = {}
             for idx, row in recs.iterrows():
                 rec_date = idx.date() if hasattr(idx, "date") else idx
                 rating = row.get("To Grade", "").lower()
@@ -100,7 +100,7 @@ class AnalystSentimentLoader(OptimalLoader):
                 sentiment_by_date[rec_date]["total"] += 1
 
             # Convert to result format
-            results = []
+            results: list[dict[str, Any]] = []
             for rec_date, counts in sentiment_by_date.items():
                 results.append(
                     {
@@ -125,7 +125,7 @@ class AnalystSentimentLoader(OptimalLoader):
         except requests.exceptions.HTTPError as e:
             if e.response is not None and e.response.status_code == 404:
                 logger.debug("[%s] Not found on Yahoo Finance (404), skipping", symbol)
-                return None
+                return []
             raise RuntimeError(
                 f"[ANALYST_SENTIMENT] HTTP error fetching sentiment for {symbol}: {e}. "
                 "Cannot generate signals without sentiment data."
@@ -136,7 +136,7 @@ class AnalystSentimentLoader(OptimalLoader):
                 "Cannot generate signals without sentiment data."
             ) from e
 
-    def transform(self, rows) -> list[dict[str, Any]]:
+    def transform(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         return rows
 
 

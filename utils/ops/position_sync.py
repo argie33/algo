@@ -36,7 +36,7 @@ class PositionSyncChecker:
         with DatabaseContext("read") as cur:
             return self._do_check(cur)
 
-    def _do_check(self, cur) -> dict[str, Any]:
+    def _do_check(self, cur: Any) -> dict[str, Any]:
         """Perform consistency checks against database."""
         issues: list[dict[str, Any]] = []
 
@@ -164,7 +164,7 @@ DATA INTEGRITY CHECKS: {len(issues)} issues found
         }
 
 
-def main():
+def main() -> int:
     """Run checker and log report."""
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     checker = PositionSyncChecker()

@@ -49,7 +49,7 @@ class AnalystRatingsLoader(OptimalLoader):
             upgrades_downgrades = ticker.upgrades_downgrades
 
             if upgrades_downgrades is None or upgrades_downgrades.empty:
-                return None
+                return []
 
             results = []
             for idx, row in upgrades_downgrades.iterrows():
@@ -72,11 +72,11 @@ class AnalystRatingsLoader(OptimalLoader):
                     }
                 )
 
-            return results if results else None
+            return results
         except requests.exceptions.HTTPError as e:
             if e.response is not None and e.response.status_code == 404:
                 logger.debug("[%s] Not found on Yahoo Finance (404), skipping", symbol)
-                return None
+                return []
             raise RuntimeError(
                 f"[ANALYST_RATINGS] HTTP error fetching ratings for {symbol}: {e}. "
                 "Cannot generate signals without analyst data."
@@ -87,7 +87,7 @@ class AnalystRatingsLoader(OptimalLoader):
                 "Cannot generate signals without analyst data."
             ) from e
 
-    def transform(self, rows) -> list[dict[str, Any]]:
+    def transform(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         return rows
 
 

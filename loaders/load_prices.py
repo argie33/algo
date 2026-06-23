@@ -2050,7 +2050,7 @@ def main() -> int:
         from utils.db.connection import get_db_connection
 
         _lock_conn = get_db_connection(timeout=30)
-        _lock_conn.autocommit = True
+        _lock_conn.autocommit = True  # type: ignore[attr-defined]
         with _lock_conn.cursor() as _cur:
             _cur.execute(
                 "SELECT pg_try_advisory_lock(hashtext(%s)::bigint)",

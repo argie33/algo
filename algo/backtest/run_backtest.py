@@ -58,7 +58,7 @@ def _get_trading_dates(start: date, end: date) -> list[date]:
         raise RuntimeError(f"[BACKTEST] FATAL: Cannot fetch trading dates from price_daily: {e}") from e
 
 
-def _get_daily_buy_signals(signal_date: date, min_composite: float) -> list[dict]:
+def _get_daily_buy_signals(signal_date: date, min_composite: float) -> list[dict[str, Any]]:
     """Get BUY signals for a date, sorted by signal_quality_score desc.
 
     Ranks by signal_quality_score (contemporaneous — no look-ahead bias).
@@ -527,7 +527,7 @@ def save_results(results: dict[str, Any]) -> int | None:
         raise RuntimeError(f"Operation failed: {e}") from e
 
 
-def main() -> None:
+def main() -> int:
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
@@ -613,13 +613,13 @@ def main() -> None:
         run_id = save_results(results)
         if run_id:
             logger.info(f"[BACKTEST] Saved to DB: run_id={run_id}")
+            return 0
         else:
             logger.error("[BACKTEST] Failed to save to DB (see logs)")
             return 1
     else:
         logger.info("[BACKTEST] [DRY RUN] Results not saved to DB")
-
-    return 0
+        return 0
 
 
 if __name__ == "__main__":

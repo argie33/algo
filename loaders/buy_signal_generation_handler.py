@@ -22,7 +22,7 @@ class BuySignalGenerationHandler:
         """Initialize with reference to SignalsDailyLoader."""
         self.loader = loader
 
-    def run(self, symbol: str, rows: list[dict], tech_data_age: int | None = None) -> list[dict]:
+    def run(self, symbol: str, rows: list[dict[str, Any]], tech_data_age: int | None = None) -> list[dict[str, Any]]:
         """Generate buy/sell signals from technical indicator data.
 
         Args:
@@ -145,7 +145,7 @@ class BuySignalGenerationHandler:
 
         return signals
 
-    def _find_swing_high(self, symbol: str, rows: list[dict], i: int) -> tuple[float | None, float | None]:
+    def _find_swing_high(self, symbol: str, rows: list[dict[str, Any]], i: int) -> tuple[float | None, float | None]:
         """Find most recent swing high using 20-bar lookback (3-bar pivot)."""
         recent_swing_high = None
         swing_high_sma50 = None
@@ -170,7 +170,7 @@ class BuySignalGenerationHandler:
 
         return recent_swing_high, swing_high_sma50
 
-    def _find_swing_low(self, symbol: str, rows: list[dict], i: int) -> float | None:
+    def _find_swing_low(self, symbol: str, rows: list[dict[str, Any]], i: int) -> float | None:
         """Find most recent swing low using 10-bar lookback (3-bar pivot)."""
         recent_swing_low = None
 
@@ -245,7 +245,7 @@ class BuySignalGenerationHandler:
 
         return signal_type, strength, reason, buylevel, stoplevel
 
-    def _compute_volume_surge(self, volume: float | None, rows: list[dict], i: int) -> tuple[float | None, bool]:
+    def _compute_volume_surge(self, volume: float | None, rows: list[dict[str, Any]], i: int) -> tuple[float | None, bool]:
         """Compute volume surge: compare to 20-bar average volume."""
         vol_surge = None
         volume_surge_capped = False
@@ -265,7 +265,7 @@ class BuySignalGenerationHandler:
 
         return vol_surge, volume_surge_capped
 
-    def _compute_avg_volume_50d(self, rows: list[dict], i: int) -> int | None:
+    def _compute_avg_volume_50d(self, rows: list[dict[str, Any]], i: int) -> int | None:
         """Compute 50-bar average volume."""
         if i >= 10:
             vols_50: list[Any] = [

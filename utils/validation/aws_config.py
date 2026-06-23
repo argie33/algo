@@ -28,10 +28,10 @@ class AWSProductionConfigValidator:
     """Validates all configuration for production AWS deployment."""
 
     def __init__(self) -> None:
-        self.checks_passed = []
-        self.checks_failed = []
-        self.checks_warnings = []
-        self.checks_critical = []
+        self.checks_passed: list[str] = []
+        self.checks_failed: list[str] = []
+        self.checks_warnings: list[str] = []
+        self.checks_critical: list[str] = []
 
     def validate_cognito_config(self) -> bool:
         """Validate Cognito configuration matches AWS setup."""

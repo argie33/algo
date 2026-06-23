@@ -103,7 +103,7 @@ class MarketEventHandler:
                 "APCA-API-SECRET-KEY": self.alpaca_secret,
             }
 
-            def fetch_quotes() -> dict[str, Any]:
+            def fetch_quotes() -> Any:
                 url = f"{self.alpaca_base_url}/v2/stocks/SPY/quotes/latest"
                 try:
                     resp = requests.get(url, headers=headers, timeout=get_api_timeout())
@@ -117,7 +117,7 @@ class MarketEventHandler:
                 ) as e:
                     raise RuntimeError(f"Operation failed: {e}") from e
 
-            def fetch_bars() -> dict[str, Any]:
+            def fetch_bars() -> Any:
                 url = f"{self.alpaca_base_url}/v2/stocks/SPY/bars/latest?timeframe=1day"
                 try:
                     resp = requests.get(url, headers=headers, timeout=get_market_data_timeout())
@@ -140,7 +140,7 @@ class MarketEventHandler:
             if not current_price or not open_price:
                 return None
 
-            pct_down = (open_price - current_price) / open_price * 100
+            pct_down = (float(open_price) - float(current_price)) / float(open_price) * 100
 
             if pct_down >= 20.0:
                 return {

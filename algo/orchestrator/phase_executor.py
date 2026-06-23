@@ -28,7 +28,7 @@ class PhaseDefinition:
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, PhaseDefinition):
             return self.phase_num == other.phase_num
-        return self.phase_num == other
+        return bool(self.phase_num == other)
 
 
 class OrchestratorPhaseExecutor:

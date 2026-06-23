@@ -28,7 +28,7 @@ class SignalScorer:
     STRONG_THRESHOLD = 80.0  # 60-80 = strong, >= 80 = very strong (default)
 
     @staticmethod
-    def _get_config_thresholds():
+    def _get_config_thresholds() -> tuple[float, float, float]:
         """Load signal strength thresholds from centralized config.
 
         Returns:
