@@ -5,7 +5,7 @@ import subprocess
 import sys
 
 
-def test_module_import(description, import_statement):
+def test_module_import(description: str, import_statement: str) -> bool:
     """Try to import a module using proper package semantics."""
     print(f"\n[IMPORT] {description}")
     cmd = f"import sys; sys.path.insert(0, '.'); {import_statement}"
@@ -26,7 +26,7 @@ def test_module_import(description, import_statement):
         return False
 
 
-def main():
+def main() -> int:
     """Run comprehensive import validation."""
     print("\n" + "=" * 60)
     print("COMPREHENSIVE CI VALIDATION")
