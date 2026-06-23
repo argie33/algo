@@ -316,21 +316,28 @@ def panel_orch(run: dict[str, Any] | None, cfg: dict[str, Any], risk: dict[str, 
             var95_check_f = float(var95_check)
             if var95_check_f > 0 and isinstance(risk_dict, dict):
                 risk_metrics = extract_risk_metrics(risk_dict)
-                var95_val = risk_metrics["var95"]
-                beta_val = risk_metrics["beta"]
-                cvar95_val = risk_metrics["cvar95"]
-                conc5_val = risk_metrics["conc5"]
-                svar_val = risk_metrics["svar"]
-                beta_c = R if beta_val >= 1.2 else (Y if beta_val >= 0.8 else G)
-                var_c = HealthFormatter.var_color(var95_val)
-                svar_f = float(svar_val) if svar_val is not None else 0.0
-                svar_s = f"\n[dim]Stressed VaR:[/][{R}]{svar_f:.2f}%[/]" if svar_f > 0 else ""
-                var_line = (
-                    f"\n[dim]VaR 95%:[/][{var_c}]{var95_val:.2f}%[/]"
-                    f"  [dim]CVaR 95%:[/][{var_c}]{cvar95_val:.2f}%[/]"
-                    f"  [dim]Portfolio Beta:[/][{beta_c}]{beta_val:.2f}[/]"
-                    f"  [dim]Top-5 Conc:[/][white]{conc5_val:.0f}%[/]" + svar_s
-                )
+                var95_val = safe_float(risk_metrics["var95"], default=None)
+                beta_val = safe_float(risk_metrics["beta"], default=None)
+                cvar95_val = safe_float(risk_metrics["cvar95"], default=None)
+                conc5_val = safe_float(risk_metrics["conc5"], default=None)
+                svar_val = safe_float(risk_metrics["svar"], default=None)
+                if None in (var95_val, beta_val, cvar95_val, conc5_val):
+                    var_line = ""
+                else:
+                    var95_val = cast(float, var95_val)
+                    beta_val = cast(float, beta_val)
+                    cvar95_val = cast(float, cvar95_val)
+                    conc5_val = cast(float, conc5_val)
+                    beta_c = R if beta_val >= 1.2 else (Y if beta_val >= 0.8 else G)
+                    var_c = HealthFormatter.var_color(var95_val)
+                    svar_f = float(svar_val) if svar_val is not None else 0.0
+                    svar_s = f"\n[dim]Stressed VaR:[/][{R}]{svar_f:.2f}%[/]" if svar_f > 0 else ""
+                    var_line = (
+                        f"\n[dim]VaR 95%:[/][{var_c}]{var95_val:.2f}%[/]"
+                        f"  [dim]CVaR 95%:[/][{var_c}]{cvar95_val:.2f}%[/]"
+                        f"  [dim]Portfolio Beta:[/][{beta_c}]{beta_val:.2f}[/]"
+                        f"  [dim]Top-5 Conc:[/][white]{conc5_val:.0f}%[/]" + svar_s
+                    )
         except (KeyError, ValueError, TypeError) as e:
             logger.warning(f"Risk metrics extraction failed: {e}")
 
@@ -900,16 +907,18 @@ def _format_run_history_summary(valid_hist: list[Any] | None) -> list[Text]:
 
 def _format_risk_snapshot(risk_dict: dict[str, Any]) -> list[Text | Rule]:
     """Format risk metrics (VaR, CVaR, Beta, Concentration)."""
+    from ..data_validation import safe_float
+
     rows: list[Text | Rule] = []
-    var95_val = risk_dict.get("var95")
-    if not var95_val or float(var95_val) <= 0:
+    var95_val = safe_float(risk_dict.get("var95"), default=None)
+    if not var95_val or var95_val <= 0:
         return rows
 
     rows.append(Rule(style="dim"))
-    beta_val = risk_dict.get("beta")
-    conc5_val = risk_dict.get("conc5")
-    cvar95_val = risk_dict.get("cvar95")
-    svar_val = risk_dict.get("svar")
+    beta_val = safe_float(risk_dict.get("beta"), default=None)
+    conc5_val = safe_float(risk_dict.get("conc5"), default=None)
+    cvar95_val = safe_float(risk_dict.get("cvar95"), default=None)
+    svar_val = safe_float(risk_dict.get("svar"), default=None)
 
     beta_c = (
         R if (beta_val is not None and beta_val >= 1.2) else (Y if (beta_val is not None and beta_val >= 0.8) else G)
@@ -927,8 +936,8 @@ def _format_risk_snapshot(risk_dict: dict[str, Any]) -> list[Text | Rule]:
         f"[dim]Beta:[/][{beta_c}]{beta_val:.2f}[/]",
         f"[dim]Top-5 Conc:[/][{conc_c}]{conc5_val:.0f}%[/]",
     ]
-    if svar_val and float(svar_val) > 0:
-        risk_parts.append(f"[dim]Stressed VaR:[/][{R}]{float(svar_val):.2f}%[/]")
+    if svar_val and svar_val > 0:
+        risk_parts.append(f"[dim]Stressed VaR:[/][{R}]{svar_val:.2f}%[/]")
     rows.append(Text.from_markup("  ".join(risk_parts)))
 
     return rows
@@ -1442,13 +1451,13 @@ def panel_algo_health(  # noqa: C901
     # ── E: Risk snapshot (VaR / CVaR / Beta / Concentration) ────────────────────
     risk_dict = safe_get_dict(risk) if not has_error(risk) else {}
     if risk_dict:
-        var95_val = risk_dict.get("var95")
-        if var95_val and float(var95_val) > 0:
+        var95_val = safe_float(risk_dict.get("var95"), default=None)
+        if var95_val and var95_val > 0:
             rows.append(Rule(style="dim"))
-            beta_val = risk_dict.get("beta")
-            conc5_val = risk_dict.get("conc5")
-            cvar95_val = risk_dict.get("cvar95")
-            svar_val = risk_dict.get("svar")
+            beta_val = safe_float(risk_dict.get("beta"), default=None)
+            conc5_val = safe_float(risk_dict.get("conc5"), default=None)
+            cvar95_val = safe_float(risk_dict.get("cvar95"), default=None)
+            svar_val = safe_float(risk_dict.get("svar"), default=None)
             beta_c = (
                 R
                 if beta_val is not None and beta_val >= 1.2
@@ -1466,7 +1475,7 @@ def panel_algo_health(  # noqa: C901
                 f"[dim]Beta:[/][{beta_c}]{beta_val:.2f}[/]",
                 f"[dim]Top-5 Conc:[/][{conc_c}]{conc5_val:.0f}%[/]",
             ]
-            if svar_val and float(svar_val) > 0:
+            if svar_val and svar_val > 0:
                 risk_parts.append(f"[dim]Stressed VaR:[/][{R}]{float(svar_val):.2f}%[/]")
             rows.append(Text.from_markup("  ".join(risk_parts)))
 
