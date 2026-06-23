@@ -92,13 +92,21 @@ def _swing_cell(swing_v: Any) -> Text:
     """Swing-signal cell: ▲score colored by strength, or dim -- when absent."""
     if swing_v is None:
         return Text("--", style=DIM)
-    c = G if swing_v >= 80 else (CY if swing_v >= 70 else Y)
-    return Text(f"▲{swing_v:.0f}", style=c)
+    try:
+        sv_f = float(swing_v)
+    except (TypeError, ValueError):
+        return Text("--", style=DIM)
+    c = G if sv_f >= 80 else (CY if sv_f >= 70 else Y)
+    return Text(f"▲{sv_f:.0f}", style=c)
 
 
 def _composite_score_color(v: float) -> str:
     """Color for composite scores: green >=80, cyan >=60, yellow >=40, else white."""
-    return G if v >= 80 else (CY if v >= 60 else (Y if v >= 40 else "white"))
+    try:
+        v_f = float(v)
+    except (TypeError, ValueError):
+        return "white"
+    return G if v_f >= 80 else (CY if v_f >= 60 else (Y if v_f >= 40 else "white"))
 
 
 def _best_halt_reason(top_level: str, phase_results: list[Any]) -> list[tuple[str, str]]:
