@@ -1667,7 +1667,7 @@ def _build_results_panel(  # noqa: C901
             hr_s = f"  [{Y}]-> {body}[/]{ph_s}" if body else ""
             right_rows.append(Text.from_markup(f"  [{ic}]{ii}[/] [dim]{dt_s}[/]  [{ic}]{s}[/]{hr_s}"))
 
-    risk_dict_b = safe_get_dict(risk) if not has_error(risk) else {}
+    risk_dict_b = (safe_get_dict(risk) if not has_error(risk) else None) or {}
     var95_b = safe_float(risk_dict_b.get("var95"), default=None) if risk_dict_b else None
     if var95_b is not None and var95_b > 0:
         right_rows.append(Rule(style="dim"))

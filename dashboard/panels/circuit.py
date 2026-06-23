@@ -60,7 +60,7 @@ from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
-from ..data_validation import StrictValidationError, safe_float
+from ..data_validation import StrictValidationError, safe_float, safe_int
 from ..formatters import (
     hbar,
 )
@@ -89,15 +89,17 @@ def panel_circuit(cb: Any) -> Panel:
             border_style="red",
             padding=(0, 1),
         )
-    n_f = cb.get("n")
-    any_f = cb.get("any")
-    if n_f is None or any_f is None:
+    n_raw = cb.get("n")
+    any_raw = cb.get("any")
+    if n_raw is None or any_raw is None:
         return Panel(
             Text("Circuit breaker data missing critical fields", style="dim"),
             title="[bold blue]CIRCUIT BREAKERS[/]",
             border_style="red",
             padding=(0, 1),
         )
+    n_f = safe_int(n_raw, default=0, field_name="circuit_breaker_count")
+    any_f = any_raw if isinstance(any_raw, bool) else bool(any_raw)
     hc = R if any_f else G
     hs = f"✗ {n_f} BREAKER{'S' if n_f != 1 else ''} FIRED" if any_f else "✓ ALL CLEAR"
     tbl = Table.grid(padding=(0, 1), expand=True)

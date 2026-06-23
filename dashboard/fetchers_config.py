@@ -275,7 +275,7 @@ def fetch_health(c: None) -> dict[str, Any]:
                     is_crit = r and r.get("critical")
                     max_age_val = r.get("max_age_days") if r else None
                     max_age_days = int(max_age_val) if max_age_val is not None and isinstance(max_age_val, (int, float)) else 999
-                    is_imp = r and max_age_days <= 7  # type: ignore[call-overload]
+                    is_imp = r and max_age_days <= 7
                     role = "CRIT" if is_crit else ("IMP" if is_imp else "NORM")
                 except ImportError:
                     role = "CRIT" if name in set(critical_stale or []) else "NORM"
