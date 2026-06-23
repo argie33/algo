@@ -320,7 +320,10 @@ def api_call(endpoint: str, params: dict[str, Any] | None = None, method: str = 
                 continue
             logger.error(f"API {endpoint}: timeout after {API_MAX_RETRIES + 1} attempts")
             _record_api_failure()
-            return {"_error": f"API timeout after {API_MAX_RETRIES + 1} attempts"}
+            return {
+                "_error": f"API timeout after {API_MAX_RETRIES + 1} attempts",
+                "_is_transient_503": True,
+            }
         except requests.exceptions.ConnectionError:
             if attempt < API_MAX_RETRIES:
                 backoff = min((2**attempt) + random.random() * (2**attempt), API_MAX_BACKOFF)
@@ -331,7 +334,10 @@ def api_call(endpoint: str, params: dict[str, Any] | None = None, method: str = 
             max_att = API_MAX_RETRIES + 1
             logger.error(f"API {endpoint}: connection unavailable after {max_att} attempts")
             _record_api_failure()
-            return {"_error": f"API unavailable after {max_att} attempts"}
+            return {
+                "_error": f"API unavailable after {max_att} attempts",
+                "_is_transient_503": True,
+            }
         except Exception as e:
             if attempt < API_MAX_RETRIES:
                 backoff = min((2**attempt) + random.random() * (2**attempt), API_MAX_BACKOFF)
