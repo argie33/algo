@@ -216,12 +216,12 @@ class TestWatermarkValidationWithMalformedData:
         for table_name, rule in FRESHNESS_RULES.items():
             # Each rule should have required fields
             try:
-                assert isinstance(table_name, str), f"Table name should be string"
+                assert isinstance(table_name, str), "Table name should be string"
                 assert isinstance(rule, dict), f"Rule for {table_name} should be dict"
                 assert "critical" in rule, f"Missing 'critical' in rule for {table_name}"
                 assert "max_age_days" in rule, f"Missing 'max_age_days' in rule for {table_name}"
-                assert isinstance(rule["max_age_days"], (int, float)), f"max_age_days should be numeric"
-                assert rule["max_age_days"] > 0, f"max_age_days should be positive"
+                assert isinstance(rule["max_age_days"], (int, float)), "max_age_days should be numeric"
+                assert rule["max_age_days"] > 0, "max_age_days should be positive"
             except (AssertionError, TypeError, KeyError):
                 pass
 

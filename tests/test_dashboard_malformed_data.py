@@ -4,13 +4,15 @@ This test suite intentionally passes wrong types to dashboard functions
 to verify they don't crash. This catches bugs that clean-data unit tests miss.
 """
 
-import pytest
 from datetime import datetime
+
+import pytest
+
 from dashboard.panels.health import (
+    _build_results_panel,
     panel_algo_health,
     panel_orch,
     panel_status,
-    _build_results_panel,
 )
 
 

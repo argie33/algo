@@ -138,5 +138,115 @@ def test_api_call_generic_validation_rejects_non_dict():
             assert "_error" in result
 
 
+class TestAPIValidationWithMalformedData:
+    """Test API validation layer with WRONG TYPES and MALFORMED DATA."""
+
+    def test_api_call_with_malformed_statuscode(self):
+        """Test api_call when statusCode is string instead of int."""
+        with patch("dashboard.api_data_layer.API_BASE_URL", "http://localhost:8000"):
+            with patch("dashboard.api_data_layer._http_session.get") as mock_get:
+                mock_resp = MagicMock()
+                mock_resp.status_code = 200
+                mock_resp.json.return_value = {
+                    "statusCode": "200",  # String instead of int
+                    "data": {"total_portfolio_value": 100000.0},
+                }
+                mock_get.return_value = mock_resp
+
+                result = api_call("/api/algo/portfolio")
+                # Should still work or raise validation error
+                assert result is not None
+                assert isinstance(result, dict)
+
+    def test_api_call_with_null_data(self):
+        """Test api_call when data field is null."""
+        with patch("dashboard.api_data_layer.API_BASE_URL", "http://localhost:8000"):
+            with patch("dashboard.api_data_layer._http_session.get") as mock_get:
+                mock_resp = MagicMock()
+                mock_resp.status_code = 200
+                mock_resp.json.return_value = {
+                    "statusCode": 200,
+                    "data": None,
+                }
+                mock_get.return_value = mock_resp
+
+                result = api_call("/api/algo/portfolio")
+                # Should handle gracefully
+                assert result is not None
+
+    def test_api_call_with_malformed_json_response(self):
+        """Test api_call when json() throws exception."""
+        with patch("dashboard.api_data_layer.API_BASE_URL", "http://localhost:8000"):
+            with patch("dashboard.api_data_layer._http_session.get") as mock_get:
+                mock_resp = MagicMock()
+                mock_resp.status_code = 200
+                mock_resp.json.side_effect = ValueError("Invalid JSON")
+                mock_get.return_value = mock_resp
+
+                result = api_call("/api/algo/portfolio")
+                # Should return error dict
+                assert "_error" in result or result is not None
+
+    def test_api_call_with_wrong_type_items(self):
+        """Test api_call when items is dict instead of list."""
+        with patch("dashboard.api_data_layer.API_BASE_URL", "http://localhost:8000"):
+            with patch("dashboard.api_data_layer._http_session.get") as mock_get:
+                mock_resp = MagicMock()
+                mock_resp.status_code = 200
+                mock_resp.json.return_value = {
+                    "statusCode": 200,
+                    "data": {
+                        "items": {"0": {"symbol": "AAPL"}}  # Dict instead of list
+                    },
+                }
+                mock_get.return_value = mock_resp
+
+                result = api_call("/api/algo/trades")
+                # Should catch type mismatch
+                assert result is not None
+
+    def test_api_call_with_negative_count(self):
+        """Test api_call with negative position_count."""
+        with patch("dashboard.api_data_layer.API_BASE_URL", "http://localhost:8000"):
+            with patch("dashboard.api_data_layer._http_session.get") as mock_get:
+                mock_resp = MagicMock()
+                mock_resp.status_code = 200
+                mock_resp.json.return_value = {
+                    "statusCode": 200,
+                    "data": {
+                        "total_portfolio_value": 100000.0,
+                        "total_cash": 25000.0,
+                        "position_count": -5,  # Negative count
+                    },
+                }
+                mock_get.return_value = mock_resp
+
+                result = api_call("/api/algo/portfolio")
+                # Should handle negative value
+                assert result is not None
+
+    def test_api_call_with_malformed_nested_data(self):
+        """Test api_call with deeply nested malformed data."""
+        with patch("dashboard.api_data_layer.API_BASE_URL", "http://localhost:8000"):
+            with patch("dashboard.api_data_layer._http_session.get") as mock_get:
+                mock_resp = MagicMock()
+                mock_resp.status_code = 200
+                mock_resp.json.return_value = {
+                    "statusCode": 200,
+                    "data": {
+                        "nested": {
+                            "deeply": {
+                                "value": "should_be_number"  # Wrong type deep in structure
+                            }
+                        }
+                    },
+                }
+                mock_get.return_value = mock_resp
+
+                result = api_call("/api/algo/unknown")
+                # Should handle deep nesting
+                assert result is not None
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

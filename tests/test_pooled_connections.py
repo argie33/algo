@@ -356,7 +356,7 @@ class TestPooledConnectionsWithMalformedData(unittest.TestCase):
 
         manager = PooledConnectionManager("test")
         try:
-            conn = manager.acquire()
+            _ = manager.acquire()
             # Should raise or return None
         except Exception:
             pass

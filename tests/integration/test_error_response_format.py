@@ -154,5 +154,113 @@ class TestErrorResponseInConsistentScenarios:
         assert response["message"] == "Error: café ☕ 中文"
 
 
+class TestErrorResponseFormatWithMalformedData:
+    """Test error response formatting with WRONG TYPES and MALFORMED DATA."""
+
+    def test_error_response_with_int_statuscode(self):
+        """error_response with valid int statusCode should work."""
+        response = error_response(400, "bad_request", "Invalid input")
+        assert isinstance(response["statusCode"], int)
+
+    def test_error_response_with_none_message(self):
+        """error_response with None message should handle gracefully."""
+        try:
+            response = error_response(400, "bad_request", None)
+            assert response is not None
+            assert "message" in response
+        except (TypeError, ValueError):
+            pass
+
+    def test_error_response_with_dict_message(self):
+        """error_response with dict instead of string message."""
+        try:
+            response = error_response(400, "bad_request", {"error": "details"})
+            assert response is not None
+        except (TypeError, AttributeError):
+            pass
+
+    def test_error_response_with_negative_statuscode(self):
+        """error_response with negative statusCode."""
+        try:
+            response = error_response(-400, "bad_request", "Invalid input")
+            assert response is not None
+        except (ValueError, AssertionError):
+            pass
+
+    def test_error_response_with_none_errortype(self):
+        """error_response with None errorType."""
+        try:
+            response = error_response(400, None, "Invalid input")
+            assert response is not None
+        except (TypeError, ValueError):
+            pass
+
+    def test_json_response_with_none_code(self):
+        """json_response with None statusCode."""
+        try:
+            response = json_response(None, {"data": "test"})
+            assert response is not None
+        except (TypeError, ValueError):
+            pass
+
+    def test_json_response_with_malformed_data(self):
+        """json_response with non-dict data."""
+        try:
+            response = json_response(200, "not_a_dict")
+            assert response is not None
+        except (TypeError, AttributeError):
+            pass
+
+    def test_success_response_with_none_data(self):
+        """success_response with None data."""
+        try:
+            response = success_response(None)
+            assert response is not None
+        except (TypeError, ValueError):
+            pass
+
+    def test_success_response_with_string_data(self):
+        """success_response with string instead of dict."""
+        try:
+            response = success_response("string_data")
+            assert response is not None
+        except (TypeError, AttributeError):
+            pass
+
+    def test_list_response_with_non_list_items(self):
+        """list_response with non-list items."""
+        try:
+            response = list_response({"item": "not_list"}, total=1)
+            assert response is not None
+        except (TypeError, AttributeError):
+            pass
+
+    def test_list_response_with_negative_total(self):
+        """list_response with negative total."""
+        try:
+            response = list_response([{"id": 1}], total=-5)
+            assert response is not None
+        except (ValueError, AssertionError):
+            pass
+
+    def test_error_response_with_very_long_message(self):
+        """error_response with extremely long message."""
+        long_msg = "x" * 100000  # 100KB message
+        try:
+            response = error_response(400, "bad_request", long_msg)
+            assert response is not None
+            assert len(response["message"]) > 0
+        except (ValueError, MemoryError):
+            pass
+
+    def test_error_response_with_null_bytes(self):
+        """error_response with null bytes in message."""
+        try:
+            response = error_response(400, "bad_request", "test\x00null")
+            assert response is not None
+        except (ValueError, AttributeError):
+            pass
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

@@ -26,7 +26,7 @@ class TestCircuitBreakerPanelWithMalformedData:
         # This SHOULD crash when trying to format
         if cur_val is not None and not isinstance(cur_val, (int, float)):
             with pytest.raises((ValueError, TypeError)):
-                formatted = f"{cur_val:.1f}"
+                _ = f"{cur_val:.1f}"
         else:
             # If we got here, type checking should have caught it
             assert isinstance(cur_val, (int, float)) or cur_val is None
@@ -54,8 +54,8 @@ class TestApiResponseBoundaryValidation:
     def test_response_validators_convert_valid_strings(self):
         """Response validators convert valid numeric strings (lenient mode)."""
         from dashboard.response_validators import (
-            validate_portfolio_response,
             ResponseValidationError,
+            validate_portfolio_response,
         )
 
         # Validators allow conversion of valid numeric strings (by design)
@@ -72,8 +72,8 @@ class TestApiResponseBoundaryValidation:
     def test_response_validators_reject_invalid_strings(self):
         """Response validators catch invalid strings that can't be converted."""
         from dashboard.response_validators import (
-            validate_portfolio_response,
             ResponseValidationError,
+            validate_portfolio_response,
         )
 
         # Invalid string that CANNOT be converted
@@ -105,6 +105,7 @@ class TestDataTypeValidationAtBoundaries:
     def test_api_call_catches_malformed_response(self):
         """api_call should catch malformed responses before returning."""
         from unittest.mock import MagicMock, patch
+
         from dashboard.api_data_layer import api_call
 
         with patch("dashboard.api_data_layer.API_BASE_URL", "http://test:8000"):
@@ -154,6 +155,7 @@ class TestFullStackWithMalformedData:
     def test_api_response_propagates_error(self):
         """Malformed API response should propagate error through stack."""
         from unittest.mock import MagicMock, patch
+
         from dashboard.api_data_layer import api_call
 
         with patch("dashboard.api_data_layer.API_BASE_URL", "http://test:8000"):
