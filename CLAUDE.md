@@ -4,6 +4,8 @@ See **`steering/GOVERNANCE.md`** for complete architecture, standards, and safet
 
 See **`steering/OPERATIONS.md`** for CI/CD procedures, deployments, and troubleshooting.
 
+See **`steering/LINT_POLICY.md`** for lint/code-quality discipline.
+
 ## Quick Start
 
 **AWS credential error?** Run: `scripts/refresh-aws-credentials.ps1`

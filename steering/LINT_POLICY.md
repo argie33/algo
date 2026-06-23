@@ -95,12 +95,51 @@ disable = ["too-many-arguments", "too-many-locals"]
 
 ---
 
+## Enforcement (Non-Negotiable)
+
+### What We Will NOT Accept
+❌ **DO NOT add patterns like:**
+```toml
+"load*.py" = ["E402", "F401"]
+"*config*.py" = ["E402"]
+"dashboard/*.py" = ["E402", "C901"]
+```
+
+These hide violations and make linting unauditable. If a whole file category needs ignores, it indicates a design problem.
+
+❌ **DO NOT disable critical rules globally:**
+- `F401` (unused imports) — indicates dead code
+- `too-many-arguments` / `too-many-locals` (unless inline per-function)
+- Type errors from mypy strict mode
+
+### Code Review Enforcement
+Every PR will:
+1. Check for new wildcard patterns (will be requested to change)
+2. Verify inline ignores have comments explaining why
+3. Run the audit command: `grep -rn "# noqa\|# type: ignore" --include="*.py" | grep -v "test_"`
+4. Ensure count doesn't increase without strong justification
+
+### Pre-Commit Hook Addition
+Consider adding this to `.pre-commit-config.yaml`:
+```yaml
+- repo: local
+  hooks:
+    - id: forbid-lint-patterns
+      name: Forbid wildcard lint ignores
+      entry: bash -c 'grep -q "load\*\.py\|\\*config.*\.py\|dashboard/\\*" pyproject.toml && exit 1 || exit 0'
+      language: system
+      files: pyproject.toml
+      stages: [commit]
+```
+
+---
+
 ## Migration from Current State
 
-1. **Delete wildcard per-file-ignores** from `pyproject.toml`
-2. **List specific files** that genuinely need E402 (scripts, loaders, tools)
-3. **Audit existing ignores** — run the grep command above, document each one
-4. **Re-enable Pylint rules** and use inline ignores for edge cases
+1. **Delete wildcard per-file-ignores** from `pyproject.toml` ✅
+2. **List specific files** that genuinely need E402 (scripts, loaders, tools) ✅
+3. **Audit existing ignores** — run the grep command above, document each one (ongoing)
+4. **Re-enable Pylint rules** and use inline ignores for edge cases ✅
 
 ---
 

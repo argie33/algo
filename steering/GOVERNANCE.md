@@ -105,6 +105,7 @@ Allowed: `print()` in loaders, scripts, tests only.
 ## For Detailed Reference
 
 See:
+- `steering/LINT_POLICY.md` — Lint discipline, what can/cannot be ignored, audit procedures (critical: enforced per PR)
 - `steering/REFERENCE_GOVERNANCE.md` — Exception handling, validation patterns, circuit breakers, database transactions, workflows, troubleshooting
 - `steering/OPERATIONS.md` — CI/CD procedures, dashboard diagnostics
 - `steering/REFERENCE_OPERATIONS.md` — Detailed CI gates, debugging, verification
