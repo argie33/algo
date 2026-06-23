@@ -368,7 +368,7 @@ class MarketFactorCalculator:
         try:
             cur.execute("SAVEPOINT sp_credit")
             cur.execute(
-                "SELECT hy_oas FROM credit_spreads WHERE date = %s ORDER BY date DESC LIMIT 1",
+                "SELECT hy_oas FROM credit_spreads WHERE date <= %s ORDER BY date DESC LIMIT 1",
                 (eval_date,),
             )
             row = cur.fetchone()
@@ -400,7 +400,7 @@ class MarketFactorCalculator:
         try:
             cur.execute("SAVEPOINT sp_aaii")
             cur.execute(
-                "SELECT bullish, bearish FROM aaii_sentiment WHERE date = %s ORDER BY date DESC LIMIT 1",
+                "SELECT bullish, bearish FROM aaii_sentiment WHERE date <= %s ORDER BY date DESC LIMIT 1",
                 (eval_date,),
             )
             row = cur.fetchone()
@@ -435,22 +435,22 @@ class MarketFactorCalculator:
             return {"bullish": None, "bearish": None, "score": 0.0}
 
     def naaim(self, eval_date: Any, cur: Any) -> dict[str, Any]:
-        """NAAIM exposure (contrarian positioning)."""
+        """NAAIM exposure (contrarian positioning). Uses most recent weekly reading."""
         try:
             cur.execute("SAVEPOINT sp_naaim")
             cur.execute(
-                "SELECT exposure FROM naaim_exposure WHERE date = %s ORDER BY date DESC LIMIT 1",
+                "SELECT naaim_number_mean FROM naaim WHERE date <= %s ORDER BY date DESC LIMIT 1",
                 (eval_date,),
             )
             row = cur.fetchone()
             cur.execute("RELEASE SAVEPOINT sp_naaim")
             if row and row[0]:
                 exp = float(row[0])
-                # NAAIM 0-100 scale: > 80 = greed = lower score, < 30 = fear = higher score
+                # NAAIM scale: > 80 = greed = lower score, < 30 = fear = higher score
                 score = min(100, max(0, 100 - exp / 2))
                 return {"exposure": round(exp, 1), "score": score}
             logger.warning(
-                "[naaim] No data in naaim_exposure for %s; using neutral score 50",
+                "[naaim] No data in naaim on or before %s; using neutral score 50",
                 eval_date,
             )
             return {"exposure": None, "score": 50.0}
