@@ -65,17 +65,16 @@ class PatrolConfig:
         return cast(dict[str, dict[str, Any]], self._config.data_patrol.get_loader_contracts())
 
     def as_dict(self) -> dict[str, Any]:
-        """Return patrol config as a dict (for logging)."""
-        try:
-            return {
-                "staleness_windows": self.get_staleness_windows(),
-                "coverage_thresholds": self.get_coverage_thresholds(),
-                "price_sanity": self.get_price_sanity_config(),
-                "volume_sanity": self.get_volume_config(),
-                "quality": self.get_quality_config(),
-                "cross_validation": self.get_cross_validation_config(),
-                "corporate_actions": self.get_corporate_actions_config(),
-            }
-        except ValueError as e:
-            logger.warning(f"Error building patrol config dict: {e}")
-            return {}
+        """Return patrol config as a dict (for logging).
+
+        Raises: ValueError if any config getter fails (fail-fast on config errors)
+        """
+        return {
+            "staleness_windows": self.get_staleness_windows(),
+            "coverage_thresholds": self.get_coverage_thresholds(),
+            "price_sanity": self.get_price_sanity_config(),
+            "volume_sanity": self.get_volume_config(),
+            "quality": self.get_quality_config(),
+            "cross_validation": self.get_cross_validation_config(),
+            "corporate_actions": self.get_corporate_actions_config(),
+        }
