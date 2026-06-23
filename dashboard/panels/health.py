@@ -293,7 +293,7 @@ def panel_orch(run: dict[str, Any] | None, cfg: dict[str, Any], risk: dict[str, 
     if var95_check is not None:
         try:
             var95_check_f = float(var95_check)
-            if var95_check_f > 0:
+            if var95_check_f > 0 and isinstance(risk_dict, dict):
                 risk_metrics = extract_risk_metrics(risk_dict)
                 var95_val = risk_metrics["var95"]
                 beta_val = risk_metrics["beta"]
