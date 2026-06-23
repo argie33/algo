@@ -18,6 +18,7 @@ import logging
 import os
 import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 # --- Set DB env vars for local Docker PostgreSQL BEFORE importing lambda modules ---

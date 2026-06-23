@@ -91,11 +91,11 @@ class TimeBlock:
                 f"{self.operation_name} exceeded threshold: {self.duration_ms:.1f}ms > {threshold_ms:.1f}ms"
             )
 
-        return False  # Don't suppress exceptions
+        return None  # Don't suppress exceptions
 
 
 @contextmanager
-def time_operation(operation_name: str, log_level: str = "info") -> Generator[None, None, None]:
+def time_operation(operation_name: str, log_level: str = "info") -> Generator[TimeBlock, None, None]:
     """
     Shorthand for timing an operation block.
 

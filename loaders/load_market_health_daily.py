@@ -42,7 +42,7 @@ class MarketHealthDailyLoader(OptimalLoader):
     primary_key = ("date",)
     watermark_field = "date"
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         # Initialize fetchers for specialized data sources
         self._vix_fetcher = VIXFetcher()
@@ -213,7 +213,7 @@ class MarketHealthDailyLoader(OptimalLoader):
 
         return health_metrics
 
-    def _fetch_price_daily(self, symbol: str, start: date, end: date) -> list[dict[str, Any]]:
+    def _fetch_price_daily(self, symbol: str, start: date, end: date) -> list[dict[str, float | int | None]]:
         try:
             with DatabaseContext("read") as cur:
                 cur.execute(
@@ -238,7 +238,7 @@ class MarketHealthDailyLoader(OptimalLoader):
                 "Cannot compute market health without SPY price data."
             ) from None
 
-    def _compute_market_health(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    def _compute_market_health(self, rows: list[dict[str, float | int | None | str]]) -> list[dict[str, Any]]:
         if not rows:
             return []
         # Warn if we have fewer than 20 rows but still process them (can happen at startup)

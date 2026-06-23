@@ -200,7 +200,8 @@ def panel_performance_spark(perf: dict[str, Any], rec: Any, perf_anl: dict[str, 
     str_s = f"+{streak}W" if streak >= 0 else f"{abs(streak)}L"
     str_c = G if streak >= 0 else R
     unrlzd = perf.get("unrealized_pnl")
-    pnl_val = perf.get("pnl")
+    pnl_val_raw = perf.get("pnl")
+    pnl_val = float(pnl_val_raw) if pnl_val_raw is not None else None
     pnl_c = G if pnl_val is not None and pnl_val >= 0 else R
     pf = perf.get("profit_factor")
     pf_s = f"{pf:.2f}" if pf is not None else "--"

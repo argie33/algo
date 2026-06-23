@@ -167,7 +167,7 @@ def fetch_market(c: None) -> dict[str, Any]:
         return {
             "pct": safe_float(current.get("exposure_pct"), field_name="market.exposure_pct"),
             "tier": tier,
-            "halts": safe_int(current.get("halt_reasons"), field_name="halt_reasons"),
+            "halts": current.get("halt_reasons") if isinstance(current.get("halt_reasons"), list) else [],
             "vix": vix,
             "stage": market_health.get("market_stage"),
             "trend": market_health.get("market_trend"),

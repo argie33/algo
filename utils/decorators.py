@@ -109,8 +109,8 @@ def external_api_handler(
                 def timeout_handler(signum, frame):
                     raise TimeoutError(f"{operation_name} exceeded {timeout}s timeout")
 
-                signal.signal(signal.SIGALRM, timeout_handler)
-                signal.alarm(timeout)
+                signal.signal(signal.SIGALRM, timeout_handler)  # type: ignore[attr-defined]
+                signal.alarm(timeout)  # type: ignore[attr-defined]
                 try:
                     return retry_with_backoff(
                         execute_with_timeout,
@@ -119,7 +119,7 @@ def external_api_handler(
                         backoff_multiplier=backoff_multiplier,
                     )
                 finally:
-                    signal.alarm(0)  # Cancel alarm
+                    signal.alarm(0)  # type: ignore[attr-defined]  # Cancel alarm
             except (
                 requests.RequestException,
                 requests.Timeout,
@@ -179,9 +179,9 @@ def validation_handler(
                         if "body" in kwargs:
                             kwargs["body"] = validated
                         else:
-                            args = list(args)
-                            args[1] = validated
-                            args = tuple(args)
+                            args_list = list(args)
+                            args_list[1] = validated
+                            args = tuple(args_list)
                     except Exception as e:
                         from utils.exceptions import InputValidationError
 

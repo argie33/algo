@@ -26,9 +26,9 @@ logger = logging.getLogger(__name__)
 def _run_reconciliation_step(
     config: Any,
     run_date: _date,
-    log_phase_result_fn: Callable,
+    log_phase_result_fn: Callable[..., Any],
     dry_run: bool,
-) -> tuple[bool, dict]:
+) -> tuple[bool, dict[str, Any]]:
     """Run initial reconciliation step and validate results."""
     from algo.infrastructure.reconciliation import DailyReconciliation
 
@@ -79,8 +79,8 @@ def _run_reconciliation_step(
 
 def _validate_pnl_step(
     recon: Any,
-    result: dict,
-    log_phase_result_fn: Callable,
+    result: dict[str, Any],
+    log_phase_result_fn: Callable[..., Any],
 ) -> tuple[str, str]:
     """Validate P&L and log results."""
     pnl_validation_status = "warn"
@@ -127,7 +127,7 @@ def _validate_pnl_step(
 
 def _audit_exit_prices_step(
     recon: Any,
-    log_phase_result_fn: Callable,
+    log_phase_result_fn: Callable[..., Any],
 ) -> None:
     """Audit stale estimated exit prices."""
     try:
@@ -143,7 +143,7 @@ def _audit_exit_prices_step(
         logger.error(f"[PHASE 7] Exit price audit failed: {e}")
 
 
-def _populate_signal_trade_performance(log_phase_result_fn: Callable) -> int:
+def _populate_signal_trade_performance(log_phase_result_fn: Callable[..., Any]) -> int:
     """Populate signal trade performance from closed trades."""
     from algo.signals.trade_performance import SignalTradePerformancePopulator
 
@@ -168,7 +168,7 @@ def _populate_signal_trade_performance(log_phase_result_fn: Callable) -> int:
     return trades_processed
 
 
-def _compute_signal_attribution(run_date: _date, log_phase_result_fn: Callable) -> dict:
+def _compute_signal_attribution(run_date: _date, log_phase_result_fn: Callable[..., Any]) -> dict[str, Any]:
     """Compute signal attribution IC."""
     from algo.signals.attribution import SignalAttributionEngine
 
@@ -209,7 +209,7 @@ def _compute_signal_attribution(run_date: _date, log_phase_result_fn: Callable) 
     return attr_result
 
 
-def _generate_daily_report(run_date: _date, log_phase_result_fn: Callable) -> None:
+def _generate_daily_report(run_date: _date, log_phase_result_fn: Callable[..., Any]) -> None:
     """Generate and validate daily finance report."""
     from algo.reporting import DailyFinanceReport
 
@@ -283,7 +283,7 @@ def _generate_daily_report(run_date: _date, log_phase_result_fn: Callable) -> No
         log_phase_result_fn(9, "daily_report", "warn", f"validation error: {str(e)[:60]}")
 
 
-def _compute_performance_metrics(config: Any, run_date: _date, log_phase_result_fn: Callable) -> None:
+def _compute_performance_metrics(config: Any, run_date: _date, log_phase_result_fn: Callable[..., Any]) -> None:
     """Compute and log live performance metrics."""
     from algo.reporting import LivePerformance
 
@@ -319,7 +319,7 @@ def _compute_performance_metrics(config: Any, run_date: _date, log_phase_result_
         log_phase_result_fn(9, "performance", perf_status, perf_summary)
 
 
-def _compute_risk_metrics(config: Any, run_date: _date, log_phase_result_fn: Callable) -> None:
+def _compute_risk_metrics(config: Any, run_date: _date, log_phase_result_fn: Callable[..., Any]) -> None:
     """Compute and log risk metrics."""
     from algo.risk import ValueAtRisk
 
@@ -349,7 +349,7 @@ def _compute_risk_metrics(config: Any, run_date: _date, log_phase_result_fn: Cal
         log_phase_result_fn(9, "risk_metrics", risk_status, risk_summary)
 
 
-def _update_daily_metrics(run_date: _date, log_phase_result_fn: Callable) -> None:
+def _update_daily_metrics(run_date: _date, log_phase_result_fn: Callable[..., Any]) -> None:
     """Update algo_metrics_daily with daily trade results."""
     try:
         row_data = None
@@ -412,7 +412,7 @@ def _update_daily_metrics(run_date: _date, log_phase_result_fn: Callable) -> Non
         log_phase_result_fn(9, "metrics_update", metrics_status, metrics_summary)
 
 
-def _optimize_weights(config: Any, run_date: _date, log_phase_result_fn: Callable) -> dict:
+def _optimize_weights(config: Any, run_date: _date, log_phase_result_fn: Callable[..., Any]) -> dict[str, Any]:
     """Run weight optimization."""
     from algo.orchestration import RegimeManager as _RegimeManager
     from algo.orchestration import WeightOptimizer
@@ -447,7 +447,7 @@ def _optimize_weights(config: Any, run_date: _date, log_phase_result_fn: Callabl
 
 def _record_closed_positions_exits(
     run_date: _date,
-    log_phase_result_fn: Callable,
+    log_phase_result_fn: Callable[..., Any],
 ) -> None:
     """Record exits for recently closed positions."""
     try:
@@ -545,7 +545,7 @@ def _record_closed_positions_exits(
 def run(
     config: Any,
     run_date: _date,
-    log_phase_result_fn: Callable,
+    log_phase_result_fn: Callable[..., Any],
     dry_run: bool = False,
 ) -> PhaseResult:
     """Execute Phase 9: Reconciliation & Snapshot.

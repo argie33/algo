@@ -319,7 +319,7 @@ class SignalQualityScoresLoader(OptimalLoader):
                 "Signal quality requires technical analysis data."
             ) from None
 
-    def _fetch_trend_data(self, symbol: str, start: date, end: date) -> list[dict]:
+    def _fetch_trend_data(self, symbol: str, start: date, end: date) -> list[dict[str, Any]]:
         from utils.db.context import DatabaseContext
 
         try:
@@ -344,7 +344,7 @@ class SignalQualityScoresLoader(OptimalLoader):
                 "Signal quality assessment requires trend analysis."
             ) from None
 
-    def _fetch_vcp_patterns(self, symbol: str, start: date, end: date) -> list[dict]:
+    def _fetch_vcp_patterns(self, symbol: str, start: date, end: date) -> list[dict[str, Any]]:
         from utils.db.context import DatabaseContext
 
         try:
@@ -396,7 +396,7 @@ class SignalQualityScoresLoader(OptimalLoader):
                 "VCP pattern recognition is authoritative for trend confirmation."
             ) from None
 
-    def _fetch_positioning_data(self, symbol: str) -> dict | None:
+    def _fetch_positioning_data(self, symbol: str) -> dict[str, Any] | None:
         from utils.db.context import DatabaseContext
 
         try:
@@ -416,12 +416,12 @@ class SignalQualityScoresLoader(OptimalLoader):
     def _compute_quality_scores(
         self,
         symbol: str,
-        buy_sell_rows: list[dict],
-        technical_rows: list[dict],
-        trend_rows: list[dict],
-        vcp_rows: list[dict] | None = None,
-        positioning_data: dict | None = None,
-    ) -> list[dict]:
+        buy_sell_rows: list[dict[str, Any]],
+        technical_rows: list[dict[str, Any]],
+        trend_rows: list[dict[str, Any]],
+        vcp_rows: list[dict[str, Any]] | None = None,
+        positioning_data: dict[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
         if not buy_sell_rows:
             raise RuntimeError(
                 f"[QUALITY_SCORES] No buy/sell signals available for {symbol}. "

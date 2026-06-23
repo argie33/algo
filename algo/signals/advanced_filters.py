@@ -174,14 +174,14 @@ class AdvancedFilters:
           'components': dict
         """
         with DatabaseContext("read") as cur:
-            components = {}
-            subscores = {"momentum": 0.0, "quality": 0.0, "catalyst": 0.0, "risk": 0.0}
-            hard_fail = None
+            components: dict[str, Any] = {}
+            subscores: dict[str, float] = {"momentum": 0.0, "quality": 0.0, "catalyst": 0.0, "risk": 0.0}
+            hard_fail: str | None = None
 
             # ===== HARD-FAIL gates (independent) =====
 
             # H1. Earnings proximity (CRITICAL: must not skip on exception)
-            days_to_earnings = None
+            days_to_earnings: int | None = None
             try:
                 days_to_earnings = self._estimate_days_to_earnings(symbol, signal_date, cur)
             except ValueError as e:
@@ -197,7 +197,7 @@ class AdvancedFilters:
                 )
 
             # H2. Over-extended (CRITICAL: must not skip on exception)
-            ext_pct = None
+            ext_pct: float | None = None
             try:
                 ext_pct = self._extension_pct(symbol, signal_date, entry_price, cur)
             except ValueError as e:
@@ -211,7 +211,7 @@ class AdvancedFilters:
                 hard_fail = hard_fail or f"{ext_pct:.1f}% above 50-DMA (max {self.max_extension_above_50ma_pct:.0f})"
 
             # H4. Liquidity (institutional must — CRITICAL: must not skip on exception)
-            avg_dollar_vol = None
+            avg_dollar_vol: float | None = None
             try:
                 avg_dollar_vol = self._avg_dollar_volume(symbol, signal_date, cur)
             except ValueError as e:
@@ -310,9 +310,10 @@ class AdvancedFilters:
 
             # RISK (15) — these are GOOD when low risk
             try:
-                ext_pts = self._extension_risk_score(ext_pct)
-                components["extension_pts"] = round(ext_pts, 1)
-                subscores["risk"] += ext_pts
+                if ext_pct is not None:
+                    ext_pts = self._extension_risk_score(ext_pct)
+                    components["extension_pts"] = round(ext_pts, 1)
+                    subscores["risk"] += ext_pts
             except ValueError as e:
                 hard_fail = hard_fail or f"Extension risk assessment failed: {str(e)[:40]}"
 
@@ -448,7 +449,7 @@ class AdvancedFilters:
             # Weekly data missing or unavailable — continue without bonus
             logger.debug(f"Weekly alignment data unavailable for {symbol}: {e} (continuing without bonus)")
 
-        return min(score, FilterRegistry.get_weight("momentum_price_trend")) if isinstance(score, float) else float(score)
+        return min(score, FilterRegistry.get_weight("momentum_price_trend"))
 
     def _setup_quality_score(self, symbol: str, signal_date: Any) -> tuple[float, dict[str, Any]]:
         """Bonus pts for entering on a real base breakout / VCP (canonical swing setup).
@@ -660,7 +661,7 @@ class AdvancedFilters:
             "momentum": round(mom, 1),
         }
 
-    def _analyst_score(self, symbol: str, signal_date: Any, cur: Any) -> tuple[float, dict[str, Any]]:
+    def _analyst_score(self, symbol: str, signal_date: Any, cur: Any) -> tuple[float, int]:
         cur.execute(
             """
             SELECT
@@ -751,10 +752,10 @@ class AdvancedFilters:
                 "Extension percentage required for risk scoring. "
                 "SMA_50 data unavailable. Cannot assess entry extension risk."
             )
-        risk_ext_weight = FilterRegistry.get_weight("risk_extension")
-        sweet_spot = FilterRegistry.get_threshold("extension_risk_sweet_spot_pct")
-        moderate = FilterRegistry.get_threshold("extension_risk_moderate_pct")
-        high = FilterRegistry.get_threshold("extension_risk_high_pct")
+        risk_ext_weight = float(FilterRegistry.get_weight("risk_extension"))
+        sweet_spot = float(FilterRegistry.get_threshold("extension_risk_sweet_spot_pct"))
+        moderate = float(FilterRegistry.get_threshold("extension_risk_moderate_pct"))
+        high = float(FilterRegistry.get_threshold("extension_risk_high_pct"))
 
         if ext_pct < 0:
             return risk_ext_weight * 0.6  # below 50 = OK but not ideal
@@ -772,8 +773,8 @@ class AdvancedFilters:
                 "Days to earnings required for risk scoring. "
                 "Earnings calendar data unavailable. Cannot assess earnings-proximity risk."
             )
-        risk_earnings_prox_weight = FilterRegistry.get_weight("risk_earnings_proximity")
-        safe_days = FilterRegistry.get_threshold("earnings_proximity_safe_days")
+        risk_earnings_prox_weight = float(FilterRegistry.get_weight("risk_earnings_proximity"))
+        safe_days = float(FilterRegistry.get_threshold("earnings_proximity_safe_days"))
         if days_to_earnings <= block_window:
             return 0.0
         if days_to_earnings >= safe_days:
@@ -819,8 +820,8 @@ class AdvancedFilters:
         )
         row = cur.fetchone()
         if row is not None and row[0] is not None:
-            earnings_date = row[0]
-            return (earnings_date - signal_date).days
+            earnings_date: _date = row[0]
+            return int((earnings_date - signal_date).days)
 
         # Fallback: try earnings_estimates table
         cur.execute(
@@ -834,7 +835,7 @@ class AdvancedFilters:
         row = cur.fetchone()
         if row is not None and row[0] is not None:
             earnings_date = row[0]
-            return (earnings_date - signal_date).days
+            return int((earnings_date - signal_date).days)
 
         # Fallback: estimate based on last reported earnings using proper quarter math
         cur.execute(
@@ -879,4 +880,4 @@ class AdvancedFilters:
             else:
                 next_q_date = _date(next_q_date.year + 1, 1, 15)
 
-        return (next_q_date - signal_d).days
+        return int((next_q_date - signal_d).days)

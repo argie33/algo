@@ -258,7 +258,7 @@ def _build_freshness_panel(hlth_items: list[Any], ready_to_trade: bool | None) -
 
 def panel_orch(run: dict[str, Any] | None, cfg: dict[str, Any], risk: dict[str, Any] | None = None) -> Panel:
     error_pnl = _error_panel("config", cfg, "ORCHESTRATION")
-    if error_pnl:
+    if error_pnl is not None:
         return error_pnl
 
     next_run = next_run_str()
@@ -348,7 +348,8 @@ def panel_orch(run: dict[str, Any] | None, cfg: dict[str, Any], risk: dict[str, 
             halt_r = run.get("halt_reason", "")
             summary = run.get("summary", "")
             if halt_r or run.get("halted"):
-                _details = _best_halt_reason(halt_r, run.get("phase_results"))
+                phase_results_temp = run.get("phase_results") or []
+                _details = _best_halt_reason(halt_r, phase_results_temp)
                 _lines = [f"{lb + ': ' if lb else ''}{dt[:60]}" for lb, dt in _details]
                 extra = ("\n" + "\n".join(f"[{Y}]{ln}[/]" for ln in _lines)) if _lines else ""
             else:
@@ -442,11 +443,11 @@ def _format_exec_history_summary(exec_hist: list[Any] | None) -> list[Text]:
 def _format_recent_trade_events(act: dict[str, Any] | None) -> list[Text]:
     """Format recent trade events (entry/exit/order)."""
     rows: list[Text] = []
-    act_valid = act and not has_error(act)
-    if act_valid and "recent_actions" not in act:
+    act_valid = act and isinstance(act, dict) and not has_error(act)
+    if act_valid and isinstance(act, dict) and "recent_actions" not in act:
         rows.append(Text.from_markup("[dim]⚠ recent_actions data missing[/]"))
         return rows
-    recent = act.get("recent_actions", []) if act_valid else []
+    recent = (act.get("recent_actions", []) if isinstance(act, dict) else []) if act_valid else []
 
     trade_evts = [
         a
@@ -864,8 +865,8 @@ def _format_risk_snapshot(risk_dict: dict[str, Any]) -> list[Text | Rule]:
     cvar95_val = risk_dict.get("cvar95")
     svar_val = risk_dict.get("svar")
 
-    beta_c = R if beta_val >= 1.2 else (Y if beta_val >= 0.8 else G)
-    conc_c = R if conc5_val >= 35 else (Y if conc5_val >= 25 else "white")
+    beta_c = R if (beta_val is not None and beta_val >= 1.2) else (Y if (beta_val is not None and beta_val >= 0.8) else G)
+    conc_c = R if (conc5_val is not None and conc5_val >= 35) else (Y if (conc5_val is not None and conc5_val >= 25) else "white")
     var_c = HealthFormatter.var_color(var95_val)
 
     risk_parts = [
@@ -1014,12 +1015,13 @@ def panel_status(
 
     # Phase detail — named phases from exec_log with per-phase status and key data
     phase_badges = []
-    run_source = run.get("_source") if run_valid else None
+    run_source = (run.get("_source") if isinstance(run, dict) else None) if run_valid else None
     if run_valid and run_source == "exec_log":
         halt_r = run.get("halt_reason", "")
         summary = run.get("summary", "")
         if run.get("halted") or halt_r:
-            for label, detail in _best_halt_reason(halt_r, run.get("phase_results")):
+            pr_val = (run.get("phase_results") if isinstance(run, dict) else None) or []
+            for label, detail in _best_halt_reason(halt_r, pr_val):
                 prefix = f"{label}: " if label else ""
                 rows.append(Text.from_markup(f"[{Y}]a†³ {prefix}{detail[:60]}[/]"))
         elif summary and isinstance(summary, str):
@@ -1239,7 +1241,7 @@ def panel_algo_health(
     # ── A: Run outcome ────────────────────────────────────────────────────────
     run_valid = run and isinstance(run, dict) and not has_error(run)
     act_valid = act and isinstance(act, dict) and not has_error(act)
-    run_at = run.get("run_at") if run_valid else (act.get("run_at") if act_valid else None)
+    run_at = (run.get("run_at") if isinstance(run, dict) else None) if run_valid else (act.get("run_at") if isinstance(act, dict) and act_valid else None)
     age_s = f"  [dim]{fmt_age(run_at)}[/]" if run_at else ""
 
     if run_valid and isinstance(run, dict):
@@ -1279,7 +1281,8 @@ def panel_algo_health(
         summary = run_fields["summary"] or ""
         phase_results = run_fields["phase_results"]
         if halted or halt_r:
-            for label, detail in _best_halt_reason(halt_r, phase_results):
+            phase_results_guard = phase_results or []
+            for label, detail in _best_halt_reason(halt_r, phase_results_guard):
                 prefix = f"{label}: " if label else ""
                 rows.append(Text.from_markup(f"  [{Y}]→ {prefix}{detail[:80]}[/]"))
         elif summary:
@@ -1371,8 +1374,8 @@ def panel_algo_health(
             conc5_val = risk_dict.get("conc5")
             cvar95_val = risk_dict.get("cvar95")
             svar_val = risk_dict.get("svar")
-            beta_c = R if beta_val >= 1.2 else (Y if beta_val >= 0.8 else G)
-            conc_c = R if conc5_val >= 35 else (Y if conc5_val >= 25 else "white")
+            beta_c = R if beta_val is not None and beta_val >= 1.2 else (Y if beta_val is not None and beta_val >= 0.8 else G)
+            conc_c = R if conc5_val is not None and conc5_val >= 35 else (Y if conc5_val is not None and conc5_val >= 25 else "white")
             var_c = HealthFormatter.var_color(var95_val)
             risk_parts = [
                 f"[dim]VaR 95%:[/][{var_c}]{var95_val:.2f}%[/]",
@@ -1433,7 +1436,7 @@ def _build_results_panel(run: dict[str, Any] | None, act: dict[str, Any] | None,
 
     run_valid = run and isinstance(run, dict) and not has_error(run)
     act_valid = act and isinstance(act, dict) and not has_error(act)
-    run_at = run.get("run_at") if run_valid else (act.get("run_at") if act_valid else None)
+    run_at = (run.get("run_at") if isinstance(run, dict) else None) if run_valid else (act.get("run_at") if isinstance(act, dict) and act_valid else None)
     age_s = f"  [dim]{fmt_age(run_at)}[/]" if run_at else ""
 
     if run_valid:
@@ -1447,7 +1450,7 @@ def _build_results_panel(run: dict[str, Any] | None, act: dict[str, Any] | None,
         halt_r = run.get("halt_reason", "")
         summary = run.get("summary", "")
         if run.get("halted") or halt_r:
-            for label, detail in _best_halt_reason(halt_r, run.get("phase_results")):
+            for label, detail in _best_halt_reason(halt_r, run.get("phase_results") or []):
                 prefix = f"{label}: " if label else ""
                 right_rows.append(Text.from_markup(f"  [{Y}]-> {prefix}{detail}[/]"))
         elif summary:
