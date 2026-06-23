@@ -19,7 +19,7 @@ Provides logical grouping methods for convenience.
 """
 
 import logging
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from algo.infrastructure.config import AlgoConfig
@@ -79,7 +79,7 @@ class CircuitBreakerConfig:
         Returns:
             True if value was set as requested; False if rejected/fail-closed
         """
-        return cast(bool, self.parent.set(key, value, value_type, description, changed_by))
+        return self.parent.set(key, value, value_type, description, changed_by)  # type: ignore[return-value]
 
     def get_loss_limits_config(self) -> dict[str, Any]:
         """Get daily/weekly loss limit thresholds.

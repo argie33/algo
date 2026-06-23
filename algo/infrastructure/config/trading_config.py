@@ -18,7 +18,7 @@ Provides logical grouping methods for trading team convenience.
 """
 
 import logging
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from algo.infrastructure.config import AlgoConfig
@@ -78,7 +78,7 @@ class TradingConfig:
         Returns:
             True if value was set as requested; False if rejected/fail-closed
         """
-        return cast(bool, self.parent.set(key, value, value_type, description, changed_by))
+        return self.parent.set(key, value, value_type, description, changed_by)  # type: ignore[return-value]
 
     def get_stock_filter_config(self) -> dict[str, Any]:
         """Get all stock quality gates (liquidity, price, volume).
