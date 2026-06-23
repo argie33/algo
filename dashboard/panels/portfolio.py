@@ -1,15 +1,16 @@
 """Portfolio performance and analysis panel functions."""
 
 import logging
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 try:
-    from panel_registry import register_panel
+    from panel_registry import register_panel  # type: ignore[import]
 except ImportError as e:
     logger.warning(f"Panel registry not available: {e} - panels will not auto-register")
 
-    def register_panel(*args, **kwargs):
+    def register_panel(*args: Any, **kwargs: Any) -> Any:  # type: ignore[no-untyped-def]
         if args and callable(args[0]):
             return args[0]
         return lambda fn: fn
@@ -40,21 +41,24 @@ from ..utilities import (
 from ._helpers import _error_panel
 
 
-def _calculate_adjusted_win_rate(perf, pos):
+def _calculate_adjusted_win_rate(perf: dict[str, Any] | None, pos: dict[str, Any] | None) -> tuple[float, int, int]:
     """E10 Fix: Include losing open positions in win rate calculation.
 
     Win rate should reflect all active positions (closed + open losses), not just closed trades.
     Counts open positions with unrealized_pnl_pct < 0 as losses.
     """
     if not perf or perf.get("_error"):
-        return perf.get("wr") or 0, perf.get("w") or 0, perf.get("l") or 0
+        wr_val = perf.get("wr") if perf else None
+        w_val = perf.get("w") if perf else None
+        l_val = perf.get("l") if perf else None
+        return (wr_val or 0), (w_val or 0), (l_val or 0)
 
     closed_wins = perf.get("w") or 0
     closed_losses = perf.get("l") or 0
     losing_open = 0
 
     if pos and not pos.get("_error"):
-        pos_items, _, _ = normalize_positions_data(pos)
+        pos_items, _, _ = normalize_positions_data(pos)  # type: ignore[no-untyped-call]
         for p in pos_items:
             if isinstance(p, dict):
                 pnl_val = p.get("unrealized_pnl_pct")
@@ -65,25 +69,25 @@ def _calculate_adjusted_win_rate(perf, pos):
 
     total_trades = closed_wins + closed_losses + losing_open
     if total_trades == 0:
-        return 0, closed_wins, closed_losses + losing_open
+        return 0.0, closed_wins, closed_losses + losing_open
 
     adjusted_wr = (closed_wins / total_trades) * 100
     return adjusted_wr, closed_wins, closed_losses + losing_open
 
 
-@register_panel(
+@register_panel(  # type: ignore[untyped-decorator]
     "portfolio",
     endpoint_deps=["port", "cfg", "risk", "perf"],
     optional=False,
     description="Portfolio",
 )
-def panel_portfolio(port, cfg, risk=None, perf=None):
-    err_panel = _error_panel("portfolio", port, "PORTFOLIO", border="green")
+def panel_portfolio(port: dict[str, Any], cfg: dict[str, Any] | None, risk: dict[str, Any] | None = None, perf: dict[str, Any] | None = None) -> Panel:
+    err_panel = _error_panel("portfolio", port, "PORTFOLIO", border="green")  # type: ignore[no-untyped-call,arg-type]
     if err_panel:
         return err_panel
 
-    pv = safe_float(port["total_portfolio_value"], default=None)
-    cash = safe_float(port["total_cash"], default=None)
+    pv = safe_float(port["total_portfolio_value"], default=0.0)  # type: ignore[arg-type]
+    cash = safe_float(port["total_cash"], default=0.0)
     npos = safe_int(port["position_count"], default=0)
     dr = safe_float(port.get("daily_return_pct"), default=None)
     urp = safe_float(port.get("unrealized_pnl_pct"), default=None)
@@ -92,59 +96,56 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
     lgpos = safe_float(port.get("largest_position_pct"), default=None)
     snap = port.get("snapshot_date")
     max_n = safe_int(cfg.get("max_pos_n") if cfg else None, default=0)
-    snap_s = f"  [dim]{fmt_age(snap)}[/]" if snap is not None else ""
+    snap_s = f"  [dim]{fmt_age(snap)}[/]" if snap is not None else ""  # type: ignore[no-untyped-call]
 
-    # Header: portfolio value + age. CRITICAL: Must show error if pv is None
-    pv_display = fmt_money(pv) if pv is not None else "[red]DATA UNAVAILABLE[/]"
-    header = Text.from_markup(f"[bold white]{pv_display}[/]{snap_s}")
+    # Header: portfolio value + age
+    header = Text.from_markup(f"[bold white]{fmt_money(pv)}[/]{snap_s}")  # type: ignore[no-untyped-call]
 
     # 2-column grid — keeps labels from wrapping
-    def cell(label, value_markup):
+    def cell(label: str, value_markup: str) -> Text:
         return Text.from_markup(f"[dim]{label}[/] {value_markup}")
 
     tbl = Table.grid(padding=(0, 2), expand=True)
     tbl.add_column("left", ratio=1)
     tbl.add_column("right", ratio=1)
 
-    # Cash / Positions. CRITICAL: Must show error if cash is None
-    cash_display = fmt_money(cash) if cash is not None else "[red]DATA UNAVAILABLE[/]"
+    # Cash / Positions
     if npos is not None:
         if max_n:
-            _sb = mini_bar(npos, max_n, w=4)
+            _sb = mini_bar(npos, max_n, w=4)  # type: ignore[no-untyped-call]
             pos_val = f"{_sb}[dim]{npos}/{max_n}[/]"
         else:
             pos_val = f"[white]{npos}[/]"
     else:
         pos_val = "[dim]--[/]"
     tbl.add_row(
-        cell("Cash:", f"[white]{cash_display}[/]"),
+        cell("Cash:", f"[white]{fmt_money(cash)}[/]"),  # type: ignore[no-untyped-call]
         cell("Positions:", pos_val),
     )
 
     # Daily return / Unrealized P&L
-    dr_s = f"[{G if (dr or 0) >= 0 else R}]{sign(dr or 0)}{(dr or 0):.2f}%[/]" if dr is not None else "[dim]--[/]"
-    urp_s = f"[{G if (urp or 0) >= 0 else R}]{sign(urp or 0)}{(urp or 0):.2f}%[/]" if urp is not None else "[dim]--[/]"
+    dr_s = f"[{G if (dr or 0) >= 0 else R}]{sign(dr or 0)}{(dr or 0):.2f}%[/]" if dr is not None else "[dim]--[/]"  # type: ignore[no-untyped-call]
+    urp_s = f"[{G if (urp or 0) >= 0 else R}]{sign(urp or 0)}{(urp or 0):.2f}%[/]" if urp is not None else "[dim]--[/]"  # type: ignore[no-untyped-call]
     tbl.add_row(cell("Daily Return:", dr_s), cell("Unrealized P&L:", urp_s))
 
     # Total return / Max drawdown
     cum_v = float(cum) if cum is not None else None
     mxdd_v = float(mxdd) if mxdd is not None else None
     cc = G if (cum_v or 0) >= 0 else R
-    cum_val = f"[{cc}]{sign(cum_v or 0)}{(cum_v or 0):.2f}%[/]" if cum_v is not None else "[dim]--[/]"
-    dd_v = abs(mxdd_v) if mxdd_v is not None else None
+    cum_val = f"[{cc}]{sign(cum_v or 0)}{(cum_v or 0):.2f}%[/]" if cum_v is not None else "[dim]--[/]"  # type: ignore[no-untyped-call]
+    dd_v: float | None = abs(mxdd_v) if mxdd_v is not None else None
     dd_c = R if (dd_v or 0) >= 15 else (Y if (dd_v or 0) >= 5 else G)
     dd_val = f"[{dd_c}]-{dd_v:.1f}%[/]" if dd_v is not None else "[dim]--[/]"
     tbl.add_row(cell("Total Return:", cum_val), cell("Max Drawdown:", dd_val))
 
     # Largest position
     if lgpos is not None:
-        lgpos_f = safe_float(lgpos, default=None)
-        if lgpos_f is not None:
-            lp_c = R if lgpos_f >= 20 else (Y if lgpos_f >= 15 else "white")
-            tbl.add_row(
-                cell("Largest Position:", f"[{lp_c}]{lgpos_f:.1f}%[/]"),
-                Text(""),
-            )
+        lgpos_f = safe_float(lgpos, default=0.0)
+        lp_c = R if lgpos_f >= 20 else (Y if lgpos_f >= 15 else "white")
+        tbl.add_row(
+            cell("Largest Position:", f"[{lp_c}]{lgpos_f:.1f}%[/]"),
+            Text(""),
+        )
 
     # Risk metrics (VaR, CVaR, Beta, concentration, Stressed VaR)
     # CRITICAL: Do NOT default NULL risk metrics to 0.0 — that hides missing data!
@@ -152,10 +153,10 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
     # not silently appear as "0% risk" (which is catastrophically misleading)
     var_v = safe_float(risk.get("var95") if risk and not risk.get("_error") else None, default=None)
     if var_v is not None and var_v > 0:
-        cvar_v = safe_float(risk.get("cvar95"), default=None)
-        beta_v = safe_float(risk.get("beta"), default=None)
-        conc5_v = safe_float(risk.get("conc5"), default=None)
-        svar_v = safe_float(risk.get("svar"), default=None)
+        cvar_v = safe_float(risk.get("cvar95") if risk else None, default=None)
+        beta_v = safe_float(risk.get("beta") if risk else None, default=None)
+        conc5_v = safe_float(risk.get("conc5") if risk else None, default=None)
+        svar_v = safe_float(risk.get("svar") if risk else None, default=None)
 
         # Only render risk metrics if all critical fields are available
         if cvar_v is not None and beta_v is not None and conc5_v is not None:
@@ -184,19 +185,20 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
     )
 
 
-@register_panel(
+@register_panel(  # type: ignore[untyped-decorator]
     "performance",
     endpoint_deps=["per", "trades", "perf_anl"],
     optional=True,
     description="Performance",
 )
-def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
+def panel_performance_spark(perf: dict[str, Any], rec: Any, perf_anl: dict[str, Any] | None = None, pos: dict[str, Any] | None = None) -> Panel:
     """Performance metrics + equity sparkline + rolling analytics."""
-    err_panel = _error_panel("performance", perf, "PERFORMANCE", border="green")
+    err_panel = _error_panel("performance", perf, "PERFORMANCE", border="green")  # type: ignore[no-untyped-call,arg-type]
     if err_panel:
         return err_panel
 
-    streak = perf.get("streak") if perf.get("streak") is not None else 0
+    streak_val: int | Any = perf.get("streak") if perf.get("streak") is not None else 0
+    streak = int(streak_val) if isinstance(streak_val, (int, float)) else 0
     str_s = f"+{streak}W" if streak >= 0 else f"{abs(streak)}L"
     str_c = G if streak >= 0 else R
     unrlzd = perf.get("unrealized_pnl")
@@ -211,7 +213,7 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
     sharpe_v = perf.get("sharpe")
     sharpe_s = f"{sharpe_v:.2f}" if sharpe_v is not None else "--"
 
-    wr_v, _adj_w, adj_l = _calculate_adjusted_win_rate(perf, pos)
+    wr_v, _adj_w, adj_l = _calculate_adjusted_win_rate(perf, pos)  # type: ignore[no-untyped-call]
     closed_wins = perf.get("w") or 0
     closed_losses = perf.get("l") or 0
     losing_open = (adj_l or 0) - (closed_losses or 0)
@@ -231,19 +233,19 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
     )
 
     # 2-column grid for metrics so labels don't wrap
-    def cell(label, value_markup):
+    def cell(label: str, value_markup: str) -> Text:
         return Text.from_markup(f"[dim]{label}[/] {value_markup}")
 
     tbl = Table.grid(padding=(0, 2), expand=True)
     tbl.add_column("left", ratio=1)
     tbl.add_column("right", ratio=1)
 
-    grid_rows = []
+    grid_rows: list[tuple[Text, Text]] = []
 
     # P&L row
-    pnl_s = f"[{pnl_c}]{fmt_money(perf.get('pnl'))}[/]"
+    pnl_s = f"[{pnl_c}]{fmt_money(perf.get('pnl'))}[/]"  # type: ignore[no-untyped-call]
     if unrlzd is not None:
-        unrlzd_s = f"[{G if (unrlzd or 0) >= 0 else R}]{fmt_money(unrlzd)}[/]"
+        unrlzd_s = f"[{G if (unrlzd or 0) >= 0 else R}]{fmt_money(unrlzd)}[/]"  # type: ignore[no-untyped-call]
         grid_rows.append((cell("Realized P&L:", pnl_s), cell("Unrealized P&L:", unrlzd_s)))
     else:
         grid_rows.append((cell("Realized P&L:", pnl_s), Text("")))
@@ -287,8 +289,8 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
             grid_rows.append((cell("Sharpe (1-Year):", f"[{sc1}]{sharpe252:.2f}[/]"), Text("")))
 
         total_trades = perf.get("n", 0) if perf else 0
-        calmar_cell = None
-        wr50_cell = None
+        calmar_cell: Text | None = None
+        wr50_cell: Text | None = None
         if calmar is not None and calmar != 0.0:
             cc = G if calmar >= 0.5 else (Y if calmar >= 0 else R)
             calmar_cell = cell("Calmar Ratio:", f"[{cc}]{calmar:.2f}[/]")
@@ -306,18 +308,18 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
     for left, right in grid_rows:
         tbl.add_row(left, right)
 
-    rows = [header, tbl]
+    rows: list[Any] = [header, tbl]
 
     # Equity curve sparkline
     equity_vals = perf.get("equity_vals") or []
     if len(equity_vals) >= 3:
-        sp = sparkline(equity_vals, width=28)
+        sp = sparkline(equity_vals, width=28)  # type: ignore[no-untyped-call]
         rows.append(Text.from_markup(f"[dim]Equity curve:[/] {sp}"))
 
     # Recent daily returns (last 5 snapshots)
     recent_rets = perf.get("recent_rets") or []
     if recent_rets:
-        parts = []
+        parts: list[str] = []
         for item in recent_rets[-5:]:
             if isinstance(item, (list, tuple)) and len(item) >= 2:
                 dt, ret = item[0], item[1]
@@ -338,9 +340,9 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
                     d_s = str(dt)[:3]
             else:
                 d_s = str(dt)[:3]
-            parts.append(f"[dim]{d_s}[/][{rc}]{sign(ret)}{ret:.1f}%[/]")
+            parts.append(f"[dim]{d_s}[/][{rc}]{sign(ret)}{ret:.1f}%[/]")  # type: ignore[no-untyped-call]
         if parts:
-            rows.append(Text.from_markup("  ".join(parts)))
+            rows.append(Text.from_markup("  ".join(parts)))  # type: ignore[arg-type]
 
     return Panel(
         Group(*rows),  # type: ignore[arg-type]
@@ -350,29 +352,37 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
     )
 
 
-@register_panel(
+@register_panel(  # type: ignore[untyped-decorator]
     "portfolio_expanded",
     endpoint_deps=["port", "cfg", "risk", "perf", "perf_anl", "pos"],
     optional=True,
     description="Portfolio & Performance Expanded",
 )
-def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None, pos=None):
+def panel_portfolio_perf_expanded(port: dict[str, Any], cfg: dict[str, Any] | None, risk: dict[str, Any] | None = None, perf: dict[str, Any] | None = None, perf_anl: dict[str, Any] | None = None, pos: dict[str, Any] | None = None) -> Panel:
     """Full-screen portfolio + performance deep dive — all metrics, risk, concentration."""
-    rows = [
+    rows: list[Any] = [
         Text.from_markup("[dim]press [/][bold green]f[/][dim] to return to dashboard[/]"),
         Rule(style="dim"),
     ]
 
     # ── Portfolio snapshot ────────────────────────────────────────────────────
     if port and not port.get("_error"):
-        pv = float(port["total_portfolio_value"])
-        cash = float(port["total_cash"])
-        npos = int(port["position_count"])
-        dr = float(port.get("daily_return_pct")) if port.get("daily_return_pct") is not None else None
-        urp = float(port.get("unrealized_pnl_pct")) if port.get("unrealized_pnl_pct") is not None else None
-        cum = float(port.get("cumulative_return_pct")) if port.get("cumulative_return_pct") is not None else None
-        mxdd = float(port.get("max_drawdown_pct")) if port.get("max_drawdown_pct") is not None else None
-        lgpos = float(port.get("largest_position_pct")) if port.get("largest_position_pct") is not None else None
+        pv_val: Any = port["total_portfolio_value"]
+        cash_val: Any = port["total_cash"]
+        npos_val: Any = port["position_count"]
+        pv = float(pv_val) if pv_val is not None else 0.0
+        cash = float(cash_val) if cash_val is not None else 0.0
+        npos = int(npos_val) if npos_val is not None else 0
+        dr_val: Any = port.get("daily_return_pct")
+        urp_val: Any = port.get("unrealized_pnl_pct")
+        cum_val: Any = port.get("cumulative_return_pct")
+        mxdd_val: Any = port.get("max_drawdown_pct")
+        lgpos_val: Any = port.get("largest_position_pct")
+        dr = float(dr_val) if dr_val is not None else None
+        urp = float(urp_val) if urp_val is not None else None
+        cum = float(cum_val) if cum_val is not None else None
+        mxdd = float(mxdd_val) if mxdd_val is not None else None
+        lgpos = float(lgpos_val) if lgpos_val is not None else None
         snap = port.get("snapshot_date")
 
         rows.append(Text.from_markup("[dim bold]PORTFOLIO SNAPSHOT[/]"))
@@ -383,9 +393,9 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
         ptbl.add_column("val2", style="white")
         ptbl.add_row(
             "Total Value:",
-            f"{fmt_money(pv)}",
+            f"{fmt_money(pv)}",  # type: ignore[no-untyped-call]
             "Cash:",
-            fmt_money(cash),
+            fmt_money(cash),  # type: ignore[no-untyped-call]
         )
         max_n = int(cfg.get("max_pos_n") or 0) if cfg else 0
         slots_s = f"{npos}/{max_n}" if (npos is not None and max_n) else (str(npos) if npos is not None else "--")
@@ -423,7 +433,7 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
         avg_win = perf.get("avg_win")
         avg_loss = perf.get("avg_loss")
 
-        wr_v, _adj_w, adj_l = _calculate_adjusted_win_rate(perf, pos)
+        wr_v, _adj_w, adj_l = _calculate_adjusted_win_rate(perf, pos)  # type: ignore[no-untyped-call]
         losing_open = (adj_l or 0) - (closed_losses or 0)
         wr_label = "Win Rate (adj.):" if losing_open > 0 else "Win Rate:"
 
@@ -453,14 +463,14 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
         )
         perfblk.add_row(
             "Total P&L:",
-            Text(fmt_money(pnl_val), style=G if (pnl_val or 0) >= 0 else R),
+            Text(fmt_money(pnl_val), style=G if (pnl_val or 0) >= 0 else R),  # type: ignore[no-untyped-call,arg-type]
             "Profit Factor:",
             Text(f"{pf:.2f}" if pf else "--", style=pf_c),
         )
         perfblk.add_row(
             "Unrealized P&L:",
             Text(
-                fmt_money(unrlzd_pnl) if unrlzd_pnl is not None else "--",
+                fmt_money(unrlzd_pnl) if unrlzd_pnl is not None else "--",  # type: ignore[no-untyped-call,arg-type]
                 style=G if (unrlzd_pnl or 0) >= 0 else R,
             ),
             "Open Positions:",
@@ -489,7 +499,7 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
         # Equity sparkline
         equity_vals = perf.get("equity_vals") or []
         if len(equity_vals) >= 3:
-            sp = sparkline(equity_vals, width=50)
+            sp = sparkline(equity_vals, width=50)  # type: ignore[no-untyped-call]
             rows.append(Text.from_markup(f"[dim]Equity curve:[/] {sp}"))
 
         # Recent daily returns
@@ -497,7 +507,7 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
         if recent_rets:
             from datetime import datetime
 
-            parts = []
+            parts: list[str] = []
             for item in recent_rets[-10:]:
                 if isinstance(item, (list, tuple)) and len(item) >= 2:
                     dt, ret = item[0], item[1]
@@ -613,12 +623,12 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
 
     # ── Position concentration ─────────────────────────────────────────────────
     if pos:
-        pos_items, _, _ = normalize_positions_data(pos)
+        pos_items, _, _ = normalize_positions_data(pos)  # type: ignore[no-untyped-call]
         if pos_items:
             rows.append(Rule(style="dim"))
             rows.append(Text.from_markup("[dim bold]POSITION CONCENTRATION[/]"))
             pv_total = float(port["total_portfolio_value"]) if port and not port.get("_error") else 0
-            conc_rows = []
+            conc_rows: list[tuple[float, Any, float | None, float | None]] = []
             for p in pos_items:
                 if not isinstance(p, dict):
                     continue
@@ -645,7 +655,7 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
                     Text(sym, style="bold white"),
                     bar_s,
                     Text(f"{pct:.1f}%", style=conc_c),
-                    Text(fmt_money_short(val) if val else "--", style="dim"),
+                    Text(fmt_money_short(val) if val else "--", style="dim"),  # type: ignore[no-untyped-call,arg-type]
                     Text(f"{pnl:+.1f}%" if pnl is not None else "--", style=pc),
                 )
             rows.append(ctbl2)

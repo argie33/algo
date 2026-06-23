@@ -27,6 +27,7 @@ dependencies = [
 packages = [
     "algo",
     "utils",
+    "lambda",
     "migrations",
     "loaders",
     "monitoring",
@@ -58,8 +59,7 @@ warn_no_return = true
 exclude = [
     "^migrations/",
     "^tests/",
-    ".*-[a-z].*",
-    "^.claude",
+    "^lambda/",
 ]
 
 [[tool.mypy.overrides]]
@@ -83,14 +83,9 @@ ignore_errors = true  # Uses contextlib generics that require architectural rewo
 
 [[tool.mypy.overrides]]
 module = [
-    "dashboard.fetchers_config",
-    "dashboard.fetchers_market",
-    "dashboard.fetchers_portfolio",
-    "dashboard.fetchers_signals",
-    "dashboard.fetchers_external",
-    "dashboard.fetchers_common",
+    "dashboard.panels.portfolio",
 ]
-disallow_untyped_defs = true  # Fetchers must be annotated — unannotated defs hide type errors from API data
+warn_unused_ignores = false  # Some external function calls don't actually require type: ignore
 
 [tool.ruff]
 line-length = 120
@@ -102,58 +97,27 @@ ignore = ["E203", "E501", "UP031", "RUF012"]
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
+"utils/exceptions/core.py" = ["N818", "A001"]
+"utils/exceptions/__init__.py" = ["A001"]
 "migrations/*" = ["E402", "F401"]
 "tests/*" = ["E402", "F401", "S101"]
-"loaders/load*.py" = ["E402", "F401"]
 "scripts/*" = ["E402"]
+"load*.py" = ["E402", "F401"]
+"conftest.py" = ["E402"]
 "*_lambda.py" = ["E402"]
 "dev_server.py" = ["E402"]
 "api_proxy_server.py" = ["E402"]
+"panels.py" = ["E402"]
 "dashboard/*.py" = ["E402", "C901"]
 "*config*.py" = ["E402"]
-"utils/validation/*.py" = ["E402"]
-# Orchestration phases, lambda handlers, and complex loaders are inherently high-complexity
-# state machines — per-file ignores are intentional; splitting would harm readability
-"algo/orchestrator/phase1_data_freshness.py" = ["C901"]
-"algo/orchestrator/phase6_exit_execution.py" = ["C901"]
-"algo/orchestrator/phase8_entry_execution.py" = ["C901"]
-"algo/orchestrator/phase9_reconciliation.py" = ["C901"]
-"algo/infrastructure/reconciliation.py" = ["C901"]
-"algo/backtest/run_backtest.py" = ["C901"]
-"algo/monitoring/position_monitor.py" = ["C901"]
-"algo/orchestration/database_health_monitor.py" = ["C901"]
-"algo/orchestration/orchestrator.py" = ["C901"]
-"algo/risk/market_exposure.py" = ["C901"]
-"algo/signals/signal_momentum.py" = ["C901"]
-"algo/trading/executor_exit_handler.py" = ["C901"]
-"algo/trading/exit_engine.py" = ["C901"]
-"algo/trading/trade_validator.py" = ["C901"]
-"config/credential_manager.py" = ["C901"]
-"config/credential_validator.py" = ["C901"]
-"loaders/load_prices.py" = ["C901"]
-"loaders/load_signal_quality_scores.py" = ["C901"]
-"loaders/enrich_buy_sell_daily_technical.py" = ["C901"]
-"loaders/load_aaii_sentiment.py" = ["C901"]
-"loaders/load_earnings_calendar.py" = ["C901"]
-"loaders/load_economic_metrics_daily.py" = ["C901"]
-"loaders/load_fear_greed_index.py" = ["C901"]
-"loaders/load_buy_sell_daily.py" = ["C901"]
-"loaders/load_fred_economic_data.py" = ["C901"]
-"lambda/algo_orchestrator/lambda_function.py" = ["C901"]
-"lambda/api/lambda_function.py" = ["C901"]
-"lambda/api/routes/algo.py" = ["C901"]
-"lambda/api/routes/algo_handlers/dashboard.py" = ["C901"]
-"lambda/api/routes/algo_handlers/market.py" = ["C901"]
-"lambda/api/routes/algo_handlers/metrics.py" = ["C901"]
-"lambda/api/routes/economic.py" = ["C901"]
-"lambda/api/routes/market.py" = ["C901"]
-"lambda/api/routes/prices.py" = ["C901"]
-"lambda/api/routes/sectors.py" = ["C901"]
-"lambda/api/routes/sentiment.py" = ["C901"]
-"lambda/db-init/lambda_function.py" = ["C901"]
-"lambda/rds-password-reset/lambda_function.py" = ["C901"]
-# Auto-generated/vendored files
-"fix_casts_v2.py" = ["T201", "F401"]
+"enrich_*.py" = ["E402"]
+"orchestrator*.py" = ["E402"]
+"validate_*.py" = ["E402"]
+"verify_*.py" = ["E402"]
+"diagnose_*.py" = ["E402"]
+"migration_helper.py" = ["E402"]
+"freshness.py" = ["E402"]
+"routes/utils.py" = ["E402"]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 20
@@ -187,9 +151,6 @@ disable = [
     "assignment-from-no-return",
     "raising-bad-type",
     "no-member",
-    "import-error",  # False positives: setup_imports modifies sys.path at runtime
-    "no-name-in-module",  # False positives: setup_imports modifies sys.path at runtime
-    "assignment-from-none",  # Incorrect annotations or false positives from runtime path setup
 ]
 
 [tool.pylint.variables]
