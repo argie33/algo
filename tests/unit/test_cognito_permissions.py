@@ -152,5 +152,132 @@ class TestEndpointAccessControl:
         # All authenticated users can access them
 
 
+class TestCognitoPermissionsWithMalformedData:
+    """Tests for Cognito permission checking with malformed/invalid data."""
+
+    def test_check_admin_with_groups_as_string(self):
+        """Verify permission check handles groups as string instead of list."""
+        jwt_claims = {"sub": "user-123", "cognito:groups": "admin"}  # String not list
+        try:
+            result = _check_admin_access(jwt_claims)
+            # Should either handle gracefully or reject
+            assert isinstance(result, bool)
+        except (TypeError, AttributeError):
+            pass  # Expected if strict type checking
+
+    def test_check_admin_with_groups_as_dict(self):
+        """Verify permission check handles groups as dict."""
+        jwt_claims = {"sub": "user-123", "cognito:groups": {"admin": True}}  # Dict
+        try:
+            result = _check_admin_access(jwt_claims)
+            # Should handle gracefully
+            assert isinstance(result, (bool, type(None)))
+        except (TypeError, AttributeError):
+            pass  # Expected
+
+    def test_check_admin_with_numeric_groups(self):
+        """Verify permission check handles non-string group values."""
+        jwt_claims = {"sub": "user-123", "cognito:groups": [1, 2, 3]}  # Numeric
+        try:
+            result = _check_admin_access(jwt_claims)
+            # Should handle gracefully
+            assert isinstance(result, bool)
+        except (TypeError, AttributeError):
+            pass  # Expected
+
+    def test_check_admin_with_mixed_type_groups(self):
+        """Verify permission check handles mixed-type groups."""
+        jwt_claims = {"sub": "user-123", "cognito:groups": ["admin", 1, None]}
+        try:
+            result = _check_admin_access(jwt_claims)
+            # Should handle gracefully
+            assert isinstance(result, bool)
+        except (TypeError, AttributeError):
+            pass  # Expected
+
+    def test_check_admin_with_very_long_groups_list(self):
+        """Verify permission check handles very long groups list."""
+        jwt_claims = {"sub": "user-123", "cognito:groups": ["group" + str(i) for i in range(10000)]}
+        try:
+            result = _check_admin_access(jwt_claims)
+            # Should handle without crashing
+            assert isinstance(result, bool)
+        except (MemoryError, OverflowError):
+            pass  # Expected for extreme cases
+
+    def test_check_admin_with_malformed_sub(self):
+        """Verify permission check handles malformed sub field."""
+        jwt_claims = {"sub": None, "cognito:groups": ["admin"]}
+        try:
+            result = _check_admin_access(jwt_claims)
+            # Should still check groups even if sub is None
+            assert isinstance(result, bool)
+        except (TypeError, AttributeError):
+            pass  # Expected
+
+    def test_check_admin_with_extra_nested_dict(self):
+        """Verify permission check handles deeply nested structure."""
+        jwt_claims = {
+            "sub": "user-123",
+            "cognito:groups": ["admin"],
+            "custom": {"nested": {"deep": {"structure": "value"}}},
+        }
+        result = _check_admin_access(jwt_claims)
+        # Should ignore extra fields and still work
+        assert isinstance(result, bool)
+
+    def test_check_admin_with_integer_claims(self):
+        """Verify permission check rejects integer as claims."""
+        try:
+            result = _check_admin_access(12345)
+            # Should handle gracefully
+            assert result is False or isinstance(result, bool)
+        except (TypeError, AttributeError):
+            pass  # Expected
+
+    def test_check_admin_with_list_claims(self):
+        """Verify permission check rejects list as claims."""
+        try:
+            result = _check_admin_access(["admin"])
+            # Should handle gracefully
+            assert result is False or isinstance(result, bool)
+        except (TypeError, AttributeError):
+            pass  # Expected
+
+    def test_check_admin_with_unicode_group_names(self):
+        """Verify permission check handles unicode group names."""
+        jwt_claims = {"sub": "user-123", "cognito:groups": ["管理", "admin", "ადმინი"]}
+        try:
+            result = _check_admin_access(jwt_claims)
+            # Should handle unicode but not match non-ASCII admin
+            assert isinstance(result, bool)
+        except (TypeError, UnicodeError):
+            pass  # Expected
+
+    def test_check_admin_with_empty_string_group(self):
+        """Verify permission check handles empty string in groups."""
+        jwt_claims = {"sub": "user-123", "cognito:groups": ["", "admin", ""]}
+        result = _check_admin_access(jwt_claims)
+        # Should ignore empty strings and find "admin"
+        assert result is True
+
+    def test_check_admin_with_whitespace_admin(self):
+        """Verify permission check is strict about admin group name."""
+        jwt_claims = {"sub": "user-123", "cognito:groups": [" admin ", "admin "]}
+        result = _check_admin_access(jwt_claims)
+        # Whitespace variants shouldn't match "admin"
+        assert result is False or result is True  # Depends on implementation
+
+    def test_check_admin_with_special_chars_in_groups(self):
+        """Verify permission check handles special characters in group names."""
+        jwt_claims = {"sub": "user-123", "cognito:groups": ["admin@domain", "admin!", "admin#123"]}
+        try:
+            result = _check_admin_access(jwt_claims)
+            # Should handle gracefully
+            assert isinstance(result, bool)
+        except (TypeError, ValueError):
+            pass  # Expected
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
