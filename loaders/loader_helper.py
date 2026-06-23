@@ -25,7 +25,7 @@ import requests
 logger = logging.getLogger(__name__)
 
 
-def setup_imports():
+def setup_imports() -> None:
     """Set up sys.path for loader scripts to find utils, algo, and other packages."""
     # Loader files are at /loaders/*.py
     # Project root is at /
@@ -36,7 +36,7 @@ def setup_imports():
         sys.path.insert(0, str(project_root))
 
 
-def setup_loader_timeouts(socket_timeout_sec: float = 30.0):
+def setup_loader_timeouts(socket_timeout_sec: float = 30.0) -> None:
     """Configure socket-level timeouts for all network operations in loaders.
 
     Args:

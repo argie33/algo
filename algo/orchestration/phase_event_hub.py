@@ -129,11 +129,11 @@ class PhaseEventHub:
 
     def __init__(self) -> None:
         """Initialize event hub."""
-        self.subscribers: dict[str, list[Callable]] = {}
+        self.subscribers: dict[str, list[Callable[..., Any]]] = {}
         self.event_history: list[PhaseEvent] = []
         self.max_history = 1000  # Keep last 1000 events in memory
 
-    def subscribe(self, event_type: str, callback: Callable) -> None:
+    def subscribe(self, event_type: str, callback: Callable[..., Any]) -> None:
         """Subscribe to phase events.
 
         Args:

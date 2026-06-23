@@ -312,7 +312,9 @@ def _build_buy_signals_table(scored_with_signals: list, buy_sig_details: dict) -
         comp_v: float = safe_float(comp_score, default=0.0)
         comp_c: str = _composite_score_color(comp_v)
         swing_c: str = G if swing_score >= 80 else (CY if swing_score >= 70 else Y)
-        rr_c: str = G if rr_ratio and rr_ratio > 1.5 else (Y if rr_ratio and rr_ratio > 1 else (CY if rr_ratio else DIM))
+        rr_c: str = (
+            G if rr_ratio and rr_ratio > 1.5 else (Y if rr_ratio and rr_ratio > 1 else (CY if rr_ratio else DIM))
+        )
 
         price_f: float | None = safe_float(price, default=None)
         buy_lvl_f: float | None = safe_float(buy_lvl, default=None)

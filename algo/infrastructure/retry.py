@@ -23,6 +23,7 @@ import logging
 import random
 import time
 from collections.abc import Callable
+from typing import Any
 
 from algo.infrastructure.constants import (
     ALPACA_DATA_RATE_LIMIT_CPM,
@@ -46,7 +47,7 @@ def retry(
     backoff: float = RETRY_BACKOFF_MULTIPLIER,
     jitter: bool = True,
     exceptions: tuple[type[Exception], ...] = (Exception,),
-) -> Callable:
+) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """
     Exponential backoff retry decorator.
 
@@ -59,9 +60,9 @@ def retry(
         exceptions:   Only retry on these exception types.
     """
 
-    def decorator(fn: Callable) -> Callable:
+    def decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
         @functools.wraps(fn)
-        def wrapper(*args, **kwargs):
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
             delay = base_delay
             for attempt in range(1, max_attempts + 1):
                 try:

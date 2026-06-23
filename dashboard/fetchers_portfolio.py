@@ -246,7 +246,7 @@ def fetch_perf(c: None) -> dict[str, Any]:
 
         def _f(v: object) -> float | None:
             try:
-                return float(v) if v is not None else None
+                return float(v) if v is not None else None  # type: ignore[arg-type]
             except (TypeError, ValueError):
                 return None
 

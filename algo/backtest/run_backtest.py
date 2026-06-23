@@ -32,6 +32,7 @@ import argparse
 import logging
 import sys
 from datetime import date, timedelta
+from typing import Any
 
 import psycopg2
 
@@ -112,7 +113,7 @@ def _get_daily_buy_signals(signal_date: date, min_composite: float) -> list[dict
         raise RuntimeError(f"[BACKTEST] FATAL: Cannot fetch buy signals for {signal_date}: {e}") from e
 
 
-def _get_daily_sell_signals(signal_date: date) -> set:
+def _get_daily_sell_signals(signal_date: date) -> set[str]:
     """Get symbols with SELL signal on signal_date."""
     try:
         with DatabaseContext("read") as cur:
@@ -170,7 +171,7 @@ def run_backtest(
     max_hold_days: int = 60,
     position_size_pct: float = 10.0,
     strategy_name: str = "composite_score_signals",
-) -> dict:
+) -> dict[str, Any]:
     """Run backtest and return results dict."""
     logger.info(
         f"[BACKTEST] Starting {strategy_name}: {start_date} to {end_date}, "
@@ -187,8 +188,8 @@ def run_backtest(
     logger.info(f"[BACKTEST] {len(trading_dates)} trading days to simulate")
 
     capital = initial_capital
-    positions: dict[str, dict] = {}  # symbol → {entry_price, shares, entry_date, stop, target}
-    completed_trades: list[dict] = []
+    positions: dict[str, dict[str, Any]] = {}  # symbol → {entry_price, shares, entry_date, stop, target}
+    completed_trades: list[dict[str, Any]] = []
     equity_curve = []
 
     for sim_date in trading_dates:
@@ -417,7 +418,7 @@ def run_backtest(
     return results
 
 
-def save_results(results: dict) -> int | None:
+def save_results(results: dict[str, Any]) -> int | None:
     """Write backtest results to backtest_runs and backtest_trades tables.
 
     Returns run_id integer on success, None on failure.

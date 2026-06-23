@@ -190,6 +190,7 @@ class SignalPatternsMixin:
             }
 
         return self._with_cursor(_analyze_vcp)
+
     def classify_base_type(self, symbol: str, eval_date) -> dict[str, Any]:
         """
         Classify the current base into canonical chart pattern types.
@@ -331,6 +332,7 @@ class SignalPatternsMixin:
             }
 
         return self._with_cursor(_classify_with_cursor)
+
     def base_type_stop(self, symbol: str, eval_date, entry_price: float, atr: float | None = None) -> dict[str, Any]:
         """Compute optimal stop loss based on the SPECIFIC base type detected.
 
@@ -446,6 +448,7 @@ class SignalPatternsMixin:
             }
 
         return self._with_cursor(_compute_stop)
+
     def three_weeks_tight(self, symbol: str, eval_date) -> dict[str, Any]:
         """
         IBD's "3-Weeks-Tight" (3WT) — high-probability continuation pattern.
@@ -521,6 +524,7 @@ class SignalPatternsMixin:
             }
 
         return self._with_cursor(_analyze_3wt)
+
     def high_tight_flag(self, symbol: str, eval_date) -> dict[str, Any]:
         """
         IBD's "High Tight Flag" (HTF) — rare but highly explosive continuation.

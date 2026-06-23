@@ -69,7 +69,7 @@ class StructuredDBLogger:
         return str(type(param).__name__)
 
     @staticmethod
-    def _format_list_params(params: list | tuple, max_items: int) -> str:
+    def _format_list_params(params: list[Any] | tuple[Any, ...], max_items: int) -> str:
         """Format list/tuple parameters."""
         if len(params) == 0:
             return "[]"
@@ -82,7 +82,7 @@ class StructuredDBLogger:
         return result
 
     @staticmethod
-    def _format_dict_params(params: dict, max_items: int) -> str:
+    def _format_dict_params(params: dict[str, Any], max_items: int) -> str:
         """Format dictionary parameters."""
         if len(params) == 0:
             return "{}"

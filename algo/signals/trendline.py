@@ -50,7 +50,7 @@ class TrendlineSupport:
                 "Cannot evaluate support trendlines without price data."
             ) from e
 
-    def find_support_line(self, symbol: str, eval_date: date) -> dict | None:
+    def find_support_line(self, symbol: str, eval_date: date) -> dict[str, Any] | None:
         """
         Find 2-point rising support line.
 
@@ -157,7 +157,7 @@ class TrendlineSupport:
 
         return best_trendline
 
-    def validate_entry_near_trendline(self, symbol: str, eval_date: date, entry_price: float) -> dict:
+    def validate_entry_near_trendline(self, symbol: str, eval_date: date, entry_price: float) -> dict[str, Any]:
         """
         Check if entry_price is near (above) the support trendline.
 

@@ -22,7 +22,7 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 # Global metrics buffer (persisted per session or sent to CloudWatch)
-_metrics_buffer: dict[str, list] = {}
+_metrics_buffer: dict[str, list[Any]] = {}
 
 
 def _emit_cloudwatch_metric(operation_name: str, duration_seconds: float) -> None:
@@ -100,12 +100,12 @@ class TimeBlock:
         self.end_time: float = 0.0
         self.duration_ms: float = 0.0
 
-    def __enter__(self):
+    def __enter__(self) -> "TimeBlock":
         self.start_time = time.time()
         logger.log(self.log_level, f"[START] {self.operation_name}")
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> bool:
         self.end_time = time.time()
         self.duration_ms = (self.end_time - self.start_time) * 1000
         duration_seconds = self.duration_ms / 1000.0
@@ -146,7 +146,7 @@ class TimeBlock:
 
 
 @contextmanager
-def time_operation(operation_name: str, log_level: str = "info"):
+def time_operation(operation_name: str, log_level: str = "info") -> Any:
     """
     Shorthand for timing an operation block.
 

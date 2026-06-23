@@ -24,6 +24,7 @@ USAGE:
 
 import logging
 from datetime import date as _date
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -208,7 +209,7 @@ class TickValidationBatch:
     def __init__(self, symbol: str, is_etf: bool = False):
         self.symbol = symbol
         self.is_etf = is_etf
-        self.ticks: list[dict] = []
+        self.ticks: list[dict[str, Any]] = []
         self.prior_close: float | None = None
 
     def add_tick(
@@ -248,7 +249,7 @@ class TickValidationBatch:
 
         return (len(errors) == 0, errors)
 
-    def get_valid_ticks(self) -> list[dict]:
+    def get_valid_ticks(self) -> list[dict[str, Any]]:
         """Return all validated ticks in chronological order."""
         return sorted(self.ticks, key=lambda x: x["date"])
 

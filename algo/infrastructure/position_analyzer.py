@@ -104,7 +104,7 @@ class PositionAnalyzer:
         }
 
     @staticmethod
-    def log_position_analysis(analysis: dict[str, Any], logger_obj=None) -> None:
+    def log_position_analysis(analysis: dict[str, Any], logger_obj: Any = None) -> None:
         """Log position analysis results in standardized format."""
         if logger_obj is None:
             logger_obj = logger

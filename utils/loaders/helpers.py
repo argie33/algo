@@ -7,8 +7,10 @@ Functions that were defined identically in 19+ loader files, now centralized her
 
 import logging
 import os
+import signal
 import threading
 import time
+from typing import Any, cast
 
 import psycopg2
 
@@ -17,7 +19,7 @@ from utils.db import DatabaseContext
 logger = logging.getLogger(__name__)
 
 
-def get_api_key(secret_name: str, env_var: str, default: str | None = None) -> str:
+def get_api_key(secret_name: str, env_var: str, default: str | None = None) -> str | None:
     """Fetch API key from AWS Secrets Manager with fallback to environment variable.
 
     Supports seamless Secrets Manager migration: tries Secrets Manager first,
@@ -41,11 +43,11 @@ def get_api_key(secret_name: str, env_var: str, default: str | None = None) -> s
             try:
                 client = boto3.client("secretsmanager", region_name=region)
                 response = client.get_secret_value(SecretId=secret_name)
-                key = response.get("SecretString")
+                key: str | None = response.get("SecretString")
                 if key:
                     logger.debug(f"Fetched {secret_name} from Secrets Manager")
                     return key
-            except (psycopg2.DatabaseError, psycopg2.OperationalError) as sm_err:
+            except Exception as sm_err:
                 logger.debug(f"Secrets Manager fetch failed for {secret_name}: {sm_err}, falling back to env var")
     except ImportError:
         logger.debug("boto3 not available, using env var fallback")
@@ -66,7 +68,7 @@ def get_api_key(secret_name: str, env_var: str, default: str | None = None) -> s
 
 
 # Cache for active symbols to reduce database load under parallelism
-_symbols_cache = {}
+_symbols_cache: dict[str, tuple[float, list[str]]] = {}
 _cache_lock = threading.Lock()
 _CACHE_TTL_SECS = 300  # 5 minute cache
 
@@ -85,16 +87,16 @@ def get_active_symbols(max_symbols: int | None = None, timeout_secs: int = 120) 
         max_symbols: Limit results to N symbols (default: None = all)
         timeout_secs: Timeout for database query (default: 120 seconds for parallel batch execution)
     """
-    import signal
 
-    def timeout_handler(signum, frame):
+    def timeout_handler(signum: int, frame: Any) -> None:
         raise TimeoutError(f"get_active_symbols() exceeded {timeout_secs}s timeout")
 
     # Set alarm signal only on Unix-like systems
-    old_handler = None
+    old_handler: Any = None
     try:
-        old_handler = signal.signal(signal.SIGALRM, timeout_handler)
-        signal.alarm(timeout_secs)
+        if hasattr(signal, "SIGALRM"):
+            old_handler = signal.signal(signal.SIGALRM, timeout_handler)  # type: ignore[misc]
+            signal.alarm(timeout_secs)  # type: ignore[misc]
     except (AttributeError, ValueError):
         # signal.SIGALRM not available on Windows, use threading timeout instead
         pass
@@ -111,9 +113,9 @@ def get_active_symbols(max_symbols: int | None = None, timeout_secs: int = 120) 
                 return symbols
 
     try:
-        result = {"symbols": None, "error": None}
+        result: dict[str, list[str] | None | BaseException] = {"symbols": None, "error": None}
 
-        def fetch_symbols():
+        def fetch_symbols() -> None:
             try:
                 with DatabaseContext("read") as cur:
                     cur.execute("SELECT symbol FROM stock_symbols WHERE active = true ORDER BY symbol")
@@ -130,10 +132,11 @@ def get_active_symbols(max_symbols: int | None = None, timeout_secs: int = 120) 
         if thread.is_alive():
             raise TimeoutError(f"get_active_symbols() exceeded {timeout_secs}s timeout")
 
-        if result["error"]:
-            raise result["error"]  # pylint: disable=raising-bad-type
+        if result["error"] is not None:
+            raise result["error"]
 
-        symbols = result["symbols"] or []
+        symbols_result: list[str] | None = result["symbols"]
+        symbols = symbols_result or []
 
         # Cache the result
         with _cache_lock:
@@ -148,8 +151,9 @@ def get_active_symbols(max_symbols: int | None = None, timeout_secs: int = 120) 
         # Cancel alarm (only on Unix/Linux where SIGALRM is available)
         if old_handler is not None:
             try:
-                signal.alarm(0)
-                signal.signal(signal.SIGALRM, old_handler)
+                if hasattr(signal, "SIGALRM"):
+                    signal.alarm(0)  # type: ignore[attr-defined]
+                    signal.signal(signal.SIGALRM, old_handler)  # type: ignore[attr-defined]
             except (AttributeError, ValueError):
                 pass
 
@@ -191,7 +195,7 @@ def _resolve_period(cli_arg: str | None = None) -> str:
 # These eliminate 169+ repetitions of `with DatabaseContext("read") as cur:` pattern
 
 
-def execute_query(query: str, params=None, role: str = "read", timeout: int = 30):
+def execute_query(query: str, params: Any = None, role: str = "read", timeout: int = 30) -> list[Any]:
     """Execute a query and return all results.
 
     Eliminates: with DatabaseContext(role) as cur: cur.execute(...); cur.fetchall()
@@ -208,10 +212,11 @@ def execute_query(query: str, params=None, role: str = "read", timeout: int = 30
     """
     with DatabaseContext(role, timeout=timeout) as cur:
         cur.execute(query, params)
-        return cur.fetchall()
+        result = cur.fetchall()
+        return cast(list[Any], result) if result is not None else []
 
 
-def fetch_one(query: str, params=None, role: str = "read", timeout: int = 30):
+def fetch_one(query: str, params: Any = None, role: str = "read", timeout: int = 30) -> Any:
     """Execute a query and return single result.
 
     Eliminates: with DatabaseContext(role) as cur: cur.execute(...); cur.fetchone()
@@ -227,16 +232,17 @@ def fetch_one(query: str, params=None, role: str = "read", timeout: int = 30):
     """
     with DatabaseContext(role, timeout=timeout) as cur:
         cur.execute(query, params)
-        return cur.fetchone()
+        result = cur.fetchone()
+        return result
 
 
 def fetch_latest(
     table: str,
     order_by_col: str,
     where_clause: str | None = None,
-    params=None,
+    params: Any = None,
     timeout: int = 30,
-):
+) -> Any:
     """Fetch latest row from a table ordered by a specific column.
 
     Common pattern: SELECT ... FROM table [WHERE ...] ORDER BY col DESC LIMIT 1
@@ -259,10 +265,10 @@ def fetch_latest(
 def fetch_all(
     table: str,
     where_clause: str | None = None,
-    params=None,
+    params: Any = None,
     order_by: str | None = None,
     timeout: int = 30,
-):
+) -> list[Any]:
     """Fetch all rows matching optional WHERE clause.
 
     Common pattern: SELECT ... FROM table [WHERE ...] [ORDER BY ...]
@@ -286,7 +292,7 @@ def fetch_all(
 def count_rows(
     table: str,
     where_clause: str | None = None,
-    params=None,
+    params: Any = None,
     timeout: int = 30,
 ) -> int:
     """Count rows in a table matching optional WHERE clause.
@@ -317,7 +323,7 @@ def create_circuit_breaker(
     importance_name: str = "OPTIONAL",
     failure_threshold: int = 3,
     recovery_timeout_sec: int = 300,
-):
+) -> Any:
     """Factory for common CircuitBreaker patterns.
 
     Eliminates: Repeated CircuitBreaker(name=..., importance=DataImportance.X) across loaders

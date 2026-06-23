@@ -138,7 +138,7 @@ class SLAMonitor:
         return False
 
     @classmethod
-    def warn_if_critical(cls, pipeline_name: str, operation_name: str):
+    def warn_if_critical(cls, pipeline_name: str, operation_name: str) -> None:
         """Log warning if we're in critical SLA phase (>80% complete)."""
         sla = cls.get_current_sla_window()
 

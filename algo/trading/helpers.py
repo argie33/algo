@@ -40,6 +40,7 @@ def safe_decimal(value: Any, default: Any = None) -> Decimal | float | None:
         logger.warning(f"safe_decimal conversion failed for {value!r}: {type(e).__name__}, using default {default!r}")
         return default
 
+
 def safe_float(value: Any, default: float | None = None) -> float | None:
     """Convert value to float safely, returning default on failure."""
     if value is None:

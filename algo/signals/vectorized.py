@@ -103,7 +103,7 @@ class VectorizedSignalGenerator:
             logger.error(error_msg)
             raise RuntimeError(error_msg) from e
 
-    def compute_minervini_parallel(self, data_by_symbol: dict, eval_date: _date) -> dict[str, dict]:
+    def compute_minervini_parallel(self, data_by_symbol: dict[str, Any], eval_date: _date) -> dict[str, dict[str, Any]]:
         """
         Compute Minervini 8-point trend template for all symbols.
 
@@ -230,7 +230,9 @@ class VectorizedSignalGenerator:
 
         return results
 
-    def compute_weinstein_stage_parallel(self, data_by_symbol: dict, eval_date: _date) -> dict[str, dict]:
+    def compute_weinstein_stage_parallel(
+        self, data_by_symbol: dict[str, Any], eval_date: _date
+    ) -> dict[str, dict[str, Any]]:
         """Compute Weinstein 4-stage classification for all symbols."""
         results = {}
 
@@ -273,7 +275,9 @@ class VectorizedSignalGenerator:
 
         return results
 
-    def compute_power_trend_parallel(self, data_by_symbol: dict, eval_date: _date) -> dict[str, dict]:
+    def compute_power_trend_parallel(
+        self, data_by_symbol: dict[str, Any], eval_date: _date
+    ) -> dict[str, dict[str, Any]]:
         """Compute power trend: 20%+ gain in 21 days."""
         results = {}
 
@@ -312,7 +316,7 @@ class VectorizedSignalGenerator:
             result[i] = np.nanmean(arr[i - window + 1 : i + 1])
         return result
 
-    def run(self, symbols: list[str], eval_date: _date) -> dict:
+    def run(self, symbols: list[str], eval_date: _date) -> dict[str, Any]:
         """
         Run all signal computations in parallel.
 

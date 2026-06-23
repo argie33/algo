@@ -87,7 +87,7 @@ EXPOSURE_TIERS: list[dict[str, Any]] = [
 ]
 
 
-def tier_for_exposure(exposure_pct):
+def tier_for_exposure(exposure_pct: float | None) -> dict[str, Any]:
     """Return the active policy tier for a given exposure %.
 
     Upper bounds are exclusive so exact boundary values (e.g. 70.0) land in the
@@ -109,10 +109,10 @@ def tier_for_exposure(exposure_pct):
 class ExposurePolicy:
     """Apply market exposure tier policies to portfolio state."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         pass
 
-    def get_active_tier(self, eval_date=None):
+    def get_active_tier(self, eval_date: _date | None = None) -> dict[str, Any]:
         """Look up the most recent exposure score and return its policy tier.
 
         CRITICAL: Fails fast if exposure data unavailable. Market exposure tier
@@ -149,7 +149,7 @@ class ExposurePolicy:
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def review_existing_positions(self, eval_date=None):
+    def review_existing_positions(self, eval_date: _date | None = None) -> list[dict[str, Any]]:
         """Apply tier policy to all open positions.
 
         Returns list of recommended actions per position:
@@ -191,7 +191,7 @@ class ExposurePolicy:
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Position review failed: {e}") from e
 
-    def _evaluate_position(self, row, tier):
+    def _evaluate_position(self, row: Any, tier: dict[str, Any]) -> dict[str, Any] | None:
         (
             trade_id,
             symbol,
@@ -297,7 +297,7 @@ class ExposurePolicy:
 
         return {"action": "hold", "symbol": symbol, "r_multiple": r_mult}
 
-    def get_entry_constraints(self, eval_date=None):
+    def get_entry_constraints(self, eval_date: _date | None = None) -> dict[str, Any] | None:
         """Return current constraints for new entries."""
         active = self.get_active_tier(eval_date)
         if not active:
@@ -345,7 +345,7 @@ if __name__ == "__main__":
     actions = p.review_existing_positions()
     logger.info(f"\n\nPosition Review: {len(actions)} actions recommended")
     for a in actions:
-        r_multiple = a.get('r_multiple')
+        r_multiple = a.get("r_multiple")
         r_display = f"{r_multiple:+.2f}" if r_multiple is not None else "MISSING"
         logger.info(f"  {a['symbol']:6s} → {a['action'].upper():15s}  R={r_display}  {a['reason']}")
         if a.get("new_stop"):

@@ -142,7 +142,9 @@ class SectorRotationDetector:
             }
         return sector_data
 
-    def _validate_sector_row(self, sector_name: str, r1w: Any, r4w: Any, r12w: Any, momentum: Any, eval_date: _date) -> None:
+    def _validate_sector_row(
+        self, sector_name: str, r1w: Any, r4w: Any, r12w: Any, momentum: Any, eval_date: _date
+    ) -> None:
         """Validate a single sector row for missing data."""
         if r1w is None:
             logger.warning(f"[SECTOR ROTATION] {sector_name}: missing 1w rank data for {eval_date}")
@@ -182,7 +184,9 @@ class SectorRotationDetector:
                 f"missing defensive={missing_defensive}, missing cyclical={missing_cyclical}"
             )
 
-    def _compute_sector_metrics(self, defensive: list[dict[str, Any]], cyclical: list[dict[str, Any]]) -> dict[str, Any]:
+    def _compute_sector_metrics(
+        self, defensive: list[dict[str, Any]], cyclical: list[dict[str, Any]]
+    ) -> dict[str, Any]:
         """Compute all sector rotation metrics."""
         def_imp_4w = sum(d["rank_improvement_4w"] for d in defensive) / len(defensive)
         cyc_imp_4w = sum(d["rank_improvement_4w"] for d in cyclical) / len(cyclical)
@@ -209,7 +213,9 @@ class SectorRotationDetector:
             "weeks_persistent": weeks_persistent,
         }
 
-    def _compute_weeks_persistent(self, defensive: list[dict[str, Any]], cyclical: list[dict[str, Any]], def_imp_4w: float, cyc_imp_4w: float) -> int:
+    def _compute_weeks_persistent(
+        self, defensive: list[dict[str, Any]], cyclical: list[dict[str, Any]], def_imp_4w: float, cyc_imp_4w: float
+    ) -> int:
         """Compute how many weeks defensive has outperformed across different time windows."""
         return sum(
             [

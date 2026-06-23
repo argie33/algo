@@ -99,14 +99,14 @@ def external_api_handler(
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             from utils.error_handlers import make_error_response, retry_with_backoff
 
-            def execute_with_timeout():
+            def execute_with_timeout() -> Any:
                 return func(*args, **kwargs)
 
             try:
                 # Add timeout enforcement
                 import signal
 
-                def timeout_handler(signum, frame):
+                def timeout_handler(signum: Any, frame: Any) -> None:
                     raise TimeoutError(f"{operation_name} exceeded {timeout}s timeout")
 
                 signal.signal(signal.SIGALRM, timeout_handler)  # type: ignore[attr-defined]
@@ -226,7 +226,7 @@ def timeout_handler(
 
             from utils.error_handlers import make_error_response
 
-            def timeout_signal_handler(signum, frame):
+            def timeout_signal_handler(signum: Any, frame: Any) -> None:
                 raise TimeoutError(f"{operation_name} exceeded {timeout_sec}s timeout")
 
             # Set timeout signal (Unix only)

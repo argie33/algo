@@ -81,7 +81,12 @@ def _calculate_adjusted_win_rate(perf: dict[str, Any] | None, pos: dict[str, Any
     optional=False,
     description="Portfolio",
 )
-def panel_portfolio(port: dict[str, Any], cfg: dict[str, Any] | None, risk: dict[str, Any] | None = None, perf: dict[str, Any] | None = None) -> Panel:
+def panel_portfolio(
+    port: dict[str, Any],
+    cfg: dict[str, Any] | None,
+    risk: dict[str, Any] | None = None,
+    perf: dict[str, Any] | None = None,
+) -> Panel:
     err_panel = _error_panel("portfolio", port, "PORTFOLIO", border="green")
     if err_panel:
         return err_panel
@@ -99,6 +104,7 @@ def panel_portfolio(port: dict[str, Any], cfg: dict[str, Any] | None, risk: dict
     snap_s = f"  [dim]{fmt_age(snap)}[/]" if snap is not None else ""
     # Header: portfolio value + age
     header = Text.from_markup(f"[bold white]{fmt_money(pv)}[/]{snap_s}")
+
     # 2-column grid — keeps labels from wrapping
     def cell(label: str, value_markup: str) -> Text:
         return Text.from_markup(f"[dim]{label}[/] {value_markup}")
@@ -189,7 +195,9 @@ def panel_portfolio(port: dict[str, Any], cfg: dict[str, Any] | None, risk: dict
     optional=True,
     description="Performance",
 )
-def panel_performance_spark(perf: dict[str, Any], rec: Any, perf_anl: dict[str, Any] | None = None, pos: dict[str, Any] | None = None) -> Panel:
+def panel_performance_spark(
+    perf: dict[str, Any], rec: Any, perf_anl: dict[str, Any] | None = None, pos: dict[str, Any] | None = None
+) -> Panel:
     """Performance metrics + equity sparkline + rolling analytics."""
     err_panel = _error_panel("performance", perf, "PERFORMANCE", border="green")
     if err_panel:
@@ -356,7 +364,14 @@ def panel_performance_spark(perf: dict[str, Any], rec: Any, perf_anl: dict[str, 
     optional=True,
     description="Portfolio & Performance Expanded",
 )
-def panel_portfolio_perf_expanded(port: dict[str, Any], cfg: dict[str, Any] | None, risk: dict[str, Any] | None = None, perf: dict[str, Any] | None = None, perf_anl: dict[str, Any] | None = None, pos: dict[str, Any] | None = None) -> Panel:
+def panel_portfolio_perf_expanded(
+    port: dict[str, Any],
+    cfg: dict[str, Any] | None,
+    risk: dict[str, Any] | None = None,
+    perf: dict[str, Any] | None = None,
+    perf_anl: dict[str, Any] | None = None,
+    pos: dict[str, Any] | None = None,
+) -> Panel:
     """Full-screen portfolio + performance deep dive — all metrics, risk, concentration."""
     rows: list[Any] = [
         Text.from_markup("[dim]press [/][bold green]f[/][dim] to return to dashboard[/]"),

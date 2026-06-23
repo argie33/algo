@@ -698,10 +698,7 @@ class DataSourceRouter:
             msg = f"Market close data check timeout after {timeout_sec}s for {symbol}"
             raise TimeoutError(msg) from e
         except Exception as e:
-            msg = (
-                f"Error checking market close data for {symbol}: "
-                f"{type(e).__name__}: {str(e)[:100]}"
-            )
+            msg = f"Error checking market close data for {symbol}: {type(e).__name__}: {str(e)[:100]}"
             raise RuntimeError(msg) from e
 
     # ============== HEALTH REPORT ==============

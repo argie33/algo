@@ -1740,9 +1740,7 @@ class PriceLoader(OptimalLoader):
             # Use earliest watermark from batch
             watermarks = [wm_store.get(s) if wm_store else None for s in symbols]
             previous_dates = [self._parse_watermark_date(w) for w in watermarks]  # type: ignore[attr-defined]
-            previous_date = (
-                min(d for d in previous_dates if d) if any(previous_dates) else None
-            )
+            previous_date = min(d for d in previous_dates if d) if any(previous_dates) else None
 
         # Batch fetch all symbols at once
         batch_results = self.fetch_batch_incremental(symbols, previous_date)
@@ -1764,9 +1762,7 @@ class PriceLoader(OptimalLoader):
 
             if self.router and self.router.last_source:
                 src = self.router.last_source
-                self._stats["source_distribution"][src] = (
-                    self._stats["source_distribution"].get(src, 0) + 1
-                )
+                self._stats["source_distribution"][src] = self._stats["source_distribution"].get(src, 0) + 1
 
             rows = self.transform(rows)
             before_quality = len(rows)

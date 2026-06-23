@@ -276,6 +276,7 @@ def _add_cors_headers(response: Any) -> Any:
         # Fallback: fetch CloudFront domain from Secrets Manager
         try:
             from lambda_function import fetch_cloudfront_domain_from_secrets
+
             cf_domain, _ = fetch_cloudfront_domain_from_secrets()
         except (ImportError, AttributeError):
             cf_domain = None

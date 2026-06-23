@@ -8,7 +8,7 @@ import importlib.util
 import sys
 
 
-def check_import(filepath):
+def check_import(filepath: str) -> bool:
     """Try to import a Python file, return True if successful."""
     try:
         spec = importlib.util.spec_from_file_location("_check", filepath)

@@ -123,9 +123,7 @@ class AlpacaBrokerAdapter(BrokerAdapter):
                     f"Alpaca portfolio history API returned invalid response: missing 'equity' field. "
                     f"Response keys: {list(data.keys())}"
                 )
-            raise ValueError(
-                f"Alpaca portfolio history fetch failed with HTTP {resp.status_code}: {resp.text[:150]}"
-            )
+            raise ValueError(f"Alpaca portfolio history fetch failed with HTTP {resp.status_code}: {resp.text[:150]}")
         except (
             requests.RequestException,
             requests.Timeout,
@@ -173,9 +171,7 @@ class AlpacaBrokerAdapter(BrokerAdapter):
                         f"Alpaca API returned non-list response for closed orders: {type(orders).__name__}"
                     )
                 return orders
-            raise ValueError(
-                f"Alpaca closed orders fetch failed with HTTP {resp.status_code}: {resp.text[:150]}"
-            )
+            raise ValueError(f"Alpaca closed orders fetch failed with HTTP {resp.status_code}: {resp.text[:150]}")
         except (requests.RequestException, requests.Timeout, ValueError, KeyError) as e:
             raise ValueError(f"Cannot fetch Alpaca closed orders: {e}") from e
 

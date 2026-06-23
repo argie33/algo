@@ -16,6 +16,7 @@ setup_imports()
 import argparse
 import logging
 from datetime import date, timedelta
+from typing import Any
 
 import pandas as pd
 import psycopg2

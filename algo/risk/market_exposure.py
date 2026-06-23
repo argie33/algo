@@ -59,6 +59,7 @@ Persists daily to market_exposure_daily table for dashboard / audit.
 import json
 import logging
 from datetime import date as _date
+from typing import Any, Callable
 
 import psycopg2
 from psycopg2 import sql as pgsql
@@ -86,10 +87,10 @@ class MarketExposure:
     W_NAAIM = 5  # (was 3pt)
     W_AAII = 3  # extremes-only scoring (was 4pt)
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.calculator = MarketFactorCalculator()
 
-    def _with_cursor(self, operation):
+    def _with_cursor(self, operation: Callable[[Any], Any]) -> Any:
         """Execute an operation with a cursor via DatabaseContext."""
         try:
             with DatabaseContext("read") as cur:
@@ -97,7 +98,7 @@ class MarketExposure:
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def try_load_cached(self, eval_date=None):
+    def try_load_cached(self, eval_date: _date | None = None) -> dict[str, Any] | None:
         """Load cached market exposure for today. Returns dict or None if not cached/stale.
 
         CRITICAL: Validates cache freshness. Never silently uses stale cache — if cached value
@@ -107,7 +108,7 @@ class MarketExposure:
         if not eval_date:
             eval_date = _date.today()
 
-        def fetch_cached(cur):
+        def fetch_cached(cur: Any) -> dict[str, Any] | None:
             cur.execute(
                 """
                 SELECT raw_score, exposure_pct, regime, halt_reasons, distribution_days, factors, date

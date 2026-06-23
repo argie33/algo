@@ -26,13 +26,13 @@ class ExecutionTimeoutError(Exception):
     """Raised when execution exceeds timeout limit."""
 
 
-def _timeout_handler_unix(signum, frame):
+def _timeout_handler_unix(signum: int, frame: Any) -> None:
     """Signal handler for Unix-based timeout (SIGALRM)."""
     raise ExecutionTimeoutError("Execution timeout: exceeded maximum allowed time")
 
 
 @contextmanager
-def execution_timeout(max_seconds: int = 5400, label: str = "loader"):
+def execution_timeout(max_seconds: int = 5400, label: str = "loader") -> Any:
     """
     Context manager that enforces a hard execution timeout.
 
@@ -75,7 +75,7 @@ def execution_timeout(max_seconds: int = 5400, label: str = "loader"):
         else:
             logger.info(f"[TIMEOUT] Using threading-based timeout for {label}: {max_seconds}s (non-signal platform)")
 
-            def _timeout_func():
+            def _timeout_func() -> None:
                 logger.critical(
                     f"[TIMEOUT] TIMEOUT EXCEEDED for {label} after {max_seconds}s. "
                     "Aborting execution to prevent RDS connection leaks."

@@ -413,41 +413,41 @@ class MetricsValidator:
 
 
 # Convenience functions for direct use
-def calculate_win_rate(*args, **kwargs) -> float | None:
+def calculate_win_rate(*args: Any, **kwargs: Any) -> float | None:
     """See MetricsCalculator.calculate_win_rate"""
     return MetricsCalculator.calculate_win_rate(*args, **kwargs)
 
 
-def calculate_sharpe_ratio(*args, **kwargs) -> float | None:
+def calculate_sharpe_ratio(*args: Any, **kwargs: Any) -> float | None:
     """See MetricsCalculator.calculate_sharpe_ratio"""
     return MetricsCalculator.calculate_sharpe_ratio(*args, **kwargs)
 
 
-def calculate_sortino_ratio(*args, **kwargs) -> float | None:
+def calculate_sortino_ratio(*args: Any, **kwargs: Any) -> float | None:
     """See MetricsCalculator.calculate_sortino_ratio"""
     return MetricsCalculator.calculate_sortino_ratio(*args, **kwargs)
 
 
-def calculate_max_drawdown(*args, **kwargs) -> float | None:
+def calculate_max_drawdown(*args: Any, **kwargs: Any) -> float | None:
     """See MetricsCalculator.calculate_max_drawdown"""
     return MetricsCalculator.calculate_max_drawdown(*args, **kwargs)
 
 
-def calculate_calmar_ratio(*args, **kwargs) -> float | None:
+def calculate_calmar_ratio(*args: Any, **kwargs: Any) -> float | None:
     """See MetricsCalculator.calculate_calmar_ratio"""
     return MetricsCalculator.calculate_calmar_ratio(*args, **kwargs)
 
 
-def calculate_profit_factor(*args, **kwargs) -> float | None:
+def calculate_profit_factor(*args: Any, **kwargs: Any) -> float | None:
     """See MetricsCalculator.calculate_profit_factor"""
     return MetricsCalculator.calculate_profit_factor(*args, **kwargs)
 
 
-def calculate_expectancy(*args, **kwargs) -> float | None:
+def calculate_expectancy(*args: Any, **kwargs: Any) -> float | None:
     """See MetricsCalculator.calculate_expectancy"""
     return MetricsCalculator.calculate_expectancy(*args, **kwargs)
 
 
-def calculate_avg_r_multiple(*args, **kwargs) -> float | None:
+def calculate_avg_r_multiple(*args: Any, **kwargs: Any) -> float | None:
     """See MetricsCalculator.calculate_avg_r_multiple"""
     return MetricsCalculator.calculate_avg_r_multiple(*args, **kwargs)

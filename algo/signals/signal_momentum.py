@@ -160,6 +160,7 @@ class SignalMomentumMixin:
             }
 
         return self._with_cursor(_fetch_data)
+
     def power_trend(self, symbol: str, eval_date: Any) -> dict[str, Any]:
         """
         Minervini "Power Trend" indicator: 20%+ gain in 21 trading days.
@@ -174,6 +175,7 @@ class SignalMomentumMixin:
             }
 
         return self._with_cursor(_compute)
+
     def pivot_breakout(self, symbol: str, eval_date: Any) -> dict[str, Any]:
         """
         Livermore-style pivot point: price closing decisively above the highest
@@ -297,6 +299,7 @@ class SignalMomentumMixin:
             return {"pocket_pivot": False}
 
         return self._with_cursor(_check_pocket)
+
     def distribution_days(self, symbol: str, eval_date: Any, lookback: int = 25) -> int:
         """
         IBD-style distribution day count. A distribution day is when:

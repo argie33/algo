@@ -48,7 +48,7 @@ def _setup_aws_auth() -> None:
         print(f"WARNING: Cognito auth failed: {e}")
 
 
-def diagnose_fetchers():
+def diagnose_fetchers() -> None:
     """Load all data and show detailed diagnostic report."""
     print("\n" + "=" * 80)
     print("Dashboard Data Diagnostic Report")
@@ -114,7 +114,8 @@ def diagnose_fetchers():
             desc = meta.get("desc", "") if meta else ""
             result = success[key]
             if result.get("_list_response"):
-                field_count = len(result.get("_items", []))
+                items_val = result.get("_items")
+                field_count = len(items_val) if isinstance(items_val, list) else 0
                 print(f"\n  {key:12} {endpoint:40} ({field_count} items, list)")
             else:
                 field_count = len([k for k in result.keys() if not k.startswith("_")])
@@ -193,7 +194,7 @@ def diagnose_fetchers():
     print("=" * 80 + "\n")
 
 
-def diagnose_fetchers_verbose():
+def diagnose_fetchers_verbose() -> None:
     """Load all data and show detailed response data."""
     print("\n" + "=" * 80)
     print("Dashboard Data Diagnostic Report (VERBOSE)")
@@ -244,7 +245,7 @@ def diagnose_fetchers_verbose():
     print("\n" + "=" * 80)
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(
         description="Diagnose dashboard data issues",
         epilog=__doc__,

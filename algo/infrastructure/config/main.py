@@ -797,7 +797,11 @@ class AlgoConfig:
         "patrol_staleness_aaii_sentiment": ("7", "int", "Days before aaii_sentiment considered stale"),
         "patrol_staleness_earnings_history": ("120", "int", "Days before earnings_history considered stale"),
         # Data Patrol Volume Thresholds
-        "patrol_high_volume_threshold": ("100000000", "int", "Volume sanity check: daily volume above this = suspicious"),
+        "patrol_high_volume_threshold": (
+            "100000000",
+            "int",
+            "Volume sanity check: daily volume above this = suspicious",
+        ),
         "patrol_low_volume_threshold": ("1000", "int", "Volume sanity check: daily volume below this = suspicious"),
         "patrol_new_low_volume_alert": ("5", "int", "Alert when N stocks hit 52w volume lows"),
         # Data Patrol Quality Thresholds

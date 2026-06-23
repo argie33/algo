@@ -72,6 +72,7 @@ class TimeoutConfig:
             True if value was set; False if rejected
         """
         return self.parent.set(key, value, value_type, description, changed_by)
+
     def get_api_timeout(self) -> int:
         """Get API request timeout in seconds.
 

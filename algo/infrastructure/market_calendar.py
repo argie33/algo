@@ -10,6 +10,7 @@ import logging
 from datetime import date as _date
 from datetime import datetime, time
 from functools import lru_cache
+from typing import Any
 from zoneinfo import ZoneInfo
 
 _ET = ZoneInfo("America/New_York")
@@ -87,7 +88,7 @@ class MarketCalendar:
         return True
 
     @staticmethod
-    def is_trading_day(check_date=None):
+    def is_trading_day(check_date: _date | None = None) -> bool:
         """Check if market is open on given date.
 
         Cached to prevent N+1 lookups when processing many dates.
@@ -131,7 +132,7 @@ class MarketCalendar:
         return set(MarketCalendar.get_trading_days(start, end))
 
     @staticmethod
-    def is_early_close(check_date=None):
+    def is_early_close(check_date: _date | None = None) -> bool:
         """Check if market has early close on given date (1 PM ET instead of 4 PM).
 
         Returns:
@@ -143,7 +144,7 @@ class MarketCalendar:
         return check_date in EARLY_CLOSES
 
     @staticmethod
-    def get_market_close_time(check_date=None):
+    def get_market_close_time(check_date: _date | None = None) -> str:
         """Get market close time for given date.
 
         Returns:
@@ -160,7 +161,7 @@ class MarketCalendar:
         return "16:00"
 
     @staticmethod
-    def is_market_open(check_datetime=None):
+    def is_market_open(check_datetime: datetime | None = None) -> bool:
         """Check if market is currently open.
 
         US equities: 9:30 AM - 4:00 PM ET weekdays (except holidays)
@@ -186,7 +187,7 @@ class MarketCalendar:
         return market_open <= check_time < market_close
 
     @staticmethod
-    def market_status(check_datetime=None):
+    def market_status(check_datetime: datetime | None = None) -> dict[str, Any]:
         """Get detailed market status."""
         if not check_datetime:
             check_datetime = datetime.now(_ET)
@@ -250,7 +251,7 @@ class MarketCalendar:
             }
 
     @staticmethod
-    def get_next_trading_day(from_date=None):
+    def get_next_trading_day(from_date: _date | None = None) -> _date | None:
         """Get next trading day after given date."""
         if not from_date:
             from_date = _date.today()

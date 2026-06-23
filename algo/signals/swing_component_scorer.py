@@ -110,7 +110,9 @@ class SwingComponentScorer:
         fund_pts, fund_detail = self._fundamentals_component(symbol, cur)
         return fund_pts, fund_detail
 
-    def compute_sector_component(self, symbol: str, eval_date: Any, sector: Any, industry: Any, cur: Any) -> tuple[float, dict[str, Any]]:
+    def compute_sector_component(
+        self, symbol: str, eval_date: Any, sector: Any, industry: Any, cur: Any
+    ) -> tuple[float, dict[str, Any]]:
         """Compute sector/industry component (8 pts max)."""
         sec_pts, sec_detail = self._sector_component(symbol, eval_date, sector, industry, cur)
         return sec_pts, sec_detail

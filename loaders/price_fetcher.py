@@ -10,7 +10,7 @@ import random
 import threading
 import time
 from datetime import date, datetime, timedelta
-from typing import cast
+from typing import Any, cast
 
 logger = logging.getLogger(__name__)
 
@@ -27,12 +27,12 @@ class PriceFetcher:
 
     def __init__(
         self,
-        router=None,
+        router: Any = None,
         interval: str = "1d",
         asset_class: str = "stock",
         is_eod_pipeline: bool = False,
-        rate_limit_config: dict | None = None,
-    ):
+        rate_limit_config: dict[str, Any] | None = None,
+    ) -> None:
         """Initialize PriceFetcher with rate limiting config."""
         self.router = router
         self.interval = interval
@@ -180,7 +180,9 @@ class PriceFetcher:
         rows = self._try_fetch(symbol, start, end)
         return rows
 
-    def fetch_batch_incremental(self, symbols: list[str], since: date | None, is_eod_pipeline: bool = False):
+    def fetch_batch_incremental(
+        self, symbols: list[str], since: date | None, is_eod_pipeline: bool = False
+    ) -> dict[str, Any] | None:
         """Fetch OHLCV for multiple symbols at once (50x faster than per-symbol).
 
         Returns: dict[symbol] -> rows or None
@@ -258,7 +260,7 @@ class PriceFetcher:
                 raise
         raise RuntimeError(f"[{symbol}] Exhausted all fetch attempts without successful data fetch")
 
-    def execute_batch_fetch(self, symbols: list[str], start: date, end: date) -> dict | None:
+    def execute_batch_fetch(self, symbols: list[str], start: date, end: date) -> dict[str, Any] | None:
         """Execute batch fetch with circuit breaker and validate freshness."""
         self._adaptive_request_pacing()
         request_start = time.time()
@@ -288,7 +290,7 @@ class PriceFetcher:
         attempt: int = 0,
         max_attempts: int = 3,
         elapsed_sec: float = 0,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Fetch batch with fallback to smaller batch size on rate limiting."""
         batch_size = min(len(symbols), batch_size)
         logger.debug(f"[FETCH_BATCH] Attempting with batch_size={batch_size}, attempt={attempt}")
@@ -345,7 +347,7 @@ class PriceFetcher:
         max_attempts: int,
         elapsed_sec: float,
         error: Exception,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Retry rate limit errors with pacing or batch reduction."""
         self._rate_limit_errors += 1
         if self._rate_limit_error_start_time is None:
@@ -453,7 +455,7 @@ class PriceFetcher:
         max_attempts: int,
         elapsed_sec: float,
         error: Exception,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Retry transient errors with exponential backoff."""
         error_str = str(error).lower()
         is_timeout = "timeout" in error_str or "timed out" in error_str

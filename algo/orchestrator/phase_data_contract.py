@@ -201,7 +201,7 @@ def validate_phase_data(phase_num: int | str, data: dict[str, Any]) -> None:
     schema.validate(data)
 
 
-def validate_phase_5_constraints(constraints: dict) -> None:
+def validate_phase_5_constraints(constraints: dict[str, Any]) -> None:
     """Validate Phase 5 constraints have required fields.
 
     Phases 7 and 8 depend on these fields for position sizing.
