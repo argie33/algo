@@ -2,19 +2,32 @@
 
 import logging
 from collections.abc import Callable
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 logger = logging.getLogger(__name__)
 
-try:
-    from panel_registry import register_panel
-except ImportError as e:
-    logger.warning(f"Panel registry not available: {e} - panels will not auto-register")
+if TYPE_CHECKING:
+    from panel_registry import register_panel as register_panel
+else:
+    try:
+        from panel_registry import register_panel
+    except ImportError as e:
+        logger.warning(f"Panel registry not available: {e} - panels will not auto-register")
 
-    def register_panel(*args: Any, **kwargs: Any) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
-        if args and callable(args[0]):
-            return cast(Callable[[Callable[..., Any]], Callable[..., Any]], args[0])
-        return lambda fn: fn
+        def register_panel(
+            name: str,
+            endpoint_deps: list[str],
+            render_fn: Callable[..., Any] | None = None,
+            optional: bool = False,
+            description: str = "",
+        ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+            if render_fn is not None:
+                return cast(Callable[[Callable[..., Any]], Callable[..., Any]], render_fn)
+
+            def passthrough_decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
+                return fn
+
+            return passthrough_decorator
 
 
 from rich import box
@@ -312,8 +325,12 @@ def _build_buy_signals_table(scored_with_signals: list[Any], buy_sig_details: di
             except (StrictValidationError, ValueError, TypeError, ZeroDivisionError):
                 pass
 
-        comp_v: float = safe_float(comp_score, default=0.0)
-        comp_c: str = _composite_score_color(comp_v)
+        comp_v: float | None = None
+        try:
+            comp_v = safe_float(comp_score, strict=True, field_name="composite_score")
+        except (StrictValidationError, ValueError, TypeError):
+            pass
+        comp_c: str = _composite_score_color(comp_v) if comp_v is not None else "dim"
         swing_c: str = G if swing_score >= 80 else (CY if swing_score >= 70 else Y)
         rr_c: str = (
             G if rr_ratio and rr_ratio > 1.5 else (Y if rr_ratio and rr_ratio > 1 else (CY if rr_ratio else DIM))
@@ -324,7 +341,7 @@ def _build_buy_signals_table(scored_with_signals: list[Any], buy_sig_details: di
         stop_lvl_f: float | None = safe_float(stop_lvl, default=None)
         sig_table.add_row(
             Text(sym, style=f"bold {G}"),
-            Text(f"{comp_v:.0f}", style=comp_c),
+            Text(f"{comp_v:.0f}" if comp_v is not None else "⚠", style=comp_c),
             Text(f"▲{swing_score:.0f}", style=swing_c),
             Text(f"${price_f:.2f}" if price_f is not None else "--", style="dim"),
             Text(f"${buy_lvl_f:.2f}" if buy_lvl_f is not None else "--", style=CY),

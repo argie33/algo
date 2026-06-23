@@ -2,7 +2,8 @@
 
 import json
 import logging
-from typing import Any, cast
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any, cast
 
 logger = logging.getLogger(__name__)
 
@@ -41,16 +42,22 @@ class HealthFormatter:
     @staticmethod
     def fmt_age(r: dict[str, Any]) -> str:
         """Format age from health item dict."""
-        from dashboard.data_validation import safe_float
+        from dashboard.data_validation import StrictValidationError, safe_float
 
         ah = r.get("age_hours")
         ad = r.get("age")
         if ah is not None:
-            ah_f = safe_float(ah, default=0.0) or 0.0
-            return f"{ah_f:.0f}h" if ah_f < 24 else f"{ah_f / 24:.1f}d"
+            try:
+                ah_f = safe_float(ah, strict=True, field_name="age_hours")
+                return f"{ah_f:.0f}h" if ah_f < 24 else f"{ah_f / 24:.1f}d"
+            except (StrictValidationError, ValueError, TypeError):
+                return "?"
         elif ad is not None:
-            ad_f = safe_float(ad, default=0.0) or 0.0
-            return f"{ad_f:.1f}d"
+            try:
+                ad_f = safe_float(ad, strict=True, field_name="age")
+                return f"{ad_f:.1f}d"
+            except (StrictValidationError, ValueError, TypeError):
+                return "?"
         return "?"
 
     @staticmethod
@@ -73,15 +80,28 @@ class HealthFormatter:
         return 0
 
 
-try:
-    from panel_registry import register_panel
-except ImportError as e:
-    logger.warning(f"Panel registry not available: {e} - panels will not auto-register")
+if TYPE_CHECKING:
+    from panel_registry import register_panel as register_panel
+else:
+    try:
+        from panel_registry import register_panel
+    except ImportError as e:
+        logger.warning(f"Panel registry not available: {e} - panels will not auto-register")
 
-    def register_panel(*args: Any, **kwargs: Any) -> Any:
-        if args and callable(args[0]):
-            return args[0]
-        return lambda fn: fn
+        def register_panel(
+            name: str,
+            endpoint_deps: list[str],
+            render_fn: Callable[..., Any] | None = None,
+            optional: bool = False,
+            description: str = "",
+        ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+            if render_fn is not None:
+                return cast(Callable[[Callable[..., Any]], Callable[..., Any]], render_fn)
+
+            def passthrough_decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
+                return fn
+
+            return passthrough_decorator
 
 
 from rich import box
@@ -278,8 +298,8 @@ def panel_orch(run: dict[str, Any] | None, cfg: dict[str, Any], risk: dict[str, 
     base_risk = cfg_params["base_risk"]
     t1r = cfg_params["t1_r"]
 
-    min_score_f = safe_float(min_score, default=0.0)
-    score_s = f"[dim]min score ≥[/][white]{min_score}[/]" if min_score and min_score_f > 0 else ""
+    min_score_f = safe_float(min_score, default=None)
+    score_s = f"[dim]min score ≥[/][white]{min_score}[/]" if min_score and min_score_f and min_score_f > 0 else ""
     slots_s = f"[dim]max [/][white]{max_n}[/][dim] positions[/]" if max_n else ""
     sec_s = f"[dim]sector ≤[/][white]{max_sec_n}[/]" if max_sec_n else ""
     risk_s = f"[dim]base risk [/][white]{base_risk}%[/]" if base_risk else ""

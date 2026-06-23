@@ -1,21 +1,35 @@
 """Portfolio exposure and risk factor panel functions."""
 
 import logging
-from typing import Any, cast
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any, cast
 
 from rich.console import ConsoleRenderable, RichCast
 
 logger = logging.getLogger(__name__)
 
-try:
-    from panel_registry import register_panel
-except ImportError as e:
-    logger.warning(f"Panel registry not available: {e} - panels will not auto-register")
+if TYPE_CHECKING:
+    from panel_registry import register_panel as register_panel
+else:
+    try:
+        from panel_registry import register_panel
+    except ImportError as e:
+        logger.warning(f"Panel registry not available: {e} - panels will not auto-register")
 
-    def register_panel(*args: Any, **kwargs: Any) -> Any:
-        if args and callable(args[0]):
-            return args[0]
-        return lambda fn: fn
+        def register_panel(
+            name: str,
+            endpoint_deps: list[str],
+            render_fn: Callable[..., Any] | None = None,
+            optional: bool = False,
+            description: str = "",
+        ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+            if render_fn is not None:
+                return cast(Callable[[Callable[..., Any]], Callable[..., Any]], render_fn)
+
+            def passthrough_decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
+                return fn
+
+            return passthrough_decorator
 
 
 from rich import box

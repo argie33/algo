@@ -32,7 +32,11 @@ import os
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, ParamSpec, TypeVar, overload
+
+_P = ParamSpec("_P")
+_R = TypeVar("_R")
+_F = TypeVar("_F", bound=Callable[..., Any])
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -250,13 +254,33 @@ def get_panel_registry() -> PanelRegistry:
     return _registry
 
 
+@overload
 def register_panel(
     name: str,
     endpoint_deps: list[str],
-    render_fn: Callable[..., Any] | None = None,
+    render_fn: None = None,
     optional: bool = False,
     description: str = "",
-) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+) -> Callable[[_F], _F]: ...
+
+
+@overload
+def register_panel(
+    name: str,
+    endpoint_deps: list[str],
+    render_fn: _F,
+    optional: bool = False,
+    description: str = "",
+) -> _F: ...
+
+
+def register_panel(
+    name: str,
+    endpoint_deps: list[str],
+    render_fn: _F | None = None,
+    optional: bool = False,
+    description: str = "",
+) -> Callable[[_F], _F] | _F:
     """Decorator to register a panel function.
 
     Usage:
@@ -265,7 +289,7 @@ def register_panel(
             ...
     """
 
-    def decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
+    def decorator(fn: _F) -> _F:
         _registry.register_panel(
             name=name,
             endpoint_deps=endpoint_deps,

@@ -45,6 +45,7 @@ dashboard = ["*.py", "**/*.py"]
 
 [tool.mypy]
 python_version = "3.11"
+strict = true
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
@@ -56,11 +57,16 @@ no_implicit_optional = true
 warn_redundant_casts = true
 warn_unused_ignores = true
 warn_no_return = true
+disallow_untyped_decorators = true
 exclude = [
     "^migrations/",
     "^tests/",
     "^lambda/",
 ]
+
+[[tool.mypy.overrides]]
+module = "dashboard.panels.*"
+disallow_untyped_decorators = false
 
 [tool.ruff]
 line-length = 120
