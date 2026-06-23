@@ -129,21 +129,21 @@ from dashboard.utilities import (
 class _LoadState:
     """Thread-safe state container for data loading and display."""
 
-    def __init__(self):
-        self.result = None
-        self.elapsed = 0.0
+    def __init__(self) -> None:
+        self.result: dict[str, Any] | None = None
+        self.elapsed: float = 0.0
 
 
 class _WatchState:
     """Thread-safe state container for watch mode with frame tracking."""
 
-    def __init__(self):
-        self.result = None
-        self.elapsed = 0.0
-        self.loading = True
-        self.last_load = 0.0
-        self.frame = 0
-        self.error = None
+    def __init__(self) -> None:
+        self.result: dict[str, Any] | None = None
+        self.elapsed: float = 0.0
+        self.loading: bool = True
+        self.last_load: float = 0.0
+        self.frame: int = 0
+        self.error: str | None = None
 
 
 KEY_MAP = {
@@ -175,7 +175,7 @@ class _RenderWrapper:
         self.refreshing = False
         self._state_lock = threading.Lock()
 
-    def __call__(self, data: dict) -> Layout:
+    def __call__(self, data: dict[str, Any]) -> Layout:
         with self._state_lock:
             elapsed = self.elapsed
             frame = self.frame
@@ -225,7 +225,7 @@ else:
         sys.exit(1)
 
 
-def _validate_watch_interval(value):
+def _validate_watch_interval(value: str) -> int:
     """Validate watch interval is between 10 and 600 seconds."""
     try:
         int_value = int(value)
