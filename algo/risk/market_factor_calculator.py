@@ -241,27 +241,18 @@ class MarketFactorCalculator:
             )
             row = cur.fetchone()
             cur.execute("RELEASE SAVEPOINT sp_put_call")
-            if row and row[0]:
-                pcr = float(row[0])
-                # Contrarian: PCR > 1.0 = fear = bullish (100 pts), < 0.7 = greed = bearish (0 pts)
-                score = max(0, min(100, (pcr - 0.7) * 100))
-                return {"put_call_ratio": round(pcr, 2), "score": score}
-            logger.warning(
-                "[put_call_ratio] No data in options_daily for %s; using neutral score 50",
-                eval_date,
-            )
-            return {"put_call_ratio": None, "score": 50.0}
+            if not row or row[0] is None:
+                raise RuntimeError(f"Put/call ratio data unavailable for {eval_date} — cannot proceed with incomplete market context")
+            pcr = float(row[0])
+            score = max(0, min(100, (pcr - 0.7) * 100))
+            return {"put_call_ratio": round(pcr, 2), "score": score}
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             try:
                 cur.execute("ROLLBACK TO SAVEPOINT sp_put_call")
                 cur.execute("RELEASE SAVEPOINT sp_put_call")
             except Exception:
                 pass
-            logger.warning(
-                "[put_call_ratio] Query failed (table may be missing): %s; using neutral score 50",
-                e,
-            )
-            return {"put_call_ratio": None, "score": 50.0}
+            raise RuntimeError(f"Put/call ratio calculation failed: {e}") from e
 
     def new_highs_lows(self, eval_date, cur) -> dict[str, Any]:
         """52-week new highs vs new lows."""
