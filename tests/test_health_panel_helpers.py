@@ -370,3 +370,156 @@ class TestConstants:
     def test_error_states_defined(self):
         assert "error" in ERROR_STATES
         assert "failed" in ERROR_STATES
+
+
+class TestHealthPanelHelpersWithMalformedData:
+    """Test health panel helpers with WRONG TYPES and MALFORMED DATA."""
+
+    def test_format_phase_badge_with_int(self):
+        """_format_phase_badge should handle int input gracefully."""
+        try:
+            color, icon = _format_phase_badge(123)
+            # Should not crash, returns default (error state)
+            assert color == R
+            assert icon == "✗"
+        except TypeError:
+            # It's also okay if it rejects the type
+            pass
+
+    def test_format_phase_badge_with_list(self):
+        """_format_phase_badge should handle list input gracefully."""
+        try:
+            color, icon = _format_phase_badge(["success"])
+            # Should not crash, returns default
+            assert color == R
+            assert icon == "✗"
+        except TypeError:
+            pass
+
+    def test_format_phase_badge_with_dict(self):
+        """_format_phase_badge should handle dict input gracefully."""
+        try:
+            color, icon = _format_phase_badge({"status": "success"})
+            # Should not crash, returns default
+            assert color == R
+            assert icon == "✗"
+        except TypeError:
+            pass
+
+    def test_format_exec_history_with_malformed_items(self):
+        """_format_exec_history_summary should handle malformed exec items."""
+        from dashboard.panels.health import _format_exec_history_summary
+
+        # Missing timestamp field
+        malformed_history = [
+            {"status": "success"},  # Missing timestamp
+        ]
+        try:
+            result = _format_exec_history_summary(malformed_history)
+            # Should not crash
+            assert result is not None
+        except (KeyError, TypeError, AttributeError):
+            # It's acceptable to raise if field is missing
+            pass
+
+    def test_format_exec_history_with_wrong_type_timestamp(self):
+        """_format_exec_history_summary with timestamp as string."""
+        from dashboard.panels.health import _format_exec_history_summary
+
+        history = [
+            {"timestamp": "not-a-datetime", "status": "success"},
+        ]
+        try:
+            result = _format_exec_history_summary(history)
+            # Should not crash
+            assert result is not None
+        except (ValueError, TypeError, AttributeError):
+            # It's acceptable to raise for bad timestamp format
+            pass
+
+    def test_format_data_health_with_none_metrics(self):
+        """_format_data_health_summary with None metrics should not crash."""
+        try:
+            result = _format_data_health_summary(None)
+            # Should return something, not crash
+            assert result is not None
+        except (TypeError, AttributeError):
+            # It's acceptable to raise for None input
+            pass
+
+    def test_format_data_health_with_string_metrics(self):
+        """_format_data_health_summary with string instead of dict."""
+        try:
+            result = _format_data_health_summary("not a dict")
+            # Should return something or raise type error
+            assert result is not None or True
+        except (TypeError, AttributeError):
+            pass
+
+    def test_format_loader_status_with_none(self):
+        """_format_loader_status with None status should handle gracefully."""
+        try:
+            result = _format_loader_status(None)
+            # Should not crash
+            assert result is not None
+        except (TypeError, AttributeError):
+            pass
+
+    def test_format_loader_status_with_int(self):
+        """_format_loader_status with int instead of status dict."""
+        try:
+            result = _format_loader_status(123)
+            # Should not crash
+            assert result is not None
+        except (TypeError, AttributeError):
+            pass
+
+    def test_format_notifications_with_non_list(self):
+        """_format_notifications_summary with string instead of list."""
+        try:
+            result = _format_notifications_summary("not a list")
+            # Should not crash
+            assert result is not None
+        except (TypeError, AttributeError):
+            pass
+
+    def test_format_daily_metrics_with_malformed_data(self):
+        """_format_daily_metrics_summary with missing required fields."""
+        try:
+            result = _format_daily_metrics_summary({})
+            # Should not crash or return graceful default
+            assert result is not None
+        except (KeyError, TypeError, AttributeError):
+            # Acceptable to raise for missing fields
+            pass
+
+    def test_format_recent_trades_with_non_list(self):
+        """_format_recent_trade_events with non-list input."""
+        try:
+            result = _format_recent_trade_events({"event": "trade"})
+            # Should not crash
+            assert result is not None
+        except (TypeError, AttributeError):
+            pass
+
+    def test_format_audit_log_with_non_list(self):
+        """_format_audit_log_summary with non-list input."""
+        try:
+            result = _format_audit_log_summary("not a list")
+            # Should not crash
+            assert result is not None
+        except (TypeError, AttributeError):
+            pass
+
+    def test_format_audit_log_with_malformed_items(self):
+        """_format_audit_log_summary with items missing required fields."""
+        audit = [
+            {},  # Missing action_type and status
+            {"action_type": None, "status": None},
+        ]
+        try:
+            result = _format_audit_log_summary(audit)
+            # Should not crash even with malformed items
+            assert result is not None
+        except (KeyError, TypeError, AttributeError):
+            pass

@@ -152,7 +152,10 @@ ROLE_ORDER = {"CRIT": 0, "IMP": 1, "NORM": 2}
 
 def _format_phase_badge(phase_status: str | None) -> tuple[str, str]:
     """Format phase status string to (color, icon) badge tuple."""
-    return HealthFormatter.format_phase_badge(phase_status or "")
+    # Ensure phase_status is a string (handle malformed data)
+    if not isinstance(phase_status, str):
+        phase_status = ""
+    return HealthFormatter.format_phase_badge(phase_status)
 
 
 # Severity to color mapping

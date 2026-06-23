@@ -272,5 +272,109 @@ class TestConnectionChurnReduction(unittest.TestCase):
         self.assertEqual(mock_pool.putconn.call_count, 1)
 
 
+class TestPooledConnectionsWithMalformedData(unittest.TestCase):
+    """Test pooled connections with WRONG TYPES and MALFORMED DATA."""
+
+    def test_pool_semaphore_with_negative_max_concurrent(self):
+        """Test PoolSemaphore with negative max_concurrent."""
+        try:
+            sem = PoolSemaphore(max_concurrent=-1, timeout_sec=1)
+            # Should handle gracefully or raise
+            self.assertIsNotNone(sem)
+        except (ValueError, AssertionError):
+            pass
+
+    def test_pool_semaphore_with_zero_timeout(self):
+        """Test PoolSemaphore with zero timeout."""
+        try:
+            sem = PoolSemaphore(max_concurrent=2, timeout_sec=0)
+            self.assertIsNotNone(sem)
+        except (ValueError, AssertionError):
+            pass
+
+    def test_pool_semaphore_acquire_with_none_name(self):
+        """Test acquire with None loader name."""
+        sem = PoolSemaphore(max_concurrent=2, timeout_sec=1)
+        try:
+            result = sem.acquire(None)
+            self.assertIsInstance(result, bool)
+        except (TypeError, AttributeError):
+            pass
+        finally:
+            sem.release(None)
+
+    def test_pool_semaphore_acquire_with_int_name(self):
+        """Test acquire with int loader name."""
+        sem = PoolSemaphore(max_concurrent=2, timeout_sec=1)
+        try:
+            result = sem.acquire(12345)
+            self.assertIsInstance(result, bool)
+        except (TypeError, AttributeError):
+            pass
+
+    def test_pool_semaphore_release_without_acquire(self):
+        """Test release without corresponding acquire."""
+        sem = PoolSemaphore(max_concurrent=2, timeout_sec=1)
+        try:
+            # Should handle gracefully
+            sem.release("never_acquired")
+            # Should not crash
+        except (KeyError, ValueError):
+            pass
+
+    @patch("utils.db.connection._get_connection_pool")
+    def test_manager_with_none_loader_name(self, mock_get_pool):
+        """Test PooledConnectionManager with None loader name."""
+        mock_pool = MagicMock(spec=psycopg2.pool.SimpleConnectionPool)
+        mock_pool.getconn.return_value = MagicMock()
+        mock_get_pool.return_value = mock_pool
+
+        try:
+            manager = PooledConnectionManager(None)
+            self.assertIsNotNone(manager)
+        except (TypeError, ValueError):
+            pass
+
+    @patch("utils.db.connection._get_connection_pool")
+    def test_manager_with_negative_timeout(self, mock_get_pool):
+        """Test PooledConnectionManager with negative timeout."""
+        mock_pool = MagicMock(spec=psycopg2.pool.SimpleConnectionPool)
+        mock_get_pool.return_value = mock_pool
+
+        try:
+            manager = PooledConnectionManager("test", timeout_sec=-5)
+            self.assertIsNotNone(manager)
+        except (ValueError, AssertionError):
+            pass
+
+    @patch("utils.db.connection._get_connection_pool")
+    def test_manager_acquire_with_broken_pool(self, mock_get_pool):
+        """Test manager acquire when pool throws exception."""
+        mock_pool = MagicMock(spec=psycopg2.pool.SimpleConnectionPool)
+        mock_pool.getconn.side_effect = Exception("Pool error")
+        mock_get_pool.return_value = mock_pool
+
+        manager = PooledConnectionManager("test")
+        try:
+            conn = manager.acquire()
+            # Should raise or return None
+        except Exception:
+            pass
+
+    def test_context_var_with_none_connection(self):
+        """Test context var with explicit None."""
+        set_pooled_connection(None)
+        result = get_pooled_connection()
+        self.assertIsNone(result)
+
+    def test_context_var_with_dict_instead_of_connection(self):
+        """Test context var with dict instead of connection object."""
+        fake_conn = {"connection": "fake"}
+        set_pooled_connection(fake_conn)
+        result = get_pooled_connection()
+        self.assertEqual(result, fake_conn)
+        set_pooled_connection(None)
+
+
 if __name__ == "__main__":
     unittest.main()

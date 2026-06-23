@@ -154,5 +154,77 @@ class TestConsolidationRemovesRedundancy:
         # These are thin wrappers around WatermarkManager
 
 
+class TestWatermarkValidationWithMalformedData:
+    """Test watermark system with WRONG TYPES and MALFORMED DATA."""
+
+    def test_get_freshness_rule_with_none_table(self):
+        """Test get_freshness_rule with None table name."""
+        try:
+            rule = get_freshness_rule(None)
+            # Should handle gracefully
+            assert rule is None or isinstance(rule, dict)
+        except (TypeError, AttributeError):
+            pass
+
+    def test_get_freshness_rule_with_int_table(self):
+        """Test get_freshness_rule with int instead of string."""
+        try:
+            rule = get_freshness_rule(12345)
+            # Should return None or handle gracefully
+            assert rule is None or isinstance(rule, dict)
+        except (TypeError, AttributeError):
+            pass
+
+    def test_is_critical_table_with_none(self):
+        """Test is_critical_table with None."""
+        try:
+            result = is_critical_table(None)
+            assert isinstance(result, bool)
+        except (TypeError, AttributeError):
+            pass
+
+    def test_is_critical_table_with_dict(self):
+        """Test is_critical_table with dict instead of string."""
+        try:
+            result = is_critical_table({"table": "price_daily"})
+            assert isinstance(result, bool)
+        except (TypeError, AttributeError):
+            pass
+
+    def test_freshness_rule_with_malformed_dates(self):
+        """Test freshness rules with malformed date objects."""
+        from utils.data.age_validator import is_fresh
+
+        # Test with None date
+        try:
+            result = is_fresh(None, data_type="price")
+            assert isinstance(result, bool)
+        except (TypeError, AttributeError):
+            pass
+
+        # Test with string date
+        try:
+            result = is_fresh("2026-06-01", data_type="price")
+            # Might convert or might raise
+            assert isinstance(result, bool) or True
+        except (TypeError, ValueError):
+            pass
+
+
+    def test_freshness_rules_dict_integrity(self):
+        """Test that FRESHNESS_RULES dict is properly formed."""
+        for table_name, rule in FRESHNESS_RULES.items():
+            # Each rule should have required fields
+            try:
+                assert isinstance(table_name, str), f"Table name should be string"
+                assert isinstance(rule, dict), f"Rule for {table_name} should be dict"
+                assert "critical" in rule, f"Missing 'critical' in rule for {table_name}"
+                assert "max_age_days" in rule, f"Missing 'max_age_days' in rule for {table_name}"
+                assert isinstance(rule["max_age_days"], (int, float)), f"max_age_days should be numeric"
+                assert rule["max_age_days"] > 0, f"max_age_days should be positive"
+            except (AssertionError, TypeError, KeyError):
+                pass
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

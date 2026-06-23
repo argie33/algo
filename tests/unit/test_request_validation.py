@@ -805,5 +805,138 @@ class TestPositionUpdateRequest:
         assert req.position_type == "short"
 
 
+class TestRequestValidationWithMalformedData:
+    """Test request validators with WRONG TYPES and MALFORMED DATA.
+
+    Validates that Pydantic rejects (or properly handles) bad types at API boundary.
+    """
+
+    def test_trade_preview_entry_price_as_string(self):
+        """entry_price as string should be rejected or converted."""
+        # Pydantic may coerce "150.50" -> 150.50, but should reject non-numeric strings
+        with pytest.raises(ValidationError):
+            TradePreviewRequest(symbol="AAPL", entry_price="not_a_number")
+
+    def test_trade_preview_entry_price_as_list(self):
+        """entry_price as list should be rejected."""
+        with pytest.raises(ValidationError):
+            TradePreviewRequest(symbol="AAPL", entry_price=[150.0])
+
+    def test_trade_preview_entry_price_as_dict(self):
+        """entry_price as dict should be rejected."""
+        with pytest.raises(ValidationError):
+            TradePreviewRequest(symbol="AAPL", entry_price={"value": 150.0})
+
+    def test_trade_preview_entry_price_as_none(self):
+        """entry_price as None should be rejected (required field)."""
+        with pytest.raises(ValidationError):
+            TradePreviewRequest(symbol="AAPL", entry_price=None)
+
+    def test_trade_preview_symbol_as_int(self):
+        """symbol as int should be rejected."""
+        with pytest.raises(ValidationError):
+            TradePreviewRequest(symbol=123, entry_price=150.0)
+
+    def test_trade_preview_symbol_as_list(self):
+        """symbol as list should be rejected."""
+        with pytest.raises(ValidationError):
+            TradePreviewRequest(symbol=["AAPL"], entry_price=150.0)
+
+    def test_trade_preview_stop_loss_as_string(self):
+        """stop_loss_price as non-numeric string should be rejected."""
+        with pytest.raises(ValidationError):
+            TradePreviewRequest(symbol="AAPL", entry_price=150.0, stop_loss_price="invalid")
+
+    def test_position_update_entry_price_as_string(self):
+        """PositionUpdateRequest with entry_price as string - Pydantic coerces."""
+        # Pydantic converts valid numeric strings to float (lenient mode)
+        req = PositionUpdateRequest(position_id=1, entry_price="150.0")
+        assert req.entry_price == 150.0
+        assert isinstance(req.entry_price, float)
+
+    def test_position_update_id_as_string(self):
+        """PositionUpdateRequest with position_id as string should convert or reject."""
+        # Pydantic may coerce "1" -> 1, but should reject non-numeric strings
+        with pytest.raises(ValidationError):
+            PositionUpdateRequest(position_id="not_an_id")
+
+    def test_position_update_target_as_string(self):
+        """target_1_price as non-numeric string should be rejected."""
+        with pytest.raises(ValidationError):
+            PositionUpdateRequest(position_id=1, target_1_price="invalid")
+
+    def test_position_update_target_1_none_valid(self):
+        """target_1_price can be None (optional field)."""
+        req = PositionUpdateRequest(position_id=1, target_1_price=None)
+        assert req.target_1_price is None
+
+    def test_position_update_type_as_int(self):
+        """position_type as int should be rejected."""
+        with pytest.raises(ValidationError):
+            PositionUpdateRequest(position_id=1, position_type=123)
+
+    def test_contact_submission_email_as_int(self):
+        """ContactSubmissionRequest with email as int should be rejected."""
+        with pytest.raises(ValidationError):
+            ContactSubmissionRequest(email=123, subject="Test", message="Test")
+
+    def test_contact_submission_subject_as_list(self):
+        """subject as list should be rejected."""
+        with pytest.raises(ValidationError):
+            ContactSubmissionRequest(email="test@example.com", subject=["Test"], message="Test")
+
+    def test_contact_submission_message_as_dict(self):
+        """message as dict should be rejected."""
+        with pytest.raises(ValidationError):
+            ContactSubmissionRequest(
+                email="test@example.com",
+                subject="Test",
+                message={"text": "Test"}
+            )
+
+    def test_manual_trade_symbol_as_none(self):
+        """ManualTradeRequest with symbol as None should be rejected."""
+        with pytest.raises(ValidationError):
+            ManualTradeRequest(symbol=None, action="buy", quantity=100, price=150.0)
+
+    def test_manual_trade_quantity_as_float_string(self):
+        """quantity as float string should be rejected (should be int)."""
+        with pytest.raises(ValidationError):
+            ManualTradeRequest(symbol="AAPL", action="buy", quantity="100.5", price=150.0)
+
+    def test_manual_trade_price_negative(self):
+        """price as negative should be rejected."""
+        with pytest.raises(ValidationError):
+            ManualTradeRequest(symbol="AAPL", action="buy", quantity=100, price=-150.0)
+
+    def test_pre_trade_impact_entry_price_negative(self):
+        """PreTradeImpactRequest with negative entry_price should be rejected."""
+        with pytest.raises(ValidationError):
+            PreTradeImpactRequest(
+                symbol="AAPL",
+                entry_price=-150.0
+            )
+
+    def test_pre_trade_impact_position_dollars_as_string(self):
+        """PreTradeImpactRequest with position_dollars as valid numeric string."""
+        # Pydantic coerces valid numeric strings
+        req = PreTradeImpactRequest(
+            symbol="AAPL",
+            position_dollars="50000.0"
+        )
+        assert req.position_dollars == 50000.0
+
+    def test_verify_user_email_malformed(self):
+        """VerifyUserEmailRequest with invalid email format."""
+        # Pydantic should validate email format
+        with pytest.raises(ValidationError):
+            VerifyUserEmailRequest(email="not-an-email", code="123456")
+
+    def test_verify_user_email_code_as_int(self):
+        """VerifyUserEmailRequest with code as int should be rejected or converted."""
+        with pytest.raises(ValidationError):
+            VerifyUserEmailRequest(email="test@example.com", code=123456)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

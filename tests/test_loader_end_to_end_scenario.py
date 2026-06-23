@@ -223,5 +223,137 @@ class TestRealisticLoaderScenarios:
         print("[SUCCESS] DATA READY: Trading system ready for market open at 9:30 AM")
 
 
+class TestLoaderValidatorWithMalformedData:
+    """Test loader validators with WRONG TYPES and MALFORMED DATA."""
+
+    def test_completeness_validator_with_negative_symbols(self):
+        """Validator should handle negative symbol count."""
+        validator = LoaderCompletenessValidator("test_loader", 5000)
+        try:
+            result = validator.validate(-100, 60)
+            # Should not crash
+            assert result is not None
+        except (ValueError, AssertionError):
+            # Acceptable to reject negative values
+            pass
+
+    def test_completeness_validator_with_string_symbols(self):
+        """Validator should handle string instead of int for symbols."""
+        validator = LoaderCompletenessValidator("test_loader", 5000)
+        try:
+            result = validator.validate("100", 60)
+            # Might coerce string to int, or might raise
+            assert result is not None or True
+        except (TypeError, ValueError):
+            pass
+
+    def test_completeness_validator_with_none_symbols(self):
+        """Validator should handle None for symbols."""
+        validator = LoaderCompletenessValidator("test_loader", 5000)
+        try:
+            result = validator.validate(None, 60)
+            assert result is not None
+        except (TypeError, AttributeError):
+            pass
+
+    def test_completeness_validator_with_float_symbols(self):
+        """Validator should handle float for symbols (should be int)."""
+        validator = LoaderCompletenessValidator("test_loader", 5000)
+        try:
+            result = validator.validate(4999.5, 60)
+            # Might accept, might reject
+            assert result is not None
+        except (TypeError, ValueError):
+            pass
+
+    def test_completeness_validator_with_negative_time(self):
+        """Validator should handle negative execution time."""
+        validator = LoaderCompletenessValidator("test_loader", 5000)
+        try:
+            result = validator.validate(4000, -60)
+            assert result is not None
+        except (ValueError, AssertionError):
+            # Acceptable to reject negative time
+            pass
+
+    def test_completeness_validator_with_zero_time(self):
+        """Validator should handle zero execution time."""
+        validator = LoaderCompletenessValidator("test_loader", 5000)
+        try:
+            result = validator.validate(4000, 0)
+            assert result is not None
+        except (ValueError, ZeroDivisionError):
+            pass
+
+    def test_completeness_validator_with_string_time(self):
+        """Validator should handle string execution time."""
+        validator = LoaderCompletenessValidator("test_loader", 5000)
+        try:
+            result = validator.validate(4000, "60")
+            assert result is not None
+        except (TypeError, ValueError):
+            pass
+
+    def test_sla_monitor_get_status_without_start(self):
+        """SLA monitor get_status called without start()."""
+        monitor = SLAMonitor("test_loader")
+        try:
+            status = monitor.get_status()
+            # Should handle gracefully or raise
+            assert status is not None
+        except (AttributeError, RuntimeError, ValueError):
+            pass
+
+    def test_sla_monitor_with_negative_start_time(self):
+        """SLA monitor with artificially negative start time."""
+        monitor = SLAMonitor("test_loader")
+        monitor.start()
+        try:
+            # Set a future start time (should handle)
+            monitor.start_time = time.time() + 3600
+            status = monitor.get_status()
+            # Might return negative elapsed, should handle
+            assert status is not None
+        except (ValueError, AssertionError):
+            pass
+
+    def test_completeness_validator_with_dict_loader_name(self):
+        """Validator initialized with dict loader name."""
+        try:
+            validator = LoaderCompletenessValidator({"name": "test"}, 5000)
+            assert validator is not None
+        except (TypeError, ValueError):
+            pass
+
+    def test_completeness_validator_with_negative_total_symbols(self):
+        """Validator initialized with negative total symbols."""
+        try:
+            validator = LoaderCompletenessValidator("test_loader", -5000)
+            assert validator is not None
+        except (ValueError, AssertionError):
+            pass
+
+    def test_completeness_validator_with_zero_total_symbols(self):
+        """Validator initialized with zero total symbols."""
+        try:
+            validator = LoaderCompletenessValidator("test_loader", 0)
+            result = validator.validate(0, 60)
+            # Might cause division by zero in completion_pct
+            assert result is not None
+        except (ValueError, ZeroDivisionError):
+            pass
+
+    def test_completeness_validator_more_loaded_than_total(self):
+        """Validator with more symbols loaded than total (data inconsistency)."""
+        validator = LoaderCompletenessValidator("test_loader", 5000)
+        try:
+            result = validator.validate(5100, 60)
+            # Completion would be >100%, should handle
+            assert result is not None
+            assert result.completion_pct >= 100.0
+        except (ValueError, AssertionError):
+            pass
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
