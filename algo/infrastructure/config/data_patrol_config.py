@@ -17,7 +17,7 @@ Provides logical grouping methods for convenience.
 """
 
 import logging
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from algo.infrastructure.config import AlgoConfig
@@ -77,7 +77,7 @@ class DataPatrolConfig:
         Returns:
             True if value was set as requested; False if rejected/fail-closed
         """
-        return cast(bool, self.parent.set(key, value, value_type, description, changed_by))
+        return self.parent.set(key, value, value_type, description, changed_by)  # type: ignore[no-any-return]
 
     def get_staleness_windows(self) -> dict[str, int]:
         """Get data patrol staleness thresholds (days) for all data types.

@@ -73,7 +73,7 @@ def check_loader_config():
         from algo.infrastructure.config import AlgoConfig
         from utils.db import DatabaseContext
 
-        with DatabaseContext("read") as cur:  # noqa: F841
+        with DatabaseContext("read") as cur:
             AlgoConfig()
 
             # Check yfinance rate limit

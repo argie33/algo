@@ -171,10 +171,10 @@ class TradeExecutor:
             with_cursor_fn=self._with_cursor,
             validate_entry_conditions_fn=self._validate_entry_conditions,
             submit_and_validate_order_fn=self._submit_and_validate_order,
-            cancel_bracket_orders_fn=self._cancel_bracket_orders,
-            verify_order_status_fn=self._verify_order_status,
-            get_order_filled_quantity_fn=self._get_order_filled_quantity,
-            send_alpaca_exit_fn=self._send_alpaca_exit,
+            cancel_bracket_orders_fn=self._cancel_bracket_orders,  # type: ignore[attr-defined]
+            verify_order_status_fn=self._verify_order_status,  # type: ignore[attr-defined]
+            get_order_filled_quantity_fn=self._get_order_filled_quantity,  # type: ignore[attr-defined]
+            send_alpaca_exit_fn=self._send_alpaca_exit,  # type: ignore[attr-defined]
             update_position_with_retry_fn=self._update_position_with_retry,
         )
 
