@@ -52,12 +52,12 @@ class TimeBlock:
         self.end_time: float = 0.0
         self.duration_ms: float = 0.0
 
-    def __enter__(self):
+    def __enter__(self) -> "TimeBlock":
         self.start_time = time.time()
         logger.log(self.log_level, f"[START] {self.operation_name}")
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         self.end_time = time.time()
         self.duration_ms = (self.end_time - self.start_time) * 1000
 
@@ -90,11 +90,9 @@ class TimeBlock:
                 f"{self.operation_name} exceeded threshold: {self.duration_ms:.1f}ms > {threshold_ms:.1f}ms"
             )
 
-        return False  # Don't suppress exceptions
-
 
 @contextmanager
-def time_operation(operation_name: str, log_level: str = "info"):
+def time_operation(operation_name: str, log_level: str = "info") -> Any:
     """
     Shorthand for timing an operation block.
 
@@ -142,7 +140,7 @@ def get_metrics_summary() -> dict[str, dict[str, Any]]:
     return summary
 
 
-def log_metrics_summary():
+def log_metrics_summary() -> None:
     """Log a summary of all recorded metrics."""
     summary = get_metrics_summary()
     if not summary:
@@ -165,7 +163,7 @@ def log_metrics_summary():
     logger.info("=" * 80)
 
 
-def clear_metrics_buffer():
+def clear_metrics_buffer() -> None:
     """Clear all recorded metrics."""
     global _metrics_buffer
     _metrics_buffer = {}

@@ -4,7 +4,7 @@
 import logging
 from datetime import date as _date
 from datetime import datetime
-from typing import cast
+from typing import Any, cast
 
 from utils.db import assert_safe_column, assert_safe_table, safe_select_count
 
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class StalenessChecker(BaseCheck):
     """Check that latest data is within expected staleness windows."""
 
-    def run(self, cur) -> list[CheckResult]:
+    def run(self, cur: Any) -> list[CheckResult]:
         """Execute staleness checks."""
         self.results = []
 

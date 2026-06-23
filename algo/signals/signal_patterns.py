@@ -191,7 +191,7 @@ class SignalPatternsMixin:
 
         return cast(dict[str, Any], self._with_cursor(_analyze_vcp))
 
-    def classify_base_type(self, symbol: str, eval_date) -> dict[str, Any]:
+    def classify_base_type(self, symbol: str, eval_date: Any) -> dict[str, Any]:
         """
         Classify the current base into canonical chart pattern types.
         """
@@ -203,7 +203,7 @@ class SignalPatternsMixin:
                 "characteristics": base_info,
             }
 
-        def _classify_with_cursor(cur):
+        def _classify_with_cursor(cur: Any) -> dict[str, Any]:
             cur.execute(
                 """
                 SELECT date, high, low, close, volume FROM price_daily
@@ -333,7 +333,7 @@ class SignalPatternsMixin:
 
         return cast(dict[str, Any], self._with_cursor(_classify_with_cursor))
 
-    def base_type_stop(self, symbol: str, eval_date, entry_price: float, atr: float | None = None) -> dict[str, Any]:
+    def base_type_stop(self, symbol: str, eval_date: Any, entry_price: float, atr: float | None = None) -> dict[str, Any]:
         """Compute optimal stop loss based on the SPECIFIC base type detected.
 
         Different chart bases have proven-optimal stop placements per the canon:
@@ -361,7 +361,7 @@ class SignalPatternsMixin:
         if "is_ht" not in htf or htf["is_ht"] is None:
             raise ValueError(f"High-tight flag classification missing for {symbol}; cannot compute stop loss")
 
-        def _compute_stop(cur):
+        def _compute_stop(cur: Any) -> dict[str, Any]:
             nonlocal atr
             if atr is None:
                 cur.execute(
@@ -449,7 +449,7 @@ class SignalPatternsMixin:
 
         return cast(dict[str, Any], self._with_cursor(_compute_stop))
 
-    def three_weeks_tight(self, symbol: str, eval_date) -> dict[str, Any]:
+    def three_weeks_tight(self, symbol: str, eval_date: Any) -> dict[str, Any]:
         """
         IBD's "3-Weeks-Tight" (3WT) — high-probability continuation pattern.
 
@@ -470,7 +470,7 @@ class SignalPatternsMixin:
         }
         """
 
-        def _analyze_3wt(cur):
+        def _analyze_3wt(cur: Any) -> dict[str, Any]:
             cur.execute(
                 """
                 SELECT date, high, low, close FROM price_weekly
@@ -525,7 +525,7 @@ class SignalPatternsMixin:
 
         return cast(dict[str, Any], self._with_cursor(_analyze_3wt))
 
-    def high_tight_flag(self, symbol: str, eval_date) -> dict[str, Any]:
+    def high_tight_flag(self, symbol: str, eval_date: Any) -> dict[str, Any]:
         """
         IBD's "High Tight Flag" (HTF) — rare but highly explosive continuation.
 
@@ -549,7 +549,7 @@ class SignalPatternsMixin:
         }
         """
 
-        def _analyze_htf(cur):
+        def _analyze_htf(cur: Any) -> dict[str, Any]:
             cur.execute(
                 """
                 SELECT date, high, low, close FROM price_weekly

@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 import boto3
 
 
-def check_step_functions():
+def check_step_functions() -> None:
     """Check for stuck or long-running Step Functions executions"""
     sfn = boto3.client("stepfunctions", region_name="us-east-1")
 
@@ -69,7 +69,7 @@ def check_step_functions():
         print(f"[ERROR] {e}")
 
 
-def check_rds_connections():
+def check_rds_connections() -> None:
     """Check RDS for connection leaks or excessive usage"""
     cloudwatch = boto3.client("cloudwatch", region_name="us-east-1")
 
@@ -110,7 +110,7 @@ def check_rds_connections():
         print(f"[ERROR] {e}")
 
 
-def check_lambda_duration():
+def check_lambda_duration() -> None:
     """Check if Lambda functions are running longer than expected"""
     cloudwatch = boto3.client("cloudwatch", region_name="us-east-1")
 
@@ -153,7 +153,7 @@ def check_lambda_duration():
             print(f"[ERROR] {func_name}: {e}")
 
 
-def check_dynamodb_throttling():
+def check_dynamodb_throttling() -> None:
     """Check DynamoDB for throttling or excessive reads"""
     cloudwatch = boto3.client("cloudwatch", region_name="us-east-1")
 
@@ -190,7 +190,7 @@ def check_dynamodb_throttling():
             print(f"[ERROR] {table_name}: {e}")
 
 
-def main():
+def main() -> None:
     print("AWS Infrastructure Hanging Resources Check")
     print(f"Started: {datetime.now().isoformat()}")
 

@@ -30,7 +30,7 @@ class SignalTrendMixin:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     @staticmethod
-    def _is_valid_float(v) -> bool:
+    def _is_valid_float(v: Any) -> bool:
         """Check if a value can be safely converted to float."""
         try:
             float(v)
@@ -38,7 +38,7 @@ class SignalTrendMixin:
         except (TypeError, ValueError):
             return False
 
-    def _compute_minervini_from_prices(self, cur, symbol: str, eval_date) -> dict[str, Any]:
+    def _compute_minervini_from_prices(self, cur: Any, symbol: str, eval_date: Any) -> dict[str, Any]:
         """Compute Minervini 8-point trend score on-the-fly from price_daily."""
         cur.execute(
             """SELECT date, close, volume FROM price_daily
@@ -75,7 +75,7 @@ class SignalTrendMixin:
                 f"insufficient non-NaN price data ({len(close)} valid points after filtering, need 200+ for SMA200)"
             )
 
-        def _sma(arr, n):
+        def _sma(arr: Any, n: int) -> float | None:
             if len(arr) < n:
                 return None
             return float(np.mean(arr[-n:]))
@@ -136,8 +136,8 @@ class SignalTrendMixin:
             },
         }
 
-    def minervini_trend_template(self, symbol: str, eval_date) -> dict[str, Any]:
-        def _fetch_trend(cur):
+    def minervini_trend_template(self, symbol: str, eval_date: Any) -> dict[str, Any]:
+        def _fetch_trend(cur: Any) -> dict[str, Any]:
             cur.execute(
                 """SELECT minervini_trend_score, percent_from_52w_high, percent_from_52w_low,
                           weinstein_stage, trend_direction, date
@@ -170,7 +170,7 @@ class SignalTrendMixin:
 
         return cast(dict[str, Any], self._with_cursor(_fetch_trend))
 
-    def weinstein_stage(self, symbol: str, eval_date) -> dict[str, Any]:
+    def weinstein_stage(self, symbol: str, eval_date: Any) -> dict[str, Any]:
         """
         Read pre-computed Weinstein 4-stage classification from trend_template_data.
 
@@ -184,7 +184,7 @@ class SignalTrendMixin:
         }
         """
 
-        def _fetch_stage(cur):
+        def _fetch_stage(cur: Any) -> dict[str, Any]:
             cur.execute(
                 """SELECT weinstein_stage, consolidation_flag
                    FROM trend_template_data
@@ -212,7 +212,7 @@ class SignalTrendMixin:
 
         return cast(dict[str, Any], self._with_cursor(_fetch_stage))
 
-    def mansfield_rs(self, symbol: str, eval_date, lookback: int = 252) -> dict[str, Any]:
+    def mansfield_rs(self, symbol: str, eval_date: Any, lookback: int = 252) -> dict[str, Any]:
         """
         Compute Mansfield Relative Strength: (stock_return / spy_return) - 1.
 
@@ -228,7 +228,7 @@ class SignalTrendMixin:
         }
         """
 
-        def _compute_rs(cur):
+        def _compute_rs(cur: Any) -> dict[str, Any]:
             try:
                 stock_ret = self._period_return(cur, symbol, eval_date, lookback)  # type: ignore[attr-defined]
             except (ValueError, RuntimeError) as e:
@@ -256,6 +256,6 @@ class SignalTrendMixin:
 
         return cast(dict[str, Any], self._with_cursor(_compute_rs))
 
-    def stage2_phase(self, symbol: str, eval_date) -> dict[str, Any]:
+    def stage2_phase(self, symbol: str, eval_date: Any) -> dict[str, Any]:
         """Alias for weinstein_stage() for backwards compatibility."""
         return self.weinstein_stage(symbol, eval_date)

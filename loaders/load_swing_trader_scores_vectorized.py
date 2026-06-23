@@ -20,6 +20,7 @@ import sys
 import threading
 import time
 from datetime import date, datetime, timedelta
+from typing import Any
 from zoneinfo import ZoneInfo
 
 import pandas as pd
@@ -35,10 +36,10 @@ logger = logging.getLogger(__name__)
 class VectorizedSwingScoresLoader:
     """Institutional-grade loader: fetch all data once, compute all at once."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.table_name = "swing_trader_scores"
 
-    def run(self, symbols: list, incremental_only: bool = False) -> dict:
+    def run(self, symbols: list[str], incremental_only: bool = False) -> dict[str, int | float | str | None]:
         """Load swing trader scores for all symbols.
 
         Args:
@@ -122,7 +123,7 @@ class VectorizedSwingScoresLoader:
                 "error": str(e),
             }
 
-    def _fetch_signal_quality_scores(self, symbols: list, start_date: date, end_date: date) -> pd.DataFrame:
+    def _fetch_signal_quality_scores(self, symbols: list[str], start_date: date, end_date: date) -> pd.DataFrame:
         """Fetch signal quality scores for all symbols at once."""
         try:
             with DatabaseContext("read") as cur:
@@ -138,7 +139,7 @@ class VectorizedSwingScoresLoader:
             logger.error(f"Failed to fetch signal scores: {e}")
             return pd.DataFrame()
 
-    def _fetch_technical_data(self, symbols: list, start_date: date, end_date: date) -> pd.DataFrame:
+    def _fetch_technical_data(self, symbols: list[str], start_date: date, end_date: date) -> pd.DataFrame:
         """Fetch technical indicators for all symbols at once."""
         try:
             with DatabaseContext("read") as cur:
@@ -157,7 +158,7 @@ class VectorizedSwingScoresLoader:
             logger.error(f"Failed to fetch technical data: {e}")
             return pd.DataFrame()
 
-    def _fetch_trend_template_data(self, symbols: list, start_date: date, end_date: date) -> pd.DataFrame:
+    def _fetch_trend_template_data(self, symbols: list[str], start_date: date, end_date: date) -> pd.DataFrame:
         """Fetch trend template scores for all symbols at once."""
         try:
             with DatabaseContext("read") as cur:
@@ -185,7 +186,7 @@ class VectorizedSwingScoresLoader:
 
     def _compute_all_scores_vectorized(
         self,
-        symbols: list,
+        symbols: list[str],
         signal_scores: pd.DataFrame,
         technical_data: pd.DataFrame,
         trend_data: pd.DataFrame,
@@ -383,7 +384,7 @@ class VectorizedSwingScoresLoader:
             return 0
 
 
-def _update_swing_loader_status(status: str, error_message: str | None = None):
+def _update_swing_loader_status(status: str, error_message: str | None = None) -> None:
     """Update data_loader_status for Phase 1 monitoring."""
     with DatabaseContext("write") as cur:
         if status == "RUNNING":
@@ -415,7 +416,7 @@ def _update_swing_loader_status(status: str, error_message: str | None = None):
             )
 
 
-def _swing_heartbeat_worker(stop_event):
+def _swing_heartbeat_worker(stop_event: threading.Event) -> None:
     """Periodically update last_updated to signal loader is alive."""
     while not stop_event.is_set():
         if stop_event.wait(timeout=60):  # exits immediately when stop is requested
@@ -434,7 +435,7 @@ def _swing_heartbeat_worker(stop_event):
             logger.debug(f"Swing scores heartbeat failed: {e}")
 
 
-def main():
+def main() -> int:
     parser = argparse.ArgumentParser(description="Vectorized Swing Trader Scores Loader")
     parser.add_argument(
         "--today",
@@ -486,11 +487,13 @@ def main():
             )
 
         # Update status to COMPLETED or FAILED based on result
-        if result["rows_inserted"] > 0 or result["error"] is None:
+        rows_inserted: int = result["rows_inserted"]  # type: ignore[assignment]
+        error: str | None = result["error"]  # type: ignore[assignment]
+        if rows_inserted > 0 or error is None:
             _update_swing_loader_status("COMPLETED")
             final_status = "completed"
         else:
-            _update_swing_loader_status("FAILED", result["error"])
+            _update_swing_loader_status("FAILED", error)
             final_status = "failed"
 
         # Log execution time

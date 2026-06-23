@@ -26,7 +26,7 @@ class ParallelismValidator:
         "buy_sell_daily": (1, 3),  # Historical, manageable size
     }
 
-    def __init__(self):
+    def __init__(self) -> None:
         pass
 
     def validate_stock_prices_loader(self) -> dict[str, Any]:
@@ -231,7 +231,7 @@ class ParallelismValidator:
             ],
         }
 
-    def log_validation_status(self):
+    def log_validation_status(self) -> None:
         """Log parallelism validator status."""
         result = self.validate_all_loaders()
 

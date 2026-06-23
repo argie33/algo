@@ -403,7 +403,7 @@ class Orchestrator:
 
     # ---------- Phase implementations ----------
 
-    def phase_1_data_freshness(self):
+    def phase_1_data_freshness(self) -> bool:
         """Thin delegation to phase1_data_freshness module.
 
         New version only checks: are today's prices loaded? 95%+ coverage?
@@ -582,28 +582,28 @@ class Orchestrator:
 
         return executor
 
-    def _executor_phase_1(self, **kwargs):
+    def _executor_phase_1(self, **kwargs: Any) -> Any:
         """Executor wrapper for Phase 1."""
         self.phase_1_data_freshness()
         if not hasattr(self, "_phase1_result"):
             raise RuntimeError("[PHASE 1] phase_1_data_freshness() did not set _phase1_result")
         return self._phase1_result
 
-    def _executor_phase_2(self, **kwargs):
+    def _executor_phase_2(self, **kwargs: Any) -> Any:
         """Executor wrapper for Phase 2."""
         self.phase_2_circuit_breakers()
         if not hasattr(self, "_phase2_result"):
             raise RuntimeError("[PHASE 2] phase_2_circuit_breakers() did not set _phase2_result")
         return self._phase2_result
 
-    def _executor_phase_3(self, **kwargs):
+    def _executor_phase_3(self, **kwargs: Any) -> Any:
         """Executor wrapper for Phase 3."""
         self.phase_3_position_monitor()
         if not hasattr(self, "_phase3_result"):
             raise RuntimeError("[PHASE 3] phase_3_position_monitor() did not set _phase3_result")
         return self._phase3_result
 
-    def _executor_phase_4(self, **kwargs):
+    def _executor_phase_4(self, **kwargs: Any) -> Any:
         """Executor wrapper for Phase 4: Reconciliation."""
         from algo.orchestrator.phase4_reconciliation import run as run_phase4
 
@@ -617,14 +617,14 @@ class Orchestrator:
         )
         return result
 
-    def _executor_phase_5(self, **kwargs):
+    def _executor_phase_5(self, **kwargs: Any) -> Any:
         """Executor wrapper for Phase 5: Exposure Policy."""
         self.phase_5_exposure_policy()
         if not hasattr(self, "_phase5_result"):
             raise RuntimeError("[PHASE 5] phase_5_exposure_policy() did not set _phase5_result")
         return self._phase5_result
 
-    def _executor_phase_6(self, executor=None, **kwargs):
+    def _executor_phase_6(self, executor: Any = None, **kwargs: Any) -> Any:
         """Executor wrapper for Phase 6: Exit Execution.
 
         PHASE DEPENDENCY FIX: Fetches validated data from Phase 3 and 5.
@@ -650,7 +650,7 @@ class Orchestrator:
         )
         return result
 
-    def _executor_phase_7(self, executor=None, **kwargs):
+    def _executor_phase_7(self, executor: Any = None, **kwargs: Any) -> Any:
         """Executor wrapper for Phase 7: Signal Generation.
 
         PHASE DEPENDENCY FIX: Fetches validated data from Phase 5.
@@ -669,7 +669,7 @@ class Orchestrator:
         )
         return result
 
-    def _executor_phase_8(self, executor=None, **kwargs):
+    def _executor_phase_8(self, executor: Any = None, **kwargs: Any) -> Any:
         """Executor wrapper for Phase 8: Entry Execution.
 
         PHASE DEPENDENCY FIX: Now passes executor so phase can fetch validated data
@@ -687,7 +687,7 @@ class Orchestrator:
         )
         return result
 
-    def _executor_phase_9(self, **kwargs):
+    def _executor_phase_9(self, **kwargs: Any) -> Any:
         """Executor wrapper for Phase 9: Final Reconciliation."""
         self.phase_9_reconcile()
         if not hasattr(self, "_phase9_result"):
@@ -753,12 +753,12 @@ class Orchestrator:
                     logger.debug("[PREFLIGHT] Validating required tables")
                     if not self._validate_required_tables(cur):
                         logger.error("[HALT] Required tables missing — cannot proceed")
-                        return cast(dict[str, Any], self._final_report())
+                        return self._final_report()
 
                     logger.info("[OK] All pre-flight checks passed")
             except TimeoutError as e:
                 logger.error(f"  [HALT] Pre-flight database timeout (pool exhausted?): {e}")
-                report = cast(dict[str, Any], self._final_report())
+                report = self._final_report()
                 report["skipped"] = True
                 report["reason"] = "database_timeout"
                 return report
@@ -769,7 +769,7 @@ class Orchestrator:
                 )
                 # Return skipped=True when DB is unreachable so test verification
                 # treats this as a transient skip, not a code bug (phases={})
-                report = cast(dict[str, Any], self._final_report())
+                report = self._final_report()
                 if "connection" in str(e).lower() or "database" in str(e).lower() or "pool" in str(e).lower():
                     report["skipped"] = True
                     report["reason"] = "database_unavailable"
@@ -779,7 +779,7 @@ class Orchestrator:
             if not self.db_monitor.check_db_connectivity():
                 logger.error("[DB_ERROR] Database connectivity check FAILED")
                 logger.error("Check CloudWatch alarms for database availability. Returning skipped status.")
-                report = cast(dict[str, Any], self._final_report())
+                report = self._final_report()
                 report["skipped"] = True
                 report["reason"] = "database_unavailable"
                 return report
@@ -801,7 +801,7 @@ class Orchestrator:
 
             if not executor_result.get("success"):
                 logger.critical(f"[EXECUTOR] Phase sequence halted at Phase {executor_result.get('error_phase')}")
-                return cast(dict[str, Any], self._final_report())
+                return self._final_report()
 
             # Log performance metrics and total time
             log_metrics_summary()
@@ -828,11 +828,11 @@ class Orchestrator:
             except (ValueError, ZeroDivisionError, TypeError) as e:
                 logger.debug(f"Could not emit pipeline timing metrics: {e}")
 
-            return cast(dict[str, Any], self._final_report())
+            return self._final_report()
         finally:
             self._release_run_lock()
 
-    def _final_report(self):
+    def _final_report(self) -> dict[str, Any]:
         logger.info(f"\n{'#' * 70}")
         logger.info(f"#   FINAL REPORT — {self.run_id}")
         logger.info(f"{'#' * 70}")

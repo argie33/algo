@@ -164,7 +164,7 @@ KEY_MAP = {
 class _RenderWrapper:
     """Callable wrapper for render_dashboard to avoid recreating closures on every frame."""
 
-    def __init__(self, compact: bool, data_source: str = "AWS"):
+    def __init__(self, compact: bool, data_source: str = "AWS") -> None:
         self.compact = compact
         self.data_source = data_source
         self.elapsed = 0.0
@@ -227,6 +227,7 @@ else:
 
 def _validate_watch_interval(value: str) -> int:
     """Validate watch interval is between 10 and 600 seconds."""
+    """Validate watch interval is between 10 and 600 seconds."""
     try:
         int_value = int(value)
         if int_value < 10:
@@ -239,11 +240,7 @@ def _validate_watch_interval(value: str) -> int:
 
 
 def _validate_api_url(url: str) -> bool:
-    """Validate API URL format using urllib.parse.
-
-    Returns True if URL is valid, False otherwise.
-    Allows both http:// and https://, including localhost for local development.
-    """
+    """Validate API URL format using urllib.parse."""
     if not url:
         return False
 
@@ -269,7 +266,7 @@ def _validate_api_url(url: str) -> bool:
         return False
 
 
-def _validate_panel_dependencies(data: dict) -> dict[str, bool]:
+def _validate_panel_dependencies(data: dict[str, Any]) -> dict[str, bool]:
     """Validate that panel dependencies are available in data.
 
     Uses panel registry to check if each panel has its required endpoints.
@@ -294,6 +291,7 @@ def _validate_panel_dependencies(data: dict) -> dict[str, bool]:
 
 def _check_auth_lost() -> Panel | None:
     """Check if authentication was lost and return error panel if needed."""
+    """Check if authentication was lost and return error panel if needed."""
     auth = get_cognito_auth()
     if auth and auth.has_lost_authentication():
         content = (
@@ -314,6 +312,7 @@ def _check_auth_lost() -> Panel | None:
 
 def _handle_render_error(e: Exception, recovery_status: str | None = None) -> Panel:
     """Create an error panel for render failures with recovery info."""
+    """Create an error panel for render failures with recovery info."""
     logger.error(f"Dashboard render error: {type(e).__name__}: {e}")
     logger.error(f"Traceback: {traceback.format_exc()}")
 
@@ -331,7 +330,7 @@ def _handle_render_error(e: Exception, recovery_status: str | None = None) -> Pa
 
 
 def render_dashboard(
-    data: dict,
+    data: dict[str, Any],
     compact: bool = False,
     elapsed: float = 0.0,
     frame: int = 0,
@@ -510,6 +509,7 @@ def _render_header_components(
     data_source: str,
     exp_f: Any,
 ) -> tuple[Panel, Panel]:
+    """Render header and exposure panels with error handling."""
     """Render header and exposure panels with error handling.
 
     Returns (header_panel, exposure_panel).
@@ -575,6 +575,7 @@ def _render_dashboard_body(
     irank: Any,
     compact: bool,
 ) -> None:
+    """Build main dashboard body layout with all panels."""
     """Build main dashboard body layout with all panels.
 
     Modifies outer Layout in place.
@@ -680,8 +681,9 @@ def _render_footer_expanded_view(
     perf_anl: Any,
     eco: Any,
     econ_cal: Any,
-    data: dict,
+    data: dict[str, Any],
 ) -> Layout | None:
+    """Render footer/expanded detail view for the given view_mode."""
     """Render footer/expanded detail view for the given view_mode.
 
     Handles 12 expanded modes: circuit, exposure, market, positions, signals, health,
@@ -844,7 +846,7 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
     done = threading.Event()
     bg_thread = None
 
-    def bg():
+    def bg() -> None:
         try:
             t0 = time.monotonic()
             state.result = load_all()
@@ -984,11 +986,11 @@ def _run_watch_main_loop(
     recovery: RenderRecovery,
     interval: int,
     data_source: str,
-    active_threads: list,
+    active_threads: list[Any],
     active_threads_lock: threading.Lock,
-    cleanup_dead_threads,
-    reload,
-    reload_thread,
+    cleanup_dead_threads: Any,
+    reload: Any,
+    reload_thread: Any,
 ) -> None:
     """Main event loop for watch mode."""
     view_mode = "normal"
@@ -1089,7 +1091,7 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
             for thread in threads_to_remove:
                 active_threads.remove(thread)
 
-    def reload():
+    def reload() -> None:
         try:
             with state_lock:
                 state.loading = True
@@ -1234,7 +1236,7 @@ def _configure_aws_and_auth(aws_url: str, pool_id: str, client_id: str) -> None:
         set_cognito_auth(auth)
 
 
-def main():
+def main() -> None:
     pa = argparse.ArgumentParser(
         description="Algo ops terminal dashboard",
         epilog=__doc__,

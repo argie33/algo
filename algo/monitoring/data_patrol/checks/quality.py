@@ -2,7 +2,7 @@
 """Data quality checks - NULL anomalies, OHLC sanity, zero values, volume sanity."""
 
 import logging
-from typing import cast
+from typing import Any, cast
 
 import psycopg2
 
@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 class QualityChecker(BaseCheck):
     """Check data quality: NULLs, OHLC relationships, zero values, volume."""
 
-    def run(self, cur) -> list[CheckResult]:
+    def run(self, cur: Any) -> list[CheckResult]:
         """Execute all quality checks."""
         self.results = []
 
@@ -26,7 +26,7 @@ class QualityChecker(BaseCheck):
 
         return self.results
 
-    def check_null_anomalies(self, cur) -> None:
+    def check_null_anomalies(self, cur: Any) -> None:
         """Check for sudden spike in NULL values."""
         try:
             max_null_pct = cast(int, self.config.get("patrol_max_null_pct_threshold", 5))
@@ -71,7 +71,7 @@ class QualityChecker(BaseCheck):
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             self.log("null_anomaly", ERROR, "price_daily", f"Check failed: {e}", None)
 
-    def check_zero_or_identical(self, cur) -> None:
+    def check_zero_or_identical(self, cur: Any) -> None:
         """Check for zero values or identical OHLC (sign of API limit hit)."""
         try:
             quality_cfg = self.config.get_quality_config()
@@ -191,7 +191,7 @@ class QualityChecker(BaseCheck):
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             self.log("zero_data", ERROR, "price_daily", f"Check failed: {e}", None)
 
-    def check_ohlc_sanity(self, cur) -> None:
+    def check_ohlc_sanity(self, cur: Any) -> None:
         """Check OHLC relationships: High >= Open/Close/Low, etc."""
         try:
             cur.execute("""
@@ -233,7 +233,7 @@ class QualityChecker(BaseCheck):
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             self.log("ohlc_sanity", ERROR, "price_daily", f"Check failed: {e}", None)
 
-    def check_volume_sanity(self, cur) -> None:
+    def check_volume_sanity(self, cur: Any) -> None:
         """Check volume within realistic range."""
         try:
             vol_cfg = self.config.get_volume_config()

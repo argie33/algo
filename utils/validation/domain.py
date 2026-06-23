@@ -23,6 +23,7 @@ from typing import Any
 from .framework import (
     PhaseValidator,
     ValidationResult,
+    ValidatorRegistry,
     Validator,
 )
 
@@ -35,7 +36,7 @@ class AlpacaOrderValidator(Validator):
     Checks required fields, types, and value constraints.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__("AlpacaOrderValidator")
 
     def validate(self, data: Any, context: str = "") -> ValidationResult:
@@ -119,7 +120,7 @@ class AlpacaOrderValidator(Validator):
 class AlpacaOrderStatusValidator(Validator):
     """Validates Alpaca order status response (GET /v2/orders/{order_id})."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__("AlpacaOrderStatusValidator")
 
     def validate(self, data: Any, context: str = "") -> ValidationResult:
@@ -185,7 +186,7 @@ class AlpacaOrderStatusValidator(Validator):
 class AlpacaAccountValidator(Validator):
     """Validates Alpaca account response."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__("AlpacaAccountValidator")
 
     def validate(self, data: Any, context: str = "") -> ValidationResult:
@@ -236,7 +237,7 @@ class AlpacaAccountValidator(Validator):
 class AlpacaPositionValidator(Validator):
     """Validates Alpaca position response (GET /v2/positions/{symbol})."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__("AlpacaPositionValidator")
 
     def validate(self, data: Any, context: str = "") -> ValidationResult:
@@ -478,7 +479,7 @@ class PhaseResultsValidator(Validator):
     Each phase must have 'name'/'phase' and valid 'status'.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__("PhaseResultsValidator")
         self.phase_validator = PhaseValidator()
 
@@ -511,13 +512,11 @@ class PhaseResultsValidator(Validator):
         )
 
 
-def create_default_registry():
+def create_default_registry() -> ValidatorRegistry:
     """Create a registry with common validators pre-registered.
 
     Returns ValidatorRegistry with standard validators.
     """
-    from utils.validation import ValidatorRegistry
-
     registry = ValidatorRegistry()
 
     # Register domain-specific validators

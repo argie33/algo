@@ -109,7 +109,7 @@ _sector_cache_maxsize = 100
 # ── Helper functions ──────────────────────────────────────────────────────────
 
 
-def normalize_positions_data(data):
+def normalize_positions_data(data: Any) -> tuple[list[Any], Any, bool]:
     """Unified normalization of positions data structure.
 
     FAIL-CLOSED: Raises exception on unexpected data types instead of silently returning empty list.
@@ -122,7 +122,7 @@ def normalize_positions_data(data):
 
     if isinstance(data, dict):
         if check_has_error(data):
-            return data, None, True
+            return [], None, True
         if "items" not in data:
             # Dict without items or error — log and fail
             logger.error(
@@ -150,7 +150,7 @@ def normalize_positions_data(data):
         )
 
 
-def compute_sector_agg(pos, port):
+def compute_sector_agg(pos: Any, port: dict[str, Any]) -> tuple[list[tuple[str, dict[str, Any]]], int, float | None]:
     """
     Compute sector aggregation with caching to avoid recomputation on every 30-sec refresh.
     Only recomputes when positions data changes (via content hash, not object identity).
@@ -217,7 +217,7 @@ def compute_sector_agg(pos, port):
     return sorted_secs, total_secs, pv
 
 
-def extract_items_and_error(data):
+def extract_items_and_error(data: Any) -> tuple[list[Any], str | None]:
     """Extract items array and error message from data dict or list.
 
     FAIL-CLOSED: Raises exception on unexpected data types instead of silently returning empty list.
@@ -232,7 +232,10 @@ def extract_items_and_error(data):
         if has_error(data):
             return [], get_error_message(data)
         if "items" in data:
-            return data.get("items"), None
+            items = data.get("items")
+            if isinstance(items, list):
+                return items, None
+            return [], None
         # Dict without items or error — log and fail
         logger.error(f"[DATA_FORMAT] Data dict malformed: missing 'items' and no '_error'. Keys: {list(data.keys())}")
         raise ValueError(
@@ -281,7 +284,7 @@ _data_quality_issues: list[dict[str, Any]] = []
 _data_quality_lock = threading.Lock()
 
 
-def record_data_quality_issue(fetcher: str, field: str, issue: str, value: Any = None):
+def record_data_quality_issue(fetcher: str, field: str, issue: str, value: Any = None) -> None:
     """Record a data quality issue for dashboarding and alerting.
 
     Args:
@@ -320,7 +323,7 @@ def get_data_quality_report(max_age_minutes: int = 30) -> list[dict[str, Any]]:
     return recent
 
 
-def clear_data_quality_issues():
+def clear_data_quality_issues() -> None:
     """Clear the data quality issue history."""
     global _data_quality_issues
     with _data_quality_lock:

@@ -448,7 +448,7 @@ class ExitEngine:
                 f"Cannot initialize exit engine without these values."
             )
 
-    def check_and_execute_exits(self, current_date=None) -> int:
+    def check_and_execute_exits(self, current_date: Any = None) -> int:
         """Check all open positions for exit conditions and execute."""
 
         if not current_date:
@@ -714,23 +714,23 @@ class ExitEngine:
 
     def _evaluate_position(
         self,
-        cur,
-        symbol,
-        current_date,
-        cur_price,
-        prev_close,
-        entry_price,
-        active_stop,
-        init_stop,
-        t1_price,
-        t2_price,
-        t3_price,
-        target_hits,
-        days_held,
-        dist_days_today,
-        t1_hit_time=None,
-        t2_hit_time=None,
-        t3_hit_time=None,
+        cur: Any,
+        symbol: str,
+        current_date: Any,
+        cur_price: float,
+        prev_close: float,
+        entry_price: float,
+        active_stop: float,
+        init_stop: float,
+        t1_price: float,
+        t2_price: float,
+        t3_price: float,
+        target_hits: dict[str, Any],
+        days_held: int,
+        dist_days_today: int,
+        t1_hit_time: Any = None,
+        t2_hit_time: Any = None,
+        t3_hit_time: Any = None,
     ) -> dict[str, Any]:
         """Decide what exit to take (or hold decision).
 
@@ -892,7 +892,7 @@ class ExitEngine:
         except (RuntimeError, ValueError):
             raise
 
-    def _fetch_recent_prices(self, cur, symbol: str, current_date) -> tuple[float | None, float | None]:
+    def _fetch_recent_prices(self, cur: Any, symbol: str, current_date: Any) -> tuple[float | None, float | None]:
         """Return (current_price, previous_close) with intraday support.
 
 
@@ -976,7 +976,7 @@ class ExitEngine:
 
         return cur_price, prev_close
 
-    def _fetch_market_dist_days(self, cur, current_date) -> int | None:
+    def _fetch_market_dist_days(self, cur: Any, current_date: Any) -> int | None:
 
         cur.execute(
             """
@@ -993,7 +993,7 @@ class ExitEngine:
 
         return int(row[0]) if row and row[0] is not None else None
 
-    def _is_pulling_back(self, cur, symbol: str, current_date) -> bool:
+    def _is_pulling_back(self, cur: Any, symbol: str, current_date: Any) -> bool:
         """Requires either 2-3% decline from recent high OR 2+ days below 5-day high.
 
 
@@ -1043,7 +1043,7 @@ class ExitEngine:
 
         return days_below_high >= 2
 
-    def _rs_line_breaking(self, cur, symbol: str, current_date) -> bool:
+    def _rs_line_breaking(self, cur: Any, symbol: str, current_date: Any) -> bool:
         """RS line (stock/SPY ratio) breaking below its 50-day MA = exit signal."""
 
         cur.execute(
@@ -1094,13 +1094,13 @@ class ExitEngine:
 
     def _eight_week_rule_active(
         self,
-        cur,
-        symbol,
-        current_date,
-        entry_price,
-        days_held,
-        threshold_pct,
-        window_days,
+        cur: Any,
+        symbol: str,
+        current_date: Any,
+        entry_price: float,
+        days_held: int,
+        threshold_pct: float,
+        window_days: int,
     ) -> bool:
         """O'Neil 8-week rule: if stock gained 20%+ in first 3 weeks, hold for 8 weeks."""
 
@@ -1146,7 +1146,7 @@ class ExitEngine:
 
         return cast(bool, gain_pct >= threshold_pct)
 
-    def _chandelier_or_ema_stop(self, cur, symbol: str, current_date, days_held: int) -> float | None:
+    def _chandelier_or_ema_stop(self, cur: Any, symbol: str, current_date: Any, days_held: int) -> float | None:
         """Trailing stop: chandelier (3xATR from highest high) for first 10d,
 
         then 21-EMA after."""
@@ -1248,7 +1248,7 @@ class ExitEngine:
 
             return round(hh - (mult * atr), 2)
 
-    def _get_td_state(self, cur, symbol, current_date) -> dict[str, Any]:
+    def _get_td_state(self, cur: Any, symbol: str, current_date: Any) -> dict[str, Any]:
         """Return full TD state dict (for both 9 and 13 detection).
 
 
@@ -1268,7 +1268,7 @@ class ExitEngine:
 
         return td_state
 
-    def _is_minervini_break(self, cur, symbol: str, current_date, cur_price: float) -> bool:
+    def _is_minervini_break(self, cur: Any, symbol: str, current_date: Any, cur_price: float) -> bool:
         """Close < 50-DMA OR (close < EMA(21) AND volume > 50-day avg)."""
 
         cur.execute(
@@ -1329,7 +1329,7 @@ class ExitEngine:
 
         return False
 
-    def _check_volume_spike(self, cur, symbol: str, current_date, volume_multiplier: float) -> bool:
+    def _check_volume_spike(self, cur: Any, symbol: str, current_date: Any, volume_multiplier: float) -> bool:
         """Check if today's volume is >= volume_multiplier * average volume."""
 
         cur.execute(
@@ -1364,7 +1364,7 @@ class ExitEngine:
 
         return today_vol >= avg_vol * volume_multiplier
 
-    def _compute_gain_last_n_days(self, cur, symbol: str, current_date, n_days: int) -> float | None:
+    def _compute_gain_last_n_days(self, cur: Any, symbol: str, current_date: Any, n_days: int) -> float | None:
         """Compute % gain over the last N days (from close N days ago to current close)."""
 
         cur.execute(

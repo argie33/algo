@@ -133,7 +133,7 @@ class AlpacaBrokerAdapter(BrokerAdapter):
         ) as e:
             raise ValueError(f"Cannot fetch Alpaca portfolio history: {e}") from e
 
-    def fetch_closed_orders(self, since=None) -> list[dict]:
+    def fetch_closed_orders(self, since: Any = None) -> list[dict[str, Any]]:
         """Fetch closed/filled orders from Alpaca REST API.
 
         Args:

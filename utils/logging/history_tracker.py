@@ -32,16 +32,16 @@ class LoaderHistoryTracker:
         self.start_time: datetime | None = None
         self.end_time: datetime | None = None
 
-    def start(self):
+    def start(self) -> None:
         """Mark execution start."""
         self.start_time = datetime.utcnow()
 
-    def complete(self, symbols_processed: int = 0, errors: int = 0):
+    def complete(self, symbols_processed: int = 0, errors: int = 0) -> None:
         """Log successful completion."""
         self.end_time = datetime.utcnow()
         self._log(status="success", symbols_processed=symbols_processed, error_count=errors)
 
-    def failed(self, error_message: str | None = None):
+    def failed(self, error_message: str | None = None) -> None:
         """Log failed execution."""
         self.end_time = datetime.utcnow()
         self._log(status="failed", error_message=error_message)
@@ -52,7 +52,7 @@ class LoaderHistoryTracker:
         symbols_processed: int = 0,
         error_count: int = 0,
         error_message: str | None = None,
-    ):
+    ) -> None:
         """Write to database."""
         if not self.start_time:
             return

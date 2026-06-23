@@ -36,14 +36,14 @@ _on_connect = None
 _on_disconnect = None
 
 
-def register_connection_callbacks(on_connect, on_disconnect):
+def register_connection_callbacks(on_connect: Any, on_disconnect: Any) -> None:
     """Register pool monitoring callbacks. Called by algo.monitoring after it initializes."""
     global _on_connect, _on_disconnect
     _on_connect = on_connect
     _on_disconnect = on_disconnect
 
 
-def _get_connection_pool():
+def _get_connection_pool() -> Any:
     """Get or create the module-level connection pool (thread-safe).
 
     Pool size: minconn=2, maxconn=10
@@ -125,23 +125,22 @@ class TrackedConnection:
     When closed, returns connection to pool instead of destroying it.
     """
 
-    def __init__(self, conn, pool=None):
+    def __init__(self, conn: Any, pool: Any = None) -> None:
         self._conn = conn
         self._pool = pool
         if _on_connect:
             _on_connect()
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         return getattr(self._conn, name)
 
-    def __enter__(self):
+    def __enter__(self) -> Any:
         return self._conn.__enter__()
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         self.close()
-        return False
 
-    def close(self):
+    def close(self) -> None:
         """Return connection to pool (if managed) or close it."""
         if _on_disconnect:
             _on_disconnect()
@@ -185,7 +184,7 @@ def _check_connection_health(conn: Any, pool: Any) -> None:
             raise RuntimeError(f"[DB_POOL] Failed to return stale connection to pool: {e}") from e
 
 
-def get_db_connection(max_retries: int = 3, timeout: int = 10, debug: bool = False):
+def get_db_connection(max_retries: int = 3, timeout: int = 10, debug: bool = False) -> TrackedConnection:
     """Get a database connection from the connection pool with retries.
 
     Uses module-level SimpleConnectionPool to prevent RDS connection exhaustion.

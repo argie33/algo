@@ -12,6 +12,7 @@ setup_imports()
 import logging
 import time
 from datetime import date, datetime, timezone
+from typing import Any
 
 from loaders.runner import run_loader
 from utils.external.yfinance import get_ticker
@@ -70,7 +71,7 @@ class ValueMetricsLoader(OptimalLoader):
                 if fcf and mkt_cap and mkt_cap > 0:
                     fcf_yield = float(fcf) / float(mkt_cap)
 
-                def _cap(val, limit=9_999_999):
+                def _cap(val: Any, limit: int = 9_999_999) -> float | None:
                     return min(float(val), limit) if val else None
 
                 return [
@@ -107,7 +108,7 @@ class ValueMetricsLoader(OptimalLoader):
         return None
 
 
-def _apply_schema_migrations():
+def _apply_schema_migrations() -> None:
     """Add columns that were missing from initial schema deployment."""
     from utils.db.context import DatabaseContext
 

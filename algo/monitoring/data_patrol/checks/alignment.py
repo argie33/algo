@@ -2,6 +2,7 @@
 """Data alignment checks - cross-table validation, signal alignment, coverage."""
 
 import logging
+from typing import Any
 
 import psycopg2
 
@@ -16,7 +17,7 @@ logger = logging.getLogger(__name__)
 class AlignmentChecker(BaseCheck):
     """Check alignment and consistency across tables."""
 
-    def run(self, cur) -> list[CheckResult]:
+    def run(self, cur: Any) -> list[CheckResult]:
         """Execute all alignment checks."""
         self.results = []
 
@@ -28,7 +29,7 @@ class AlignmentChecker(BaseCheck):
 
         return self.results
 
-    def check_signal_source_alignment(self, cur) -> None:
+    def check_signal_source_alignment(self, cur: Any) -> None:
         """Cross-validate SQS with its input tables."""
         try:
             cur.execute("SELECT MAX(date) FROM signal_quality_scores")
@@ -101,7 +102,7 @@ class AlignmentChecker(BaseCheck):
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             self.log("alignment", ERROR, "signal_alignment", f"Check failed: {e}", None)
 
-    def check_signal_data_alignment(self, cur) -> None:
+    def check_signal_data_alignment(self, cur: Any) -> None:
         """Every BUY/SELL signal must have matching price + technical data."""
         try:
             cur.execute("""
@@ -153,7 +154,7 @@ class AlignmentChecker(BaseCheck):
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             self.log("signal_alignment", ERROR, "buy_sell_daily", f"Check failed: {e}", None)
 
-    def check_trade_alignment(self, cur) -> None:
+    def check_trade_alignment(self, cur: Any) -> None:
         """Every filled trade must have price history on/after fill date."""
         try:
             cur.execute("""
@@ -198,7 +199,7 @@ class AlignmentChecker(BaseCheck):
                 None,
             )
 
-    def check_score_freshness(self, cur) -> None:
+    def check_score_freshness(self, cur: Any) -> None:
         """Computed scores should be updated AFTER raw data."""
         try:
             cur.execute("""
@@ -240,7 +241,7 @@ class AlignmentChecker(BaseCheck):
                 None,
             )
 
-    def check_cross_table_alignment(self, cur) -> None:
+    def check_cross_table_alignment(self, cur: Any) -> None:
         """Dependent tables cover same symbol universe as price_daily."""
         try:
             cur.execute("""

@@ -16,7 +16,7 @@ class VIXFetcher:
     Marked as CRITICAL to fail-fast on unavailable data per governance.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.breaker = CircuitBreaker(
             name="yfinance_vix",
             failure_threshold=3,
@@ -60,7 +60,7 @@ class VIXFetcher:
 class PutCallRatioFetcher:
     """Fetches put/call ratio with circuit breaker."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.breaker = CircuitBreaker(
             name="yfinance_put_call",
             failure_threshold=3,
@@ -103,7 +103,7 @@ class PutCallRatioFetcher:
 class YieldCurveFetcher:
     """Fetches yield curve data with circuit breaker."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.breaker = CircuitBreaker(
             name="economic_metrics_yield_curve",
             failure_threshold=3,
@@ -168,6 +168,9 @@ class YieldCurveFetcher:
 
 class BreadthFetcher:
     """Fetches market breadth data (advance/decline)."""
+
+    def __init__(self) -> None:
+        pass
 
     def fetch(self, start: date, end: date) -> dict[str, Any]:
         """Fetch market breadth data."""

@@ -18,7 +18,7 @@ class WatermarkManager:
         self,
         loader_name: str,
         table_name: str,
-        db_conn=None,  # Deprecated: kept for backwards compatibility, no longer used
+        db_conn: Any = None,  # Deprecated: kept for backwards compatibility, no longer used
         granularity: str = "symbol",  # 'symbol', 'global', or custom
     ):
         self.loader_name = loader_name
@@ -194,7 +194,7 @@ class WatermarkManager:
         symbol: str | None = None,
         granularity_key: str | None = None,
         error_message: str = "",
-    ):
+    ) -> None:
         """Record an error for this watermark entry."""
         try:
             with DatabaseContext("write") as cur:

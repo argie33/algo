@@ -2,6 +2,7 @@
 """Price sanity checks - extreme moves, corporate actions, sequence continuity."""
 
 import logging
+from typing import Any
 
 import psycopg2
 
@@ -14,7 +15,7 @@ logger = logging.getLogger(__name__)
 class PriceSanityChecker(BaseCheck):
     """Check price data for extreme moves, corporate actions, and sequence gaps."""
 
-    def run(self, cur) -> list[CheckResult]:
+    def run(self, cur: Any) -> list[CheckResult]:
         """Execute all price sanity checks."""
         self.results = []
 
@@ -24,7 +25,7 @@ class PriceSanityChecker(BaseCheck):
 
         return self.results
 
-    def check_price_moves(self, cur) -> None:
+    def check_price_moves(self, cur: Any) -> None:
         """Check for extreme day-over-day price moves."""
         try:
             price_cfg = self.config.get_price_sanity_config()
@@ -81,7 +82,7 @@ class PriceSanityChecker(BaseCheck):
         except (ValueError, ZeroDivisionError, TypeError) as e:
             self.log("price_sanity", ERROR, "price_daily", f"Check failed: {e}", None)
 
-    def check_corporate_actions(self, cur) -> None:
+    def check_corporate_actions(self, cur: Any) -> None:
         """Detect likely corporate actions (splits, halts, delistings)."""
         try:
             corp_cfg = self.config.get_corporate_actions_config()
@@ -136,7 +137,7 @@ class PriceSanityChecker(BaseCheck):
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             self.log("corporate_action", ERROR, "price_daily", f"Check failed: {e}", None)
 
-    def check_sequence_continuity(self, cur) -> None:
+    def check_sequence_continuity(self, cur: Any) -> None:
         """Check trading-day sequence for gaps."""
         try:
             cur.execute("""

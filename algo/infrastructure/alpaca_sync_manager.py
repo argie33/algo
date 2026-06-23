@@ -63,7 +63,7 @@ class AlpacaSyncManager:
             logger.error(f"Failed to fetch Alpaca account: {e}")
             raise
 
-    def sync_alpaca_positions(self, cur) -> dict[str, Any]:
+    def sync_alpaca_positions(self, cur: Any) -> dict[str, Any]:
         """Sync Alpaca positions to database (placeholder for paper trading).
 
         Fetches current positions from Alpaca API but does NOT write to database.
@@ -123,7 +123,7 @@ class AlpacaSyncManager:
             logger.error(f"Failed to fetch Alpaca positions for sync: {e}")
             raise
 
-    def process_failed_imports(self, cur, alpaca_positions: list) -> dict[str, Any]:
+    def process_failed_imports(self, cur: Any, alpaca_positions: list[Any]) -> dict[str, Any]:
         """Handle positions that failed to import or process.
 
         Args:

@@ -34,7 +34,7 @@ DEFAULT_HEALTH_CHECK_TICKER = "SPY"
 class RateLimitValidator:
     """Validate API rate limits and graceful degradation."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         # Rate limit specifications
         self.yfinance_limit = {
             "requests_per_minute": YFINANCE_REQUESTS_PER_MINUTE,
@@ -205,7 +205,7 @@ class RateLimitValidator:
                 "issues": [f"Validation failed: {str(e)[:100]}"],
             }
 
-    def log_rate_limit_status(self):
+    def log_rate_limit_status(self) -> None:
         """Log rate limit health and recommendations."""
         estimate = self.estimate_yfinance_calls_needed()
         health = self.check_api_health()

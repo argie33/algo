@@ -77,6 +77,7 @@ class PriceFetcher:
 
     def _rate_limit_wait(self, tokens_needed: int = 1) -> None:
         """Wait until enough tokens are available (thread-safe)."""
+        """Wait until enough tokens are available (thread-safe)."""
         with self._rate_limit_event:
             while self._rate_limit_tokens < tokens_needed:
                 self._rate_limit_event.wait(timeout=0.1)
@@ -85,6 +86,7 @@ class PriceFetcher:
 
     def _refill_tokens(self) -> None:
         """Refill rate limit tokens based on elapsed time."""
+        """Refill rate limit tokens based on elapsed time."""
         now = time.time()
         elapsed = now - self._rate_limit_last_refill
         tokens_earned = elapsed * self._rate_limit_refill_rate
@@ -92,6 +94,7 @@ class PriceFetcher:
         self._rate_limit_last_refill = now
 
     def _adaptive_request_pacing(self) -> None:
+        """Adjust request pacing based on observed API latency."""
         """Adjust request pacing based on observed API latency."""
         now = time.time()
 
@@ -110,9 +113,11 @@ class PriceFetcher:
 
     def _record_request_latency(self, latency_sec: float) -> None:
         """Record API request latency for adaptive pacing."""
+        """Record API request latency for adaptive pacing."""
         self._request_latency_samples.append((time.time(), latency_sec))
 
     def _get_smart_batch_size(self) -> int:
+        """Determine optimal batch size based on performance history."""
         """Determine optimal batch size based on performance history."""
         if not self._batch_size_performance:
             return self.batch_size
@@ -131,17 +136,20 @@ class PriceFetcher:
 
     def _record_batch_result(self, batch_size: int, success_count: int, total_count: int) -> None:
         """Record batch fetch result for smart sizing."""
+        """Record batch fetch result for smart sizing."""
         if batch_size not in self._batch_size_performance:
             self._batch_size_performance[batch_size] = [0, 0]
 
         self._batch_size_performance[batch_size][0] += success_count
         self._batch_size_performance[batch_size][1] += total_count - success_count
 
-    def set_circuit_breaker(self, circuit_breaker) -> None:
+    def set_circuit_breaker(self, circuit_breaker: Any) -> None:
+        """Set circuit breaker for API call protection."""
         """Set circuit breaker for API call protection."""
         self._circuit_breaker = circuit_breaker
 
     def get_current_batch_size(self) -> int:
+        """Get the current adaptive batch size based on performance and pipeline context."""
         """Get the current adaptive batch size based on performance and pipeline context."""
         smart_size = self._get_smart_batch_size()
         if smart_size != 500:  # If smart sizing found a different size
@@ -151,9 +159,10 @@ class PriceFetcher:
 
     def get_rate_limit_error_count(self) -> int:
         """Get the current count of rate limit errors encountered."""
+        """Get the current count of rate limit errors encountered."""
         return self._rate_limit_errors
 
-    def fetch_incremental(self, symbol: str, since: date | None, is_eod_pipeline: bool = False):
+    def fetch_incremental(self, symbol: str, since: date | None, is_eod_pipeline: bool = False) -> Any:
         """Fetch OHLCV from yfinance at specified interval.
 
         Args:
@@ -209,7 +218,7 @@ class PriceFetcher:
 
         return self._fetch_with_fallback(symbols, start, end, batch_size=adaptive_batch_size, attempt=0)
 
-    def _try_fetch(self, symbol: str, start: date, end: date, max_retries: int = 5):
+    def _try_fetch(self, symbol: str, start: date, end: date, max_retries: int = 5) -> Any:
         """Try to fetch data from yfinance with retry logic for transient failures."""
         for attempt in range(max_retries):
             try:
@@ -265,10 +274,13 @@ class PriceFetcher:
         self._adaptive_request_pacing()
         request_start = time.time()
 
-        def fetch_batch():
+        def fetch_batch() -> dict[str, Any] | None:
             if not self.router:
                 raise RuntimeError("Router not configured in PriceFetcher")
-            return self.router.fetch_ohlcv_batch(symbols, start, end, interval=self.interval)
+            batch_result = self.router.fetch_ohlcv_batch(symbols, start, end, interval=self.interval)
+            if batch_result is None or isinstance(batch_result, dict):
+                return batch_result
+            return None
 
         if self._circuit_breaker:
             from utils.infrastructure.circuit_breaker import DataImportance
@@ -279,7 +291,9 @@ class PriceFetcher:
 
         request_latency = time.time() - request_start
         self._record_request_latency(request_latency)
-        return cast(dict | None, result)
+        if isinstance(result, dict):
+            return result
+        return None
 
     def _fetch_with_fallback(
         self,
@@ -291,6 +305,7 @@ class PriceFetcher:
         max_attempts: int = 3,
         elapsed_sec: float = 0,
     ) -> dict[str, Any]:
+        """Fetch batch with fallback to smaller batch size on rate limiting."""
         """Fetch batch with fallback to smaller batch size on rate limiting."""
         batch_size = min(len(symbols), batch_size)
         logger.debug(f"[FETCH_BATCH] Attempting with batch_size={batch_size}, attempt={attempt}")
@@ -348,6 +363,7 @@ class PriceFetcher:
         elapsed_sec: float,
         error: Exception,
     ) -> dict[str, Any]:
+        """Retry rate limit errors with pacing or batch reduction."""
         """Retry rate limit errors with pacing or batch reduction."""
         self._rate_limit_errors += 1
         if self._rate_limit_error_start_time is None:
@@ -456,6 +472,7 @@ class PriceFetcher:
         elapsed_sec: float,
         error: Exception,
     ) -> dict[str, Any]:
+        """Retry transient errors with exponential backoff."""
         """Retry transient errors with exponential backoff."""
         error_str = str(error).lower()
         is_timeout = "timeout" in error_str or "timed out" in error_str

@@ -30,7 +30,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def check_ecs_services():
+def check_ecs_services() -> bool:
     """Verify ECS services are running with new task definitions."""
     logger.info("=" * 80)
     logger.info("1️⃣ ECS SERVICE VERIFICATION")
@@ -63,7 +63,7 @@ def check_ecs_services():
         return False
 
 
-def check_loader_config():
+def check_loader_config() -> bool:
     """Verify loader configuration has expected values."""
     logger.info("\n" + "=" * 80)
     logger.info("2️⃣ LOADER CONFIG VERIFICATION")
@@ -73,7 +73,7 @@ def check_loader_config():
         from algo.infrastructure.config import AlgoConfig
         from utils.db import DatabaseContext
 
-        with DatabaseContext("read") as cur:
+        with DatabaseContext("read"):
             AlgoConfig()
 
             # Check yfinance rate limit
@@ -93,7 +93,7 @@ def check_loader_config():
         return True
 
 
-def check_database_health():
+def check_database_health() -> bool:
     """Verify database has fresh data with no corruption."""
     logger.info("\n" + "=" * 80)
     logger.info("3️⃣ DATABASE HEALTH CHECK")
@@ -168,7 +168,7 @@ def check_database_health():
         return False
 
 
-def check_no_errors():
+def check_no_errors() -> bool:
     """Verify no error logs from loaders."""
     logger.info("\n" + "=" * 80)
     logger.info("4️⃣ ERROR LOG CHECK")
@@ -203,7 +203,7 @@ def check_no_errors():
         return True
 
 
-def main():
+def main() -> int:
     """Run all verification checks."""
     logger.info("\n")
     logger.info("🚀 AWS PRODUCTION DEPLOYMENT VERIFICATION")

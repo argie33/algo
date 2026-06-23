@@ -2,6 +2,7 @@
 """Coverage and loader contract checks."""
 
 import logging
+from typing import Any
 
 import psycopg2
 
@@ -16,7 +17,7 @@ logger = logging.getLogger(__name__)
 class CoverageChecker(BaseCheck):
     """Check symbol coverage and loader contracts."""
 
-    def run(self, cur) -> list[CheckResult]:
+    def run(self, cur: Any) -> list[CheckResult]:
         """Execute coverage checks."""
         self.results = []
 
@@ -27,7 +28,7 @@ class CoverageChecker(BaseCheck):
 
         return self.results
 
-    def check_universe_coverage(self, cur) -> None:
+    def check_universe_coverage(self, cur: Any) -> None:
         """Check % symbols updated today (catches loader drop-offs)."""
         try:
             cur.execute("""
@@ -72,7 +73,7 @@ class CoverageChecker(BaseCheck):
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             self.log("coverage", ERROR, "price_daily", f"Check failed: {e}", None)
 
-    def check_loader_coverage(self, cur) -> None:
+    def check_loader_coverage(self, cur: Any) -> None:
         """Verify symbol coverage >= threshold for critical loaders."""
         try:
             cov_cfg = self.config.get_coverage_thresholds()
@@ -171,7 +172,7 @@ class CoverageChecker(BaseCheck):
                 None,
             )
 
-    def check_loader_contracts(self, cur) -> None:
+    def check_loader_contracts(self, cur: Any) -> None:
         """Verify per-loader output contracts."""
         contracts = self.config.get_loader_contracts()
 
@@ -201,7 +202,7 @@ class CoverageChecker(BaseCheck):
             except Exception as e:
                 self.log("loader_contract", ERROR, tbl, f"Check failed: {e}", None)
 
-    def check_signal_quality_ratio(self, cur) -> None:
+    def check_signal_quality_ratio(self, cur: Any) -> None:
         """Check buy_sell_daily signal cleanness."""
         try:
             cur.execute("""

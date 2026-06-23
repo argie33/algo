@@ -20,6 +20,7 @@ import logging
 import sys
 import time
 from datetime import date, datetime
+from typing import Any
 from zoneinfo import ZoneInfo
 
 import psycopg2
@@ -36,7 +37,7 @@ logger = logging.getLogger(__name__)
 class OptionsLoader:
     """Fetch daily options data from yfinance with circuit breaker protection."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.batch_size = 50
         self._circuit_breaker = create_circuit_breaker("yfinance_options", importance_name="OPTIONAL")
         self._freshness_validator = FreshnessValidator(
@@ -45,7 +46,7 @@ class OptionsLoader:
             }
         )
 
-    def run(self, symbols: list | None = None, eval_date: date | None = None) -> dict:
+    def run(self, symbols: list[str] | None = None, eval_date: date | None = None) -> dict[str, Any]:
         """Load options data for all symbols."""
         start_time = time.time()
 
@@ -97,7 +98,7 @@ class OptionsLoader:
         logger.info(f"Options load complete: {result}")
         return result
 
-    def _load_symbol_options(self, cur, symbol: str, eval_date: date) -> tuple[int, int]:
+    def _load_symbol_options(self, cur: Any, symbol: str, eval_date: date) -> tuple[int, int]:
         """Load options chains and IV for a single symbol. Returns (chains, iv).
 
         Fails fast: raises exception if data cannot be loaded (no fallback to zero counts).
@@ -130,7 +131,7 @@ class OptionsLoader:
 
         return chains_inserted, iv_inserted
 
-    def _insert_options_chains(self, cur, symbol: str, calls_df, puts_df, eval_date: date) -> int:
+    def _insert_options_chains(self, cur: Any, symbol: str, calls_df: Any, puts_df: Any, eval_date: date) -> int:
         """Insert options chain data (put/call volumes). Fails fast on database errors."""
         inserted = 0
 
@@ -164,7 +165,7 @@ class OptionsLoader:
 
         return inserted
 
-    def _insert_iv_history(self, cur, symbol: str, options_list: list, eval_date: date) -> int:
+    def _insert_iv_history(self, cur: Any, symbol: str, options_list: list[str], eval_date: date) -> int:
         """Insert IV history: current IV + high/low from available expirations.
 
         Fails fast: raises exception if IV data cannot be collected/inserted.
@@ -226,7 +227,7 @@ class OptionsLoader:
         return 1
 
 
-def main():
+def main() -> None:
     # Configure logging
     logging.basicConfig(
         level=logging.INFO,

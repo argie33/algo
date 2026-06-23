@@ -28,12 +28,12 @@ class LambdaLayerBuilder:
         "api": {"requirements": "lambda/api/requirements.txt", "source_dirs": []},
     }
 
-    def __init__(self, output_dir="terraform", runtime="python3.12"):
+    def __init__(self, output_dir: str = "terraform", runtime: str = "python3.12") -> None:
         self.output_dir = Path(output_dir)
         self.runtime = runtime
         self.repo_root = Path.cwd()
 
-    def build_layer(self, layer_name, requirements_path, source_dirs):
+    def build_layer(self, layer_name: str, requirements_path: str, source_dirs: list[str]) -> Path:
         has_requirements = Path(requirements_path).exists()
         build_dir = self.output_dir / f"layer_build_{layer_name}_{os.getpid()}"
         if build_dir.exists():
@@ -86,7 +86,7 @@ class LambdaLayerBuilder:
                 shutil.rmtree(build_dir)
 
 
-def main():
+def main() -> int:
     parser = argparse.ArgumentParser(description="Build Lambda layers")
     parser.add_argument("--layer", help="Layer to build (shared-deps, orchestrator, api)")
     parser.add_argument("--all", action="store_true", help="Build all layers")

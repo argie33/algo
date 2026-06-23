@@ -4,6 +4,7 @@
 import logging
 from datetime import date as _date
 from datetime import datetime, timezone
+from typing import Any
 
 import psycopg2
 
@@ -18,7 +19,7 @@ logger = logging.getLogger(__name__)
 class SpecializedChecker(BaseCheck):
     """Check specialized data tables: earnings, fundamentals, technical indicators."""
 
-    def run(self, cur) -> list[CheckResult]:
+    def run(self, cur: Any) -> list[CheckResult]:
         """Execute specialized checks."""
         self.results = []
 
@@ -47,7 +48,7 @@ class SpecializedChecker(BaseCheck):
 
         return self.results
 
-    def check_earnings_data(self, cur) -> None:
+    def check_earnings_data(self, cur: Any) -> None:
         """Check earnings data freshness and coverage."""
         today = _date.today()
         sources = [
@@ -141,7 +142,7 @@ class SpecializedChecker(BaseCheck):
                 None,
             )
 
-    def check_fundamental_data(self, cur) -> None:
+    def check_fundamental_data(self, cur: Any) -> None:
         """Check fundamental data freshness."""
         today = _date.today()
         table_checks = [
@@ -217,7 +218,7 @@ class SpecializedChecker(BaseCheck):
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.warning(f"Fundamental data checks failed: {e}")
 
-    def check_derived_metrics(self, cur) -> None:
+    def check_derived_metrics(self, cur: Any) -> None:
         """Check technical indicators for bounds violations."""
         try:
             # RSI bounds check (should be 0-100)
@@ -291,7 +292,7 @@ class SpecializedChecker(BaseCheck):
                 None,
             )
 
-    def check_sentiment_aggregate(self, cur) -> None:
+    def check_sentiment_aggregate(self, cur: Any) -> None:
         """Verify sentiment_aggregate table and freshness."""
         try:
             # Check table structure
@@ -366,7 +367,7 @@ class SpecializedChecker(BaseCheck):
                 None,
             )
 
-    def check_trade_recorder_columns(self, cur) -> None:
+    def check_trade_recorder_columns(self, cur: Any) -> None:
         """Verify algo_trades and algo_positions table structure."""
         tables = [
             (

@@ -49,7 +49,7 @@ class PanelBase(ABC):
         self.border_style = border_style
         self.logger = logging.getLogger(f"{__name__}.{name}")
 
-    def render(self, **kwargs) -> Panel:
+    def render(self, **kwargs: Any) -> Panel:
         """Render the panel with error handling.
 
         Args:
@@ -73,7 +73,7 @@ class PanelBase(ABC):
             self.logger.error(f"Panel rendering failed: {e}")
             return self._error_panel(f"Rendering error: {e!s}")
 
-    def validate_inputs(self, **kwargs) -> str | None:
+    def validate_inputs(self, **kwargs: Any) -> str | None:
         """Validate input data before rendering.
 
         Should return None if valid, or error message string if invalid.
@@ -89,7 +89,7 @@ class PanelBase(ABC):
         return None
 
     @abstractmethod
-    def format_content(self, **kwargs) -> Panel:
+    def format_content(self, **kwargs: Any) -> Panel:
         """Format the panel content.
 
         Subclasses must implement this to provide panel-specific formatting.
@@ -182,15 +182,15 @@ class MultiViewPanelBase(ABC):
         self.border_style = border_style
         self.logger = logging.getLogger(f"{__name__}.{name}")
 
-    def render_compact(self, **kwargs) -> Panel:
+    def render_compact(self, **kwargs: Any) -> Panel:
         """Render compact view of panel."""
         return self._render_with_error_handling(**kwargs, expanded=False)
 
-    def render_expanded(self, **kwargs) -> Panel:
+    def render_expanded(self, **kwargs: Any) -> Panel:
         """Render expanded view of panel."""
         return self._render_with_error_handling(**kwargs, expanded=True)
 
-    def _render_with_error_handling(self, expanded: bool = False, **kwargs) -> Panel:
+    def _render_with_error_handling(self, expanded: bool = False, **kwargs: Any) -> Panel:
         """Render with error handling."""
         validation_error = self.validate_inputs(**kwargs)  # pylint: disable=assignment-from-no-return
         if validation_error:
@@ -203,17 +203,17 @@ class MultiViewPanelBase(ABC):
             self.logger.error(f"Panel rendering failed: {e}")
             return self._error_panel(f"Rendering error: {e!s}")
 
-    def validate_inputs(self, **kwargs) -> str | None:
+    def validate_inputs(self, **kwargs: Any) -> str | None:
         """Validate inputs. Override in subclasses."""
         return None
 
     @abstractmethod
-    def format_compact_content(self, **kwargs) -> Panel:
+    def format_compact_content(self, **kwargs: Any) -> Panel:
         """Format compact panel content."""
         ...
 
     @abstractmethod
-    def format_expanded_content(self, **kwargs) -> Panel:
+    def format_expanded_content(self, **kwargs: Any) -> Panel:
         """Format expanded panel content."""
         ...
 

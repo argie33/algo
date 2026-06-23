@@ -20,10 +20,10 @@ class ReconciliationAnalytics:
     - Trade streak tracking
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize analytics computer."""
 
-    def compute_analytics_metrics(self, cur) -> dict[str, Any]:
+    def compute_analytics_metrics(self, cur: Any) -> dict[str, Any]:
         """Compute daily analytics: equity curves, returns, risk metrics.
 
         Returns dict with daily performance analytics.
@@ -35,7 +35,7 @@ class ReconciliationAnalytics:
             "equity_low": None,
         }
 
-    def compute_closed_trade_metrics(self, cur) -> dict[str, Any]:
+    def compute_closed_trade_metrics(self, cur: Any) -> dict[str, Any]:
         """Compute metrics from all closed trades: win rate, R-multiples, profit factor.
 
         Returns dict with cumulative trade performance metrics.
@@ -49,7 +49,7 @@ class ReconciliationAnalytics:
             "avg_r_multiple": 0.0,
         }
 
-    def compute_trade_streak(self, cur) -> int:
+    def compute_trade_streak(self, cur: Any) -> int:
         """Compute current win/loss streak from recent closed trades.
 
         Returns positive number for win streak, negative for loss streak.

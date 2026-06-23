@@ -22,7 +22,7 @@ logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
 
 
-def get_db_connection():
+def get_db_connection() -> object | None:
     """Get database connection with graceful failure for CI environment.
 
     Returns None if connection fails (CI runners are outside VPC).
@@ -37,7 +37,7 @@ def get_db_connection():
         return None
 
 
-def check_data_freshness(conn) -> bool:
+def check_data_freshness(conn: object | None) -> bool:
     """Check if key data tables have recent data."""
     if not conn:
         return False
@@ -110,7 +110,7 @@ def check_loader_status() -> bool:
         conn.close()
 
 
-def main():
+def main() -> None:
     """Main entry point."""
     logger.info("=" * 60)
     logger.info("Loader Health Check")

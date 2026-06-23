@@ -101,7 +101,7 @@ class MarketHealthDailyLoader(OptimalLoader):
             return end - timedelta(days=5 * 365)
         return since - timedelta(days=100)
 
-    def _merge_breadth_data(self, health_metrics: list[dict], start: date, end: date) -> None:
+    def _merge_breadth_data(self, health_metrics: list[dict[str, Any]], start: date, end: date) -> None:
         """Merge breadth data into health metrics."""
         breadth = self._breadth_fetcher.fetch(start, end)
         for m in health_metrics:
@@ -115,7 +115,7 @@ class MarketHealthDailyLoader(OptimalLoader):
                 m["new_highs_count"] = b.get("new_highs_count")
                 m["new_lows_count"] = b.get("new_lows_count")
 
-    def _merge_vix_data(self, health_metrics: list[dict], start: date, end: date) -> None:
+    def _merge_vix_data(self, health_metrics: list[dict[str, Any]], start: date, end: date) -> None:
         """Merge VIX data into health metrics."""
         vix = self._vix_fetcher.fetch(start, end)
         if not vix:
@@ -137,7 +137,7 @@ class MarketHealthDailyLoader(OptimalLoader):
             )
         logger.info(f"VIX enrichment: matched {matched_count}/{len(health_metrics)} dates")
 
-    def _merge_put_call_data(self, health_metrics: list[dict], end: date) -> None:
+    def _merge_put_call_data(self, health_metrics: list[dict[str, Any]], end: date) -> None:
         """Merge put/call ratio into health metrics."""
         today_pc = self._put_call_fetcher.fetch(end)
         end_str = end.isoformat()
@@ -154,7 +154,7 @@ class MarketHealthDailyLoader(OptimalLoader):
         else:
             logger.debug("Put/call ratio unavailable (optional enrichment skipped)")
 
-    def _merge_yield_curve_data(self, health_metrics: list[dict], start: date, end: date) -> None:
+    def _merge_yield_curve_data(self, health_metrics: list[dict[str, Any]], start: date, end: date) -> None:
         """Merge yield curve slope into health metrics."""
         yield_curve = self._yield_curve_fetcher.fetch(start, end)
         if not yield_curve:
@@ -174,7 +174,7 @@ class MarketHealthDailyLoader(OptimalLoader):
             )
         logger.info(f"Yield curve enrichment: matched {matched_count}/{len(health_metrics)} dates")
 
-    def fetch_incremental(self, symbol: str = "SPY", since: date | None = None):
+    def fetch_incremental(self, symbol: str = "SPY", since: date | None = None) -> list[dict[str, Any]]:
         """Fetch SPY price data and compute market health metrics."""
         end = self._get_end_date()
         start = self._get_start_date(end, since)
@@ -390,8 +390,8 @@ def _write_vix_family_prices(start: date, end: date) -> int:
                 for idx, row in df.iterrows():
                     d = idx.date() if hasattr(idx, "date") else date.fromisoformat(str(idx)[:10])
 
-                    def _v(col, row=row, sym=sym, d=d):
-                        val = row.get(col) if hasattr(row, "get") else row[col]
+                    def _v(col: str, row: Any = row, sym: str = sym, d: date = d) -> float | None:
+                        val: Any = row.get(col) if hasattr(row, "get") else row[col]
                         if val is None:
                             return None
                         if hasattr(val, "__len__"):
@@ -486,7 +486,7 @@ def _write_vix_family_prices(start: date, end: date) -> int:
         ) from None
 
 
-def main():
+def main() -> int:
     from utils.logging.history_tracker import LoaderHistoryTracker
 
     parser = argparse.ArgumentParser(description="Load market health daily metrics")

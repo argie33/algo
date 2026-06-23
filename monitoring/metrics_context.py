@@ -194,7 +194,7 @@ def get_metrics_summary() -> dict[str, dict[str, Any]]:
     return summary
 
 
-def log_metrics_summary():
+def log_metrics_summary() -> None:
     """Log a summary of all recorded metrics."""
     summary = get_metrics_summary()
     if not summary:
@@ -217,7 +217,7 @@ def log_metrics_summary():
     logger.info("=" * 80)
 
 
-def clear_metrics_buffer():
+def clear_metrics_buffer() -> None:
     """Clear all recorded metrics."""
     global _metrics_buffer
     _metrics_buffer = {}

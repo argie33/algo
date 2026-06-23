@@ -11,6 +11,7 @@ Provides:
 import logging
 import time
 from contextlib import contextmanager
+from typing import Any
 
 import psycopg2
 import requests
@@ -40,16 +41,16 @@ class DatabaseErrorContext:
         self.role = role
         self.start_time: float = 0.0
 
-    def __enter__(self):
+    def __enter__(self) -> "DatabaseErrorContext":
         self.start_time = time.time()
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         duration = time.time() - self.start_time
 
         if exc_type is None:
             logger.debug(f"[{self.role.upper()}] {self.operation} completed in {duration:.3f}s")
-            return False
+            return
 
         # Error occurred
         from utils.error_handlers import log_error_with_context
@@ -62,7 +63,6 @@ class DatabaseErrorContext:
         }
 
         log_error_with_context(exc_val, self.operation, context)
-        return False  # Re-raise exception
 
 
 class LoaderErrorContext:
@@ -95,16 +95,16 @@ class LoaderErrorContext:
         self.rows_inserted = 0
         self.rows_failed = 0
 
-    def __enter__(self):
+    def __enter__(self) -> "LoaderErrorContext":
         self.start_time = time.time()
         return self
 
-    def record_result(self, rows_inserted: int = 0, rows_failed: int = 0):
+    def record_result(self, rows_inserted: int = 0, rows_failed: int = 0) -> None:
         """Record result counts."""
         self.rows_inserted += rows_inserted
         self.rows_failed += rows_failed
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         duration = time.time() - self.start_time
 
         context = {
@@ -123,13 +123,12 @@ class LoaderErrorContext:
                 f"({self.symbol or 'all'}): {self.rows_inserted} inserted, "
                 f"{self.rows_failed} failed in {duration:.2f}s"
             )
-            return False
+            return
 
         # Error occurred
         from utils.error_handlers import log_error_with_context
 
         log_error_with_context(exc_val, f"loader[{self.table_name}]", context)
-        return False
 
 
 @contextmanager
@@ -140,7 +139,7 @@ def external_api_context(
     max_retries: int = 3,
     backoff_initial: float = 1.0,
     backoff_multiplier: float = 2.0,
-):
+) -> Any:
     """Context manager for external API calls with retry and timeout.
 
     Usage:
@@ -186,7 +185,7 @@ def external_api_context(
 def timeout_context(
     operation: str,
     timeout_sec: int = 25,
-):
+) -> Any:
     """Context manager that enforces operation timeout.
 
     Usage:
@@ -198,7 +197,7 @@ def timeout_context(
 
     start_time = time.time()
 
-    def timeout_handler(signum, frame):
+    def timeout_handler(signum: int, frame: Any) -> None:
         elapsed = time.time() - start_time
         raise TimeoutError(f"{operation} exceeded {timeout_sec}s timeout (elapsed: {elapsed:.1f}s)")
 
@@ -231,10 +230,10 @@ def timeout_context(
 
 @contextmanager
 def transaction_context(
-    cur,
+    cur: Any,
     operation: str = "transaction",
     should_rollback: bool = True,
-):
+) -> Any:
     """Context manager for explicit database transaction.
 
     Auto-commits on success, rolls back on any exception.

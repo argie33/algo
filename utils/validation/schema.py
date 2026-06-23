@@ -11,6 +11,7 @@ CRITICAL ISSUE #5 FIX: Validates column types, not just existence.
 """
 
 import logging
+from typing import Any
 
 import psycopg2.sql
 
@@ -18,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 def validate_table_schema(
-    cur,
+    cur: Any,
     table_name: str,
     required_columns: dict[str, str] | None = None,
     check_row_count: bool = True,

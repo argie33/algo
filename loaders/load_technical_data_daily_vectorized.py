@@ -21,7 +21,7 @@ import threading
 import time
 from datetime import date, datetime, timedelta
 from io import StringIO
-from typing import cast
+from typing import Any, cast
 from zoneinfo import ZoneInfo
 
 import pandas as pd
@@ -47,10 +47,10 @@ logger = logging.getLogger(__name__)
 class VectorizedTechnicalLoader:
     """Institutional-grade loader: fetch all data once, compute all at once."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.table_name = "technical_data_daily"
 
-    def run(self, symbols: list, since_date: date | None = None) -> dict:
+    def run(self, symbols: list[str], since_date: date | None = None) -> dict[str, Any]:
         """Load technical indicators for all symbols vectorized.
 
         Args:
@@ -123,7 +123,7 @@ class VectorizedTechnicalLoader:
                 "latest_date": None,
             }
 
-    def _fetch_all_prices(self, symbols: list, start_date: date, end_date: date) -> list:
+    def _fetch_all_prices(self, symbols: list[str], start_date: date, end_date: date) -> list[dict[str, Any]]:
         """Fetch ALL price data in ONE query (institutional-scale efficiency).
 
         Instead of: FOR each symbol, fetch its prices (5000 queries)
@@ -177,7 +177,7 @@ class VectorizedTechnicalLoader:
         except (ValueError, TypeError) as e:
             raise RuntimeError(f"[PRICES] Invalid price data format: {e}. Price data may be corrupted.") from e
 
-    def _compute_all_indicators_vectorized(self, prices: list) -> pd.DataFrame:
+    def _compute_all_indicators_vectorized(self, prices: list[dict[str, Any]]) -> pd.DataFrame:
         """Compute ALL technical indicators for ALL symbols at once using pandas.
 
         Key optimization: Group by symbol, compute indicators per group, concat results.
@@ -319,7 +319,7 @@ class VectorizedTechnicalLoader:
 
         return pd.concat(results, ignore_index=True)
 
-    def _fetch_spy_prices(self, start_date, end_date):
+    def _fetch_spy_prices(self, start_date: date, end_date: date) -> list[dict[str, Any]]:
         """Fetch SPY prices for Mansfield RS calculation."""
         try:
             with DatabaseContext("read") as cur:
@@ -490,7 +490,7 @@ def _update_tech_loader_status(status: str, error_message: str | None = None, la
                 )
 
 
-def _tech_heartbeat_worker(stop_event):
+def _tech_heartbeat_worker(stop_event: threading.Event) -> None:
     """Periodically update last_updated to signal loader is alive."""
     while not stop_event.is_set():
         try:
@@ -509,7 +509,7 @@ def _tech_heartbeat_worker(stop_event):
             logger.error(f"Heartbeat failed — hung task detection disabled: {e}", exc_info=True)
 
 
-def main():
+def main() -> int:
     parser = argparse.ArgumentParser(description="Vectorized Technical Data Loader")
     parser.add_argument("--limit", type=int, default=None, help="Limit to N symbols (for testing)")
     parser.add_argument("--since", type=str, help="Only load data after YYYY-MM-DD")

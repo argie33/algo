@@ -27,7 +27,7 @@ class PriceAuditor:
         # Stale price threshold: if no update in 2 hours, consider stale
         self.STALE_THRESHOLD = timedelta(hours=2)
 
-    def audit_stale_estimated_prices(self, cur) -> dict[str, Any]:
+    def audit_stale_estimated_prices(self, cur: Any) -> dict[str, Any]:
         """Check if estimated prices for open positions are stale.
 
         Returns dict with:

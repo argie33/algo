@@ -10,7 +10,7 @@ try:
 except ImportError as e:
     logger.warning(f"Panel registry not available: {e} - panels will not auto-register")
 
-    def register_panel(*args, **kwargs):
+    def register_panel(*args: Any, **kwargs: Any) -> Any:
         if args and callable(args[0]):
             return args[0]
         return lambda fn: fn
@@ -38,7 +38,7 @@ from ._helpers import _error_panel
 from .data_extractors import safe_get_field
 
 
-def _rdelta(r, wk="rank_1w_ago", wk4=None):
+def _rdelta(r: Any, wk: str = "rank_1w_ago", wk4: str | None = None) -> str:
     """Format rank delta: show change and direction arrow."""
     cur = safe_get_field(r, "rank")
     prev = safe_get_field(r, wk)
@@ -51,22 +51,25 @@ def _rdelta(r, wk="rank_1w_ago", wk4=None):
     return f"{arrow}{abs(delta)}"
 
 
-@register_panel(
+@register_panel(  # type: ignore[untyped-decorator]
     "sectors",
     endpoint_deps=["srank", "pos", "port"],
     optional=True,
     description="Sectors",
 )
-def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
+def panel_sector_compact(srank: Any, pos: Any, port: Any, sec_rot: Any = None, irank: Any = None) -> Panel:
     """Rotation + holdings (max 2) + sector leaders (1 pair) + industries (2 pairs) = 8 lines."""
-    if _error_panel("srank", srank, "SECTORS"):
-        return _error_panel("srank", srank, "SECTORS")
-    if _error_panel("positions", pos, "SECTORS"):
-        return _error_panel("positions", pos, "SECTORS")
-    if _error_panel("portfolio", port, "SECTORS"):
-        return _error_panel("portfolio", port, "SECTORS")
+    err = _error_panel("srank", srank, "SECTORS")
+    if err is not None:
+        return err
+    err = _error_panel("positions", pos, "SECTORS")
+    if err is not None:
+        return err
+    err = _error_panel("portfolio", port, "SECTORS")
+    if err is not None:
+        return err
 
-    rows: list[Any] = []
+    rows: list[Text | Rule | Table] = []
 
     # Row 1: Rotation signal
     if sec_rot and not _error_panel("sec_rot", sec_rot, "SECTORS") and safe_get_field(sec_rot, "signal"):
@@ -96,7 +99,7 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
         hdr_more = f" [dim](top 6 of {total_secs})[/]" if total_secs > 6 else ""
         rows.append(Text.from_markup(f"[dim]Holdings by sector:{hdr_more}[/]"))
 
-        def fmt_sec_item(sec, dv):
+        def fmt_sec_item(sec: str, dv: dict[str, Any]) -> str:
             pct = dv["val"] / pv * 100 if pv else 0
             avg_pnl = sum(dv["pnls"]) / len(dv["pnls"]) if dv["pnls"] else 0
             pc = G if avg_pnl >= 0 else R
@@ -117,7 +120,12 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
     # Top sector rankings with 1-week and 4-week rank changes
     # Fail-fast: return early if API error detected
     if has_error(srank):
-        return rows
+        return Panel(
+            Group(*rows) if rows else Text("no data", style="dim"),
+            title="[bold cyan]SECTORS & INDUSTRIES[/]  [dim][r] expand[/]",
+            border_style="cyan",
+            padding=(0, 1),
+        )
 
     srank_items = None
     if isinstance(srank, dict) and "items" in srank:
@@ -156,7 +164,12 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
     # Top industries (sub-sector groups)
     # Fail-fast: return early if API error detected
     if has_error(irank):
-        return rows
+        return Panel(
+            Group(*rows) if rows else Text("no data", style="dim"),
+            title="[bold cyan]SECTORS & INDUSTRIES[/]  [dim][r] expand[/]",
+            border_style="cyan",
+            padding=(0, 1),
+        )
 
     irank_items = None
     if isinstance(irank, dict) and "items" in irank:
@@ -204,16 +217,19 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
     )
 
 
-def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
+def panel_sectors_expanded(srank: Any, pos: Any, port: Any, sec_rot: Any = None, irank: Any = None) -> Panel:
     """Full-screen sectors - all sector and industry rankings, full portfolio breakdown."""
-    if _error_panel("srank", srank, "SECTORS"):
-        return _error_panel("srank", srank, "SECTORS")
-    if _error_panel("positions", pos, "SECTORS"):
-        return _error_panel("positions", pos, "SECTORS")
-    if _error_panel("portfolio", port, "SECTORS"):
-        return _error_panel("portfolio", port, "SECTORS")
+    err = _error_panel("srank", srank, "SECTORS")
+    if err is not None:
+        return err
+    err = _error_panel("positions", pos, "SECTORS")
+    if err is not None:
+        return err
+    err = _error_panel("portfolio", port, "SECTORS")
+    if err is not None:
+        return err
 
-    rows: list = [
+    rows: list[Text | Rule | Table] = [
         Text.from_markup("[dim]press [/][bold cyan]r[/][dim] to return to dashboard[/]"),
         Rule(style="dim"),
     ]
@@ -260,7 +276,7 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
             pv = None
         else:
             pv = safe_float(pv_raw, default=None)
-        sd: dict = {}
+        sd: dict[str, dict[str, Any]] = {}
         invalid_count = 0
         for p in pos_list:
             if not isinstance(p, dict):

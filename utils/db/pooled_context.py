@@ -20,6 +20,7 @@ Usage:
 """
 
 import logging
+from typing import Any
 
 import psycopg2
 from psycopg2.extras import DictCursor
@@ -37,9 +38,9 @@ class PooledDatabaseContext:
     def __init__(
         self,
         connection: psycopg2.extensions.connection,
-        cursor_factory=DictCursor,
+        cursor_factory: Any = DictCursor,
         close_cursor_on_exit: bool = True,
-    ):
+    ) -> None:
         """Initialize context with existing connection.
 
         Args:
@@ -52,7 +53,7 @@ class PooledDatabaseContext:
         self.close_cursor_on_exit = close_cursor_on_exit
         self.cursor = None
 
-    def __enter__(self):
+    def __enter__(self) -> Any:
         """Create cursor from pre-acquired connection."""
         try:
             self.cursor = self.connection.cursor(cursor_factory=self.cursor_factory)
@@ -61,7 +62,7 @@ class PooledDatabaseContext:
             logger.error(f"[POOLED_CONTEXT] Failed to create cursor: {e}", exc_info=True)
             raise
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """Exit - close cursor but NOT connection.
 
         Connection lifecycle is managed by PooledConnectionManager.

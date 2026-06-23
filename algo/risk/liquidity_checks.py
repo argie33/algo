@@ -5,6 +5,7 @@ Ensures entry can be executed with adequate liquidity and reasonable spreads.
 """
 
 import logging
+from datetime import date as _date
 from datetime import timedelta
 from typing import Any
 
@@ -30,7 +31,7 @@ class LiquidityChecks:
         self.min_adv_shares = min_adv_shares_val
         self.min_adv_dollars = min_adv_dollars_val
 
-    def run_all(self, symbol: str, entry_price: float, signal_date=None) -> tuple:
+    def run_all(self, symbol: str, entry_price: float, signal_date: _date | None = None) -> tuple:
         if signal_date is None:
             return True, "Liquidity checks skipped (no signal_date)"
         try:
@@ -55,7 +56,7 @@ class LiquidityChecks:
                 f"Liquidity checks unavailable ({type(e).__name__}) — blocking as safety measure",
             )
 
-    def _check_adv(self, symbol: str, signal_date) -> tuple:
+    def _check_adv(self, symbol: str, signal_date: _date) -> tuple:
         """
         Check average daily volume (20-day average).
 
@@ -102,7 +103,7 @@ class LiquidityChecks:
                 f"ADV check unavailable ({type(e).__name__}) — blocking as safety measure",
             )
 
-    def _check_dollar_volume(self, symbol: str, signal_date) -> tuple:
+    def _check_dollar_volume(self, symbol: str, signal_date: _date) -> tuple:
         """
         Check average dollar volume (volume * price) for position sizing.
 
@@ -149,7 +150,7 @@ class LiquidityChecks:
                 f"Dollar volume check unavailable ({type(e).__name__}) — blocking as safety measure",
             )
 
-    def _check_price_history_age(self, symbol: str, signal_date) -> tuple:
+    def _check_price_history_age(self, symbol: str, signal_date: _date) -> tuple:
         """
         Require minimum price history before trading (Minervini/IBD IPO age rule).
 

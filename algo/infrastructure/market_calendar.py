@@ -267,7 +267,7 @@ class MarketCalendar:
         return next_date if iterations < max_iterations else None
 
     @staticmethod
-    def get_latest_trading_day(from_date=None):
+    def get_latest_trading_day(from_date: _date | None = None) -> _date | None:
         """Get latest trading day on or before given date (going backwards).
 
         Used by loaders to determine end_date for incremental data extraction.

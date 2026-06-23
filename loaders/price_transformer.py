@@ -28,7 +28,7 @@ class PriceTransformer:
         self.timezone: str | None = None
         self.asset_class = asset_class
 
-    def transform_row(self, row: dict, symbol: str, date_val: Any) -> dict:
+    def transform_row(self, row: dict[str, Any], symbol: str, date_val: Any) -> dict[str, Any]:
         """Transform raw yfinance row to canonical format.
 
         Args:
@@ -115,7 +115,7 @@ class PriceTransformer:
         """Set timezone for date handling."""
         self.timezone = tz
 
-    def _extract_date_range(self, rows: list[dict]) -> tuple[Any, Any]:
+    def _extract_date_range(self, rows: list[dict[str, Any]]) -> tuple[Any, Any]:
         """Extract min/max dates from rows.
 
         Raises:
@@ -144,7 +144,7 @@ class PriceTransformer:
             )
         return min_row_date, max_row_date
 
-    def _precompute_trading_days(self, min_row_date, max_row_date):
+    def _precompute_trading_days(self, min_row_date: Any, max_row_date: Any) -> set[Any]:
         """Precompute trading days for O(1) lookups.
 
         Raises:
@@ -162,14 +162,16 @@ class PriceTransformer:
                 f"[CLUSTER_4_OPT] Precomputed {len(trading_day_set)} trading days "
                 f"in range [{min_row_date}, {max_row_date}]"
             )
-            return trading_day_set
+            if isinstance(trading_day_set, set):
+                return trading_day_set
+            raise ValueError("MarketCalendar.create_trading_day_set did not return a set")
         except Exception as e:
             raise ValueError(
                 f"Could not precompute trading days for range [{min_row_date}, {max_row_date}]: {e}. "
                 f"MarketCalendar failed—cannot proceed without trading day validation."
             ) from e
 
-    def _validate_row_trading_day(self, row_date_str, row_date, trading_day_set, symbol, tracker) -> bool:
+    def _validate_row_trading_day(self, row_date_str: Any, row_date: Any, trading_day_set: set[Any] | None, symbol: str | None, tracker: Any) -> bool:
         """Validate if row is from a trading day."""
         from algo.infrastructure import MarketCalendar
 
@@ -192,7 +194,7 @@ class PriceTransformer:
                 ) from e
         return is_trading_day
 
-    def _validate_row_prices(self, row, symbol, prior_close_by_symbol, tracker) -> tuple[bool, str | None]:
+    def _validate_row_prices(self, row: dict[str, Any], symbol: str | None, prior_close_by_symbol: dict[str, float | None], tracker: Any) -> tuple[bool, str | None]:
         """Validate price fields in row."""
         from utils.data.tick_validator import validate_price_tick
 
@@ -203,6 +205,9 @@ class PriceTransformer:
         volume_val: int | None = row.get("volume")
 
         if open_val is None or high_val is None or low_val is None or close_val is None or volume_val is None:
+            return False, None
+
+        if symbol is None:
             return False, None
 
         symbol_prior_close = prior_close_by_symbol.get(symbol)
@@ -232,7 +237,7 @@ class PriceTransformer:
         return is_valid, errors[0] if errors else None
 
     def _process_row(
-        self, row: dict, trading_day_set: set, prior_close_by_symbol: dict, tracker
+        self, row: dict[str, Any], trading_day_set: set[Any] | None, prior_close_by_symbol: dict[str, float | None], tracker: Any
     ) -> tuple[bool, int, int]:
         """Process single row; returns (was_valid, non_trading_count, parse_error_count)."""
         row_date_str: str | None = row.get("date")
@@ -270,7 +275,7 @@ class PriceTransformer:
         prior_close_by_symbol[symbol] = row.get("close")
         return True, 0, 0
 
-    def validate_and_transform(self, rows: list[dict], tracker=None) -> list[dict]:
+    def validate_and_transform(self, rows: list[dict[str, Any]], tracker: Any = None) -> list[dict[str, Any]]:
         """Validate and filter rows with trading day filtering and provenance tracking.
 
         Args:

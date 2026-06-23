@@ -47,6 +47,7 @@ from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date as _date
 from datetime import timedelta
+from typing import Any
 
 import psycopg2
 
@@ -73,7 +74,7 @@ _REQUIRED_SIGNAL_FIELDS = {
 }
 
 
-def _validate_signal_completeness(candidates: list[dict], source: str) -> tuple[list[dict], int]:
+def _validate_signal_completeness(candidates: list[dict[str, Any]], source: str) -> tuple[list[dict[str, Any]], int]:
     """ISSUE #8 FIX: Validate signals have all required fields for Phase 6.
 
     CONSISTENCY FIX #2: Now FAILS if ANY signals are incomplete (not silent filtering).
@@ -132,7 +133,7 @@ def _validate_signal_completeness(candidates: list[dict], source: str) -> tuple[
     return complete_signals, len(incomplete_signals)
 
 
-def _check_market_regime(run_date: _date) -> dict:
+def _check_market_regime(run_date: _date) -> dict[str, Any]:
     """Return current market regime from market_exposure_daily.
 
     Uses shared read_market_regime() to ensure consistent JSON deserialization
@@ -143,7 +144,7 @@ def _check_market_regime(run_date: _date) -> dict:
     return read_market_regime(run_date)
 
 
-def _detect_upstream_data_quality_drift(run_date: _date, signal_source: str) -> dict:
+def _detect_upstream_data_quality_drift(run_date: _date, signal_source: str) -> dict[str, Any]:
     """Detect upstream data quality issues by comparing expected vs. actual swing_trader_scores coverage.
 
     CRITICAL FIX #2: Now RAISES exception on DB error instead of silently returning empty dict.
@@ -216,7 +217,7 @@ def _detect_upstream_data_quality_drift(run_date: _date, signal_source: str) -> 
     return drift
 
 
-def _check_liquidity_parallel(candidate: dict, run_date: _date, config=None) -> tuple[dict, bool]:
+def _check_liquidity_parallel(candidate: dict[str, Any], run_date: _date, config: dict[str, Any] | None = None) -> tuple[dict[str, Any], bool]:
     """Check liquidity for a single candidate. Returns (candidate, passed)."""
     try:
         liquidity = LiquidityChecks(config=config if config is not None else {})
@@ -231,7 +232,7 @@ def _check_liquidity_parallel(candidate: dict, run_date: _date, config=None) -> 
 
 def _get_candidates_from_buysell(
     run_date: _date, min_score: float, limit: int = 100, min_close_quality: float = 0.3
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """Primary signal source: buy_sell_daily pivot-breakout BUY signals + stock_scores ranking + swing_trader_scores.
 
     Returns candidates that have BOTH a recent BUY signal (pivot breakout above swing high
@@ -388,7 +389,7 @@ def _get_candidates_from_buysell(
         ) from e
 
 
-def _check_critical_dependencies(run_date: _date, log_phase_result_fn: Callable) -> tuple[bool, str | None]:
+def _check_critical_dependencies(run_date: _date, log_phase_result_fn: Callable[..., Any]) -> tuple[bool, str | None]:
     """Check all critical dependencies for Phase 7 BEFORE attempting signal generation.
 
     ISSUE #8 FIX: Explicit dependency guard rails before phase execution.
@@ -482,11 +483,11 @@ def run(
     run_date: _date,
     dry_run: bool,
     verbose: bool,
-    log_phase_result_fn: Callable,
-    exposure_constraints: dict | None = None,
-    check_halt_flag: Callable | None = None,
+    log_phase_result_fn: Callable[..., Any],
+    exposure_constraints: dict[str, Any] | None = None,
+    check_halt_flag: Callable[..., bool] | None = None,
     phase1_degraded: bool = False,
-    config=None,
+    config: dict[str, Any] | None = None,
 ) -> PhaseResult:
 
     if config is None:
@@ -691,7 +692,7 @@ def run(
     logger.info(f"[PHASE 7] Top 10 qualified signals (source={signal_source}):")
     for i, sig in enumerate(liq_passed[:10]):
 
-        def _fmt(v, spec=":.1f"):
+        def _fmt(v: Any, spec: str = ":.1f") -> str:
             return format(v, spec[1:]) if v is not None else "?"
 
         buylevel_str = (

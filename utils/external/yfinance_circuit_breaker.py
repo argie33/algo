@@ -37,7 +37,7 @@ class YFinanceIPCircuitBreaker:
     MAX_BACKOFF_SECS = 300  # Cap at 5 minutes
     BACKOFF_MULTIPLIER = 2  # Double on each failure
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize circuit breaker."""
         self._last_check_time: float = 0
         self._check_cache_duration_secs = 2  # Cache local checks for 2 seconds
@@ -92,7 +92,7 @@ class YFinanceIPCircuitBreaker:
         remaining = (ban_until - now).total_seconds()
         return float(max(0, remaining))
 
-    def report_rate_limit_error(self):
+    def report_rate_limit_error(self) -> None:
         """Report that we hit a rate limit error (429 or 401).
 
         This increments the failure counter and extends the ban period
@@ -128,7 +128,7 @@ class YFinanceIPCircuitBreaker:
             f"ban until: {ban_until.isoformat()}"
         )
 
-    def report_success(self):
+    def report_success(self) -> None:
         """Report a successful request (resets failure counter)."""
         state = self._get_ban_state()
         if state is None:
@@ -186,7 +186,7 @@ class YFinanceIPCircuitBreaker:
         last_error_time: datetime | None = None,
         last_success_time: datetime | None = None,
         reason: str = "",
-    ):
+    ) -> None:
         """Set ban state in PostgreSQL."""
         try:
             with DatabaseContext("write") as cur:
@@ -221,7 +221,7 @@ class YFinanceIPCircuitBreaker:
         except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.warning(f"Failed to write ban state to PostgreSQL: {e}")
 
-    def _clear_ban(self):
+    def _clear_ban(self) -> None:
         """Clear the ban state (called when ban expires)."""
         try:
             with DatabaseContext("write") as cur:

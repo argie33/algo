@@ -119,7 +119,7 @@ class CredentialRotationChecker:
         return 0
 
 
-def main():
+def main() -> None:
     import argparse
 
     parser = argparse.ArgumentParser(description="Check credential rotation status")

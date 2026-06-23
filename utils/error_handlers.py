@@ -28,7 +28,7 @@ except ImportError:
 
 
 @contextmanager
-def log_sanitizer(operation: str = "operation"):
+def log_sanitizer(operation: str = "operation") -> Any:
     """Context manager for safe error logging with automatic sanitization.
 
     Prevents accidental PII leakage to CloudWatch by intercepting log calls
@@ -49,15 +49,15 @@ def log_sanitizer(operation: str = "operation"):
     """
 
     class SanitizedLogger:
-        def __init__(self, logger_inst: logging.Logger, op: str):
+        def __init__(self, logger_inst: logging.Logger, op: str) -> None:
             self.logger = logger_inst
             self.operation = op
 
-        def error(self, exc: Exception, context: dict[str, Any] | None = None):
+        def error(self, exc: Exception, context: dict[str, Any] | None = None) -> None:
             """Log error with automatic sanitization."""
             self._log_sanitized(exc, context, level="error")
 
-        def warning(self, exc: Exception, context: dict[str, Any] | None = None):
+        def warning(self, exc: Exception, context: dict[str, Any] | None = None) -> None:
             """Log warning with automatic sanitization."""
             self._log_sanitized(exc, context, level="warning")
 
@@ -66,7 +66,7 @@ def log_sanitizer(operation: str = "operation"):
             exc: Exception,
             context: dict[str, Any] | None = None,
             level: str = "error",
-        ):
+        ) -> None:
             """Internal method to log with full sanitization."""
             _status_code, error_type, message = classify_exception(exc)
 
@@ -243,7 +243,7 @@ def extract_error_context(e: Exception) -> dict[str, Any]:
 
 
 def retry_with_backoff(
-    func,
+    func: Any,
     max_attempts: int = 3,
     initial_backoff_sec: float = 1.0,
     max_backoff_sec: float = 30.0,

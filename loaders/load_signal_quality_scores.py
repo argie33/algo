@@ -37,6 +37,7 @@ class SignalQualityScoresLoader(OptimalLoader):
     watermark_field = "date"
 
     def _prepare_batch_context(self) -> None:
+        """Load shared data once to avoid N+1 queries."""
         """Load shared data once to avoid N+1 queries (ROOT CAUSE #4 FIX).
 
         Caches end_date, buy_sell_daily signal count, and watermarks for all symbols
@@ -51,7 +52,7 @@ class SignalQualityScoresLoader(OptimalLoader):
 
         from algo.infrastructure import MarketCalendar
 
-        self._batch_context = {}
+        self._batch_context: dict[str, Any] = {}
         try:
             with DatabaseContext("read") as cur:
                 # Check if buy_sell_daily is ready (ISSUE #27 FIX)
@@ -69,7 +70,7 @@ class SignalQualityScoresLoader(OptimalLoader):
 
                 now_utc = datetime.now(timezone.utc)
                 now_et = now_utc.astimezone(EASTERN_TZ)
-                end = now_et.date()
+                end: date = now_et.date()
 
                 while end > date(2020, 1, 1) and not MarketCalendar.is_trading_day(end):
                     end = end - timedelta(days=1)
@@ -107,7 +108,7 @@ class SignalQualityScoresLoader(OptimalLoader):
                 "Cannot proceed without end_date and signal availability verification."
             ) from None
 
-    def fetch_incremental(self, symbol: str, since: date | None):
+    def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]] | None:
         """Compute signal quality scores from buy/sell signals and technical confirmation."""
         from datetime import datetime, timezone
 
@@ -296,6 +297,7 @@ class SignalQualityScoresLoader(OptimalLoader):
             ) from None
 
     def _fetch_technical_data(self, symbol: str, start: date, end: date) -> list[dict[str, Any]]:
+        """Fetch technical data."""
         from utils.db.context import DatabaseContext
 
         try:
@@ -321,6 +323,7 @@ class SignalQualityScoresLoader(OptimalLoader):
             ) from None
 
     def _fetch_trend_data(self, symbol: str, start: date, end: date) -> list[dict[str, Any]]:
+        """Fetch trend data."""
         from utils.db.context import DatabaseContext
 
         try:
@@ -346,6 +349,7 @@ class SignalQualityScoresLoader(OptimalLoader):
             ) from None
 
     def _fetch_vcp_patterns(self, symbol: str, start: date, end: date) -> list[dict[str, Any]]:
+        """Fetch VCP patterns."""
         from utils.db.context import DatabaseContext
 
         try:
@@ -398,6 +402,7 @@ class SignalQualityScoresLoader(OptimalLoader):
             ) from None
 
     def _fetch_positioning_data(self, symbol: str) -> dict[str, Any] | None:
+        """Fetch positioning data."""
         from utils.db.context import DatabaseContext
 
         try:
@@ -423,6 +428,7 @@ class SignalQualityScoresLoader(OptimalLoader):
         vcp_rows: list[dict[str, Any]] | None = None,
         positioning_data: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
+        """Compute quality scores."""
         if not buy_sell_rows:
             raise RuntimeError(
                 f"[QUALITY_SCORES] No buy/sell signals available for {symbol}. "
@@ -630,7 +636,7 @@ class SignalQualityScoresLoader(OptimalLoader):
             ) from None
 
 
-def main():
+def main() -> int:
     parser = argparse.ArgumentParser(description="Load signal quality scores")
     parser.add_argument("--symbols", type=str, help="Comma-separated symbols")
     parser.add_argument(
@@ -683,7 +689,7 @@ def main():
         raise RuntimeError(f"Signal quality scores load failed: {e}") from None
 
 
-def _sync_scores_to_buy_sell():
+def _sync_scores_to_buy_sell() -> None:
     """Sync composite_sqs from signal_quality_scores to buy_sell_daily.signal_quality_score."""
     from utils.db.context import DatabaseContext
 
@@ -709,7 +715,7 @@ def _sync_scores_to_buy_sell():
         ) from None
 
 
-def _log_signal_metrics():
+def _log_signal_metrics() -> None:
     """Log signal generation metrics for observability and trend detection.
 
     Captures:

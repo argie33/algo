@@ -189,7 +189,7 @@ class CircuitBreaker:
 
     # ---------- Individual checks ----------
 
-    def _check_drawdown(self, current_date: Any, cur) -> dict[str, Any]:
+    def _check_drawdown(self, current_date: Any, cur: Any) -> dict[str, Any]:
         cur.execute("""
             SELECT MAX(total_portfolio_value),
                    (SELECT total_portfolio_value FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1)
@@ -231,7 +231,7 @@ class CircuitBreaker:
             "threshold": threshold,
         }
 
-    def _check_drawdown_re_engagement(self, current_date: Any, cur) -> dict[str, Any]:
+    def _check_drawdown_re_engagement(self, current_date: Any, cur: Any) -> dict[str, Any]:
         """C2: Drawdown Re-engagement Protocol.
 
         After a drawdown halt, require conditions to resume:
@@ -327,7 +327,7 @@ class CircuitBreaker:
             "reason": f"Re-engagement approved: recovered to {recovery_pct:.1f}%, {days_elapsed}d elapsed, market Stage 2",
         }
 
-    def _check_daily_loss(self, current_date: Any, cur) -> dict[str, Any]:
+    def _check_daily_loss(self, current_date: Any, cur: Any) -> dict[str, Any]:
         cur.execute(
             "SELECT daily_return_pct FROM algo_portfolio_snapshots WHERE snapshot_date = %s",
             (current_date,),
@@ -362,7 +362,7 @@ class CircuitBreaker:
             "threshold": threshold,
         }
 
-    def _check_consecutive_losses(self, current_date: Any, cur) -> dict[str, Any]:
+    def _check_consecutive_losses(self, current_date: Any, cur: Any) -> dict[str, Any]:
         cur.execute(
             """
             SELECT profit_loss_pct, exit_date FROM algo_trades
@@ -404,7 +404,7 @@ class CircuitBreaker:
             "threshold": threshold,
         }
 
-    def _check_win_rate_floor(self, current_date: Any, cur) -> dict[str, Any]:
+    def _check_win_rate_floor(self, current_date: Any, cur: Any) -> dict[str, Any]:
         """Halt if recent win rate drops below floor (includes both closed and open positions at risk).
 
         Win rate = wins / (wins + losses), where losses include both closed losses and open positions
@@ -466,7 +466,7 @@ class CircuitBreaker:
             "trades_sampled": total,
         }
 
-    def _check_total_risk(self, current_date: Any, cur) -> dict[str, Any]:
+    def _check_total_risk(self, current_date: Any, cur: Any) -> dict[str, Any]:
         """Sum of (entry - stop) * qty across open positions vs portfolio value."""
         cur.execute(
             """
@@ -527,7 +527,7 @@ class CircuitBreaker:
             "threshold": threshold,
         }
 
-    def _check_vix_spike(self, current_date: Any, cur) -> dict[str, Any]:
+    def _check_vix_spike(self, current_date: Any, cur: Any) -> dict[str, Any]:
         cur.execute(
             "SELECT vix_level FROM market_health_daily WHERE date <= %s AND vix_level IS NOT NULL ORDER BY date DESC LIMIT 1",
             (current_date,),
@@ -573,7 +573,7 @@ class CircuitBreaker:
             "threshold": threshold,
         }
 
-    def _check_market_stage(self, current_date: Any, cur) -> dict[str, Any]:
+    def _check_market_stage(self, current_date: Any, cur: Any) -> dict[str, Any]:
         """H7 FIX: Market stage validation with data freshness check.
 
         Ensures we don't use stale market stage data from days ago.
@@ -651,7 +651,7 @@ class CircuitBreaker:
             "value": stage,
         }
 
-    def _check_weekly_loss(self, current_date: Any, cur) -> dict[str, Any]:
+    def _check_weekly_loss(self, current_date: Any, cur: Any) -> dict[str, Any]:
         """7-day return on portfolio."""
         week_ago = current_date - timedelta(days=7)
         cur.execute(
@@ -677,7 +677,7 @@ class CircuitBreaker:
             "threshold": threshold,
         }
 
-    def _check_data_freshness(self, current_date: Any, cur) -> dict[str, Any]:
+    def _check_data_freshness(self, current_date: Any, cur: Any) -> dict[str, Any]:
         """Block if our market data is too stale.
 
         Compares against the previous trading day (not a fixed calendar threshold)
@@ -729,7 +729,7 @@ class CircuitBreaker:
             "value": days_stale,
         }
 
-    def _check_intraday_market_health(self, current_date: Any, cur) -> dict[str, Any]:
+    def _check_intraday_market_health(self, current_date: Any, cur: Any) -> dict[str, Any]:
         """Prior-day market drop check: did SPY fall >2% yesterday?
 
         The orchestrator runs pre-market (9:30 AM ET). price_daily contains yesterday's
@@ -783,7 +783,7 @@ class CircuitBreaker:
                 "reason": f"Prior-day check skipped (data error): {e}",
             }
 
-    def _check_sector_concentration(self, current_date: Any, cur) -> dict[str, Any]:
+    def _check_sector_concentration(self, current_date: Any, cur: Any) -> dict[str, Any]:
         """Log warning if any sector exceeds max position cap — advisory only, no halt.
 
         Sector concentration is a soft limit; the circuit breaker warns but does not block.
@@ -829,7 +829,7 @@ class CircuitBreaker:
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Sector concentration check failed: {e}") from e
 
-    def _check_daily_profit_cap(self, current_date: Any, cur) -> dict[str, Any]:
+    def _check_daily_profit_cap(self, current_date: Any, cur: Any) -> dict[str, Any]:
         """Warn (don't halt) if daily P&L exceeds profit target; can skip new entries."""
         cur.execute(
             "SELECT daily_return_pct FROM algo_portfolio_snapshots WHERE snapshot_date = %s",

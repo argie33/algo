@@ -32,7 +32,7 @@ from utils.metrics_calculator import MetricsCalculator
 logger = logging.getLogger(__name__)
 
 
-def compute_performance_metrics(cur, metric_date: date | None = None) -> dict[str, Any] | None:
+def compute_performance_metrics(cur: Any, metric_date: date | None = None) -> dict[str, Any] | None:
     """Compute all performance metrics for today and store in database."""
     if metric_date is None:
         metric_date = date.today()
@@ -154,7 +154,7 @@ def compute_performance_metrics(cur, metric_date: date | None = None) -> dict[st
         raise
 
 
-def _compute_advanced_metrics(cur, metric_date: date):
+def _compute_advanced_metrics(cur: Any, metric_date: date) -> tuple[float, float, float, float, float]:
     """Compute Sharpe, Sortino, max drawdown, CAGR, and Calmar ratios using MetricsCalculator."""
     try:
         # Fetch all portfolio snapshots
@@ -239,7 +239,7 @@ def _compute_advanced_metrics(cur, metric_date: date):
         ) from e
 
 
-def _compute_streaks(pnl_dollars):
+def _compute_streaks(pnl_dollars: list[float]) -> tuple[int, int]:
     """Compute best win streak and worst loss streak."""
     best_win_streak = 0
     worst_loss_streak = 0
@@ -265,7 +265,7 @@ def _compute_streaks(pnl_dollars):
     return best_win_streak, worst_loss_streak
 
 
-def _insert_default_metrics(cur, metric_date: date):
+def _insert_default_metrics(cur: Any, metric_date: date) -> None:
     """Insert default metrics when there are no trades."""
     cur.execute(
         """
@@ -283,7 +283,7 @@ def _insert_default_metrics(cur, metric_date: date):
     )
 
 
-def _insert_performance_metrics(cur, metric_date: date, metrics: dict[str, Any]):
+def _insert_performance_metrics(cur: Any, metric_date: date, metrics: dict[str, Any]) -> None:
     """Insert or update performance metrics in database."""
     try:
         cur.execute(
@@ -349,7 +349,7 @@ def _insert_performance_metrics(cur, metric_date: date, metrics: dict[str, Any])
         raise
 
 
-def main():
+def main() -> None:
     """Main entry point for the loader."""
     try:
         with DatabaseContext("write", cursor_factory=psycopg2.extras.RealDictCursor) as cur:
