@@ -195,7 +195,7 @@ class MarketExposure:
         except Exception as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def compute(self, eval_date: _date | None = None, force_recompute: bool = False) -> dict[str, Any]:
+    def compute(self, eval_date: _date | None = None, force_recompute: bool = False) -> dict[str, Any]:  # noqa: C901
         """Compute full market exposure score. Returns dict.
 
         Args:
@@ -376,7 +376,23 @@ class MarketExposure:
             score += naaim_pts
             logger.debug(f"  NAAIM exposure: {naaim_pts:.1f} pts")
 
-            # Normalize to 100-point scale when some factors had no data,
+            # CRITICAL: Fail-fast if insufficient data available for meaningful score.
+            # When avail_max < 60, we lack sufficient factors for reliable assessment.
+            # Example: only VIX+Trend (25pts) scores 100% due to normalization,
+            # misleading market exposure despite 75% of factors being N/A.
+            min_avail_weight = 60.0
+            if avail_max < min_avail_weight:
+                msg = (
+                    f"[MARKET EXPOSURE CRITICAL] Insufficient data for exposure calculation. "
+                    f"Only {avail_max:.1f}/100 points of factor data available (threshold: {min_avail_weight}). "
+                    f"Missing {100-avail_max:.1f} points from market data pipeline. "
+                    f"Cannot compute reliable market exposure score. "
+                    f"Check: phase 4 loaders, technical_data_daily, price_daily freshness."
+                )
+                logger.critical(msg)
+                raise RuntimeError(msg)
+
+            # Normalize to 100-point scale when some (but not too many) factors had no data,
             # so missing factors don't silently pull the score toward zero.
             if 0 < avail_max < 100:
                 score = score / avail_max * 100
@@ -414,7 +430,10 @@ class MarketExposure:
                             "max": 0,
                         }
             except Exception as e:
-                factors["sector_rotation"] = {"error": str(e)[:60]}
+                # Sector rotation is optional: if detector fails, log but continue.
+                # Missing sector rotation means no defensive-rotation penalty applied (neutral, not penalized).
+                logger.warning(f"Sector rotation optional enhancement failed: {type(e).__name__}: {e}")
+                factors["sector_rotation"] = {"error": str(e)[:60], "pts": 0, "max": 0}
 
             try:
                 eco = self._economic_regime_overlay(eval_date, cur)
@@ -427,8 +446,12 @@ class MarketExposure:
                     score = max(0.0, min(100.0, score - eco_penalty))
                 factors["economic_overlay"] = {**eco, "pts": -eco_penalty, "max": 0}
             except Exception as e:
+                # CRITICAL: Economic regime overlay failed — use conservative cap, not no-cap default.
+                # When macro assessment fails, default to caution (40% cap) not risk-on (100% cap).
+                msg = f"Economic regime overlay computation failed: {type(e).__name__}: {e}"
+                logger.critical(msg)
                 factors["economic_overlay"] = {"error": str(e)[:60], "pts": 0, "max": 0}
-                eco_cap = 100.0
+                eco_cap = 40.0  # Conservative fail-closed: assume macro stress until proven otherwise
 
             # --- HARD VETOES ---
             halt_reasons = []
