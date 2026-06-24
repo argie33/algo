@@ -1378,6 +1378,11 @@ class MarketExposure:
             regime = result.get("regime")
             if not regime:
                 raise ValueError("Market regime calculation missing. Cannot build exposure summary.")
+            if "raw_score" not in result:
+                raise ValueError(
+                    "Market exposure raw_score missing from calculation result. "
+                    "Cannot persist exposure data without risk score."
+                )
             with DatabaseContext("write") as cur:
                 cur.execute(
                     """
@@ -1400,7 +1405,7 @@ class MarketExposure:
                     (
                         eval_date,
                         exposure_pct,
-                        result.get("raw_score", exposure_pct),
+                        result.get("raw_score"),
                         regime,
                         result["distribution_days"],
                         factors_json,

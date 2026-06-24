@@ -243,7 +243,12 @@ class ExposurePolicy:
         r_mult = ((cur_price_float - entry_price) / risk_per_share) if risk_per_share > 0 else 0
 
         # 1. CORRECTION TIER + force_exit_negative_r: cut losers
-        force_exit_neg = tier.get("force_exit_negative_r", False)
+        if "force_exit_negative_r" not in tier:
+            raise ValueError(
+                f"Risk tier '{tier.get('name', 'UNKNOWN')}' missing required 'force_exit_negative_r' configuration. "
+                "Cannot apply risk management without explicit force-exit policy."
+            )
+        force_exit_neg = tier["force_exit_negative_r"]
         if force_exit_neg and r_mult < 0:
             return {
                 "trade_id": trade_id,
