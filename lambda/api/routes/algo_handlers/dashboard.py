@@ -84,25 +84,31 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:
 
     items = []
     sector_risk: dict[str, float] = {}  # For aggregating sector allocation
-    invalid_positions: list[str] = []
+    invalid_positions: list[dict[str, str]] = []  # Track errors for fail-fast
 
     for p in positions:
         d = safe_json_serialize(safe_dict_convert(p))
+        symbol = d.get("symbol", "unknown")
 
-        # Validate required data before adding to items (Issue #1 fix)
+        # Validate required data before adding to items (FAIL-FAST on missing required fields)
         pos_val_raw = d.get("position_value")
         if pos_val_raw is None:
-            invalid_positions.append(d.get("symbol", "unknown"))
+            invalid_positions.append({
+                "symbol": symbol,
+                "error": "position_value is None"
+            })
             continue
         try:
             pos_val = float(pos_val_raw)
         except (ValueError, TypeError) as e:
-            invalid_positions.append(d.get("symbol", "unknown"))
-            logger.warning(f"Position {d.get('symbol')} has invalid position_value: {pos_val_raw} ({e})")
+            invalid_positions.append({
+                "symbol": symbol,
+                "error": f"invalid position_value: {pos_val_raw} ({e})"
+            })
             continue
 
         # Compute ladder_pct_* fields for visualization (Issue #2)
-        # Validate all price fields before conversion
+        # Validate all price fields before conversion (FAIL-FAST)
         entry_raw = d.get("avg_entry_price")
         cur_price_raw = d.get("current_price")
         stop_raw = d.get("stop_loss_price")
@@ -111,7 +117,6 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:
         t3_raw = d.get("target_3_price")
 
         if any(v is None for v in [entry_raw, cur_price_raw, stop_raw, t1_raw, t2_raw, t3_raw]):
-            invalid_positions.append(d.get("symbol", "unknown"))
             missing_fields = [
                 f for f, v in [
                     ("entry", entry_raw),
@@ -123,10 +128,10 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:
                 ]
                 if v is None
             ]
-            logger.error(
-                f"Position {d.get('symbol')}: missing price fields ({', '.join(missing_fields)}). "
-                f"Cannot compute ladder visualization. Dashboard display will be incomplete."
-            )
+            invalid_positions.append({
+                "symbol": symbol,
+                "error": f"missing price fields: {', '.join(missing_fields)}"
+            })
             continue
 
         try:
@@ -209,8 +214,14 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:
         sector_risk[sector] += pos_val
 
     if invalid_positions:
-        logger.warning(
-            f"Filtered out {len(invalid_positions)} positions with missing position_value: {', '.join(invalid_positions[:5])}"
+        error_details = "\n".join(
+            f"  - {p['symbol']}: {p['error']}" for p in invalid_positions[:10]
+        )
+        if len(invalid_positions) > 10:
+            error_details += f"\n  ... and {len(invalid_positions) - 10} more"
+        raise RuntimeError(
+            f"CRITICAL: {len(invalid_positions)}/{len(positions)} positions have missing required data. "
+            f"Cannot display incomplete position list. Dashboard data integrity compromised:\n{error_details}"
         )
 
     # Compute sector_allocation array after processing all positions (E5 fix)

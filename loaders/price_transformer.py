@@ -29,7 +29,7 @@ class PriceTransformer:
         self.asset_class = asset_class
 
     def transform_row(self, row: dict[str, Any], symbol: str, date_val: Any) -> dict[str, Any]:
-        """Transform raw yfinance row to canonical format.
+        """Transform raw yfinance row to canonical format. FAIL-FAST on data corruption.
 
         Args:
             row: Raw price data from yfinance
@@ -37,46 +37,67 @@ class PriceTransformer:
             date_val: Date for the price point
 
         Returns:
-            Transformed row
+            Transformed row with all required OHLCV fields populated
 
         Raises:
-            ValueError: If transformation fails (fail-fast for price data corruption)
+            ValueError: If any OHLCV field is invalid or missing (fail-fast for data integrity)
         """
         try:
+            open_price = self._normalize_numeric(row.get("Open"))
+            high_price = self._normalize_numeric(row.get("High"))
+            low_price = self._normalize_numeric(row.get("Low"))
+            close_price = self._normalize_numeric(row.get("Close"))
+            volume = self._normalize_volume(row.get("Volume"))
+            adj_close = self._normalize_numeric(row.get("Adj Close"))
+
             transformed = {
                 "symbol": symbol,
                 "date": date_val,
-                "open": self._normalize_numeric(row.get("Open")),
-                "high": self._normalize_numeric(row.get("High")),
-                "low": self._normalize_numeric(row.get("Low")),
-                "close": self._normalize_numeric(row.get("Close")),
-                "volume": self._normalize_volume(row.get("Volume")),
-                "adj_close": self._normalize_numeric(row.get("Adj Close")),
+                "open": open_price,
+                "high": high_price,
+                "low": low_price,
+                "close": close_price,
+                "volume": volume,
+                "adj_close": adj_close,
             }
             return transformed
-        except Exception as e:
+        except ValueError as e:
             raise ValueError(
                 f"Price data transformation failed for {symbol} on {date_val}: {e}. "
-                f"Cannot proceed with corrupted price data."
+                f"Cannot proceed with corrupted OHLCV data."
             ) from e
 
-    def _normalize_numeric(self, value: Any) -> float | None:
-        """Normalize numeric value."""
+    def _normalize_numeric(self, value: Any) -> float:
+        """Normalize numeric value. FAIL-FAST on invalid data.
+
+        Raises ValueError if value cannot be converted to float (except None inputs).
+        Returns float on success.
+        """
         if value is None:
-            return None
+            raise ValueError("Price field is None - cannot be null in OHLCV data")
         try:
             return float(value)
-        except (ValueError, TypeError):
-            return None
+        except (ValueError, TypeError) as e:
+            raise ValueError(
+                f"Cannot convert price '{value}' ({type(value).__name__}) to float: {e}. "
+                f"OHLCV data corruption detected."
+            ) from e
 
-    def _normalize_volume(self, value: Any) -> int | None:
-        """Normalize volume value."""
+    def _normalize_volume(self, value: Any) -> int:
+        """Normalize volume value. FAIL-FAST on invalid data.
+
+        Raises ValueError if value cannot be converted to int (except None inputs).
+        Returns int on success.
+        """
         if value is None:
-            return None
+            raise ValueError("Volume field is None - cannot be null in OHLCV data")
         try:
             return int(value)
-        except (ValueError, TypeError):
-            return None
+        except (ValueError, TypeError) as e:
+            raise ValueError(
+                f"Cannot convert volume '{value}' ({type(value).__name__}) to int: {e}. "
+                f"OHLCV data corruption detected."
+            ) from e
 
     def transform_batch(self, rows: list[dict[str, Any]], symbol: str) -> list[dict[str, Any]]:
         """Transform a batch of price rows.

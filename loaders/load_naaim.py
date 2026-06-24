@@ -1,23 +1,24 @@
 #!/usr/bin/env python3
 """NAAIM Exposure Index Loader - Fund Manager Positioning (Market-wide)."""
 
-import logging
 import sys
-from datetime import date
-from typing import Any
-
-import pandas as pd
-import requests
-
-from loaders.runner import run_loader
-from utils.infrastructure.url_validator import validate_url
-from utils.optimal_loader import OptimalLoader
-
-logger = logging.getLogger(__name__)
 
 from loaders.loader_helper import setup_imports
 
 setup_imports()
+
+import logging  # noqa: E402
+from datetime import date  # noqa: E402
+from typing import Any  # noqa: E402
+
+import pandas as pd  # noqa: E402
+import requests  # noqa: E402
+
+from loaders.runner import run_loader  # noqa: E402
+from utils.infrastructure.url_validator import validate_url  # noqa: E402
+from utils.optimal_loader import OptimalLoader  # noqa: E402
+
+logger = logging.getLogger(__name__)
 
 
 class NAAIMExposureLoader(OptimalLoader):
@@ -28,15 +29,21 @@ class NAAIMExposureLoader(OptimalLoader):
     watermark_field = "date"
 
     def fetch_global(self, since: date | None) -> list[dict[str, Any]] | None:
-        """Fetch NAAIM Exposure Index from website."""
+        """Fetch NAAIM Exposure Index from website. FAIL-FAST on missing data.
+
+        NAAIM sentiment is CRITICAL for market regime detection. Cannot proceed
+        without valid sentiment data.
+        """
         try:
             url = "https://www.naaim.org/programs/naaim-exposure-index/"
 
             # SECURITY FIX S-05: Validate URL to prevent SSRF attacks
             is_valid, error_msg = validate_url(url, allowed_domains=["naaim.org"])
             if not is_valid:
-                logger.error(f"SSRF prevention: Invalid NAAIM URL: {error_msg}")
-                return None
+                raise RuntimeError(
+                    f"SSRF validation failed for NAAIM URL: {error_msg}. "
+                    f"Cannot fetch market sentiment data without valid URL."
+                )
 
             headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
 
@@ -49,13 +56,19 @@ class NAAIMExposureLoader(OptimalLoader):
             tables = pd.read_html(StringIO(response.text), flavor="lxml")
 
             if not tables:
-                logger.warning("No tables found in NAAIM page")
-                return None
+                raise RuntimeError(
+                    "NAAIM page contains no data tables. "
+                    "Website format may have changed or data is unavailable. "
+                    "Cannot proceed without NAAIM sentiment index (critical for regime detection)."
+                )
 
             df = tables[0]
             if len(df.columns) < 3:
-                logger.warning(f"Unexpected table format: {df.columns.tolist()}")
-                return None
+                raise RuntimeError(
+                    f"NAAIM table format unexpected: got {len(df.columns)} columns, need ≥3. "
+                    f"Columns found: {df.columns.tolist()}. "
+                    f"Website format may have changed."
+                )
 
             # Rename columns for consistency — only if exactly 8 columns match expected layout
             if len(df.columns) == 8:

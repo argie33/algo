@@ -582,7 +582,10 @@ class EntryHandler:
                         message=f"Trade {trade_id}: {shares}sh @ ${entry_price:.2f}",
                     )
                 except NotificationError as e:
-                    logger.warning(f"Failed to send rejection alert: {e}")
+                    raise RuntimeError(
+                        f"CRITICAL: Failed to send rejection alert for {symbol} (order {order_status}): {e}. "
+                        f"Trader was NOT notified that order was {order_status}."
+                    ) from e
                 return (
                     False,
                     f"Alpaca {order_status} order: {symbol}",
@@ -666,7 +669,11 @@ class EntryHandler:
             if self.context.execution_mode == "auto" and alpaca_order_id:
                 verified_status = self.context._verify_order_status(alpaca_order_id)
                 if verified_status is None:
-                    pass
+                    raise OrderExecutionError(
+                        f"Order {alpaca_order_id}: verification failed (status is None). "
+                        f"Cannot record position without verified fill status. "
+                        f"This indicates Alpaca API communication error or order data corruption."
+                    )
                 elif verified_status not in ("filled", "partially_filled"):
                     return str(verified_status)
                 else:
@@ -744,7 +751,11 @@ class EntryHandler:
         base_type: str | None,
         trade_id: str,
     ) -> None:
-        """Send trade entry notification."""
+        """Send trade entry notification. FAIL-FAST if notification system unavailable.
+
+        Entry notifications are CRITICAL—trader must be alerted immediately when
+        position enters. If we cannot notify, we must not proceed with the trade.
+        """
         try:
             notif_service = TradeNotificationService()
             notif_service._send_notification(
@@ -764,4 +775,8 @@ class EntryHandler:
                 },
             )
         except NotificationError as e:
-            logger.warning(f"Failed to send entry notification: {e}")
+            raise RuntimeError(
+                f"CRITICAL: Failed to send entry notification for {symbol} (trade {trade_id}): {e}. "
+                f"Cannot complete entry without confirming trader notification. "
+                f"Trade record created but trader was NOT alerted."
+            ) from e
