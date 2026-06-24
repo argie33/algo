@@ -191,19 +191,25 @@ class PhaseValidator(Validator):
         all_errors = []
         cleaned = {}
 
-        name = data.get("name") or data.get("phase")
+        name = data.get("name")
+        if not name:
+            name = data.get("phase")
         if not name:
             all_errors.append(f"{context}: missing 'name' or 'phase' field")
         else:
             cleaned["name"] = str(name)
 
-        status = (data.get("status") or "").lower().strip()
-        if not status:
+        status_raw = data.get("status")
+        if not status_raw:
             all_errors.append(f"{context}: missing 'status' field")
-        elif status not in self.VALID_STATUSES:
-            all_errors.append(f"{context}: invalid status {status!r} (valid: {sorted(self.VALID_STATUSES)})")
         else:
-            cleaned["status"] = status
+            status = str(status_raw).lower().strip()
+            if not status:
+                all_errors.append(f"{context}: status field is empty after stripping whitespace")
+            elif status not in self.VALID_STATUSES:
+                all_errors.append(f"{context}: invalid status {status!r} (valid: {sorted(self.VALID_STATUSES)})")
+            else:
+                cleaned["status"] = status
 
         return ValidationResult(
             is_valid=len(all_errors) == 0,

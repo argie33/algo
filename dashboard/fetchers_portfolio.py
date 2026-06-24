@@ -272,12 +272,19 @@ def fetch_perf(c: None) -> dict[str, Any]:
             if not port_data.get("_error") and isinstance(port_data.get("unrealized_pnl"), dict):
                 unrealized_pnl = port_data["unrealized_pnl"]
 
+        # Count of currently open positions (prefer open_losses_count for detail, fall back to open_positions)
+        open_count = perf.get("open_losses_count")
+        if open_count is None:
+            open_count = perf.get("open_positions")
+        if open_count is None:
+            logger.warning("Performance data missing both 'open_losses_count' and 'open_positions' fields")
+
         return {
             "n": n,
             "w": w,
             "l": losing,
             "wr": _f(perf.get("win_rate_pct")),
-            "open_count": perf.get("open_losses_count") or perf.get("open_positions"),
+            "open_count": open_count,
             "pnl": _f(perf.get("total_pnl_dollars")),
             "unrealized_pnl": unrealized_pnl,
             "streak": perf.get("current_streak"),
