@@ -91,7 +91,9 @@ class OptimalLoader:
         if self._backfill_days > 0:
             previous_date = datetime.now(timezone.utc).date() - timedelta(days=self._backfill_days)
         else:
-            previous_date = self._watermark.get(symbol) or self._watermark.read_from_db(symbol)
+            previous_date = self._watermark.get(symbol)
+            if previous_date is None:
+                previous_date = self._watermark.read_from_db(symbol)
 
         try:
             rows = self.fetch_incremental(symbol, previous_date)

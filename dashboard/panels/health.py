@@ -237,12 +237,15 @@ def _build_freshness_panel(hlth_items: list[Any], ready_to_trade: bool | None) -
     )
 
     _role_order = {"CRIT": 0, "IMP": 1, "NORM": 2}
+    def sort_key(r: dict) -> tuple:
+        role = r.get("role")
+        if role is None:
+            role = "NORM"
+        return (_role_order.get(role, 2), r.get("tbl") if r.get("tbl") is not None else "")
+
     sorted_items = sorted(
         [r for r in hlth_items if isinstance(r, dict)],
-        key=lambda r: (
-            _role_order.get(r.get("role") or "NORM", 2),
-            r.get("tbl") if r.get("tbl") is not None else ""
-        ),
+        key=sort_key,
     )
 
     all_tbl = Table(

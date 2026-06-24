@@ -187,8 +187,11 @@ class MetricRegistry:
 
     @classmethod
     def get_metric(cls, name: str) -> MetricDefinition | None:
-        """Get metric definition by name."""
-        return cls.STOCK_METRICS.get(name) or cls.MARKET_METRICS.get(name)
+        """Get metric definition by name (checks stock metrics first, then market metrics)."""
+        metric = cls.STOCK_METRICS.get(name)
+        if metric is None:
+            metric = cls.MARKET_METRICS.get(name)
+        return metric
 
     @classmethod
     def get_all_metrics(cls) -> dict[str, MetricDefinition]:
