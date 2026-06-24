@@ -53,6 +53,14 @@ class PriceSanityChecker(BaseCheck):
             extreme = cur.fetchall()
 
             if len(extreme) > 10:
+                samples = []
+                for r in extreme[:5]:
+                    if r[4] is not None:
+                        try:
+                            samples.append({"symbol": r[0], "pct_change": float(r[4])})
+                        except (ValueError, TypeError) as e:
+                            logger.warning(f"Invalid pct_change {r[4]} for {r[0]}: {e}")
+                            samples.append({"symbol": r[0], "pct_change": None})
                 self.log(
                     "price_sanity",
                     WARN,
@@ -60,16 +68,24 @@ class PriceSanityChecker(BaseCheck):
                     f"{len(extreme)} symbols with >{max_move_pct * 100:.0f}% day-over-day move",
                     {
                         "count": len(extreme),
-                        "samples": [{"symbol": r[0], "pct_change": float(r[4])} for r in extreme[:5]],
+                        "samples": samples,
                     },
                 )
             elif extreme:
+                samples = []
+                for r in extreme[:5]:
+                    if r[4] is not None:
+                        try:
+                            samples.append({"symbol": r[0], "pct_change": float(r[4])})
+                        except (ValueError, TypeError) as e:
+                            logger.warning(f"Invalid pct_change {r[4]} for {r[0]}: {e}")
+                            samples.append({"symbol": r[0], "pct_change": None})
                 self.log(
                     "price_sanity",
                     INFO,
                     "price_daily",
                     f"{len(extreme)} extreme moves (likely real events)",
-                    {"samples": [{"symbol": r[0], "pct_change": float(r[4])} for r in extreme[:5]]},
+                    {"samples": samples},
                 )
             else:
                 self.log(

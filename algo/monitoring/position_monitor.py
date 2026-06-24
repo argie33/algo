@@ -404,8 +404,28 @@ class PositionMonitor:
             _db_current_price,
         ) = row
 
-        entry_price = float(entry_price)
-        init_stop = float(init_stop)
+        if entry_price is None:
+            msg = f"Entry price missing for {symbol} - cannot monitor"
+            logger.error(f"ERROR: {msg}")
+            raise PositionValidationError(msg)
+        if init_stop is None:
+            msg = f"Stop loss price missing for {symbol} - cannot monitor"
+            logger.error(f"ERROR: {msg}")
+            raise PositionValidationError(msg)
+
+        try:
+            entry_price = float(entry_price)
+        except (ValueError, TypeError) as e:
+            msg = f"Invalid entry price {entry_price} for {symbol}: {e}"
+            logger.error(f"ERROR: {msg}")
+            raise PositionValidationError(msg) from e
+
+        try:
+            init_stop = float(init_stop)
+        except (ValueError, TypeError) as e:
+            msg = f"Invalid stop price {init_stop} for {symbol}: {e}"
+            logger.error(f"ERROR: {msg}")
+            raise PositionValidationError(msg) from e
 
         if entry_price <= 0:
             msg = f"Invalid entry price {entry_price} for {symbol} - cannot monitor"
@@ -1011,12 +1031,28 @@ class PositionMonitor:
         sp_name = f"sp_persist_review_{rec['position_id']}"
         cur.execute(f"SAVEPOINT {sp_name}")
         try:
-            current_price = float(rec["current_price"])
-            quantity = float(rec["quantity"])
-            if current_price is None or quantity is None:
+            if "current_price" not in rec or rec["current_price"] is None:
                 raise ValueError(
-                    f"Cannot persist review for position {rec['position_id']}: current_price or quantity missing"
+                    f"Cannot persist review for position {rec['position_id']}: current_price missing or None"
                 )
+            if "quantity" not in rec or rec["quantity"] is None:
+                raise ValueError(
+                    f"Cannot persist review for position {rec['position_id']}: quantity missing or None"
+                )
+
+            try:
+                current_price = float(rec["current_price"])
+            except (ValueError, TypeError) as e:
+                raise ValueError(
+                    f"Invalid current_price {rec['current_price']} for position {rec['position_id']}: {e}"
+                ) from e
+
+            try:
+                quantity = float(rec["quantity"])
+            except (ValueError, TypeError) as e:
+                raise ValueError(
+                    f"Invalid quantity {rec['quantity']} for position {rec['position_id']}: {e}"
+                ) from e
             cur.execute(
                 """
                 UPDATE algo_positions

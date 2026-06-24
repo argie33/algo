@@ -876,7 +876,14 @@ class TradeExecutor:
                     "corrected": False,
                     "message": f"Alpaca /v2/positions/{symbol} missing 'qty' field (API schema violation)",
                 }
-            alpaca_qty = int(float(qty_raw))
+
+            try:
+                qty_float = float(qty_raw)
+                alpaca_qty = int(qty_float)
+            except (ValueError, TypeError) as e:
+                raise DataUnavailableError(
+                    f"Alpaca position qty for {symbol} is not numeric: {qty_raw} — cannot convert to float/int: {e}"
+                ) from e
 
             if alpaca_qty <= 0:
                 return {

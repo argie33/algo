@@ -64,12 +64,19 @@ class AlpacaBrokerAdapter(BrokerAdapter):
                 data = resp.json()
                 cash_val = data.get("cash")
                 equity_val = data.get("equity")
-                portfolio_value_val = data.get("portfolio_value") or data.get("equity")
+                portfolio_value_val = data.get("portfolio_value")
+                if portfolio_value_val is None:
+                    portfolio_value_val = data.get("equity")
+                if portfolio_value_val is None:
+                    raise ValueError(
+                        "Alpaca /v2/account response missing both 'portfolio_value' and 'equity' fields. "
+                        "Cannot determine account portfolio value."
+                    )
                 buying_power_val = data.get("buying_power")
                 return {
                     "cash": float(cash_val) if cash_val is not None else None,
                     "equity": float(equity_val) if equity_val is not None else None,
-                    "portfolio_value": (float(portfolio_value_val) if portfolio_value_val is not None else None),
+                    "portfolio_value": float(portfolio_value_val),
                     "buying_power": (float(buying_power_val) if buying_power_val is not None else None),
                 }
             raise ValueError(f"Alpaca /v2/account returned HTTP {resp.status_code}: {resp.text[:100]}")

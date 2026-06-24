@@ -250,11 +250,14 @@ class LivePerformance:
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def rolling_sortino(self, lookback_days: int = 252) -> float | None:
+    def rolling_sortino(self, lookback_days: int = 252) -> float:
         """Annualized Sortino ratio — penalizes only downside volatility.
 
         More appropriate than Sharpe for directional swing strategies where
         upside volatility is desirable.
+
+        Raises:
+            ValueError: If insufficient data (< 30 snapshots). Sortino is important metric.
         """
         try:
             with DatabaseContext("read") as cur:
@@ -269,7 +272,11 @@ class LivePerformance:
                 rows = cur.fetchall()
 
             if len(rows) < 30:
-                return None
+                raise ValueError(
+                    f"Cannot calculate Sortino ratio: insufficient portfolio snapshots ({len(rows)} found, need 30+). "
+                    f"Portfolio history too short ({lookback_days} days). "
+                    f"Sortino is important for evaluating downside risk — cannot use default."
+                )
 
             values = [float(r[0]) for i, r in enumerate(rows)]
             daily_returns = [
@@ -278,13 +285,18 @@ class LivePerformance:
             ]
 
             return MetricsCalculator.calculate_sortino_ratio(daily_returns)
-        except (ValueError, ZeroDivisionError, TypeError) as e:
+        except ValueError:
+            raise
+        except (ZeroDivisionError, TypeError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def calmar_ratio(self, lookback_days: int = 252) -> float | None:
+    def calmar_ratio(self, lookback_days: int = 252) -> float:
         """Calmar ratio = annualized return / abs(max drawdown).
 
         Standard benchmark for trend-following strategies. Higher is better.
+
+        Raises:
+            ValueError: If insufficient data (< 30 snapshots). Calmar is important metric.
         """
         try:
             with DatabaseContext("read") as cur:
@@ -299,10 +311,16 @@ class LivePerformance:
                 rows = cur.fetchall()
 
             if len(rows) < 30:
-                return None
+                raise ValueError(
+                    f"Cannot calculate Calmar ratio: insufficient portfolio snapshots ({len(rows)} found, need 30+). "
+                    f"Portfolio history too short ({lookback_days} days). "
+                    f"Calmar is standard benchmark for trend strategies — cannot use default."
+                )
 
             values = [float(r[0]) for i, r in enumerate(rows)]
             return MetricsCalculator.calculate_calmar_ratio(values)
+        except ValueError:
+            raise
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
@@ -367,10 +385,18 @@ class LivePerformance:
             # Compute all metrics (each handles its own connection)
             sharpe = self.rolling_sharpe(252)
             logger.debug(f"  Sharpe ratio: {sharpe}")
-            sortino = self.rolling_sortino(252)
-            logger.debug(f"  Sortino ratio: {sortino}")
-            calmar = self.calmar_ratio(252)
-            logger.debug(f"  Calmar ratio: {calmar}")
+            try:
+                sortino = self.rolling_sortino(252)
+                logger.debug(f"  Sortino ratio: {sortino}")
+            except ValueError as e:
+                logger.warning(f"  Sortino ratio unavailable: {e}")
+                sortino = None
+            try:
+                calmar = self.calmar_ratio(252)
+                logger.debug(f"  Calmar ratio: {calmar}")
+            except ValueError as e:
+                logger.warning(f"  Calmar ratio unavailable: {e}")
+                calmar = None
             wr = self.win_rate(50)
             logger.debug(f"  Win rate: {wr['win_rate_pct'] if wr else None}%")
             expectancy = self.expectancy(50)
