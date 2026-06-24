@@ -46,17 +46,35 @@ class CredentialsProvider:
 
             secret = json.loads(response["SecretString"])
 
-            api_url = secret.get("api_url") or secret.get("dashboard_api_url")
+            # Try primary key first, then fallback to alternate name with explicit logging
+            api_url = secret.get("api_url")
             if not api_url:
-                raise RuntimeError(f"dashboard_api_url not found in {secret_name}")
+                api_url = secret.get("dashboard_api_url")
+                if api_url:
+                    logger.warning("[CREDS] Using fallback key 'dashboard_api_url' for API URL (primary 'api_url' missing)")
+            if not api_url:
+                raise RuntimeError(
+                    f"dashboard_api_url not found in {secret_name}. "
+                    f"Neither 'api_url' nor 'dashboard_api_url' keys are present. "
+                    f"Check Secrets Manager configuration."
+                )
 
             pool_id = secret.get("cognito_user_pool_id")
             if not pool_id:
                 raise RuntimeError(f"cognito_user_pool_id not found in {secret_name}")
 
-            client_id = secret.get("cognito_user_pool_client_id") or secret.get("cognito_client_id")
+            # Try primary key first, then fallback to alternate name with explicit logging
+            client_id = secret.get("cognito_user_pool_client_id")
             if not client_id:
-                raise RuntimeError(f"cognito_client_id not found in {secret_name}")
+                client_id = secret.get("cognito_client_id")
+                if client_id:
+                    logger.warning("[CREDS] Using fallback key 'cognito_client_id' for client ID (primary 'cognito_user_pool_client_id' missing)")
+            if not client_id:
+                raise RuntimeError(
+                    f"cognito_client_id not found in {secret_name}. "
+                    f"Neither 'cognito_user_pool_client_id' nor 'cognito_client_id' keys are present. "
+                    f"Check Secrets Manager configuration."
+                )
 
             return (api_url, pool_id, client_id)
         except RuntimeError:

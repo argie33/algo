@@ -269,18 +269,30 @@ class PriceFetcher:
                 raise
         raise RuntimeError(f"[{symbol}] Exhausted all fetch attempts without successful data fetch")
 
-    def execute_batch_fetch(self, symbols: list[str], start: date, end: date) -> dict[str, Any] | None:
-        """Execute batch fetch with circuit breaker and validate freshness."""
+    def execute_batch_fetch(self, symbols: list[str], start: date, end: date) -> dict[str, Any]:
+        """Execute batch fetch with circuit breaker and validate freshness.
+
+        Raises:
+            RuntimeError: If fetch fails or returns invalid data type (price data is critical)
+        """
         self._adaptive_request_pacing()
         request_start = time.time()
 
-        def fetch_batch() -> dict[str, Any] | None:
+        def fetch_batch() -> dict[str, Any]:
             if not self.router:
                 raise RuntimeError("Router not configured in PriceFetcher")
             batch_result = self.router.fetch_ohlcv_batch(symbols, start, end, interval=self.interval)
-            if batch_result is None or isinstance(batch_result, dict):
-                return batch_result
-            return None
+            if batch_result is None:
+                raise RuntimeError(
+                    f"Price batch fetch returned None for {len(symbols)} symbols ({start} to {end}). "
+                    f"Router may be unavailable or API returned empty result."
+                )
+            if not isinstance(batch_result, dict):
+                raise RuntimeError(
+                    f"Price batch fetch returned invalid type {type(batch_result).__name__} "
+                    f"(expected dict). Router response format mismatch."
+                )
+            return batch_result
 
         if self._circuit_breaker:
             from utils.infrastructure.circuit_breaker import DataImportance
@@ -289,11 +301,12 @@ class PriceFetcher:
         else:
             result = fetch_batch()
 
+        if result is None:
+            raise RuntimeError("Circuit breaker returned None for price batch fetch. Cannot proceed without price data.")
+
         request_latency = time.time() - request_start
         self._record_request_latency(request_latency)
-        if isinstance(result, dict):
-            return result
-        return None
+        return result
 
     def _fetch_with_fallback(
         self,

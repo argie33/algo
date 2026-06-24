@@ -48,7 +48,10 @@ class VIXFetcher:
 
             vix_data = yfinance.download("^VIX", start=start, end=end, progress=False)
             if vix_data.empty:
-                return {}
+                raise ValueError(
+                    f"VIX data unavailable from yfinance for {start} to {end}. "
+                    f"Cannot compute circuit breaker decisions without valid VIX data."
+                )
 
             result = {}
             for idx, row in vix_data.iterrows():
@@ -57,7 +60,14 @@ class VIXFetcher:
                     "vix_high": float(row["High"]),
                     "vix_low": float(row["Low"]),
                 }
+            if not result:
+                raise ValueError(
+                    f"VIX fetch returned no data points despite non-empty frame for {start} to {end}. "
+                    f"Data corruption or parsing error detected."
+                )
             return result
+        except ValueError:
+            raise
         except Exception as e:
             logger.warning(f"VIX fetch failed: {e}")
             raise
