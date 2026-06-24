@@ -34,8 +34,8 @@ class MarketHealthDailyLoader(OptimalLoader):
     """Market health metrics loader.
 
     Uses specialized fetchers for VIX, put/call, yield curve, breadth data.
-    CRITICAL: SPY prices (required for market_health computation)
-    OPTIONAL: VIX, put/call ratio, yield curve (missing is OK, computation continues)
+    CRITICAL: SPY prices, VIX, yield curve (all required for regime detection)
+    OPTIONAL: Put/call ratio (enrichment, non-critical)
     """
 
     table_name = "market_health_daily"
@@ -197,17 +197,18 @@ class MarketHealthDailyLoader(OptimalLoader):
             logger.debug("Put/call ratio unavailable (optional enrichment skipped)")
 
     def _merge_yield_curve_data(self, health_metrics: list[dict[str, Any]], start: date, end: date) -> None:
-        """Merge yield curve slope into health metrics (optional).
+        """Merge yield curve slope into health metrics (required for market regime detection).
 
-        Note: Yield curve data may be unavailable during market holidays or
-        API outages. This is enrichment only - market health metrics continue
-        without it (marked as None).
+        Yield curve slope is critical for distinguishing market regimes.
+        Raises if data is unavailable.
         """
         try:
             yield_curve = self._yield_curve_fetcher.fetch(start, end)
             if not yield_curve:
-                logger.info("Yield curve data unavailable (optional enrichment skipped)")
-                return
+                raise RuntimeError(
+                    f"[MARKET_HEALTH] Yield curve data unavailable for {start} to {end}. "
+                    "Cannot compute market regime without yield curve slope."
+                )
 
             matched_count = 0
             for m in health_metrics:
@@ -217,9 +218,17 @@ class MarketHealthDailyLoader(OptimalLoader):
             if matched_count > 0:
                 logger.info(f"Yield curve enrichment: matched {matched_count}/{len(health_metrics)} dates")
             else:
-                logger.warning("Yield curve data exists but no dates matched (data inconsistency)")
+                raise RuntimeError(
+                    "[MARKET_HEALTH] Yield curve data exists but no dates matched health metrics. "
+                    "Data inconsistency between sources."
+                )
+        except RuntimeError:
+            raise
         except Exception as e:
-            logger.warning(f"Yield curve enrichment failed (optional): {e}")
+            raise RuntimeError(
+                f"[MARKET_HEALTH] Yield curve enrichment failed: {e}. "
+                "Cannot compute market regime without yield curve data."
+            ) from e
 
     def fetch_incremental(self, symbol: str = "SPY", since: date | None = None) -> list[dict[str, Any]]:
         """Fetch SPY price data and compute market health metrics."""
