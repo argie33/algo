@@ -344,10 +344,10 @@ locals {
   # Maps each Terraform loader key to the actual Python script filename.
   # This maps to the 33 actual loaders in loaders/ directory.
   loader_file_map = {
-    # Reference data
-    "stock_symbols"            = "load_stock_symbols.py"
-    "sp500_constituents"       = "load_sp500_constituents.py"
-    "russell2000_constituents" = "load_russell2000_constituents.py"
+    # Reference data — consolidated loader: NASDAQ/NYSE + S&P 500 + Russell 2000 membership
+    # FIXED: Removed fragile cron-based ordering (stock_symbols → sp500 → russell2000)
+    # FIXED: Now atomic single-transaction loader with explicit enrichment
+    "market_constituents" = "load_market_constituents.py"
 
     # Pricing data — unified loader handles all intervals/asset classes via env vars
     "stock_prices_daily" = "load_prices.py"
@@ -381,15 +381,12 @@ locals {
     "analyst_upgrades_downgrades" = "load_analyst_upgrade_downgrade.py"
     "industry_ranking"            = "load_industry_ranking.py"
 
-    # Market sentiment
+    # Market sentiment (raw data sources — API aggregates these on-the-fly)
     "feargreed"  = "load_fear_greed_index.py"
     "aaiidata"   = "load_aaii_sentiment.py"
     "naaim_data" = "load_naaim.py"
-
-    # Sentiment aggregation
-    "sentiment"           = "load_sentiment.py"
-    "sentiment_aggregate" = "load_sentiment_aggregate.py"
-    # DELETED: sentiment_social - was placeholder (load_sentiment_social.py deleted)
+    # DELETED: sentiment, sentiment_aggregate - were producing unused aggregated data
+    # (API now computes sentiment aggregation on-the-fly from raw sources)
 
     # Trading signals & scores
     "signal_themes"         = "load_signal_themes.py"
@@ -417,21 +414,10 @@ locals {
   scheduled_loaders = {
     # Morning batch — staggered to prevent resource contention
     # 3:25am ET = 8:25am UTC Mon-Fri
-    "stock_symbols" = {
+    # FIXED: Consolidated market constituents loader (replaced fragile 3-loader sequence)
+    "market_constituents" = {
       schedule    = "cron(25 8 ? * MON-FRI *)"
-      description = "Stock symbols reference data - 3:25am ET"
-    }
-
-    # 3:30am ET = 8:30am UTC Mon-Fri (runs after stock_symbols to mark S&P 500 constituents)
-    "sp500_constituents" = {
-      schedule    = "cron(30 8 ? * MON-FRI *)"
-      description = "S&P 500 constituent symbols - 3:30am ET (after stock_symbols)"
-    }
-
-    # 3:35am ET = 8:35am UTC Mon-Fri (runs after S&P 500 to mark Russell 2000 constituents)
-    "russell2000_constituents" = {
-      schedule    = "cron(35 8 ? * MON-FRI *)"
-      description = "Russell 2000 small-cap constituent symbols - 3:35am ET (after sp500_constituents)"
+      description = "Market constituents (NASDAQ/NYSE + S&P 500 + Russell 2000 membership) - 3:25am ET"
     }
 
     # 4:00am ET = 9am UTC Mon-Fri
@@ -585,22 +571,9 @@ locals {
       schedule    = "cron(5 4 ? * FRI *)"
       description = "NAAIM exposure index - Weekly Friday 12:05am ET (publishes Wednesdays)"
     }
-
-    # Sentiment loaders (aggregate) — run daily at 4am ET
-    "sentiment" = {
-      schedule    = "cron(4 4 ? * FRI *)"
-      description = "Aggregate sentiment index - Friday 4:04am ET (after aaii_sentiment at 4:00am)"
-    }
-
-    "sentiment_aggregate" = {
-      schedule    = "cron(5 8 ? * FRI *)"
-      description = "Aggregated sentiment (AAII + NAAIM) - Friday 4:05am EDT"
-    }
+    # DELETED: sentiment, sentiment_aggregate - were producing unused data
+    # (API now computes sentiment aggregation on-the-fly from raw sources)
     # DELETED: sentiment_social - placeholder implementation removed
-    # "sentiment_social" = {
-    #   schedule    = "cron(34 4 ? * MON-FRI *)"
-    #   description = "Social media sentiment - Daily 4:34am ET"
-    # }
 
     # Signal theme — run after signals generated
     # 10:00am UTC = 5:00am ET Mon-Fri
@@ -643,10 +616,9 @@ resource "aws_cloudwatch_event_rule" "scheduled_loader" {
 
 locals {
   all_loaders = {
-    # Reference data — tiny lists, parallelism=1
-    "stock_symbols"            = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
-    "sp500_constituents"       = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
-    "russell2000_constituents" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
+    # Reference data — consolidated market constituents loader (NASDAQ/NYSE + S&P 500 + Russell 2000)
+    # FIXED: Replaced fragile 3-loader sequence with atomic single loader, parallelism=1
+    "market_constituents" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
 
     # Unified Price Loader — handles all intervals (1d,1wk,1mo) + asset classes (stock,etf)
     # I/O bound, 5000+ symbols; REDUCED to parallelism=1 to prevent yfinance 429 rate limit errors
@@ -699,12 +671,9 @@ locals {
     "feargreed"  = { cpu = 256, memory = 512, timeout = 600, parallelism = 2 }
     "aaiidata"   = { cpu = 256, memory = 512, timeout = 600, parallelism = 2 }
     "naaim_data" = { cpu = 256, memory = 512, timeout = 600, parallelism = 2 }
-
-    # Sentiment aggregation — combine multiple sentiment sources (pure SQL, minimal I/O)
-    # OPTIMIZED 2026-06-21: Increased parallelism from 1→2 for faster aggregation
-    "sentiment"           = { cpu = 256, memory = 512, timeout = 600, parallelism = 2 }
-    "sentiment_aggregate" = { cpu = 256, memory = 512, timeout = 600, parallelism = 2 }
-    # DELETED: sentiment_social = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
+    # DELETED: sentiment, sentiment_aggregate — were producing unused aggregated data
+    # (API now computes sentiment aggregation on-the-fly from raw sources)
+    # DELETED: sentiment_social = placeholder implementation removed
 
     # Signal processing — compute signal themes
     "signal_themes" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
