@@ -301,7 +301,10 @@ class TradeExecutor:
                 },
             )
         except NotificationError as notif_e:
-            logger.warning(f"Failed to send entry notification (non-blocking): {notif_e}")
+            raise RuntimeError(
+                f"CRITICAL: Failed to send entry notification for {symbol} (trade {trade_id}): {notif_e}. "
+                f"Trader was NOT notified of entry. Cannot proceed without notification confirmation."
+            ) from notif_e
 
         return tca_result
 
