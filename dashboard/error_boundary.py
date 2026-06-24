@@ -66,16 +66,19 @@ def get_error_message(data: Any) -> str | None:
     return plain_msg
 
 
-def safe_get(data: Any, key: str, default: Any = None) -> Any:
-    """Safely get nested value, propagating errors instead of hiding them.
+def safe_get(data: Any, key: str) -> Any:
+    """Safely get nested value, raising on error or missing key.
 
-    Returns error dict on error, default on missing key, or the value.
+    Returns error dict if data has error, raises ValueError on missing key or wrong type.
+    This ensures response structure issues are surfaced rather than hidden.
     """
     if has_error(data):
         return data
-    if isinstance(data, dict):
-        return data.get(key, default)
-    return default
+    if not isinstance(data, dict):
+        raise ValueError(f"Expected dict, got {type(data).__name__}")
+    if key not in data:
+        raise ValueError(f"Response dict missing required key '{key}'. Available keys: {list(data.keys())}")
+    return data[key]
 
 
 def safe_list(data: Any) -> list[Any]:

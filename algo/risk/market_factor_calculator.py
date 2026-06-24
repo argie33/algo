@@ -260,12 +260,10 @@ class MarketFactorCalculator:
             raise RuntimeError(f"VIX regime calculation failed: {e}") from e
 
     def put_call_ratio(self, eval_date: Any, cur: Any) -> dict[str, Any]:
-        """Put/call ratio (contrarian indicator, optional).
+        """Put/call ratio (contrarian indicator).
 
-        Returns neutral score (50) if data unavailable, allowing market exposure
-        computation to continue without put/call data. Put/call is an 8pt factor
-        (non-critical) vs VIX (10pt critical) — missing data degrades signal but
-        doesn't halt calculation.
+        Raises if data unavailable. Put/call is an 8pt factor that affects
+        market exposure scoring — missing data must be explicitly handled by caller.
         """
         try:
             cur.execute("SAVEPOINT sp_put_call")
@@ -276,8 +274,7 @@ class MarketFactorCalculator:
             row = cur.fetchone()
             cur.execute("RELEASE SAVEPOINT sp_put_call")
             if not row or row[0] is None:
-                logger.debug(f"Put/call ratio unavailable for {eval_date} (optional, using neutral score)")
-                return {"put_call_ratio": None, "score": 50}
+                raise RuntimeError(f"Put/call ratio unavailable for {eval_date}")
             pcr = float(row[0])
             score = max(0, min(100, (pcr - 0.7) * 100))
             return {"put_call_ratio": round(pcr, 2), "score": score}
@@ -287,15 +284,13 @@ class MarketFactorCalculator:
                 cur.execute("RELEASE SAVEPOINT sp_put_call")
             except Exception:
                 pass
-            logger.debug(f"Put/call ratio query failed (optional): {e}, using neutral score")
-            return {"put_call_ratio": None, "score": 50}
+            raise RuntimeError(f"Put/call ratio query failed: {e}") from e
 
     def new_highs_lows(self, eval_date: Any, cur: Any) -> dict[str, Any]:
-        """52-week new highs vs new lows (optional).
+        """52-week new highs vs new lows.
 
-        Returns neutral score (50) if data unavailable. New highs/lows is a 7pt
-        factor (non-critical) — missing data degrades signal but doesn't halt
-        calculation.
+        Raises if data unavailable. New highs/lows is a 7pt factor that affects
+        market regime detection — missing data must be explicitly handled by caller.
         """
         try:
             cur.execute("SAVEPOINT sp_nhnl")
@@ -321,22 +316,20 @@ class MarketFactorCalculator:
                         "nh_pct": round(nh_pct, 1),
                         "score": score,
                     }
-            logger.debug(f"New highs/lows unavailable for {eval_date} (optional, using neutral score)")
-            return {"new_highs": None, "new_lows": None, "nh_pct": None, "score": 50}
+            raise RuntimeError(f"New highs/lows unavailable for {eval_date}")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             try:
                 cur.execute("ROLLBACK TO SAVEPOINT sp_nhnl")
                 cur.execute("RELEASE SAVEPOINT sp_nhnl")
             except Exception:
                 pass
-            logger.debug(f"New highs/lows query failed (optional): {e}, using neutral score")
-            return {"new_highs": None, "new_lows": None, "nh_pct": None, "score": 50}
+            raise RuntimeError(f"New highs/lows query failed: {e}") from e
 
     def ad_line(self, eval_date: Any, cur: Any) -> dict[str, Any]:
-        """Advance/decline line vs SPY (optional).
+        """Advance/decline line vs SPY.
 
-        Returns neutral score (50) if data unavailable. A/D line is a 6pt factor
-        (non-critical) — missing data degrades signal but doesn't halt calculation.
+        Raises if data unavailable. A/D line is a 6pt factor that affects
+        market breadth assessment — missing data must be explicitly handled by caller.
         """
         try:
             cur.execute("SAVEPOINT sp_ad_line")
@@ -355,22 +348,20 @@ class MarketFactorCalculator:
                 direction = row[0]
                 score = 100.0 if direction == "up" else 0.0
                 return {"direction": direction, "score": score}
-            logger.debug(f"A/D line unavailable for {eval_date} (optional, using neutral score)")
-            return {"direction": None, "score": 50}
+            raise RuntimeError(f"A/D line unavailable for {eval_date}")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             try:
                 cur.execute("ROLLBACK TO SAVEPOINT sp_ad_line")
                 cur.execute("RELEASE SAVEPOINT sp_ad_line")
             except Exception:
                 pass
-            logger.debug(f"A/D line query failed (optional): {e}, using neutral score")
-            return {"direction": None, "score": 50}
+            raise RuntimeError(f"A/D line query failed: {e}") from e
 
     def credit_spread(self, eval_date: Any, cur: Any) -> dict[str, Any]:
-        """High-yield credit spread (HY OAS, optional).
+        """High-yield credit spread (HY OAS).
 
-        Returns neutral score (50) if data unavailable. Credit spreads is a 10pt
-        factor — missing data degrades signal but doesn't halt calculation.
+        Raises if data unavailable. Credit spreads is a 10pt factor that affects
+        risk regime scoring — missing data must be explicitly handled by caller.
         """
         try:
             cur.execute("SAVEPOINT sp_credit")
@@ -384,16 +375,14 @@ class MarketFactorCalculator:
                 oas = float(row[0])
                 score = max(0, min(100, 100 - (oas - 300) / 2))
                 return {"hy_oas": round(oas, 0), "score": score}
-            logger.debug(f"Credit spreads unavailable for {eval_date} (optional, using neutral score)")
-            return {"hy_oas": None, "score": 50}
+            raise RuntimeError(f"Credit spreads unavailable for {eval_date}")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             try:
                 cur.execute("ROLLBACK TO SAVEPOINT sp_credit")
                 cur.execute("RELEASE SAVEPOINT sp_credit")
             except Exception:
                 pass
-            logger.debug(f"Credit spread query failed (optional): {e}, using neutral score")
-            return {"hy_oas": None, "score": 50}
+            raise RuntimeError(f"Credit spread query failed: {e}") from e
 
     def aaii(self, eval_date: Any, cur: Any) -> dict[str, Any]:
         """AAII sentiment (contrarian at extremes only, optional).

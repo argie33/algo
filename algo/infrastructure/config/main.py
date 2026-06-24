@@ -1521,13 +1521,13 @@ class AlgoConfig:
 
         value = self._config.get(key)
         if value is None:
-            # Check if this is a critical parameter using fallback
+            # Check if this is a critical parameter — fail-fast if missing
             if key in self.VALIDATION_SCHEMA:
                 is_critical = self.VALIDATION_SCHEMA[key][3]
                 if is_critical:
-                    logger.warning(
-                        f"[CONFIG FALLBACK] Critical parameter {key!r} not in database. "
-                        f"Using default: {default!r}. Set via config.set() to override."
+                    raise RuntimeError(
+                        f"Critical configuration parameter {key!r} not found in database. "
+                        f"This value is required for system safety. Set via config.set() to configure."
                     )
             return default
 

@@ -25,21 +25,18 @@ class TCARecorder:
         shares: int,
     ) -> None:
         """Record entry execution TCA metrics."""
-        try:
-            slippage_pct = float(slippage / reference_price * 100) if reference_price else 0
-            record = {
-                "event": "entry",
-                "symbol": symbol,
-                "entry_price": float(entry_price),
-                "reference_price": float(reference_price),
-                "slippage": float(slippage),
-                "slippage_pct": slippage_pct,
-                "shares": shares,
-            }
-            self.tca_records.append(record)
-            logger.info(f"[TCA_ENTRY] {symbol}: entry=${entry_price:.2f}, slippage={slippage_pct:+.2f}%, {shares}sh")
-        except Exception as e:
-            logger.warning(f"Failed to record entry TCA: {e}")
+        slippage_pct = float(slippage / reference_price * 100) if reference_price else 0
+        record = {
+            "event": "entry",
+            "symbol": symbol,
+            "entry_price": float(entry_price),
+            "reference_price": float(reference_price),
+            "slippage": float(slippage),
+            "slippage_pct": slippage_pct,
+            "shares": shares,
+        }
+        self.tca_records.append(record)
+        logger.info(f"[TCA_ENTRY] {symbol}: entry=${entry_price:.2f}, slippage={slippage_pct:+.2f}%, {shares}sh")
 
     def record_exit_execution(
         self,
@@ -51,22 +48,19 @@ class TCARecorder:
         pnl: Decimal,
     ) -> None:
         """Record exit execution TCA metrics."""
-        try:
-            slippage_pct = float(slippage / reference_price * 100) if reference_price else 0
-            record = {
-                "event": "exit",
-                "symbol": symbol,
-                "exit_price": float(exit_price),
-                "reference_price": float(reference_price),
-                "slippage": float(slippage),
-                "slippage_pct": slippage_pct,
-                "shares": shares,
-                "pnl": float(pnl),
-            }
-            self.tca_records.append(record)
-            logger.info(f"[TCA_EXIT] {symbol}: exit=${exit_price:.2f}, slippage={slippage_pct:+.2f}%, PnL=${pnl:.2f}")
-        except Exception as e:
-            logger.warning(f"Failed to record exit TCA: {e}")
+        slippage_pct = float(slippage / reference_price * 100) if reference_price else 0
+        record = {
+            "event": "exit",
+            "symbol": symbol,
+            "exit_price": float(exit_price),
+            "reference_price": float(reference_price),
+            "slippage": float(slippage),
+            "slippage_pct": slippage_pct,
+            "shares": shares,
+            "pnl": float(pnl),
+        }
+        self.tca_records.append(record)
+        logger.info(f"[TCA_EXIT] {symbol}: exit=${exit_price:.2f}, slippage={slippage_pct:+.2f}%, PnL=${pnl:.2f}")
 
     def get_tca_summary(self) -> dict[str, Any]:
         """Get TCA summary metrics. Fails fast if any record is malformed."""

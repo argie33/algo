@@ -109,7 +109,14 @@ class MarketEventHandler:
                     resp = requests.get(url, headers=headers, timeout=get_api_timeout())
                     if resp.status_code != 200:
                         raise RuntimeError(f"Quotes API error: status {resp.status_code}")
-                    return resp.json().get("quote").get("ap")
+                    data = resp.json()
+                    quote = data.get("quote")
+                    if quote is None:
+                        raise RuntimeError("Quotes response missing 'quote' field")
+                    ap = quote.get("ap")
+                    if ap is None:
+                        raise RuntimeError("Quote data missing 'ap' field")
+                    return ap
                 except (
                     requests.RequestException,
                     json.JSONDecodeError,
@@ -123,7 +130,14 @@ class MarketEventHandler:
                     resp = requests.get(url, headers=headers, timeout=get_market_data_timeout())
                     if resp.status_code != 200:
                         raise RuntimeError(f"Bars API error: status {resp.status_code}")
-                    return resp.json().get("bar").get("o")
+                    data = resp.json()
+                    bar = data.get("bar")
+                    if bar is None:
+                        raise RuntimeError("Bars response missing 'bar' field")
+                    o = bar.get("o")
+                    if o is None:
+                        raise RuntimeError("Bar data missing 'o' field")
+                    return o
                 except (
                     requests.RequestException,
                     json.JSONDecodeError,

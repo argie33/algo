@@ -62,45 +62,40 @@ def run_loader(
 
     args = parser.parse_args()
 
+    loader = loader_class()
     try:
-        loader = loader_class()
-        try:
-            if global_mode:
-                result = loader.load_global()
-                if result > 0:
-                    logger.info(f"SUCCESS: {result} records loaded")
-                    return 0
-                else:
-                    logger.error("FAILED: No records loaded")
-                    return 1
-            else:
-                # Per-symbol mode
-                if args.symbols:
-                    symbols = [s.strip().upper() for s in args.symbols.split(",")]
-                else:
-                    symbols = get_active_symbols(timeout_secs=60)
-
-                if args.backfill_days:
-                    stats = loader.run(
-                        symbols,
-                        parallelism=args.parallelism,
-                        backfill_days=args.backfill_days,
-                    )
-                else:
-                    stats = loader.run(symbols, parallelism=args.parallelism)
-
-                # Assess success: warn if fail_rate > 5%
-                fail_rate = stats.get("symbols_failed", 0) / max(len(symbols), 1)
-                if fail_rate > 0.05:
-                    logger.error(
-                        f"Too many failures: {stats['symbols_failed']}/{len(symbols)} ({fail_rate * 100:.1f}%)"
-                    )
-                    return 1
-
+        if global_mode:
+            result = loader.load_global()
+            if result > 0:
+                logger.info(f"SUCCESS: {result} records loaded")
                 return 0
-        finally:
-            loader.close()
+            else:
+                logger.error("FAILED: No records loaded")
+                return 1
+        else:
+            # Per-symbol mode
+            if args.symbols:
+                symbols = [s.strip().upper() for s in args.symbols.split(",")]
+            else:
+                symbols = get_active_symbols(timeout_secs=60)
 
-    except Exception as e:
-        logger.error(f"Loader execution failed: {e}", exc_info=True)
-        return 1
+            if args.backfill_days:
+                stats = loader.run(
+                    symbols,
+                    parallelism=args.parallelism,
+                    backfill_days=args.backfill_days,
+                )
+            else:
+                stats = loader.run(symbols, parallelism=args.parallelism)
+
+            # Assess success: warn if fail_rate > 5%
+            fail_rate = stats.get("symbols_failed", 0) / max(len(symbols), 1)
+            if fail_rate > 0.05:
+                logger.error(
+                    f"Too many failures: {stats['symbols_failed']}/{len(symbols)} ({fail_rate * 100:.1f}%)"
+                )
+                return 1
+
+            return 0
+    finally:
+        loader.close()

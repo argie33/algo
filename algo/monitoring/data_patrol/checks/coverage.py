@@ -178,10 +178,7 @@ class CoverageChecker(BaseCheck):
 
         for tbl, contract in contracts.items():
             sp = f"sp_contract_{tbl}"
-            try:
-                cur.execute(f"SAVEPOINT {sp}")
-            except Exception:
-                pass
+            cur.execute(f"SAVEPOINT {sp}")
             try:
                 tbl_safe = assert_safe_table(tbl)
                 actual, _ = safe_select_count(cur, tbl_safe, where_clause=contract["condition"])
@@ -206,15 +203,9 @@ class CoverageChecker(BaseCheck):
                     )
             except Exception as e:
                 self.log("loader_contract", ERROR, tbl, f"Check failed: {e}", None)
-                try:
-                    cur.execute(f"ROLLBACK TO SAVEPOINT {sp}")
-                except Exception:
-                    pass
+                cur.execute(f"ROLLBACK TO SAVEPOINT {sp}")
             finally:
-                try:
-                    cur.execute(f"RELEASE SAVEPOINT {sp}")
-                except Exception:
-                    pass
+                cur.execute(f"RELEASE SAVEPOINT {sp}")
 
     def check_signal_quality_ratio(self, cur: Any) -> None:
         """Check buy_sell_daily signal cleanness."""

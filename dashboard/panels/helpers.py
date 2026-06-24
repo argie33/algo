@@ -80,6 +80,8 @@ def _build_buy_sig_map(buy_sigs: Any) -> dict[str, float]:
             score = bs.get("signal_quality_score")
             if score is None:
                 score = bs.get("swing_score")
+                if score is not None:
+                    logger.warning(f"Signal quality score missing for {sym_norm}, using swing_score instead (ambiguous source)")
             if score is None:
                 raise ValueError(f"Signal quality score missing for symbol {sym_norm} (required for signal validation)")
             try:

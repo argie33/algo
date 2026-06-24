@@ -162,9 +162,14 @@ def _record_api_success() -> None:
 
 
 def cache_response(endpoint: str, data: dict[str, Any]) -> None:
-    """Cache successful API response for fallback during outages."""
-    if not isinstance(data, dict) or data.get("_error"):
-        return
+    """Cache successful API response for fallback during outages.
+
+    Raises if data is invalid (not a dict or contains error).
+    """
+    if not isinstance(data, dict):
+        raise ValueError(f"Cannot cache non-dict response for {endpoint}: {type(data).__name__}")
+    if "_error" in data:
+        raise ValueError(f"Cannot cache error response for {endpoint}: {data.get('_error')}")
     with _response_cache_lock:
         _response_cache[endpoint] = {
             "data": data,
