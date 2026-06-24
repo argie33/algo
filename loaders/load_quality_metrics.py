@@ -59,12 +59,18 @@ class QualityMetricsLoader(OptimalLoader):
 
         # Require at least income statement; balance sheet is optional
         if not income_row:
-            return []
+            raise RuntimeError(
+                f"[QUALITY_METRICS] No income statement data for {symbol}. "
+                "Cannot compute quality metrics without revenue and earnings data."
+            )
 
         metrics = self._compute_metrics(symbol, income_row, balance_row)
-        if metrics:
-            return [metrics]
-        return []
+        if not metrics:
+            raise RuntimeError(
+                f"[QUALITY_METRICS] Failed to compute quality metrics for {symbol}. "
+                "Invalid or insufficient financial data."
+            )
+        return [metrics]
 
     @staticmethod
     def _compute_metrics(

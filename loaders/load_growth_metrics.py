@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-import sys
-
 """
 Growth Metrics Loader - Computes multi-year growth metrics from annual financials.
 
@@ -9,16 +7,17 @@ Requires: annual_income_statement populated.
 """
 
 import logging
+import sys
 from datetime import date
 from typing import Any
 
 import psycopg2
 
-logger = logging.getLogger(__name__)
-
 from loaders.runner import run_loader
 from utils.loaders import execute_query
 from utils.optimal_loader import OptimalLoader
+
+logger = logging.getLogger(__name__)
 
 
 class GrowthMetricsLoader(OptimalLoader):
@@ -42,7 +41,10 @@ class GrowthMetricsLoader(OptimalLoader):
             )
 
             if not rows or len(rows) < 1:
-                return []
+                raise RuntimeError(
+                    f"[GROWTH_METRICS] No annual income statement data for {symbol}. "
+                    "Cannot compute growth metrics without multi-year financials."
+                )
 
             # Sort by year ascending for easier calculation
             rows_list = list(reversed(rows))
@@ -50,9 +52,12 @@ class GrowthMetricsLoader(OptimalLoader):
             latest = rows_list[-1]  # Most recent year
             metrics = self._compute_metrics(symbol, latest, rows_list)
 
-            if metrics:
-                return [metrics]
-            return []
+            if not metrics:
+                raise RuntimeError(
+                    f"[GROWTH_METRICS] Failed to compute growth metrics for {symbol}. "
+                    "Insufficient valid financial data across years."
+                )
+            return [metrics]
 
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e

@@ -16,12 +16,12 @@ from loaders.loader_helper import setup_imports
 
 setup_imports()
 
-import logging
-from datetime import date, datetime, timezone
-from typing import Any
+import logging  # noqa: E402
+from datetime import date, datetime, timezone  # noqa: E402
+from typing import Any  # noqa: E402
 
-from loaders.runner import run_loader
-from utils.optimal_loader import OptimalLoader
+from loaders.runner import run_loader  # noqa: E402
+from utils.optimal_loader import OptimalLoader  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -37,15 +37,19 @@ class PositioningMetricsLoader(OptimalLoader):
         """Fetch positioning metrics for this symbol."""
         try:
             metrics = self._fetch_positioning_metrics(symbol)
-            if metrics:
-                return [metrics]
-            return []
+            if not metrics:
+                raise RuntimeError(
+                    f"[POSITIONING_METRICS] No positioning data available for {symbol}. "
+                    "Cannot determine institutional/insider ownership without data."
+                )
+            return [metrics]
+        except RuntimeError:
+            raise
         except Exception as e:
-            err_str = str(e)
-            if "404" in err_str or "Not Found" in err_str:
-                logger.debug("[%s] Not found (404), skipping", symbol)
-                return []
-            raise RuntimeError(f"Operation failed: {e}") from e
+            raise RuntimeError(
+                f"[POSITIONING_METRICS] Failed to fetch positioning metrics for {symbol}: {e}. "
+                "Cannot assess market positioning without this data."
+            ) from e
 
     @staticmethod
     def _fetch_positioning_metrics(symbol: str) -> dict[str, Any] | None:
