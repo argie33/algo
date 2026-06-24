@@ -133,8 +133,8 @@ class MarketHealthDailyLoader(OptimalLoader):
         # Update stats
         watermark = self.watermark_from_rows(transformed)
         if watermark:
-            self._stats.watermark = watermark
-        self._stats.total_loaded += len(transformed)
+            self._stats.set("watermark", watermark)
+        self._stats.increment("rows_inserted", len(transformed))
 
         return written
 
