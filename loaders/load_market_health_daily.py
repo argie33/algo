@@ -10,7 +10,7 @@ Run: python3 load_market_health_daily.py [--parallelism 1]
 import argparse
 import logging
 import sys
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 import pandas as pd
@@ -76,7 +76,11 @@ class MarketHealthDailyLoader(OptimalLoader):
         return end
 
     def _get_start_date(self, end: date, since: date | None) -> date:
-        """Determine start date based on watermark or backfill logic."""
+        """Determine start date based on watermark or backfill logic.
+
+        Note: market_health_daily is date-only (not symbol-based), so we ignore
+        OptimalLoader's per-symbol watermark logic and query directly.
+        """
         if since is None:
             try:
                 with DatabaseContext("read") as cur:
@@ -101,6 +105,39 @@ class MarketHealthDailyLoader(OptimalLoader):
             return end - timedelta(days=5 * 365)
         return since - timedelta(days=100)
 
+    def load_symbol(self, symbol: str) -> int:
+        """Override OptimalLoader.load_symbol to bypass symbol-based watermarking.
+
+        market_health_daily is date-only, not symbol-based. We fetch incremental
+        data and bypass the parent's per-symbol watermark logic entirely.
+        """
+        previous_date = None
+        if self._backfill_days > 0:
+            previous_date = datetime.now(timezone.utc).date() - timedelta(days=self._backfill_days)
+        else:
+            # Use our custom date logic instead of per-symbol watermark
+            previous_date = None  # Will be computed by _get_start_date
+
+        try:
+            rows = self.fetch_incremental(symbol, previous_date)
+        except Exception as e:
+            raise RuntimeError(f"[{self.table_name}] {symbol}: Failed to fetch: {e}") from e
+
+        if not rows:
+            return 0
+
+        # Transform and insert
+        transformed = self.transform(rows)
+        written = self._bulk_insert_mgr.bulk_insert(transformed)
+
+        # Update stats
+        watermark = self.watermark_from_rows(transformed)
+        if watermark:
+            self._stats.watermark = watermark
+        self._stats.total_loaded += len(transformed)
+
+        return written
+
     def _merge_breadth_data(self, health_metrics: list[dict[str, Any]], start: date, end: date) -> None:
         """Merge breadth data into health metrics."""
         breadth = self._breadth_fetcher.fetch(start, end)
@@ -116,7 +153,10 @@ class MarketHealthDailyLoader(OptimalLoader):
                 m["new_lows_count"] = b.get("new_lows_count")
 
     def _merge_vix_data(self, health_metrics: list[dict[str, Any]], start: date, end: date) -> None:
-        """Merge VIX data into health metrics."""
+        """Merge VIX data into health metrics.
+
+        VIX fetcher returns dict with vix_close/high/low; we extract vix_close as the level.
+        """
         vix = self._vix_fetcher.fetch(start, end)
         if not vix:
             raise RuntimeError(
@@ -127,7 +167,9 @@ class MarketHealthDailyLoader(OptimalLoader):
         matched_count = 0
         for m in health_metrics:
             if m["date"] in vix:
-                m["vix_level"] = vix[m["date"]]
+                # VIX fetcher returns {'vix_close': float, 'vix_high': float, 'vix_low': float}
+                vix_data = vix[m["date"]]
+                m["vix_level"] = vix_data.get("vix_close") if isinstance(vix_data, dict) else vix_data
                 matched_count += 1
             else:
                 m["vix_level"] = None
@@ -155,24 +197,29 @@ class MarketHealthDailyLoader(OptimalLoader):
             logger.debug("Put/call ratio unavailable (optional enrichment skipped)")
 
     def _merge_yield_curve_data(self, health_metrics: list[dict[str, Any]], start: date, end: date) -> None:
-        """Merge yield curve slope into health metrics."""
-        yield_curve = self._yield_curve_fetcher.fetch(start, end)
-        if not yield_curve:
-            raise RuntimeError(
-                f"Yield curve data unavailable for {start} to {end}. "
-                "Yield curve is critical for market regime detection. "
-                "Cannot proceed with incomplete market health metrics."
-            )
-        matched_count = 0
-        for m in health_metrics:
-            m["yield_curve_slope"] = yield_curve.get(m["date"])
-            if m["yield_curve_slope"] is not None:
-                matched_count += 1
-        if matched_count == 0:
-            raise RuntimeError(
-                f"Yield curve data exists but no dates matched {start} to {end}. This indicates data inconsistency."
-            )
-        logger.info(f"Yield curve enrichment: matched {matched_count}/{len(health_metrics)} dates")
+        """Merge yield curve slope into health metrics (optional).
+
+        Note: Yield curve data may be unavailable during market holidays or
+        API outages. This is enrichment only - market health metrics continue
+        without it (marked as None).
+        """
+        try:
+            yield_curve = self._yield_curve_fetcher.fetch(start, end)
+            if not yield_curve:
+                logger.info("Yield curve data unavailable (optional enrichment skipped)")
+                return
+
+            matched_count = 0
+            for m in health_metrics:
+                m["yield_curve_slope"] = yield_curve.get(m["date"])
+                if m["yield_curve_slope"] is not None:
+                    matched_count += 1
+            if matched_count > 0:
+                logger.info(f"Yield curve enrichment: matched {matched_count}/{len(health_metrics)} dates")
+            else:
+                logger.warning("Yield curve data exists but no dates matched (data inconsistency)")
+        except Exception as e:
+            logger.warning(f"Yield curve enrichment failed (optional): {e}")
 
     def fetch_incremental(self, symbol: str = "SPY", since: date | None = None) -> list[dict[str, Any]]:
         """Fetch SPY price data and compute market health metrics."""

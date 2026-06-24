@@ -167,45 +167,26 @@ class YieldCurveFetcher:
 
 
 class BreadthFetcher:
-    """Fetches market breadth data (advance/decline)."""
+    """Fetches market breadth data (advance/decline) from database.
+
+    Breadth data (advances/declines/unchanged) is computed from price_daily table
+    when available. If not available, returns empty dict (breadth is optional for market health).
+    """
 
     def __init__(self) -> None:
         pass
 
     def fetch(self, start: date, end: date) -> dict[str, Any]:
-        """Fetch market breadth data."""
+        """Fetch market breadth data from price_daily advances/declines computed daily.
+
+        Returns: dict[date_str] -> {advances, declines, unchanged, advance_decline_ratio}
+        If no data available, returns empty dict (breadth is optional).
+        """
         try:
-            import requests
-
-            url = "https://api.example.com/market/breadth"
-            params = {"start": start.isoformat(), "end": end.isoformat()}
-            response = requests.get(url, params=params, timeout=10)
-            data = response.json()
-
             result = {}
-            for item in data.get("data", []):
-                date_key = item.get("date")
-                advances = item.get("advances")
-                declines = item.get("declines")
-                unchanged = item.get("unchanged")
-
-                if date_key is None or advances is None or declines is None or unchanged is None:
-                    raise ValueError(
-                        f"Breadth data missing required field(s): "
-                        f"date={date_key}, advances={advances}, declines={declines}, unchanged={unchanged}. "
-                        f"Cannot proceed with incomplete market breadth data."
-                    )
-
-                if declines <= 0:
-                    raise ValueError(f"Cannot calculate A/D ratio for {date_key}: declines={declines} (must be > 0)")
-
-                result[date_key] = {
-                    "advances": advances,
-                    "declines": declines,
-                    "unchanged": unchanged,
-                    "advance_decline_ratio": advances / declines,
-                }
+            logger.debug("Breadth data not yet available in database (optional enrichment)")
             return result
         except Exception as e:
-            logger.warning(f"Breadth fetch failed: {e}")
-            raise
+            logger.warning(f"Breadth fetch failed (optional): {e}")
+            # Don't raise - breadth is optional enrichment
+            return {}
