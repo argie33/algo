@@ -66,12 +66,18 @@ def _check_idempotency(cur: cursor, signature: str) -> dict[str, Any] | None:
             return dict(_json.loads(row[0]))
         return None
     except (psycopg2.Error, _json.JSONDecodeError) as e:
-        logger.warning(f"Idempotency check failed: {e}")
-        return None
+        raise RuntimeError(
+            f"IDEMPOTENCY INFRASTRUCTURE FAILURE: Cannot check idempotency cache: {type(e).__name__}: {e}. "
+            f"Duplicate trade protection unavailable."
+        ) from e
 
 
 def _store_idempotent_response(cur: cursor, signature: str, response: dict[str, Any]) -> None:
-    """Cache the response for this idempotent request signature."""
+    """Cache the response for this idempotent request signature.
+
+    Raises:
+        RuntimeError: If cache write fails. Duplicate trade protection requires caching.
+    """
     try:
         cur.execute(
             """
@@ -82,7 +88,10 @@ def _store_idempotent_response(cur: cursor, signature: str, response: dict[str, 
             (signature, _json.dumps(response)),
         )
     except psycopg2.Error as e:
-        logger.warning(f"Failed to cache idempotent response: {e}")
+        raise RuntimeError(
+            f"IDEMPOTENCY INFRASTRUCTURE FAILURE: Cannot store idempotency cache: {type(e).__name__}: {e}. "
+            f"Duplicate trade protection unavailable."
+        ) from e
 
 
 def handle(

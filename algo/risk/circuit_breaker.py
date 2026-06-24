@@ -782,12 +782,10 @@ class CircuitBreaker:
                 "market_change_pct": round(prior_day_change, 2),
             }
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.warning(f"Prior-day market health check failed: {e}")
-            # Fail-open on data errors — this is an observational check, not a core gate.
-            # Core gates (Phase 1 freshness, CB drawdown, VIX) handle true safety halts.
+            logger.critical(f"CIRCUIT BREAKER: Prior-day market health check failed: {e}")
             return {
-                "halted": False,
-                "reason": f"Prior-day check skipped (data error): {e}",
+                "halted": True,
+                "reason": f"Market health check unavailable (data error): {type(e).__name__}. Cannot proceed without market data.",
             }
 
     def _check_sector_concentration(self, current_date: Any, cur: Any) -> dict[str, Any]:

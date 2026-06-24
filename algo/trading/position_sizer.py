@@ -474,23 +474,9 @@ class PositionSizer:
                 portfolio_value=portfolio_value,
             )
         except (DataUnavailableError, ConfigurationError, ValueError) as e:
-            logger.error(f"Position sizing calculation failed: {type(e).__name__}: {e}")
-            return {
-                "shares": 0,
-                "position_size_pct": 0,
-                "risk_dollars": 0,
-                "status": "error",
-                "reason": str(e),
-            }
+            raise RuntimeError(f"Position sizing calculation failed: {type(e).__name__}: {e}") from e
         except (ZeroDivisionError, TypeError) as e:
-            logger.exception(f"Unexpected error in position sizing: {type(e).__name__}: {e}")
-            return {
-                "shares": 0,
-                "position_size_pct": 0,
-                "risk_dollars": 0,
-                "status": "error",
-                "reason": f"Unexpected error: {type(e).__name__}",
-            }
+            raise RuntimeError(f"Unexpected error in position sizing: {type(e).__name__}: {e}") from e
 
     def _calculate_with_external_cursor(
         self,

@@ -1454,18 +1454,11 @@ def read_market_regime(eval_date: _date) -> dict[str, Any]:
             )
             row = cur.fetchone()
             if row is None:
-                logger.warning(
-                    f"[MARKET REGIME] No market_exposure_daily data on or "
-                    f"before {eval_date} — halting entries (fail-closed)"
+                raise RuntimeError(
+                    f"[MARKET REGIME] No market_exposure_daily data on or before {eval_date}. "
+                    f"Phase 4 must compute daily market exposure. Cannot proceed with regime-aware position sizing. "
+                    f"Run algo_market_exposure.py before trading."
                 )
-                return {
-                    "is_entry_allowed": False,
-                    "exposure_pct": 0,
-                    "regime": "unknown",
-                    "halt_reasons": ["No market regime data available"],
-                    "raw_score": 0,
-                    "exposure_tier": "unknown",
-                }
 
             (
                 is_entry_allowed,
@@ -1477,20 +1470,12 @@ def read_market_regime(eval_date: _date) -> dict[str, Any]:
                 _cached_date,
             ) = row
 
-            # Validate exposure_pct is not NULL — critical for position sizing
             if exposure_pct is None:
-                logger.critical(
-                    f"[MARKET REGIME] market_exposure_daily for {eval_date} "
-                    f"has NULL exposure_pct — halting entries (fail-closed)"
+                raise RuntimeError(
+                    f"[MARKET REGIME] market_exposure_daily for {eval_date} has NULL exposure_pct. "
+                    f"Critical data corruption — cannot determine position sizing constraints. "
+                    f"Cannot proceed until database is repaired."
                 )
-                return {
-                    "is_entry_allowed": False,
-                    "exposure_pct": 0,
-                    "regime": "unknown",
-                    "halt_reasons": ["Market exposure_pct is NULL — cannot proceed with regime-aware sizing"],
-                    "raw_score": 0,
-                    "exposure_tier": exposure_tier or "unknown",
-                }
 
             # Deserialize halt_reasons JSON with consistent error handling
             halt_reasons = []

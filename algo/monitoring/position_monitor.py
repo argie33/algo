@@ -1208,25 +1208,20 @@ class PositionMonitor:
         alpaca_qty: int,
         adjustments: list[dict[str, Any]],
     ) -> None:
-        """Apply stock split adjustment if stop available, else update qty only."""
+        """Apply stock split adjustment to both quantity and stop loss.
+
+        Raises:
+            RuntimeError: If stop_loss is missing when stock split detected. Missing
+            stop loss means position has no protection — cannot silently proceed.
+        """
         split_ratio = alpaca_qty / db_qty if db_qty > 0 else 1.0
 
         if not db_stop:
-            logger.critical(f"STOCK SPLIT DETECTED but no stop in DB for {symbol}. Manual review required.")
-            cur.execute(
-                "UPDATE algo_positions SET quantity = %s WHERE position_id = %s",
-                (alpaca_qty, pos_id),
+            raise RuntimeError(
+                f"STOCK SPLIT DETECTED for {symbol} but current_stop_price is NULL in database. "
+                f"Cannot adjust stop loss — position protection broken. "
+                f"Manual intervention required to restore stop loss protection before trading continues."
             )
-            cur.execute(
-                "INSERT INTO algo_audit_log (action_type, action_date, details, severity) VALUES (%s, %s, %s, %s)",
-                (
-                    "CORPORATE_ACTION_SPLIT_NO_STOP",
-                    datetime.now(timezone.utc),
-                    f"Split: {symbol} {db_qty} -> {alpaca_qty} ratio {split_ratio:.2f}. Qty updated, stop NOT adjusted.",
-                    "CRITICAL",
-                ),
-            )
-            return
 
         new_stop = db_stop / split_ratio
         cur.execute(

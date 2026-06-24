@@ -37,7 +37,11 @@ def check_idempotency_key(cur: Any, idempotency_key: str, endpoint: str, timeout
         timeout_sec: Query timeout in seconds
 
     Returns:
-        Cached response dict if found, None otherwise
+        Cached response dict if found, None if cache miss (legitimate)
+
+    Raises:
+        RuntimeError: If idempotency infrastructure unavailable (table missing or DB connection failure).
+                     Raising prevents silent duplicate trade risk from looking like a cache miss.
     """
     if not idempotency_key:
         return None
@@ -77,17 +81,11 @@ def check_idempotency_key(cur: Any, idempotency_key: str, endpoint: str, timeout
         psycopg2.OperationalError,
         psycopg2.DatabaseError,
     ) as e:
-        # CRITICAL: Idempotency table missing means we cannot prevent duplicate trades.
-        # For financial transactions, missing idempotency protection is a critical failure.
-        # Log critically but return None (gracefully degrade) so non-idempotent requests
-        # proceed with awareness that duplicates are possible. Callers should retry with
-        # exponential backoff to minimize duplicate risk.
-        logger.critical(
-            f"IDEMPOTENCY TABLE UNAVAILABLE: {type(e).__name__}: {e}. "
-            "Duplicate request protection disabled. Retried trades MAY create duplicates. "
-            "Ensure api_idempotency_keys table exists and is accessible."
-        )
-        return None
+        raise RuntimeError(
+            f"IDEMPOTENCY INFRASTRUCTURE FAILURE: {type(e).__name__}: {e}. "
+            f"Cannot check idempotency key — duplicate trade protection unavailable. "
+            f"Ensure api_idempotency_keys table exists and database connection is healthy."
+        ) from e
 
 
 def store_idempotency_key(
@@ -103,7 +101,11 @@ def store_idempotency_key(
         timeout_sec: Query timeout in seconds
 
     Returns:
-        True if stored successfully, False otherwise
+        True if stored successfully
+
+    Raises:
+        RuntimeError: If idempotency infrastructure unavailable (table missing or DB connection failure).
+                     Raising prevents silent duplicate trade risk from returning False.
     """
     if not idempotency_key:
         return False
@@ -127,14 +129,11 @@ def store_idempotency_key(
         psycopg2.OperationalError,
         psycopg2.DatabaseError,
     ) as e:
-        # CRITICAL: Idempotency table missing means we cannot prevent duplicate trades.
-        # Log as ERROR (not debug) since this is a critical safety issue.
-        logger.critical(
-            f"IDEMPOTENCY TABLE UNAVAILABLE: {type(e).__name__}: {e}. "
-            "Cannot store idempotency key — duplicate request protection disabled. "
-            "Ensure api_idempotency_keys table exists and is accessible."
-        )
-        return False
+        raise RuntimeError(
+            f"IDEMPOTENCY INFRASTRUCTURE FAILURE: {type(e).__name__}: {e}. "
+            f"Cannot store idempotency key — duplicate trade protection unavailable. "
+            f"Ensure api_idempotency_keys table exists and database connection is healthy."
+        ) from e
 
 
 def cleanup_expired_keys(cur: Any, days_old: int = 7, timeout_sec: int = 10) -> int:

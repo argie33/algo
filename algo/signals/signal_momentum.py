@@ -217,8 +217,10 @@ class SignalMomentumMixin:
         try:
             return cast(dict[str, Any], self._with_cursor(_check_pivot))
         except (ValueError, ZeroDivisionError, TypeError) as e:
-            logger.debug(f"Pivot breakout check failed: {e}")
-            return {"breakout": False}
+            raise RuntimeError(
+                f"Pivot breakout check failed: {type(e).__name__}: {e}. "
+                f"Cannot distinguish data error from legitimate no-breakout signal."
+            ) from e
 
     def pocket_pivot(self, symbol: str, eval_date: Any, lookback_days: int = 10) -> dict[str, Any]:
         """

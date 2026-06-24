@@ -1322,7 +1322,11 @@ class PriceLoader(OptimalLoader):
             self._validate_market_close_for_1d()
 
     def _validate_market_close_for_1d(self) -> None:
-        """Ensure market close data is available for daily price loads."""
+        """Ensure market close data is available for daily price loads.
+
+        FAIL-FAST: Cannot load daily prices before market close without explicit validation.
+        Raises if market close data cannot be verified available.
+        """
         from algo.infrastructure import MarketCalendar
 
         today = datetime.now(EASTERN_TZ).date()
@@ -1332,23 +1336,20 @@ class PriceLoader(OptimalLoader):
 
         try:
             market_close_available = self._check_market_close_data_available(max_wait_sec=10)
-            if market_close_available:
-                logger.debug("[MARKET_CLOSE] Quick check passed: market close data available")
-            else:
-                # Quick 10s check timed out - proceed anyway. yfinance lags 5-15 min after close.
-                # Phase 1 data freshness check catches staleness after load completes.
-                logger.warning(
-                    "[MARKET_CLOSE] Quick 10s check timed out, proceeding with load. "
-                    "Phase 1 will validate price data freshness."
+            if not market_close_available:
+                raise RuntimeError(
+                    "[MARKET_CLOSE] Market close data not confirmed available within 10s timeout. "
+                    "Cannot load daily prices without market close verification. "
+                    "Either wait for market close or run price loader after market close confirmation."
                 )
+            logger.debug("[MARKET_CLOSE] Verified: market close data available")
+        except RuntimeError:
+            raise
         except Exception as e:
-            # Quick check failed - proceed. Data loading determines actual availability.
-            # Phase 1 data freshness check catches staleness after load completes.
-            logger.warning(
-                "[MARKET_CLOSE] Quick check failed (%s), proceeding with load. "
-                "Phase 1 will validate price data freshness.",
-                e,
-            )
+            raise RuntimeError(
+                f"[MARKET_CLOSE] Market close check failed: {type(e).__name__}: {e}. "
+                f"Cannot load daily prices without market close verification."
+            ) from e
 
     def _execute_batch_jobs(
         self,

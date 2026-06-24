@@ -298,15 +298,17 @@ class ExposurePolicy:
 
         return {"action": "hold", "symbol": symbol, "r_multiple": r_mult}
 
-    def get_entry_constraints(self, eval_date: _date | None = None) -> dict[str, Any] | None:
+    def get_entry_constraints(self, eval_date: _date | None = None) -> dict[str, Any]:
         """Return current constraints for new entries.
 
         FAIL-FAST: When halt_new_entries=True, always includes halt_reason.
         Prevents silent missing reason if entries are halted.
+
+        Raises:
+            RuntimeError: If exposure data unavailable. Entry constraints are critical
+            for position sizing policy — missing them violates risk management.
         """
         active = self.get_active_tier(eval_date)
-        if not active:
-            return None
         tier = active["tier"]
 
         # Build base constraints
@@ -342,24 +344,20 @@ if __name__ == "__main__":
     logger.info("=" * 80)
     logger.info("MARKET EXPOSURE POLICY")
     logger.info("=" * 80)
-    if active:
-        logger.info(f"\nAs of: {active['as_of_date']}")
-        logger.info(f"Exposure: {active['exposure_pct']}%")
-        logger.info(f"Regime:   {active['regime']}")
-        if active.get("halt_reasons"):
-            logger.info(f"HALT:     {active['halt_reasons']}")
-        logger.info(
-            f"\nActive Tier: {active['tier']['name']} ({active['tier']['min_pct']}-{active['tier']['max_pct']}%)"
-        )
-        logger.info(f"  {active['tier']['description']}")
-        logger.info("\nEntry Constraints:")
-        constraints = p.get_entry_constraints()
-        if constraints:
-            for k, v in constraints.items():
-                if k not in ("as_of_date", "tier_name", "description"):
-                    logger.info(f"  {k:30s} = {v}")
-    else:
-        logger.info("\nNo market exposure data — run algo_market_exposure.py first")
+    logger.info(f"\nAs of: {active['as_of_date']}")
+    logger.info(f"Exposure: {active['exposure_pct']}%")
+    logger.info(f"Regime:   {active['regime']}")
+    if active.get("halt_reasons"):
+        logger.info(f"HALT:     {active['halt_reasons']}")
+    logger.info(
+        f"\nActive Tier: {active['tier']['name']} ({active['tier']['min_pct']}-{active['tier']['max_pct']}%)"
+    )
+    logger.info(f"  {active['tier']['description']}")
+    logger.info("\nEntry Constraints:")
+    constraints = p.get_entry_constraints()
+    for k, v in constraints.items():
+        if k not in ("as_of_date", "tier_name", "description"):
+            logger.info(f"  {k:30s} = {v}")
 
     actions = p.review_existing_positions()
     logger.info(f"\n\nPosition Review: {len(actions)} actions recommended")

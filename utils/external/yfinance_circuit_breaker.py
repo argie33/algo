@@ -175,8 +175,10 @@ class YFinanceIPCircuitBreaker:
                     "reason": str(row[5]) if row[5] is not None else "",
                 }
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.warning(f"Failed to read ban state from PostgreSQL: {e}")
-            return None
+            raise RuntimeError(
+                f"CIRCUIT BREAKER INFRASTRUCTURE FAILURE: Cannot read ban state from database: {e}. "
+                f"Circuit breaker state is unreliable. Cannot proceed with external API calls."
+            ) from e
 
     def _set_ban_state(
         self,
@@ -233,7 +235,10 @@ class YFinanceIPCircuitBreaker:
             self._cached_state = None
             logger.info("[YFINANCE-CIRCUIT-BREAKER] Ban state cleared (cooldown expired)")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.warning(f"Failed to clear ban state: {e}")
+            raise RuntimeError(
+                f"CIRCUIT BREAKER INFRASTRUCTURE FAILURE: Cannot clear ban state in database: {e}. "
+                f"Circuit breaker state is unreliable. Cannot proceed."
+            ) from e
 
     def get_diagnostics(self) -> dict[str, Any]:
         """Get current circuit breaker state for diagnostics."""

@@ -491,7 +491,11 @@ def _update_tech_loader_status(status: str, error_message: str | None = None, la
 
 
 def _tech_heartbeat_worker(stop_event: threading.Event) -> None:
-    """Periodically update last_updated to signal loader is alive."""
+    """Periodically update last_updated to signal loader is alive.
+
+    CRITICAL: Heartbeat updates enable hung task detection in monitoring systems.
+    If heartbeat fails, hung task detection is disabled. Log at CRITICAL level.
+    """
     while not stop_event.is_set():
         try:
             if stop_event.wait(timeout=60):  # exits early when stop is requested
@@ -506,7 +510,10 @@ def _tech_heartbeat_worker(stop_event: threading.Event) -> None:
                     ("technical_data_daily", "RUNNING"),
                 )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.error(f"Heartbeat failed — hung task detection disabled: {e}", exc_info=True)
+            logger.critical(
+                f"HEARTBEAT FAILURE: Cannot update loader status — hung task detection DISABLED. "
+                f"Loader may hang without external detection. Database: {type(e).__name__}: {str(e)[:100]}"
+            )
 
 
 def main() -> int:
