@@ -37,7 +37,7 @@ class EarningsCalendarLoader(OptimalLoader):
                 return True
             return False
 
-    def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]] | None:
+    def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]] | None:  # noqa: C901
         """Fetch earnings dates from yfinance for a symbol with retry logic.
 
         Keeps historical earnings (past 60 days) to properly gate blackout windows.
@@ -105,15 +105,19 @@ class EarningsCalendarLoader(OptimalLoader):
                                     }
                                 )
                                 logger.debug(f"[{symbol}] Found earnings date: {ed_date}")
-                        return results if results else []
+                        if not results:
+                            raise ValueError(
+                                f"[{symbol}] No earnings dates found within retention window. "
+                                "Cannot load earnings data without valid dates."
+                            )
+                        return results
                     else:
-                        logger.debug(f"[{symbol}] No earnings date in calendar (within cutoff)")
-                        return []
+                        raise ValueError(
+                            f"[{symbol}] No earnings date in calendar. "
+                            "Cannot proceed without earnings dates for blackout management."
+                        )
 
-                except requests.exceptions.HTTPError as e:
-                    if e.response is not None and e.response.status_code == 404:
-                        logger.debug(f"[{symbol}] Not found on Yahoo Finance (404), skipping")
-                        return []
+                except requests.exceptions.HTTPError:
                     raise
                 except (KeyError, ValueError, TypeError) as e:
                     logger.warning(

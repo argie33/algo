@@ -23,7 +23,7 @@ class FearGreedIndexLoader(OptimalLoader):
     primary_key = ("date",)
     watermark_field = "date"
 
-    def fetch_global(self, since: date | None) -> list[dict[str, Any]] | None:
+    def fetch_global(self, since: date | None) -> list[dict[str, Any]] | None:  # noqa: C901
         """Fetch Fear & Greed Index from CNN."""
         import time
 
@@ -71,12 +71,16 @@ class FearGreedIndexLoader(OptimalLoader):
                 if isinstance(raw, dict):
                     historical = data.get("fear_and_greed_historical")
                     if historical is None:
-                        logger.warning("fear_and_greed_historical missing from CNN API response")
-                        continue
+                        raise RuntimeError(
+                            "[FEAR_GREED] CNN API response missing fear_and_greed_historical field. "
+                            "API response format may have changed."
+                        )
                     historical_data = historical.get("data")
                     if historical_data is None:
-                        logger.warning("fear_and_greed_historical.data missing from CNN API response")
-                        continue
+                        raise RuntimeError(
+                            "[FEAR_GREED] CNN API fear_and_greed_historical.data field missing or invalid. "
+                            "Cannot extract historical Fear & Greed data from response."
+                        )
                     entries = list(historical_data)
                     score = raw.get("score") or raw.get("value")
                     if score is not None:

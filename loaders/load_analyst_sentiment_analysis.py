@@ -73,7 +73,10 @@ class AnalystSentimentLoader(OptimalLoader):
             recs = ticker.recommendations
 
             if recs is None or recs.empty:
-                return []
+                raise RuntimeError(
+                    f"[ANALYST_SENTIMENT] No analyst recommendations available for {symbol}. "
+                    "Cannot assess analyst sentiment without recommendation data."
+                )
 
             # Group by date and aggregate sentiment counts
             sentiment_by_date: dict[Any, dict[str, int]] = {}
@@ -123,9 +126,6 @@ class AnalystSentimentLoader(OptimalLoader):
                 )
             return results
         except requests.exceptions.HTTPError as e:
-            if e.response is not None and e.response.status_code == 404:
-                logger.debug("[%s] Not found on Yahoo Finance (404), skipping", symbol)
-                return []
             raise RuntimeError(
                 f"[ANALYST_SENTIMENT] HTTP error fetching sentiment for {symbol}: {e}. "
                 "Cannot generate signals without sentiment data."

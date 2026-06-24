@@ -136,8 +136,10 @@ class MarketConstituentsLoader(OptimalLoader):
         ]:
             is_valid, error_msg = validate_url(url, allowed_domains=["nasdaqtrader.com"])
             if not is_valid:
-                logger.error(f"SSRF prevention: Invalid {url_name}: {error_msg}")
-                return []
+                raise RuntimeError(
+                    f"[MARKET_CONSTITUENTS] SSRF validation failed for {url_name}: {error_msg}. "
+                    "Cannot fetch tradable symbols without valid data source."
+                )
 
         try:
             logger.debug("Downloading NASDAQ list")
@@ -200,18 +202,27 @@ class MarketConstituentsLoader(OptimalLoader):
             if etf_rows:
                 self._upsert_etf_symbols(etf_rows)
 
-            return rows if rows else []
+            if not rows:
+                raise RuntimeError(
+                    "[MARKET_CONSTITUENTS] No tradable symbols parsed from NASDAQ/NYSE data. "
+                    "Cannot proceed with market constituent list."
+                )
+            return rows
 
         except (requests.RequestException, json.JSONDecodeError) as e:
-            logger.error(f"[MARKET_CONSTITUENTS] Failed to fetch NASDAQ symbols: {e}")
-            return []
+            raise RuntimeError(
+                f"[MARKET_CONSTITUENTS] Failed to fetch NASDAQ symbols: {e}. "
+                "Cannot load market constituents without base symbol data."
+            ) from e
 
     def _fetch_sp500_symbols(self) -> list[str]:
         """Fetch S&P 500 constituents from Wikipedia."""
         is_valid, error_msg = validate_url(SP500_URL, allowed_domains=["wikipedia.org"])
         if not is_valid:
-            logger.error(f"SSRF prevention: Invalid S&P 500 URL: {error_msg}")
-            return []
+            raise RuntimeError(
+                f"[MARKET_CONSTITUENTS] SSRF validation failed for S&P 500 URL: {error_msg}. "
+                "Cannot fetch S&P 500 constituent data."
+            )
 
         try:
             headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
@@ -220,25 +231,33 @@ class MarketConstituentsLoader(OptimalLoader):
 
             tables = pd.read_html(StringIO(response.text))
             if not tables:
-                logger.warning("Could not parse S&P 500 table from Wikipedia")
-                return []
+                raise RuntimeError(
+                    "[MARKET_CONSTITUENTS] Could not parse S&P 500 table from Wikipedia. "
+                    "Cannot load S&P 500 constituent membership data."
+                )
 
             df = tables[0]
             col = "Symbol" if "Symbol" in df.columns else "Ticker"
 
             if col not in df.columns:
-                logger.warning(f"S&P 500 table missing {col} column")
-                return []
+                raise RuntimeError(
+                    f"[MARKET_CONSTITUENTS] S&P 500 table missing {col} column. "
+                    "Cannot extract S&P 500 constituents without symbol data."
+                )
 
             symbols: list[str] = df[col].str.strip().tolist()
             return symbols
 
-        except requests.exceptions.Timeout:
-            logger.warning("[MARKET_CONSTITUENTS] S&P 500 fetch timeout - continuing with available data")
-            return []
+        except requests.exceptions.Timeout as e:
+            raise RuntimeError(
+                "[MARKET_CONSTITUENTS] S&P 500 fetch timeout. "
+                "Wikipedia API is unreachable or slow."
+            ) from e
         except Exception as e:
-            logger.warning(f"[MARKET_CONSTITUENTS] Failed to fetch S&P 500: {e} - continuing with available data")
-            return []
+            raise RuntimeError(
+                f"[MARKET_CONSTITUENTS] Failed to fetch S&P 500: {e}. "
+                "Cannot load S&P 500 constituent data."
+            ) from e
 
     def _fetch_russell2000_symbols(self) -> list[str]:
         """Fetch Russell 2000 constituents from reliable source."""
@@ -278,11 +297,10 @@ class MarketConstituentsLoader(OptimalLoader):
                 logger.debug(f"Failed to fetch Russell 2000 from {url}: {e}")
                 continue
 
-        logger.warning(
-            "[MARKET_CONSTITUENTS] Could not fetch Russell 2000 constituents from any source "
-            "- continuing with available data"
+        raise RuntimeError(
+            "[MARKET_CONSTITUENTS] Failed to fetch Russell 2000 constituents from any available source. "
+            "Cannot load Russell 2000 constituent membership data."
         )
-        return []
 
     def _upsert_etf_symbols(self, etf_rows: list[dict[str, Any]]) -> None:
         """Refresh ETF symbols table (keep separate from tradable symbols)."""

@@ -21,15 +21,15 @@ from loaders.loader_helper import setup_imports
 
 setup_imports()
 
-import logging
-from datetime import date, datetime, timezone
-from typing import Any
+import logging  # noqa: E402
+from datetime import date, datetime, timezone  # noqa: E402
+from typing import Any  # noqa: E402
 
-import psycopg2
+import psycopg2  # noqa: E402
 
-from loaders.runner import run_loader
-from utils.db.context import DatabaseContext
-from utils.optimal_loader import OptimalLoader
+from loaders.runner import run_loader  # noqa: E402
+from utils.db.context import DatabaseContext  # noqa: E402
+from utils.optimal_loader import OptimalLoader  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -44,13 +44,15 @@ class StockScoresLoader(OptimalLoader):
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Compute stock scores for this symbol.
 
-        Returns list with score if computed, empty list if insufficient data.
-        Raises only on actual errors (database failures, calculation exceptions).
+        Raises if unable to compute score due to insufficient data.
         """
         score_result = self._compute_stock_score(symbol)
         if score_result:
             return [score_result]
-        return []
+        raise RuntimeError(
+            f"[STOCK_SCORES] Unable to compute composite score for {symbol}: insufficient metrics available. "
+            "Cannot proceed without adequate data across multiple factors."
+        )
 
     def _compute_stock_score(self, symbol: str) -> dict[str, Any] | None:
         """Compute composite stock score from REAL metrics only (no fake defaults).
