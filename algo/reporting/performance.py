@@ -250,7 +250,7 @@ class LivePerformance:
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def rolling_sortino(self, lookback_days: int = 252) -> float:
+    def rolling_sortino(self, lookback_days: int = 252) -> float | None:
         """Annualized Sortino ratio — penalizes only downside volatility.
 
         More appropriate than Sharpe for directional swing strategies where
@@ -290,7 +290,7 @@ class LivePerformance:
         except (ZeroDivisionError, TypeError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def calmar_ratio(self, lookback_days: int = 252) -> float:
+    def calmar_ratio(self, lookback_days: int = 252) -> float | None:
         """Calmar ratio = annualized return / abs(max drawdown).
 
         Standard benchmark for trend-following strategies. Higher is better.
