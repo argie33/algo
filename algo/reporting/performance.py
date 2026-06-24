@@ -41,7 +41,7 @@ class LivePerformance:
         self.config = config
 
     def rolling_sharpe(self, lookback_days: int = 252) -> float | None:
-        """Compute rolling Sharpe ratio from daily portfolio returns.
+        """Compute rolling Sharpe ratio from daily portfolio returns. FAIL-FAST on insufficient data.
 
         H17 FIX: Includes unrealized gains/losses from open trades since
         total_portfolio_value in snapshots reflects current market value of all positions.
@@ -50,7 +50,11 @@ class LivePerformance:
             lookback_days: Days to look back (default 252 = 1 year)
 
         Returns:
-            Annualized Sharpe ratio or None if insufficient data
+            Annualized Sharpe ratio
+
+        Raises:
+            ValueError: If insufficient data (< 30 snapshots). Sharpe is critical metric for
+                       risk analysis — must not return None which displays as 0.0 on dashboard.
         """
         try:
             with DatabaseContext("read") as cur:
@@ -65,7 +69,11 @@ class LivePerformance:
                 rows = cur.fetchall()
 
             if len(rows) < 30:
-                return None
+                raise ValueError(
+                    f"Cannot calculate Sharpe ratio: insufficient portfolio snapshots ({len(rows)} found, need 30+). "
+                    f"Portfolio history too short ({lookback_days} days). "
+                    f"Sharpe is critical for risk assessment — cannot use default."
+                )
 
             values = []
             for i, row in enumerate(rows):
@@ -83,13 +91,16 @@ class LivePerformance:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def win_rate(self, lookback_trades: int = 50) -> dict[str, float] | None:
-        """Compute win rate and average R-multiple from closed trades.
+        """Compute win rate and average R-multiple from closed trades. FAIL-FAST on no trades.
 
         Args:
             lookback_trades: Number of recent closed trades to analyze
 
         Returns:
             dict with win_rate_pct, avg_win_r, avg_loss_r, win_count, loss_count
+
+        Raises:
+            ValueError: If no closed trades found. Win rate is critical metric — cannot use default.
         """
         try:
             with DatabaseContext("read") as cur:
@@ -128,7 +139,10 @@ class LivePerformance:
                 row = cur.fetchone()
 
             if not row or row[0] == 0:
-                return None
+                raise ValueError(
+                    "Cannot calculate win rate: no closed trades found in past 365 days. "
+                    "Win rate is critical for performance evaluation — cannot use default zero."
+                )
 
             (
                 total,
@@ -172,18 +186,24 @@ class LivePerformance:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def expectancy(self, lookback_trades: int = 50) -> float | None:
-        """Compute expectancy: E = (WR x Avg Win R) - (LR x Avg Loss R).
+        """Compute expectancy: E = (WR x Avg Win R) - (LR x Avg Loss R). FAIL-FAST on insufficient data.
 
         Args:
             lookback_trades: Number of trades for calculation
 
         Returns:
             Expectancy in R-multiples
+
+        Raises:
+            ValueError: If win_rate calculation fails (propagated from win_rate method)
         """
         try:
             wr = self.win_rate(lookback_trades)
             if not wr:
-                return None
+                raise ValueError(
+                    "Expectancy calculation failed: win_rate returned empty result. "
+                    "Cannot compute expectancy without valid win rate metrics."
+                )
 
             win_rate = wr["win_rate_pct"] / 100.0
             loss_rate = 1.0 - win_rate
@@ -196,10 +216,13 @@ class LivePerformance:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def max_drawdown(self) -> float | None:
-        """Compute maximum drawdown from peak portfolio value.
+        """Compute maximum drawdown from peak portfolio value. FAIL-FAST on insufficient data.
 
         Returns:
             Max drawdown as percentage (e.g., -15.5 = 15.5% down from peak)
+
+        Raises:
+            ValueError: If insufficient snapshots (< 2). Max drawdown is critical risk metric.
         """
         try:
             with DatabaseContext("read") as cur:
@@ -211,7 +234,11 @@ class LivePerformance:
                 rows = cur.fetchall()
 
             if len(rows) < 2:
-                return None
+                raise ValueError(
+                    f"Cannot calculate max drawdown: insufficient portfolio snapshots ({len(rows)} found, need 2+). "
+                    f"Need historical portfolio values to assess peak-to-trough decline. "
+                    f"Max drawdown is critical for risk assessment — cannot use default."
+                )
 
             values = []
             for i, row in enumerate(rows):
