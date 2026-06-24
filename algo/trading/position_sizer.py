@@ -371,7 +371,7 @@ class PositionSizer:
     def get_active_positions_value(self) -> Decimal:
         """Get sum of active position values.
 
-        B13: Fail-closed  -" on error, assume high value to prevent over-sizing.
+        Raises DataUnavailableError if database unavailable.
         """
 
         def fetch_positions_value(cur: Any) -> Decimal:
@@ -381,7 +381,9 @@ class PositionSizer:
                 WHERE status = 'open'
             """)
             result = cur.fetchone()
-            return Decimal(str(result[0])) if result else Decimal(0)
+            if not result:
+                raise ValueError("Position value query returned no data")
+            return Decimal(str(result[0]))
 
         try:
             result: Any = self._with_cursor(fetch_positions_value)
@@ -417,10 +419,9 @@ class PositionSizer:
         raise RuntimeError("Could not fetch position count from database. Cannot calculate safe position size.")
 
     def get_active_positions_capital_pct(self) -> Decimal:
-        """Issue #26: Get total capital invested as % of portfolio.
+        """Get total capital invested as % of portfolio.
 
-        Returns capital-based position limit, not just count-based.
-        Fail-fast  -" if data unavailable, raises exception.
+        Raises ValueError if portfolio_value is invalid or database unavailable.
         """
         portfolio_value = self.get_portfolio_value()
         if portfolio_value <= 0:
@@ -434,7 +435,7 @@ class PositionSizer:
             if result is None:
                 raise ValueError("Position capital query returned None")
             total_value = Decimal(str(result[0])) if result[0] is not None else Decimal(0)
-            return (total_value / portfolio_value * Decimal(100)) if portfolio_value > 0 else Decimal(0)
+            return total_value / portfolio_value * Decimal(100)
 
         result: Any = self._with_cursor(fetch_capital_pct)
         if result is not None:

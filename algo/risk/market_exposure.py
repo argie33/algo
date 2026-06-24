@@ -1557,6 +1557,10 @@ if __name__ == "__main__":
             logger.warning(f"  - {r}")
     logger.info("Factor breakdown:")
     for name, info in result["factors"].items():
-        pts = info.get("pts", 0)
-        max_pts = info.get("max", "?")
+        if "pts" not in info:
+            raise KeyError(f"Factor '{name}' missing required 'pts' key: {info}")
+        pts = info["pts"]
+        if "max" not in info:
+            raise KeyError(f"Factor '{name}' missing required 'max' key: {info}")
+        max_pts = info["max"]
         logger.info(f"  {name:22s}: {pts:5.1f} / {max_pts:>3} pts  ({info})")

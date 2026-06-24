@@ -88,9 +88,11 @@ def _calculate_adjusted_win_rate(perf: dict[str, Any] | None, pos: dict[str, Any
         l_val = perf.get("l") if perf else None
         if wr_val is None or w_val is None or l_val is None:
             raise ValueError("Performance data missing: cannot calculate win rate without w/l/wr counts")
-        wr_f = safe_float(wr_val, default=0.0)
-        w_i = safe_int(w_val, default=0)
-        l_i = safe_int(l_val, default=0)
+        wr_f = safe_float(wr_val)
+        w_i = safe_int(w_val)
+        l_i = safe_int(l_val)
+        if wr_f is None or w_i is None or l_i is None:
+            raise ValueError("Performance data conversion failed: invalid numeric values")
         return wr_f, w_i, l_i
 
     closed_wins = perf.get("w")

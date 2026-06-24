@@ -204,7 +204,7 @@ def _build_grade_radar(sig_data: dict[str, Any]) -> list[Text]:
         parts = []
         for s in top_a[:8]:
             score_raw = safe_get_field(s, "score")
-            sc = safe_float(score_raw, default=None)
+            sc = safe_float(score_raw)
             if sc is not None:
                 sc_c = G if sc >= 90 else ("bright_green" if sc >= 85 else "green")
                 parts.append(f"[{sc_c}]{safe_get_field(s, 'symbol', '')}[/][dim]{sc:.0f}[/]")
@@ -219,7 +219,7 @@ def _build_grade_radar(sig_data: dict[str, Any]) -> list[Text]:
         parts = []
         for a in near[:8]:
             score_raw = safe_get_field(a, "score")
-            sc = safe_float(score_raw, default=None)
+            sc = safe_float(score_raw)
             sc_s = f"{sc:.0f}" if sc is not None else "--"
             sym = safe_get_field(a, "symbol", "")
             parts.append(f"[{CY}]{sym}[/][dim]{sc_s}[/]")
@@ -361,9 +361,9 @@ def _build_buy_signals_table(
             G if rr_ratio and rr_ratio > 1.5 else (Y if rr_ratio and rr_ratio > 1 else (CY if rr_ratio else DIM))
         )
 
-        price_f: float | None = safe_float(price, default=None)
-        buy_lvl_f: float | None = safe_float(buy_lvl, default=None)
-        stop_lvl_f: float | None = safe_float(stop_lvl, default=None)
+        price_f: float | None = safe_float(price)
+        buy_lvl_f: float | None = safe_float(buy_lvl)
+        stop_lvl_f: float | None = safe_float(stop_lvl)
         sig_table.add_row(
             Text(sym, style=f"bold {G}"),
             Text(f"{comp_v:.0f}" if comp_v is not None else "⚠", style=comp_c),

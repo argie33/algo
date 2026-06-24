@@ -176,12 +176,12 @@ def panel_recent_trades(trades: Any) -> Any:
         dur_raw = safe_get_field(tr, "trade_duration_days")
 
         # Convert to typed values
-        pnl_d = safe_float(pnl_d_raw, default=None)
-        pnl_p = safe_float(pnl_p_raw, default=None)
-        rmul = safe_float(rmul_raw, default=None)
-        entry_p = safe_float(entry_raw, default=None)
-        exit_p = safe_float(exit_raw, default=None)
-        dur = safe_int(dur_raw, default=None)
+        pnl_d = safe_float(pnl_d_raw)
+        pnl_p = safe_float(pnl_p_raw)
+        rmul = safe_float(rmul_raw)
+        entry_p = safe_float(entry_raw)
+        exit_p = safe_float(exit_raw)
+        dur = safe_int(dur_raw)
         exit_date = safe_get_field(tr, "exit_date") or safe_get_field(tr, "trade_date")
 
         has_pnl = pnl_p is not None

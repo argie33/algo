@@ -148,7 +148,7 @@ class TestSignalQualityScoreWithMalformedData:
         from dashboard.data_validation import safe_float
 
         malformed_score = {"signal_quality_score": {"value": 75}}
-        score = safe_float(malformed_score.get("signal_quality_score"), default=None)
+        score = safe_float(malformed_score.get("signal_quality_score"))
 
         # Should return None, not crash
         assert score is None
@@ -158,7 +158,7 @@ class TestSignalQualityScoreWithMalformedData:
         from dashboard.data_validation import safe_float
 
         malformed_score = [75, 80]
-        score = safe_float(malformed_score, default=None)
+        score = safe_float(malformed_score)
 
         # Should return None, not crash
         assert score is None
@@ -172,7 +172,7 @@ class TestMarketDataWithMalformedPercentages:
         from dashboard.data_validation import safe_float
 
         malformed_data = {"pct_change": {"change": 2.5}}
-        pct = safe_float(malformed_data.get("pct_change"), default=None)
+        pct = safe_float(malformed_data.get("pct_change"))
 
         # Should return None, not crash
         assert pct is None
@@ -182,7 +182,7 @@ class TestMarketDataWithMalformedPercentages:
         from dashboard.data_validation import safe_float
 
         malformed_data = {"avg_return": "2.5%"}
-        ret = safe_float(malformed_data.get("avg_return"), default=None)
+        ret = safe_float(malformed_data.get("avg_return"))
 
         # Should return None, not crash
         assert ret is None
@@ -204,7 +204,7 @@ class TestComparisonSafetyPatterns:
         ]
 
         for v in values:
-            result = safe_float(v.get("key"), default=None)
+            result = safe_float(v.get("key"))
             if result is not None:
                 assert result >= 0  # This comparison is now safe
                 assert result <= 1000  # This comparison is now safe

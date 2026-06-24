@@ -324,7 +324,7 @@ def audit_fallback_usage() -> dict[str, Any]:
     """
     return {
         "acceptable_patterns": [
-            "safe_float(..., default=None) → None handling in rendering layer (OK)",
+            "safe_float(...) → None handling in rendering layer (OK)",
             "safe_int(..., default=0) for count aggregation (OK if 0 is identity)",
             "safe_json_parse(..., default={}) for optional JSON fields (OK)",
         ],
@@ -335,7 +335,7 @@ def audit_fallback_usage() -> dict[str, Any]:
         ],
         "migration_strategy": [
             "Identify all safe_* calls with default=0.0/0 that process financial data",
-            "Change to: safe_float_strict() or safe_float(..., default=None)",
+            "Change to: safe_float_strict() or safe_float(...)",
             "Update callers to check for None instead of assuming 0 is valid data",
             "Add test coverage for missing data scenarios (not just happy path)",
         ],

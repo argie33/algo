@@ -113,9 +113,9 @@ def panel_sector_compact(srank: Any, pos: Any, port: Any, sec_rot: Any = None, i
         def_s = safe_get_field(sec_rot, "def_score")
         cyc_s = safe_get_field(sec_rot, "cyc_score")
         strength = safe_get_field(sec_rot, "strength")
-        def_f = safe_float(def_s, default=None)
-        cyc_f = safe_float(cyc_s, default=None)
-        strength_f = safe_float(strength, default=None)
+        def_f = safe_float(def_s)
+        cyc_f = safe_float(cyc_s)
+        strength_f = safe_float(strength)
         sig_c = R if def_f is not None and def_f >= 60 else (Y if def_f is not None and def_f >= 40 else G)
         scores_s = f" [dim]def:{def_f:.0f} cyc:{cyc_f:.0f}[/]" if def_f is not None or cyc_f is not None else ""
         str_s = f" [dim]spread:{strength_f:.1f}[/]" if strength_f is not None else ""
@@ -182,13 +182,13 @@ def panel_sector_compact(srank: Any, pos: Any, port: Any, sec_rot: Any = None, i
         for a, b in zip(valid_srank[::2], [*valid_srank[1::2], None], strict=False):
             na = (safe_get_field(a, "sector_name", ""))[:13]
             mma = safe_get_field(a, "momentum_score")
-            mma_f = safe_float(mma, default=None)
+            mma_f = safe_float(mma)
             ms_a = f"[dim] mom:{mma_f:.0f}[/]" if mma_f is not None else ""
             la = f"[{G}]#{a['current_rank']:<2}[/] [dim]{na}[/]{ms_a}{_rdelta(a, wk4='rank_4w_ago')}"
             if b:
                 nb = (safe_get_field(b, "sector_name", ""))[:13]
                 mmb = safe_get_field(b, "momentum_score")
-                mmb_f = safe_float(mmb, default=None)
+                mmb_f = safe_float(mmb)
                 ms_b = f"[dim] mom:{mmb_f:.0f}[/]" if mmb_f is not None else ""
                 lb = f"[{G}]#{b['current_rank']:<2}[/] [dim]{nb}[/]{ms_b}{_rdelta(b, wk4='rank_4w_ago')}"
             else:
@@ -278,9 +278,9 @@ def panel_sectors_expanded(srank: Any, pos: Any, port: Any, sec_rot: Any = None,
         cyc_s_raw = safe_get_field(sec_rot, "cyc_score")
         strength_raw = safe_get_field(sec_rot, "strength")
         if def_s_raw is not None and cyc_s_raw is not None and strength_raw is not None:
-            def_s = safe_float(def_s_raw, default=None)
-            cyc_s = safe_float(cyc_s_raw, default=None)
-            strength = safe_float(strength_raw, default=None)
+            def_s = safe_float(def_s_raw)
+            cyc_s = safe_float(cyc_s_raw)
+            strength = safe_float(strength_raw)
             if def_s is not None and cyc_s is not None and strength is not None:
                 sig_c = R if def_s >= 60 else (Y if def_s >= 40 else G)
                 rot_date = safe_get_field(sec_rot, "date")
@@ -310,7 +310,7 @@ def panel_sectors_expanded(srank: Any, pos: Any, port: Any, sec_rot: Any = None,
             logger.warning("Total portfolio value unavailable for sector breakdown")
             pv = None
         else:
-            pv = safe_float(pv_raw, default=None)
+            pv = safe_float(pv_raw)
         sd: dict[str, dict[str, Any]] = {}
         invalid_count = 0
         for p in pos_list:
@@ -319,8 +319,8 @@ def panel_sectors_expanded(srank: Any, pos: Any, port: Any, sec_rot: Any = None,
                 logger.error(f"panel_sectors_expanded: invalid position (not a dict): {type(p).__name__}")
                 continue
             sec = safe_get_field(p, "sector", "Unknown")
-            val = safe_float(safe_get_field(p, "position_value"), default=None)
-            pnl = safe_float(safe_get_field(p, "unrealized_pnl_pct"), default=None)
+            val = safe_float(safe_get_field(p, "position_value"))
+            pnl = safe_float(safe_get_field(p, "unrealized_pnl_pct"))
             if sec not in sd:
                 sd[sec] = {"val": 0.0, "n": 0, "pnls": []}
             if val is not None:

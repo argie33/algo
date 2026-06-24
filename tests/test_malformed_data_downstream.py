@@ -133,20 +133,20 @@ class TestSafeTypeConversions:
         from dashboard.data_validation import safe_float
 
         # Test with various malformed inputs
-        assert safe_float("15.5", default=None) == 15.5  # Can parse
-        assert safe_float({"value": 15.5}, default=None) is None  # Dict -> None
-        assert safe_float([15.5], default=None) is None  # List -> None
-        assert safe_float("not_a_number", default=None) is None  # Invalid string
+        assert safe_float("15.5") == 15.5  # Can parse
+        assert safe_float({"value": 15.5}) is None  # Dict -> None
+        assert safe_float([15.5]) is None  # List -> None
+        assert safe_float("not_a_number") is None  # Invalid string
 
     def test_safe_int_rejects_malformed(self):
         """safe_int should reject non-numeric types."""
         from dashboard.data_validation import safe_int
 
         # Test with various malformed inputs
-        assert safe_int("5", default=None) == 5  # Can parse
-        assert safe_int(5.5, default=None) == 5  # Float converted
-        assert safe_int({"value": 5}, default=None) is None  # Dict -> None
-        assert safe_int([5], default=None) is None  # List -> None
+        assert safe_int("5") == 5  # Can parse
+        assert safe_int(5.5) == 5  # Float converted
+        assert safe_int({"value": 5}) is None  # Dict -> None
+        assert safe_int([5]) is None  # List -> None
 
 
 class TestFullStackWithMalformedData:

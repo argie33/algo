@@ -10,41 +10,40 @@ This module consolidates repeated patterns across the trading system:
 
 import logging
 from decimal import Decimal, InvalidOperation
-from typing import Any, cast, overload
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
-@overload
-def safe_decimal(value: Any, default: Decimal | float) -> Decimal | float: ...
-@overload
-def safe_decimal(value: Any, default: Decimal | float | None = ...) -> Decimal | float | None: ...
-def safe_decimal(value: Any, default: Any = None) -> Decimal | float | None:
-    """Convert value to Decimal safely, returning default on failure.
+def safe_decimal(value: Any) -> Decimal | None:
+    """Convert value to Decimal safely, returning None on failure.
 
     Args:
         value: Value to convert (numeric, string, Decimal, or None)
-        default: Value to return if conversion fails
 
     Returns:
-        Decimal if conversion succeeds, else default
+        Decimal if conversion succeeds, None if value is None or conversion fails
     """
     if value is None:
-        return cast(Decimal | float | None, default)
+        return None
     if isinstance(value, Decimal):
         return value
 
     try:
         return Decimal(str(value))
     except (InvalidOperation, ValueError, TypeError) as e:
-        logger.warning(f"safe_decimal conversion failed for {value!r}: {type(e).__name__}, using default {default!r}")
-        return cast(Decimal | float | None, default)
+        logger.warning(f"safe_decimal conversion failed for {value!r}: {type(e).__name__}")
+        return None
 
 
-def safe_float(value: Any, default: float | None = None) -> float | None:
-    """Convert value to float safely, returning default on failure."""
+def safe_float(value: Any) -> float | None:
+    """Convert value to float safely, returning None on failure.
+
+    Returns None if value is None or conversion fails. Callers must validate
+    before using the result in calculations.
+    """
     if value is None:
-        return default
+        return None
 
     if isinstance(value, float):
         return value
@@ -52,14 +51,18 @@ def safe_float(value: Any, default: float | None = None) -> float | None:
     try:
         return float(value)
     except (ValueError, TypeError) as e:
-        logger.warning(f"safe_float conversion failed for {value!r}: {type(e).__name__}, using default {default!r}")
-        return default
+        logger.warning(f"safe_float conversion failed for {value!r}: {type(e).__name__}")
+        return None
 
 
-def safe_int(value: Any, default: int | None = None) -> int | None:
-    """Convert value to int safely, returning default on failure."""
+def safe_int(value: Any) -> int | None:
+    """Convert value to int safely, returning None on failure.
+
+    Returns None if value is None or conversion fails. Callers must validate
+    before using the result in calculations.
+    """
     if value is None:
-        return default
+        return None
 
     if isinstance(value, int) and not isinstance(value, bool):
         return value
@@ -67,8 +70,8 @@ def safe_int(value: Any, default: int | None = None) -> int | None:
     try:
         return int(value)
     except (ValueError, TypeError) as e:
-        logger.warning(f"safe_int conversion failed for {value!r}: {type(e).__name__}, using default {default!r}")
-        return default
+        logger.warning(f"safe_int conversion failed for {value!r}: {type(e).__name__}")
+        return None
 
 
 def error_response(message: str, **extra_fields: Any) -> dict[str, Any]:

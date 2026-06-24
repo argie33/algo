@@ -263,7 +263,7 @@ def _build_freshness_panel(hlth_items: list[Any], ready_to_trade: bool | None) -
         ic = G if ok else (Y if st == "empty" else R)
         ii = "✓" if ok else ("-" if st == "empty" else "✗")
         rc = "bold white" if role == "CRIT" else (Y if role == "IMP" else DIM)
-        row_count = safe_int(r.get("row_count"), default=None)
+        row_count = safe_int(r.get("row_count"))
         rc_s = f"{row_count:,}" if row_count is not None else "--"
         st_label = "ok" if ok else st.upper()
         all_tbl.add_row(
@@ -302,7 +302,7 @@ def panel_orch(run: dict[str, Any] | None, cfg: dict[str, Any], risk: dict[str, 
     base_risk = cfg_params["base_risk"]
     t1r = cfg_params["t1_r"]
 
-    min_score_f = safe_float(min_score, default=None)
+    min_score_f = safe_float(min_score)
     score_s = f"[dim]min score ≥[/][white]{min_score}[/]" if min_score and min_score_f and min_score_f > 0 else ""
     slots_s = f"[dim]max [/][white]{max_n}[/][dim] positions[/]" if max_n else ""
     sec_s = f"[dim]sector ≤[/][white]{max_sec_n}[/]" if max_sec_n else ""
@@ -319,11 +319,11 @@ def panel_orch(run: dict[str, Any] | None, cfg: dict[str, Any], risk: dict[str, 
             var95_check_f = float(var95_check)
             if var95_check_f > 0 and isinstance(risk_dict, dict):
                 risk_metrics = extract_risk_metrics(risk_dict)
-                var95_val = safe_float(risk_metrics["var95"], default=None)
-                beta_val = safe_float(risk_metrics["beta"], default=None)
-                cvar95_val = safe_float(risk_metrics["cvar95"], default=None)
-                conc5_val = safe_float(risk_metrics["conc5"], default=None)
-                svar_val = safe_float(risk_metrics["svar"], default=None)
+                var95_val = safe_float(risk_metrics["var95"])
+                beta_val = safe_float(risk_metrics["beta"])
+                cvar95_val = safe_float(risk_metrics["cvar95"])
+                conc5_val = safe_float(risk_metrics["conc5"])
+                svar_val = safe_float(risk_metrics["svar"])
                 if None in (var95_val, beta_val, cvar95_val, conc5_val):
                     var_line = ""
                 else:
@@ -536,8 +536,8 @@ def _format_data_health_summary(hlth_items: list[Any]) -> list[Text]:
     else:
         for r in stale[:4]:
             nm = str((r.get("tbl", "") or "--")[:13])
-            age_hours = safe_float(r.get("age_hours"), default=None)
-            age_days = safe_float(r.get("age"), default=None)
+            age_hours = safe_float(r.get("age_hours"))
+            age_days = safe_float(r.get("age"))
             if age_hours is not None:
                 age_s = f"{age_hours:.0f}h" if age_hours < 24 else f"{age_hours / 24:.1f}d"
             elif age_days is not None:
@@ -919,15 +919,15 @@ def _format_risk_snapshot(risk_dict: dict[str, Any]) -> list[Text | Rule]:
     from ..data_validation import safe_float
 
     rows: list[Text | Rule] = []
-    var95_val = safe_float(risk_dict.get("var95"), default=None)
+    var95_val = safe_float(risk_dict.get("var95"))
     if not var95_val or var95_val <= 0:
         return rows
 
     rows.append(Rule(style="dim"))
-    beta_val = safe_float(risk_dict.get("beta"), default=None)
-    conc5_val = safe_float(risk_dict.get("conc5"), default=None)
-    cvar95_val = safe_float(risk_dict.get("cvar95"), default=None)
-    svar_val = safe_float(risk_dict.get("svar"), default=None)
+    beta_val = safe_float(risk_dict.get("beta"))
+    conc5_val = safe_float(risk_dict.get("conc5"))
+    cvar95_val = safe_float(risk_dict.get("cvar95"))
+    svar_val = safe_float(risk_dict.get("svar"))
 
     beta_c = (
         R if (beta_val is not None and beta_val >= 1.2) else (Y if (beta_val is not None and beta_val >= 0.8) else G)
@@ -1460,13 +1460,13 @@ def panel_algo_health(  # noqa: C901
     # ── E: Risk snapshot (VaR / CVaR / Beta / Concentration) ────────────────────
     risk_dict = safe_get_dict(risk) if not has_error(risk) else {}
     if risk_dict:
-        var95_val = safe_float(risk_dict.get("var95"), default=None)
+        var95_val = safe_float(risk_dict.get("var95"))
         if var95_val and var95_val > 0:
             rows.append(Rule(style="dim"))
-            beta_val = safe_float(risk_dict.get("beta"), default=None)
-            conc5_val = safe_float(risk_dict.get("conc5"), default=None)
-            cvar95_val = safe_float(risk_dict.get("cvar95"), default=None)
-            svar_val = safe_float(risk_dict.get("svar"), default=None)
+            beta_val = safe_float(risk_dict.get("beta"))
+            conc5_val = safe_float(risk_dict.get("conc5"))
+            cvar95_val = safe_float(risk_dict.get("cvar95"))
+            svar_val = safe_float(risk_dict.get("svar"))
             beta_c = (
                 R
                 if beta_val is not None and beta_val >= 1.2
@@ -1668,14 +1668,14 @@ def _build_results_panel(  # noqa: C901
             right_rows.append(Text.from_markup(f"  [{ic}]{ii}[/] [dim]{dt_s}[/]  [{ic}]{s}[/]{hr_s}"))
 
     risk_dict_b = (safe_get_dict(risk) if not has_error(risk) else None) or {}
-    var95_b = safe_float(risk_dict_b.get("var95"), default=None) if risk_dict_b else None
+    var95_b = safe_float(risk_dict_b.get("var95")) if risk_dict_b else None
     if var95_b is not None and var95_b > 0:
         right_rows.append(Rule(style="dim"))
-        var95_val_e = safe_float(var95_b, default=None)
-        beta_val_e = safe_float(risk_dict_b.get("beta"), default=None)
-        conc5_val_e = safe_float(risk_dict_b.get("conc5"), default=None)
-        cvar95_val_e = safe_float(risk_dict_b.get("cvar95"), default=None)
-        svar_val_e = safe_float(risk_dict_b.get("svar"), default=None)
+        var95_val_e = safe_float(var95_b)
+        beta_val_e = safe_float(risk_dict_b.get("beta"))
+        conc5_val_e = safe_float(risk_dict_b.get("conc5"))
+        cvar95_val_e = safe_float(risk_dict_b.get("cvar95"))
+        svar_val_e = safe_float(risk_dict_b.get("svar"))
         beta_c = (
             R
             if beta_val_e is not None and beta_val_e >= 1.2

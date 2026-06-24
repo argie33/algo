@@ -122,7 +122,7 @@ def panel_circuit(cb: Any) -> Panel:
             cur = br.get("cur")
             lbl_s = str(br.get("lbl", "N/A"))[:20]
             if thr is None or cur is None:
-                thr_f = safe_float(thr, default=None)
+                thr_f = safe_float(thr)
                 thr_s = "--" if thr_f is None else f"{thr_f:.0f}"
                 cur_s = "--" if cur is None else str(cur)
                 return (
