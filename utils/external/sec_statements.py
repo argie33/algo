@@ -179,7 +179,9 @@ def _aggregate_concepts(
                 # Snake-case the concept for column compatibility
                 col = _to_snake(concept)
                 # Keep latest filing if multiple for same period
-                if col not in row or (entry.get("filed") or "") > (row.get(f"_filed_{col}") or ""):
+                entry_filed = entry.get("filed") or ""
+                row_filed = row.get(f"_filed_{col}") or ""
+                if col not in row or entry_filed > row_filed:
                     row[col] = entry.get("val")
                     row[f"_filed_{col}"] = entry.get("filed")
 
