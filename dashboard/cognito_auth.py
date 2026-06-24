@@ -102,11 +102,13 @@ class CognitoAuth:
     def get_authorization_header(self) -> dict[str, str]:
         """Get Authorization header, refreshing if needed. Validates token format before returning.
 
-        Raises: RuntimeError if authentication was previously established but is now lost.
-        Returns: Empty dict only if never authenticated (no token ever obtained).
+        Raises: RuntimeError if authentication unavailable or lost (API requires valid auth).
+        Never returns empty dict — authentication is required for API access.
         """
         if not self.access_token:
-            return {}
+            raise RuntimeError(
+                "No authentication token available. User must authenticate before accessing API."
+            )
 
         if self.is_token_expired():
             if not self.refresh_token:
@@ -120,13 +122,11 @@ class CognitoAuth:
                 self._auth_lost_time = time.time()
                 raise RuntimeError(msg)
 
-        if self.access_token and not self._is_valid_jwt(self.access_token):
+        if not self.access_token or not self._is_valid_jwt(self.access_token):
             msg = "Authorization header validation failed: token is not a valid JWT - authentication compromised"
             logger.error(msg)
             raise RuntimeError(msg)
 
-        if not self.access_token:
-            return {}
         return {"Authorization": f"Bearer {self.access_token}"}
 
     def _is_valid_jwt(self, token: str) -> bool:

@@ -42,23 +42,30 @@ def extract_field(data: dict[str, Any], field_name: str, default: Any = None) ->
 def extract_items_list(data: dict[str, Any]) -> list[Any]:
     """Extract items array from paginated API response.
 
-    Raises DataExtractionError if response contains _error field.
-    Returns empty list only if items key is missing (but no error).
+    Raises DataExtractionError if response contains _error field, or if data structure is invalid.
+    Never silently returns empty list — failures must be explicit.
 
     Args:
         data: Response dict containing "items" array
 
     Returns:
-        List of items, or empty list if items key missing/not a list
+        List of items (never empty as fallback)
+
+    Raises:
+        DataExtractionError: If data is not a dict, contains error, or items key missing/invalid
     """
     if not isinstance(data, dict):
-        return []
+        raise DataExtractionError(f"Expected dict but got {type(data).__name__}. Invalid response structure.")
 
     if has_error(data):
         raise DataExtractionError(f"Error in response: {data.get('_error')}")
 
     items = data.get("items")
-    return items if isinstance(items, list) else []
+    if items is None:
+        raise DataExtractionError("Response missing required 'items' key")
+    if not isinstance(items, list):
+        raise DataExtractionError(f"Expected 'items' to be a list but got {type(items).__name__}")
+    return items
 
 
 def extract_data_or_empty(data: Any, default_type: type = dict, allow_empty: bool = False) -> Any:
