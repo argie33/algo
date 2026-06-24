@@ -917,11 +917,18 @@ def _get_dashboard_signals(cur: cursor) -> Any:
         freshness = check_data_freshness(cur, "swing_trader_scores", "date", warning_days=1)
 
         # Count qualifying buy signals (score >= 70) for the "n BUY" display
-        from dashboard.data_validation import safe_float
+        def _try_float(value):
+            if value is None:
+                return None
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                return None
+
         qualifying_buy_count = sum(
             1 for s in buy_sigs if (
-                safe_float(s.get("signal_quality_score"), default=None) is not None
-                and safe_float(s.get("signal_quality_score"), default=None) >= 70
+                _try_float(s.get("signal_quality_score")) is not None
+                and _try_float(s.get("signal_quality_score")) >= 70
             )
         )
         sig_response = {
