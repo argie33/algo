@@ -25,15 +25,21 @@ class VIXFetcher:
         )
 
     def fetch(self, start: date, end: date) -> dict[str, Any]:
-        """Fetch VIX data with circuit breaker protection. Fails fast if unavailable."""
+        """Fetch VIX data with circuit breaker protection. Fails fast if unavailable.
+
+        Raises:
+            RuntimeError: If VIX data cannot be fetched (CRITICAL for circuit breaker)
+        """
         result = self.breaker.execute(
             fetch_func=lambda: self._fetch_vix_data(start, end),
             importance=DataImportance.CRITICAL,
             fallback_value=None,
         )
         if result is None:
-            raise RuntimeError("VIX data unavailable - circuit breaker failed")
-        return result if isinstance(result, dict) else {}
+            raise RuntimeError("VIX data unavailable - circuit breaker failed. Cannot proceed without VIX data for market halt decisions.")
+        if not isinstance(result, dict):
+            raise RuntimeError(f"VIX fetch returned invalid data type {type(result).__name__} — expected dict")
+        return result
 
     def _fetch_vix_data(self, start: date, end: date) -> dict[str, Any]:
         """Internal VIX fetch implementation."""
