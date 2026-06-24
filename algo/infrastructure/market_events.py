@@ -56,7 +56,10 @@ class MarketEventHandler:
             }
             resp = requests.get(url, headers=headers, timeout=get_api_timeout())
             if resp.status_code != 200:
-                return None
+                raise RuntimeError(
+                    f"Cannot verify halt status for {symbol}: API returned {resp.status_code}. "
+                    f"Cannot trade without halt status verification."
+                )
 
             try:
                 data = resp.json()
@@ -152,7 +155,10 @@ class MarketEventHandler:
                 open_price = bars_future.result(timeout=get_market_data_timeout() + 2)
 
             if not current_price or not open_price:
-                return None
+                raise RuntimeError(
+                    f"Cannot verify circuit breaker status: missing prices (current={current_price}, open={open_price}). "
+                    f"Cannot trade without circuit breaker data validation."
+                )
 
             pct_down = (float(open_price) - float(current_price)) / float(open_price) * 100
 
@@ -212,22 +218,17 @@ class MarketEventHandler:
                 )
                 row = cur.fetchone()
 
-                if row:
-                    return bool(row[0])
+            if row is None:
+                raise RuntimeError(
+                    f"Cannot verify early close status for {check_date}: "
+                    f"missing market_health_daily record. Cannot trade without verified market hours."
+                )
 
-            # Fallback: check known dates
-            # Day after Thanksgiving (4th Thursday of November)
-            # Find all Thursdays in November (weekday() == 3 means Thursday)
-            nov_thursdays = [d for d in range(1, 31) if datetime(check_date.year, 11, d).weekday() == 3]
-            if len(nov_thursdays) >= 4:
-                day_after_thanksgiving = nov_thursdays[3] + 1  # 4th Thursday + 1 day
-                if check_date.month == 11 and check_date.day == day_after_thanksgiving:
-                    return True
+            return bool(row[0])
 
-            # Christmas Eve (Dec 24)
-            return bool(check_date.month == 12 and check_date.day == 24)
-
-        except (RuntimeError, TypeError, ValueError, KeyError) as e:
+        except RuntimeError:
+            raise
+        except (TypeError, ValueError, KeyError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def check_after_hours_window(self, check_time: datetime | None = None) -> bool:

@@ -150,29 +150,39 @@ class MarketExposure:
                 logger.critical(msg)
                 raise RuntimeError(msg)
 
-            halt_reasons = []
             if halt_reasons_str:
                 try:
                     halt_reasons = json.loads(halt_reasons_str)
                     if not isinstance(halt_reasons, list):
-                        logger.warning(f"halt_reasons is not a list: {type(halt_reasons)}")
-                        halt_reasons = []
-                except (json.JSONDecodeError, TypeError) as e:
-                    logger.error(f"Malformed halt_reasons JSON: {e} — treating as empty list")
-                    halt_reasons = []
+                        raise RuntimeError(
+                            f"halt_reasons is not a list: {type(halt_reasons)}. "
+                            f"Corrupted market exposure data cannot be trusted for trading."
+                        )
+                except json.JSONDecodeError as e:
+                    raise RuntimeError(
+                        f"Malformed halt_reasons JSON: {e}. "
+                        f"Corrupted market exposure data cannot be trusted for trading."
+                    ) from e
+            else:
+                halt_reasons = []
 
-            factors = {}
             if isinstance(factors_obj, dict):
                 factors = factors_obj
             elif factors_obj:
                 try:
                     factors = json.loads(factors_obj)
                     if not isinstance(factors, dict):
-                        logger.warning(f"factors is not a dict: {type(factors)}")
-                        factors = {}
-                except (json.JSONDecodeError, TypeError) as e:
-                    logger.error(f"Malformed factors JSON: {e} — treating as empty dict")
-                    factors = {}
+                        raise RuntimeError(
+                            f"factors is not a dict: {type(factors)}. "
+                            f"Corrupted market exposure data cannot be trusted for trading."
+                        )
+                except json.JSONDecodeError as e:
+                    raise RuntimeError(
+                        f"Malformed factors JSON: {e}. "
+                        f"Corrupted market exposure data cannot be trusted for trading."
+                    ) from e
+            else:
+                factors = {}
 
             if dist_days is None:
                 raise ValueError("Distribution days data missing; cannot assess institutional distribution risk")
