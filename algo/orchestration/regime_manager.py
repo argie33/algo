@@ -103,6 +103,9 @@ class RegimeManager:
         Reads from market_exposure_daily.regime (as_of_date or latest).
 
         Returns: 'confirmed_uptrend'|'uptrend_under_pressure'|'caution'|'correction'
+
+        FAIL-FAST: Raises RuntimeError if market exposure regime data is unavailable.
+        Market regime is critical for position sizing — missing data must halt trading.
         """
         try:
             if as_of_date is None:
@@ -117,11 +120,21 @@ class RegimeManager:
                 )
                 row = cur.fetchone()
 
-            regime = str(row[0]) if row is not None and row[0] is not None else "caution"
+            if row is None or row[0] is None:
+                raise RuntimeError(
+                    f"Market regime data unavailable for {as_of_date}. "
+                    f"market_exposure_daily table has no regime computed. "
+                    f"Phase 4 (market exposure calculation) must complete successfully before trading."
+                )
+
+            regime = str(row[0])
 
             if regime not in self.REGIMES:
-                logger.warning(f"Unknown regime '{regime}', defaulting to caution (conservative)")
-                regime = "caution"
+                raise RuntimeError(
+                    f"Market regime '{regime}' is invalid. "
+                    f"Expected one of: {', '.join(self.REGIMES)}. "
+                    f"Check market_exposure_daily computation — regime field corrupt."
+                )
 
             return regime
 
@@ -130,11 +143,20 @@ class RegimeManager:
             raise RuntimeError(f"[REGIME] Failed to determine market regime (cannot trade without regime): {e}") from e
 
     def get_regime_params(self, as_of_date: _date | None = None) -> dict[str, Any]:
-        """Get parameter overrides for current regime."""
+        """Get parameter overrides for current regime.
+
+        FAIL-FAST: Raises KeyError if regime is not in REGIME_PARAMS.
+        All valid regimes must be defined in REGIME_PARAMS.
+        """
         regime = self.get_current_regime(as_of_date)
+        if regime not in self.REGIME_PARAMS:
+            raise RuntimeError(
+                f"CRITICAL: Regime '{regime}' exists in market_exposure_daily but has no parameter mapping. "
+                f"REGIME_PARAMS must define parameters for all valid regimes: {list(self.REGIME_PARAMS.keys())}"
+            )
         return cast(
             dict[str, Any],
-            self.REGIME_PARAMS.get(regime, self.REGIME_PARAMS["caution"]),
+            self.REGIME_PARAMS[regime],
         )
 
     def get_position_size_multiplier(self, as_of_date: _date | None = None) -> float:

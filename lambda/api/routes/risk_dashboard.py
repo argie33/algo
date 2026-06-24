@@ -240,8 +240,9 @@ def _fetch_drawdown_info(cur: cursor) -> Any:
 def _fetch_exposure_tier_info(cur: cursor) -> Any:
     """Get current market exposure tier (NORMAL/CAUTION/PRESSURE).
 
-    Fails if market exposure data is unavailable: returning defaults could mask
-    risk and allow over-exposure when system conditions are unknown.
+    FAIL-FAST: Raises if market exposure data is unavailable or invalid.
+    Market tier is critical for position sizing — missing/invalid data must halt trading.
+    No defaults allowed for exposure_pct or tier fields.
     """
     rows = execute_with_timeout(
         cur,
@@ -260,19 +261,49 @@ def _fetch_exposure_tier_info(cur: cursor) -> Any:
         raise ValueError("Market exposure data invalid (null row)")
 
     try:
-        exposure_pct = float(row["exposure_pct"]) if row["exposure_pct"] else 100
-        tier = row["regime"] or "NORMAL"
-        rationale = row["halt_reasons"] or "No data"
+        exposure_pct_raw = row["exposure_pct"]
+        if exposure_pct_raw is None or (isinstance(exposure_pct_raw, float) and exposure_pct_raw < 0):
+            raise ValueError(
+                "CRITICAL: exposure_pct missing or invalid from market_exposure_daily. "
+                "Phase 4 (market exposure calculation) must complete successfully. "
+                "Cannot compute position sizing without valid exposure_pct."
+            )
+        exposure_pct = float(exposure_pct_raw)
+
+        tier_raw = row["regime"]
+        if tier_raw is None or str(tier_raw).strip() == "":
+            raise ValueError(
+                "CRITICAL: regime missing from market_exposure_daily. "
+                "Phase 4 (market exposure calculation) must compute valid regime. "
+                "Cannot determine position size multiplier without valid regime."
+            )
+        tier = str(tier_raw).strip().lower()
+
+        # Validate tier is one of the known regimes
+        tier_multipliers = {
+            "confirmed_uptrend": 1.0,
+            "uptrend_under_pressure": 0.75,
+            "caution": 0.50,
+            "correction": 0.0,
+        }
+        if tier not in tier_multipliers:
+            raise ValueError(
+                f"CRITICAL: Invalid regime '{tier}' from market_exposure_daily. "
+                f"Expected one of: {', '.join(tier_multipliers.keys())}. "
+                f"Check market exposure computation — regime field corrupt."
+            )
+
+        rationale = row["halt_reasons"]
+        if rationale is None:
+            rationale = "No halt reasons recorded"
+        else:
+            rationale = str(rationale).strip()
+
         return {
             "current_tier": tier,
             "exposure_pct": exposure_pct,
             "rationale": rationale,
-            "position_size_multiplier": {
-                "confirmed_uptrend": 1.0,
-                "uptrend_under_pressure": 0.75,
-                "caution": 0.50,
-                "correction": 0.0,
-            }.get(tier.lower() if tier else "", 1.0),
+            "position_size_multiplier": tier_multipliers[tier],
         }
     except (ValueError, ZeroDivisionError, TypeError) as e:
         logger.critical(f"Exposure tier computation failed: {e}")
