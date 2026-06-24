@@ -381,7 +381,12 @@ def run(
     # Check for halt flag set by exposure policy
     # exposure_constraints validated above - always exists and has required keys
     if exposure_constraints["halt_new_entries"]:
-        reason = exposure_constraints.get("halt_reason", "Exposure policy halted new entries")
+        reason = exposure_constraints.get("halt_reason")
+        if not reason:
+            raise RuntimeError(
+                "[PHASE 8 CRITICAL] Exposure policy halted entries but no halt_reason provided. "
+                "Cannot determine why trading is halted. Exposure constraints data incomplete."
+            )
 
         logger.warning(f"[PHASE 8] {reason}")
 

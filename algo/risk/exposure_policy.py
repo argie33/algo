@@ -299,12 +299,18 @@ class ExposurePolicy:
         return {"action": "hold", "symbol": symbol, "r_multiple": r_mult}
 
     def get_entry_constraints(self, eval_date: _date | None = None) -> dict[str, Any] | None:
-        """Return current constraints for new entries."""
+        """Return current constraints for new entries.
+
+        FAIL-FAST: When halt_new_entries=True, always includes halt_reason.
+        Prevents silent missing reason if entries are halted.
+        """
         active = self.get_active_tier(eval_date)
         if not active:
             return None
         tier = active["tier"]
-        return {
+
+        # Build base constraints
+        constraints = {
             "as_of_date": active["as_of_date"],
             "exposure_pct": active["exposure_pct"],
             "regime": active["regime"],
@@ -317,6 +323,17 @@ class ExposurePolicy:
             "halt_new_entries": tier["halt_new_entries"],
             "max_concentration_pct": tier["max_concentration_pct"],
         }
+
+        # When halting entries, always include explicit reason
+        if tier["halt_new_entries"]:
+            constraints["halt_reason"] = (
+                f"Market tier '{tier['name']}' halts new entries: {tier['description']} "
+                f"(Exposure: {active['exposure_pct']}%)"
+            )
+        else:
+            constraints["halt_reason"] = None
+
+        return constraints
 
 
 if __name__ == "__main__":
