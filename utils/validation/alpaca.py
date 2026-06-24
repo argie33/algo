@@ -188,9 +188,14 @@ class AlpacaResponseValidator:
 
         errors = []
 
-        # Portfolio value (required)
-        portfolio_value = data.get("portfolio_value") or data.get("equity")
-        if portfolio_value is not None:
+        # Portfolio value (required) — validate explicitly, don't fall back silently
+        portfolio_value = data.get("portfolio_value")
+        if portfolio_value is None:
+            portfolio_value = data.get("equity")
+
+        if portfolio_value is None:
+            errors.append("Missing portfolio_value and equity fields — cannot determine account balance")
+        elif portfolio_value is not None:
             try:
                 portfolio_value = float(portfolio_value)
                 if portfolio_value < 0:

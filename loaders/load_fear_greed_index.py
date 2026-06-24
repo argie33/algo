@@ -82,21 +82,26 @@ class FearGreedIndexLoader(OptimalLoader):
                             "Cannot extract historical Fear & Greed data from response."
                         )
                     entries = list(historical_data)
-                    score = raw.get("score") or raw.get("value")
-                    if score is not None:
+                    # Validate current reading score field
+                    score = raw.get("score")
+                    if score is None:
+                        score = raw.get("value")
+                    if score is None:
+                        logger.warning("CNN API current fear_and_greed missing both 'score' and 'value' fields; skipping current reading")
+                    else:
                         from datetime import datetime as _dt
 
                         rating = raw.get("rating")
                         if rating is None:
                             logger.warning("Fear & Greed entry missing 'rating' field; skipping")
-                            continue
-                        entries.append(
-                            {
-                                "_date": _dt.utcnow().strftime("%Y-%m-%d"),
-                                "y": score,
-                                "rating": rating,
-                            }
-                        )
+                        else:
+                            entries.append(
+                                {
+                                    "_date": _dt.utcnow().strftime("%Y-%m-%d"),
+                                    "y": score,
+                                    "rating": rating,
+                                }
+                            )
                 else:
                     entries = raw
 
@@ -106,7 +111,9 @@ class FearGreedIndexLoader(OptimalLoader):
                         from datetime import datetime as _dt
 
                         x_val = entry.get("x")
-                        date_str = entry.get("_date") or entry.get("date")
+                        date_str = entry.get("_date")
+                        if date_str is None:
+                            date_str = entry.get("date")
                         if x_val is not None:
                             entry_date = _dt.utcfromtimestamp(int(x_val) / 1000).strftime("%Y-%m-%d")
                         elif date_str:
@@ -117,14 +124,20 @@ class FearGreedIndexLoader(OptimalLoader):
                                 f"(x={x_val}, _date={entry.get('_date')}, date={entry.get('date')})"
                             )
                             continue
-                        value = entry.get("y", entry.get("value"))
+                        value = entry.get("y")
+                        if value is None:
+                            value = entry.get("value")
                         if value is None:
                             logger.debug(
                                 f"Fear & Greed entry skipped — missing value field on {entry_date} "
                                 f"(y={entry.get('y')}, value={entry.get('value')})"
                             )
                             continue
-                        label = entry.get("rating") or entry.get("description", "Neutral")
+                        label = entry.get("rating")
+                        if label is None:
+                            label = entry.get("description")
+                        if label is None:
+                            label = "Neutral"
                         rows.append(
                             {
                                 "date": entry_date,

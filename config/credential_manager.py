@@ -371,8 +371,13 @@ class CredentialManager:
                         if not secret_string:
                             raise ValueError(f"User secret '{user_secret_id}' exists but contains no SecretString")
                         creds = _json.loads(secret_string)
+                        # Validate credential fields explicitly (don't chain fallbacks)
                         key = creds.get("api_key") or creds.get("APCA_API_KEY_ID")
                         secret = creds.get("api_secret") or creds.get("APCA_API_SECRET_KEY")
+                        if not key:
+                            raise ValueError(f"User secret '{user_secret_id}' missing api_key and APCA_API_KEY_ID fields")
+                        if not secret:
+                            raise ValueError(f"User secret '{user_secret_id}' missing api_secret and APCA_API_SECRET_KEY fields")
                         if key and secret:
                             logger.info(f"[CREDENTIALS] User-scoped Alpaca credentials loaded for {user_id}")
                             return {"key": key, "secret": secret}

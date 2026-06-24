@@ -35,7 +35,10 @@ class CompanyProfileLoader(OptimalLoader):
                     f"[COMPANY_PROFILE] {symbol}: ticker.info is {type(info).__name__} or empty. "
                     "Cannot fetch company profile without valid info dict[str, Any]."
                 )
-            market_cap = info.get("marketCap") or info.get("market_cap")
+            # Market cap (optional but valuable for analysis)
+            market_cap = info.get("marketCap")
+            if market_cap is None:
+                market_cap = info.get("market_cap")
 
             # Company name is REQUIRED - fail fast if missing
             company_name = info.get("longName") or info.get("shortName")
