@@ -164,32 +164,35 @@ def run(
                 str(e),
             )
 
-        # Transient failure (e.g., database connection issue): Apply conservative defaults
-        logger.critical(f"Exposure policy computation failed — applying conservative defaults (fail-closed): {e}")
-
-        # Conservative defaults: strictest constraints to prevent unlimited position sizing
-        conservative_constraints = {
-            "tier_name": "CAUTION",
-            "description": "Conservative defaults (exposure policy unavailable)",
-            "risk_multiplier": 0.5,
-            "max_new_positions_today": 2,  # Drastically limit new entries
-            "min_swing_grade": "A",  # Highest bar for entry
-            "halt_new_entries": False,  # Transient failure: allow limited trading
-            "max_concentration_pct": 5.0,  # Tightest concentration limit
-            "halt_reason": f"Exposure policy unavailable: {str(e)[:80]}",
+        # Transient failure (e.g., database connection issue): HALT ALL ENTRIES
+        # Risk multiplier, entry constraints, and concentration limits are load-bearing.
+        # Exposing them to be wrong is more dangerous than halting trading.
+        logger.critical(
+            f"CRITICAL: Exposure policy computation failed on transient error. "
+            f"Cannot proceed with trading without valid risk management constraints: {e}"
+        )
+        fail_halt_constraints = {
+            "tier_name": "CORRECTION",
+            "description": "Exposure policy unavailable due to system error — no entries allowed",
+            "risk_multiplier": 0.0,
+            "max_new_positions_today": 0,
+            "min_swing_grade": "A+",
+            "halt_new_entries": True,  # HALT: System error in exposure policy
+            "max_concentration_pct": 0.0,
+            "halt_reason": f"Exposure policy system error (transient): {str(e)[:100]}. No entries allowed until resolved.",
         }
 
         log_phase_result_fn(
             "3b",
             "exposure_policy",
-            "fallback",
-            f"Using conservative constraints due to error: {str(e)[:80]}",
+            "error",
+            f"Exposure policy error (transient) — halting entries: {str(e)[:80]}",
         )
         return PhaseResult(
             "3b",
             "exposure_policy",
-            "degraded",
-            {"constraints": conservative_constraints, "actions": []},
+            "error",
+            {"constraints": fail_halt_constraints, "actions": []},
             False,
             str(e),
         )
