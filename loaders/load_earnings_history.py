@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-import sys
-
 """
 Earnings History Loader - Optimal Pattern.
 
@@ -12,13 +10,14 @@ Run:
 """
 
 import logging
-from typing import Any
-
-logger = logging.getLogger(__name__)
+import sys
 from datetime import date
+from typing import Any
 
 from loaders.runner import run_loader
 from utils.optimal_loader import OptimalLoader
+
+logger = logging.getLogger(__name__)
 
 
 class EarningsHistoryLoader(OptimalLoader):
@@ -37,7 +36,10 @@ class EarningsHistoryLoader(OptimalLoader):
             ticker = get_ticker(yf_symbol)
             df = ticker.earnings_dates
             if df is None or (hasattr(df, "empty") and df.empty):
-                return []
+                raise RuntimeError(
+                    f"[EARNINGS_HISTORY] No earnings history available for {symbol}. "
+                    "Cannot track earnings surprises without historical data."
+                )
 
             rows = []
             cutoff = since.isoformat() if since else "2000-01-01"
