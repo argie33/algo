@@ -135,8 +135,7 @@ class VectorizedSwingScoresLoader:
                 )
                 return pd.DataFrame(cur.fetchall(), columns=["symbol", "date", "composite_sqs"])
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.error(f"Failed to fetch signal scores: {e}")
-            return pd.DataFrame()
+            raise RuntimeError(f"[SIGNAL QUALITY FETCH FAILED] Cannot load signal quality scores: {e}") from e
 
     def _fetch_technical_data(self, symbols: list[str], start_date: date, end_date: date) -> pd.DataFrame:
         """Fetch technical indicators for all symbols at once."""
@@ -154,8 +153,7 @@ class VectorizedSwingScoresLoader:
                     columns=["symbol", "date", "rsi", "atr_14", "volume_ma_50"],
                 )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.error(f"Failed to fetch technical data: {e}")
-            return pd.DataFrame()
+            raise RuntimeError(f"[TECHNICAL DATA FETCH FAILED] Cannot load technical indicators: {e}") from e
 
     def _fetch_trend_template_data(self, symbols: list[str], start_date: date, end_date: date) -> pd.DataFrame:
         """Fetch trend template scores for all symbols at once."""
@@ -180,8 +178,7 @@ class VectorizedSwingScoresLoader:
                     ],
                 )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.error(f"Failed to fetch trend data: {e}")
-            return pd.DataFrame()
+            raise RuntimeError(f"[TREND DATA FETCH FAILED] Cannot load trend template data: {e}") from e
 
     def _compute_all_scores_vectorized(
         self,
@@ -211,13 +208,12 @@ class VectorizedSwingScoresLoader:
 
                 # trend_template_data (always in pipeline) is the only hard requirement
                 if trend is None:
-                    continue
+                    raise ValueError(f"{symbol}: No trend template data found (critical upstream requirement)")
 
                 # Apply hard gate: minimum trend score
                 # (consistent with SwingTraderScore.compute)
                 if "minervini_trend_score" not in trend:
-                    logger.warning(f"{symbol}: trend data missing 'minervini_trend_score' field")
-                    continue
+                    raise ValueError(f"{symbol}: trend data missing required 'minervini_trend_score' field")
                 minervini = trend.get("minervini_trend_score")
                 minervini = float(minervini) if pd.notna(minervini) else 0.0
 
@@ -233,8 +229,7 @@ class VectorizedSwingScoresLoader:
                 # Apply hard gate: Weinstein stage must be 2
                 # (uptrend phase)
                 if "weinstein_stage" not in trend:
-                    logger.warning(f"{symbol}: trend data missing 'weinstein_stage' field")
-                    continue
+                    raise ValueError(f"{symbol}: trend data missing required 'weinstein_stage' field")
                 weinstein = trend.get("weinstein_stage")
                 weinstein = int(weinstein) if pd.notna(weinstein) else 0
                 if weinstein != 2:
@@ -342,10 +337,9 @@ class VectorizedSwingScoresLoader:
                     ]
                     missing_fields = [f for f in required_score_fields if f not in row or pd.isna(row.get(f))]
                     if missing_fields:
-                        logger.warning(
-                            f"{row.get('symbol', '?')}: Score data missing fields {missing_fields}; skipping row"
+                        raise ValueError(
+                            f"{row.get('symbol', '?')}: Score data missing required fields {missing_fields}"
                         )
-                        continue
 
                     grade = row["grade"]
                     # Include grade in components so API can read it via components->>'grade'
@@ -379,8 +373,7 @@ class VectorizedSwingScoresLoader:
                 return inserted
 
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.error(f"Bulk insert failed: {e}")
-            return 0
+            raise RuntimeError(f"[BULK INSERT FAILED] Cannot persist swing trader scores: {e}") from e
 
 
 def _update_swing_loader_status(status: str, error_message: str | None = None) -> None:

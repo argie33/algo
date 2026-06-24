@@ -72,8 +72,6 @@ def _get_markets_cached() -> dict[str, Any]:
     On transient 503 errors: Attempts to use stale cache from previous successful calls
     to maintain dashboard stability during API service interruptions.
     """
-    from .api_data_layer import get_cached_response
-
     if "result" in _markets_cache:
         return cast(dict[str, Any], _markets_cache["result"])
 
@@ -84,23 +82,16 @@ def _get_markets_cached() -> dict[str, Any]:
         try:
             data = api_call("/api/algo/markets")
 
-            # On transient 503 errors, try to fall back to stale cache
+            # CRITICAL: Never fall back to stale market data. Market prices must be current.
+            # If API is unavailable, it's better to fail and alert the user than to show
+            # outdated prices that could lead to incorrect position sizing.
             if data.get("_is_transient_503"):
-                logger.warning("API /api/algo/markets returned 503, attempting stale cache fallback")
-                try:
-                    stale_data = get_cached_response("/api/algo/markets", mark_stale=True)
-                    if stale_data:
-                        # Mark as stale for dashboard display
-                        stale_data = dict(stale_data)
-                        stale_data["_data_stale"] = True
-                        logger.info("Using stale cached market data during API outage")
-                        # DON'T cache stale data in _markets_cache - next call should retry API
-                        # Only return the stale data, so next refresh attempt will call api_call again
-                        return stale_data
-                except Exception as e:
-                    logger.warning(f"Stale cache fallback failed: {e}")
+                error_result = {
+                    "_error": "Market data API unavailable (503). Fresh market prices required for trading decisions."
+                }
+                logger.error("API /api/algo/markets returned 503 - returning error, not stale cache")
                 # Don't cache 503 error - let next call retry the API
-                return data
+                return error_result
 
             # Only cache successful responses (no _error field)
             if not data.get("_error"):
