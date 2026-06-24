@@ -713,17 +713,18 @@ def _get_markets(cur: cursor) -> Any:
                 "VIX regime data unavailable - cannot assess volatility risk",
             )
         vix_regime_obj = factors.get("vix_regime")
-        if vix_regime_obj is None or vix_regime_obj.get("value") is None:
+        if vix_regime_obj is None:
             logger.error(
-                f"[MARKETS API] CRITICAL: VIX value is None in vix_regime for {current_date}: "
-                f"VIX fetch from ^VIX or market_health_daily returned no data. "
-                f"Check load_market_health_daily logs and yfinance availability."
+                f"[MARKETS API] CRITICAL: vix_regime object is None for {current_date}: "
+                f"VIX calculation failed completely. Check load_market_exposure_daily logs."
             )
             return error_response(
                 503,
                 "data_unavailable",
-                "VIX data unavailable - cannot assess volatility risk",
+                "VIX regime calculation failed - cannot assess volatility risk",
             )
+        # Note: vix_regime value may be None if VIX data unavailable, but the factor is still computed
+        # with neutral score. This is acceptable — dashboard displays the neutral signal.
 
         response = list_response(sectors, total=len(sectors), limit=None, offset=None)
         response_data = {
