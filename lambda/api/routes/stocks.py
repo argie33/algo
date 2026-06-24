@@ -70,8 +70,16 @@ def handle(
             return error_response(404, "not_found", f"Stock {symbol} not found")
 
         if path == "/api/stocks/deep-value":
+            # Extract limit parameter from query params (default to "200" if not provided)
+            limit_val = None
+            if params and params.get("limit"):
+                limit_list = params["limit"]
+                if limit_list:
+                    limit_val = limit_list[0]
+            if not limit_val:
+                limit_val = "200"
             limit = safe_limit(
-                (params.get("limit", [None])[0] if params else None) or "200",
+                limit_val,
                 max_val=1000,
             )
             # Fast check: return empty if financial data not loaded yet (table missing or empty)

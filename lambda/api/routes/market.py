@@ -481,8 +481,8 @@ def _handle_seasonality(cur: cursor) -> Any:
                         "win_rate_pct": (
                             round(
                                 (
-                                    float(best_month.get("winning_years") or 0)
-                                    / float(best_month.get("years_counted") or 1)
+                                    float(best_month.get("winning_years"))
+                                    / float(best_month.get("years_counted"))
                                     * 100
                                 ),
                                 1,
@@ -737,9 +737,10 @@ def _handle_naaim(cur: cursor) -> Any:
             naaim_val = r_dict.get("naaim_number_mean")
             bullish_val = r_dict.get("bullish")
             bearish_val = r_dict.get("bearish")
+            date_val = r_dict.get("date")
             history.append(
                 {
-                    "date": str(r_dict.get("date") or ""),
+                    "date": str(date_val) if date_val is not None else "",
                     "value": (float(naaim_val) if naaim_val is not None else None),
                     "bullish_pct": (float(bullish_val) if bullish_val is not None else None),
                     "bearish_pct": (float(bearish_val) if bearish_val is not None else None),

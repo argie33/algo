@@ -40,7 +40,14 @@ def handle(
             return error_response(400, "bad_request", "Symbol required")
 
         sym = symbol.upper()
-        period = (params.get("period", [None])[0] if params else None) or "annual"
+        # Extract period from params list (default to "annual" if not provided)
+        period = None
+        if params and params.get("period"):
+            period_list = params["period"]
+            if period_list:
+                period = period_list[0]
+        if not period:
+            period = "annual"
         limit = safe_limit(params.get("limit", [None])[0] if params else None, max_val=40, default=8)
 
         if endpoint == "key-metrics":
