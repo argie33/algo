@@ -209,7 +209,12 @@ class SecEdgarClient:
                         "form": entry.get("form"),
                     }
                 )
-        results.sort(key=lambda r: (r["fiscal_year"] or 0, r.get("filed") or ""))
+        # Sort by fiscal year (default 0) then by filed date (default empty string)
+        def sort_key(r: dict) -> tuple:
+            year = r["fiscal_year"] or 0
+            filed = r.get("filed") or ""
+            return (year, filed)
+        results.sort(key=sort_key)
         return results
 
     def get_quarterly_concept(

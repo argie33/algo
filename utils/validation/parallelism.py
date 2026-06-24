@@ -220,15 +220,18 @@ class ParallelismValidator:
         passed = sum(1 for r in results.values() if r.get("test_passed", False))
         total = len(results)
 
+        failures = []
+        for name, r in results.items():
+            if not r.get("test_passed", False):
+                issues = r.get('issues_found')
+                issues_str = '; '.join(issues) if issues else ""
+                failures.append(f"{name}: {issues_str}")
+
         return {
             "all_passed": passed == total,
             "results": results,
             "summary": f"{passed}/{total} loaders validated successfully",
-            "failures": [
-                f"{name}: {'; '.join(r.get('issues_found') or [])}"
-                for name, r in results.items()
-                if not r.get("test_passed", False)
-            ],
+            "failures": failures,
         }
 
     def log_validation_status(self) -> None:

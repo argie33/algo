@@ -121,8 +121,11 @@ def fetch_economic_pulse(c: None) -> dict[str, Any]:
             strict=True,
             field_name="credit.BAMLH0A0HYM2",
         )
+        ig_val = credit_latest.get("BAMLH0A0IG")
+        if ig_val is None:
+            ig_val = credit_latest.get("BAMLC0A0CM")
         ig = safe_float(
-            credit_latest.get("BAMLH0A0IG") or credit_latest.get("BAMLC0A0CM"),
+            ig_val,
             strict=True,
             field_name="credit.BAMLH0A0IG",
         )
@@ -398,7 +401,10 @@ def fetch_activity(c: None) -> dict[str, Any]:
             (i.get("details", {}).get("run_id") for i in items if i.get("details", {}).get("run_id")),
             None,
         )
-        phases = [i for i in items if (i.get("action_type") or "").startswith("phase_")]
+        phases = [
+            i for i in items
+            if (i.get("action_type") or "").startswith("phase_")
+        ]
         return {
             "run_id": run_id,
             "run_at": run_at,

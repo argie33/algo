@@ -130,7 +130,9 @@ class DataAgeValidator:
 
         message = f"{status} {table_name}: {age_days}d old (threshold {adjusted_threshold}d) — {level}"
         if verbose and rule:
-            message += f" [applies to: {', '.join(rule.get('applies_to') or [])}]"
+            applies_to = rule.get('applies_to')
+            applies_to_str = ', '.join(applies_to) if applies_to else ""
+            message += f" [applies to: {applies_to_str}]"
 
         return {
             "is_fresh": is_fresh,
