@@ -234,7 +234,8 @@ class PanelRegistry:
             "health": ["header", "exposure", "health"],
             "sectors": ["header", "exposure", "sectors"],
         }
-        return view_panels.get(view_mode) or []
+        result = view_panels.get(view_mode)
+        return result if result is not None else []
 
     def get_critical_panels(self) -> list[str]:
         """Get panels that are not optional (dashboard won't fully render without them)."""

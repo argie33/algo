@@ -128,7 +128,9 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
         dry_run = event["dry_run"] if "dry_run" in event else env_dry_run
 
         # Support both 'date' and 'run_date' fields from EventBridge; treat 'now'/'today' as None (use today's date)
-        run_date_str = event.get("date") or event.get("run_date")
+        run_date_str = event.get("date")
+        if run_date_str is None:
+            run_date_str = event.get("run_date")
 
         # Parse run_identifier from EventBridge Scheduler to determine run purpose
         # Issue #15: dry_run should be explicit; default based on run_identifier only if not specified

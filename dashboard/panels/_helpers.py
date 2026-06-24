@@ -103,10 +103,14 @@ def _best_halt_reason(top_level: str, phase_results: list[Any]) -> list[tuple[st
     )
     found: list[tuple[str, str]] = []
     for p in phase_results or []:
-        ps = (p.get("status") or "").lower()
+        ps = p.get("status")
+        ps = (ps if ps is not None else "").lower()
         if ps not in ("halt", "halted"):
             continue
-        raw = (p.get("name") or p.get("phase", "")).lower()
+        raw = p.get("name")
+        if raw is None:
+            raw = p.get("phase", "")
+        raw = (raw if raw is not None else "").lower()
         parts = raw.split("_")
         base = "_".join(parts[:2]) if len(parts) >= 2 else raw
         label = PHASE_NAMES.get(base, raw.replace("phase_", "P"))

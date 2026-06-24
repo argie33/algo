@@ -421,7 +421,8 @@ def panel_header_market(
         if sentiment and not has_error(sentiment):
             fg_v = sentiment.get("fg")
             if fg_v is not None:
-                fg_lbl = (sentiment.get("label") or "")[:14]
+                fg_lbl_raw = sentiment.get("label")
+                fg_lbl = (fg_lbl_raw if fg_lbl_raw is not None else "")[:14]
                 fg_c = sentiment.get("color")
                 if fg_c is None:
                     fg_c = "dim"

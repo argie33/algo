@@ -372,8 +372,12 @@ class CredentialManager:
                             raise ValueError(f"User secret '{user_secret_id}' exists but contains no SecretString")
                         creds = _json.loads(secret_string)
                         # Validate credential fields explicitly (don't chain fallbacks)
-                        key = creds.get("api_key") or creds.get("APCA_API_KEY_ID")
-                        secret = creds.get("api_secret") or creds.get("APCA_API_SECRET_KEY")
+                        key = creds.get("api_key")
+                        if key is None:
+                            key = creds.get("APCA_API_KEY_ID")
+                        secret = creds.get("api_secret")
+                        if secret is None:
+                            secret = creds.get("APCA_API_SECRET_KEY")
                         if not key:
                             raise ValueError(f"User secret '{user_secret_id}' missing api_key and APCA_API_KEY_ID fields")
                         if not secret:

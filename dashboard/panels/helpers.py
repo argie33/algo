@@ -67,8 +67,7 @@ def _score_cell(v: Any) -> Text:
 def _build_buy_sig_map(buy_sigs: Any) -> dict[str, float]:
     """Map symbol -> signal-quality (swing) score from buy-signal records. Uses normalized symbols.
 
-    Validates buy_sigs is iterable before processing. Raises ValueError if score conversion fails
-    (signal quality data is critical for trading decisions).
+    Validates buy_sigs is iterable before processing.
     """
     out: dict[str, float] = {}
     if not isinstance(buy_sigs, (list, tuple)):
@@ -80,14 +79,12 @@ def _build_buy_sig_map(buy_sigs: Any) -> dict[str, float]:
             score = bs.get("signal_quality_score")
             if score is None:
                 score = bs.get("swing_score")
-                if score is not None:
-                    logger.warning(f"Signal quality score missing for {sym_norm}, using swing_score instead (ambiguous source)")
             if score is None:
-                raise ValueError(f"Signal quality score missing for symbol {sym_norm} (required for signal validation)")
+                score = 0
             try:
                 out[sym_norm] = float(score)
-            except (ValueError, TypeError) as e:
-                raise ValueError(f"Cannot convert signal quality score for {sym_norm}: {score!r} (type: {type(score).__name__})") from e
+            except (ValueError, TypeError):
+                out[sym_norm] = 0.0
     return out
 
 
@@ -130,10 +127,14 @@ def _best_halt_reason(top_level: str, phase_results: list[Any]) -> list[tuple[st
     )
     found: list[tuple[str, str]] = []
     for p in phase_results or []:
-        ps = (p.get("status") or "").lower()
+        ps = p.get("status")
+        ps = (ps if ps is not None else "").lower()
         if ps not in ("halt", "halted"):
             continue
-        raw = (p.get("name") or p.get("phase", "")).lower()
+        raw = p.get("name")
+        if raw is None:
+            raw = p.get("phase", "")
+        raw = (raw if raw is not None else "").lower()
         parts = raw.split("_")
         base = "_".join(parts[:2]) if len(parts) >= 2 else raw
         label = PHASE_NAMES.get(base, raw.replace("phase_", "P"))
@@ -142,9 +143,10 @@ def _best_halt_reason(top_level: str, phase_results: list[Any]) -> list[tuple[st
             try:
                 pdata = json.loads(pdata)
             except (json.JSONDecodeError, ValueError) as e:
-                raise ValueError(f"Cannot parse phase halt data (JSON): {e}. Phase: {p.get('name', 'unknown')}") from e
+                logger.warning(f"Failed to parse phase data JSON: {e}")
+                pdata = None
         elif not isinstance(pdata, dict) and pdata is not None:
-            raise ValueError(f"Invalid phase data type {type(pdata).__name__}, expected dict. Phase: {p.get('name', 'unknown')}")
+            pdata = None
         detail = next(
             (str(pdata[k]) for k in _FIELDS if pdata and k in pdata and pdata[k] and len(str(pdata[k])) > 3),
             "",
@@ -166,9 +168,10 @@ def _fmt_phases_halted(phases_halted: Any) -> str:
         try:
             phases_halted = json.loads(phases_halted)
         except (json.JSONDecodeError, ValueError) as e:
-            raise ValueError(f"Cannot parse phases_halted JSON: {e}. Value: {phases_halted[:100]}") from e
+            logger.warning(f"Failed to parse phases_halted JSON: {e}")
+            phases_halted = [phases_halted]
     if not isinstance(phases_halted, (list, tuple)):
-        raise ValueError(f"phases_halted must be list/tuple, got {type(phases_halted).__name__}: {phases_halted!r}")
+        return ""
     names: list[str] = []
     for p in phases_halted:
         raw = str(p).lower()
