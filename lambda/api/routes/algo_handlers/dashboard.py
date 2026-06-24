@@ -112,7 +112,21 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:
 
         if any(v is None for v in [entry_raw, cur_price_raw, stop_raw, t1_raw, t2_raw, t3_raw]):
             invalid_positions.append(d.get("symbol", "unknown"))
-            logger.warning(f"Position {d.get('symbol')} missing required price fields")
+            missing_fields = [
+                f for f, v in [
+                    ("entry", entry_raw),
+                    ("current", cur_price_raw),
+                    ("stop", stop_raw),
+                    ("t1", t1_raw),
+                    ("t2", t2_raw),
+                    ("t3", t3_raw),
+                ]
+                if v is None
+            ]
+            logger.error(
+                f"Position {d.get('symbol')}: missing price fields ({', '.join(missing_fields)}). "
+                f"Cannot compute ladder visualization. Dashboard display will be incomplete."
+            )
             continue
 
         try:
