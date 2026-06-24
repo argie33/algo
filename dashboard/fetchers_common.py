@@ -133,19 +133,22 @@ def validate_required_fields(data_dict: Any, required_fields: list[str], source_
 
 
 def check_data_freshness(data_dict: Any, max_age_seconds: int = 3600) -> dict[str, Any] | None:
-    """Check if data timestamp is within acceptable age. Returns error dict if stale."""
+    """Check if data timestamp is within acceptable age. Returns error dict if stale or missing.
+
+    Raises ValueError if timestamp is missing or invalid (financial data freshness is critical).
+    """
     if not isinstance(data_dict, dict):
-        return None
+        raise ValueError(f"Expected dict for freshness check, got {type(data_dict).__name__}")
     ts = data_dict.get("timestamp")
     if not ts:
-        return None
+        raise ValueError("Data timestamp missing (required to validate data freshness)")
     try:
         ts_dt = datetime.fromisoformat(ts) if isinstance(ts, str) else ts
         age = (datetime.now(ts_dt.tzinfo or ET) - ts_dt).total_seconds()
         if age > max_age_seconds:
             return {"_error": f"Data too stale: {age:.0f}s old (max {max_age_seconds}s)"}
-    except (ValueError, TypeError, AttributeError):
-        pass
+    except (ValueError, TypeError, AttributeError) as e:
+        raise ValueError(f"Cannot parse data timestamp {ts!r}: {e}") from e
     return None
 
 

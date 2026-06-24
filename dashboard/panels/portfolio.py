@@ -368,14 +368,22 @@ def panel_performance_spark(
 
     rows: list[Any] = [header, tbl]
 
-    # Equity curve sparkline
-    equity_vals = perf.get("equity_vals") or []
+    # Equity curve sparkline (required for performance display)
+    equity_vals = perf.get("equity_vals")
+    if equity_vals is None:
+        raise ValueError("Performance data missing 'equity_vals' field (required for equity curve rendering)")
+    if not isinstance(equity_vals, list):
+        raise ValueError(f"Invalid equity_vals type {type(equity_vals).__name__}, expected list")
     if len(equity_vals) >= 3:
         sp = sparkline(equity_vals, width=28)
         rows.append(Text.from_markup(f"[dim]Equity curve:[/] {sp}"))
 
-    # Recent daily returns (last 5 snapshots)
-    recent_rets = perf.get("recent_rets") or []
+    # Recent daily returns (last 5 snapshots) (required for recent performance display)
+    recent_rets = perf.get("recent_rets")
+    if recent_rets is None:
+        raise ValueError("Performance data missing 'recent_rets' field (required for recent returns display)")
+    if not isinstance(recent_rets, list):
+        raise ValueError(f"Invalid recent_rets type {type(recent_rets).__name__}, expected list")
     if recent_rets:
         parts: list[str] = []
         for item in recent_rets[-5:]:
