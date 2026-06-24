@@ -328,14 +328,14 @@ def _build_buy_signals_table(
         sig_obj = buy_sig_details.get(sym_norm)
 
         if sig_obj:
-            swing_score = safe_get_field(sig_obj, "swing_score") or safe_get_field(sig_obj, "signal_quality_score") or 0
+            swing_score = safe_get_field(sig_obj, "swing_score") or safe_get_field(sig_obj, "signal_quality_score")
             entry_qual = safe_get_field(sig_obj, "entry_quality_score", swing_score)
             buy_lvl = safe_get_field(sig_obj, "buylevel")
             stop_lvl = safe_get_field(sig_obj, "stoplevel")
             price = safe_get_field(sig_obj, "close") or safe_get_field(score_item, "current_price")
         else:
-            swing_score = 0
-            entry_qual = 0
+            swing_score = None
+            entry_qual = None
             buy_lvl = None
             stop_lvl = None
             price = safe_get_field(score_item, "current_price")
@@ -356,7 +356,7 @@ def _build_buy_signals_table(
         except (StrictValidationError, ValueError, TypeError):
             pass
         comp_c: str = _composite_score_color(comp_v) if comp_v is not None else "dim"
-        swing_c: str = G if swing_score >= 80 else (CY if swing_score >= 70 else Y)
+        swing_c: str = G if (swing_score is not None and swing_score >= 80) else (CY if (swing_score is not None and swing_score >= 70) else Y)
         rr_c: str = (
             G if rr_ratio and rr_ratio > 1.5 else (Y if rr_ratio and rr_ratio > 1 else (CY if rr_ratio else DIM))
         )
@@ -367,12 +367,12 @@ def _build_buy_signals_table(
         sig_table.add_row(
             Text(sym, style=f"bold {G}"),
             Text(f"{comp_v:.0f}" if comp_v is not None else "⚠", style=comp_c),
-            Text(f"▲{swing_score:.0f}", style=swing_c),
+            Text(f"▲{swing_score:.0f}" if swing_score is not None else "--", style=swing_c),
             Text(f"${price_f:.2f}" if price_f is not None else "--", style="dim"),
             Text(f"${buy_lvl_f:.2f}" if buy_lvl_f is not None else "--", style=CY),
             Text(f"${stop_lvl_f:.2f}" if stop_lvl_f is not None else "--", style=R),
             Text(f"{rr_ratio:.2f}" if rr_ratio else "--", style=rr_c),
-            Text(f"{entry_qual:.0f}", style=CY),
+            Text(f"{entry_qual:.0f}" if entry_qual is not None else "--", style=CY),
         )
     rows.append(sig_table)
     rows.append(Rule(style="dim"))
@@ -701,7 +701,7 @@ def panel_signals_expanded(sig: Any, sig_eval: Any = None, scores: Any = None) -
                 ),
                 Text(
                     f"{vs200_v:+.1f}%" if vs200_v is not None else "--",
-                    style=G if (vs200_v or 0) > 0 else R,
+                    style=G if (vs200_v is not None and vs200_v > 0) else R,
                 ),
                 Text(sector, style=DIM),
             )

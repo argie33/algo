@@ -135,12 +135,15 @@ def panel_sector_compact(srank: Any, pos: Any, port: Any, sec_rot: Any = None, i
         rows.append(Text.from_markup(f"[dim]Holdings by sector:{hdr_more}[/]"))
 
         def fmt_sec_item(sec: str, dv: dict[str, Any]) -> str:
-            pct = dv["val"] / pv * 100 if pv else 0
-            avg_pnl = sum(dv["pnls"]) / len(dv["pnls"]) if dv["pnls"] else 0
-            pc = G if avg_pnl >= 0 else R
+            if pv is None or pv == 0:
+                raise ValueError("Cannot format sector item: portfolio value missing or zero")
+            pct = dv["val"] / pv * 100
+            avg_pnl = sum(dv["pnls"]) / len(dv["pnls"]) if dv["pnls"] else None
+            pc = G if (avg_pnl is not None and avg_pnl >= 0) else R
             bar_f = int(min(pct, 30) / 30 * 4)
             bar_s = f"[{pc}]{'█' * bar_f}[/][dim]{'░' * (4 - bar_f)}[/]"
-            return f"[white]{sec[:13]:<13}[/]{bar_s}[dim]{pct:3.0f}%[/] [{pc}]{avg_pnl:+.1f}%[/]"
+            pnl_str = f"{avg_pnl:+.1f}%" if avg_pnl is not None else "N/A"
+            return f"[white]{sec[:13]:<13}[/]{bar_s}[dim]{pct:3.0f}%[/] [{pc}]{pnl_str}[/]"
 
         sec_tbl = Table.grid(padding=(0, 2), expand=True)
         sec_tbl.add_column("a", ratio=1)

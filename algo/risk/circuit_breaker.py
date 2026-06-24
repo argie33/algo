@@ -439,10 +439,13 @@ class CircuitBreaker:
         if row is None or row[3] is None or int(row[3]) < 10:
             return {"halted": False, "reason": "Insufficient closed trades (< 10)"}
 
-        wins = int(row[0]) if row[0] is not None else 0
-        losses = int(row[1]) if row[1] is not None else 0
+        if row[0] is None or row[1] is None:
+            logger.critical("Circuit breaker win/loss counts missing from database — cannot evaluate win-rate threshold")
+            return {"halted": True, "reason": "Trade count data unavailable — halting as safety precaution"}
+        wins = int(row[0])
+        losses = int(row[1])
         int(row[2]) if row[2] is not None else 0
-        total = int(row[3]) if row[3] is not None else 0
+        total = int(row[3])
 
         # Win rate based on wins vs (wins + losses), excluding break-even trades
         # This avoids dilution where many break-even trades inflate the denominator

@@ -284,6 +284,8 @@ class MarketExposure:
 
             # --- 5. Selling pressure (heavy-volume down days) ---
             sp = self.calculator.selling_pressure(eval_date, cur)
+            if sp.get('count') is None:
+                raise RuntimeError("Selling pressure count unavailable — cannot calculate market distribution days")
             sp_pts, sp_avail = self.calculator._wt_pts(sp, self.W_SELLING_PRESSURE)
             avail_max += sp_avail
             factors["distribution_days"] = {  # key preserved for frontend/API compatibility
@@ -292,7 +294,7 @@ class MarketExposure:
                 "max": self.W_SELLING_PRESSURE,
             }
             score += sp_pts
-            logger.debug(f"  Selling pressure: {sp.get('count', 0)} days, {sp_pts:.1f} pts")
+            logger.debug(f"  Selling pressure: {sp['count']} days, {sp_pts:.1f} pts")
 
             # --- 6. VIX regime (level + VIX3M term structure) ---
             # _vix_regime() raises RuntimeError if VIX data is unavailable (critical dependency).

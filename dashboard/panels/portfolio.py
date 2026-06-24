@@ -396,7 +396,9 @@ def panel_performance_spark(
                 dt, ret = item[0], item[1]
             else:
                 continue
-            ret = ret or 0
+            if ret is None:
+                continue
+            ret = safe_float(ret, strict=True, field_name="daily_return")
             rc = G if ret >= 0 else R
             if hasattr(dt, "strftime"):
                 d_s = dt.strftime("%a")
@@ -518,7 +520,9 @@ def panel_portfolio_perf_expanded(  # noqa: C901
 
         try:
             wr_v, _adj_w, adj_l = _calculate_adjusted_win_rate(perf, pos)
-            losing_open = (adj_l or 0) - (closed_losses or 0)
+            if adj_l is None:
+                raise ValueError("Adjusted loss count is None — cannot calculate adjusted win rate")
+            losing_open = adj_l - (closed_losses or 0)
         except ValueError as e:
             logger.warning(f"Win rate calculation failed: {e}")
             wr_v = 0.0
@@ -550,11 +554,9 @@ def panel_portfolio_perf_expanded(  # noqa: C901
             "Streak:",
             Text(str_s, style=str_c),
         )
-        pnl_val_safe = pnl_val if pnl_val is not None else 0
-        unrlzd_pnl_safe = unrlzd_pnl if unrlzd_pnl is not None else 0
         perfblk.add_row(
             "Total P&L:",
-            Text(fmt_money(pnl_val), style=G if pnl_val_safe >= 0 else R),
+            Text(fmt_money(pnl_val) if pnl_val is not None else "--", style=G if (pnl_val is not None and pnl_val >= 0) else R),
             "Profit Factor:",
             Text(f"{pf:.2f}" if pf else "--", style=pf_c),
         )
@@ -562,7 +564,7 @@ def panel_portfolio_perf_expanded(  # noqa: C901
             "Unrealized P&L:",
             Text(
                 fmt_money(unrlzd_pnl) if unrlzd_pnl is not None else "--",
-                style=G if unrlzd_pnl_safe >= 0 else R,
+                style=G if (unrlzd_pnl is not None and unrlzd_pnl >= 0) else R,
             ),
             "Open Positions:",
             Text(str(open_cnt) if open_cnt is not None else "--", style="white"),
@@ -743,7 +745,9 @@ def panel_portfolio_perf_expanded(  # noqa: C901
         if pos_items:
             rows.append(Rule(style="dim"))
             rows.append(Text.from_markup("[dim bold]POSITION CONCENTRATION[/]"))
-            pv_total = float(port["total_portfolio_value"]) if port and not port.get("_error") else 0
+            if not port or port.get("_error"):
+                raise StrictValidationError("Cannot calculate position concentration: portfolio data missing or error flag set")
+            pv_total = safe_float(port.get("total_portfolio_value"), strict=True, field_name="total_portfolio_value")
             conc_rows: list[tuple[float, Any, float | None, float | None]] = []
             for p in pos_items:
                 if not isinstance(p, dict):

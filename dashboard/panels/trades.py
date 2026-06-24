@@ -185,8 +185,9 @@ def panel_recent_trades(trades: Any) -> Any:
         exit_date = safe_get_field(tr, "exit_date") or safe_get_field(tr, "trade_date")
 
         has_pnl = pnl_p is not None
-        pc = G if (pnl_d or pnl_p or 0) > 0 else R
-        si = f"[{G}]▲[/]" if (pnl_p or 0) > 0 else f"[{R}]▼[/]"
+        pnl_for_color = pnl_d if pnl_d is not None else pnl_p
+        pc = G if (pnl_for_color is not None and pnl_for_color > 0) else R
+        si = f"[{G}]▲[/]" if (pnl_p is not None and pnl_p > 0) else f"[{R}]▼[/]"
         grade = safe_get_field(tr, "swing_grade") or "--"
         grade_c = (
             G
@@ -255,17 +256,18 @@ def panel_trades_expanded(trades: Any) -> Any:
     # Count wins: only trades with profit_loss_pct data
     wins = sum(1 for t in closed if (pnl := safe_get_field(t, "profit_loss_pct")) is not None and float(pnl) > 0)
     losses = total - wins
-    wr = wins / total * 100 if total else 0
+    wr = wins / total * 100 if total else None
     # Sum P&L only from trades with profit_loss_dollars data
     total_pnl = sum(float(pnl_d) for t in closed if (pnl_d := safe_get_field(t, "profit_loss_dollars")) is not None)
     avg_r_list = [float(r) for t in closed if (r := safe_get_field(t, "exit_r_multiple")) is not None]
     avg_r = sum(avg_r_list) / len(avg_r_list) if avg_r_list else None
-    wc = G if wr >= 45 else (Y if wr >= 40 else R)
+    wc = G if (wr is not None and wr >= 45) else (Y if (wr is not None and wr >= 40) else R)
     pnl_c = G if total_pnl >= 0 else R
+    wr_str = f"{wr:.0f}%" if wr is not None else "N/A"
     rows.append(
         Text.from_markup(
             f"[dim]Showing {total} trades:[/]  [{G}]{wins}W[/][dim]/[/][{R}]{losses}L[/]  "
-            f"[dim]Win Rate:[/][{wc}]{wr:.0f}%[/]  "
+            f"[dim]Win Rate:[/][{wc}]{wr_str}[/]  "
             f"[dim]P&L:[/][{pnl_c}]{sign(total_pnl)}${abs(total_pnl):.0f}[/]"
             + (f"  [dim]Avg R:[/][white]{avg_r:.2f}R[/]" if avg_r is not None else "")
         )
