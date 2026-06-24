@@ -346,7 +346,10 @@ def panel_performance_spark(
             sc1 = G if sharpe252 >= 1.0 else (Y if sharpe252 >= 0 else R)
             grid_rows.append((cell("Sharpe (1-Year):", f"[{sc1}]{sharpe252:.2f}[/]"), Text("")))
 
-        total_trades = perf.get("n", 0) if perf else 0
+        n_val = perf.get("n")
+        if n_val is None:
+            raise ValueError("Performance analytics missing 'n' field (total trade count required for rolling metrics)")
+        total_trades = int(n_val) if isinstance(n_val, (int, float)) else 0
         calmar_cell: Text | None = None
         wr50_cell: Text | None = None
         if calmar is not None and calmar != 0.0:

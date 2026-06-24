@@ -727,12 +727,27 @@ def _get_markets(cur: cursor) -> Any:
         # with neutral score. This is acceptable — dashboard displays the neutral signal.
 
         response = list_response(sectors, total=len(sectors), limit=None, offset=None)
+
+        # CRITICAL: distribution_days is a key market factor for exposure scoring; fail-fast if missing
+        dist_days_raw = row.get("distribution_days")
+        if dist_days_raw is None:
+            logger.error(
+                f"[MARKETS API] CRITICAL: distribution_days missing from market_exposure_daily for {current_date}: "
+                f"market exposure computation may not have run or distribution days calculation failed. "
+                f"Check load_market_exposure_daily logs."
+            )
+            return error_response(
+                503,
+                "data_unavailable",
+                "Distribution days data unavailable - cannot assess selling pressure",
+            )
+
         response_data = {
             "exposure_pct": (float(row["exposure_pct"]) if row.get("exposure_pct") is not None else None),
             "raw_score": (float(row["raw_score"]) if row.get("raw_score") is not None else None),
             "regime": row.get("regime"),
             "halt_reasons": halt_reasons,
-            "distribution_days": row.get("distribution_days", 0),
+            "distribution_days": int(dist_days_raw) if isinstance(dist_days_raw, (int, float)) else dist_days_raw,
             "factors": factors,
             "spy_close": spy_close,
             "date": (current_date.isoformat() if hasattr(current_date, "isoformat") else str(current_date)),
