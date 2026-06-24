@@ -9,14 +9,14 @@ from loaders.loader_helper import setup_imports
 
 setup_imports()
 
-import logging
-import time
-from datetime import date, datetime, timezone
-from typing import Any
+import logging  # noqa: E402
+import time  # noqa: E402
+from datetime import date, datetime, timezone  # noqa: E402
+from typing import Any  # noqa: E402
 
-from loaders.runner import run_loader
-from utils.external.yfinance import get_ticker
-from utils.optimal_loader import OptimalLoader
+from loaders.runner import run_loader  # noqa: E402
+from utils.external.yfinance import get_ticker  # noqa: E402
+from utils.optimal_loader import OptimalLoader  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -102,10 +102,14 @@ class ValueMetricsLoader(OptimalLoader):
                     else:
                         logger.error(f"Rate limit persisted after retries for {symbol}")
                         raise RuntimeError(f"API rate limited for {symbol} after retries") from e
-                logger.warning(f"[{symbol}] Skipping: API error fetching value metrics: {e}")
-                return None
+                msg = f"[VALUE_METRICS] API error fetching metrics for {symbol}: {e}. Cannot compute value indicators without data."
+                logger.error(msg)
+                raise RuntimeError(msg) from e
 
-        return None
+        raise RuntimeError(
+            f"[VALUE_METRICS] Failed to fetch value metrics for {symbol} after {3} attempts. "
+            "Cannot proceed without value metrics data."
+        )
 
 
 def _apply_schema_migrations() -> None:
