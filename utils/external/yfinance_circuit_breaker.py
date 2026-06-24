@@ -105,7 +105,7 @@ class YFinanceIPCircuitBreaker:
             failure_count = 1
             backoff = self.INITIAL_BACKOFF_SECS
         else:
-            failure_count = (state.get("failure_count", 0) or 0) + 1
+            failure_count = (state.get("failure_count") or 0) + 1
             # Exponential backoff: initial 10s, then 20s, 40s, 80s, 160s, 300s, 300s, ...
             backoff = min(
                 self.INITIAL_BACKOFF_SECS * (self.BACKOFF_MULTIPLIER ** (failure_count - 1)),
@@ -134,7 +134,7 @@ class YFinanceIPCircuitBreaker:
         if state is None:
             return  # No ban state to reset
 
-        failure_count = state.get("failure_count", 0) or 0
+        failure_count = state.get("failure_count") or 0
         if failure_count > 0:
             logger.info(
                 f"[YFINANCE-CIRCUIT-BREAKER] Successful request after {failure_count} failures. "
