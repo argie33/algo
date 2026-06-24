@@ -165,7 +165,11 @@ class SignalTrendMixin:
                     },
                 }
 
-            logger.debug(f"[MINERVINI] trend_template_data stale for {symbol}; computing on-the-fly")
+            logger.warning(
+                f"[MINERVINI] trend_template_data unavailable or stale for {symbol}; "
+                f"computing Minervini score on-the-fly (slower, higher latency). "
+                f"This indicates either: (1) loader has not run today, (2) eval_date is stale"
+            )
             return self._compute_minervini_from_prices(cur, symbol, eval_date)
 
         return cast(dict[str, Any], self._with_cursor(_fetch_trend))
