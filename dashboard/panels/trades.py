@@ -347,8 +347,8 @@ def panel_trades_expanded(trades: Any) -> Any:
         exit_rsn = exit_short.get(exit_rsn_raw, exit_rsn_raw[:4] if exit_rsn_raw else "--")
         exit_rsn_c = R if exit_rsn == "stop" else (G if exit_rsn in ("T1", "T2") else (Y if exit_rsn == "man" else DIM))
 
-        pc = G if (pnl_p or 0) > 0 else R
-        si = f"[{G}]▲[/]" if (pnl_p or 0) > 0 else f"[{R}]▼[/]"
+        pc = G if (pnl_p is not None and pnl_p > 0) else R
+        si = f"[{G}]▲[/]" if (pnl_p is not None and pnl_p > 0) else f"[{R}]▼[/]"
         grade_c = (
             G
             if grade in ("A", "A+", "A-")
@@ -372,11 +372,11 @@ def panel_trades_expanded(trades: Any) -> Any:
             Text(exit_rsn, style=exit_rsn_c),
             Text(
                 f"{mfe:.1f}%" if mfe is not None else "--",
-                style=G if (mfe or 0) > 0 else DIM,
+                style=G if (mfe is not None and mfe > 0) else DIM,
             ),
             Text(
                 f"{mae:.1f}%" if mae is not None else "--",
-                style=R if (mae or 0) < 0 else DIM,
+                style=R if (mae is not None and mae < 0) else DIM,
             ),
         )
 
