@@ -61,13 +61,21 @@ class TradeContext:
     advanced_components: dict[str, Any] | None = None
 
     def __post_init__(self) -> None:
-        """Convert prices to Decimal for consistency."""
-        self.entry_price = safe_decimal(self.entry_price, self.entry_price)
-        self.shares = safe_decimal(self.shares, self.shares)
-        self.stop_loss_price = safe_decimal(self.stop_loss_price, self.stop_loss_price)
-        self.target_1_price = safe_decimal(self.target_1_price, self.target_1_price)
-        self.target_2_price = safe_decimal(self.target_2_price, self.target_2_price)
-        self.target_3_price = safe_decimal(self.target_3_price, self.target_3_price)
+        """Convert prices to Decimal for consistency.
+
+        Raises:
+            RuntimeError: If any required price is missing or cannot be converted.
+                 Entry price, shares, and stop loss are required.
+        """
+        self.entry_price = safe_decimal(self.entry_price)
+        self.shares = safe_decimal(self.shares)
+        self.stop_loss_price = safe_decimal(self.stop_loss_price)
+        if self.target_1_price is not None:
+            self.target_1_price = safe_decimal(self.target_1_price, allow_none=False)
+        if self.target_2_price is not None:
+            self.target_2_price = safe_decimal(self.target_2_price, allow_none=False)
+        if self.target_3_price is not None:
+            self.target_3_price = safe_decimal(self.target_3_price, allow_none=False)
 
 
 @dataclass
@@ -103,12 +111,21 @@ class PositionContext:
     t3_hit_time: date | None = None
 
     def __post_init__(self) -> None:
-        """Convert prices to Decimal."""
-        self.current_price = safe_decimal(self.current_price, self.current_price)
-        self.entry_price = safe_decimal(self.entry_price, self.entry_price)
-        self.active_stop = safe_decimal(self.active_stop, self.active_stop)
-        self.init_stop = safe_decimal(self.init_stop, self.init_stop)
-        self.target_1_price = safe_decimal(self.target_1_price, self.target_1_price)
-        self.target_2_price = safe_decimal(self.target_2_price, self.target_2_price)
-        self.target_3_price = safe_decimal(self.target_3_price, self.target_3_price)
-        self.prev_close = safe_decimal(self.prev_close, self.prev_close)
+        """Convert prices to Decimal.
+
+        Raises:
+            RuntimeError: If any required price is missing or cannot be converted.
+                 Current price, entry price, and stops are required.
+        """
+        self.current_price = safe_decimal(self.current_price)
+        self.entry_price = safe_decimal(self.entry_price)
+        self.active_stop = safe_decimal(self.active_stop)
+        self.init_stop = safe_decimal(self.init_stop)
+        if self.target_1_price is not None:
+            self.target_1_price = safe_decimal(self.target_1_price, allow_none=False)
+        if self.target_2_price is not None:
+            self.target_2_price = safe_decimal(self.target_2_price, allow_none=False)
+        if self.target_3_price is not None:
+            self.target_3_price = safe_decimal(self.target_3_price, allow_none=False)
+        if self.prev_close is not None:
+            self.prev_close = safe_decimal(self.prev_close, allow_none=False)

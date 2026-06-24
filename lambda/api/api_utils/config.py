@@ -75,7 +75,7 @@ class HealthCheckConfig:
         min_val: int | None = None,
         max_val: int | None = None,
     ) -> int:
-        """Read integer from environment variable with bounds checking.
+        """Read integer from environment variable with strict bounds validation.
 
         Args:
             key: Environment variable name
@@ -84,7 +84,11 @@ class HealthCheckConfig:
             max_val: Maximum allowed value (inclusive)
 
         Returns:
-            Parsed integer value, clamped to [min_val, max_val] if specified
+            Parsed integer value
+
+        Raises:
+            ValueError: If value is outside specified bounds (fail-fast, catch operator errors)
+            ValueError: If value is not a valid integer (fail-fast, catch typos)
         """
         value_str = os.getenv(key, "").strip()
         if not value_str:
@@ -93,18 +97,26 @@ class HealthCheckConfig:
         try:
             value = int(value_str)
 
-            # Clamp to bounds
+            # Validate against bounds (fail-fast, don't silently clamp)
             if min_val is not None and value < min_val:
-                logger.warning(f"{key}={value} is below minimum {min_val}, using {min_val}")
-                return min_val
+                raise ValueError(
+                    f"{key}={value} is invalid: must be >= {min_val}. "
+                    f"Operator configuration error detected. Fix the environment variable and retry."
+                )
             if max_val is not None and value > max_val:
-                logger.warning(f"{key}={value} exceeds maximum {max_val}, using {max_val}")
-                return max_val
+                raise ValueError(
+                    f"{key}={value} is invalid: must be <= {max_val}. "
+                    f"Operator configuration error detected. Fix the environment variable and retry."
+                )
 
             return value
-        except ValueError:
-            logger.warning(f"{key}={value_str} is not a valid integer, using default {default}")
-            return default
+        except ValueError as e:
+            if "is invalid:" in str(e):
+                raise  # Re-raise our validation errors
+            raise ValueError(
+                f"{key}={value_str} is not a valid integer. "
+                f"Operator configuration error detected. Fix the environment variable and retry."
+            ) from e
 
 
 # Global singleton — initialized at Lambda cold start (thread-safe)

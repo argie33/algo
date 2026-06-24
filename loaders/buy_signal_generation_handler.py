@@ -32,9 +32,15 @@ class BuySignalGenerationHandler:
 
         Returns:
             List of signal dicts with entry/exit levels and metrics
+
+        Raises:
+            RuntimeError: If technical data is unavailable (required for signal generation)
         """
         if not rows:
-            return []
+            raise RuntimeError(
+                f"[SIGNAL_GENERATION_MISSING_DATA] Cannot generate buy/sell signals for {symbol}: "
+                f"technical data unavailable. Signal generation requires OHLCV and indicator values."
+            )
         signals = []
         skipped_count = 0
 

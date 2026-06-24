@@ -10,40 +10,71 @@ This module consolidates repeated patterns across the trading system:
 
 import logging
 from decimal import Decimal, InvalidOperation
-from typing import Any
+from typing import Any, Literal, overload
 
 logger = logging.getLogger(__name__)
 
 
-def safe_decimal(value: Any) -> Decimal | None:
-    """Convert value to Decimal safely, returning None on failure.
+@overload
+def safe_decimal(value: Any, allow_none: Literal[False] = False) -> Decimal: ...
+
+
+@overload
+def safe_decimal(value: Any, allow_none: Literal[True]) -> Decimal | None: ...
+
+
+def safe_decimal(value: Any, allow_none: bool = False) -> Decimal | None:
+    """Convert value to Decimal, raising on failure if not allowed.
 
     Args:
         value: Value to convert (numeric, string, Decimal, or None)
+        allow_none: If True, return None on failure (safe mode). If False,
+                   raise RuntimeError (fail-fast mode for trading contexts).
 
     Returns:
-        Decimal if conversion succeeds, None if value is None or conversion fails
+        Decimal if conversion succeeds. If allow_none=False (default for trading),
+        raises RuntimeError on any failure.
+
+    Raises:
+        RuntimeError: If conversion fails and allow_none=False
     """
     if value is None:
-        return None
+        if allow_none:
+            return None
+        raise RuntimeError("decimal conversion received None value — required data missing")
     if isinstance(value, Decimal):
         return value
 
     try:
         return Decimal(str(value))
     except (InvalidOperation, ValueError, TypeError) as e:
-        logger.warning(f"safe_decimal conversion failed for {value!r}: {type(e).__name__}")
-        return None
+        if allow_none:
+            logger.warning(f"safe_decimal conversion failed for {value!r}: {type(e).__name__}")
+            return None
+        raise RuntimeError(
+            f"[DECIMAL_CONVERSION_FAILED] Cannot convert {value!r} to Decimal: {type(e).__name__}. "
+            f"This value is required for position sizing — cannot proceed with incomplete data."
+        ) from e
 
 
-def safe_float(value: Any) -> float | None:
-    """Convert value to float safely, returning None on failure.
+def safe_float(value: Any, allow_none: bool = False) -> float | None:
+    """Convert value to float, raising on failure if not allowed.
 
-    Returns None if value is None or conversion fails. Callers must validate
-    before using the result in calculations.
+    Args:
+        value: Value to convert (numeric, string, or None)
+        allow_none: If True, return None on failure (safe mode). If False,
+                   raise RuntimeError (fail-fast mode for trading contexts).
+
+    Returns:
+        float if conversion succeeds. If allow_none=False, raises on failure.
+
+    Raises:
+        RuntimeError: If conversion fails and allow_none=False
     """
     if value is None:
-        return None
+        if allow_none:
+            return None
+        raise RuntimeError("float conversion received None value — required data missing")
 
     if isinstance(value, float):
         return value
@@ -51,18 +82,33 @@ def safe_float(value: Any) -> float | None:
     try:
         return float(value)
     except (ValueError, TypeError) as e:
-        logger.warning(f"safe_float conversion failed for {value!r}: {type(e).__name__}")
-        return None
+        if allow_none:
+            logger.warning(f"safe_float conversion failed for {value!r}: {type(e).__name__}")
+            return None
+        raise RuntimeError(
+            f"[FLOAT_CONVERSION_FAILED] Cannot convert {value!r} to float: {type(e).__name__}. "
+            f"This value is required for trading calculations — cannot proceed with incomplete data."
+        ) from e
 
 
-def safe_int(value: Any) -> int | None:
-    """Convert value to int safely, returning None on failure.
+def safe_int(value: Any, allow_none: bool = False) -> int | None:
+    """Convert value to int, raising on failure if not allowed.
 
-    Returns None if value is None or conversion fails. Callers must validate
-    before using the result in calculations.
+    Args:
+        value: Value to convert (numeric, string, or None)
+        allow_none: If True, return None on failure (safe mode). If False,
+                   raise RuntimeError (fail-fast mode for trading contexts).
+
+    Returns:
+        int if conversion succeeds. If allow_none=False, raises on failure.
+
+    Raises:
+        RuntimeError: If conversion fails and allow_none=False
     """
     if value is None:
-        return None
+        if allow_none:
+            return None
+        raise RuntimeError("int conversion received None value — required data missing")
 
     if isinstance(value, int) and not isinstance(value, bool):
         return value
@@ -70,8 +116,13 @@ def safe_int(value: Any) -> int | None:
     try:
         return int(value)
     except (ValueError, TypeError) as e:
-        logger.warning(f"safe_int conversion failed for {value!r}: {type(e).__name__}")
-        return None
+        if allow_none:
+            logger.warning(f"safe_int conversion failed for {value!r}: {type(e).__name__}")
+            return None
+        raise RuntimeError(
+            f"[INT_CONVERSION_FAILED] Cannot convert {value!r} to int: {type(e).__name__}. "
+            f"This value is required for position sizing — cannot proceed with incomplete data."
+        ) from e
 
 
 def error_response(message: str, **extra_fields: Any) -> dict[str, Any]:
