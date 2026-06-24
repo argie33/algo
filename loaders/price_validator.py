@@ -36,7 +36,12 @@ class PriceValidator:
         }
 
     def validate_schema(self, cur: Any) -> bool:
-        """Validate that price table schema exists and has required columns."""
+        """Validate that price table schema exists and has required columns.
+
+        CRITICAL: Raises RuntimeError on schema validation failure (fail-fast).
+        Missing schema columns indicate incomplete database setup and will corrupt
+        all downstream price processing (technical indicators, P&L calculations).
+        """
         required_columns = {
             "symbol": "text",
             "date": "date",
@@ -52,12 +57,21 @@ class PriceValidator:
                 query = "SELECT 1 FROM information_schema.columns WHERE table_name = %s AND column_name = %s"
                 cur.execute(query, (self.table_name, col_name))
                 if not cur.fetchone():
-                    logger.error(f"Missing column {col_name} in {self.table_name}")
-                    return False
+                    msg = (
+                        f"[SCHEMA_VALIDATION] Missing column {col_name} in {self.table_name}. "
+                        "Cannot load prices without complete schema. "
+                        "Verify database schema creation and migration status."
+                    )
+                    logger.error(msg)
+                    raise RuntimeError(msg)
             return True
-        except Exception as e:
-            logger.error(f"Schema validation failed: {e}")
-            return False
+        except psycopg2.Error as e:
+            msg = (
+                f"[SCHEMA_VALIDATION] Schema validation failed for {self.table_name}: {e}. "
+                "Cannot proceed with data load until database is accessible."
+            )
+            logger.error(msg)
+            raise RuntimeError(msg) from e
 
     def validate_price_row(self, row: dict[str, Any]) -> bool:
         """Validate a single price row."""

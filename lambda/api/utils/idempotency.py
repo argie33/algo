@@ -76,8 +76,17 @@ def check_idempotency_key(cur: Any, idempotency_key: str, endpoint: str, timeout
         psycopg2.errors.UndefinedTable,  # pylint: disable=no-member
         psycopg2.OperationalError,
         psycopg2.DatabaseError,
-    ):
-        logger.debug("Idempotency key table does not exist or database error — proceeding without cache")
+    ) as e:
+        # CRITICAL: Idempotency table missing means we cannot prevent duplicate trades.
+        # For financial transactions, missing idempotency protection is a critical failure.
+        # Log critically but return None (gracefully degrade) so non-idempotent requests
+        # proceed with awareness that duplicates are possible. Callers should retry with
+        # exponential backoff to minimize duplicate risk.
+        logger.critical(
+            f"IDEMPOTENCY TABLE UNAVAILABLE: {type(e).__name__}: {e}. "
+            "Duplicate request protection disabled. Retried trades MAY create duplicates. "
+            "Ensure api_idempotency_keys table exists and is accessible."
+        )
         return None
 
 
@@ -118,9 +127,12 @@ def store_idempotency_key(
         psycopg2.OperationalError,
         psycopg2.DatabaseError,
     ) as e:
-        logger.debug(
-            "Idempotency key storage skipped (table missing or DB error): %s",
-            type(e).__name__,
+        # CRITICAL: Idempotency table missing means we cannot prevent duplicate trades.
+        # Log as ERROR (not debug) since this is a critical safety issue.
+        logger.critical(
+            f"IDEMPOTENCY TABLE UNAVAILABLE: {type(e).__name__}: {e}. "
+            "Cannot store idempotency key — duplicate request protection disabled. "
+            "Ensure api_idempotency_keys table exists and is accessible."
         )
         return False
 
