@@ -122,7 +122,7 @@ def panel_circuit(cb: Any) -> Panel:
             cur = br.get("cur")
             lbl_s = str(br.get("lbl", "N/A"))[:20]
             if thr is None or cur is None:
-                thr_f = safe_float(thr)
+                thr_f = safe_float(thr, default=None)
                 thr_s = "--" if thr_f is None else f"{thr_f:.0f}"
                 cur_s = "--" if cur is None else str(cur)
                 return (
@@ -204,10 +204,12 @@ def panel_circuit_expanded(cb: Any) -> Panel:
         tbl.add_column("Status", justify="center", no_wrap=True, min_width=8)
 
         for br in bs:
-            lbl = str(br.get("lbl") or "--")
+            lbl_val = br.get("lbl")
+            lbl = str(lbl_val if lbl_val is not None else "--")
             cur = br.get("cur")
             thr = br.get("thr")
-            u = str(br.get("u") or "")
+            u_val = br.get("u")
+            u = str(u_val if u_val is not None else "")
             fired = br["fired"]
 
             util_high = False

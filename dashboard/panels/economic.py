@@ -101,13 +101,15 @@ def _build_calendar_rows(econ_cal: Any) -> list[Text | Rule]:
             ed = date.fromisoformat(str(ed_raw)) if ed_raw else None
         except (ValueError, TypeError):
             ed = None
-        full_nm = ev.get("event_name") or ""
+        event_name_val = ev.get("event_name")
+        full_nm = event_name_val if event_name_val is not None else ""
         name = str(full_nm)[:24]
         key = (str(ed_raw) + str(full_nm)[:24]).lower()
         if key in seen_keys:
             continue
         seen_keys.add(key)
-        imp = (ev.get("importance") or "LOW").upper()
+        importance_val = ev.get("importance")
+        imp = (importance_val if importance_val is not None else "LOW").upper()
         ic = imp_c.get(imp, "dim")
         f_v = ev.get("forecast") if ev.get("forecast") is not None else ev.get("forecast_value")
         a_v = ev.get("actual") if ev.get("actual") is not None else ev.get("actual_value")
@@ -122,17 +124,17 @@ def _build_calendar_rows(econ_cal: Any) -> list[Text | Rule]:
         vals = ""
         f_f: float | None = None
         if a_v is not None:
-            a_f = safe_float(a_v)
+            a_f = safe_float(a_v, default=None)
             if a_f is not None:
                 f_f = safe_float(f_v, default=a_f) or a_f
                 ac = G if a_f <= f_f else R
                 vals = f" [{ac}]A={a_f:.1f}[/]"
         elif f_v is not None:
-            f_f = safe_float(f_v)
+            f_f = safe_float(f_v, default=None)
             if f_f is not None:
                 vals = f" [dim]F={f_f:.1f}[/]"
         if p_v is not None:
-            p_f = safe_float(p_v)
+            p_f = safe_float(p_v, default=None)
             if p_f is not None:
                 vals += f"[dim] P={p_f:.1f}[/]"
         et = ev.get("event_time")

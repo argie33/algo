@@ -115,7 +115,11 @@ def fetch_run(c: None) -> dict[str, Any]:
         halt_reason = halted_phases[0].get("summary") if halted_phases else None
 
         # Timestamps are required - fail if all are missing (Issue #6)
-        run_at = inner.get("run_at") or inner.get("completed_at") or inner.get("started_at")
+        run_at = inner.get("run_at")
+        if run_at is None:
+            run_at = inner.get("completed_at")
+        if run_at is None:
+            run_at = inner.get("started_at")
         # No runs yet (algo hasn't executed) - fail-fast: return error instead of placeholder
         if not run_at and not inner.get("run_id") and not inner["success"] and not inner["halted"]:
             error_msg = "No algo runs available yet (algo has not executed)"
@@ -250,7 +254,9 @@ def fetch_health(c: None) -> dict[str, Any]:
             logger.error(error_msg)
             record_data_quality_issue("health", "validation", "invalid_response_type")
             return FetcherValidator.build_error_response(error_msg)
-        raw_sources = inner.get("sources") or inner.get("items")
+        raw_sources = inner.get("sources")
+        if raw_sources is None:
+            raw_sources = inner.get("items")
         if not isinstance(raw_sources, list):
             error_msg = f"Health API 'sources'/'items' field must be list, got {type(raw_sources).__name__}"
             logger.error(error_msg)
@@ -338,20 +344,37 @@ def fetch_circuit(c: None) -> dict[str, Any]:
 
         formatted_bs = []
         for r in bs:
-            label = r.get("label") or r.get("breaker_name")
+            label = r.get("label")
+            if label is None:
+                label = r.get("breaker_name")
             if not label:
                 error_msg = "Circuit breaker entry missing both 'label' and 'breaker_name' fields"
                 logger.error(error_msg)
                 record_data_quality_issue("cb", "validation", "breaker_missing_label")
                 return FetcherValidator.build_error_response(error_msg)
 
+            # Get current value (try current_value first, fallback to current)
+            cur_val = r.get("current_value")
+            if cur_val is None:
+                cur_val = r.get("current")
+
+            # Get threshold value (try threshold_value first, fallback to threshold)
+            thr_val = r.get("threshold_value")
+            if thr_val is None:
+                thr_val = r.get("threshold")
+
+            # Get triggered status (try is_active first, fallback to triggered)
+            is_triggered = r.get("is_active")
+            if is_triggered is None:
+                is_triggered = r.get("triggered")
+
             formatted_bs.append(
                 {
                     "lbl": label,
-                    "cur": float(r.get("current_value") or r.get("current")),
-                    "thr": float(r.get("threshold_value") or r.get("threshold")),
+                    "cur": float(cur_val),
+                    "thr": float(thr_val),
                     "u": r.get("unit", ""),
-                    "fired": safe_bool(r.get("is_active") or r.get("triggered")),
+                    "fired": safe_bool(is_triggered),
                 }
             )
 

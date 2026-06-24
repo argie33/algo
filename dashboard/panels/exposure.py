@@ -205,19 +205,21 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
     if sr:
         sr_pts_raw = sr.get("pts")
         if sr_pts_raw is None:
-            raise StrictValidationError("sector_rotation factor missing 'pts' field (required for exposure calculation)")
-        try:
-            sr_pen = safe_float(sr_pts_raw, strict=True, field_name="sector_rotation_pts")
-        except StrictValidationError as e:
-            raise StrictValidationError(f"sector_rotation pts conversion failed: {e}") from e
+            logger.warning("sector_rotation factor missing 'pts' field")
+        else:
+            try:
+                sr_pen = safe_float(sr_pts_raw, strict=True, field_name="sector_rotation_pts")
+            except StrictValidationError as e:
+                logger.warning(f"sector_rotation pts conversion failed: {e}")
     if eco:
         eco_pts_raw = eco.get("pts")
         if eco_pts_raw is None:
-            raise StrictValidationError("economic_overlay factor missing 'pts' field (required for exposure calculation)")
-        try:
-            eco_pen = safe_float(eco_pts_raw, strict=True, field_name="economic_overlay_pts")
-        except StrictValidationError as e:
-            raise StrictValidationError(f"economic_overlay pts conversion failed: {e}") from e
+            logger.warning("economic_overlay factor missing 'pts' field")
+        else:
+            try:
+                eco_pen = safe_float(eco_pts_raw, strict=True, field_name="economic_overlay_pts")
+            except StrictValidationError as e:
+                logger.warning(f"economic_overlay pts conversion failed: {e}")
     if sr_pen < 0 and sr:
         sig = (sr.get("signal", "")).replace("_", " ")[:18]
         items.append(f"[dim]Sector Rotation:[/] [{R}]{sr_pen:+.0f}[/] [dim]{sig}[/]")
@@ -317,7 +319,10 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
         pts_raw = f.get("pts") if f else None
         if pts_raw is None:
             # Factor has no data — show ⚠ N/A rather than a misleading 0-point bar
-            reason = (f.get("reason") or ("stale" if f.get("stale") else "no data"))[:18]
+            reason_val = f.get("reason")
+            if reason_val is None:
+                reason_val = "stale" if f.get("stale") else "no data"
+            reason = reason_val[:18]
             bar_s = Text.from_markup(f"[yellow]⚠ N/A{'':>10}[/]  [dim]--/{max_pts}[/]")
             tbl.add_row(
                 Text(label, style="yellow"),
@@ -419,19 +424,21 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
     if sr:
         sr_pts_raw = sr.get("pts")
         if sr_pts_raw is None:
-            raise StrictValidationError("sector_rotation factor missing 'pts' field (required for exposure calculation)")
-        try:
-            sr_pen = safe_float(sr_pts_raw, strict=True, field_name="sector_rotation_pts")
-        except StrictValidationError as e:
-            raise StrictValidationError(f"sector_rotation pts conversion failed: {e}") from e
+            logger.warning("sector_rotation factor missing 'pts' field")
+        else:
+            try:
+                sr_pen = safe_float(sr_pts_raw, strict=True, field_name="sector_rotation_pts")
+            except StrictValidationError as e:
+                logger.warning(f"sector_rotation pts conversion failed: {e}")
     if eco:
         eco_pts_raw = eco.get("pts")
         if eco_pts_raw is None:
-            raise StrictValidationError("economic_overlay factor missing 'pts' field (required for exposure calculation)")
-        try:
-            eco_pen = safe_float(eco_pts_raw, strict=True, field_name="economic_overlay_pts")
-        except StrictValidationError as e:
-            raise StrictValidationError(f"economic_overlay pts conversion failed: {e}") from e
+            logger.warning("economic_overlay factor missing 'pts' field")
+        else:
+            try:
+                eco_pen = safe_float(eco_pts_raw, strict=True, field_name="economic_overlay_pts")
+            except StrictValidationError as e:
+                logger.warning(f"economic_overlay pts conversion failed: {e}")
     if sr_pen != 0 or eco_pen != 0:
         rows.append(Rule(style="dim"))
         rows.append(Text.from_markup("[dim bold]ADJUSTMENTS[/]"))

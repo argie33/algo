@@ -150,7 +150,9 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
         pc = G if (pnl is not None and pnl >= 0) else R
         rc = G if (rmul is not None and rmul >= 0) else R
         dc = R if (dist is not None and dist < 3) else (Y if (dist is not None and dist < 5) else "white")
-        name = (p.get("company_name", "") or p.get("name", "") or "")[:16]
+        company_name_val = p.get("company_name", "")
+        name_val = p.get("name", "")
+        name = (company_name_val if company_name_val else (name_val if name_val else ""))[:16]
         row = [
             p.get("symbol", "--"),
             Text(name, style="dim"),

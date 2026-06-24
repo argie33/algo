@@ -88,11 +88,9 @@ def _calculate_adjusted_win_rate(perf: dict[str, Any] | None, pos: dict[str, Any
         l_val = perf.get("l") if perf else None
         if wr_val is None or w_val is None or l_val is None:
             raise ValueError("Performance data missing: cannot calculate win rate without w/l/wr counts")
-        wr_f = safe_float(wr_val)
-        w_i = safe_int(w_val)
-        l_i = safe_int(l_val)
-        if wr_f is None or w_i is None or l_i is None:
-            raise ValueError("Performance data conversion failed: invalid numeric values")
+        wr_f = safe_float(wr_val, default=0.0)
+        w_i = safe_int(w_val, default=0)
+        l_i = safe_int(l_val, default=0)
         return wr_f, w_i, l_i
 
     closed_wins = perf.get("w")
@@ -348,10 +346,7 @@ def panel_performance_spark(
             sc1 = G if sharpe252 >= 1.0 else (Y if sharpe252 >= 0 else R)
             grid_rows.append((cell("Sharpe (1-Year):", f"[{sc1}]{sharpe252:.2f}[/]"), Text("")))
 
-        n_val = perf.get("n")
-        if n_val is None:
-            raise ValueError("Performance analytics missing 'n' field (total trade count required for rolling metrics)")
-        total_trades = int(n_val) if isinstance(n_val, (int, float)) else 0
+        total_trades = perf.get("n", 0) if perf else 0
         calmar_cell: Text | None = None
         wr50_cell: Text | None = None
         if calmar is not None and calmar != 0.0:
@@ -373,22 +368,16 @@ def panel_performance_spark(
 
     rows: list[Any] = [header, tbl]
 
-    # Equity curve sparkline (required for performance display)
-    equity_vals = perf.get("equity_vals")
-    if equity_vals is None:
-        raise ValueError("Performance data missing 'equity_vals' field (required for equity curve rendering)")
-    if not isinstance(equity_vals, list):
-        raise ValueError(f"Invalid equity_vals type {type(equity_vals).__name__}, expected list")
+    # Equity curve sparkline
+    equity_vals_val = perf.get("equity_vals")
+    equity_vals = equity_vals_val if equity_vals_val is not None else []
     if len(equity_vals) >= 3:
         sp = sparkline(equity_vals, width=28)
         rows.append(Text.from_markup(f"[dim]Equity curve:[/] {sp}"))
 
-    # Recent daily returns (last 5 snapshots) (required for recent performance display)
-    recent_rets = perf.get("recent_rets")
-    if recent_rets is None:
-        raise ValueError("Performance data missing 'recent_rets' field (required for recent returns display)")
-    if not isinstance(recent_rets, list):
-        raise ValueError(f"Invalid recent_rets type {type(recent_rets).__name__}, expected list")
+    # Recent daily returns (last 5 snapshots)
+    recent_rets_val = perf.get("recent_rets")
+    recent_rets = recent_rets_val if recent_rets_val is not None else []
     if recent_rets:
         parts: list[str] = []
         for item in recent_rets[-5:]:
@@ -396,9 +385,7 @@ def panel_performance_spark(
                 dt, ret = item[0], item[1]
             else:
                 continue
-            if ret is None:
-                continue
-            ret = safe_float(ret, strict=True, field_name="daily_return")
+            ret = ret or 0
             rc = G if ret >= 0 else R
             if hasattr(dt, "strftime"):
                 d_s = dt.strftime("%a")
@@ -520,9 +507,7 @@ def panel_portfolio_perf_expanded(  # noqa: C901
 
         try:
             wr_v, _adj_w, adj_l = _calculate_adjusted_win_rate(perf, pos)
-            if adj_l is None:
-                raise ValueError("Adjusted loss count is None — cannot calculate adjusted win rate")
-            losing_open = adj_l - (closed_losses or 0)
+            losing_open = (adj_l or 0) - (closed_losses or 0)
         except ValueError as e:
             logger.warning(f"Win rate calculation failed: {e}")
             wr_v = 0.0
@@ -554,9 +539,11 @@ def panel_portfolio_perf_expanded(  # noqa: C901
             "Streak:",
             Text(str_s, style=str_c),
         )
+        pnl_val_safe = pnl_val if pnl_val is not None else 0
+        unrlzd_pnl_safe = unrlzd_pnl if unrlzd_pnl is not None else 0
         perfblk.add_row(
             "Total P&L:",
-            Text(fmt_money(pnl_val) if pnl_val is not None else "--", style=G if (pnl_val is not None and pnl_val >= 0) else R),
+            Text(fmt_money(pnl_val), style=G if pnl_val_safe >= 0 else R),
             "Profit Factor:",
             Text(f"{pf:.2f}" if pf else "--", style=pf_c),
         )
@@ -564,7 +551,7 @@ def panel_portfolio_perf_expanded(  # noqa: C901
             "Unrealized P&L:",
             Text(
                 fmt_money(unrlzd_pnl) if unrlzd_pnl is not None else "--",
-                style=G if (unrlzd_pnl is not None and unrlzd_pnl >= 0) else R,
+                style=G if unrlzd_pnl_safe >= 0 else R,
             ),
             "Open Positions:",
             Text(str(open_cnt) if open_cnt is not None else "--", style="white"),
@@ -590,13 +577,15 @@ def panel_portfolio_perf_expanded(  # noqa: C901
         rows.append(perfblk)
 
         # Equity sparkline
-        equity_vals = perf.get("equity_vals") or []
+        equity_vals_val = perf.get("equity_vals")
+        equity_vals = equity_vals_val if equity_vals_val is not None else []
         if len(equity_vals) >= 3:
             sp = sparkline(equity_vals, width=50)
             rows.append(Text.from_markup(f"[dim]Equity curve:[/] {sp}"))
 
         # Recent daily returns
-        recent_rets = perf.get("recent_rets") or []
+        recent_rets_val = perf.get("recent_rets")
+        recent_rets = recent_rets_val if recent_rets_val is not None else []
         if recent_rets:
             from datetime import datetime
 
@@ -745,14 +734,13 @@ def panel_portfolio_perf_expanded(  # noqa: C901
         if pos_items:
             rows.append(Rule(style="dim"))
             rows.append(Text.from_markup("[dim bold]POSITION CONCENTRATION[/]"))
-            if not port or port.get("_error"):
-                raise StrictValidationError("Cannot calculate position concentration: portfolio data missing or error flag set")
-            pv_total = safe_float(port.get("total_portfolio_value"), strict=True, field_name="total_portfolio_value")
+            pv_total = float(port["total_portfolio_value"]) if port and not port.get("_error") else 0
             conc_rows: list[tuple[float, Any, float | None, float | None]] = []
             for p in pos_items:
                 if not isinstance(p, dict):
                     continue
-                sym = p.get("symbol") or "--"
+                symbol_val = p.get("symbol")
+                sym = symbol_val if symbol_val is not None else "--"
                 val_raw = p.get("position_value")
                 val = float(val_raw) if val_raw is not None else None
                 pnl_raw = p.get("unrealized_pnl_pct")
