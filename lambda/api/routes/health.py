@@ -67,14 +67,18 @@ def _handle_basic(cur: cursor) -> Any:
     has_critical = False
 
     # C-4 FIX: Report API route import failures in health check
-    def _safe_int(value, default=0):
+    def _safe_int(value, default=0, context=""):
         if value is None:
+            if context:
+                logger.warning(f"[HEALTH] {context} is None, using default {default}")
             return default
         try:
             return int(value)
         except (TypeError, ValueError):
+            if context:
+                logger.warning(f"[HEALTH] {context} conversion failed, using default {default}")
             return default
-    failed_routes = _safe_int(import_status.get("failed_routes"), default=0)
+    failed_routes = _safe_int(import_status.get("failed_routes"), default=0, context="failed_routes")
     if failed_routes > 0:
         health["api_route_imports"] = {
             "status": "degraded",

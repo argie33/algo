@@ -929,6 +929,7 @@ class PositionMonitor:
                 return int((row[0] - current_date).days)
 
             # Fallback: estimate from last reported quarter + 90-day cycle
+            # RISK: 90-day cycle is approximation; actual earnings could be weeks off
             cur.execute(
                 "SELECT MAX(earnings_date) FROM earnings_history WHERE symbol = %s",
                 (symbol,),
@@ -944,6 +945,10 @@ class PositionMonitor:
                 raise ValueError(
                     f"Earnings estimate out of range for {symbol}: {days} days - estimated date {est} is invalid"
                 )
+            logger.warning(
+                f"[EARNINGS ESTIMATE] {symbol}: Using 90-day cycle estimate ({days}d away, ~{est}) "
+                f"— earnings_calendar unavailable for accurate date"
+            )
             return days
         except ValueError:
             raise

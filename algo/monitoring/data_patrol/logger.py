@@ -89,7 +89,9 @@ class PatrolLogger:
                 ),
             )
         except (json.JSONDecodeError, ValueError) as e:
-            logger.error(f"Failed to log patrol performance: {e}")
+            raise RuntimeError(f"Failed to log patrol performance metrics — execution metrics lost: {e}") from e
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            raise RuntimeError(f"Failed to log patrol performance — health check metrics not recorded: {e}") from e
 
     def update_completion_status(self, ready: bool, elapsed_seconds: float | None = None) -> None:
         """Update DynamoDB with patrol completion status."""
@@ -116,4 +118,7 @@ class PatrolLogger:
             status = "ready" if ready else "completed_with_findings"
             logger.info(f"[PATROL] ✓ Completed successfully. Updated DynamoDB (status={status})")
         except Exception as e:
-            logger.warning(f"[PATROL] Could not update DynamoDB completion status: {e}")
+            logger.critical(
+                f"[PATROL] FAILED to update DynamoDB completion status: {type(e).__name__}: {e}. "
+                f"Orchestrator cannot track patrol completion — monitoring is blind to patrol state."
+            )

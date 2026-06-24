@@ -82,7 +82,17 @@ class CoverageChecker(BaseCheck):
 
             cur.execute("SELECT COUNT(*) FROM stock_symbols WHERE active = true")
             row = cur.fetchone()
-            expected_count = row[0] if row and row[0] is not None else 1
+            expected_count = row[0] if row and row[0] is not None else 0
+
+            if expected_count == 0:
+                self.log(
+                    "coverage",
+                    ERROR,
+                    "stock_symbols",
+                    "No active symbols in stock_symbols table — cannot calculate loader coverage percentages",
+                    {"expected_count": 0},
+                )
+                return
 
             critical_tables = [
                 "price_daily",
