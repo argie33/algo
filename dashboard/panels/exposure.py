@@ -175,14 +175,10 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
             f = factors[key]
             if not isinstance(f, dict):
                 f = {}
-        sf = f.get("score_factor")
-        if sf is None:
+        pts_raw = f.get("pts")
+        if pts_raw is None:
             items.append(f"[dim]{label}:[/] [yellow]⚠ N/A[/][dim] /{max_pts}[/]")
         else:
-            pts_raw = f.get("pts")
-            if pts_raw is None:
-                items.append(f"[dim]{label}:[/] [yellow]⚠ pts missing[/][dim] (data error)[/]")
-                continue
             try:
                 pts = safe_float(pts_raw, strict=True, field_name=f"{label}_pts")
             except StrictValidationError as e:
@@ -315,15 +311,13 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
         if key not in factors:
             # Factor missing from API response — skip (should rarely happen)
             f = {}
-            sf = None
         else:
             f = factors[key]
             if not isinstance(f, dict):
-                sf = None
-            else:
-                sf = f.get("score_factor")
+                f = {}
 
-        if sf is None:
+        pts_raw = f.get("pts") if f else None
+        if pts_raw is None:
             # Factor has no data — show ⚠ N/A rather than a misleading 0-point bar
             reason = (f.get("reason") or ("stale" if f.get("stale") else "no data"))[:18]
             bar_s = Text.from_markup(f"[yellow]⚠ N/A{'':>10}[/]  [dim]--/{max_pts}[/]")
@@ -337,19 +331,6 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
             )
             continue
 
-        pts_raw = f.get("pts")
-        if pts_raw is None:
-            reason = (f.get("reason") or ("stale" if f.get("stale") else "no data"))[:18]
-            bar_s = Text.from_markup(f"[yellow]⚠ N/A{'':>10}[/]  [dim]--/{max_pts}[/]")
-            tbl.add_row(
-                Text(label, style="yellow"),
-                Text("--", style="yellow"),
-                Text(str(max_pts), style="dim"),
-                bar_s,
-                Text(f"⚠ {reason}", style="yellow"),
-                context,
-            )
-            continue
         try:
             pts = safe_float(pts_raw, strict=True, field_name=f"{label}_pts")
         except StrictValidationError as e:
