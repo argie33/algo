@@ -41,16 +41,18 @@ def compute_performance_metrics(cur: Any, metric_date: date | None = None) -> di
         metrics: dict[str, Any] = {}
 
         # Fetch all closed trades + open trades with unrealized P&L (E10 fix)
+        # CRITICAL: current_price MUST be present for open positions (no fallback to entry_price)
+        # If price_daily loader fails, open trades cannot be priced — must fail rather than assume 0% gain/loss
         # Closed trades: use profit_loss_dollars directly
         # Open trades: calculate unrealized P&L as (current_price - entry_price) * quantity
         cur.execute("""
             SELECT COALESCE(at.profit_loss_dollars,
                            CASE WHEN at.status != 'closed'
-                                THEN (COALESCE(ap.current_price, at.entry_price) - at.entry_price) * at.entry_quantity
+                                THEN (ap.current_price - at.entry_price) * at.entry_quantity
                                 ELSE NULL END) as profit_loss_dollars,
                    COALESCE(at.profit_loss_pct,
                            CASE WHEN at.status != 'closed'
-                                THEN ((COALESCE(ap.current_price, at.entry_price) - at.entry_price) / at.entry_price * 100)
+                                THEN ((ap.current_price - at.entry_price) / at.entry_price * 100)
                                 ELSE NULL END) as profit_loss_pct,
                    at.exit_r_multiple,
                    (COALESCE(at.exit_date, CURRENT_DATE) - at.trade_date) as holding_days
@@ -64,7 +66,10 @@ def compute_performance_metrics(cur: Any, metric_date: date | None = None) -> di
 
         if not trades:
             # No trades: raise instead of inserting artificial defaults
-            msg = f"No trades (closed or open with current price) for {metric_date} — cannot compute performance metrics"
+            msg = (
+                f"No trades (closed or open with current price) for {metric_date} — "
+                "cannot compute performance metrics"
+            )
             logger.warning(msg)
             raise ValueError(msg)
 

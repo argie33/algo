@@ -48,9 +48,9 @@ class DailyReconciliation:
                     "Will use mock broker for dry-run mode."
                 )
                 # Create a mock broker that returns dummy data
-                from algo.infrastructure.broker_adapter import BrokerAdapter
-
                 class MockBrokerAdapter(BrokerAdapter):
+                    """Mock broker for dry-run testing when Alpaca credentials unavailable."""
+
                     def get_account(self) -> dict[str, Any]:
                         return {
                             "portfolio_value": 100000.0,

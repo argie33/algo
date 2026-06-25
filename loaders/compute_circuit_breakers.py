@@ -280,9 +280,31 @@ def _compute_market_stage(cur: Any) -> int:
 
 
 def _compute_open_risk(cur: Any) -> float:
-    """Calculate total open risk % of portfolio."""
+    """Calculate total open risk % of portfolio.
+
+    CRITICAL: Requires all open positions to have valid stop_loss_price set.
+    No fallback to entry_price (that would show 0% risk when stops are missing).
+    Fails fast if any position lacks a stop — this is a data integrity error.
+    """
+    # First, validate that all open positions have stop prices set
     cur.execute("""
-        SELECT COALESCE(SUM(GREATEST(0, (t.entry_price - COALESCE(p.current_stop_price, t.stop_loss_price)) * p.quantity)), 0) AS total_risk
+        SELECT COUNT(*) as missing_stops
+        FROM algo_positions p
+        JOIN algo_trades t ON t.trade_id = ANY(p.trade_ids_arr)
+        WHERE LOWER(p.status) = 'open'
+        AND (p.current_stop_price IS NULL AND t.stop_loss_price IS NULL)
+    """)
+    check_row = cur.fetchone()
+    if check_row and check_row["missing_stops"] and check_row["missing_stops"] > 0:
+        raise ValueError(
+            f"CRITICAL: {check_row['missing_stops']} open position(s) have no stop loss price set. "
+            "Cannot calculate portfolio risk without valid stops. "
+            "All open positions must have current_stop_price or stop_loss_price defined."
+        )
+
+    cur.execute("""
+        SELECT SUM(GREATEST(0, (t.entry_price - COALESCE(p.current_stop_price, t.stop_loss_price)) * p.quantity))
+               AS total_risk
         FROM algo_positions p
         JOIN algo_trades t ON t.trade_id = ANY(p.trade_ids_arr)
         WHERE LOWER(p.status) = 'open'
@@ -290,7 +312,11 @@ def _compute_open_risk(cur: Any) -> float:
     risk_row = cur.fetchone()
     if not risk_row:
         raise ValueError("Cannot calculate open risk: positions/trades query failed")
-    total_risk = float(risk_row["total_risk"])
+    total_risk_val = risk_row["total_risk"]
+    if total_risk_val is None:
+        total_risk = 0.0  # No open positions = 0% risk
+    else:
+        total_risk = float(total_risk_val)
 
     cur.execute("""
         SELECT total_portfolio_value FROM algo_portfolio_snapshots

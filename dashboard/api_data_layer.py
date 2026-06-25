@@ -177,8 +177,34 @@ def cache_response(endpoint: str, data: dict[str, Any]) -> None:
         }
 
 
+def is_stale_data(data: dict[str, Any]) -> bool:
+    """Check if data is marked as stale cache.
+
+    CRITICAL: Dashboard components must check this flag and alert users
+    when displaying stale market data during API outages.
+
+    Args:
+        data: Response dict (potentially with _stale_cache flag)
+
+    Returns:
+        True if data is stale (>30 min old), False if fresh
+    """
+    return bool(data.get("_stale_cache", False))
+
+
+def get_cache_age_seconds(data: dict[str, Any]) -> int | None:
+    """Get age of cached data in seconds.
+
+    Returns None if data is not from cache, or age in seconds if stale.
+    """
+    return data.get("_cache_age_seconds")
+
+
 def get_cached_response(endpoint: str, mark_stale: bool = False) -> dict[str, Any] | None:
     """Get cached response if available.
+
+    CRITICAL: Callers must check is_stale_data(result) and alert users
+    when displaying market data that's >30 minutes old.
 
     Args:
         endpoint: API endpoint path
@@ -188,6 +214,7 @@ def get_cached_response(endpoint: str, mark_stale: bool = False) -> dict[str, An
 
     Returns:
         Cached data with optional _stale_cache flag, or None if not cached.
+        MUST call is_stale_data() on result to check freshness.
 
     Raises:
         RuntimeError: If cache > 30 min old and mark_stale=False
@@ -219,11 +246,15 @@ def get_cached_response(endpoint: str, mark_stale: bool = False) -> dict[str, An
         cached_data = dict(cached_data)
         cached_data["_stale_cache"] = True
         cached_data["_cache_age_seconds"] = int(age_seconds)
+        logger.warning(
+            f"[STALE_DATA_WARNING] Returning {int(age_seconds)}s old cache for {endpoint}. "
+            "Dashboard MUST display 'DATA STALE' indicator to user."
+        )
 
     return cached_data
 
 
-def api_call(endpoint: str, params: dict[str, Any] | None = None, method: str = "GET") -> dict[str, Any]:
+def api_call(endpoint: str, params: dict[str, Any] | None = None, method: str = "GET") -> dict[str, Any]:  # noqa: C901
     """Call API endpoint with exponential backoff retry logic and circuit breaker.
 
     Returns dict with 'data' key on success, '_error' on failure.
@@ -346,7 +377,8 @@ def api_call(endpoint: str, params: dict[str, Any] | None = None, method: str = 
                     _record_api_failure()
                     msg = data.get("message", "Unknown API error")
                     max_att = API_MAX_RETRIES + 1
-                    error_result_json: dict[str, Any] = {"_error": f"API error {status_code_int} after {max_att} attempts: {msg}"}
+                    error_msg = f"API error {status_code_int} after {max_att} attempts: {msg}"
+                    error_result_json: dict[str, Any] = {"_error": error_msg}
                     if status_code_int == 503:
                         error_result_json["_is_transient_503"] = True
                     return error_result_json

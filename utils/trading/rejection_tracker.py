@@ -213,9 +213,9 @@ class RejectionTracker:
         """Get top rejection reasons for a specific tier."""
 
         def _get_reasons(cur: Any) -> list[dict[str, Any]]:
-            col_name = f"tier_{tier}_reason"  # noqa: F841
+            col_name = f"tier_{tier}_reason"
             cur.execute(
-                """
+                f"""
                 SELECT
                     {col_name} as reason,
                     COUNT(*) as count,

@@ -1396,10 +1396,10 @@ def _get_markets(cur: cursor) -> Any:
         change = price - prev_price
         change_pct = change / prev_price * 100
 
-        # Track fallback prices (using previous day price when current day unavailable)
+        # Fail-fast on fallback prices: if today's quote is missing during market hours, raise 503
         is_fallback = bool(row.get("_is_fallback", False))
         if is_fallback:
-            fallback_symbols.append(row["symbol"])
+            raise_api_error(503, "stale_data", f"Index {row['symbol']} price unavailable (today's quote missing)")
 
         # Check data age and add to stale alerts
         if row.get("date"):
@@ -1421,7 +1421,6 @@ def _get_markets(cur: cursor) -> Any:
                 "change": round(change, 2),
                 "changePercent": round(change_pct, 2),
                 "pe": None,
-                "price_is_fallback": is_fallback,
             }
         )
 

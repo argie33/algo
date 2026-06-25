@@ -35,7 +35,7 @@ from utils.db.context import DatabaseContext
 logger = logging.getLogger(__name__)
 
 
-def run(
+def run(  # noqa: C901
     config: Any,
     run_date: _date,
     dry_run: bool,

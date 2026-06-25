@@ -148,7 +148,7 @@ def up():
               ap.stage_in_exit_plan,
               ap.days_since_entry,
 
-              COALESCE(ap.stop_loss_price, 0)::DECIMAL(12, 4) as stop_loss_price,
+              ap.stop_loss_price as stop_loss_price,
               ap.target_1_price,
               ap.target_2_price,
               ap.target_3_price,
@@ -168,31 +168,31 @@ def up():
               ap.initial_risk_per_share,
 
               CASE
-                WHEN COALESCE(ap.stop_loss_price, 0) = 0
-                THEN 0
-                ELSE ((ap.avg_entry_price - COALESCE(ap.stop_loss_price, ap.avg_entry_price)) * ap.quantity)::DECIMAL(14, 2)
+                WHEN ap.stop_loss_price IS NULL OR ap.stop_loss_price <= 0
+                THEN NULL
+                ELSE ((ap.avg_entry_price - ap.stop_loss_price) * ap.quantity)::DECIMAL(14, 2)
               END as open_risk_dollars,
 
               CASE
-                WHEN COALESCE(lp.current_price, ap.current_price) = 0 OR COALESCE(ap.stop_loss_price, 0) = 0
+                WHEN COALESCE(lp.current_price, ap.current_price) IS NULL OR COALESCE(lp.current_price, ap.current_price) = 0 OR ap.stop_loss_price IS NULL OR ap.stop_loss_price <= 0
                 THEN NULL
-                ELSE (COALESCE(lp.current_price, ap.current_price) - COALESCE(ap.stop_loss_price, ap.current_price)) / NULLIF(COALESCE(lp.current_price, ap.current_price), 0) * 100
+                ELSE (COALESCE(lp.current_price, ap.current_price) - ap.stop_loss_price) / NULLIF(COALESCE(lp.current_price, ap.current_price), 0) * 100
               END::DECIMAL(8, 4) as distance_to_stop_pct,
 
               CASE
-                WHEN COALESCE(lp.current_price, ap.current_price) = 0 OR ap.target_1_price IS NULL
+                WHEN COALESCE(lp.current_price, ap.current_price) IS NULL OR COALESCE(lp.current_price, ap.current_price) = 0 OR ap.target_1_price IS NULL
                 THEN NULL
                 ELSE (ap.target_1_price - COALESCE(lp.current_price, ap.current_price)) / NULLIF(COALESCE(lp.current_price, ap.current_price), 0) * 100
               END::DECIMAL(8, 4) as distance_to_t1_pct,
 
               CASE
-                WHEN COALESCE(lp.current_price, ap.current_price) = 0 OR ap.target_2_price IS NULL
+                WHEN COALESCE(lp.current_price, ap.current_price) IS NULL OR COALESCE(lp.current_price, ap.current_price) = 0 OR ap.target_2_price IS NULL
                 THEN NULL
                 ELSE (ap.target_2_price - COALESCE(lp.current_price, ap.current_price)) / NULLIF(COALESCE(lp.current_price, ap.current_price), 0) * 100
               END::DECIMAL(8, 4) as distance_to_t2_pct,
 
               CASE
-                WHEN COALESCE(lp.current_price, ap.current_price) = 0 OR ap.target_3_price IS NULL
+                WHEN COALESCE(lp.current_price, ap.current_price) IS NULL OR COALESCE(lp.current_price, ap.current_price) = 0 OR ap.target_3_price IS NULL
                 THEN NULL
                 ELSE (ap.target_3_price - COALESCE(lp.current_price, ap.current_price)) / NULLIF(COALESCE(lp.current_price, ap.current_price), 0) * 100
               END::DECIMAL(8, 4) as distance_to_t3_pct
