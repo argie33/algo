@@ -270,8 +270,20 @@ class SwingTraderScore:
             )
             row = cur.fetchone()
             if row:
-                trend_score = int(row[0]) if row[0] is not None else 0
-                stage = int(row[1]) if row[1] is not None else 1
+                if row[0] is None:
+                    raise ValueError(
+                        f"Trend score is NULL for {symbol} on {eval_date} — "
+                        f"cannot evaluate trend without valid Minervini score. "
+                        f"Check trend_template_data data quality."
+                    )
+                if row[1] is None:
+                    raise ValueError(
+                        f"Weinstein stage is NULL for {symbol} on {eval_date} — "
+                        f"cannot evaluate trend without valid stage classification. "
+                        f"Check trend_template_data data quality."
+                    )
+                trend_score = int(row[0])
+                stage = int(row[1])
             else:
                 raise ValueError(
                     f"Trend template data missing for {symbol} on {eval_date} — "

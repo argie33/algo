@@ -91,6 +91,16 @@ def _get_daily_buy_signals(signal_date: date, min_composite: float) -> list[dict
             close = float(r[1]) if r[1] is not None else None
             if not close:
                 continue
+            if r[8] is None:
+                raise ValueError(
+                    f"Signal quality score missing for {r[0]} on {signal_date} — "
+                    f"cannot conduct backtest without signal quality metrics"
+                )
+            if r[5] is None:
+                raise ValueError(
+                    f"Signal strength missing for {r[0]} on {signal_date} — "
+                    f"cannot rank signal quality without strength data"
+                )
             signals.append(
                 {
                     "symbol": r[0],
@@ -98,10 +108,10 @@ def _get_daily_buy_signals(signal_date: date, min_composite: float) -> list[dict
                     "high": float(r[2]) if r[2] is not None else None,
                     "low": float(r[3]) if r[3] is not None else None,
                     "sma_50": float(r[4]) if r[4] is not None else None,
-                    "signal_strength": float(r[5]) if r[5] is not None else 0.5,
+                    "signal_strength": float(r[5]),
                     "buylevel": float(r[6]) if r[6] is not None else None,
                     "stoplevel": float(r[7]) if r[7] is not None else None,
-                    "signal_quality_score": float(r[8]) if r[8] is not None else 0.0,
+                    "signal_quality_score": float(r[8]),
                     "entry_quality_score": float(r[9]) if r[9] is not None else None,
                     "composite_score": float(r[10]) if r[10] is not None else None,
                     "rs_percentile": float(r[11]) if r[11] is not None else None,
@@ -377,13 +387,17 @@ def run_backtest(
 
             avg_ret = statistics.mean(daily_returns)
             if len(daily_returns) < 2:
-                raise ValueError(f"CRITICAL: Insufficient daily returns ({len(daily_returns)}) for Sharpe calculation (need 2+)")
+                raise ValueError(
+                    f"CRITICAL: Insufficient daily returns ({len(daily_returns)}) for Sharpe calculation (need 2+)"
+                )
             std_ret = statistics.stdev(daily_returns)
             if std_ret <= 0:
                 raise ValueError("CRITICAL: Zero or negative volatility in returns (invalid backtest data)")
             sharpe = round((avg_ret / std_ret * (252**0.5)), 4)
 
-    avg_trade_return_pct = (sum(t["profit_loss_pct"] for t in completed_trades) / total_trades) if total_trades > 0 else None
+    avg_trade_return_pct = (
+        (sum(t["profit_loss_pct"] for t in completed_trades) / total_trades) if total_trades > 0 else None
+    )
 
     results = {
         "strategy_name": strategy_name,
