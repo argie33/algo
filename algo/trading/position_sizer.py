@@ -486,200 +486,179 @@ class PositionSizer:
         signal_date: Any = None,
         portfolio_value: Any = None,
     ) -> dict[str, Any]:
-        """Internal method for position calculation."""
+        """Internal method for position calculation.
+
+        Raises RuntimeError/ValueError for all error conditions. Let caller handle exceptions.
+        Only returns success dict or explicit sizing denial (no_room, drawdown_halt, concentration, etc).
+        """
+        assert symbol and isinstance(symbol, str), f"Symbol must be non-empty string, got {symbol}"
+        entry_dec = Decimal(str(entry_price))
+        assert entry_dec > 0, f"Entry price must be > 0, got {entry_price}"
+        stop_dec = Decimal(str(stop_loss_price))
+        assert stop_dec > 0, f"Stop loss must be > 0, got {stop_loss_price}"
+        assert stop_dec < entry_dec, f"Stop {stop_dec} must be < entry {entry_dec}"
+
+        if portfolio_value is None:
+            portfolio_value = self.get_portfolio_value()
+        pv_dec = Decimal(str(portfolio_value))
+        assert pv_dec > 0, f"Portfolio value must be > 0, got {portfolio_value}"
+
+        risk_adjustment = self.get_risk_adjustment()
+        assert risk_adjustment is not None, "Risk adjustment cannot be None"
+        assert Decimal(str(risk_adjustment)) >= 0, f"Risk adjustment must be >= 0, got {risk_adjustment}"
+
+        active_positions = self.get_position_count()
+        assert isinstance(active_positions, int), f"Active positions must be int, got {type(active_positions)}"
+        active_position_value = self.get_active_positions_value()
+
+        max_positions = int(self.config["max_positions"])
+        if max_positions <= 0:
+            raise ValueError(f"max_positions must be > 0, got {max_positions}")
+        if active_positions >= max_positions:
+            return {
+                "shares": 0,
+                "position_size_pct": 0,
+                "risk_dollars": 0,
+                "status": "no_room",
+                "reason": f"{active_positions} open positions >= {max_positions} max",
+            }
+
+        if risk_adjustment == 0:
+            return {
+                "shares": 0,
+                "position_size_pct": 0,
+                "risk_dollars": 0,
+                "status": "drawdown_halt",
+                "reason": "Drawdown >= 20%, trading halted",
+            }
+
+        base_risk_pct = Decimal(str(self.config["base_risk_pct"])) / Decimal(100)
+        exposure_mult = self.get_market_exposure_multiplier()
+        phase_mult = self.get_phase_size_multiplier()
+        vix_mult = self.get_vix_caution_multiplier()
+        regime_mult = self.get_position_size_multiplier_from_regime(signal_date)
+
+        adjusted_risk_pct = (
+            base_risk_pct
+            * risk_adjustment
+            * exposure_mult
+            * Decimal(str(phase_mult))
+            * vix_mult
+            * Decimal(str(regime_mult))
+        )
+        risk_dollars = (portfolio_value * adjusted_risk_pct).quantize(Decimal("0.01"), ROUND_HALF_UP)
+
+        if phase_mult == 0.0:
+            logger.warning(
+                f"Position sizing halted for {symbol}: Stage-2 climax phase detected. "
+                "No new entries until stock exits climax conditions."
+            )
+            return {
+                "shares": 0,
+                "position_size_pct": 0,
+                "risk_dollars": 0,
+                "status": "phase_climax",
+                "reason": f"{symbol} in Stage-2 climax phase - skip entry",
+            }
+
+        if entry_price <= 0 or stop_loss_price >= entry_price:
+            return {
+                "shares": 0,
+                "position_size_pct": 0,
+                "risk_dollars": 0,
+                "status": "invalid",
+                "reason": "Invalid entry or stop price",
+            }
+
+        min_risk_val = self.config.get("min_risk_pct_floor")
+        if min_risk_val is None:
+            raise ValueError(
+                "CRITICAL: min_risk_pct_floor config missing. Cannot enforce minimum position risk floor."
+            )
+        min_risk_floor = Decimal(str(min_risk_val)) / Decimal(100)
+        has_safety_reduction = exposure_mult < 0.8 or vix_mult < 1.0 or risk_adjustment < 1.0
+        if adjusted_risk_pct < min_risk_floor and not has_safety_reduction:
+            adjusted_risk_pct = min_risk_floor
+            risk_dollars = portfolio_value * adjusted_risk_pct
+
+        risk_per_share = Decimal(str(entry_price)) - Decimal(str(stop_loss_price))
+        shares = (
+            int((risk_dollars / risk_per_share).quantize(Decimal(1), rounding=ROUND_HALF_UP))
+            if risk_per_share > 0
+            else 0
+        )
+
+        if shares < 1:
+            return {
+                "shares": 0,
+                "position_size_pct": 0,
+                "risk_dollars": 0,
+                "status": "too_small",
+                "reason": f"Position too small: risk_dollars=${risk_dollars:.2f}, risk_per_share=${risk_per_share:.2f}",
+            }
+
+        position_value = Decimal(shares) * Decimal(str(entry_price))
+        max_pos_pct_val = self.config.get("max_position_size_pct")
+        if max_pos_pct_val is None:
+            raise ValueError("CRITICAL: max_position_size_pct config missing. Cannot enforce position size cap.")
         try:
-            assert symbol and isinstance(symbol, str), f"Symbol must be non-empty string, got {symbol}"
-            entry_dec = Decimal(str(entry_price))
-            assert entry_dec > 0, f"Entry price must be > 0, got {entry_price}"
-            stop_dec = Decimal(str(stop_loss_price))
-            assert stop_dec > 0, f"Stop loss must be > 0, got {stop_loss_price}"
-            assert stop_dec < entry_dec, f"Stop {stop_dec} must be < entry {entry_dec}"
+            max_position_pct = Decimal(str(max_pos_pct_val)) / Decimal(100)
+            if max_position_pct <= 0 or max_position_pct > Decimal(1):
+                raise ValueError(f"max_position_size_pct must be between 0 and 100, got {max_pos_pct_val}")
+        except (ValueError, TypeError, decimal.InvalidOperation) as e:
+            raise ValueError(
+                f"CRITICAL: max_position_size_pct config has invalid value '{max_pos_pct_val}': {e}"
+            ) from None
+        max_position_value = portfolio_value * max_position_pct
 
-            if portfolio_value is None:
-                portfolio_value = self.get_portfolio_value()
-            pv_dec = Decimal(str(portfolio_value))
-            assert pv_dec > 0, f"Portfolio value must be > 0, got {portfolio_value}"
-
-            risk_adjustment = self.get_risk_adjustment()
-            assert risk_adjustment is not None, "Risk adjustment cannot be None"
-            assert Decimal(str(risk_adjustment)) >= 0, f"Risk adjustment must be >= 0, got {risk_adjustment}"
-
-            active_positions = self.get_position_count()
-            assert isinstance(active_positions, int), f"Active positions must be int, got {type(active_positions)}"
-            active_position_value = self.get_active_positions_value()
-
-            max_positions = int(self.config["max_positions"])
-            if max_positions <= 0:
-                raise ValueError(f"max_positions must be > 0, got {max_positions}")
-            if active_positions >= max_positions:
-                return {
-                    "shares": 0,
-                    "position_size_pct": 0,
-                    "risk_dollars": 0,
-                    "status": "no_room",
-                    "reason": f"{active_positions} open positions >= {max_positions} max",
-                }
-
-            if risk_adjustment == 0:
-                return {
-                    "shares": 0,
-                    "position_size_pct": 0,
-                    "risk_dollars": 0,
-                    "status": "drawdown_halt",
-                    "reason": "Drawdown >= 20%, trading halted",
-                }
-
-            base_risk_pct = Decimal(str(self.config["base_risk_pct"])) / Decimal(100)
-            exposure_mult = self.get_market_exposure_multiplier()
-            phase_mult = self.get_phase_size_multiplier()
-            vix_mult = self.get_vix_caution_multiplier()
-            regime_mult = self.get_position_size_multiplier_from_regime(signal_date)
-
-            adjusted_risk_pct = (
-                base_risk_pct
-                * risk_adjustment
-                * exposure_mult
-                * Decimal(str(phase_mult))
-                * vix_mult
-                * Decimal(str(regime_mult))
+        if position_value > max_position_value:
+            shares = int(
+                (max_position_value / Decimal(str(entry_price))).quantize(Decimal(1), rounding=ROUND_HALF_UP)
             )
-            risk_dollars = (portfolio_value * adjusted_risk_pct).quantize(Decimal("0.01"), ROUND_HALF_UP)
-
-            if phase_mult == 0.0:
-                logger.warning(
-                    f"Position sizing halted for {symbol}: Stage-2 climax phase detected. "
-                    "No new entries until stock exits climax conditions."
-                )
-                return {
-                    "shares": 0,
-                    "position_size_pct": 0,
-                    "risk_dollars": 0,
-                    "status": "phase_climax",
-                    "reason": f"{symbol} in Stage-2 climax phase - skip entry",
-                }
-
-            if entry_price <= 0 or stop_loss_price >= entry_price:
-                return {
-                    "shares": 0,
-                    "position_size_pct": 0,
-                    "risk_dollars": 0,
-                    "status": "invalid",
-                    "reason": "Invalid entry or stop price",
-                }
-
-            min_risk_val = self.config.get("min_risk_pct_floor")
-            if min_risk_val is None:
-                raise ValueError(
-                    "CRITICAL: min_risk_pct_floor config missing. Cannot enforce minimum position risk floor."
-                )
-            min_risk_floor = Decimal(str(min_risk_val)) / Decimal(100)
-            has_safety_reduction = exposure_mult < 0.8 or vix_mult < 1.0 or risk_adjustment < 1.0
-            if adjusted_risk_pct < min_risk_floor and not has_safety_reduction:
-                adjusted_risk_pct = min_risk_floor
-                risk_dollars = portfolio_value * adjusted_risk_pct
-
-            risk_per_share = Decimal(str(entry_price)) - Decimal(str(stop_loss_price))
-            shares = (
-                int((risk_dollars / risk_per_share).quantize(Decimal(1), rounding=ROUND_HALF_UP))
-                if risk_per_share > 0
-                else 0
-            )
-
-            if shares < 1:
-                return {
-                    "shares": 0,
-                    "position_size_pct": 0,
-                    "risk_dollars": 0,
-                    "status": "too_small",
-                    "reason": f"Position too small: risk_dollars=${risk_dollars:.2f}, risk_per_share=${risk_per_share:.2f}",
-                }
-
             position_value = Decimal(shares) * Decimal(str(entry_price))
-            max_pos_pct_val = self.config.get("max_position_size_pct")
-            if max_pos_pct_val is None:
-                raise ValueError("CRITICAL: max_position_size_pct config missing. Cannot enforce position size cap.")
-            try:
-                max_position_pct = Decimal(str(max_pos_pct_val)) / Decimal(100)
-                if max_position_pct <= 0 or max_position_pct > Decimal(1):
-                    raise ValueError(f"max_position_size_pct must be between 0 and 100, got {max_pos_pct_val}")
-            except (ValueError, TypeError, decimal.InvalidOperation) as e:
-                raise ValueError(
-                    f"CRITICAL: max_position_size_pct config has invalid value '{max_pos_pct_val}': {e}"
-                ) from None
-            max_position_value = portfolio_value * max_position_pct
+            risk_dollars = risk_per_share * Decimal(shares)
 
-            if position_value > max_position_value:
-                shares = int(
-                    (max_position_value / Decimal(str(entry_price))).quantize(Decimal(1), rounding=ROUND_HALF_UP)
-                )
-                position_value = Decimal(shares) * Decimal(str(entry_price))
-                risk_dollars = risk_per_share * Decimal(shares)
+        position_pct_of_portfolio = (
+            (position_value / Decimal(str(portfolio_value)) * Decimal(100)) if portfolio_value > 0 else Decimal(0)
+        )
+        max_conc_val = self.config.get("max_concentration_pct")
+        if max_conc_val is None:
+            raise ValueError("CRITICAL: max_concentration_pct config missing. Cannot enforce concentration limit.")
+        max_concentration = Decimal(str(max_conc_val))
 
-            position_pct_of_portfolio = (
-                (position_value / Decimal(str(portfolio_value)) * Decimal(100)) if portfolio_value > 0 else Decimal(0)
+        if position_pct_of_portfolio > max_concentration:
+            return {
+                "shares": 0,
+                "position_size_pct": 0,
+                "risk_dollars": 0,
+                "status": "concentration",
+                "reason": f"Position would be {position_pct_of_portfolio:.1f}% > {max_concentration:.0f}% portfolio",
+            }
+
+        total_invested = Decimal(str(active_position_value)) + position_value
+        max_inv_val = self.config.get("max_total_invested_pct")
+        if max_inv_val is None:
+            raise ValueError(
+                "CRITICAL: max_total_invested_pct config missing. Cannot enforce total investment limit."
             )
-            max_conc_val = self.config.get("max_concentration_pct")
-            if max_conc_val is None:
-                raise ValueError("CRITICAL: max_concentration_pct config missing. Cannot enforce concentration limit.")
-            max_concentration = Decimal(str(max_conc_val))
-
-            if position_pct_of_portfolio > max_concentration:
-                return {
-                    "shares": 0,
-                    "position_size_pct": 0,
-                    "risk_dollars": 0,
-                    "status": "concentration",
-                    "reason": f"Position would be {position_pct_of_portfolio:.1f}% > {max_concentration:.0f}% portfolio",
-                }
-
-            total_invested = Decimal(str(active_position_value)) + position_value
-            max_inv_val = self.config.get("max_total_invested_pct")
-            if max_inv_val is None:
-                raise ValueError(
-                    "CRITICAL: max_total_invested_pct config missing. Cannot enforce total investment limit."
-                )
-            max_invested_pct = Decimal(str(max_inv_val))
-            if (
-                portfolio_value > 0
-                and (total_invested / Decimal(str(portfolio_value)) * Decimal(100)) > max_invested_pct
-            ):
-                return {
-                    "shares": 0,
-                    "position_size_pct": 0,
-                    "risk_dollars": 0,
-                    "status": "no_room",
-                    "reason": f"Total invested would be {(total_invested / Decimal(str(portfolio_value)) * Decimal(100)):.0f}% > {max_invested_pct:.0f}%",
-                }
-
-            return {
-                "shares": shares,
-                "position_size_pct": position_pct_of_portfolio,
-                "risk_dollars": risk_dollars,
-                "position_value": position_value,
-                "status": "ok",
-                "reason": f"{shares} shares @ ${entry_price:.2f} = ${float(position_value):.2f} ({float(position_pct_of_portfolio):.1f}%)",
-            }
-
-        except (
-            DataUnavailableError,
-            ConfigurationError,
-            ValueError,
-            RuntimeError,
-        ) as e:
-            logger.error(f"Position calculation failed: {type(e).__name__}: {e}")
+        max_invested_pct = Decimal(str(max_inv_val))
+        if (
+            portfolio_value > 0
+            and (total_invested / Decimal(str(portfolio_value)) * Decimal(100)) > max_invested_pct
+        ):
             return {
                 "shares": 0,
                 "position_size_pct": 0,
                 "risk_dollars": 0,
-                "status": "error",
-                "reason": str(e),
+                "status": "no_room",
+                "reason": f"Total invested would be {(total_invested / Decimal(str(portfolio_value)) * Decimal(100)):.0f}% > {max_invested_pct:.0f}%",
             }
-        except (ZeroDivisionError, TypeError) as e:
-            logger.exception(f"Unexpected error during position calculation: {type(e).__name__}: {e}")
-            return {
-                "shares": 0,
-                "position_size_pct": 0,
-                "risk_dollars": 0,
-                "status": "error",
-                "reason": f"Unexpected error: {type(e).__name__}",
-            }
+
+        return {
+            "shares": shares,
+            "position_size_pct": position_pct_of_portfolio,
+            "risk_dollars": risk_dollars,
+            "position_value": position_value,
+            "status": "ok",
+            "reason": f"{shares} shares @ ${entry_price:.2f} = ${float(position_value):.2f} ({float(position_pct_of_portfolio):.1f}%)",
+        }

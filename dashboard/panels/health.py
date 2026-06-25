@@ -650,9 +650,30 @@ def _format_daily_metrics_summary(algo_metrics: list[Any]) -> list[Text]:
     for m in valid_metrics[:5]:
         d = m.get("date")
         d_s = d.strftime("%b %d") if hasattr(d, "strftime") else str(d or "--")
-        ta = int(m.get("total_actions", 0)) if "total_actions" in m else 0
-        en = int(m.get("entries", 0)) if "entries" in m else 0
-        ex = int(m.get("exits", 0)) if "exits" in m else 0
+        ta = m.get("total_actions")
+        if ta is None:
+            ta = 0
+        else:
+            try:
+                ta = int(ta)
+            except (TypeError, ValueError):
+                ta = 0
+        en = m.get("entries")
+        if en is None:
+            en = 0
+        else:
+            try:
+                en = int(en)
+            except (TypeError, ValueError):
+                en = 0
+        ex = m.get("exits")
+        if ex is None:
+            ex = 0
+        else:
+            try:
+                ex = int(ex)
+            except (TypeError, ValueError):
+                ex = 0
         rows.append(
             Text.from_markup(
                 f"  [dim]{d_s}:[/] [white]{ta}[/][dim] total actions,  [/][{G}]{en}[/][dim] entries  [/][{R}]{ex}[/][dim] exits[/]"

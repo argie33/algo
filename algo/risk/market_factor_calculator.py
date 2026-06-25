@@ -281,8 +281,8 @@ class MarketFactorCalculator:
             try:
                 cur.execute("ROLLBACK TO SAVEPOINT sp_put_call")
                 cur.execute("RELEASE SAVEPOINT sp_put_call")
-            except Exception:
-                pass
+            except Exception as cleanup_err:
+                logger.error(f"Savepoint cleanup failed (put_call_ratio): {cleanup_err}", exc_info=True)
             raise RuntimeError(f"Put/call ratio query failed: {e}") from e
 
     def new_highs_lows(self, eval_date: Any, cur: Any) -> dict[str, Any]:
@@ -320,8 +320,8 @@ class MarketFactorCalculator:
             try:
                 cur.execute("ROLLBACK TO SAVEPOINT sp_nhnl")
                 cur.execute("RELEASE SAVEPOINT sp_nhnl")
-            except Exception:
-                pass
+            except Exception as cleanup_err:
+                logger.error(f"Savepoint cleanup failed (new_highs_lows): {cleanup_err}", exc_info=True)
             raise RuntimeError(f"New highs/lows query failed: {e}") from e
 
     def ad_line(self, eval_date: Any, cur: Any) -> dict[str, Any]:
@@ -352,8 +352,8 @@ class MarketFactorCalculator:
             try:
                 cur.execute("ROLLBACK TO SAVEPOINT sp_ad_line")
                 cur.execute("RELEASE SAVEPOINT sp_ad_line")
-            except Exception:
-                pass
+            except Exception as cleanup_err:
+                logger.error(f"Savepoint cleanup failed (ad_line): {cleanup_err}", exc_info=True)
             raise RuntimeError(f"A/D line query failed: {e}") from e
 
     def credit_spread(self, eval_date: Any, cur: Any) -> dict[str, Any]:
@@ -379,8 +379,8 @@ class MarketFactorCalculator:
             try:
                 cur.execute("ROLLBACK TO SAVEPOINT sp_credit")
                 cur.execute("RELEASE SAVEPOINT sp_credit")
-            except Exception:
-                pass
+            except Exception as cleanup_err:
+                logger.error(f"Savepoint cleanup failed (credit_spread): {cleanup_err}", exc_info=True)
             raise RuntimeError(f"Credit spread query failed: {e}") from e
 
     def aaii(self, eval_date: Any, cur: Any) -> dict[str, Any]:
@@ -415,12 +415,16 @@ class MarketFactorCalculator:
             try:
                 cur.execute("ROLLBACK TO SAVEPOINT sp_aaii")
                 cur.execute("RELEASE SAVEPOINT sp_aaii")
-            except Exception:
-                pass
+            except Exception as cleanup_err:
+                logger.error(f"Savepoint cleanup failed (aaii): {cleanup_err}", exc_info=True)
             raise RuntimeError(f"AAII sentiment query failed: {e}") from e
 
     def naaim(self, eval_date: Any, cur: Any) -> dict[str, Any]:
-        """NAAIM exposure (contrarian positioning, optional). Uses most recent weekly reading."""
+        """NAAIM exposure (contrarian positioning, optional). Uses most recent weekly reading.
+
+        Raises if data unavailable. Although marked as optional factor, missing data
+        should be explicit. Caller can choose to skip/retry if NAAIM unavailable.
+        """
         try:
             cur.execute("SAVEPOINT sp_naaim")
             cur.execute(
@@ -433,13 +437,11 @@ class MarketFactorCalculator:
                 exp = float(row[0])
                 score = min(100, max(0, 100 - exp / 2))
                 return {"exposure": round(exp, 1), "score": score}
-            logger.debug(f"NAAIM unavailable for {eval_date} (optional, using neutral score)")
-            return {"exposure": None, "score": 50}
+            raise RuntimeError(f"NAAIM data unavailable for {eval_date} — missing exposure reading")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             try:
                 cur.execute("ROLLBACK TO SAVEPOINT sp_naaim")
                 cur.execute("RELEASE SAVEPOINT sp_naaim")
-            except Exception:
-                pass
-            logger.debug(f"NAAIM query failed (optional): {e}, using neutral score")
-            return {"exposure": None, "score": 50}
+            except Exception as cleanup_err:
+                logger.error(f"Savepoint cleanup failed (naaim): {cleanup_err}", exc_info=True)
+            raise RuntimeError(f"NAAIM query failed: {e}") from e
