@@ -105,13 +105,19 @@ class EconomicMetricsDailyLoader(OptimalLoader):
                         spy_rows = []
 
                     if len(spy_rows) >= 2:
-                        cur_price = float(spy_rows[0].get("close")) if spy_rows[0].get("close") is not None else None
-                        prev_price = float(spy_rows[1].get("close")) if spy_rows[1].get("close") is not None else None
+                        cur_close = spy_rows[0].get("close")
+                        prev_close = spy_rows[1].get("close")
 
-                        if cur_price is not None and prev_price is not None and prev_price > 0:
-                            spy_price_change = round((cur_price - prev_price) / prev_price * 100, 2)
-                        elif prev_price == 0:
-                            spy_error = "prev_price_zero"
+                        if cur_close is None or prev_close is None:
+                            spy_error = f"null_prices:cur={cur_close},prev={prev_close}"
+                        else:
+                            cur_price = float(cur_close)
+                            prev_price = float(prev_close)
+
+                            if prev_price <= 0:
+                                spy_error = f"invalid_prev_price:{prev_price}"
+                            else:
+                                spy_price_change = round((cur_price - prev_price) / prev_price * 100, 2)
                     else:
                         spy_error = f"insufficient_data:{len(spy_rows)}"
                 except (ValueError, ZeroDivisionError, TypeError) as e:

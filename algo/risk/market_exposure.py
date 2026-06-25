@@ -267,12 +267,12 @@ class MarketExposure:
             }
             score += b50_pts
             b50_val = b50.get("value")
-            if b50_val is not None:
-                logger.debug(f"  Breadth 50-DMA: {b50_val:.1f}%, {b50_pts:.1f} pts")
-            else:
-                logger.warning(
-                    f"  Breadth 50-DMA: data unavailable (score_factor={b50.get('score_factor')}), {b50_pts:.1f} pts"
+            if b50_val is None:
+                raise RuntimeError(
+                    f"[MARKET EXPOSURE CRITICAL] Breadth 50-DMA data unavailable for {eval_date} — "
+                    f"required for short-term market participation factor. Check market_health_daily loader."
                 )
+            logger.debug(f"  Breadth 50-DMA: {b50_val:.1f}%, {b50_pts:.1f} pts")
 
             # --- 4. Breadth: % stocks above 200-DMA ---
             b200 = self.calculator._pct_above_ma(eval_date, ma_days=200, cur=cur)
@@ -285,12 +285,12 @@ class MarketExposure:
             }
             score += b200_pts
             b200_val = b200.get("value")
-            if b200_val is not None:
-                logger.debug(f"  Breadth 200-DMA: {b200_val:.1f}%, {b200_pts:.1f} pts")
-            else:
-                logger.warning(
-                    f"  Breadth 200-DMA: data unavailable (score_factor={b200.get('score_factor')}), {b200_pts:.1f} pts"
+            if b200_val is None:
+                raise RuntimeError(
+                    f"[MARKET EXPOSURE CRITICAL] Breadth 200-DMA data unavailable for {eval_date} — "
+                    f"required for long-term market regime factor. Check market_health_daily loader."
                 )
+            logger.debug(f"  Breadth 200-DMA: {b200_val:.1f}%, {b200_pts:.1f} pts")
 
             # --- 5. Selling pressure (heavy-volume down days) ---
             sp = self.calculator.selling_pressure(eval_date, cur)
@@ -503,8 +503,14 @@ class MarketExposure:
                 halt_reasons.append("No market confirmation signal while SPY below 30-week MA")
                 cap = min(cap, 40.0)
             # Veto 5: HY credit spread systemic stress
-            if cs.get("value") and cs["value"] > 8.5:
-                halt_reasons.append(f"HY credit spread {cs['value']:.2f}% > 8.5% (systemic stress)")
+            cs_value = cs.get("value")
+            if cs_value is None:
+                raise ValueError(
+                    "Credit spread calculation missing required 'value' field — "
+                    "cannot assess systemic stress veto. Check credit_spread() implementation."
+                )
+            if cs_value > 8.5:
+                halt_reasons.append(f"HY credit spread {cs_value:.2f}% > 8.5% (systemic stress)")
                 cap = min(cap, 30.0)
 
             if halt_reasons:
@@ -1102,7 +1108,10 @@ class MarketExposure:
         )
         row = cur.fetchone()
         if not row or row[0] is None:
-            return {"score_factor": None, "value": None, "reason": "No AAII data"}
+            raise RuntimeError(
+                f"[MARKET EXPOSURE CRITICAL] No AAII sentiment data for {eval_date} — "
+                f"required for contrarian sentiment factor. Check aaii_sentiment loader."
+            )
 
         bullish = float(row[0])
         bearish = float(row[1]) if row[1] is not None else 0.0
@@ -1146,7 +1155,10 @@ class MarketExposure:
         )
         row = cur.fetchone()
         if not row or row[0] is None:
-            return {"score_factor": None, "value": None, "reason": "No NAAIM data"}
+            raise RuntimeError(
+                f"[MARKET EXPOSURE CRITICAL] No NAAIM manager exposure data for {eval_date} — "
+                f"required for professional positioning factor. Check naaim loader."
+            )
 
         exposure = float(row[0])
         clamped = max(0.0, min(100.0, exposure))
@@ -1191,7 +1203,10 @@ class MarketExposure:
         )
         rows = cur.fetchall()
         if not rows:
-            return {"score_factor": None, "value": None, "reason": "No HY spread data"}
+            raise RuntimeError(
+                f"[MARKET EXPOSURE CRITICAL] No HY credit spread (BAMLH0A0HYM2) data for {eval_date} — "
+                f"required for credit cycle factor. Check economic_data loader."
+            )
 
         hy = float(rows[0][0])
         # Trend: compare latest vs 20 days ago

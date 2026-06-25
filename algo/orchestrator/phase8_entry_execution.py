@@ -671,11 +671,22 @@ def run(
 
                 continue
 
+            composite_score = signal.get('composite_score')
+            rs_pct = signal.get('rs_percentile')
+            if composite_score is None:
+                raise RuntimeError(
+                    f"[PHASE 8] Signal for {symbol} missing required 'composite_score' field — "
+                    f"cannot execute trade without signal quality validation."
+                )
+            if rs_pct is None:
+                raise RuntimeError(
+                    f"[PHASE 8] Signal for {symbol} missing required 'rs_percentile' field — "
+                    f"cannot execute trade without relative strength validation."
+                )
             logger.info(
                 f"[PHASE 8] {symbol}: BUY entry=${entry_price:.2f} stop=${stop_loss:.2f} "
                 f"risk={risk_pct:.1f}% shares={shares} value=${position_value:,.0f} "
-                f"composite={signal.get('composite_score', '?')} "
-                f"rs_pct={signal.get('rs_percentile', '?')}"
+                f"composite={composite_score} rs_pct={rs_pct}"
             )
 
             if not dry_run:

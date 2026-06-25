@@ -225,7 +225,11 @@ def fetch_perf(c: None) -> dict[str, Any]:
 
         # Comprehensive validation using FetcherValidator
         # No freshness check: data is pre-computed daily (no "timestamp" field in response)
-        required_fields = ["total_trades", "winning_trades", "losing_trades"]
+        required_fields = [
+            "total_trades", "winning_trades", "losing_trades",
+            "win_rate_pct", "total_pnl_dollars", "sharpe_annualized",
+            "max_drawdown_pct", "avg_win_pct", "avg_loss_pct"
+        ]
         valid, validation_error = FetcherValidator.validate_response(
             response=perf,
             required_fields=required_fields,
