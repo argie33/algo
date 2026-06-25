@@ -39,16 +39,45 @@ class DailyReconciliation:
             self.audit_logger = TradeAuditLogger()
             self.trading_client = True  # Signals credentials are available
         except (KeyError, ValueError, AttributeError) as e:
-            logger.critical(f"Reconciliation manager initialization FAILED: {e}")
-            try:
-                notify(
-                    "critical",
-                    title="Reconciliation Initialization Failed",
-                    message=f"Manager initialization failed: {e}. Reconciliation cannot proceed.",
+            import os
+
+            # Allow initialization to succeed in dry-run/local development mode without credentials
+            if os.getenv("ORCHESTRATOR_DRY_RUN", "").lower() in ("true", "1", "yes"):
+                logger.warning(
+                    f"Reconciliation broker adapter initialization failed (expected in dry-run): {e}. "
+                    "Will use mock broker for dry-run mode."
                 )
-            except (psycopg2.DatabaseError, psycopg2.OperationalError):
-                logger.warning("Failed to send initialization failure notification")
-            raise ValueError(f"Reconciliation initialization failed: {e}") from e
+                # Create a mock broker that returns dummy data
+                from algo.infrastructure.broker_adapter import BrokerAdapter
+
+                class MockBrokerAdapter(BrokerAdapter):
+                    def get_account(self) -> dict[str, Any]:
+                        return {
+                            "portfolio_value": 100000.0,
+                            "cash": 50000.0,
+                            "equity": 50000.0,
+                        }
+
+                    def get_positions(self) -> list[dict[str, Any]]:
+                        return []
+
+                    def sync_positions(self, cur: Any) -> dict[str, Any]:
+                        return {"imported": 0, "updated": 0, "closed": 0}
+
+                self.broker = MockBrokerAdapter()
+                self.audit_logger = TradeAuditLogger()
+                self.trading_client = False  # No real credentials
+            else:
+                logger.critical(f"Reconciliation manager initialization FAILED: {e}")
+                try:
+                    notify(
+                        "critical",
+                        title="Reconciliation Initialization Failed",
+                        message=f"Manager initialization failed: {e}. Reconciliation cannot proceed.",
+                    )
+                except (psycopg2.DatabaseError, psycopg2.OperationalError):
+                    logger.warning("Failed to send initialization failure notification")
+                raise ValueError(f"Reconciliation initialization failed: {e}") from e
 
     def run_daily_reconciliation(self, reconcile_date: Any = None, dry_run: bool = False) -> dict[str, Any]:  # noqa: C901
         """Run full daily reconciliation. If dry_run=True, skip Alpaca API calls and return mock data.
