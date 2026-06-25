@@ -232,7 +232,9 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:
     # Compute sector_allocation array after processing all positions (E5 fix)
     # Use absolute values to handle portfolios with shorts: total = sum of |position values|
     # This prevents negative totals when shorts exceed longs, which would invert all percentages
-    total_abs_value = sum(abs(v) for v in sector_risk.values()) or 1
+    total_abs_value = sum(abs(v) for v in sector_risk.values())
+    if total_abs_value == 0:
+        total_abs_value = 1  # Prevent division by zero when no positions exist
     sector_allocation = [
         {
             "sector": sector,
