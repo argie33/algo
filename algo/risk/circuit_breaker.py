@@ -369,7 +369,7 @@ class CircuitBreaker:
         for r in rows:
             pnl = _float(r[0], 0.0, context="trade_pnl")
             if r[0] is None:
-                logger.warning(f"Trade has NULL P&L — skipping to next trade (not breaking count)")
+                logger.warning("Trade has NULL P&L — skipping to next trade (not breaking count)")
                 continue
             if pnl < 0:
                 streak += 1
