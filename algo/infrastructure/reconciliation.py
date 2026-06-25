@@ -362,10 +362,18 @@ class DailyReconciliation:
                 result = cur.fetchone()
                 if result is None:
                     raise ValueError("No trades data returned from database")
-                win_count = int(result[0]) if result[0] is not None else 0
-                loss_count = int(result[1]) if result[1] is not None else 0
-                realized_pnl_today = float(result[2]) if result[2] is not None else 0.0
-                cumulative_pnl = float(result[3]) if result[3] is not None else 0.0
+                win_count = result[0]
+                loss_count = result[1]
+                realized_pnl_today = result[2]
+                cumulative_pnl = result[3]
+                if win_count is None or loss_count is None:
+                    raise ValueError(f"Trade counts missing from database: wins={win_count}, losses={loss_count}")
+                if realized_pnl_today is None or cumulative_pnl is None:
+                    raise ValueError(f"PnL values missing from database: today={realized_pnl_today}, cumulative={cumulative_pnl}")
+                win_count = int(win_count)
+                loss_count = int(loss_count)
+                realized_pnl_today = float(realized_pnl_today)
+                cumulative_pnl = float(cumulative_pnl)
 
                 # Get cumulative return (normalize to actual initial capital from Alpaca account history)
                 try:

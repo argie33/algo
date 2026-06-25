@@ -987,7 +987,10 @@ def _get_correlation_matrix(cur: cursor) -> Any:
         sym = row["symbol"]
         if sym not in prices_by_symbol:
             prices_by_symbol[sym] = []
-        prices_by_symbol[sym].append((row["date"], float(row["close"]) if row["close"] else 0))
+        if not row["close"] or row["close"] <= 0:
+            logger.warning(f"Market API: Invalid close price for {sym} on {row.get('date', 'unknown')}: {row['close']}; skipping")
+            continue
+        prices_by_symbol[sym].append((row["date"], float(row["close"])))
 
     for sym in prices_by_symbol:
         prices_by_symbol[sym] = [(d, p) for d, p in sorted(prices_by_symbol[sym])]
@@ -1330,10 +1333,16 @@ def _get_markets(cur: cursor) -> Any:
     fallback_symbols = []
 
     for row in latest:
-        price = float(row["close"]) if row["close"] else 0
-        prev_price = float(row["prev_close"]) if row["prev_close"] else price
-        change = price - prev_price if prev_price > 0 else 0
-        change_pct = (change / prev_price * 100) if prev_price > 0 else 0
+        if not row["close"] or row["close"] <= 0:
+            logger.warning(f"Market API indices: Invalid close price for {row.get('symbol', 'unknown')}: {row['close']}; skipping")
+            continue
+        price = float(row["close"])
+        if not row["prev_close"] or row["prev_close"] <= 0:
+            logger.warning(f"Market API indices: Invalid prev_close for {row.get('symbol', 'unknown')}: {row['prev_close']}; cannot calculate change")
+            continue
+        prev_price = float(row["prev_close"])
+        change = price - prev_price
+        change_pct = change / prev_price * 100
 
         # Track fallback prices (using previous day price when current day unavailable)
         is_fallback = bool(row.get("_is_fallback", False))

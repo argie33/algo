@@ -280,7 +280,10 @@ class SignalMomentumMixin:
                 today_vol = float(today_vol)
 
                 today_prev = float(today_prev) if today_prev is not None else None
-                today_close = float(today_close) if today_close else 0
+                if today_close is None or not isinstance(today_close, (int, float)) or today_close <= 0:
+                    logger.warning(f"[POCKET_PIVOT] Today's close price invalid for {symbol}: {today_close}; cannot evaluate pocket pivot")
+                    return {"pocket_pivot": False, "reason": "invalid_today_close"}
+                today_close = float(today_close)
 
                 is_up_day = today_prev is not None and today_close > today_prev
                 fires = is_up_day and today_vol >= max_down_vol and max_down_vol > 0
@@ -303,7 +306,10 @@ class SignalMomentumMixin:
                     continue
                 vol = float(vol)
                 prev_close = float(prev_close) if prev_close is not None else None
-                close = float(close) if close else 0
+                if close is None or not isinstance(close, (int, float)) or close <= 0:
+                    logger.debug(f"[POCKET_PIVOT] Historical close price invalid for {symbol}: {close}; skipping")
+                    continue
+                close = float(close)
                 if prev_close is not None and close > prev_close and vol >= max_down_vol and max_down_vol > 0:
                     days_since = rn - 1  # rn=1 is most recent
                     up_day_dates.append((days_since, vol))

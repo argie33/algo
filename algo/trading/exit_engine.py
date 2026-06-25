@@ -1298,7 +1298,7 @@ class ExitEngine:
         row = cur.fetchone()
 
         if row is None:
-            return False
+            raise ValueError(f"Cannot evaluate Minervini break for {symbol}: technical_data_daily missing for {current_date}")
 
         sma_50, ema_21, vol, avg_vol_50 = row
 

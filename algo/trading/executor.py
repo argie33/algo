@@ -868,14 +868,10 @@ class TradeExecutor:
             qty_raw = alpaca_pos["qty"] if "qty" in alpaca_pos else None
             if qty_raw is None:
                 raise DataUnavailableError(f"Alpaca position missing 'qty' field: {alpaca_pos.keys()}")
-            if qty_raw is None:
-                return {
-                    "valid": False,
-                    "db_quantity": None,
-                    "alpaca_quantity": None,
-                    "corrected": False,
-                    "message": f"Alpaca /v2/positions/{symbol} missing 'qty' field (API schema violation)",
-                }
+            if not isinstance(qty_raw, (int, float, str)):
+                raise DataUnavailableError(
+                    f"Alpaca position qty for {symbol} has invalid type {type(qty_raw).__name__}: {qty_raw}"
+                )
 
             try:
                 qty_float = float(qty_raw)

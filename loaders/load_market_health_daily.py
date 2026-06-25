@@ -324,7 +324,10 @@ class MarketHealthDailyLoader(OptimalLoader):
 
         results = []
         for idx, row in df.iterrows():
-            close = float(row["close"]) if pd.notna(row["close"]) else 0
+            if not pd.notna(row["close"]) or row["close"] <= 0:
+                logger.warning(f"Market health: Invalid close price for {row.get('date', 'unknown')}: {row['close']}; skipping row")
+                continue
+            close = float(row["close"])
             sma_200 = float(row["sma_200"]) if pd.notna(row["sma_200"]) else None
             sma_50 = float(row["sma_50"]) if pd.notna(row["sma_50"]) else None
 

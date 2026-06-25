@@ -102,8 +102,12 @@ def get_portfolio_pnl(max_attempts: int = 3):
                 WHERE status = 'open'
             """)
             row = cur.fetchone()
-            total_equity = float(row[0]) if row is not None and row[0] is not None else 0
-            current_pnl = float(row[1]) if row and row[1] else 0
+            if row is None:
+                raise RuntimeError("Circuit breaker: Cannot query portfolio positions from database")
+            if row[0] is None or row[1] is None:
+                raise RuntimeError(f"Circuit breaker: Portfolio query returned NULL values: total_equity={row[0]}, current_pnl={row[1]}")
+            total_equity = float(row[0])
+            current_pnl = float(row[1])
 
             # Get session opening P&L snapshot (captured at market open).
             cur.execute("""
@@ -113,7 +117,9 @@ def get_portfolio_pnl(max_attempts: int = 3):
                 LIMIT 1
             """)
             session_row = cur.fetchone()
-            open_pnl = float(session_row[0]) if session_row and session_row[0] else current_pnl
+            if session_row is None or session_row[0] is None:
+                raise RuntimeError("Circuit breaker: Cannot retrieve session opening P&L snapshot")
+            open_pnl = float(session_row[0])
 
             cur.close()
             conn.close()

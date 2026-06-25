@@ -88,9 +88,9 @@ def _calculate_adjusted_win_rate(perf: dict[str, Any] | None, pos: dict[str, Any
         l_val = perf.get("l") if perf else None
         if wr_val is None or w_val is None or l_val is None:
             raise ValueError("Performance data missing: cannot calculate win rate without w/l/wr counts")
-        wr_f = safe_float(wr_val, default=0.0)
-        w_i = safe_int(w_val, default=0)
-        l_i = safe_int(l_val, default=0)
+        wr_f = safe_float(wr_val, strict=True, field_name="win_rate_pct")
+        w_i = safe_int(w_val, strict=True, field_name="closed_wins")
+        l_i = safe_int(l_val, strict=True, field_name="closed_losses")
         return wr_f, w_i, l_i
 
     closed_wins = perf.get("w")
@@ -170,21 +170,17 @@ def panel_portfolio(
     )
 
     # Daily return / Unrealized P&L
-    dr_safe = dr if dr is not None else 0
-    urp_safe = urp if urp is not None else 0
-    dr_s = f"[{G if dr_safe >= 0 else R}]{sign(dr_safe)}{dr_safe:.2f}%[/]" if dr is not None else "[dim]--[/]"
-    urp_s = f"[{G if urp_safe >= 0 else R}]{sign(urp_safe)}{urp_safe:.2f}%[/]" if urp is not None else "[dim]--[/]"
+    dr_s = f"[{G if dr >= 0 else R}]{sign(dr)}{dr:.2f}%[/]" if dr is not None else "[dim]--[/]"
+    urp_s = f"[{G if urp >= 0 else R}]{sign(urp)}{urp:.2f}%[/]" if urp is not None else "[dim]--[/]"
     tbl.add_row(cell("Daily Return:", dr_s), cell("Unrealized P&L:", urp_s))
 
     # Total return / Max drawdown
     cum_v = float(cum) if cum is not None else None
     mxdd_v = float(mxdd) if mxdd is not None else None
-    cum_v_safe = cum_v if cum_v is not None else 0
-    cc = G if cum_v_safe >= 0 else R
-    cum_val = f"[{cc}]{sign(cum_v_safe)}{cum_v_safe:.2f}%[/]" if cum_v is not None else "[dim]--[/]"
+    cc = G if cum_v is not None and cum_v >= 0 else R
+    cum_val = f"[{cc}]{sign(cum_v)}{cum_v:.2f}%[/]" if cum_v is not None else "[dim]--[/]"
     dd_v: float | None = abs(mxdd_v) if mxdd_v is not None else None
-    dd_v_safe = dd_v if dd_v is not None else 0
-    dd_c = R if dd_v_safe >= 15 else (Y if dd_v_safe >= 5 else G)
+    dd_c = R if dd_v is not None and dd_v >= 15 else (Y if dd_v is not None and dd_v >= 5 else G)
     dd_val = f"[{dd_c}]-{dd_v:.1f}%[/]" if dd_v is not None else "[dim]--[/]"
     tbl.add_row(cell("Total Return:", cum_val), cell("Max Drawdown:", dd_val))
 
@@ -436,9 +432,15 @@ def panel_portfolio_perf_expanded(  # noqa: C901
         pv_val: Any = port["total_portfolio_value"]
         cash_val: Any = port["total_cash"]
         npos_val: Any = port["position_count"]
-        pv = float(pv_val) if pv_val is not None else 0.0
-        cash = float(cash_val) if cash_val is not None else 0.0
-        npos = int(npos_val) if npos_val is not None else 0
+        if pv_val is None:
+            raise ValueError("Portfolio total_portfolio_value missing - cannot render snapshot")
+        if cash_val is None:
+            raise ValueError("Portfolio total_cash missing - cannot render snapshot")
+        if npos_val is None:
+            raise ValueError("Portfolio position_count missing - cannot render snapshot")
+        pv = float(pv_val)
+        cash = float(cash_val)
+        npos = int(npos_val)
         dr_val: Any = port.get("daily_return_pct")
         urp_val: Any = port.get("unrealized_pnl_pct")
         cum_val: Any = port.get("cumulative_return_pct")
@@ -487,13 +489,13 @@ def panel_portfolio_perf_expanded(  # noqa: C901
     if perf and not perf.get("_error") and not perf.get("_no_data"):
         rows.append(Text.from_markup("[dim bold]PERFORMANCE METRICS[/]"))
         n_val = perf.get("n")
-        n = int(n_val) if n_val is not None and isinstance(n_val, (int, float)) else 0
+        n = safe_int(n_val, strict=True, field_name="total_trades_n")
         w_val = perf.get("w")
-        w = int(w_val) if w_val is not None and isinstance(w_val, (int, float)) else 0
+        w = safe_int(w_val, strict=True, field_name="closed_wins_w")
         l_val = perf.get("l")
-        closed_losses = int(l_val) if l_val is not None and isinstance(l_val, (int, float)) else 0
+        closed_losses = safe_int(l_val, strict=True, field_name="closed_losses_l")
         streak_val = perf.get("streak")
-        streak = int(streak_val) if streak_val is not None and isinstance(streak_val, (int, float)) else 0
+        streak = safe_int(streak_val, strict=True, field_name="win_streak")
         pnl_val = safe_float(perf.get("pnl"), default=None)
         unrlzd_pnl = safe_float(perf.get("unrealized_pnl"), default=None)
         open_cnt = safe_int(perf.get("open_count"), default=None)
@@ -501,7 +503,9 @@ def panel_portfolio_perf_expanded(  # noqa: C901
         sharpe_v = safe_float(perf.get("sharpe"), default=None)
         exp = safe_float(perf.get("expectancy"), default=None)
         dd_val = perf.get("maxdd")
-        dd_v = float(dd_val) if dd_val is not None and isinstance(dd_val, (int, float)) else 0
+        if dd_val is None or not isinstance(dd_val, (int, float)):
+            raise ValueError(f"Max drawdown value missing or invalid: {dd_val}")
+        dd_v = float(dd_val)
         avg_win = perf.get("avg_win")
         avg_loss = perf.get("avg_loss")
 
@@ -509,8 +513,8 @@ def panel_portfolio_perf_expanded(  # noqa: C901
             wr_v, _adj_w, adj_l = _calculate_adjusted_win_rate(perf, pos)
             losing_open = (adj_l or 0) - (closed_losses or 0)
         except ValueError as e:
-            logger.warning(f"Win rate calculation failed: {e}")
-            wr_v = 0.0
+            logger.error(f"Win rate calculation failed: {e}")
+            raise
             adj_l = 0
             losing_open = 0
         wr_label = "Win Rate (adj.):" if losing_open > 0 else "Win Rate:"

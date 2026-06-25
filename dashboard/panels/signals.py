@@ -139,9 +139,13 @@ def _build_signal_header(sig_data: dict[str, Any], scores_data: dict[str, Any] |
         return rows, 0, 0
 
     raw_val = safe_get_field(overview, "n")
-    raw = int(raw_val) if raw_val is not None and isinstance(raw_val, (int, float)) else 0
+    if raw_val is None or not isinstance(raw_val, (int, float)):
+        raise ValueError(f"Signal count 'n' missing or invalid: {raw_val}")
+    raw = int(raw_val)
     total_val = safe_get_field(overview, "total")
-    total = int(total_val) if total_val is not None and isinstance(total_val, (int, float)) else 0
+    if total_val is None or not isinstance(total_val, (int, float)):
+        raise ValueError(f"Total signal count 'total' missing or invalid: {total_val}")
+    total = int(total_val)
     ds = _format_signal_date(safe_get_field(overview, "date"))
 
     grades_field = safe_get_field(overview, "grades", {})
@@ -430,15 +434,13 @@ def _build_scores_table(top_scores: list[Any]) -> list[Text | Table]:
             chg_v: float | None = float(chg) if chg is not None and chg != "" else None
         except (ValueError, TypeError):
             chg_v = None
-        chg_v_safe = chg_v if chg_v is not None else 0
-        chg_c: str = G if chg_v_safe > 0 else (R if chg_v_safe < 0 else DIM)
+        chg_c: str = G if chg_v is not None and chg_v > 0 else (R if chg_v is not None and chg_v < 0 else DIM)
 
         try:
             rs_v: float | None = float(rs_pct) if rs_pct is not None and rs_pct != "" else None
         except (ValueError, TypeError):
             rs_v = None
 
-        rs_v_safe = rs_v if rs_v is not None else 0
         t.add_row(
             sym,
             Text(f"{comp_v:.0f}", style=sc_c),
@@ -448,7 +450,7 @@ def _build_scores_table(top_scores: list[Any]) -> list[Text | Table]:
             _score_cell(stab),
             Text(
                 f"{rs_v:.0f}" if rs_v is not None else "--",
-                style=G if rs_v_safe >= 70 else DIM,
+                style=G if rs_v is not None and rs_v >= 70 else DIM,
             ),
             Text(f"{chg_v:+.1f}%" if chg_v is not None else "--", style=chg_c),
             Text(sector, style=DIM),
@@ -675,9 +677,7 @@ def panel_signals_expanded(sig: Any, sig_eval: Any = None, scores: Any = None) -
                 rs_v = float(rs_pct) if rs_pct is not None and rs_pct != "" else None
             except (ValueError, TypeError):
                 vs50_v = vs200_v = rs_v = None
-            chg_v_safe = chg_v if chg_v is not None else 0
-            chg_c = G if chg_v_safe > 0 else (R if chg_v_safe < 0 else DIM)
-            rs_v_safe = rs_v if rs_v is not None else 0
+            chg_c = G if chg_v is not None and chg_v > 0 else (R if chg_v is not None and chg_v < 0 else DIM)
 
             sig_tbl.add_row(
                 sym,
@@ -691,17 +691,17 @@ def panel_signals_expanded(sig: Any, sig_eval: Any = None, scores: Any = None) -
                 _score_cell(pos),
                 Text(
                     f"{rs_v:.0f}" if rs_v is not None else "--",
-                    style=G if rs_v_safe >= 70 else DIM,
+                    style=G if rs_v is not None and rs_v >= 70 else DIM,
                 ),
                 Text(f"${float(price):.2f}" if price else "--", style=DIM),
                 Text(f"{chg_v:+.1f}%" if chg_v is not None else "--", style=chg_c),
                 Text(
                     f"{vs50_v:+.1f}%" if vs50_v is not None else "--",
-                    style=G if (vs50_v if vs50_v is not None else 0) > 0 else R,
+                    style=G if vs50_v is not None and vs50_v > 0 else R,
                 ),
                 Text(
                     f"{vs200_v:+.1f}%" if vs200_v is not None else "--",
-                    style=G if (vs200_v is not None and vs200_v > 0) else R,
+                    style=G if vs200_v is not None and vs200_v > 0 else R,
                 ),
                 Text(sector, style=DIM),
             )
