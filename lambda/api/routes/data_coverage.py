@@ -65,23 +65,29 @@ def get_price_coverage(cur: cursor) -> Any:
         invalid_prices = row["invalid_price_rows"]
 
         days_stale = (_date.today() - latest_date).days if latest_date else 999
-        zero_vol_pct = (zero_vol / total_rows * 100) if total_rows else 0
-        invalid_pct = (invalid_prices / total_rows * 100) if total_rows else 0
+        zero_vol_pct = (zero_vol / total_rows * 100) if total_rows else None
+        invalid_pct = (invalid_prices / total_rows * 100) if total_rows else None
+        coverage_pct = (round(total_symbols / sp500_total * 100, 1) if sp500_total else None)
 
-        return success_response(
-            {
-                "total_symbols": total_symbols,
-                "sp500_target": sp500_total,
-                "coverage_pct": (round(total_symbols / sp500_total * 100, 1) if sp500_total else 0),
-                "latest_date": str(latest_date),
-                "days_stale": days_stale,
-                "status": "fresh" if days_stale <= 1 else "stale",
-                "data_quality": {
-                    "zero_volume_pct": round(zero_vol_pct, 2),
-                    "invalid_price_pct": round(invalid_pct, 2),
-                },
-            }
-        )
+        result = {
+            "total_symbols": total_symbols,
+            "sp500_target": sp500_total,
+            "coverage_pct": coverage_pct,
+            "latest_date": str(latest_date),
+            "days_stale": days_stale,
+            "status": "fresh" if days_stale <= 1 else "stale",
+            "data_quality": {
+                "zero_volume_pct": round(zero_vol_pct, 2) if zero_vol_pct is not None else None,
+                "invalid_price_pct": round(invalid_pct, 2) if invalid_pct is not None else None,
+            },
+        }
+
+        if not total_rows:
+            result["_warning"] = "No price rows available for quality metrics"
+        if sp500_total is None or sp500_total == 0:
+            result["_warning"] = "SP500 target count missing or zero"
+
+        return success_response(result)
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,

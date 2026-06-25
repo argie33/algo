@@ -146,12 +146,15 @@ def log_trade_with_override(symbol: str, entry_price: float, direction: str = "l
     is_enabled, _, minutes_active = get_override_state()
 
     if is_enabled:
+        if minutes_active is None:
+            logger.error(f"[GRADE_OVERRIDE] Override enabled but minutes_active is None for {symbol}")
+            minutes_active = -1
         logger.warning(
             "[GRADE_OVERRIDE] TRADE ENTERED WITH OVERRIDE: %s %s @ $%.2f. Override enabled for %d minutes (max: %d).",
             direction.upper(),
             symbol,
             entry_price,
-            minutes_active or 0,
+            minutes_active,
             get_override_duration_minutes(),
         )
 

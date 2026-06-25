@@ -50,14 +50,15 @@ class MetricsCalculator:
 
         Edge Cases:
             - If total_trades is None or 0, returns None
-            - If wins or losses is None, uses 0
+            - If wins is None, raises ValueError (cannot calculate without win count)
         """
         if total_trades is None or total_trades <= 0:
             return None
-        wins_val = wins if wins is not None else 0
-        if wins_val < 0 or wins_val > total_trades:
+        if wins is None:
+            raise ValueError("Cannot calculate win rate: wins count is None")
+        if wins < 0 or wins > total_trades:
             return None
-        wr = (wins_val / total_trades) * 100
+        wr = (wins / total_trades) * 100
         return round(wr, 2)
 
     @staticmethod

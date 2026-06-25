@@ -1770,7 +1770,9 @@ class PriceLoader(OptimalLoader):
 
             if self.router and self.router.last_source:
                 src = self.router.last_source
-                self._stats["source_distribution"][src] = self._stats["source_distribution"].get(src, 0) + 1
+                if src not in self._stats["source_distribution"]:
+                    self._stats["source_distribution"][src] = 0
+                self._stats["source_distribution"][src] += 1
 
             rows = self.transform(rows)
             before_quality = len(rows)

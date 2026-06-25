@@ -64,13 +64,15 @@ class AnalystRatingsLoader(OptimalLoader):
                             f"Analyst upgrade/downgrade record for {symbol} missing required field '{field}' - "
                             f"cannot proceed without complete analyst data"
                         )
+                old_rating_raw = row.get("From Grade")
+                old_rating_str = str(old_rating_raw).strip() if old_rating_raw else None
                 results.append(
                     {
                         "symbol": symbol,
                         "action_date": ud_date,
                         "firm": str(row["Firm"]).strip(),
                         "new_rating": str(row["To Grade"]).strip(),
-                        "old_rating": str(row.get("From Grade", "")).strip() or None,
+                        "old_rating": old_rating_str,
                         "action": str(row["Action"]).strip(),
                     }
                 )

@@ -623,7 +623,9 @@ def _get_circuit_breakers(cur: cursor) -> Any:
 
         # CB4: VIX spike (from pre-computed metrics)
         try:
-            vix = cbm_data["vix_level"] if cbm_data else None
+            if not cbm_data:
+                raise ValueError("Circuit breaker metrics data missing")
+            vix = cbm_data["vix_level"]
             threshold_vix = 35.0
             breakers.append(
                 {
@@ -636,7 +638,7 @@ def _get_circuit_breakers(cur: cursor) -> Any:
                     "description": f"Halt when VIX ≥ {threshold_vix:.0f} (extreme fear)",
                 }
             )
-        except (ValueError, ZeroDivisionError, TypeError) as e:
+        except (ValueError, ZeroDivisionError, TypeError, KeyError) as e:
             logger.error(f"CB4 (vix_spike) computation failed: {type(e).__name__}: {e}")
             breakers.append(
                 {

@@ -808,7 +808,8 @@ def _format_health_data_fresh_section(
 
     n_total = len(hlth_list)
     n_crit = len(crit)
-    oldest_s = f"  [dim]oldest: {_age_fmt_c(max(hlth_list, key=lambda r: _age_h(r) or 0))}[/]" if ages else ""
+    valid_ages = [r for r in hlth_list if _age_h(r) is not None]
+    oldest_s = f"  [dim]oldest: {_age_fmt_c(max(valid_ages, key=lambda r: _age_h(r)))}[/]" if valid_ages else ""
     crit_s = f"  [dim]crit {n_crit}[/][{G}] ok[/]" if n_crit else ""
     return f"{rtt_badge}  [dim]{n_total} tables fresh[/]{crit_s}{oldest_s}"
 

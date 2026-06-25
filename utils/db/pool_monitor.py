@@ -63,8 +63,14 @@ class RDSPoolMonitor:
                         "timestamp": datetime.now().isoformat(),
                     }
 
-                active = row[0] or 0
-                max_conn = row[1] or 100
+                if row[0] is None or row[1] is None:
+                    return {
+                        "_error": f"Connection query returned None values: active={row[0]}, max={row[1]}",
+                        "timestamp": datetime.now().isoformat(),
+                    }
+
+                active = row[0]
+                max_conn = row[1]
 
                 utilization_pct = (active / max_conn) * 100 if max_conn > 0 else 0
 

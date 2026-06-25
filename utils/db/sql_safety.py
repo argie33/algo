@@ -359,9 +359,15 @@ def safe_select_count(
     if date_column:
         col_safe = assert_safe_column(date_column)
         cur.execute(f"SELECT COUNT(*), MAX({col_safe})::TEXT FROM {table_safe}{where_sql}")
-        count, max_date = cur.fetchone()
-        return int(count or 0), max_date
+        result = cur.fetchone()
+        if result is None or result[0] is None:
+            raise RuntimeError(f"COUNT query returned unexpected None for {table_safe}")
+        count, max_date = result
+        return int(count), max_date
     else:
         cur.execute(f"SELECT COUNT(*) FROM {table_safe}{where_sql}")
-        count = cur.fetchone()[0]
-        return int(count or 0), None
+        result = cur.fetchone()
+        if result is None or result[0] is None:
+            raise RuntimeError(f"COUNT query returned unexpected None for {table_safe}")
+        count = result[0]
+        return int(count), None

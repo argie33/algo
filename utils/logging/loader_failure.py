@@ -116,10 +116,10 @@ def calculate_failure_trends(loader_name: str) -> dict[str, Any] | None:
             failure_rate_7d = 0.0
             failing_days_7d = 0
             if row_7d and row_7d[2]:  # total_runs
-                total_failures = row_7d[1] or 0
+                total_failures = row_7d[1] if row_7d[1] is not None else 0
                 total_runs = row_7d[2]
                 failure_rate_7d = round((total_failures / total_runs) * 100, 2)
-                failing_days_7d = row_7d[0] or 0  # Number of days with failures
+                failing_days_7d = row_7d[0] if row_7d[0] is not None else 0
 
             # Query last 30 days
             cur.execute(
@@ -139,7 +139,7 @@ def calculate_failure_trends(loader_name: str) -> dict[str, Any] | None:
             row_30d = cur.fetchone()
             failure_rate_30d = 0.0
             if row_30d and row_30d[2]:  # total_runs
-                total_failures = row_30d[1] or 0
+                total_failures = row_30d[1] if row_30d[1] is not None else 0
                 total_runs = row_30d[2]
                 failure_rate_30d = round((total_failures / total_runs) * 100, 2)
 

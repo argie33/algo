@@ -730,13 +730,27 @@ def _get_portfolio_summary(cur: cursor) -> Any:
 
     daily_change_dollars = (daily_return_pct / 100 * total_value) if total_value and daily_return_pct else None
 
+    if positions is None:
+        return json_response(
+            200,
+            {
+                "total_value": round(total_value, 2) if total_value else None,
+                "cash": round(cash, 2) if cash else None,
+                "invested": round(invested, 2) if invested else None,
+                "positions": None,
+                "_warning": "positions count unavailable",
+                "daily_change": (round(daily_change_dollars, 2) if daily_change_dollars else None),
+                "daily_change_percent": (round(daily_return_pct, 2) if daily_return_pct else None),
+            },
+        )
+
     return json_response(
         200,
         {
             "total_value": round(total_value, 2) if total_value else None,
             "cash": round(cash, 2) if cash else None,
             "invested": round(invested, 2) if invested else None,
-            "positions": positions or 0,
+            "positions": positions,
             "daily_change": (round(daily_change_dollars, 2) if daily_change_dollars else None),
             "daily_change_percent": (round(daily_return_pct, 2) if daily_return_pct else None),
         },

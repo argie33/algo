@@ -336,7 +336,9 @@ def _build_buy_signals_table(
             entry_qual = safe_get_field(sig_obj, "entry_quality_score", swing_score)
             buy_lvl = safe_get_field(sig_obj, "buylevel")
             stop_lvl = safe_get_field(sig_obj, "stoplevel")
-            price = safe_get_field(sig_obj, "close") or safe_get_field(score_item, "current_price")
+            price = safe_get_field(sig_obj, "close")
+            if price is None:
+                price = safe_get_field(score_item, "current_price")
         else:
             swing_score = None
             entry_qual = None
