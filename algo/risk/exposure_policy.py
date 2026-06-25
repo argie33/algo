@@ -92,9 +92,14 @@ def tier_for_exposure(exposure_pct: float | None) -> dict[str, Any]:
 
     Upper bounds are exclusive so exact boundary values (e.g. 70.0) land in the
     higher (more aggressive) tier, matching the >= thresholds in algo_market_exposure.py.
-    NaN or None defaults to correction (fail-closed).
+    NaN or None defaults to correction (fail-closed) — but logs error for visibility.
     """
     if exposure_pct is None or (isinstance(exposure_pct, float) and math.isnan(exposure_pct)):
+        logger.error(
+            f"Exposure percentage is missing or invalid ({exposure_pct}). "
+            f"Defaulting to CORRECTION tier (0% new positions, force exits). "
+            f"This indicates Phase 4 market exposure calculation failed or returned invalid data."
+        )
         return EXPOSURE_TIERS[-1]
 
     for i, tier in enumerate(EXPOSURE_TIERS):

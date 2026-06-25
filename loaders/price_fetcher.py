@@ -211,7 +211,9 @@ class PriceFetcher:
         start = end - timedelta(days=101) if since is None else since
 
         if start >= end:
-            return dict.fromkeys(symbols)
+            error_msg = f"Invalid date range for batch fetch: start ({start}) >= end ({end})"
+            logger.error(error_msg)
+            raise ValueError(error_msg)
 
         adaptive_batch_size = min(len(symbols), self._get_smart_batch_size())
         logger.debug(f"[FETCH] {len(symbols)} symbols, adaptive batch size: {adaptive_batch_size}")

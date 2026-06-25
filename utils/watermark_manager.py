@@ -34,7 +34,15 @@ class WatermarkManager:
             self._marks[symbol] = value
 
     def read_from_db(self, symbol: str) -> date | None:
-        """Read per-symbol watermark from database."""
+        """Read per-symbol watermark from database.
+
+        Returns:
+            date if watermark exists (data has been fetched before)
+            None if no watermark row exists (never fetched)
+
+        Raises:
+            DatabaseError if DB query fails (distinguish from "never fetched")
+        """
         try:
             with DatabaseContext("read") as cur:
                 cur.execute(
@@ -44,9 +52,13 @@ class WatermarkManager:
                 row = cur.fetchone()
                 if row and row[0]:
                     return self._parse_watermark_date(row[0])
+                # No row or NULL value = never fetched before (not an error)
+                return None
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.warning(f"Failed to read watermark for {symbol}: {e}")
-        return None
+            raise RuntimeError(
+                f"Failed to read watermark for {symbol} from {self.table_name}: {e}. "
+                f"Database error prevents incremental loading — cannot determine if {symbol} has been fetched before."
+            ) from e
 
     @staticmethod
     def _parse_watermark_date(value: Any) -> date | None:

@@ -44,7 +44,7 @@ class MarketFactorCalculator:
 
         Linear scale: 20% = 0 pts, 50% = 50 pts, 80% = 100 pts
         Uses most recent available date on or before eval_date (technical_data_daily may lag prices).
-        Returns neutral score if breadth data unavailable.
+        Raises if breadth data unavailable — caller must handle.
         """
         try:
             cur.execute(
@@ -68,11 +68,11 @@ class MarketFactorCalculator:
                 score = (pct - 20) / 0.6 if pct >= 20 else 0
                 score = min(100, max(0, score))
                 return {"value": pct, "score": score}
-            logger.debug(f"Breadth {ma_days}-day unavailable for {eval_date} (optional, using neutral score)")
-            return {"value": None, "score_factor": 0.5, "score": 50}
+            raise RuntimeError(f"Breadth {ma_days}-day data unavailable for {eval_date} — cannot compute factor without data")
+        except RuntimeError:
+            raise
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.debug(f"Breadth {ma_days}-day MA query failed (optional): {e}, using neutral score")
-            return {"value": None, "score_factor": 0.5, "score": 50}
+            raise RuntimeError(f"Breadth {ma_days}-day MA query failed: {e}") from e
 
     def _vix_score(self, vix: float, rising: bool, term_structure: float | None = None) -> tuple[float, dict[str, Any]]:
         """Score VIX level and term structure.
@@ -141,8 +141,8 @@ class MarketFactorCalculator:
     def trend_30wk(self, eval_date: Any, cur: Any) -> dict[str, Any]:
         """Trend factor: SPY vs 30-week MA (optional).
 
-        Returns neutral score if data unavailable. Trend is a 15pt factor
-        but missing weekly price data is acceptable — falls back to neutral.
+        Raises if data unavailable. Trend is a 15pt factor
+        and missing weekly price data must be handled by caller.
         """
         try:
             cur.execute(
@@ -165,17 +165,17 @@ class MarketFactorCalculator:
                     raise ValueError(f"SPY trend data not numeric: close={row[0]}, sma={row[1]}")
                 score = 100.0 if spy > sma else 0.0
                 return {"above_30wma": spy > sma, "score": score, "value": "bullish" if spy > sma else "bearish"}
-            logger.debug(f"Trend data unavailable for {eval_date} (optional, using neutral score)")
-            return {"above_30wma": None, "score": 50, "value": None}
+            raise RuntimeError(f"Trend data unavailable for {eval_date} — cannot compute 30-week MA factor")
+        except RuntimeError:
+            raise
         except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError) as e:
-            logger.debug(f"Trend calculation failed (optional): {e}, using neutral score")
-            return {"above_30wma": None, "score": 50, "value": None}
+            raise RuntimeError(f"Trend calculation failed: {e}") from e
 
     def spy_momentum(self, eval_date: Any, cur: Any) -> dict[str, Any]:
         """SPY 12-month momentum (TSMOM, optional).
 
-        Returns neutral score if data unavailable. Momentum is a 10pt factor
-        but missing historical data is acceptable — falls back to neutral.
+        Raises if data unavailable. Momentum is a 10pt factor
+        and missing historical data must be handled by caller.
         """
         try:
             cur.execute(
@@ -203,17 +203,17 @@ class MarketFactorCalculator:
                 ret = (current - year_ago) / year_ago
                 score = min(100, max(0, ret * 200))
                 return {"return_12m": round(ret * 100, 1), "score": score, "value": round(ret * 100, 1)}
-            logger.debug(f"Momentum data unavailable for {eval_date} (optional, using neutral score)")
-            return {"return_12m": None, "score": 50, "value": None}
+            raise RuntimeError(f"SPY momentum data unavailable for {eval_date} — missing current or year-ago price")
+        except RuntimeError:
+            raise
         except (ValueError, ZeroDivisionError, TypeError, psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.debug(f"Momentum calculation failed (optional): {e}, using neutral score")
-            return {"return_12m": None, "score": 50, "value": None}
+            raise RuntimeError(f"Momentum calculation failed: {e}") from e
 
     def selling_pressure(self, eval_date: Any, cur: Any) -> dict[str, Any]:
         """Heavy-volume down days in last 25 sessions (optional).
 
-        Returns neutral score if data unavailable. Selling pressure is a 10pt
-        factor but missing volume/price data is acceptable — falls back to neutral.
+        Raises if data unavailable. Selling pressure is a 10pt
+        factor and missing volume/price data must be handled by caller.
         """
         try:
             cur.execute(
@@ -230,17 +230,16 @@ class MarketFactorCalculator:
                 (eval_date,),
             )
             row = cur.fetchone()
-            if row:
-                # Use 0 if data missing rather than failing
-                dist = int(row[0]) if row[0] is not None else 0
+            if row and row[0] is not None:
+                dist = int(row[0])
                 # 0-2 = 100, 3-4 = 60, 5+ = 20
                 score = 100.0 if dist <= 2 else (60.0 if dist <= 4 else 20.0)
                 return {"heavy_down_days": dist, "count": dist, "score": score}
-            logger.debug(f"Selling pressure unavailable for {eval_date} (optional, using neutral score)")
-            return {"heavy_down_days": None, "count": None, "score": 50}
+            raise RuntimeError(f"Selling pressure data unavailable for {eval_date} — insufficient SPY price history")
+        except RuntimeError:
+            raise
         except (ValueError, ZeroDivisionError, TypeError, psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.debug(f"Selling pressure calculation failed (optional): {e}, using neutral score")
-            return {"heavy_down_days": None, "count": None, "score": 50}
+            raise RuntimeError(f"Selling pressure calculation failed: {e}") from e
 
     def vix_regime(self, eval_date: Any, cur: Any) -> dict[str, Any]:
         """VIX level + term structure."""
@@ -387,8 +386,8 @@ class MarketFactorCalculator:
     def aaii(self, eval_date: Any, cur: Any) -> dict[str, Any]:
         """AAII sentiment (contrarian at extremes only, optional).
 
-        Returns neutral score (50) if data unavailable. AAII is a 3pt factor
-        (non-critical) — missing data degrades signal but doesn't halt calculation.
+        Raises if data unavailable. AAII is a 3pt factor
+        and missing sentiment data must be handled by caller.
         """
         try:
             cur.execute("SAVEPOINT sp_aaii")
@@ -409,16 +408,16 @@ class MarketFactorCalculator:
                     "spread": round(spread, 1),
                     "score": score,
                 }
-            logger.debug(f"AAII sentiment unavailable for {eval_date} (optional, using neutral score)")
-            return {"bullish": None, "bearish": None, "spread": None, "score": 50}
+            raise RuntimeError(f"AAII sentiment data unavailable for {eval_date} — missing bullish/bearish readings")
+        except RuntimeError:
+            raise
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             try:
                 cur.execute("ROLLBACK TO SAVEPOINT sp_aaii")
                 cur.execute("RELEASE SAVEPOINT sp_aaii")
             except Exception:
                 pass
-            logger.debug(f"AAII sentiment query failed (optional): {e}, using neutral score")
-            return {"bullish": None, "bearish": None, "spread": None, "score": 50}
+            raise RuntimeError(f"AAII sentiment query failed: {e}") from e
 
     def naaim(self, eval_date: Any, cur: Any) -> dict[str, Any]:
         """NAAIM exposure (contrarian positioning, optional). Uses most recent weekly reading."""

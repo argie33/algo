@@ -293,13 +293,19 @@ def hbar(cur: Any, thr: Any, w: int = 6) -> str:
 
 
 def exp_bar(pct: Any, w: int = 12) -> str:
-    f = int(min(float(pct or 0), 100) / 100 * w)
+    if pct is None:
+        # Missing data: show error indicator
+        return f"[red]{'✗' * w}[/]"
+    f = int(min(float(pct), 100) / 100 * w)
     tc = TIER_COLOR.get(_tier_formatter.format(pct), "dim")
     return f"[{tc}]{'█' * f}[/][dim]{'░' * (w - f)}[/]"
 
 
 def mini_bar(pts: Any, max_pts: Any, w: int = 5) -> str:
-    r = min(float(pts or 0) / float(max_pts or 1), 1.0)
+    if pts is None or max_pts is None:
+        # Missing data: show error indicator
+        return f"[red]{'✗' * w}[/]"
+    r = min(float(pts) / float(max_pts) if float(max_pts) > 0 else 0, 1.0)
     f = int(r * w)
     c = G if r >= 0.75 else (Y if r >= 0.35 else R)
     return f"[{c}]{'█' * f}[/][dim]{'░' * (w - f)}[/]"
