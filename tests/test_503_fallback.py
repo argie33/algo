@@ -58,7 +58,7 @@ def test_markets_cached_fails_fast_on_503():
             assert result is not None
             assert result.get("_error") is not None
             assert "503" in result.get("_error", "")
-            assert result.get("_data_stale") is not True
+            assert result.get("_stale_cache") is not True
             print("[OK] _get_markets_cached() fails fast on 503 (no stale fallback)")
 
 

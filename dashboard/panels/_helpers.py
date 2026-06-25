@@ -160,7 +160,7 @@ def _fmt_phases_halted(phases_halted: Any) -> str:
 def _error_panel(data_name: str, data: Any, title: str, border: str = "magenta") -> Panel | None:
     """Create a panel showing granular error info for failed data sources.
 
-    Checks for both hard errors (_error) and stale data (_data_stale) using error_boundary.
+    Checks for both hard errors (_error) and stale data (_stale_cache) using error_boundary.
     """
     if not data:
         return Panel(

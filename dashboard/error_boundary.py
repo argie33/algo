@@ -43,7 +43,7 @@ def has_error(data: Any) -> bool:
 
 def is_data_stale(data: Any) -> bool:
     """Check if data dict is marked as stale."""
-    return isinstance(data, dict) and data.get("_data_stale") is True
+    return isinstance(data, dict) and data.get("_stale_cache") is True
 
 
 def get_error_message_plain(data: Any) -> str | None:

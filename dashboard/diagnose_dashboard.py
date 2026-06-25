@@ -84,7 +84,7 @@ def diagnose_fetchers() -> None:  # noqa: C901
         # Check for error
         if has_error(result):
             error_msg = get_error_message(result)
-            if result.get("_data_stale"):
+            if result.get("_stale_cache"):
                 stale[key] = error_msg
             else:
                 errors[key] = error_msg or "Unknown error"
@@ -97,16 +97,16 @@ def diagnose_fetchers() -> None:  # noqa: C901
 
     # Print summary
     print("SUMMARY")
-    print(f"  ✓ Success:        {len(success)}")
-    print(f"  ⚠ Stale:          {len(stale)}")
-    print(f"  ✗ Errors:         {len(errors)}")
-    print(f"  ⚡ Missing fields: {len(missing_fields)}")
+    print(f"  [OK] Success:        {len(success)}")
+    print(f"  [!]  Stale:          {len(stale)}")
+    print(f"  [X]  Errors:         {len(errors)}")
+    print(f"  [~]  Missing fields: {len(missing_fields)}")
     print()
 
     # Show successful fetchers
     if success:
         print("=" * 80)
-        print("SUCCESSFUL FETCHERS (✓)")
+        print("SUCCESSFUL FETCHERS [OK]")
         print("=" * 80)
         for key in sorted(success.keys()):
             meta = FETCHER_METADATA.get(key)
@@ -127,7 +127,7 @@ def diagnose_fetchers() -> None:  # noqa: C901
     # Show stale data (yellow warning)
     if stale:
         print("=" * 80)
-        print("STALE DATA (⚠ - Data too old)")
+        print("STALE DATA [!] - Data too old")
         print("=" * 80)
         for key, error_msg in sorted(stale.items()):
             meta = FETCHER_METADATA.get(key)
@@ -142,7 +142,7 @@ def diagnose_fetchers() -> None:  # noqa: C901
     # Show errors (red)
     if errors:
         print("=" * 80)
-        print("FAILED FETCHERS (✗ - Cannot retrieve data)")
+        print("FAILED FETCHERS [X] - Cannot retrieve data")
         print("=" * 80)
         for key, error_msg in sorted(errors.items()):
             meta = FETCHER_METADATA.get(key)
@@ -157,7 +157,7 @@ def diagnose_fetchers() -> None:  # noqa: C901
     # Show missing fields (data returned but some fields are None)
     if missing_fields:
         print("=" * 80)
-        print("PARTIAL DATA (⚡ - Some fields missing)")
+        print("PARTIAL DATA [~] - Some fields missing")
         print("=" * 80)
         for key, fields in sorted(missing_fields.items()):
             meta = FETCHER_METADATA.get(key)
@@ -218,7 +218,7 @@ def diagnose_fetchers_verbose() -> None:
         # Determine status
         if has_error(result):
             status = "ERROR"
-        elif isinstance(result, dict) and result.get("_data_stale"):
+        elif isinstance(result, dict) and result.get("_stale_cache"):
             status = "STALE"
         else:
             status = "OK"

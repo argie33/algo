@@ -86,7 +86,7 @@ def test_dashboard_survives_mkt_503_with_stale_fallback():
             # Verify fail-fast: error is returned, no stale fallback
             assert result.get("_error") is not None
             assert "503" in result["_error"]
-            assert result.get("_data_stale") is not True
+            assert result.get("_stale_cache") is not True
             assert "current" not in result  # No stale data served
             print(
                 "[OK] Dashboard fails fast on mkt 503 (no stale fallback for critical data): "

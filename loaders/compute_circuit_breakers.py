@@ -51,9 +51,13 @@ class CircuitBreakerDef:
         """Check if this circuit breaker is triggered."""
         value = metrics.get(self.metric_key)
         if value is None:
-            if self.fail_closed:
-                logger.error(f"{self.metric_key} missing: failing closed ({self.name} triggered)")
-            return True if self.fail_closed else False
+            msg = (
+                f"[CIRCUIT_BREAKER_CRITICAL] {self.metric_key} missing for {self.name}. "
+                f"Cannot evaluate circuit breaker without required metric. "
+                f"Failing closed to prevent trading without complete risk assessment."
+            )
+            logger.critical(msg)
+            raise ValueError(msg)
         return self.operator(value, self.threshold)
 
 
@@ -313,10 +317,23 @@ def _compute_open_risk(cur: Any) -> float:
     if not risk_row:
         raise ValueError("Cannot calculate open risk: positions/trades query failed")
     total_risk_val = risk_row["total_risk"]
+
+    # Explicit check: NULL total_risk could mean:
+    # 1. No open positions (valid: 0% risk)
+    # 2. Query failed (invalid: must not silently assume 0%)
+    # Distinguish by checking for open positions explicitly
+    cur.execute("SELECT COUNT(*) as cnt FROM algo_positions WHERE LOWER(status) = 'open'")
+    pos_count = cur.fetchone()["cnt"]
+
     if total_risk_val is None:
-        total_risk = 0.0  # No open positions = 0% risk
-    else:
-        total_risk = float(total_risk_val)
+        if pos_count == 0:
+            total_risk = 0.0
+        else:
+            raise ValueError(
+                f"[RISK_CALCULATION_CRITICAL] Open risk calculation returned NULL "
+                f"but {pos_count} open position(s) exist. Risk calculation failed. "
+                f"Cannot proceed without accurate risk assessment."
+            )
 
     cur.execute("""
         SELECT total_portfolio_value FROM algo_portfolio_snapshots
