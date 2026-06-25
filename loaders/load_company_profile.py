@@ -56,6 +56,22 @@ class CompanyProfileLoader(OptimalLoader):
                     "Cannot store company profile without exchange information."
                 )
 
+            # Sector is REQUIRED for position sizing and concentration checks
+            sector = info.get("sector")
+            if not sector:
+                raise RuntimeError(
+                    f"[COMPANY_PROFILE] {symbol}: Missing sector classification. "
+                    "Sector data is required for position sizing and sector concentration limits."
+                )
+
+            # Industry is REQUIRED for sector analysis and position management
+            industry = info.get("industry")
+            if not industry:
+                raise RuntimeError(
+                    f"[COMPANY_PROFILE] {symbol}: Missing industry classification. "
+                    "Industry data is required for sector rotation and clustering."
+                )
+
             return [
                 {
                     "symbol": symbol,
@@ -63,8 +79,8 @@ class CompanyProfileLoader(OptimalLoader):
                     "short_name": company_name,
                     "long_name": company_name,
                     "display_name": company_name,
-                    "sector": info.get("sector"),
-                    "industry": info.get("industry"),
+                    "sector": sector,
+                    "industry": industry,
                     "exchange": exchange,
                     "website": info.get("website"),
                     "employees": info.get("fullTimeEmployees"),

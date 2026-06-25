@@ -323,13 +323,7 @@ class MarketExposure:
             logger.debug(f"  VIX regime: {vix.get('value', 'N/A')} (score {vix_pts:.1f} pts)")
 
             # --- 7. Put/call ratio (options sentiment — contrarian, daily) ---
-            # If options data is unavailable (during market hours, data delays),
-            # use neutral sentiment (50) rather than failing the entire computation.
-            try:
-                pc = self.calculator.put_call_ratio(eval_date, cur)
-            except RuntimeError as e:
-                logger.warning(f"[PUT_CALL] Using neutral sentiment (data unavailable): {e}")
-                pc = {"put_call_ratio": None, "score": 50}  # Neutral sentiment
+            pc = self.calculator.put_call_ratio(eval_date, cur)
             pc_pts, pc_avail = self.calculator._wt_pts(pc, self.W_PUT_CALL)
             avail_max += pc_avail
             factors["put_call_ratio"] = {
@@ -341,12 +335,7 @@ class MarketExposure:
             logger.debug(f"  Put/call ratio: {pc_pts:.1f} pts")
 
             # --- 8. New highs vs new lows ---
-            # If market health data is unavailable, use neutral market breadth (50).
-            try:
-                nhnl = self.calculator.new_highs_lows(eval_date, cur)
-            except RuntimeError as e:
-                logger.warning(f"[NEW_HIGHS_LOWS] Using neutral breadth (data unavailable): {e}")
-                nhnl = {"new_highs_count": None, "new_lows_count": None, "score": 50}  # Neutral breadth
+            nhnl = self.calculator.new_highs_lows(eval_date, cur)
             nhnl_pts, nhnl_avail = self.calculator._wt_pts(nhnl, self.W_NEW_HIGHS_LOWS)
             avail_max += nhnl_avail
             factors["new_highs_lows"] = {
@@ -358,12 +347,7 @@ class MarketExposure:
             logger.debug(f"  New Highs/Lows: {nhnl_pts:.1f} pts")
 
             # --- 9. A/D line confirmation ---
-            # If A/D line table not available (schema missing or data stale), use neutral (50).
-            try:
-                ad = self.calculator.ad_line(eval_date, cur)
-            except RuntimeError as e:
-                logger.warning(f"[AD_LINE] Using neutral breadth (unavailable): {e}")
-                ad = {"direction": None, "score": 50}  # Neutral direction
+            ad = self.calculator.ad_line(eval_date, cur)
             ad_pts, ad_avail = self.calculator._wt_pts(ad, self.W_AD_LINE)
             avail_max += ad_avail
             factors["ad_line"] = {**ad, "pts": round(ad_pts, 1), "max": self.W_AD_LINE}
@@ -371,12 +355,7 @@ class MarketExposure:
             logger.debug(f"  A/D line: {ad_pts:.1f} pts")
 
             # --- 10. Credit spreads (HY OAS — credit leads equity) ---
-            # If credit spread table not available, use neutral stress (50).
-            try:
-                cs = self.calculator.credit_spread(eval_date, cur)
-            except RuntimeError as e:
-                logger.warning(f"[CREDIT_SPREAD] Using neutral stress (unavailable): {e}")
-                cs = {"hy_oas": 350, "score": 50}  # Neutral credit stress (~350bps = neutral)
+            cs = self.calculator.credit_spread(eval_date, cur)
             cs_pts, cs_avail = self.calculator._wt_pts(cs, self.W_CREDIT_SPREAD)
             avail_max += cs_avail
             factors["credit_spread"] = {
@@ -465,10 +444,10 @@ class MarketExposure:
                             "max": 0,
                         }
             except Exception as e:
-                # Sector rotation is optional: if detector fails, log but continue.
-                # Missing sector rotation means no defensive-rotation penalty applied (neutral, not penalized).
-                logger.warning(f"Sector rotation optional enhancement failed: {type(e).__name__}: {e}")
-                factors["sector_rotation"] = {"error": str(e)[:60], "pts": 0, "max": 0}
+                # Sector rotation detector failure is critical: cannot apply position-sizing penalty.
+                msg = f"[SECTOR ROTATION CRITICAL] Detector failed, cannot assess defensive rotation: {type(e).__name__}: {e}"
+                logger.critical(msg)
+                raise RuntimeError(msg) from e
 
             try:
                 eco = self._economic_regime_overlay(eval_date, cur)
