@@ -538,6 +538,12 @@ class AlgoConfig:
             "Phase 1: Minimum symbol count for healthy coverage",
             "Advanced Filters",
         ),
+        "phase7_min_composite_score": (
+            "50",
+            "int",
+            "Phase 7: Minimum composite score 0-100 for signal filtering",
+            "Signal Generation",
+        ),
         # Swing Trader Score Weights (Minervini Research-Weighted Composite)
         "swing_weight_setup": ("25", "int", "Swing score: Setup quality weight %"),
         "swing_weight_trend": ("20", "int", "Swing score: Trend quality weight %"),
@@ -1748,7 +1754,8 @@ class AlgoConfig:
         """Initialize all default configs in database."""
         try:
             with DatabaseContext("write") as cur:
-                for key, (value, dtype, desc) in self.DEFAULTS.items():
+                for key, entry in self.DEFAULTS.items():
+                    value, dtype, desc = entry[:3]
                     cur.execute(
                         """
                         INSERT INTO algo_config (key, value, value_type, description, updated_at, updated_by)

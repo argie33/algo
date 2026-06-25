@@ -164,6 +164,7 @@ VALIDATION_SCHEMA = {
     "min_order_size_dollars": ("float", 0.1, 100000.0, False, 100.0),
     "phase1_min_coverage_pct": ("int", 0, 100, False, 75),
     "phase1_min_symbol_count": ("int", 100, 100000, False, 5000),
+    "phase7_min_composite_score": ("int", 0, 100, False, 50),
     # Swing Trader Score Weights
     "swing_weight_setup": ("int", 0, 100, False, 25),
     "swing_weight_trend": ("int", 0, 100, False, 20),
