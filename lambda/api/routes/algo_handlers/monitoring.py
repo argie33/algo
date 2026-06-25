@@ -136,6 +136,7 @@ def _get_last_run(cur: cursor) -> Any:
         "halted": halted,
         "errored": errored,
         "summary": run_summary,
+        "halt_reason": run_summary if (halted or errored) else None,
         "phases": phases,
     }
 
