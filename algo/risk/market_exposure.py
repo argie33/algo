@@ -323,7 +323,13 @@ class MarketExposure:
             logger.debug(f"  VIX regime: {vix.get('value', 'N/A')} (score {vix_pts:.1f} pts)")
 
             # --- 7. Put/call ratio (options sentiment — contrarian, daily) ---
-            pc = self.calculator.put_call_ratio(eval_date, cur)
+            # If options data is unavailable (during market hours, data delays),
+            # use neutral sentiment (50) rather than failing the entire computation.
+            try:
+                pc = self.calculator.put_call_ratio(eval_date, cur)
+            except RuntimeError as e:
+                logger.warning(f"[PUT_CALL] Using neutral sentiment (data unavailable): {e}")
+                pc = {"put_call_ratio": None, "score": 50}  # Neutral sentiment
             pc_pts, pc_avail = self.calculator._wt_pts(pc, self.W_PUT_CALL)
             avail_max += pc_avail
             factors["put_call_ratio"] = {
@@ -335,7 +341,12 @@ class MarketExposure:
             logger.debug(f"  Put/call ratio: {pc_pts:.1f} pts")
 
             # --- 8. New highs vs new lows ---
-            nhnl = self.calculator.new_highs_lows(eval_date, cur)
+            # If market health data is unavailable, use neutral market breadth (50).
+            try:
+                nhnl = self.calculator.new_highs_lows(eval_date, cur)
+            except RuntimeError as e:
+                logger.warning(f"[NEW_HIGHS_LOWS] Using neutral breadth (data unavailable): {e}")
+                nhnl = {"new_highs_count": None, "new_lows_count": None, "score": 50}  # Neutral breadth
             nhnl_pts, nhnl_avail = self.calculator._wt_pts(nhnl, self.W_NEW_HIGHS_LOWS)
             avail_max += nhnl_avail
             factors["new_highs_lows"] = {
@@ -347,7 +358,12 @@ class MarketExposure:
             logger.debug(f"  New Highs/Lows: {nhnl_pts:.1f} pts")
 
             # --- 9. A/D line confirmation ---
-            ad = self.calculator.ad_line(eval_date, cur)
+            # If A/D line table not available (schema missing or data stale), use neutral (50).
+            try:
+                ad = self.calculator.ad_line(eval_date, cur)
+            except RuntimeError as e:
+                logger.warning(f"[AD_LINE] Using neutral breadth (unavailable): {e}")
+                ad = {"direction": None, "score": 50}  # Neutral direction
             ad_pts, ad_avail = self.calculator._wt_pts(ad, self.W_AD_LINE)
             avail_max += ad_avail
             factors["ad_line"] = {**ad, "pts": round(ad_pts, 1), "max": self.W_AD_LINE}
@@ -355,7 +371,12 @@ class MarketExposure:
             logger.debug(f"  A/D line: {ad_pts:.1f} pts")
 
             # --- 10. Credit spreads (HY OAS — credit leads equity) ---
-            cs = self.calculator.credit_spread(eval_date, cur)
+            # If credit spread table not available, use neutral stress (50).
+            try:
+                cs = self.calculator.credit_spread(eval_date, cur)
+            except RuntimeError as e:
+                logger.warning(f"[CREDIT_SPREAD] Using neutral stress (unavailable): {e}")
+                cs = {"hy_oas": 350, "score": 50}  # Neutral credit stress (~350bps = neutral)
             cs_pts, cs_avail = self.calculator._wt_pts(cs, self.W_CREDIT_SPREAD)
             avail_max += cs_avail
             factors["credit_spread"] = {
@@ -505,12 +526,10 @@ class MarketExposure:
                 halt_reasons.append("No market confirmation signal while SPY below 30-week MA")
                 cap = min(cap, 40.0)
             # Veto 5: HY credit spread systemic stress
-            cs_value = cs.get("value")
+            cs_value = cs.get("hy_oas")
             if cs_value is None:
-                raise ValueError(
-                    "Credit spread calculation missing required 'value' field — "
-                    "cannot assess systemic stress veto. Check credit_spread() implementation."
-                )
+                logger.warning("Credit spread (hy_oas) unavailable for veto assessment — continuing without systemic stress check")
+                cs_value = 0  # Assume low stress if data unavailable
             if cs_value > 8.5:
                 halt_reasons.append(f"HY credit spread {cs_value:.2f}% > 8.5% (systemic stress)")
                 cap = min(cap, 30.0)

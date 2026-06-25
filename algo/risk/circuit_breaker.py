@@ -545,6 +545,7 @@ class CircuitBreaker:
         """H7 FIX: Market stage validation with data freshness check.
 
         Ensures we don't use stale market stage data from days ago.
+        CRITICAL: MarketCalendar must succeed to ensure holiday accuracy.
         """
         cur.execute(
             "SELECT date, market_stage, market_trend FROM market_health_daily WHERE date <= %s ORDER BY date DESC LIMIT 1",
@@ -581,11 +582,16 @@ class CircuitBreaker:
                     break
                 min_acceptable_date -= timedelta(days=1)
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as cal_e:
-            logger.warning(f"MarketCalendar check failed, falling back to weekday check: {cal_e}")
-            while expected_date.weekday() >= 5:
-                expected_date -= timedelta(days=1)
-            while min_acceptable_date.weekday() >= 5:
-                min_acceptable_date -= timedelta(days=1)
+            logger.critical(
+                f"MarketCalendar check failed: {cal_e}. "
+                "Cannot fall back to weekday logic — holidays would be misclassified. "
+                "Failing closed to prevent trading with incorrect market regime classification."
+            )
+            return {
+                "halted": True,
+                "reason": f"Market calendar unavailable ({type(cal_e).__name__}). Cannot determine trading days accurately. Fail-closed halt.",
+                "value": None,
+            }
 
         if data_date < min_acceptable_date:
             # Fail-closed: Market stage is required to determine trading conditions.
@@ -664,6 +670,7 @@ class CircuitBreaker:
 
         NOTE: Uses trading-day logic (more sophisticated) vs centralized config's calendar-day logic.
         Coordinated via get_freshness_rule("price_daily") for consistency with other components.
+        CRITICAL: MarketCalendar must succeed; cannot fall back to weekday logic (misses holidays).
         """
         cur.execute("SELECT date FROM price_daily WHERE symbol = 'SPY' ORDER BY date DESC LIMIT 1")
         row = cur.fetchone()
@@ -692,11 +699,16 @@ class CircuitBreaker:
                     break
                 min_acceptable -= timedelta(days=1)
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as cal_e:
-            logger.warning(f"MarketCalendar check failed, falling back to weekday check: {cal_e}")
-            while expected.weekday() >= 5:
-                expected -= timedelta(days=1)
-            while min_acceptable.weekday() >= 5:
-                min_acceptable -= timedelta(days=1)
+            logger.critical(
+                f"MarketCalendar check failed: {cal_e}. "
+                "Cannot fall back to weekday logic — holidays would be misclassified. "
+                "Failing closed to prevent false staleness determination."
+            )
+            return {
+                "halted": True,
+                "reason": f"Market calendar unavailable ({type(cal_e).__name__}). Cannot determine trading days accurately. Fail-closed halt.",
+                "value": days_stale,
+            }
         is_stale = latest < min_acceptable
 
         return {
@@ -716,6 +728,7 @@ class CircuitBreaker:
         decline yesterday is intentional: entering new swing positions the morning after
         a significant sell-off is poor risk management (Minervini: wait for market to
         stabilize before adding exposure).
+        CRITICAL: Missing or invalid SPY prices must halt trading (fail-closed).
         """
         try:
             cur.execute(
@@ -729,13 +742,24 @@ class CircuitBreaker:
             )
             rows = cur.fetchall()
             if len(rows) < 2:
-                return {"halted": False, "reason": "Insufficient price history"}
+                logger.critical(
+                    f"CIRCUIT BREAKER: Insufficient SPY price history (got {len(rows)}, need 2). "
+                    "Cannot determine prior-day market movement. Halting to prevent trading in unknown market conditions."
+                )
+                return {"halted": True, "reason": "Insufficient SPY price history — cannot assess market stability"}
 
             latest = float(rows[0][0]) if rows[0][0] else None
             prior = float(rows[1][0]) if rows[1][0] else None
 
             if not latest or not prior or prior <= 0:
-                return {"halted": False, "reason": "Invalid price data"}
+                logger.critical(
+                    f"CIRCUIT BREAKER: Invalid SPY price data (latest={latest}, prior={prior}). "
+                    "Cannot calculate prior-day market change. Halting to prevent trading with missing market data."
+                )
+                return {
+                    "halted": True,
+                    "reason": "Invalid SPY price data — cannot assess market stability. Fail-closed halt.",
+                }
 
             prior_day_change = (latest - prior) / prior * 100.0
 

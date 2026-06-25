@@ -222,12 +222,33 @@ def run(  # noqa: C901
                 )
 
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-        # FAIL-FAST: If patrol_log doesn't exist yet (first run), continue with fallback checks.
-        # But any other database error is unrecoverable and must HALT.
-        if "data_patrol_log" in str(e).lower() or "undefined table" in str(e).lower():
-            logger.info(
-                "[PHASE 1] DataPatrol log table not yet available (first run?). "
-                "Continuing with traditional freshness checks."
+        # Check if this is a "table doesn't exist" error (first-run scenario).
+        # Even on first run, we should fail-closed for financial accuracy unless explicitly in dry-run.
+        is_missing_table = "data_patrol_log" in str(e).lower() or "undefined table" in str(e).lower()
+        if is_missing_table and not dry_run:
+            logger.critical(
+                "[PHASE 1] DataPatrol log table missing (not yet initialized). "
+                "DataPatrol must be set up before trading. "
+                "Please initialize data_patrol infrastructure or run in dry-run mode."
+            )
+            log_phase_result_fn(
+                1,
+                "data_patrol_not_initialized",
+                "halt",
+                "DataPatrol table missing — infrastructure not initialized",
+            )
+            return PhaseResult(
+                1,
+                "data_patrol_not_initialized",
+                "halted",
+                {},
+                True,
+                "DataPatrol infrastructure not initialized. Cannot proceed without quality checks.",
+            )
+        elif is_missing_table and dry_run:
+            logger.warning(
+                "[PHASE 1] DataPatrol log table not yet available (dry-run). "
+                "Continuing with traditional freshness checks (production requires DataPatrol)."
             )
         else:
             # Unexpected database error — FAIL-CLOSED instead of silently continuing

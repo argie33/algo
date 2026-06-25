@@ -95,7 +95,22 @@ def compute_performance_metrics(cur: Any, metric_date: date | None = None) -> di
         wins_sum: float = sum(p for p in pnl_dollars if p > 0)
         losses_sum: float = abs(sum(p for p in pnl_dollars if p < 0))
         if losses_sum == 0:
-            profit_factor: float = wins_sum if wins_sum > 0 else 1.0  # No losses = perfect when there are wins
+            # CRITICAL: No losing trades is statistically unreliable for performance metrics.
+            # Profit factor is undefined when losses=0 (can't divide by zero).
+            # Fail-closed: insufficient sample data (at least 2-3 losses needed for meaningful ratio).
+            if losing <= 1:
+                logger.warning(
+                    f"Insufficient losing trades ({losing}) in sample — "
+                    "profit factor undefined. Need at least 2-3 losses for reliable metric. "
+                    f"Current: {winning} wins, {losing} losses (sample too small)"
+                )
+                raise ValueError(
+                    f"Cannot calculate profit factor: {losing} losing trade(s) (insufficient). "
+                    "Profit factor requires sufficient losses for meaningful calculation. "
+                    f"Current: {winning} wins, {losing} losses. Need minimum 2+ losses."
+                )
+            # Edge case: 2+ losses but 0 sum (all equal to zero before abs). Should not occur but guard.
+            profit_factor = float("inf") if wins_sum > 0 else 1.0
         else:
             profit_factor = wins_sum / losses_sum
         total_pnl_dollars: float = sum(pnl_dollars)
