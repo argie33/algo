@@ -115,4 +115,4 @@ def run(
         )
         log_phase_error("3a", error, log_phase_result_fn)
         traceback.print_exc()
-        return PhaseResult("3a", "reconciliation", "ok", {}, False, str(e))
+        return PhaseResult("3a", "reconciliation", "error", {}, False, str(e))

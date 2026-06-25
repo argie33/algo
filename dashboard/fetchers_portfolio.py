@@ -118,10 +118,12 @@ def fetch_portfolio(c: None) -> dict[str, Any]:
             "data_age_seconds": port.get("data_age_seconds"),
         }
     except Exception as e:
+        from dashboard.fetcher_validator import FetcherValidator
+
         error_msg = _format_fetcher_error("port", e)
         logger.error(error_msg)
         record_data_quality_issue("portfolio", "exception", type(e).__name__, str(e))
-        return {"_error": error_msg}
+        return FetcherValidator.build_error_response(error_msg)
 
 
 def fetch_positions(c: None) -> dict[str, Any]:

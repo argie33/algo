@@ -376,13 +376,13 @@ class CircuitBreaker:
         rows = cur.fetchall()
         if not rows:
             return {"halted": False, "reason": "No closed trades"}
-        # Count consecutive losses from most recent
+        # Count consecutive losses from most recent, skipping trades with NULL P&L
         streak = 0
         for r in rows:
-            pnl = _float(r[0], float('nan'), context="trade_pnl")
-            if pnl is None or math.isnan(pnl):
-                logger.warning(f"Trade {r} has invalid P&L — stopping consecutive loss count")
-                break
+            pnl = _float(r[0], None, context="trade_pnl")
+            if pnl is None:
+                logger.warning(f"Trade {r} has NULL P&L — skipping to next trade (not breaking count)")
+                continue
             if pnl < 0:
                 streak += 1
             else:
