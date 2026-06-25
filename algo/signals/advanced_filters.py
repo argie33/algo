@@ -673,8 +673,14 @@ class AdvancedFilters:
         pts_per_metric = catalyst_growth_weight / 3.0
         eps_threshold = FilterRegistry.get_threshold("eps_3y_cagr_threshold")
         rev_threshold = FilterRegistry.get_threshold("revenue_3y_cagr_threshold")
-        eps_p = max(0.0, min(pts_per_metric, eps_3y / eps_threshold * pts_per_metric)) if eps_3y > 0 else 0.0
-        rev_p = max(0.0, min(pts_per_metric, rev_3y / rev_threshold * pts_per_metric)) if rev_3y > 0 else 0.0
+        if eps_3y > 0:
+            eps_p = max(0.0, min(pts_per_metric, eps_3y / eps_threshold * pts_per_metric))
+        else:
+            eps_p = 0.0
+        if rev_3y > 0:
+            rev_p = max(0.0, min(pts_per_metric, rev_3y / rev_threshold * pts_per_metric))
+        else:
+            rev_p = 0.0
         mom_p = pts_per_metric if mom > 0 else 0.0
         return eps_p + rev_p + mom_p, {
             "eps_3y_cagr": round(eps_3y, 1),

@@ -384,9 +384,9 @@ class SwingComponentScorer:
             rev_growth = float(row[1])
             roe = float(row[2])
 
-            eps_pts = min(4, eps_growth / 50) if eps_growth > 0 else 0
-            rev_pts = min(3, rev_growth / 20) if rev_growth > 0 else 0
-            roe_pts = min(3, roe / 15) if roe > 0 else 0
+            eps_pts = min(4, eps_growth / 50) if eps_growth > 0 else 0.0
+            rev_pts = min(3, rev_growth / 20) if rev_growth > 0 else 0.0
+            roe_pts = min(3, roe / 15) if roe > 0 else 0.0
 
             pts = eps_pts + rev_pts + roe_pts
             return min(pts, self.W_FUNDAMENTALS), {

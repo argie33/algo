@@ -141,7 +141,7 @@ class VectorizedSignalGenerator:
                 sma150 = self._rolling_mean(closes, 150)
                 sma200 = self._rolling_mean(closes, 200)
                 # SMA200 slope: (current - 5 bars ago) / (5 bars ago)
-                sma200_slope = (sma200[-1] - sma200[-6]) / sma200[-6] if len(sma200) > 6 and sma200[-6] > 0 else 0
+                sma200_slope = (sma200[-1] - sma200[-6]) / sma200[-6] if len(sma200) > 6 and sma200[-6] > 0 else None
 
                 # Compute 52-week high/low
                 high52 = np.max(closes[-252:]) if len(closes) >= 252 else np.max(closes)
@@ -190,7 +190,7 @@ class VectorizedSignalGenerator:
                     criteria["sma150_above_sma200"] = False
 
                 # 6. SMA200 slope > 0
-                if sma200_slope > 0:
+                if sma200_slope is not None and sma200_slope > 0:
                     score += 1
                     criteria["sma200_positive_slope"] = True
                 else:
@@ -251,7 +251,7 @@ class VectorizedSignalGenerator:
 
                 # Compute 30-week MA (150 days) and slope
                 ma150 = self._rolling_mean(closes, 150)
-                ma150_slope = (ma150[-1] - ma150[-6]) / ma150[-6] if len(ma150) > 6 and ma150[-6] > 0 else 0
+                ma150_slope = (ma150[-1] - ma150[-6]) / ma150[-6] if len(ma150) > 6 and ma150[-6] > 0 else None
 
                 c = closes[-1]
                 sma200 = self._rolling_mean(closes, 200)
@@ -260,12 +260,12 @@ class VectorizedSignalGenerator:
                 # Weinstein stages based on price position and MA slope
                 stage = 0
                 if sma200_val and c > sma200_val:
-                    if ma150_slope > 0:
+                    if ma150_slope is not None and ma150_slope > 0:
                         stage = 2  # Uptrend
                     else:
                         stage = 3  # Distribution
                 else:
-                    if ma150_slope < 0:
+                    if ma150_slope is not None and ma150_slope < 0:
                         stage = 4  # Downtrend
                     else:
                         stage = 1  # Base building

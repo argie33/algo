@@ -132,11 +132,11 @@ class SignalTradePerformancePopulator:
                                     f"Component {comp_name} type conversion failed for trade_id {trade_id_int}: {e}"
                                 )
                                 continue
-                            normalized_score = (pts / max_pts) if max_pts > 0 else 0
+                            normalized_score = (pts / max_pts) if max_pts > 0 else None
                             component_scores[comp_name] = normalized_score
 
                             # Track for IC calculation
-                            if comp_name in component_returns and exit_r_multiple is not None:
+                            if comp_name in component_returns and exit_r_multiple is not None and normalized_score is not None:
                                 component_returns[comp_name].append((normalized_score, float(exit_r_multiple)))
 
                     # Insert into signal_trade_performance (only columns that exist in schema)

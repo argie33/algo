@@ -90,7 +90,9 @@ class SignalPatternsMixin:
 
             base_high = max(base_highs)
             base_low = min(base_lows)
-            base_depth = ((base_high - base_low) / base_high * 100.0) if base_high > 0 else 0
+            if base_high <= 0:
+                raise ValueError(f"Base high price invalid ({base_high}) for base detection — cannot calculate depth")
+            base_depth = (base_high - base_low) / base_high * 100.0
             weeks_in_base = len(base_highs) // 5
 
             cur_price = closes[0]
@@ -98,7 +100,7 @@ class SignalPatternsMixin:
                 base_highs
             ) >= self.BASE_MIN_HISTORY
 
-            pct_to_pivot = ((base_high - cur_price) / base_high * 100.0) if base_high > 0 else 100
+            pct_to_pivot = (base_high - cur_price) / base_high * 100.0
             breakout_imminent = in_base and pct_to_pivot <= 2.0
 
             recent_vol = (
@@ -172,7 +174,10 @@ class SignalPatternsMixin:
             for j in range(len(peaks) - 1):
                 p1, p2 = peaks[j], peaks[j + 1]
                 window_low = min(lows[p1 : p2 + 1])
-                depth = ((highs[p1] - window_low) / highs[p1] * 100.0) if highs[p1] > 0 else 0
+                if highs[p1] <= 0:
+                    logger.warning(f"VCP peak price invalid ({highs[p1]}) — skipping depth calculation for peak {j}")
+                    continue
+                depth = (highs[p1] - window_low) / highs[p1] * 100.0
                 depths.append(round(depth, 1))
 
             contractions = 0
@@ -250,8 +255,8 @@ class SignalPatternsMixin:
             recent_closes = closes[-25:] if len(closes) >= 25 else closes
             recent_high = max(recent_closes)
             recent_low = min(recent_closes)
-            recent_spread = (recent_high - recent_low) / recent_high * 100.0 if recent_high > 0 else 0
-            if depth <= 15 and duration >= 5 and recent_spread <= 12:
+            recent_spread = (recent_high - recent_low) / recent_high * 100.0 if recent_high > 0 else None
+            if depth <= 15 and duration >= 5 and recent_spread is not None and recent_spread <= 12:
                 return {
                     "type": "flat_base",
                     "quality": "A" if duration >= 7 and depth <= 10 else "B",
@@ -263,17 +268,17 @@ class SignalPatternsMixin:
                 full_low = min(lows)
                 mid_low_match = abs(mid_third_low - full_low) / full_low < 0.02
                 handle_high = max(highs[-15:-5]) if len(highs) >= 15 else max(highs[-5:])
-                recent_dip = (handle_high - min(lows[-7:])) / handle_high * 100.0 if handle_high > 0 else 0
-                handle_present = 5 < recent_dip < 12
+                recent_dip = (handle_high - min(lows[-7:])) / handle_high * 100.0 if handle_high > 0 else None
+                handle_present = recent_dip is not None and 5 < recent_dip < 12
                 if mid_low_match and handle_present:
                     return {
                         "type": "cup_with_handle",
-                        "quality": "A" if depth <= 30 and recent_dip <= 10 else "B",
+                        "quality": ("A" if depth <= 30 and recent_dip is not None and recent_dip <= 10 else "B"),
                         "characteristics": {
                             **characteristics,
-                            "handle_dip_pct": round(recent_dip, 1),
+                            "handle_dip_pct": round(recent_dip, 1) if recent_dip is not None else None,
                         },
-                        "handle_dip_pct": round(recent_dip, 1),
+                        "handle_dip_pct": round(recent_dip, 1) if recent_dip is not None else None,
                         **characteristics,
                     }
                 if mid_low_match:

@@ -219,7 +219,7 @@ class SignalMomentumMixin:
                 "breakout": breakout and on_volume,
                 "close": close,
                 "pivot": round(pivot, 2),
-                "pct_above_pivot": (round((close - pivot) / pivot * 100, 2) if pivot > 0 else 0),
+                "pct_above_pivot": (round((close - pivot) / pivot * 100, 2) if pivot > 0 else None),
                 "volume_ratio": round(volume / avg_vol, 2) if avg_vol > 0 else None,
             }
 
@@ -294,7 +294,7 @@ class SignalMomentumMixin:
                         "days_since_fired": 0,
                         "current_vol": round(today_vol, 0),
                         "max_down_vol": round(max_down_vol, 0),
-                        "vol_ratio": (round(today_vol / max_down_vol, 2) if max_down_vol > 0 else 0),
+                        "vol_ratio": (round(today_vol / max_down_vol, 2) if max_down_vol > 0 else None),
                     }
 
             # Also check if pocket pivot fired 1-2 days ago (yesterday and day-2 only)
@@ -321,7 +321,7 @@ class SignalMomentumMixin:
                     "days_since_fired": days_since,
                     "current_vol": round(vol, 0),
                     "max_down_vol": round(max_down_vol, 0),
-                    "vol_ratio": (round(vol / max_down_vol, 2) if max_down_vol > 0 else 0),
+                    "vol_ratio": (round(vol / max_down_vol, 2) if max_down_vol > 0 else None),
                 }
 
             return {"pocket_pivot": False}
