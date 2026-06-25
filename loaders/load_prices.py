@@ -1195,7 +1195,7 @@ class PriceLoader(OptimalLoader):
                 raise RuntimeError(
                     f"[CIRCUIT_BREAKER] Rate limiting persisted {error_duration / 60:.1f}min despite batch reduction. "
                     "yfinance API severely degraded. Cannot fetch price data."
-                ) from None
+                )
 
         try:
             result = self._execute_batch_fetch(symbols, start, end)
@@ -1270,7 +1270,7 @@ class PriceLoader(OptimalLoader):
                     raise RuntimeError(
                         f"[{symbol}] Rate limited after {max_retries} attempts. "
                         "Cannot fetch price data when API is rate limited."
-                    )
+                    ) from e
                 # Network/timeout errors - retry with backoff + jitter
                 if any(x in error_str for x in ["timeout", "json", "parse", "connection", "reset"]):
                     if attempt < max_retries - 1:
@@ -1286,13 +1286,13 @@ class PriceLoader(OptimalLoader):
                     raise RuntimeError(
                         f"[{symbol}] Transient error after {max_retries} attempts: {e}. "
                         "Cannot fetch price data after exhausting retries."
-                    )
+                    ) from e
                 # Auth errors - must fail fast
                 if "403" in error_str or "401" in error_str or "unauthorized" in error_str:
                     raise RuntimeError(
                         f"[{symbol}] Authentication error accessing price data: {e}. "
                         "Cannot proceed without valid credentials."
-                    )
+                    ) from e
                 # Other errors - log and re-raise
                 logger.error("[{symbol}] Unexpected error: %s", e)
                 raise
@@ -1313,7 +1313,7 @@ class PriceLoader(OptimalLoader):
             raise RuntimeError(
                 f"[PRICE_VALIDATION] Price validation failed: row is missing required fields or has invalid types: {e}. "
                 "Price data integrity check is mandatory."
-            )
+            ) from e
 
     def _validate_and_check_preconditions(self) -> None:
         """Validate preflight conditions: schema and market close availability."""
@@ -2002,7 +2002,7 @@ def main() -> int:
             raise RuntimeError(
                 f"[MAIN] Could not log environment loading failure to audit trail: {log_err}. "
                 "Audit trail integrity is mandatory for Phase 7 reconciliation."
-            )
+            ) from log_err
 
     # Read from environment variables (no CLI args, cleaner for containerized execution)
     intervals_str = os.getenv("LOADER_INTERVALS", "1d,1wk,1mo")
@@ -2125,7 +2125,7 @@ def main() -> int:
             raise RuntimeError(
                 f"[MAIN] Could not log symbols loading failure to audit trail: {log_err}. "
                 "Audit trail integrity is mandatory for Phase 7 reconciliation."
-            )
+            ) from log_err
 
     # Essential symbols that must be present in price_daily regardless of what stock_symbols contains.
     # stock_symbols excludes ETFs, so these never appear via get_active_symbols().
@@ -2253,7 +2253,7 @@ def main() -> int:
                         raise RuntimeError(
                             f"[MAIN] Loader failed for {asset_class}/{interval}: {e}. "
                             "Cannot proceed with price loading if an interval fails."
-                        )
+                        ) from e
     except Exception as timeout_err:
         logger.critical("[MAIN] Loader execution timeout exceeded: %s", timeout_err)
         try:
@@ -2273,7 +2273,7 @@ def main() -> int:
             raise RuntimeError(
                 f"[MAIN] Could not log timeout failure to audit trail: {log_err}. "
                 "Audit trail integrity is mandatory for Phase 7 reconciliation."
-            )
+            ) from log_err
 
     logger.info("[MAIN] All intervals completed. Total: %s", total_stats)
 
@@ -2299,7 +2299,7 @@ def main() -> int:
             raise RuntimeError(
                 f"[MAIN] Could not log multi-interval failure to audit trail: {log_err}. "
                 "Audit trail integrity is mandatory for Phase 7 reconciliation."
-            )
+            ) from log_err
 
     try:
         if "rows_inserted" not in total_stats:
@@ -2315,7 +2315,7 @@ def main() -> int:
         raise RuntimeError(
             f"[MAIN] Could not log loader completion to audit trail: {log_err}. "
             "Audit trail integrity is mandatory for Phase 7 reconciliation."
-        )
+        ) from log_err
     if _lock_conn:
         try:
             _lock_conn.close()
