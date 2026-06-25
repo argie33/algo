@@ -59,7 +59,12 @@ class SellingPressureFactor(MarketFactorStrategy):
             if not row:
                 raise ValueError("Selling pressure factor: could not query price/volume data")
 
-            count = int(row[0]) if row[0] is not None else 0
+            if row[0] is None:
+                raise ValueError(
+                    "Selling pressure factor: distribution day count is NULL. "
+                    "Cannot calculate institutional selling pressure without valid price/volume data."
+                )
+            count = int(row[0])
 
             # Gradient scoring: lower = more distribution
             if count <= 2:

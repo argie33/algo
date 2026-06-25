@@ -58,9 +58,19 @@ class CreditAppetiteFactor(MarketFactorStrategy):
                 raise ValueError("Credit appetite factor: missing price data for HYG or LQD")
 
             hyg_curr = float(row[0])
-            hyg_20d = float(row[1]) if row[1] else hyg_curr
+            if row[1] is None:
+                raise ValueError(
+                    "Credit appetite factor: historical HYG price (20 days ago) unavailable. "
+                    "Cannot calculate credit risk appetite momentum without complete price history."
+                )
+            hyg_20d = float(row[1])
             lqd_curr = float(row[2])
-            lqd_20d = float(row[3]) if row[3] else lqd_curr
+            if row[3] is None:
+                raise ValueError(
+                    "Credit appetite factor: historical LQD price (20 days ago) unavailable. "
+                    "Cannot calculate credit risk appetite momentum without complete price history."
+                )
+            lqd_20d = float(row[3])
 
             if hyg_20d <= 0 or lqd_20d <= 0:
                 raise ValueError("Credit appetite factor: invalid historical prices")

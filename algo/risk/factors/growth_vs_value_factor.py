@@ -60,9 +60,19 @@ class GrowthVsValueFactor(MarketFactorStrategy):
                 raise ValueError("Growth vs value factor: missing price data for QQQ or SPY")
 
             qqq_curr = float(row[0])
-            qqq_20d = float(row[1]) if row[1] else qqq_curr
+            if row[1] is None:
+                raise ValueError(
+                    "Growth vs value factor: historical QQQ price (20 days ago) unavailable. "
+                    "Cannot calculate growth/value leadership momentum without complete price history."
+                )
+            qqq_20d = float(row[1])
             spy_curr = float(row[2])
-            spy_20d = float(row[3]) if row[3] else spy_curr
+            if row[3] is None:
+                raise ValueError(
+                    "Growth vs value factor: historical SPY price (20 days ago) unavailable. "
+                    "Cannot calculate growth/value leadership momentum without complete price history."
+                )
+            spy_20d = float(row[3])
 
             if qqq_20d <= 0 or spy_20d <= 0:
                 raise ValueError("Growth vs value factor: invalid historical prices")

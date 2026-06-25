@@ -57,9 +57,19 @@ class InflationRiskFactor(MarketFactorStrategy):
                 raise ValueError("Inflation risk factor: missing price data for SPY or USO")
 
             spy_curr = float(row[0])
-            spy_20d = float(row[1]) if row[1] else spy_curr
+            if row[1] is None:
+                raise ValueError(
+                    "Inflation risk factor: historical SPY price (20 days ago) unavailable. "
+                    "Cannot calculate inflation risk momentum without complete price history."
+                )
+            spy_20d = float(row[1])
             oil_curr = float(row[2])
-            oil_20d = float(row[3]) if row[3] else oil_curr
+            if row[3] is None:
+                raise ValueError(
+                    "Inflation risk factor: historical oil price (20 days ago) unavailable. "
+                    "Cannot calculate inflation risk momentum without complete price history."
+                )
+            oil_20d = float(row[3])
 
             if spy_20d <= 0 or oil_20d <= 0:
                 raise ValueError("Inflation risk factor: invalid historical prices")

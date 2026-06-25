@@ -58,9 +58,19 @@ class RussellVsSpyFactor(MarketFactorStrategy):
                 raise ValueError("Russell vs SPY factor: missing price data for IWM or SPY")
 
             rrr_curr = float(row[0])
-            rrr_20d = float(row[1]) if row[1] else rrr_curr
+            if row[1] is None:
+                raise ValueError(
+                    "Russell vs SPY factor: historical IWM price (20 days ago) unavailable. "
+                    "Cannot calculate small-cap leadership momentum without complete price history."
+                )
+            rrr_20d = float(row[1])
             spy_curr = float(row[2])
-            spy_20d = float(row[3]) if row[3] else spy_curr
+            if row[3] is None:
+                raise ValueError(
+                    "Russell vs SPY factor: historical SPY price (20 days ago) unavailable. "
+                    "Cannot calculate small-cap leadership momentum without complete price history."
+                )
+            spy_20d = float(row[3])
 
             if rrr_20d <= 0 or spy_20d <= 0:
                 raise ValueError("Russell vs SPY factor: invalid historical prices")

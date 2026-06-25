@@ -61,7 +61,12 @@ class VolumeTrendFactor(MarketFactorStrategy):
 
             vol_10d_avg = float(row[0])
             vol_50d_avg = float(row[1])
-            vol_recent_peak = float(row[2]) if row[2] else vol_10d_avg
+            if row[2] is None:
+                raise ValueError(
+                    "Volume trend factor: recent volume peak data (last 10 days) unavailable. "
+                    "Cannot assess volume trend quality without complete price/volume history."
+                )
+            vol_recent_peak = float(row[2])
 
             if vol_50d_avg <= 0:
                 raise ValueError("Volume trend factor: invalid historical volume")
