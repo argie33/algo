@@ -12,6 +12,7 @@ from routes.utils import (
     check_data_freshness,
     error_response,
     execute_with_timeout,
+    extract_param,
     handle_db_error,
     json_response,
     list_response,
@@ -122,10 +123,8 @@ def handle(
                 return error_response(500, "response_validation_error", error_msg or "Sentiment validation failed")
             return json_response(200, sentiment_result)
         elif path == "/api/sentiment/data" or path.startswith("/api/sentiment/data?"):
-            limit_str = params.get("limit", [None])[0] if params else None
-            limit = safe_limit(limit_str or "50000", max_val=50000)
-            page_str = params.get("page", [None])[0] if params else None
-            page = safe_page(page_str or "1")
+            limit = safe_limit(extract_param(params, "limit"), max_val=50000, default=50000)
+            page = safe_page(extract_param(params, "page"), default=1)
             offset = (page - 1) * limit
             sentiment = execute_with_timeout(
                 cur,

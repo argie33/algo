@@ -17,6 +17,7 @@ from routes.utils import (
     db_route_handler,
     ensure_valid_response,
     error_response,
+    extract_param,
     handle_db_error,
     json_response,
     list_response,
@@ -154,11 +155,10 @@ def _get_notifications(
     try:
         if params is None:
             params = {}
-        kind = params.get("kind", [None])[0] if params.get("kind") else None
-        severity = params.get("severity", [None])[0] if params.get("severity") else None
-        unread = params.get("unread", [None])[0] if params.get("unread") else None
-        limit_str = params.get("limit", [None])[0] if params.get("limit") else None
-        limit = safe_limit(limit_str, max_val=10000, default=100)
+        kind = extract_param(params, "kind")
+        severity = extract_param(params, "severity")
+        unread = extract_param(params, "unread")
+        limit = safe_limit(extract_param(params, "limit"), max_val=10000, default=100)
 
         # SECURITY M-04: Validate kind and severity against whitelists
         valid_kinds = {

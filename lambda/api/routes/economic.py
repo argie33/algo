@@ -12,6 +12,7 @@ from routes.utils import (
     check_data_freshness,
     error_response,
     execute_with_timeout,
+    extract_param,
     handle_db_error,
     json_response,
     list_response,
@@ -131,8 +132,8 @@ def _get_calendar(cur: cursor, params: dict[str, Any]) -> Any:
     """Get economic calendar data with optional date filtering."""
     try:
         cur.execute("SET LOCAL statement_timeout = '5000ms'")
-        start_date = params.get("start_date", [None])[0] if params and params.get("start_date") else None
-        end_date = params.get("end_date", [None])[0] if params and params.get("end_date") else None
+        start_date = extract_param(params, "start_date")
+        end_date = extract_param(params, "end_date")
         query_params = []
 
         where_clauses = []

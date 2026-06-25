@@ -12,6 +12,7 @@ from routes.utils import (
     check_data_freshness,
     error_response,
     execute_with_timeout,
+    extract_param,
     handle_db_error,
     json_response,
     list_response,
@@ -309,13 +310,13 @@ def handle(
                 return error_response(503, "connection_error", "Database connection failed - please retry")
 
         limit = safe_limit(
-            params.get("limit", [None])[0] if params else None,
+            extract_param(params, "limit"),
             max_val=50000,
             default=500,
         )
-        offset = safe_offset(params.get("offset", [None])[0] if params else None)
-        search = params.get("search", [None])[0] if params else None
-        sector = params.get("sector", [None])[0] if params else None
+        offset = safe_offset(extract_param(params, "offset") or "0")
+        search = extract_param(params, "search")
+        sector = extract_param(params, "sector")
 
         where_clauses = ["ss.symbol NOT LIKE '^%%'", "COALESCE(ss.etf, 'N') != 'Y'"]
         query_params = []

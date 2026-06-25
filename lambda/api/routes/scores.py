@@ -12,6 +12,7 @@ from routes.utils import (
     check_data_freshness,
     error_response,
     execute_with_timeout,
+    extract_param,
     handle_db_error,
     list_response,
     safe_limit,
@@ -36,14 +37,12 @@ def handle(
         if path in ["/api/scores", "/api/scores/stockscores"] or path.startswith(
             ("/api/scores?", "/api/scores/stockscores?")
         ):
-            limit_str = params.get("limit", [None])[0] if params else None
-            limit = safe_limit(limit_str or "1000", max_val=1000)
-            offset_str = params.get("offset", ["0"])[0] if params else "0"
-            offset = safe_offset(offset_str or "0")
-            sort_by = params.get("sortBy", ["composite_score"])[0] if params else "composite_score"
-            sort_order = params.get("sortOrder", ["desc"])[0] if params else "desc"
-            sp500_only = params.get("sp500Only", ["false"])[0] if params else "false"
-            symbol = params.get("symbol", [None])[0] if params else None
+            limit = safe_limit(extract_param(params, "limit"), max_val=1000, default=1000)
+            offset = safe_offset(extract_param(params, "offset") or "0")
+            sort_by = extract_param(params, "sortBy") or "composite_score"
+            sort_order = extract_param(params, "sortOrder") or "desc"
+            sp500_only = extract_param(params, "sp500Only") or "false"
+            symbol = extract_param(params, "symbol")
 
             allowed_sorts = [
                 "composite_score",

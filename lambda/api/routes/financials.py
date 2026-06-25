@@ -12,6 +12,7 @@ from routes.utils import (
     check_data_freshness,
     error_response,
     execute_with_timeout,
+    extract_param,
     handle_db_error,
     list_response,
     safe_json_serialize,
@@ -48,7 +49,7 @@ def handle(
                 period = period_list[0]
         if not period:
             period = "annual"
-        limit = safe_limit(params.get("limit", [None])[0] if params else None, max_val=40, default=8)
+        limit = safe_limit(extract_param(params, "limit"), max_val=40, default=8)
 
         if endpoint == "key-metrics":
             rows = execute_with_timeout(

@@ -11,6 +11,7 @@ from psycopg2.extensions import cursor
 from routes.utils import (
     check_data_freshness,
     error_response,
+    extract_param,
     handle_db_error,
     json_response,
     list_response,
@@ -36,9 +37,8 @@ def handle(
     """Handle /api/sectors and /api/sectors/* endpoints - return full ranking data."""
     try:
         if path == "/api/sectors/trends-batch" or path.startswith("/api/sectors/trends-batch?"):
-            sectors_str = params.get("sectors", [None])[0] if params else None
-            days_str = params.get("days", [None])[0] if params else None
-            days = safe_days(days_str or "90", max_val=365)
+            sectors_str = extract_param(params, "sectors")
+            days = safe_days(extract_param(params, "days"), max_val=365, default=90)
 
             if not sectors_str:
                 return error_response(400, "bad_request", "sectors parameter required (comma-separated)")
@@ -83,8 +83,7 @@ def handle(
 
         if sector_name and sector_name not in ("performance", "trends-batch"):
             if path.endswith(("/trend", "/trend/")):
-                days_str = params.get("days", [None])[0] if params else None
-                days = safe_days(days_str or "90", max_val=365)
+                days = safe_days(extract_param(params, "days"), max_val=365, default=90)
                 # Set timeout for trend query (10s for window function aggregations)
                 cur.execute("SET LOCAL statement_timeout = '10000ms'")
                 # All camelCase aliases double-quoted so psycopg2 preserves case
@@ -134,8 +133,7 @@ def handle(
                     return error_response(500, "response_validation_error", error_msg)
                 return json_response(200, trend_result)
             else:
-                days_str = params.get("days", [None])[0] if params else None
-                days = safe_days(days_str or "90", max_val=365)
+                days = safe_days(extract_param(params, "days"), max_val=365, default=90)
                 cur.execute("SET LOCAL statement_timeout = '5000ms'")
                 cur.execute(
                     """
@@ -153,10 +151,8 @@ def handle(
                     data_freshness=freshness,
                 )
         elif path in ("/api/sectors", "/api/sectors/performance"):
-            limit_str = params.get("limit", [None])[0] if params else None
-            limit = safe_limit(limit_str or "50000", max_val=50000)
-            page_str = params.get("page", [None])[0] if params else None
-            page = safe_page(page_str or "1")
+            limit = safe_limit(extract_param(params, "limit"), max_val=50000, default=50000)
+            page = safe_page(extract_param(params, "page"), default=1)
             offset = (page - 1) * limit
 
             # Set timeout for complex sector ranking query with multiple CTEs and joins
@@ -357,8 +353,7 @@ def handle(
         elif "/trend" in path:
             parts = path.split("/")
             sector_name = parts[3] if len(parts) > 3 else None
-            days_str = params.get("days", [None])[0] if params else None
-            days = safe_days(days_str or "90", max_val=365)
+            days = safe_days(extract_param(params, "days"), max_val=365, default=90)
             if not sector_name:
                 return error_response(400, "bad_request", "Sector name required")
             cur.execute("SET LOCAL statement_timeout = '10000ms'")

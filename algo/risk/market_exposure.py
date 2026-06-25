@@ -62,14 +62,17 @@ import json
 import logging
 from collections.abc import Callable
 from datetime import date as _date
+from datetime import datetime, time
 from typing import Any, TypeVar
 
 import psycopg2
 from psycopg2 import sql as pgsql
 from psycopg2.extensions import cursor as PsycopgCursor  # noqa: N812
 
+from algo.infrastructure import MarketCalendar
 from algo.risk.market_factor_calculator import MarketFactorCalculator
 from utils.db import DatabaseContext
+from utils.infrastructure.timezone import EASTERN_TZ
 
 logger = logging.getLogger(__name__)
 
@@ -840,10 +843,6 @@ class MarketExposure:
 
         if not vix_row or vix_row[0] is None:
             # Check if market is currently open (real-time VIX should be available during market hours)
-            from algo.infrastructure import MarketCalendar
-            from utils.infrastructure.timezone import EASTERN_TZ
-            from datetime import datetime, time
-
             now = datetime.now(EASTERN_TZ)
             is_market_open = (
                 MarketCalendar.is_trading_day(now.date()) and

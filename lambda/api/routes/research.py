@@ -12,6 +12,7 @@ from routes.utils import (
     check_data_freshness,
     error_response,
     execute_with_timeout,
+    extract_param,
     handle_db_error,
     json_response,
     list_response,
@@ -34,8 +35,7 @@ def handle(
     """Handle /api/research/* endpoints."""
     try:
         if path == "/api/research/backtests" or path.startswith("/api/research/backtests?"):
-            limit_str = params.get("limit", [None])[0] if params else None
-            limit = safe_limit(limit_str or "50000", max_val=50000)
+            limit = safe_limit(extract_param(params, "limit"), max_val=50000, default=50000)
             backtests = execute_with_timeout(
                 cur,
                 """
@@ -81,10 +81,8 @@ def handle(
             if not backtest:
                 return error_response(404, "not_found", f"Backtest run {run_id} not found")
 
-            limit_str = params.get("limit", [None])[0] if params else None
-            offset_str = params.get("offset", [None])[0] if params else None
-            limit = safe_limit(limit_str or "50000", max_val=50000)
-            offset = safe_offset(offset_str or "0")
+            limit = safe_limit(extract_param(params, "limit"), max_val=50000, default=50000)
+            offset = safe_offset(extract_param(params, "offset") or "0")
 
             trades = execute_with_timeout(
                 cur,

@@ -272,53 +272,6 @@ def safe_symbol(symbol_str: str | None) -> str:
     return symbol
 
 
-def extract_param(params: dict[str, Any] | None, key: str, required: bool = False) -> str | None:
-    """Safely extract a parameter value from params dict.
-
-    CRITICAL: Replaces unsafe `params.get("key", [None])[0]` pattern.
-    Parameters from API Gateway come as lists of strings. This function
-    safely extracts the first value with explicit validation.
-
-    Args:
-        params: Query parameters dict (values are lists)
-        key: Parameter key to extract
-        required: If True, raises BadRequest if key missing or empty
-
-    Returns:
-        First value of parameter list as string, or None if not present
-
-    Raises:
-        BadRequest: If required=True and parameter missing/empty
-    """
-    if not params:
-        if required:
-            raise_api_error(400, "BadRequest", f"parameter '{key}' is required")
-        return None
-
-    param_list = params.get(key)
-    if not param_list:
-        if required:
-            raise_api_error(400, "BadRequest", f"parameter '{key}' is required")
-        return None
-
-    if not isinstance(param_list, list):
-        raise_api_error(400, "BadRequest", f"parameter '{key}' must be a list")
-
-    if not param_list:  # Empty list
-        if required:
-            raise_api_error(400, "BadRequest", f"parameter '{key}' is required")
-        return None
-
-    value = param_list[0]
-    if not isinstance(value, str) and value is not None:
-        value = str(value)
-
-    if required and not value:
-        raise_api_error(400, "BadRequest", f"parameter '{key}' is required")
-
-    return value
-
-
 def get_api_version_headers() -> dict[str, str]:
     """Return API version header for all responses.
 
