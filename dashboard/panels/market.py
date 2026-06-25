@@ -149,7 +149,7 @@ def panel_market_full(mkt: Any, sentiment: Any = None) -> Panel:
 
     # Derived values from extracted fields (critical fields guaranteed non-None)
     exp_s = f"{float(exp):.0f}%" if exp is not None else "N/A"
-    bar = exp_bar(exp or 0, w=10)
+    bar = exp_bar(exp, w=10) if exp is not None else "[dim]N/A[/]"
     vix_s = f"{vix:.1f}"
     vc = R if vix >= 30 else (Y if vix >= 20 else G)
     trend_s = trend.upper()
@@ -236,7 +236,7 @@ def panel_market_expanded(mkt: Any, sentiment: Any = None) -> Panel:
     lbl = TIER_SHORT.get(tier, "LOADING")
     exp = mkt.get("pct")
     exp_s = f"{float(exp):.0f}%" if exp is not None else "--"
-    bar = exp_bar(exp or 0, w=14)
+    bar = exp_bar(exp, w=14) if exp is not None else "[dim]--[/]"
     vix_raw = mkt.get("vix")
     vix = safe_float(vix_raw, strict=False)
     vc = DIM if vix is None else (R if vix >= 30 else (Y if vix >= 20 else G))
@@ -369,7 +369,7 @@ def panel_header_market(
         lbl = TIER_SHORT.get(tier, "LOADING")
         exp = mkt.get("pct")
         exp_s = f"{float(exp):.0f}%" if exp is not None else "--"
-        bar = exp_bar(exp or 0, w=8)
+        bar = exp_bar(exp, w=8) if exp is not None else ""
         vix_val = safe_float(mkt.get("vix"), strict=False)
         vix = f"{vix_val:.1f}" if vix_val is not None else "--"
         vc = DIM if vix_val is None else (R if vix_val >= 30 else (Y if vix_val >= 20 else G))

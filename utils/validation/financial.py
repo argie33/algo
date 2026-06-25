@@ -247,8 +247,13 @@ def validate_trade_entry_prices(
     if not valid:
         return False, None, None, err2
 
+    if entry_f is None or stop_f is None:
+        msg = f"[BUG] Validation passed but entry_f={entry_f} or stop_f={stop_f} is None {symbol}"
+        logger.error(f"[FINANCIAL_VALIDATION] {msg}")
+        return False, None, None, msg
+
     valid, err3 = FinancialDataValidator.validate_stop_loss(
-        entry_f or 0.0, stop_f or 0.0, context=f"trade entry for {symbol}"
+        entry_f, stop_f, context=f"trade entry for {symbol}"
     )
     if not valid:
         return False, None, None, err3

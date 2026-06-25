@@ -725,23 +725,27 @@ def panel_portfolio_perf_expanded(  # noqa: C901
                 svar = safe_float(risk_dict.get("svar"), default=None)
                 risk_date = risk_dict.get("date")
 
-                beta_safe = beta if beta is not None else 0
-                conc5_safe = conc5 if conc5 is not None else 0
-                beta_c = R if beta_safe >= 1.2 else (Y if beta_safe >= 0.8 else G)
-                conc_c = R if conc5_safe >= 35 else (Y if conc5_safe >= 25 else "white")
                 var_c = R if var95_f >= 4 else (Y if var95_f >= 2 else "white")
 
+                cvar_display = f"{cvar95:.2f}%" if cvar95 is not None else "N/A"
+                cvar_style = var_c if cvar95 is not None else "dim"
                 rtbl.add_row(
                     "VaR (95%):",
                     Text(f"{var95_f:.2f}%", style=var_c),
                     "CVaR (95%):",
-                    Text(f"{(cvar95 or 0):.2f}%", style=var_c),
+                    Text(cvar_display, style=cvar_style),
                 )
+
+                beta_display = f"{beta:.2f}" if beta is not None else "N/A"
+                beta_c = R if (beta is not None and beta >= 1.2) else (Y if (beta is not None and beta >= 0.8) else (G if beta is not None else "dim"))
+                conc_display = f"{conc5:.0f}%" if conc5 is not None else "N/A"
+                conc_c = R if (conc5 is not None and conc5 >= 35) else (Y if (conc5 is not None and conc5 >= 25) else (G if conc5 is not None else "dim"))
+
                 rtbl.add_row(
                     "Portfolio Beta:",
-                    Text(f"{(beta or 0):.2f}", style=beta_c),
+                    Text(beta_display, style=beta_c),
                     "Top-5 Concentration:",
-                    Text(f"{(conc5 or 0):.0f}%", style=conc_c),
+                    Text(conc_display, style=conc_c),
                 )
                 if svar is not None and svar > 0:
                     rtbl.add_row(
