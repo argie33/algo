@@ -638,7 +638,12 @@ def run(
             phase_status = "ok"
         else:
             # Reconciliation failed (broker unavailable, 401, etc) - degrade gracefully
-            error_msg = result.get("reason") or result.get("error", "unknown error")
+            # Explicitly extract error message with audit trail for debugging
+            error_msg = result.get("reason")
+            if error_msg is None:
+                error_msg = result.get("error")
+            if error_msg is None:
+                error_msg = "(reconciliation failed with no error details)"
             if "401" in str(error_msg) or "unauthorized" in str(error_msg).lower():
                 logger.warning(
                     "[PHASE 9] Broker unavailable (401). Reconciliation skipped. "

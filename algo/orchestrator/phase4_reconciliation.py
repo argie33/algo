@@ -71,8 +71,13 @@ def run(
         if "success" not in result or result["success"] is None:
             raise RuntimeError(f"Reconciliation result missing 'success' field. Got keys: {list(result.keys())}")
 
-        # Reconciliation returns "error" key (not "reason") on exception path
-        error_msg = result.get("reason") or result.get("error") or ""
+        # CRITICAL: Explicitly extract error message; do not silently default to empty string.
+        # This masks reconciliation failures and prevents debugging failed syncs.
+        error_msg = result.get("reason")
+        if error_msg is None:
+            error_msg = result.get("error")
+        if error_msg is None:
+            error_msg = "(no error details provided)"
 
         if result["success"]:
             log_phase_result_fn(
