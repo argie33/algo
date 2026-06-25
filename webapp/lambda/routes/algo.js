@@ -106,56 +106,51 @@ router.get("/status", async (req, res) => {
     validateQueryResult(healthResult, { requireRows: false });
     validateQueryResult(configResult, { requireRows: false });
 
-    const snapshot = snapshotResult.rows[0]
-      ? validateAndCoerceRow(snapshotResult.rows[0], {
-          position_count: { type: "int", required: false, defaultValue: 0 },
-          unrealized_pnl_pct: {
-            type: "float",
-            required: false,
-            defaultValue: 0,
-          },
-          daily_return_pct: { type: "float", required: false, defaultValue: 0 },
-          total_portfolio_value: {
-            type: "float",
-            required: false,
-            defaultValue: 0,
-          },
-        })
-      : {
-          position_count: 0,
-          unrealized_pnl_pct: 0,
-          daily_return_pct: 0,
-          total_portfolio_value: 0,
-        };
+    if (!snapshotResult.rows[0]) {
+      return sendError(
+        res,
+        503,
+        "CRITICAL: Portfolio snapshot unavailable. " +
+          "Cannot display algorithm status without current portfolio metrics. " +
+          "Check algo_portfolio_snapshots table for data availability."
+      );
+    }
+    const snapshot = validateAndCoerceRow(snapshotResult.rows[0], {
+      position_count: { type: "int", required: true },
+      unrealized_pnl_pct: { type: "float", required: true },
+      daily_return_pct: { type: "float", required: true },
+      total_portfolio_value: { type: "float", required: true },
+    });
 
-    const positions = posResult.rows[0]
-      ? validateAndCoerceRow(posResult.rows[0], {
-          open_count: { type: "int", required: false, defaultValue: 0 },
-          total_value: { type: "float", required: false, defaultValue: 0 },
-        })
-      : { open_count: 0, total_value: 0 };
+    if (!posResult.rows[0]) {
+      return sendError(
+        res,
+        503,
+        "CRITICAL: Position aggregation unavailable. " +
+          "Cannot compute portfolio state without open position data. " +
+          "Check algo_positions table for open position records."
+      );
+    }
+    const positions = validateAndCoerceRow(posResult.rows[0], {
+      open_count: { type: "int", required: true },
+      total_value: { type: "float", required: true },
+    });
 
-    const health = healthResult.rows[0]
-      ? validateAndCoerceRow(healthResult.rows[0], {
-          market_trend: {
-            type: "string",
-            required: false,
-            defaultValue: "unknown",
-          },
-          market_stage: { type: "int", required: false, defaultValue: 1 },
-          distribution_days_4w: {
-            type: "int",
-            required: false,
-            defaultValue: 0,
-          },
-          vix_level: { type: "float", required: false, defaultValue: 0 },
-        })
-      : {
-          market_trend: "unknown",
-          market_stage: 1,
-          distribution_days_4w: 0,
-          vix_level: 0,
-        };
+    if (!healthResult.rows[0]) {
+      return sendError(
+        res,
+        503,
+        "CRITICAL: Market health data unavailable. " +
+          "Cannot evaluate market regime without current VIX, breadth, and yield curve data. " +
+          "Check market_health_daily table for latest market metrics."
+      );
+    }
+    const health = validateAndCoerceRow(healthResult.rows[0], {
+      market_trend: { type: "string", required: true },
+      market_stage: { type: "int", required: true },
+      distribution_days_4w: { type: "int", required: true },
+      vix_level: { type: "float", required: true },
+    });
 
     let algo_enabled = true;
     let execution_mode = "paper";
