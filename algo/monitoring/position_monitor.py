@@ -809,23 +809,21 @@ class PositionMonitor:
 
     def _check_relative_strength(self, symbol: str, current_date: Any, cur: Any) -> str:
         """20-day relative return vs SPY: weakening / neutral / strong."""
-        stock = None
-        spy = None
         try:
             stock = self._period_return(symbol, current_date, 20, cur)
         except (ValueError, RuntimeError) as e:
-            logger.debug(f"Stock return failed for {symbol}: {e}")
+            raise PositionValidationError(
+                f"[RS_CALCULATION_FAILED] Cannot evaluate relative strength for {symbol}: {e}. "
+                f"Period return calculation failed — cannot proceed without RS data for position health assessment."
+            ) from e
 
         try:
             spy = self._period_return("SPY", current_date, 20, cur)
         except (ValueError, RuntimeError) as e:
-            logger.debug(f"SPY return failed: {e}")
-
-        if stock is None or spy is None:
-            logger.warning(
-                f"RS data missing for {symbol}: stock={stock}, spy={spy} - treating as unknown, not weakening"
-            )
-            return "unknown"
+            raise PositionValidationError(
+                f"[RS_CALCULATION_FAILED] Cannot evaluate market baseline (SPY) for RS: {e}. "
+                f"Cannot assess relative strength without market comparison data."
+            ) from e
         excess = stock - spy
         if excess < -0.05:
             return "weakening"

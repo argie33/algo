@@ -57,7 +57,12 @@ class PositionAggregator:
         severity: float = sum(1 for f in flags.values() if f["status"] == "RED")
         severity += 0.5 * sum(1 for f in flags.values() if f["status"] == "YELLOW")
 
-        halt_flag_count = self.config.get("halt_flag_count_for_early_exit", 3)
+        if "halt_flag_count_for_early_exit" not in self.config:
+            raise ValueError(
+                "CRITICAL CONFIG: halt_flag_count_for_early_exit missing from position aggregator config. "
+                "Cannot determine when to exit positions for health reasons — this is required configuration."
+            )
+        halt_flag_count = self.config["halt_flag_count_for_early_exit"]
 
         recommendation = "HOLD"
         if severity >= halt_flag_count:
@@ -92,9 +97,16 @@ class PositionAggregator:
         Returns:
             Formatted summary string
         """
-        flags = flags_result.get("flags", {})
-        severity = flags_result.get("severity_count", 0)
-        recommendation = flags_result.get("recommendation", "HOLD")
+        required_keys = ["flags", "severity_count", "recommendation"]
+        missing = [k for k in required_keys if k not in flags_result]
+        if missing:
+            raise ValueError(
+                f"Incomplete flags_result from aggregate_flags: missing keys {missing}. "
+                f"Cannot format summary without complete health evaluation data."
+            )
+        flags = flags_result["flags"]
+        severity = flags_result["severity_count"]
+        recommendation = flags_result["recommendation"]
 
         if not flags:
             return f"✓ No warnings (recommendation: {recommendation})"

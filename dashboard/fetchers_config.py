@@ -298,17 +298,34 @@ def fetch_health(c: None) -> dict[str, Any]:
                     role = "CRIT" if is_crit else ("IMP" if is_imp else "NORM")
                 except ImportError:
                     role = "CRIT" if name in set(critical_stale or []) else "NORM"
+            # Explicit validation: age_hours required for freshness display
+            age_hours = s.get("age_hours")
+            if age_hours is None:
+                logger.warning(f"Data freshness missing age_hours for {name}")
+                age_days = None
+            else:
+                try:
+                    age_days = round(float(age_hours) / 24, 1)
+                except (ValueError, TypeError):
+                    logger.warning(f"Invalid age_hours value for {name}: {age_hours}")
+                    age_days = None
+
+            status = s.get("status")
+            if status is None:
+                logger.warning(f"Data freshness missing status for {name}")
+                status = "unknown"
+
             sources.append(
                 {
                     "tbl": name,
-                    "st": s.get("status", "ok"),
-                    "age": round(s.get("age_hours", 0) / 24, 1),
+                    "st": status,
+                    "age": age_days,
                     "role": role,
                     # preserve originals for other panels that may use them
                     "name": name,
-                    "status": s.get("status", "ok"),
+                    "status": status,
                     "last_updated": s.get("last_updated"),
-                    "age_hours": s.get("age_hours"),
+                    "age_hours": age_hours,
                     "row_count": s.get("row_count"),
                 }
             )

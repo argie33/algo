@@ -197,8 +197,19 @@ class OrderManager:
     def get_order_fill_price(self, alpaca_order_id: str) -> float | None:
         """Query Alpaca for actual fill price of an order.
 
-        Returns: float if order is filled, None if not yet filled or paper mode
-        Raises RuntimeError if unable to verify status (API unreachable, invalid response)
+        Returns:
+            float: Actual fill price if order status is 'filled'
+            None: ONLY for paper mode orders (LOCAL-*/PENDING-* prefixes)
+
+        Raises RuntimeError if:
+            - Alpaca API unavailable or returns error
+            - Response validation fails
+            - Order status cannot be determined
+            - Order has terminal status (cancelled, rejected, expired)
+
+        Note: For in-flight orders (status: pending/accepted), returns None only
+        for paper mode. Live broker orders that are pending will raise RuntimeError
+        if they lack proper status — they must have a valid status or this is an error.
         """
         if not self.alpaca_key or not self.alpaca_secret:
             raise RuntimeError("Alpaca credentials not configured")
@@ -231,9 +242,23 @@ class OrderManager:
                     logger.error(error_msg)
                     raise RuntimeError(error_msg)
 
-                if validation["status"] == "filled":
+                status = validation["status"]
+                if status == "filled":
                     return cast(float, validation["filled_avg_price"])
-                return None
+                elif status in ("pending", "pending_new", "accepted"):
+                    logger.debug(
+                        f"Order {alpaca_order_id} still in flight (status={status}). "
+                        f"Fill price unavailable until order fills."
+                    )
+                    raise RuntimeError(
+                        f"Order {alpaca_order_id} has pending status '{status}' — "
+                        f"not yet filled. Caller must wait/retry or track via order event stream."
+                    )
+                else:
+                    raise RuntimeError(
+                        f"Order {alpaca_order_id} has terminal status '{status}' (likely cancelled/rejected/expired) — "
+                        f"fill price unavailable (order will not fill)."
+                    )
             else:
                 raise RuntimeError(f"Alpaca API returned {resp.status_code} for order {alpaca_order_id}")
         except (requests.RequestException, requests.Timeout) as e:

@@ -156,9 +156,20 @@ def _get_orchestrator_execution_stats(cur: cursor, days: int = 7) -> Any:
     stats_by_status = {r["overall_status"]: r["count"] for r in rows}
     total = sum(stats_by_status.values())
 
-    success_count = stats_by_status.get("success", 0)
-    halt_count = stats_by_status.get("halted", 0)
-    error_count = stats_by_status.get("error", 0)
+    # Explicit validation: all expected statuses should be present
+    success_count = stats_by_status.get("success")
+    halt_count = stats_by_status.get("halted")
+    error_count = stats_by_status.get("error")
+
+    if success_count is None:
+        logger.warning("Orchestration stats missing 'success' status, using 0")
+        success_count = 0
+    if halt_count is None:
+        logger.warning("Orchestration stats missing 'halted' status, using 0")
+        halt_count = 0
+    if error_count is None:
+        logger.warning("Orchestration stats missing 'error' status, using 0")
+        error_count = 0
 
     return success_response(
         {

@@ -276,7 +276,11 @@ def _get_data_status(cur: cursor) -> Any:
             else:
                 role = "NORM"
 
-            current_count = summary.get(status, 0) if isinstance(summary.get(status), int) else 0
+            current_count = summary.get(status)
+            if current_count is None:
+                current_count = 0
+            elif not isinstance(current_count, int):
+                raise ValueError(f"Expected int for status count '{status}', got {type(current_count).__name__}")
             summary[status] = current_count + 1
             if status in ("stale", "empty") and row["table_name"] in critical_tables:
                 critical_stale.append(row["table_name"])
@@ -291,7 +295,12 @@ def _get_data_status(cur: cursor) -> Any:
                 }
             )
 
-        ok_count = summary.get("ok", 0) if isinstance(summary.get("ok"), int) else 0
+        ok_count = summary.get("ok")
+        if ok_count is None:
+            logger.warning("Health summary missing 'ok' status count, defaulting to 0 for ready_to_trade check")
+            ok_count = 0
+        elif not isinstance(ok_count, int):
+            raise ValueError(f"Expected int for 'ok' count in health summary, got {type(ok_count).__name__}")
         ready_to_trade = len(critical_stale) == 0 and ok_count > 0
 
         response = list_response(sources, total=len(sources), limit=None, offset=None)

@@ -992,7 +992,12 @@ class ExitEngine:
 
         row = cur.fetchone()
 
-        return int(row[0]) if row and row[0] is not None else None
+        if not row or row[0] is None:
+            raise RuntimeError(
+                f"[MARKET_DIST_DAYS_MISSING] Market distribution data unavailable for {current_date}. "
+                f"Cannot evaluate exit conditions — distribution day counts are required for risk control decisions."
+            )
+        return int(row[0])
 
     def _is_pulling_back(self, cur: Any, symbol: str, current_date: Any) -> bool:
         """Requires either 2-3% decline from recent high OR 2+ days below 5-day high.

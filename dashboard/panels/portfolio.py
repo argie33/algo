@@ -342,13 +342,27 @@ def panel_performance_spark(
             sc1 = G if sharpe252 >= 1.0 else (Y if sharpe252 >= 0 else R)
             grid_rows.append((cell("Sharpe (1-Year):", f"[{sc1}]{sharpe252:.2f}[/]"), Text("")))
 
-        total_trades = perf.get("n", 0) if perf else 0
+        # Explicit validation: total trade count required for display decisions
+        if perf is None:
+            total_trades = None
+        else:
+            total_trades = perf.get("n")
+            if total_trades is None:
+                logger.warning("Performance data missing 'n' (total trade count)")
+                total_trades = None
+            else:
+                try:
+                    total_trades = int(total_trades)
+                except (ValueError, TypeError):
+                    logger.warning(f"Invalid total trade count in performance data: {total_trades}")
+                    total_trades = None
+
         calmar_cell: Text | None = None
         wr50_cell: Text | None = None
         if calmar is not None and calmar != 0.0:
             cc = G if calmar >= 0.5 else (Y if calmar >= 0 else R)
             calmar_cell = cell("Calmar Ratio:", f"[{cc}]{calmar:.2f}[/]")
-        if wr50 is not None and wr50 != 0.0 and (total_trades >= 10 or wr50 > 0):
+        if wr50 is not None and wr50 != 0.0 and (total_trades is not None and total_trades >= 10 or wr50 > 0):
             wc = G if wr50 >= 50 else (Y if wr50 >= 42 else R)
             wr50_cell = cell("Win Rate (50 trades):", f"[{wc}]{wr50:.0f}%[/]")
         if calmar_cell is not None or wr50_cell is not None:

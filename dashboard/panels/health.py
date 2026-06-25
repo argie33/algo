@@ -1307,9 +1307,26 @@ def panel_status(  # noqa: C901
         for m in valid_metrics[:5]:
             d = m.get("date")
             d_s = d.strftime("%b %d") if hasattr(d, "strftime") else str(d or "--")
-            ta = int(m.get("total_actions", 0)) if "total_actions" in m else 0
-            en = int(m.get("entries", 0)) if "entries" in m else 0
-            ex = int(m.get("exits", 0)) if "exits" in m else 0
+
+            # Explicit validation: all action counts must be present
+            ta_raw = m.get("total_actions")
+            en_raw = m.get("entries")
+            ex_raw = m.get("exits")
+
+            if ta_raw is None or en_raw is None or ex_raw is None:
+                logger.warning(f"Daily metrics incomplete for {d_s}: total_actions={ta_raw}, entries={en_raw}, exits={ex_raw}")
+                rows.append(Text.from_markup(f"  [dim]{d_s}:[/] [yellow]metrics unavailable[/]"))
+                continue
+
+            try:
+                ta = int(ta_raw)
+                en = int(en_raw)
+                ex = int(ex_raw)
+            except (ValueError, TypeError) as e:
+                logger.warning(f"Failed to parse daily metrics for {d_s}: {e}")
+                rows.append(Text.from_markup(f"  [dim]{d_s}:[/] [yellow]invalid data[/]"))
+                continue
+
             rows.append(
                 Text.from_markup(
                     f"  [dim]{d_s}:[/] [white]{ta}[/][dim] total actions,  [/][{G}]{en}[/][dim] entries  [/][{R}]{ex}[/][dim] exits[/]"

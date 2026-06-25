@@ -417,7 +417,16 @@ def _check_critical_dependencies(run_date: _date, log_phase_result_fn: Callable[
             # CRITICAL #1: stock_scores must exist and have data
             cur.execute("SELECT COUNT(*) FROM stock_scores")
             stock_scores_row = cur.fetchone()
-            stock_scores_count = stock_scores_row[0] if stock_scores_row else 0
+            if stock_scores_row is None:
+                msg = (
+                    "[PHASE 7 CRITICAL] Failed to query stock_scores table. "
+                    "Database query returned no result (possible schema issue). "
+                    "Check database connection and table existence."
+                )
+                logger.critical(msg)
+                log_phase_result_fn(7, "signal_generation", "halt", msg)
+                return False, msg
+            stock_scores_count = stock_scores_row[0]
             if stock_scores_count == 0:
                 msg = (
                     "[PHASE 7 CRITICAL] stock_scores table is empty. "
@@ -472,7 +481,16 @@ def _check_critical_dependencies(run_date: _date, log_phase_result_fn: Callable[
                 (lookback_date, run_date),
             )
             buysell_row = cur.fetchone()
-            buysell_count = buysell_row[0] if buysell_row else 0
+            if buysell_row is None:
+                msg = (
+                    "[PHASE 7 CRITICAL] Failed to query buy_sell_daily table. "
+                    "Database query returned no result (possible schema issue). "
+                    "Check database connection and table existence."
+                )
+                logger.critical(msg)
+                log_phase_result_fn(7, "signal_generation", "halt", msg)
+                return False, msg
+            buysell_count = buysell_row[0]
             if buysell_count == 0:
                 msg = (
                     f"[PHASE 7 CRITICAL] buy_sell_daily has NO BUY signals within {_BUYSELL_LOOKBACK_DAYS} days. "
