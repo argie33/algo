@@ -81,10 +81,12 @@ class LivePerformance:
                 if val is None:
                     raise ValueError(f"Portfolio snapshot {i} has missing/invalid value")
                 values.append(val)
-            daily_returns = [
-                ((values[i] - values[i - 1]) / values[i - 1] if values[i - 1] > 0 else 0.0)
-                for i in range(1, len(values))
-            ]
+            daily_returns = []
+            for i in range(1, len(values)):
+                if values[i - 1] > 0:
+                    daily_returns.append((values[i] - values[i - 1]) / values[i - 1])
+                else:
+                    daily_returns.append(None)
 
             return MetricsCalculator.calculate_sharpe_ratio(daily_returns)
         except (ValueError, ZeroDivisionError, TypeError) as e:
@@ -281,10 +283,12 @@ class LivePerformance:
                 )
 
             values = [float(r[0]) for i, r in enumerate(rows)]
-            daily_returns = [
-                ((values[i] - values[i - 1]) / values[i - 1] if values[i - 1] > 0 else 0.0)
-                for i in range(1, len(values))
-            ]
+            daily_returns = []
+            for i in range(1, len(values)):
+                if values[i - 1] > 0:
+                    daily_returns.append((values[i] - values[i - 1]) / values[i - 1])
+                else:
+                    daily_returns.append(None)
 
             return MetricsCalculator.calculate_sortino_ratio(daily_returns)
         except ValueError:
