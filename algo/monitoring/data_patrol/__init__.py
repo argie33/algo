@@ -137,13 +137,16 @@ class DataPatrol:
         """Summarize patrol results."""
         counts = {INFO: 0, WARN: 0, ERROR: 0, CRIT: 0}
         for result in self.results:
-            counts[result.severity] = counts.get(result.severity, 0) + 1
+            severity = result.severity
+            if severity not in counts:
+                raise ValueError(f"Unknown severity level: {severity} (expected {INFO}, {WARN}, {ERROR}, or {CRIT})")
+            counts[severity] += 1
 
         logger.info(f"PATROL RESULTS — {self.run_id}")
-        logger.info(f"  INFO:     {counts.get(INFO, 0)}")
-        logger.info(f"  WARN:     {counts.get(WARN, 0)}")
-        logger.info(f"  ERROR:    {counts.get(ERROR, 0)}")
-        logger.info(f"  CRITICAL: {counts.get(CRIT, 0)}")
+        logger.info(f"  INFO:     {counts[INFO]}")
+        logger.info(f"  WARN:     {counts[WARN]}")
+        logger.info(f"  ERROR:    {counts[ERROR]}")
+        logger.info(f"  CRITICAL: {counts[CRIT]}")
         if elapsed_seconds:
             perf_status = "OK" if elapsed_seconds < 120 else "SLOW"
             logger.info(f"  TIME:     {elapsed_seconds:.1f}s [{perf_status}]")
@@ -158,7 +161,13 @@ class DataPatrol:
         else:
             logger.info("No issues — all checks clean.")
 
-        ready = counts.get(CRIT, 0) == 0 and counts.get(ERROR, 0) == 0
+        crit_count = counts.get(CRIT)
+        error_count = counts.get(ERROR)
+        if crit_count is None:
+            raise ValueError(f"CRITICAL count missing from patrol results (expected key: {CRIT})")
+        if error_count is None:
+            raise ValueError(f"ERROR count missing from patrol results (expected key: {ERROR})")
+        ready = crit_count == 0 and error_count == 0
         logger.info(f"ALGO READY TO TRADE: {'YES' if ready else 'NO'}")
 
         # Update DynamoDB completion status

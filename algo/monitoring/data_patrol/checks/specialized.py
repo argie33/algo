@@ -115,10 +115,15 @@ class SpecializedChecker(BaseCheck):
                    AND e.created_at >= CURRENT_DATE - INTERVAL '7 days'
                 WHERE p.date >= CURRENT_DATE - INTERVAL '7 days'
             """)
-            est_syms, price_syms = cur.fetchone()
-            est_syms = int(est_syms or 0)
+            row = cur.fetchone()
+            if row is None:
+                raise ValueError("Earnings coverage query returned no results — database state corrupted")
+            est_syms, price_syms = row
+            if est_syms is None:
+                raise ValueError("COUNT(DISTINCT e.symbol) returned NULL — earnings estimates query may have failed")
             if price_syms is None:
                 raise ValueError("price_daily COUNT(DISTINCT symbol) returned NULL — loader may be stalled")
+            est_syms = int(est_syms)
             price_syms = int(price_syms)
             pct = est_syms / price_syms * 100
             sev = WARN if pct < 80 else INFO
@@ -231,9 +236,14 @@ class SpecializedChecker(BaseCheck):
                 FROM technical_data_daily
                 WHERE date >= CURRENT_DATE - INTERVAL '7 days'
             """)
-            bad_rsi, null_rsi, total = cur.fetchone()
-            bad_rsi = int(bad_rsi or 0)
-            null_rsi = int(null_rsi or 0)
+            row = cur.fetchone()
+            if row is None:
+                raise ValueError("RSI bounds check query returned no results — database state corrupted")
+            bad_rsi, null_rsi, total = row
+            if bad_rsi is None or null_rsi is None or total is None:
+                raise ValueError("COUNT(*) FILTER for RSI check returned NULL — cannot evaluate technical data quality")
+            bad_rsi = int(bad_rsi)
+            null_rsi = int(null_rsi)
 
             if bad_rsi > 0:
                 self.log(
@@ -259,9 +269,14 @@ class SpecializedChecker(BaseCheck):
                 FROM technical_data_daily
                 WHERE date >= CURRENT_DATE - INTERVAL '7 days'
             """)
-            bad_atr, bad_rsi_nan = cur.fetchone()
-            bad_atr = int(bad_atr or 0)
-            bad_rsi_nan = int(bad_rsi_nan or 0)
+            row = cur.fetchone()
+            if row is None:
+                raise ValueError("NaN check query returned no results — database state corrupted")
+            bad_atr, bad_rsi_nan = row
+            if bad_atr is None or bad_rsi_nan is None:
+                raise ValueError("COUNT(*) FILTER for NaN check returned NULL — cannot evaluate data quality")
+            bad_atr = int(bad_atr)
+            bad_rsi_nan = int(bad_rsi_nan)
 
             if bad_atr > 0 or bad_rsi_nan > 0:
                 self.log(

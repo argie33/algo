@@ -757,13 +757,29 @@ class TradeExecutor:
                     (PositionStatus.CLOSED.value, position_id, current_qty),
                 )
             else:
+                # Validate target_levels_hit is populated (critical for exit sequencing)
+                cur.execute(
+                    "SELECT target_levels_hit FROM algo_positions WHERE position_id = %s",
+                    (position_id,),
+                )
+                th_row = cur.fetchone()
+                if th_row is None:
+                    raise ValueError(f"Position {position_id} not found during partial exit update")
+                target_levels_hit = th_row[0]
+                if target_levels_hit is None:
+                    raise ValueError(
+                        f"Position {position_id} has NULL target_levels_hit. "
+                        "Cannot safely record target exit without exit history."
+                    )
+
                 increment_targets = 1 if (exit_stage and "target" in exit_stage.lower()) else 0
+                new_target_levels = target_levels_hit + increment_targets
                 update_sql = """UPDATE algo_positions
                                SET quantity = %s,
                                    position_value = %s * current_price,
-                                   target_levels_hit = COALESCE(target_levels_hit, 0) + %s,
+                                   target_levels_hit = %s,
                                    current_stop_price = %s"""
-                params = [new_qty, new_qty, increment_targets, effective_stop]
+                params = [new_qty, new_qty, new_target_levels, effective_stop]
 
                 if exit_stage == "target_1":
                     update_sql += ", target_1_hit_time = CURRENT_TIMESTAMP"

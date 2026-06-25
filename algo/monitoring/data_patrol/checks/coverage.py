@@ -42,9 +42,11 @@ class CoverageChecker(BaseCheck):
                 CROSS JOIN latest_date ld
             """)
             today_count, total_count = cur.fetchone()
-            today_count = int(today_count or 0)
+            if today_count is None:
+                raise ValueError("price_daily today_count returned NULL — loader may be stalled or corrupted")
             if total_count is None:
-                raise ValueError("price_daily COUNT(*) returned NULL — loader may be stalled")
+                raise ValueError("price_daily total_count returned NULL — loader may be stalled")
+            today_count = int(today_count)
             total_count = int(total_count)
             pct = today_count / total_count * 100 if total_count else 0
 
@@ -122,11 +124,20 @@ class CoverageChecker(BaseCheck):
                 results_by_table = {}
                 for row in cur.fetchall():
                     row_dict = dict(row)
-                    results_by_table[row_dict["table_name"]] = row_dict["cnt"] or 0
+                    table_name = row_dict["table_name"]
+                    cnt = row_dict["cnt"]
+                    if cnt is None:
+                        raise ValueError(f"COUNT(DISTINCT symbol) returned NULL for {table_name} — table may be empty or query failed")
+                    results_by_table[table_name] = int(cnt)
+
+                # Verify all critical tables are represented
+                missing_tables = set(critical_tables) - set(results_by_table.keys())
+                if missing_tables:
+                    raise ValueError(f"Coverage query missing tables: {missing_tables} — UNION query may have failed")
 
                 for table_name in critical_tables:
                     try:
-                        table_count = results_by_table.get(table_name, 0)
+                        table_count = results_by_table[table_name]
                         coverage_pct = (table_count / expected_count * 100) if expected_count else 0
 
                         if coverage_pct < coverage_error_pct:

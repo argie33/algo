@@ -126,10 +126,19 @@ class AlignmentChecker(BaseCheck):
                 FROM buy_sell_daily
                 WHERE date >= CURRENT_DATE - INTERVAL '14 days'
             """)
-            total, missing_price, missing_tech = cur.fetchone()
-            total = int(total or 0)
-            missing_price = int(missing_price or 0)
-            missing_tech = int(missing_tech or 0)
+            row = cur.fetchone()
+            if row is None:
+                raise ValueError("Signal alignment query returned no results — database state corrupted")
+            total, missing_price, missing_tech = row
+            if total is None:
+                raise ValueError("COUNT(*) FILTER for total signals returned NULL — cannot evaluate signal alignment")
+            if missing_price is None:
+                raise ValueError("COUNT(*) FILTER for missing_price returned NULL — cannot evaluate alignment")
+            if missing_tech is None:
+                raise ValueError("COUNT(*) FILTER for missing_tech returned NULL — cannot evaluate alignment")
+            total = int(total)
+            missing_price = int(missing_price)
+            missing_tech = int(missing_tech)
 
             if missing_price > 0 or missing_tech > 0:
                 self.log(
@@ -309,11 +318,18 @@ class AlignmentChecker(BaseCheck):
                 cnt = row_dict["cnt"]
                 if tbl_name is None or cnt is None:
                     raise ValueError(f"Invalid row data from union query: {row_dict}")
-                counts_by_table[tbl_name] = int(cnt) if cnt else 0
+                counts_by_table[tbl_name] = int(cnt)
+
+            # Verify all expected tables are in the results
+            missing_from_union = [tbl for tbl, _, _, _ in checks if tbl not in counts_by_table]
+            if missing_from_union:
+                raise ValueError(f"Cross-alignment union query missing tables: {missing_from_union} — UNION may have failed")
 
             for tbl, _where, min_ratio, sev in checks:
                 try:
-                    count = counts_by_table.get(tbl, 0)
+                    if tbl not in counts_by_table:
+                        raise ValueError(f"Table {tbl} missing from cross-alignment results — cannot determine coverage")
+                    count = counts_by_table[tbl]
                     ratio = count / baseline
                     if ratio < min_ratio:
                         self.log(

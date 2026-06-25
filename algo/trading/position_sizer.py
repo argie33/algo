@@ -375,15 +375,41 @@ class PositionSizer:
         """
 
         def fetch_positions_value(cur: Any) -> Decimal:
+            # Check for data integrity: all open positions must have non-NULL position_value
             cur.execute("""
-                SELECT COALESCE(SUM(position_value), 0) as total
+                SELECT COUNT(*) as total_open, COUNT(position_value) as valid_values
+                FROM algo_positions
+                WHERE status = 'open'
+            """)
+            count_row = cur.fetchone()
+            if count_row is None:
+                raise ValueError("Position count query failed — cannot fetch position values")
+            total_open, valid_values = count_row
+            if total_open is None or valid_values is None:
+                raise ValueError("Position count returned NULL — database state corrupted")
+            if total_open > 0 and valid_values < total_open:
+                raise ValueError(
+                    f"Data integrity error: {total_open - valid_values} open positions have NULL position_value. "
+                    "Cannot calculate portfolio exposure without complete position data."
+                )
+
+            # Now fetch the sum, which should never be NULL if we passed the check above
+            cur.execute("""
+                SELECT SUM(position_value) as total
                 FROM algo_positions
                 WHERE status = 'open'
             """)
             result = cur.fetchone()
             if not result:
-                raise ValueError("Position value query returned no data")
-            return Decimal(str(result[0]))
+                raise ValueError("Position sum query returned no data")
+            total = result[0]
+            if total is None and total_open == 0:
+                # Empty position table is OK — return 0
+                return Decimal(0)
+            if total is None:
+                # This should never happen if our integrity check passed
+                raise ValueError(f"SUM(position_value) returned NULL for {total_open} open positions — database corruption")
+            return Decimal(str(total))
 
         try:
             result: Any = self._with_cursor(fetch_positions_value)

@@ -39,10 +39,15 @@ class QualityChecker(BaseCheck):
                 FROM price_daily
                 WHERE date >= (SELECT MAX(date) FROM price_daily) - INTERVAL '30 days'
             """)
-            today_nulls, today_total = cur.fetchone()
-            today_nulls = int(today_nulls or 0)
+            row = cur.fetchone()
+            if row is None:
+                raise ValueError("NULL anomaly check query returned no results — database state corrupted")
+            today_nulls, today_total = row
+            if today_nulls is None:
+                raise ValueError("SUM(CASE WHEN close IS NULL...) returned NULL — cannot determine NULL anomaly count")
             if today_total is None:
-                raise ValueError("price_daily COUNT(*) returned NULL — loader may be stalled")
+                raise ValueError("COUNT(*) returned NULL — loader may be stalled")
+            today_nulls = int(today_nulls)
             today_total = int(today_total)
             null_pct = today_nulls / today_total * 100 if today_total else 0
 
@@ -203,10 +208,15 @@ class QualityChecker(BaseCheck):
                 FROM price_daily
                 WHERE date = (SELECT MAX(date) FROM price_daily)
             """)
-            bad_high, bad_low, negative = cur.fetchone()
-            bad_high = int(bad_high or 0)
-            bad_low = int(bad_low or 0)
-            negative = int(negative or 0)
+            row = cur.fetchone()
+            if row is None:
+                raise ValueError("OHLC sanity check query returned no results — database state corrupted")
+            bad_high, bad_low, negative = row
+            if bad_high is None or bad_low is None or negative is None:
+                raise ValueError("OHLC COUNT(*) FILTER returned NULL — cannot determine OHLC violations")
+            bad_high = int(bad_high)
+            bad_low = int(bad_low)
+            negative = int(negative)
 
             if negative > 0:
                 self.log(
@@ -258,11 +268,18 @@ class QualityChecker(BaseCheck):
             """,
                 (low_vol_threshold, low_vol_threshold, high_vol_threshold),
             )
-            low_new, high_vol, total = cur.fetchone()
-            low_new = int(low_new or 0)
-            high_vol = int(high_vol or 0)
+            row = cur.fetchone()
+            if row is None:
+                raise ValueError("Volume sanity check query returned no results — database state corrupted")
+            low_new, high_vol, total = row
+            if low_new is None:
+                raise ValueError("Low volume COUNT returned NULL — cannot determine volume anomalies")
+            if high_vol is None:
+                raise ValueError("High volume COUNT returned NULL — cannot determine volume anomalies")
             if total is None:
                 raise ValueError("price_daily COUNT(*) returned NULL — loader may be stalled")
+            low_new = int(low_new)
+            high_vol = int(high_vol)
             total = int(total)
 
             if low_new > new_low_alert:
