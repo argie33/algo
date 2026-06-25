@@ -48,10 +48,10 @@ def check_data_freshness(conn: Any) -> bool:
 
         # Check key tables and their freshness
         checks = [
-            ("stock_prices_daily", "date", 1),
+            ("price_daily", "date", 1),
             ("technical_data_daily", "date", 1),
             ("algo_metrics_daily", "date", 1),
-            ("market_exposure_daily", "date", 1),
+            ("buy_sell_daily", "date", 1),
         ]
 
         results = []
