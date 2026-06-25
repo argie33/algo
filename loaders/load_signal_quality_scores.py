@@ -108,7 +108,7 @@ class SignalQualityScoresLoader(OptimalLoader):
             raise RuntimeError(
                 f"[BATCH_CONTEXT] Failed to prepare batch context for signal_quality_scores: {e}. "
                 "Cannot proceed without end_date and signal availability verification."
-            ) from None
+            ) from e
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]] | None:
         """Compute signal quality scores from buy/sell signals and technical confirmation."""
@@ -296,7 +296,7 @@ class SignalQualityScoresLoader(OptimalLoader):
             raise RuntimeError(
                 f"[SIGNALS] Failed to fetch buy/sell signals for {symbol}: {e}. "
                 "Signal quality assessment requires valid signal data."
-            ) from None
+            ) from e
 
     def _fetch_technical_data(self, symbol: str, start: date, end: date) -> list[dict[str, Any]]:
         """Fetch technical data."""
@@ -322,7 +322,7 @@ class SignalQualityScoresLoader(OptimalLoader):
             raise RuntimeError(
                 f"[TECHNICAL] Failed to fetch technical data for {symbol}: {e}. "
                 "Signal quality requires technical analysis data."
-            ) from None
+            ) from e
 
     def _fetch_trend_data(self, symbol: str, start: date, end: date) -> list[dict[str, Any]]:
         """Fetch trend data."""
@@ -348,7 +348,7 @@ class SignalQualityScoresLoader(OptimalLoader):
             raise RuntimeError(
                 f"[TREND] Failed to fetch trend data for {symbol}: {e}. "
                 "Signal quality assessment requires trend analysis."
-            ) from None
+            ) from e
 
     def _fetch_vcp_patterns(self, symbol: str, start: date, end: date) -> list[dict[str, Any]]:
         """Fetch VCP patterns."""
@@ -401,7 +401,7 @@ class SignalQualityScoresLoader(OptimalLoader):
             raise RuntimeError(
                 f"[VCP] Failed to fetch VCP patterns for {symbol}: {e}. "
                 "VCP pattern recognition is authoritative for trend confirmation."
-            ) from None
+            ) from e
 
     def _fetch_positioning_data(self, symbol: str) -> dict[str, Any] | None:
         """Fetch positioning data."""
@@ -510,6 +510,11 @@ class SignalQualityScoresLoader(OptimalLoader):
                 weinstein_stage = row.get("weinstein_stage")
                 trend_template_score = scorer.calculate_trend_template_score(minervini, weinstein_stage)
 
+                if trend_template_score > 25:
+                    logger.warning(
+                        f"[SQS_CLAMP] {symbol}: Trend template score clamped from {trend_template_score} to 25. "
+                        "This indicates a trend signal stronger than designed threshold."
+                    )
                 trend_template_score = min(25, trend_template_score)
 
                 # Distance from high score (0-15): closer to 52w high = better
@@ -601,7 +606,13 @@ class SignalQualityScoresLoader(OptimalLoader):
                     + distribution_days_score
                     + earnings_proximity_score
                 )
-                composite_sqs = min(100, int(composite_sqs))
+                unclamped_composite = int(composite_sqs)
+                if unclamped_composite > 100:
+                    logger.warning(
+                        f"[SQS_CLAMP] {symbol} {row.get('date')}: Composite quality score clamped from {unclamped_composite} to 100. "
+                        "Score exceeds design range: check individual component contributions."
+                    )
+                composite_sqs = min(100, unclamped_composite)
 
                 date_val = row.get("date")
                 if date_val is not None:
@@ -638,7 +649,7 @@ class SignalQualityScoresLoader(OptimalLoader):
             raise RuntimeError(
                 f"[QUALITY] Failed to compute signal quality scores for {symbol}: {e}. "
                 "Quality assessment is authoritative for signal reliability."
-            ) from None
+            ) from e
 
 
 def main() -> int:
@@ -691,7 +702,7 @@ def main() -> int:
 
         return 0
     except Exception as e:
-        raise RuntimeError(f"Signal quality scores load failed: {e}") from None
+        raise RuntimeError(f"Signal quality scores load failed: {e}") from e
 
 
 def _sync_scores_to_buy_sell() -> None:
@@ -717,7 +728,7 @@ def _sync_scores_to_buy_sell() -> None:
         raise RuntimeError(
             f"[SYNC_FAILURE] Signal quality score sync failed: {e}. "
             "This may cause buy_sell_daily to lack quality scores for newly-computed signals."
-        ) from None
+        ) from e
 
 
 def _log_signal_metrics() -> None:

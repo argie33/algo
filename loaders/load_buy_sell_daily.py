@@ -150,7 +150,7 @@ class SignalsDailyLoader(OptimalLoader):
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(
                 f"[BATCH_CONTEXT] Failed to prepare batch context for buy_sell_daily: {e}. "
-                "Cannot proceed without shared batch data (end_date, price/tech coverage, symbol watermarks) from None."
+                "Cannot proceed without shared batch data (end_date, price/tech coverage, symbol watermarks) from e."
             ) from e
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
