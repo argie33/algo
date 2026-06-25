@@ -310,10 +310,18 @@ class DailyReconciliation:
                     unrealized_pnl_pct_dec = Decimal(0)
 
                 position_values = [p[4] for p in positions if p[4] is not None]
+                if len(position_values) < len(positions):
+                    excluded_count = len(positions) - len(position_values)
+                    logger.critical(f"CRITICAL: {excluded_count}/{len(positions)} positions have NULL position_value in reconciliation")
+                    raise ValueError(
+                        f"CRITICAL: {excluded_count}/{len(positions)} positions have NULL position_value in reconciliation. "
+                        f"Cannot calculate concentration risk without complete position data."
+                    )
                 largest_position_dec = Decimal(str(max(position_values))) if position_values else Decimal(0)
-                max_concentration_dec = (
-                    (largest_position_dec / total_equity_dec * Decimal(100)) if total_equity_dec > 0 else Decimal(0)
-                )
+                if total_equity_dec <= 0:
+                    logger.critical(f"CRITICAL: Total equity invalid ({total_equity_dec}) for concentration calculation")
+                    raise ValueError(f"CRITICAL: Total equity invalid ({total_equity_dec}) — cannot calculate concentration")
+                max_concentration_dec = largest_position_dec / total_equity_dec * Decimal(100)
 
                 avg_position_size_dec = (
                     (total_position_value / len(positions)) if (positions and total_position_value > 0) else Decimal(0)
@@ -329,9 +337,15 @@ class DailyReconciliation:
                 prev_snapshot = cur.fetchone()
                 prev_value_dec = Decimal(str(prev_snapshot[0])) if prev_snapshot else total_equity_dec
                 daily_return_dec = total_equity_dec - prev_value_dec
-                daily_return_pct_dec = (
-                    (daily_return_dec / prev_value_dec * Decimal(100)) if prev_value_dec > 0 else Decimal(0)
-                )
+                if prev_value_dec <= 0:
+                    logger.critical(
+                        f"CRITICAL: Prior portfolio snapshot value invalid ({prev_value_dec}) — cannot calculate daily return. "
+                        f"Check portfolio snapshot data continuity."
+                    )
+                    raise ValueError(
+                        f"Prior portfolio value invalid ({prev_value_dec}) — daily return calculation requires valid historical snapshot"
+                    )
+                daily_return_pct_dec = daily_return_dec / prev_value_dec * Decimal(100)
 
                 cur.execute(
                     """

@@ -1253,7 +1253,12 @@ class PositionMonitor:
             RuntimeError: If stop_loss is missing when stock split detected. Missing
             stop loss means position has no protection — cannot silently proceed.
         """
-        split_ratio = alpaca_qty / db_qty if db_qty > 0 else 1.0
+        if db_qty <= 0:
+            raise PositionValidationError(
+                f"CRITICAL: Database position quantity invalid ({db_qty}) — cannot calculate split ratio. "
+                f"Position data corruption detected for {symbol}."
+            )
+        split_ratio = alpaca_qty / db_qty
 
         if not db_stop:
             raise RuntimeError(

@@ -644,9 +644,18 @@ class PositionSizer:
             position_value = Decimal(shares) * Decimal(str(entry_price))
             risk_dollars = risk_per_share * Decimal(shares)
 
-        position_pct_of_portfolio = (
-            (position_value / Decimal(str(portfolio_value)) * Decimal(100)) if portfolio_value > 0 else Decimal(0)
-        )
+        if portfolio_value <= 0:
+            raise ValueError(
+                f"CRITICAL: Portfolio value invalid ({portfolio_value}) — cannot calculate position sizing. "
+                f"Position sizing requires current portfolio value > 0."
+            )
+        try:
+            position_pct_of_portfolio = position_value / Decimal(str(portfolio_value)) * Decimal(100)
+        except (ValueError, TypeError, decimal.InvalidOperation) as e:
+            raise ValueError(
+                f"CRITICAL: Position value calculation failed ({position_value}): {e}. "
+                f"Cannot calculate position sizing without valid values."
+            ) from e
         max_conc_val = self.config.get("max_concentration_pct")
         if max_conc_val is None:
             raise ValueError("CRITICAL: max_concentration_pct config missing. Cannot enforce concentration limit.")

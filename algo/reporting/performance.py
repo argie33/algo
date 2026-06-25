@@ -160,18 +160,20 @@ class LivePerformance:
             avg_win_pct = float(avg_win_pct)
             avg_loss_pct = float(avg_loss_pct)
 
-            if avg_win_r is None:
-                avg_win_r = 0.0
-            if avg_loss_r_val is None:
-                avg_loss_r = 0.0
-            else:
-                avg_loss_r = abs(avg_loss_r_val)
+            if avg_win_r is None or avg_loss_r_val is None:
+                raise ValueError(
+                    f"CRITICAL: Win/loss R-multiples missing (avg_win_r={avg_win_r}, avg_loss_r={avg_loss_r_val}). "
+                    f"Cannot calculate expectancy without valid R-multiple data."
+                )
+            avg_loss_r = abs(avg_loss_r_val)
             if avg_win_pct is None:
                 avg_win_pct = 0.0
             if avg_loss_pct is None:
                 avg_loss_pct = 0.0
 
-            win_rate_pct = (win_count / total * 100) if total > 0 else 0
+            if total <= 0:
+                raise ValueError(f"CRITICAL: No trades for expectancy calculation (total={total})")
+            win_rate_pct = win_count / total * 100
 
             return {
                 "win_rate_pct": _dec_round(win_rate_pct, 2),

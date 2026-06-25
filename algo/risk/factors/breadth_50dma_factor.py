@@ -58,7 +58,9 @@ class Breadth50DMAFactor(MarketFactorStrategy):
                 raise ValueError("Breadth 50-DMA factor: no breadth data available - cannot calculate participation")
 
             above, total = int(row[0]), int(row[1])
-            pct = above / total * 100.0 if total > 0 else 0
+            if total <= 0:
+                raise ValueError(f"Breadth 50-DMA factor: No stocks available to calculate participation ({total} total)")
+            pct = above / total * 100.0
 
             # Linear: 20% → 0, 50% → 50, 80% → 100
             score = max(0.0, min(100.0, (pct - 20) / 60 * 100))

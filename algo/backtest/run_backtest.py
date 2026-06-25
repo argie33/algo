@@ -349,6 +349,8 @@ def run_backtest(
     if n_days <= 0:
         raise ValueError("CRITICAL: Backtest date range invalid (end_date must be after start_date)")
     years = n_days / 365.25
+    if years <= 0:
+        raise ValueError("CRITICAL: Year calculation invalid for annualized return")
     annualized_return_pct = ((final_capital / initial_capital) ** (1.0 / years) - 1) * 100
 
     total_trades = len(completed_trades)
@@ -363,7 +365,10 @@ def run_backtest(
 
     gross_profit = sum(t["profit_loss_dollars"] for t in winning_trades)
     gross_loss = abs(sum(t["profit_loss_dollars"] for t in losing_trades))
-    profit_factor = (gross_profit / gross_loss) if gross_loss > 0 else float("inf")
+    if gross_loss <= 0:
+        profit_factor = None
+    else:
+        profit_factor = gross_profit / gross_loss
 
     # Max drawdown from equity curve
     max_dd_pct = 0.0
@@ -385,14 +390,18 @@ def run_backtest(
         if daily_returns:
             import statistics
 
-            avg_ret = statistics.mean(daily_returns)
             if len(daily_returns) < 2:
                 raise ValueError(
-                    f"CRITICAL: Insufficient daily returns ({len(daily_returns)}) for Sharpe calculation (need 2+)"
+                    f"CRITICAL: Insufficient daily returns ({len(daily_returns)}) for Sharpe calculation (need 2+). "
+                    f"Equity curve must have at least 3 snapshots (2+ returns)."
                 )
+            avg_ret = statistics.mean(daily_returns)
             std_ret = statistics.stdev(daily_returns)
             if std_ret <= 0:
-                raise ValueError("CRITICAL: Zero or negative volatility in returns (invalid backtest data)")
+                raise ValueError(
+                    "CRITICAL: Zero or negative volatility in returns (invalid backtest data). "
+                    "Check for flat equity curve (no price changes) or corrupt data."
+                )
             sharpe = round((avg_ret / std_ret * (252**0.5)), 4)
 
     avg_trade_return_pct = (

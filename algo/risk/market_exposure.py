@@ -793,7 +793,9 @@ class MarketExposure:
                 f"price_above_sma{ma_days} cannot be calculated. Check trend_template_data loader."
             )
         above, total = int(row[0]), int(row[1])
-        pct = above / total * 100.0 if total > 0 else 0
+        if total <= 0:
+            raise RuntimeError(f"[MARKET EXPOSURE CRITICAL] No stocks to calculate breadth for {ma_days}-day MA")
+        pct = above / total * 100.0
         # Linear: 20% -> 0pts, 80% -> 1.0
         if ma_days == 50:
             sf = max(0.0, min(1.0, (pct - 20) / 60))
@@ -1087,7 +1089,12 @@ class MarketExposure:
                 "SPY price is required for advance/decline strength computation."
             )
         last_spy = float(last_spy_val)
-        spy_change_pct = (last_spy - first_spy) / first_spy * 100.0 if first_spy > 0 else 0
+        if first_spy <= 0:
+            raise RuntimeError(
+                f"Invalid first SPY price ({first_spy}) for A/D line calculation — "
+                "SPY price required for advance/decline strength computation"
+            )
+        spy_change_pct = (last_spy - first_spy) / first_spy * 100.0
         # Confirmation: both same direction. Divergence: opposite.
         if (ad_change > 0 and spy_change_pct > 0) or (ad_change < 0 and spy_change_pct < 0):
             sf = 1.0
@@ -1308,7 +1315,11 @@ class MarketExposure:
         if len(claims_rows) >= 26:
             claims_now = float(claims_rows[0][0])
             claims_26w = float(claims_rows[-1][0])
-            chg_pct = (claims_now - claims_26w) / claims_26w * 100 if claims_26w > 0 else 0
+            if claims_26w <= 0:
+                logger.warning(f"Invalid 26-week claims baseline ({claims_26w}) — skipping jobless claims stress signal")
+                chg_pct = 0.0
+            else:
+                chg_pct = (claims_now - claims_26w) / claims_26w * 100
             if chg_pct > 30:
                 stress += 30.0
                 signals.append(f"Jobless claims +{chg_pct:.1f}% in 26w (severe)")

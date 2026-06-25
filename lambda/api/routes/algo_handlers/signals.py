@@ -105,9 +105,17 @@ def _calculate_pre_trade_impact(cur: cursor, body: dict[str, Any]) -> Any:
             """)
             for sr in cur.fetchall():
                 if sr["sector"]:
-                    sector_val = float(sr["sector_value"])
-                    if sector_val is None:
-                        return error_response(503, "data_unavailable", "Sector exposure data incomplete")
+                    sector_val_raw = sr["sector_value"]
+                    if sector_val_raw is None:
+                        logger.warning(f"Sector {sr['sector']} has NULL position_value sum — skipping")
+                        continue
+                    try:
+                        sector_val = float(sector_val_raw)
+                        if sector_val < 0:
+                            logger.warning(f"Sector {sr['sector']} has negative exposure ({sector_val}) — data corruption")
+                            continue
+                    except (ValueError, TypeError) as e:
+                        return error_response(503, "data_format_error", f"Sector exposure not numeric: {e}")
                     sector_exposure[sr["sector"]] = sector_val
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Unexpected error: {e}") from e
@@ -310,14 +318,27 @@ def _get_rejection_funnel(cur: cursor) -> Any:
             return error_response(503, "incomplete_data", "Signal tier counts missing: t4_count")
         t4_count = int(t4_val)
 
-        high_quality_count = int(row_data["t5_count"])
-        computed_avg_score = float(row_data["avg_score"]) if row_data.get("avg_score") is not None else 0.0
+        t5_val = row_data.get("t5_count")
+        if t5_val is None:
+            logger.error("Signal rejection funnel data missing t5_count — cannot generate funnel tiers")
+            return error_response(503, "incomplete_data", "Signal tier counts missing: t5_count")
+        high_quality_count = int(t5_val)
+
+        if initial_count <= 0 or high_quality_count <= 0:
+            logger.error(f"Invalid tier counts: initial={initial_count}, t5={high_quality_count}")
+            return error_response(503, "invalid_data", "Signal tiers have zero/negative counts")
+
+        computed_avg_score = float(row_data["avg_score"]) if row_data.get("avg_score") is not None else None
         signal_date = row_data.get("signal_date")
 
         def _funnel_stage(stage: str, count: int, prior: int, reason: str | None) -> dict[str, Any]:
-            pct = round((count / initial_count * 100), 2) if initial_count else 0
+            if initial_count <= 0:
+                raise ValueError("CRITICAL: Initial count is zero — cannot calculate funnel percentages")
+            pct = round((count / initial_count * 100), 2)
             rejected = prior - count
-            rej_pct = round((rejected / prior * 100), 2) if prior else 0
+            if prior <= 0:
+                raise ValueError(f"CRITICAL: Prior count is zero/negative ({prior}) for stage {stage} — cannot calculate rejection %")
+            rej_pct = round((rejected / prior * 100), 2)
             return {
                 "stage": stage,
                 "count": count,

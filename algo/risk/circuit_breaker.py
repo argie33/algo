@@ -214,7 +214,7 @@ class CircuitBreaker:
         cur_val = _float(row[1], None, context="drawdown current")
         if peak is None or cur_val is None or peak <= 0 or cur_val <= 0:
             return {"halted": True, "reason": "Invalid portfolio values — fail-closed"}
-        dd = ((peak - cur_val) / peak * 100.0) if peak > 0 else 0.0
+        dd = (peak - cur_val) / peak * 100.0
         halt_dd_val = self._get_required_config("halt_drawdown_pct", "in drawdown check")
         threshold = _float(
             halt_dd_val,
@@ -429,9 +429,15 @@ class CircuitBreaker:
         # Win rate based on wins vs (wins + losses), excluding break-even trades
         # This avoids dilution where many break-even trades inflate the denominator
         decisive_trades = wins + losses
-        win_rate = (wins / decisive_trades * 100.0) if decisive_trades > 0 else 0
+        if decisive_trades <= 0:
+            logger.critical("CRITICAL: No decisive trades (wins + losses = 0) — cannot calculate win rate")
+            return {"halted": True, "reason": "Insufficient decisive trades for win rate threshold check"}
+        win_rate = wins / decisive_trades * 100.0
         win_rate_val = self._get_required_config("min_win_rate_pct", "in win rate check")
         threshold = float(win_rate_val)
+        if not isinstance(threshold, float) or (threshold != threshold) or threshold == float("inf") or threshold == float("-inf"):  # NaN/Inf check
+            logger.critical("CRITICAL: min_win_rate_pct is invalid (NaN/Inf) — circuit breaker cannot function")
+            return {"halted": True, "reason": "CRITICAL: min_win_rate_pct invalid (NaN/Inf)"}
         return {
             "halted": win_rate < threshold,
             "reason": (
@@ -628,9 +634,18 @@ class CircuitBreaker:
         if not row or not row[0] or not row[1]:
             return {"halted": False, "reason": "Insufficient history"}
         cur_val, week_ago_val = float(row[0]), float(row[1])
-        weekly = ((cur_val - week_ago_val) / week_ago_val * 100.0) if week_ago_val > 0 else 0
+        if week_ago_val <= 0:
+            logger.critical(f"CRITICAL: Week-ago portfolio value invalid ({week_ago_val}) — cannot calculate weekly return")
+            return {"halted": True, "reason": "CRITICAL: Portfolio history data invalid"}
+        weekly = (cur_val - week_ago_val) / week_ago_val * 100.0
         max_weekly_val = self._get_required_config("max_weekly_loss_pct", "in weekly loss check")
-        threshold = -float(max_weekly_val)
+        try:
+            threshold = -float(max_weekly_val)
+            if threshold == 0 or (threshold != threshold) or threshold == float("inf") or threshold == float("-inf"):  # NaN/Inf check
+                raise ValueError(f"max_weekly_loss_pct invalid ({max_weekly_val})")
+        except (ValueError, TypeError) as e:
+            logger.critical(f"CRITICAL: max_weekly_loss_pct configuration invalid — cannot enforce weekly loss limit: {e}")
+            return {"halted": True, "reason": "CRITICAL: max_weekly_loss_pct configuration invalid"}
         return {
             "halted": weekly <= threshold,
             "reason": (

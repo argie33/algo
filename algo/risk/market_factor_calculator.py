@@ -65,7 +65,7 @@ class MarketFactorCalculator:
             if row and row[0] is not None:
                 pct = float(row[0])
                 # Linear: 20% → 0, 50% → 50, 80% → 100
-                score = (pct - 20) / 0.6 if pct >= 20 else 0
+                score = (pct - 20) / 0.6
                 score = min(100, max(0, score))
                 return {"value": pct, "score": score}
             raise RuntimeError(f"Breadth {ma_days}-day data unavailable for {eval_date} — cannot compute factor without data")

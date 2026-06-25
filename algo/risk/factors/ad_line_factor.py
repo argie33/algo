@@ -74,7 +74,9 @@ class ADLineFactor(MarketFactorStrategy):
 
             first_spy = float(rows[0][2])
             last_spy = float(rows[-1][2])
-            spy_change_pct = (last_spy - first_spy) / first_spy * 100.0 if first_spy > 0 else 0
+            if first_spy <= 0:
+                raise ValueError(f"A/D line factor: Invalid first SPY price ({first_spy}) — price must be positive for change calculation")
+            spy_change_pct = (last_spy - first_spy) / first_spy * 100.0
 
             # Determine confirmation or divergence
             if (ad_change > 0 and spy_change_pct > 0) or (ad_change < 0 and spy_change_pct < 0):
