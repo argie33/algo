@@ -140,11 +140,11 @@ def _build_signal_header(sig_data: dict[str, Any], scores_data: dict[str, Any] |
 
     raw_val = safe_get_field(overview, "n")
     if raw_val is None or not isinstance(raw_val, (int, float)):
-        raise ValueError(f"Signal count 'n' missing or invalid: {raw_val}")
+        return rows, 0, 0
     raw = int(raw_val)
     total_val = safe_get_field(overview, "total")
     if total_val is None or not isinstance(total_val, (int, float)):
-        raise ValueError(f"Total signal count 'total' missing or invalid: {total_val}")
+        return rows, 0, 0
     total = int(total_val)
     ds = _format_signal_date(safe_get_field(overview, "date"))
 
