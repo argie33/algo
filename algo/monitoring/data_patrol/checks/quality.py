@@ -41,7 +41,9 @@ class QualityChecker(BaseCheck):
             """)
             today_nulls, today_total = cur.fetchone()
             today_nulls = int(today_nulls or 0)
-            today_total = int(today_total or 1)
+            if today_total is None:
+                raise ValueError("price_daily COUNT(*) returned NULL — loader may be stalled")
+            today_total = int(today_total)
             null_pct = today_nulls / today_total * 100 if today_total else 0
 
             if null_pct > max_null_pct:
@@ -259,7 +261,9 @@ class QualityChecker(BaseCheck):
             low_new, high_vol, total = cur.fetchone()
             low_new = int(low_new or 0)
             high_vol = int(high_vol or 0)
-            total = int(total or 1)
+            if total is None:
+                raise ValueError("price_daily COUNT(*) returned NULL — loader may be stalled")
+            total = int(total)
 
             if low_new > new_low_alert:
                 self.log(

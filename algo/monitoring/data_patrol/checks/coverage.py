@@ -43,7 +43,9 @@ class CoverageChecker(BaseCheck):
             """)
             today_count, total_count = cur.fetchone()
             today_count = int(today_count or 0)
-            total_count = int(total_count or 1)
+            if total_count is None:
+                raise ValueError("price_daily COUNT(*) returned NULL — loader may be stalled")
+            total_count = int(total_count)
             pct = today_count / total_count * 100 if total_count else 0
 
             if pct < 0.1:

@@ -117,7 +117,9 @@ class SpecializedChecker(BaseCheck):
             """)
             est_syms, price_syms = cur.fetchone()
             est_syms = int(est_syms or 0)
-            price_syms = int(price_syms or 1)
+            if price_syms is None:
+                raise ValueError("price_daily COUNT(DISTINCT symbol) returned NULL — loader may be stalled")
+            price_syms = int(price_syms)
             pct = est_syms / price_syms * 100
             sev = WARN if pct < 80 else INFO
             self.log(
