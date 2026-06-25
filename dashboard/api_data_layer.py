@@ -269,8 +269,9 @@ def api_call(endpoint: str, params: dict[str, Any] | None = None, method: str = 
             headers.update(auth_headers)
         except RuntimeError as auth_err:
             logger.error(f"Cognito authorization failed for {endpoint}: {auth_err}")
-            _record_api_failure()
-            return {"_error": f"Authentication failed: {auth_err}"}
+            # Do NOT call _record_api_failure() — auth errors are permanent config issues, not transient API failures.
+            # They should not trigger circuit breaker accumulation.
+            return {"_error": f"Authentication failed: {auth_err}", "_auth_error": True}
     for attempt in range(API_MAX_RETRIES + 1):
         try:
             if method == "GET":
@@ -280,6 +281,18 @@ def api_call(endpoint: str, params: dict[str, Any] | None = None, method: str = 
 
             if resp.status_code >= 400:
                 logger.warning(f"API {endpoint}: {resp.status_code} - {resp.text[:100]}")
+                # Auth errors (401/403) are permanent, don't retry and don't count toward circuit breaker
+                if resp.status_code in (401, 403):
+                    return {
+                        "_error": f"API error {resp.status_code}: Authentication required",
+                        "_auth_error": True,
+                    }
+                # For other 4xx client errors, don't retry; fail immediately
+                if resp.status_code < 500:
+                    return {
+                        "_error": f"API error {resp.status_code}",
+                    }
+                # For 5xx server errors, retry with backoff
                 if attempt < API_MAX_RETRIES:
                     backoff = min((2**attempt) + random.random() * (2**attempt), API_MAX_BACKOFF)
                     att_str = f"attempt {attempt + 1}/{API_MAX_RETRIES + 1}"
@@ -312,6 +325,20 @@ def api_call(endpoint: str, params: dict[str, Any] | None = None, method: str = 
 
                 if status_code_int >= 400:
                     logger.warning(f"API {endpoint}: error in JSON response (status {status_code_int})")
+                    # Auth errors (401/403) are permanent config issues, not transient API failures
+                    if status_code_int in (401, 403):
+                        msg = data.get("message", "Unknown API error")
+                        return {
+                            "_error": f"API error {status_code_int}: {msg}",
+                            "_auth_error": True,
+                        }
+                    # For other 4xx errors (client errors), don't retry; fail immediately
+                    if status_code_int < 500:
+                        msg = data.get("message", "Unknown API error")
+                        return {
+                            "_error": f"API error {status_code_int}: {msg}",
+                        }
+                    # For 5xx errors (server errors), retry with backoff
                     if attempt < API_MAX_RETRIES:
                         backoff = min((2**attempt) + random.random() * (2**attempt), API_MAX_BACKOFF)
                         time.sleep(backoff)

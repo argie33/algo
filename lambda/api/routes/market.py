@@ -22,18 +22,9 @@ from routes.utils import (
 )
 
 from shared_contracts.response_validator import ResponseValidator
+from utils.safe_data_conversion import safe_float
 
 logger = logging.getLogger(__name__)
-
-
-def _safe_float(value: Any, default: float | None = None) -> float | None:
-    """Safely convert value to float, returning default on failure."""
-    if value is None:
-        return default
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return default
 
 
 def _rollback_savepoint(cur: cursor, name: str) -> None:
@@ -313,7 +304,7 @@ def _handle_top_movers(cur: cursor) -> Any:
     items = [safe_json_serialize(dict(m)) for m in movers] if movers else []
     valid_items = []
     for m in items:
-        pct_val = _safe_float(m.get("pct_change"), default=None)
+        pct_val = safe_float(m.get("pct_change"), default=None)
         if pct_val is not None:
             m["pct_change"] = pct_val
             valid_items.append(m)
@@ -421,10 +412,10 @@ def _handle_seasonality(cur: cursor) -> Any:
         for r in monthly_rows:
             r_dict = dict(r)
             monthly_data.append(r_dict)
-            avg_ret = _safe_float(r_dict.get("avg_return"), default=None)
+            avg_ret = safe_float(r_dict.get("avg_return"), default=None)
             if avg_ret is not None:
-                best_ret = _safe_float(best_month.get("avg_return"), default=None) if best_month else None
-                worst_ret = _safe_float(worst_month.get("avg_return"), default=None) if worst_month else None
+                best_ret = safe_float(best_month.get("avg_return"), default=None) if best_month else None
+                worst_ret = safe_float(worst_month.get("avg_return"), default=None) if worst_month else None
                 if best_ret is None or avg_ret > best_ret:
                     best_month = r_dict
                 if worst_ret is None or avg_ret < worst_ret:
@@ -449,10 +440,10 @@ def _handle_seasonality(cur: cursor) -> Any:
         for r in dow_rows:
             r_dict = dict(r)
             dow_data.append(r_dict)
-            avg_ret = _safe_float(r_dict.get("avg_return"), default=None)
+            avg_ret = safe_float(r_dict.get("avg_return"), default=None)
             if avg_ret is not None:
-                best_ret = _safe_float(best_dow.get("avg_return"), default=None) if best_dow else None
-                worst_ret = _safe_float(worst_dow.get("avg_return"), default=None) if worst_dow else None
+                best_ret = safe_float(best_dow.get("avg_return"), default=None) if best_dow else None
+                worst_ret = safe_float(worst_dow.get("avg_return"), default=None) if worst_dow else None
                 if best_ret is None or avg_ret > best_ret:
                     best_dow = r_dict
                 if worst_ret is None or avg_ret < worst_ret:

@@ -259,35 +259,74 @@ def get_global_registry() -> ValidatorRegistry:
 # All validation is centralized here — one source of truth for all data conversion.
 
 
-def safe_float(value: Any, default: float = 0.0, context: str = "") -> float:
+def safe_float(
+    value: Any,
+    default: float | None = None,
+    *,
+    context: str = "",
+    strict: bool = False,
+    field_name: str | None = None,
+) -> float | None:
     """Convert value to float safely, handling NaN, Infinity, None.
 
     Args:
         value: Value to convert (can be str, int, float, None)
-        default: Default value if conversion fails (default: 0.0)
+        default: Default value if conversion fails (None to require explicit handling; use strict=True for finance)
         context: Context string for logging (e.g., "symbol=AAPL")
+        strict: If True, raise StrictValidationError instead of returning default (REQUIRED for all finance paths)
+        field_name: Field name for error logging (preferred over context for new code)
 
     Returns:
         Float value or default if conversion fails
+
+    Raises:
+        ValueError: If value is NaN or Infinity (always fails fast — required for calculations)
+        StrictValidationError: If strict=True and conversion fails
     """
+    error_ctx = f"for {field_name}" if field_name else context
+
     if value is None:
+        if strict:
+            raise StrictValidationError(f"Cannot convert None to float {error_ctx}")
+        if default is None:
+            logger.warning(f"None value in float conversion {error_ctx} — returning None (must be handled by caller)")
+        else:
+            logger.warning(f"Converting None to {default} {error_ctx}—explicitly requested default")
         return default
 
     if isinstance(value, bool):
+        if strict:
+            raise StrictValidationError(f"Cannot convert bool to float {error_ctx}")
         return default
 
     try:
         f = float(value)
-        if math.isnan(f):
-            logger.warning(f"NaN value rejected {context}")
-            return default
-        if math.isinf(f):
-            logger.warning(f"Infinity value rejected {context}")
-            return default
-        return f
     except (ValueError, TypeError) as e:
-        logger.warning(f"Failed to convert {value!r} to float {context}: {e}")
+        if strict:
+            raise StrictValidationError(
+                f"Cannot convert {field_name or 'value'}={value!r} to float {error_ctx}: {e}"
+            ) from e
+        if default is None:
+            logger.warning(
+                f"Failed to convert {value!r} to float {error_ctx} (returning None—caller must handle missing data): {e}"
+            )
+        else:
+            logger.warning(f"Failed to convert {value!r} to float {error_ctx} (returning {default}): {e}")
         return default
+
+    # Reject NaN and Infinity explicitly — fail fast instead of silently returning 0.0.
+    # Position sizing, risk calculations, and other critical paths require valid data.
+    # Silent degradation to 0.0 masks data errors that should be fixed, not ignored.
+    if math.isnan(f):
+        msg = f"NaN value in critical calculation {error_ctx} — data error must be fixed"
+        logger.error(msg)
+        raise ValueError(msg)
+    if math.isinf(f):
+        msg = f"Infinity value in critical calculation {error_ctx} — data error must be fixed"
+        logger.error(msg)
+        raise ValueError(msg)
+
+    return f
 
 
 def format_decimal_string(value: Any, precision: int = 2, allow_none: bool = True) -> str | None:
