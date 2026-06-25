@@ -223,6 +223,11 @@ class TrendCriteriaLoader(OptimalLoader):
 
             trend_dir = "uptrend" if score >= 6 else ("downtrend" if score <= 2 else "sideways")
 
+            # CRITICAL: SMA-based fields cannot be None - skip rows without SMA data
+            # rather than populating with None (which corrupts trend evaluation)
+            if sma50 is None or sma200 is None:
+                continue
+
             results.append(
                 {
                     "symbol": symbol,
@@ -241,12 +246,10 @@ class TrendCriteriaLoader(OptimalLoader):
                         if pd.notna(row.get("sma_200_slope", float("nan")))
                         else None
                     ),
-                    "price_above_sma50": bool(c > sma50) if sma50 else None,
-                    "price_above_sma200": bool(c > sma200) if sma200 else None,
-                    "sma50_above_sma200": (bool(sma50 > sma200) if (sma50 and sma200) else None),
-                    "ma_spread_percent": (
-                        round(float((sma50 - sma200) / sma200 * 100), 4) if (sma50 and sma200) else None
-                    ),
+                    "price_above_sma50": bool(c > sma50),
+                    "price_above_sma200": bool(c > sma200),
+                    "sma50_above_sma200": bool(sma50 > sma200),
+                    "ma_spread_percent": round(float((sma50 - sma200) / sma200 * 100), 4),
                     "minervini_trend_score": score,
                     "weinstein_stage": weinstein_stage,
                     "trend_direction": trend_dir,

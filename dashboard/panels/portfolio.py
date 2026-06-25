@@ -197,18 +197,16 @@ def panel_portfolio(
             logger.warning("Largest position value conversion failed")
 
     # Risk metrics (VaR, CVaR, Beta, concentration, Stressed VaR)
-    # CRITICAL: Do NOT default NULL risk metrics to 0.0 — that hides missing data!
-    # NULL risk data should render as None (empty) so missing calculations are visible,
-    # not silently appear as "0% risk" (which is catastrophically misleading)
-    var_v = safe_float(risk.get("var95") if risk and not risk.get("_error") else None, default=None)
-    if var_v is not None and var_v > 0:
-        cvar_v = safe_float(risk.get("cvar95") if risk else None, default=None)
-        beta_v = safe_float(risk.get("beta") if risk else None, default=None)
-        conc5_v = safe_float(risk.get("conc5") if risk else None, default=None)
-        svar_v = safe_float(risk.get("svar") if risk else None, default=None)
+    # CRITICAL: Fail-fast on missing risk metrics — don't silently hide them!
+    if risk and not risk.get("_error"):
+        var_v = safe_float(risk["var95"], strict=True, field_name="var95")
+        cvar_v = safe_float(risk["cvar95"], strict=True, field_name="cvar95")
+        beta_v = safe_float(risk["beta"], strict=True, field_name="beta")
+        conc5_v = safe_float(risk["conc5"], strict=True, field_name="conc5")
+        svar_v = safe_float(risk.get("svar"), strict=False, field_name="svar", default=None)
 
-        # Only render risk metrics if all critical fields are available
-        if cvar_v is not None and beta_v is not None and conc5_v is not None:
+        # All critical fields available — render
+        if var_v > 0 and cvar_v is not None and beta_v is not None and conc5_v is not None:
             conc_c = R if conc5_v >= 35 else (Y if conc5_v >= 25 else "white")
             var_c = R if var_v >= 4 else (Y if var_v >= 2 else "white")
             beta_c = R if beta_v >= 1.2 else (Y if beta_v >= 0.8 else G)
@@ -362,7 +360,7 @@ def panel_performance_spark(
         if calmar is not None and calmar != 0.0:
             cc = G if calmar >= 0.5 else (Y if calmar >= 0 else R)
             calmar_cell = cell("Calmar Ratio:", f"[{cc}]{calmar:.2f}[/]")
-        if wr50 is not None and wr50 != 0.0 and (total_trades is not None and total_trades >= 10 or wr50 > 0):
+        if wr50 is not None and wr50 != 0.0 and ((total_trades is not None and total_trades >= 10) or wr50 > 0):
             wc = G if wr50 >= 50 else (Y if wr50 >= 42 else R)
             wr50_cell = cell("Win Rate (50 trades):", f"[{wc}]{wr50:.0f}%[/]")
         if calmar_cell is not None or wr50_cell is not None:

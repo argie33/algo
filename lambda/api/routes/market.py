@@ -301,13 +301,20 @@ def _handle_top_movers(cur: cursor) -> Any:
         logger.warning(f"[TOP_MOVERS] Database error: {type(e).__name__}")
         _rollback_savepoint(cur, "top_movers")
 
-    items = [safe_json_serialize(dict(m)) for m in movers] if movers else []
+    if not movers:
+        raise_api_error(503, "no_data", "Top movers data not yet available")
+
+    items = [safe_json_serialize(dict(m)) for m in movers]
     valid_items = []
     for m in items:
         pct_val = safe_float(m.get("pct_change"), default=None)
         if pct_val is not None:
             m["pct_change"] = pct_val
             valid_items.append(m)
+
+    if not valid_items:
+        raise_api_error(503, "no_data", "Top movers data validation failed - no valid price change data")
+
     gainers = sorted(
         [m for m in valid_items if m["pct_change"] >= 0],
         key=lambda x: -x["pct_change"],
@@ -316,7 +323,7 @@ def _handle_top_movers(cur: cursor) -> Any:
         [m for m in valid_items if m["pct_change"] < 0],
         key=lambda x: x["pct_change"],
     )[:10]
-    return json_response(200, {"gainers": gainers or [], "losers": losers or [], "items": items})
+    return json_response(200, {"gainers": gainers, "losers": losers, "items": items})
 
 
 def _handle_distribution_days(cur: cursor) -> Any:
@@ -455,11 +462,16 @@ def _handle_seasonality(cur: cursor) -> Any:
         logger.error(f"[SEASONALITY] DOW query error: {type(e).__name__}")
         raise_db_error(e, "seasonality day of week query")
 
+    if not monthly_data:
+        raise_api_error(503, "no_data", "Seasonality monthly data not yet available")
+    if not dow_data:
+        raise_api_error(503, "no_data", "Seasonality day-of-week data not yet available")
+
     return json_response(
         200,
         {
-            "monthly": monthly_data or [],
-            "day_of_week": dow_data or [],
+            "monthly": monthly_data,
+            "day_of_week": dow_data,
             "summary": {
                 "best_month": (
                     {

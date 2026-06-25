@@ -242,12 +242,13 @@ class RejectionTracker:
 
             return results
 
-        try:
-            return self._with_cursor(_get_reasons) or []
-        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            raise RuntimeError(
-                f"Failed to get rejection reasons for tier {tier}: {e}. Cannot proceed without rejection analysis."
-            ) from e
+        result = self._with_cursor(_get_reasons)
+        if not result:
+            raise ValueError(
+                f"Rejection reasons query for tier {tier} returned empty result. "
+                "Cannot determine rejection reasons without data."
+            )
+        return result
 
     def get_signals_by_rejection_status(self, eval_date: date) -> dict[str, Any]:
         """Get summary of signals by whether they were rejected and at which tier."""
@@ -289,9 +290,10 @@ class RejectionTracker:
                 "rejected_tier_5": t5,
             }
 
-        try:
-            return self._with_cursor(_get_status) or {}
-        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            raise RuntimeError(
-                f"Failed to get rejection summary: {e}. Cannot proceed without rejection status tracking."
-            ) from e
+        result = self._with_cursor(_get_status)
+        if not result:
+            raise ValueError(
+                "Rejection summary query returned empty result. "
+                "Cannot proceed with rejection status tracking without data."
+            )
+        return result

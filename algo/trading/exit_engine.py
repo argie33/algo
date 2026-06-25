@@ -96,6 +96,12 @@ class PositionContext:
         self.entry_price = entry_price
         self.active_stop = active_stop
         self.init_stop = init_stop
+        if t1_price is None:
+            raise ValueError(f"CRITICAL: {symbol} position loaded without T1 target price. Cannot execute position without exit plan.")
+        if t2_price is None:
+            raise ValueError(f"CRITICAL: {symbol} position loaded without T2 target price. Cannot execute position without exit plan.")
+        if t3_price is None:
+            raise ValueError(f"CRITICAL: {symbol} position loaded without T3 target price. Cannot execute position without exit plan.")
         self.t1_price = t1_price
         self.t2_price = t2_price
         self.t3_price = t3_price
@@ -203,7 +209,7 @@ class PositionContext:
 
     def check_target_t1(self, engine: ExitEngine) -> tuple[bool, dict[str, Any] | None]:
         """T1 target exit (1.5R): 50% position reduction."""
-        if self.target_hits == 0 and self.t1_price is not None and self.cur_price >= self.t1_price:
+        if self.target_hits == 0 and self.cur_price >= self.t1_price:
             if self._was_target_hit_today(self.t1_hit_time):
                 return False, None
             if "require_target_pullback" not in self.config:
@@ -226,7 +232,7 @@ class PositionContext:
 
     def check_target_t2(self, engine: ExitEngine) -> tuple[bool, dict[str, Any] | None]:
         """T2 target exit (3R): 25% position reduction with stop raise to T1."""
-        if self.target_hits == 1 and self.t2_price is not None and self.cur_price >= self.t2_price:
+        if self.target_hits == 1 and self.cur_price >= self.t2_price:
             if self._was_target_hit_today(self.t2_hit_time):
                 return False, None
             if "require_target_pullback" not in self.config:
@@ -236,7 +242,7 @@ class PositionContext:
                 )
             require_pb = bool(self.config["require_target_pullback"])
             if not require_pb or engine._is_pulling_back(self.cur, self.symbol, self.current_date):
-                stop_for_t2 = max(self.active_stop, self.t1_price) if self.t1_price is not None else self.active_stop
+                stop_for_t2 = max(self.active_stop, self.t1_price)
                 return (
                     True,
                     {
@@ -250,7 +256,7 @@ class PositionContext:
 
     def check_target_t3(self) -> tuple[bool, dict[str, Any] | None]:
         """T3 target exit (4R): final 25% position reduction."""
-        if self.target_hits == 2 and self.t3_price is not None and self.cur_price >= self.t3_price:
+        if self.target_hits == 2 and self.cur_price >= self.t3_price:
             if not self._was_target_hit_today(self.t3_hit_time):
                 return (
                     True,
