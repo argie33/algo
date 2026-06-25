@@ -89,10 +89,22 @@ def run_loader(
                 stats = loader.run(symbols, parallelism=args.parallelism)
 
             # Assess success: warn if fail_rate > 5%
-            fail_rate = stats.get("symbols_failed", 0) / max(len(symbols), 1)
+            if "symbols_failed" not in stats:
+                raise RuntimeError(
+                    f"[LOADER] Stats missing 'symbols_failed' key. "
+                    f"Loader contract violation: expected stats dict with failure count, got {list(stats.keys())}. "
+                    f"Cannot determine load success/failure without explicit failure count."
+                )
+            symbols_failed = stats["symbols_failed"]
+            if not isinstance(symbols_failed, int):
+                raise TypeError(
+                    f"[LOADER] 'symbols_failed' must be int, got {type(symbols_failed).__name__}: {symbols_failed}. "
+                    f"Stats tracking corrupted."
+                )
+            fail_rate = symbols_failed / max(len(symbols), 1)
             if fail_rate > 0.05:
                 logger.error(
-                    f"Too many failures: {stats['symbols_failed']}/{len(symbols)} ({fail_rate * 100:.1f}%)"
+                    f"Too many failures: {symbols_failed}/{len(symbols)} ({fail_rate * 100:.1f}%)"
                 )
                 return 1
 
