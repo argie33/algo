@@ -296,9 +296,17 @@ def _get_algo_status(cur: cursor) -> Any:
             unrealized_pnl_pct = None
             if pv and pv > 0 and unrealized_pnl is not None:
                 unrealized_pnl_pct = unrealized_pnl / pv * 100
+            tc = snap["total_cash"]
+            if tc is None or (isinstance(tc, float) and not (tc > 0 or tc == 0)):
+                raise RuntimeError(
+                    f"CRITICAL: algo_portfolio_snapshots.total_cash is missing or invalid ({tc}). "
+                    f"Cannot determine cash available for position sizing. "
+                    f"Dashboard portfolio status unreliable without this data."
+                )
+            tc_float = float(tc)
             portfolio = {
                 "total_portfolio_value": format_decimal_string(pv, precision=2, allow_none=True),
-                "total_cash": format_decimal_string(float(snap["total_cash"]) or 0, precision=2),
+                "total_cash": format_decimal_string(tc_float, precision=2),
                 "position_count": int(snap["position_count"]),
                 "daily_return_pct": format_decimal_string(
                     float(snap["daily_return_pct"]), precision=2, allow_none=True

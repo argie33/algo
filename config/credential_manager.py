@@ -371,17 +371,39 @@ class CredentialManager:
                         if not secret_string:
                             raise ValueError(f"User secret '{user_secret_id}' exists but contains no SecretString")
                         creds = _json.loads(secret_string)
-                        # Validate credential fields explicitly (don't chain fallbacks)
+                        # CRITICAL: Validate credential fields — must be present and explicitly named
+                        # This is a user-scoped credential; wrong field names could silently load production creds
                         key = creds.get("api_key")
-                        if key is None:
-                            key = creds.get("APCA_API_KEY_ID")
+                        key_alt = creds.get("APCA_API_KEY_ID")
                         secret = creds.get("api_secret")
-                        if secret is None:
-                            secret = creds.get("APCA_API_SECRET_KEY")
+                        secret_alt = creds.get("APCA_API_SECRET_KEY")
+
+                        # Check which field names are actually present and prefer explicit names
+                        if key and secret:
+                            # Primary field names present — use them
+                            pass
+                        elif key_alt and secret_alt:
+                            # Fallback field names present instead
+                            logger.warning(
+                                f"User secret '{user_secret_id}' using fallback field names "
+                                f"(APCA_API_KEY_ID/APCA_API_SECRET_KEY instead of api_key/api_secret). "
+                                f"This may indicate schema mismatch or incomplete secret configuration."
+                            )
+                            key = key_alt
+                            secret = secret_alt
+                        else:
+                            # Neither primary nor fallback fields present
+                            available = list(creds.keys())
+                            raise ValueError(
+                                f"User secret '{user_secret_id}' missing required credential fields. "
+                                f"Expected (api_key + api_secret) or (APCA_API_KEY_ID + APCA_API_SECRET_KEY). "
+                                f"Found fields: {available}"
+                            )
+
                         if not key:
-                            raise ValueError(f"User secret '{user_secret_id}' missing api_key and APCA_API_KEY_ID fields")
+                            raise ValueError(f"User secret '{user_secret_id}' api_key field is empty")
                         if not secret:
-                            raise ValueError(f"User secret '{user_secret_id}' missing api_secret and APCA_API_SECRET_KEY fields")
+                            raise ValueError(f"User secret '{user_secret_id}' api_secret field is empty")
                         if key and secret:
                             logger.info(f"[CREDENTIALS] User-scoped Alpaca credentials loaded for {user_id}")
                             return {"key": key, "secret": secret}

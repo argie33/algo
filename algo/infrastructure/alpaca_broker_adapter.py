@@ -65,13 +65,28 @@ class AlpacaBrokerAdapter(BrokerAdapter):
                 cash_val = data.get("cash")
                 equity_val = data.get("equity")
                 portfolio_value_val = data.get("portfolio_value")
+
+                # CRITICAL: Do NOT silently swap between portfolio_value and equity fields.
+                # These may have different meanings in Alpaca API; swapping silently masks which
+                # field is actually being used, and could cause incorrect position sizing.
                 if portfolio_value_val is None:
-                    portfolio_value_val = data.get("equity")
-                if portfolio_value_val is None:
-                    raise ValueError(
-                        "Alpaca /v2/account response missing both 'portfolio_value' and 'equity' fields. "
-                        "Cannot determine account portfolio value."
-                    )
+                    if equity_val is None:
+                        logger.error(
+                            "CRITICAL: Alpaca /v2/account response missing both 'portfolio_value' and 'equity' fields. "
+                            "Response keys: %s", list(data.keys())
+                        )
+                        raise ValueError(
+                            "Alpaca /v2/account response missing both 'portfolio_value' and 'equity' fields. "
+                            "Cannot determine account portfolio value. "
+                            "Check: Alpaca API documentation, account status."
+                        )
+                    else:
+                        logger.warning(
+                            "Alpaca /v2/account using 'equity' field instead of 'portfolio_value' for portfolio value. "
+                            "This may indicate API schema change. Consider verifying Alpaca API compatibility."
+                        )
+                        portfolio_value_val = equity_val
+
                 buying_power_val = data.get("buying_power")
                 return {
                     "cash": float(cash_val) if cash_val is not None else None,

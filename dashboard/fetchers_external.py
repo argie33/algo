@@ -123,7 +123,17 @@ def fetch_economic_pulse(c: None) -> dict[str, Any]:
         )
         ig_val = credit_latest.get("BAMLH0A0IG")
         if ig_val is None:
-            ig_val = credit_latest.get("BAMLC0A0CM")
+            # CRITICAL: Investment Grade spread is a key factor in 10-point exposure calculation.
+            # Do not silently fallback to alternative series IDs; fail-fast so data issue is caught.
+            logger.error(
+                "CRITICAL: Investment Grade spread (BAMLH0A0IG) missing from credit spreads API. "
+                "This is a required input for market exposure scoring (4 of 10 factors depend on credit spreads). "
+                "Check: Fred API data availability, load_market_exposure_daily logs."
+            )
+            raise ValueError(
+                "Investment Grade credit spread (BAMLH0A0IG) missing from API — "
+                "cannot compute market risk tier without this factor. Exposure calculation incomplete."
+            )
         ig = safe_float(
             ig_val,
             strict=True,

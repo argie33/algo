@@ -282,9 +282,25 @@ def _get_rejection_funnel(cur: cursor) -> Any:
 
         initial_count = int(row_data["total_signals"])
         t1_count = int(row_data["t1_count"])
-        t2_count = int(row_data["t2_count"] or 0)
-        t3_count = int(row_data["t3_count"] or 0)
-        t4_count = int(row_data["t4_count"] or 0)
+
+        t2_val = row_data.get("t2_count")
+        if t2_val is None:
+            logger.error("Signal rejection funnel data missing t2_count — cannot generate funnel tiers")
+            return error_response(503, "incomplete_data", "Signal tier counts missing: t2_count")
+        t2_count = int(t2_val)
+
+        t3_val = row_data.get("t3_count")
+        if t3_val is None:
+            logger.error("Signal rejection funnel data missing t3_count — cannot generate funnel tiers")
+            return error_response(503, "incomplete_data", "Signal tier counts missing: t3_count")
+        t3_count = int(t3_val)
+
+        t4_val = row_data.get("t4_count")
+        if t4_val is None:
+            logger.error("Signal rejection funnel data missing t4_count — cannot generate funnel tiers")
+            return error_response(503, "incomplete_data", "Signal tier counts missing: t4_count")
+        t4_count = int(t4_val)
+
         high_quality_count = int(row_data["t5_count"])
         computed_avg_score = float(row_data["avg_score"]) if row_data.get("avg_score") is not None else 0.0
         signal_date = row_data.get("signal_date")

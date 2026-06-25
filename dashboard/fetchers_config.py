@@ -115,11 +115,24 @@ def fetch_run(c: None) -> dict[str, Any]:
         halt_reason = halted_phases[0].get("summary") if halted_phases else None
 
         # Timestamps are required - fail if all are missing (Issue #6)
-        run_at = inner.get("run_at")
-        if run_at is None:
+        # Explicit priority: prefer run_at, then completed_at, then started_at
+        run_at = None
+
+        if inner.get("run_at") is not None:
+            run_at = inner.get("run_at")
+        elif inner.get("completed_at") is not None:
             run_at = inner.get("completed_at")
-        if run_at is None:
+            logger.debug(
+                "Last-run API using fallback field 'completed_at' for timestamp. "
+                "Consider verifying API schema: expected 'run_at' field."
+            )
+        elif inner.get("started_at") is not None:
             run_at = inner.get("started_at")
+            logger.warning(
+                "Last-run API using fallback field 'started_at' for timestamp (run_at and completed_at missing). "
+                "This may indicate API schema issue or incomplete run data."
+            )
+
         # No runs yet (algo hasn't executed) - fail-fast: return error instead of placeholder
         if not run_at and not inner.get("run_id") and not inner["success"] and not inner["halted"]:
             error_msg = "No algo runs available yet (algo has not executed)"

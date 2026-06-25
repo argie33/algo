@@ -586,11 +586,31 @@ def _get_markets(cur: cursor) -> Any:
             except (json.JSONDecodeError, TypeError):
                 factors = {}
 
-        tier_key = str(row.get("regime") or "").lower()
+        regime_val = row.get("regime")
+        if regime_val is None or regime_val == "":
+            logger.error(
+                f"[MARKETS API] CRITICAL: market regime is missing or empty for {row.get('date')}. "
+                f"Cannot determine risk tier for position sizing (affects exposure caps 25-100%). "
+                f"Check: market_exposure_daily table, load_market_exposure_daily logs."
+            )
+            return error_response(
+                503,
+                "data_unavailable",
+                "Market regime data unavailable — cannot determine risk tier for position sizing",
+            )
+        tier_key = str(regime_val).lower()
         tier_conf = _TIER_CONFIG.get(tier_key)
         if tier_conf is None:
-            logger.warning(f"Missing tier configuration for regime: {tier_key}")
-            tier_conf = {}
+            logger.error(
+                f"[MARKETS API] CRITICAL: No tier configuration for regime '{tier_key}'. "
+                f"Regime value from market_exposure_daily does not map to TIER_CONFIG. "
+                f"Database or configuration mismatch."
+            )
+            return error_response(
+                503,
+                "data_unavailable",
+                f"Unknown market regime '{tier_key}' — cannot apply risk tier constraints",
+            )
         active_tier = {"name": tier_key, **tier_conf}
         active_tier["halt"] = bool(halt_reasons) or tier_conf.get("halt", False)
 
