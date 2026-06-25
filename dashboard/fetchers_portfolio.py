@@ -66,6 +66,10 @@ def fetch_portfolio(c: None) -> dict[str, Any]:
 
     STRICT MODE: Uses direct conversion for critical financial fields (no defaults to 0).
     Missing data triggers error, not silent 0 values which are catastrophically misleading.
+
+    NOTE: Portfolio data is updated by Phase 9 daily reconciliation. If data is stale
+    (>7 days old), Phase 9 orchestration may be halted or failed — check orchestration
+    logs and algo_portfolio_snapshots table for recent updates.
     """
     from dashboard.fetcher_validator import FetcherValidator
 
@@ -80,11 +84,13 @@ def fetch_portfolio(c: None) -> dict[str, Any]:
             "position_count",
             "last_run",
         ]
+        # Increased threshold to 10 days (864000s) to allow for Phase 9 scheduling variance
+        # while still detecting when orchestration stalls (>10 days = clear failure)
         valid, error_msg = FetcherValidator.validate_response(
             response=port,
             required_fields=required_fields,
             source_name="fetch_portfolio",
-            max_age_seconds=604800,
+            max_age_seconds=864000,
             timestamp_field="last_run",
         )
         if not valid:

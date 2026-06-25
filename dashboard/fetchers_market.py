@@ -271,7 +271,11 @@ def fetch_exp_factors(c: None) -> dict[str, Any]:
 
 
 def fetch_risk_metrics(c: None) -> dict[str, Any]:
-    """API-only risk metrics. Fail-fast: error only on failure."""
+    """API-only risk metrics. Fail-fast: error only on failure.
+
+    Note: stressed_var_pct requires 365+ days of portfolio history; may be None
+    during ramp-up. All other fields are required for meaningful risk display.
+    """
     from dashboard.fetcher_validator import FetcherValidator
 
     try:
@@ -284,7 +288,8 @@ def fetch_risk_metrics(c: None) -> dict[str, Any]:
             return FetcherValidator.build_error_response(error_msg)
 
         d = data
-        required_fields = ["var_pct_95", "cvar_pct_95", "stressed_var_pct", "portfolio_beta", "top_5_concentration"]
+        # stressed_var_pct is optional (requires 365+ days of history); others required
+        required_fields = ["var_pct_95", "cvar_pct_95", "portfolio_beta", "top_5_concentration"]
         missing_fields = [f for f in required_fields if f not in d or d[f] is None]
         if missing_fields:
             error_msg = f"Risk metrics API response missing required fields: {missing_fields}"
@@ -296,7 +301,7 @@ def fetch_risk_metrics(c: None) -> dict[str, Any]:
             "date": d.get("report_date"),
             "var95": safe_float(d["var_pct_95"]),
             "cvar95": safe_float(d["cvar_pct_95"]),
-            "svar": safe_float(d["stressed_var_pct"]),
+            "svar": safe_float(d.get("stressed_var_pct"), default=None),
             "beta": safe_float(d["portfolio_beta"]),
             "conc5": safe_float(d["top_5_concentration"]),
         }
