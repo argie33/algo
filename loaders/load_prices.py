@@ -1603,11 +1603,15 @@ class PriceLoader(OptimalLoader):
                 total_rows = result[0] if result else 0
                 latest_date = result[1] if result else None
 
-            symbols_total = self._stats.get("symbols_total", 1)
-            symbols_expected = symbols_total if isinstance(symbols_total, int) else 1
+            if "symbols_total" not in self._stats:
+                raise RuntimeError(f"[{self.table_name}] Load stats incomplete: 'symbols_total' not tracked.")
+            symbols_total = self._stats.get("symbols_total")
+            if not isinstance(symbols_total, int):
+                raise RuntimeError(f"[{self.table_name}] Load stats corrupt: 'symbols_total' is {type(symbols_total).__name__}, expected int")
+            symbols_expected = symbols_total
             if "symbols_processed" not in self._stats:
                 raise RuntimeError(f"[{self.table_name}] Load stats incomplete: 'symbols_processed' not tracked.")
-            symbols_successfully_loaded = self._stats.get("symbols_processed", 0)
+            symbols_successfully_loaded = self._stats.get("symbols_processed")
             if not isinstance(symbols_successfully_loaded, int):
                 logger.error(
                     f"[{self.table_name}] Load stats corruption: 'symbols_processed' is {type(symbols_successfully_loaded).__name__} "

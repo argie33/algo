@@ -91,7 +91,9 @@ class SignalQualityScoresLoader(OptimalLoader):
                     (end,),
                 )
                 cur_row = cur.fetchone()
-                actual_symbols = cur_row[0] if cur_row else 0
+                if cur_row is None or cur_row[0] is None:
+                    raise ValueError(f"Signal count query returned NULL for {end} — cannot determine signal availability for batch validation")
+                actual_symbols = int(cur_row[0])
 
                 cur.execute("SELECT symbol, MAX(date) FROM signal_quality_scores GROUP BY symbol")
                 watermarks = {row[0]: row[1] for row in cur.fetchall()}
@@ -738,54 +740,61 @@ def _log_signal_metrics() -> None:
                 "FROM buy_sell_daily WHERE signal_type IN ('BUY', 'SELL')"
             )
             result = cur.fetchone()
-            result[0] if result else 0
-            latest_signal_date = result[1] if result and result[1] else None
+            if result is None:
+                logger.info("[SIGNAL_METRICS] No signals found in buy_sell_daily table")
+                return
 
-            if latest_signal_date:
-                # Count signals on the latest date (today's signal generation)
-                cur.execute(
-                    "SELECT COUNT(*) as daily_signals, COUNT(DISTINCT symbol) as symbols_with_signals "
-                    "FROM buy_sell_daily WHERE date = %s AND signal_type IN ('BUY', 'SELL')",
-                    (latest_signal_date,),
+            latest_signal_date = result[1]
+            if latest_signal_date is None:
+                logger.info("[SIGNAL_METRICS] Signal date is NULL, cannot generate metrics")
+                return
+
+            # Count signals on the latest date (today's signal generation)
+            cur.execute(
+                "SELECT COUNT(*) as daily_signals, COUNT(DISTINCT symbol) as symbols_with_signals "
+                "FROM buy_sell_daily WHERE date = %s AND signal_type IN ('BUY', 'SELL')",
+                (latest_signal_date,),
+            )
+            daily_result = cur.fetchone()
+            if daily_result is None or daily_result[0] is None or daily_result[1] is None:
+                raise ValueError(f"Signal count query returned invalid result for {latest_signal_date}")
+            daily_signals = int(daily_result[0])
+            symbols_with_signals = int(daily_result[1])
+            coverage_pct = round((symbols_with_signals / 10000) * 100, 2) if symbols_with_signals > 0 else 0
+
+            # Quality score distribution
+            cur.execute(
+                "SELECT MIN(composite_sqs), MAX(composite_sqs), AVG(composite_sqs), "
+                "PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY composite_sqs) as p25, "
+                "PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY composite_sqs) as p50, "
+                "PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY composite_sqs) as p75 "
+                "FROM signal_quality_scores WHERE date = %s",
+                (latest_signal_date,),
+            )
+            score_result = cur.fetchone()
+            if score_result:
+                min_score = score_result[0]
+                max_score = score_result[1]
+                avg_score = round(score_result[2], 2) if score_result[2] else None
+                p25 = round(score_result[3], 2) if score_result[3] else None
+                p50 = round(score_result[4], 2) if score_result[4] else None
+                p75 = round(score_result[5], 2) if score_result[5] else None
+
+                # Determine health status
+                if daily_signals < 50:
+                    health = "CRITICAL"
+                elif daily_signals < 100:
+                    health = "WARNING"
+                elif daily_signals < 300:
+                    health = "NORMAL"
+                else:
+                    health = "EXCELLENT"
+
+                logger.info(
+                    f"[SIGNAL_METRICS] {latest_signal_date} - Health: {health} | "
+                    f"Signals: {daily_signals} ({coverage_pct}% coverage) | "
+                    f"Quality Scores: min={min_score}, p25={p25}, median={p50}, p75={p75}, max={max_score}, avg={avg_score}"
                 )
-                daily_result = cur.fetchone()
-                daily_signals = daily_result[0] if daily_result else 0
-                symbols_with_signals = daily_result[1] if daily_result else 0
-                coverage_pct = round((symbols_with_signals / 10000) * 100, 2) if symbols_with_signals > 0 else 0
-
-                # Quality score distribution
-                cur.execute(
-                    "SELECT MIN(composite_sqs), MAX(composite_sqs), AVG(composite_sqs), "
-                    "PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY composite_sqs) as p25, "
-                    "PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY composite_sqs) as p50, "
-                    "PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY composite_sqs) as p75 "
-                    "FROM signal_quality_scores WHERE date = %s",
-                    (latest_signal_date,),
-                )
-                score_result = cur.fetchone()
-                if score_result:
-                    min_score = score_result[0]
-                    max_score = score_result[1]
-                    avg_score = round(score_result[2], 2) if score_result[2] else None
-                    p25 = round(score_result[3], 2) if score_result[3] else None
-                    p50 = round(score_result[4], 2) if score_result[4] else None
-                    p75 = round(score_result[5], 2) if score_result[5] else None
-
-                    # Determine health status
-                    if daily_signals < 50:
-                        health = "CRITICAL"
-                    elif daily_signals < 100:
-                        health = "WARNING"
-                    elif daily_signals < 300:
-                        health = "NORMAL"
-                    else:
-                        health = "EXCELLENT"
-
-                    logger.info(
-                        f"[SIGNAL_METRICS] {latest_signal_date} - Health: {health} | "
-                        f"Signals: {daily_signals} ({coverage_pct}% coverage) | "
-                        f"Quality Scores: min={min_score}, p25={p25}, median={p50}, p75={p75}, max={max_score}, avg={avg_score}"
-                    )
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.warning(f"[SIGNAL_METRICS] Failed to log signal generation metrics: {e}")
 

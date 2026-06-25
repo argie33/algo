@@ -116,6 +116,17 @@ class CircuitBreaker:
     def __init__(self, config: AlgoConfig | dict[str, Any]) -> None:
         self.config = config
 
+    def _get_required_config(self, key: str, context: str = "") -> Any:
+        """Get a required config value. Raises ValueError if missing.
+
+        In circuit breaker validation, missing thresholds must ALWAYS cause failure.
+        There are no safe defaults for risk control parameters.
+        """
+        value = self.config.get(key)
+        if value is None:
+            raise ValueError(f"CRITICAL: Required circuit breaker config '{key}' is missing {context}")
+        return value
+
     def check_all(self, current_date: Any = None) -> dict[str, Any]:
         """Run all circuit breakers. Returns dict with per-check status."""
         if not current_date:
@@ -204,13 +215,7 @@ class CircuitBreaker:
         if peak is None or cur_val is None or peak <= 0 or cur_val <= 0:
             return {"halted": True, "reason": "Invalid portfolio values — fail-closed"}
         dd = ((peak - cur_val) / peak * 100.0) if peak > 0 else 0.0
-        halt_dd_val = self.config.get("halt_drawdown_pct")
-        if halt_dd_val is None:
-            logger.error("CRITICAL: halt_drawdown_pct config missing. Cannot enforce drawdown circuit breaker.")
-            return {
-                "halted": True,
-                "reason": "CRITICAL: halt_drawdown_pct config missing",
-            }
+        halt_dd_val = self._get_required_config("halt_drawdown_pct", "in drawdown check")
         threshold = _float(
             halt_dd_val,
             None,
@@ -239,13 +244,7 @@ class CircuitBreaker:
         2. Market shows Follow-Through Day signal (optional)
         3. At least N days have passed since halt
         """
-        halt_dd_val = self.config.get("halt_drawdown_pct")
-        if halt_dd_val is None:
-            logger.error("CRITICAL: halt_drawdown_pct config missing during re-engagement check.")
-            return {
-                "halted": True,
-                "reason": "CRITICAL: halt_drawdown_pct config missing",
-            }
+        halt_dd_val = self._get_required_config("halt_drawdown_pct", "in re-engagement check")
         threshold = float(halt_dd_val)
 
         # First check: is current drawdown >= threshold? If not, no re-engagement needed
@@ -270,14 +269,9 @@ class CircuitBreaker:
         if dd < halt_threshold_abs:
             return {"halted": False, "reason": "Not in drawdown halt"}
 
-        recovery_val = self.config.get("re_engage_recovery_pct")
-        min_days_val = self.config.get("re_engage_min_days")
-        require_ftd_val = self.config.get("require_ftd_to_re_engage")
-        if recovery_val is None or min_days_val is None or require_ftd_val is None:
-            logger.error(
-                f"CRITICAL: Re-engagement config missing (recovery={recovery_val}, days={min_days_val}, ftd={require_ftd_val})"
-            )
-            return {"halted": True, "reason": "CRITICAL: Re-engagement config missing"}
+        recovery_val = self._get_required_config("re_engage_recovery_pct", "in re-engagement recovery check")
+        min_days_val = self._get_required_config("re_engage_min_days", "in re-engagement timing check")
+        require_ftd_val = self._get_required_config("require_ftd_to_re_engage", "in re-engagement FTD check")
         recovery_threshold = float(recovery_val)
         min_days_elapsed = int(min_days_val)
         require_ftd = bool(require_ftd_val)
@@ -338,13 +332,7 @@ class CircuitBreaker:
         daily = _float(row[0], None, context="daily_loss")
         if daily is None:
             return {"halted": True, "reason": "Daily return data invalid — fail-closed"}
-        max_daily_val = self.config.get("max_daily_loss_pct")
-        if max_daily_val is None:
-            logger.error("CRITICAL: max_daily_loss_pct config missing. Cannot enforce daily loss circuit breaker.")
-            return {
-                "halted": True,
-                "reason": "CRITICAL: max_daily_loss_pct config missing",
-            }
+        max_daily_val = self._get_required_config("max_daily_loss_pct", "in daily loss check")
         threshold = -_float(
             max_daily_val,
             None,
@@ -387,15 +375,7 @@ class CircuitBreaker:
                 streak += 1
             else:
                 break
-        max_consec_val = self.config.get("max_consecutive_losses")
-        if max_consec_val is None:
-            logger.error(
-                "CRITICAL: max_consecutive_losses config missing. Cannot enforce consecutive loss circuit breaker."
-            )
-            return {
-                "halted": True,
-                "reason": "CRITICAL: max_consecutive_losses config missing",
-            }
+        max_consec_val = self._get_required_config("max_consecutive_losses", "in consecutive losses check")
         threshold = int(max_consec_val)
         return {
             "halted": streak >= threshold,
@@ -451,13 +431,7 @@ class CircuitBreaker:
         # This avoids dilution where many break-even trades inflate the denominator
         decisive_trades = wins + losses
         win_rate = (wins / decisive_trades * 100.0) if decisive_trades > 0 else 0
-        win_rate_val = self.config.get("min_win_rate_pct")
-        if win_rate_val is None:
-            logger.error("CRITICAL: min_win_rate_pct config missing. Cannot enforce win-rate circuit breaker.")
-            return {
-                "halted": True,
-                "reason": "CRITICAL: min_win_rate_pct config missing",
-            }
+        win_rate_val = self._get_required_config("min_win_rate_pct", "in win rate check")
         threshold = float(win_rate_val)
         return {
             "halted": win_rate < threshold,
@@ -507,13 +481,7 @@ class CircuitBreaker:
             }
 
         risk_pct = total_open_risk / portfolio * 100.0
-        max_risk_val = self.config.get("max_total_risk_pct")
-        if max_risk_val is None:
-            logger.error("CRITICAL: max_total_risk_pct config missing. Cannot enforce total risk circuit breaker.")
-            return {
-                "halted": True,
-                "reason": "CRITICAL: max_total_risk_pct config missing",
-            }
+        max_risk_val = self._get_required_config("max_total_risk_pct", "in total risk check")
         threshold = _float(
             max_risk_val,
             None,
@@ -542,15 +510,7 @@ class CircuitBreaker:
         # Fail-closed: cannot use fallback estimates. Even computed estimates from SPY
         # volatility mask the real issue (missing live data) and may be inaccurate during
         # extreme market dislocations when we most need reliable circuit breaker protection.
-        vix_max_val = self.config.get("vix_max_threshold")
-        if vix_max_val is None:
-            logger.error("CRITICAL: vix_max_threshold config missing. Cannot enforce VIX circuit breaker.")
-            return {
-                "halted": True,
-                "reason": "CRITICAL: vix_max_threshold config missing",
-                "value": None,
-                "threshold": None,
-            }
+        vix_max_val = self._get_required_config("vix_max_threshold", "in VIX circuit breaker check")
 
         if vix is None:
             logger.critical("VIX unavailable from live data sources — halting trading")
@@ -670,10 +630,7 @@ class CircuitBreaker:
             return {"halted": False, "reason": "Insufficient history"}
         cur_val, week_ago_val = float(row[0]), float(row[1])
         weekly = ((cur_val - week_ago_val) / week_ago_val * 100.0) if week_ago_val > 0 else 0
-        max_weekly_val = self.config.get("max_weekly_loss_pct")
-        if max_weekly_val is None:
-            logger.error("CRITICAL: max_weekly_loss_pct config missing. Cannot enforce weekly loss circuit breaker.")
-            return {"halted": True, "reason": "CRITICAL: max_weekly_loss_pct config missing"}
+        max_weekly_val = self._get_required_config("max_weekly_loss_pct", "in weekly loss check")
         threshold = -float(max_weekly_val)
         return {
             "halted": weekly <= threshold,
@@ -794,12 +751,7 @@ class CircuitBreaker:
         Sector concentration is a soft limit; the circuit breaker warns but does not block.
         """
         try:
-            max_sector_val = self.config.get("max_positions_per_sector")
-            if max_sector_val is None:
-                logger.error(
-                    "CRITICAL: max_positions_per_sector config missing. Cannot enforce sector concentration limits."
-                )
-                return {"halted": True, "reason": "CRITICAL: max_positions_per_sector config missing"}
+            max_sector_val = self._get_required_config("max_positions_per_sector", "in sector concentration check")
             max_sector_positions = int(max_sector_val)
 
             cur.execute("""
@@ -850,10 +802,7 @@ class CircuitBreaker:
         if not row or row[0] is None:
             return {"halted": False, "reason": "No today snapshot yet"}
         daily = float(row[0])
-        daily_profit_val = self.config.get("daily_profit_cap_pct")
-        if daily_profit_val is None:
-            logger.error("CRITICAL: daily_profit_cap_pct config missing. Cannot enforce daily profit cap check.")
-            return {"halted": True, "reason": "CRITICAL: daily_profit_cap_pct config missing"}
+        daily_profit_val = self._get_required_config("daily_profit_cap_pct", "in daily profit cap check")
         threshold = float(daily_profit_val)
         # This check is a SOFT warning, not a halt — it's logged but doesn't block trading
         # Orchestrator uses this to skip NEW entries only, not to exit existing positions

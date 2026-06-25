@@ -318,8 +318,10 @@ def run(
             cur.execute("""SELECT MAX(date) as latest_price_date FROM price_daily""")
 
             result = cur.fetchone()
+            if result is None:
+                raise ValueError("Price data freshness query returned no results — price_daily table may be empty")
 
-            latest_price_date = result[0] if result else None
+            latest_price_date = result[0]
 
             if latest_price_date is None or latest_price_date != run_date:
                 msg = (

@@ -65,7 +65,9 @@ class DataCompletenessHandler(LambdaHandler):
                 (max_date,),
             )
             row = cursor.fetchone()
-            symbols_today = row[0] if row and row[0] is not None else 0
+            if row is None or row[0] is None:
+                raise ValueError(f"Today's symbol count returned NULL for {max_date} — cannot validate data completeness")
+            symbols_today = int(row[0])
 
             cursor.execute(
                 "SELECT COUNT(DISTINCT symbol) FROM price_daily WHERE date = "
@@ -73,7 +75,9 @@ class DataCompletenessHandler(LambdaHandler):
                 (max_date,),
             )
             row = cursor.fetchone()
-            symbols_prior = row[0] if row and row[0] is not None else symbols_today
+            if row is None or row[0] is None:
+                raise ValueError("Prior day symbol count returned NULL — cannot validate coverage comparison")
+            symbols_prior = int(row[0])
 
             coverage_pct = (symbols_today / max(symbols_prior, 1)) * 100
 

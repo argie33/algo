@@ -107,14 +107,18 @@ class SignalsDailyLoader(OptimalLoader):
                     (end,),
                 )
                 price_row = cur.fetchone()
-                price_coverage_symbols = price_row[0] if price_row else 0
+                if price_row is None or price_row[0] is None:
+                    raise ValueError(f"Price coverage query returned NULL for {end} — cannot determine price data availability for batch validation")
+                price_coverage_symbols = int(price_row[0])
 
                 cur.execute(
                     "SELECT COUNT(DISTINCT symbol), MAX(date) FROM technical_data_daily WHERE date = %s",
                     (end,),
                 )
                 tech_row = cur.fetchone()
-                tech_coverage_symbols = tech_row[0] if tech_row else 0
+                if tech_row is None or tech_row[0] is None:
+                    raise ValueError(f"Technical data coverage query returned NULL for {end} — cannot determine technical data availability")
+                tech_coverage_symbols = int(tech_row[0])
                 tech_max_date = tech_row[1] if tech_row else None
 
                 # ISSUE #9 FIX: Pre-cache all per-symbol watermarks at startup

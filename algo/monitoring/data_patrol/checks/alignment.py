@@ -258,7 +258,11 @@ class AlignmentChecker(BaseCheck):
                 WHERE date = (SELECT MAX(date) FROM price_daily)
             """)
             row = cur.fetchone()
-            baseline = int(row[0]) if row and row[0] is not None else 1
+            if row is None or row[0] is None:
+                raise ValueError("Cross-alignment baseline query returned NULL — cannot determine symbol count for coverage validation")
+            baseline = int(row[0])
+            if baseline == 0:
+                raise ValueError("price_daily has 0 symbols on latest date — loader failure or data corruption")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             self.log(
                 "cross_align",

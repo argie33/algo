@@ -86,7 +86,9 @@ class CoverageChecker(BaseCheck):
 
             cur.execute("SELECT COUNT(*) FROM stock_symbols WHERE active = true")
             row = cur.fetchone()
-            expected_count = row[0] if row and row[0] is not None else 0
+            if row is None or row[0] is None:
+                raise ValueError("Expected symbol count query returned NULL — cannot validate loader coverage")
+            expected_count = int(row[0])
 
             if expected_count == 0:
                 self.log(
