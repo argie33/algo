@@ -400,38 +400,51 @@ class ValueAtRisk:
                                 (symbol,),
                             )
                             stock_rows = cur.fetchall()
-                            if len(stock_rows) >= 2:
-                                stock_prices = []
-                                for _i, r in enumerate(stock_rows):
-                                    if r[0] is None:
-                                        logger.warning(f"[VAR] {symbol}: None historical price for beta calc, skipping")
-                                        break
-                                    price = float(r[0])
-                                    if price <= 0:
-                                        logger.warning(
-                                            f"[VAR] {symbol}: invalid historical price for beta calc, skipping"
-                                        )
-                                        break
-                                    stock_prices.append(Decimal(str(price)))
-                                stock_prices = list(reversed(stock_prices))
-                                if len(stock_prices) < 2:
-                                    continue
-                                stock_returns = [
-                                    (stock_prices[i] - stock_prices[i - 1]) / stock_prices[i - 1]
-                                    for i in range(1, len(stock_prices))
-                                ]
-                                n = min(len(stock_returns), len(spy_returns))
-                                if n >= 20:
-                                    s_rets = stock_returns[-n:]
-                                    m_rets = spy_returns[-n:]
-                                    s_mean = Decimal(str(sum(s_rets) / n))
-                                    m_mean = Decimal(str(sum(m_rets) / n))
-                                    cov = Decimal(
-                                        str(sum((s_rets[i] - s_mean) * (m_rets[i] - m_mean) for i in range(n)) / n)
+                            if len(stock_rows) < 2:
+                                raise ValueError(
+                                    f"[VAR CALCULATION] {symbol}: insufficient historical price data (need 2+ prices, got {len(stock_rows)}). "
+                                    f"Cannot calculate beta for portfolio VAR. Ensure price_daily has at least 60 days of data."
+                                )
+                            stock_prices = []
+                            for _i, r in enumerate(stock_rows):
+                                if r[0] is None:
+                                    raise ValueError(
+                                        f"[VAR CALCULATION FAILED] {symbol}: NULL historical price in price_daily. "
+                                        f"Cannot calculate beta without complete price history."
                                     )
-                                    var = Decimal(str(sum((r - m_mean) ** 2 for r in m_rets) / n))
-                                    if var > 0:
-                                        estimated_beta = (cov / var).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                                price = float(r[0])
+                                if price <= 0:
+                                    raise ValueError(
+                                        f"[VAR CALCULATION FAILED] {symbol}: invalid historical price ({price}). "
+                                        f"All prices must be positive for beta calculation."
+                                    )
+                                stock_prices.append(Decimal(str(price)))
+                            stock_prices = list(reversed(stock_prices))
+                            if len(stock_prices) < 2:
+                                raise ValueError(
+                                    f"[VAR CALCULATION] {symbol}: insufficient valid prices ({len(stock_prices)}). "
+                                    f"Cannot compute beta."
+                                )
+                            stock_returns = [
+                                (stock_prices[i] - stock_prices[i - 1]) / stock_prices[i - 1]
+                                for i in range(1, len(stock_prices))
+                            ]
+                            n = min(len(stock_returns), len(spy_returns))
+                            if n < 20:
+                                raise ValueError(
+                                    f"[VAR CALCULATION] {symbol}: insufficient return periods ({n} < 20 required). "
+                                    f"Cannot calculate statistically significant beta."
+                                )
+                            s_rets = stock_returns[-n:]
+                            m_rets = spy_returns[-n:]
+                            s_mean = Decimal(str(sum(s_rets) / n))
+                            m_mean = Decimal(str(sum(m_rets) / n))
+                            cov = Decimal(
+                                str(sum((s_rets[i] - s_mean) * (m_rets[i] - m_mean) for i in range(n)) / n)
+                            )
+                            var = Decimal(str(sum((r - m_mean) ** 2 for r in m_rets) / n))
+                            if var > 0:
+                                estimated_beta = (cov / var).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
                         except (ValueError, ZeroDivisionError, TypeError) as e:
                             raise RuntimeError(f"Beta calculation failed for {symbol}: {e}") from e
 

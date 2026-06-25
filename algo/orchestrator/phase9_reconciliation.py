@@ -198,11 +198,25 @@ def _compute_signal_attribution(run_date: _date, log_phase_result_fn: Callable[.
         if attr_result:
             attribution.persist(run_date, attr_result)
     except ImportError as e:
-        logger.warning(f"Signal attribution skipped (scipy/numpy not available): {e}")
+        error_msg = (
+            f"CRITICAL: Signal attribution requires scipy/numpy (not available): {e}. "
+            f"Cannot validate signal quality without these dependencies. "
+            f"Install: pip install scipy numpy"
+        )
+        logger.critical(error_msg)
+        raise RuntimeError(error_msg) from e
     except ValueError as e:
-        logger.warning(f"Signal attribution skipped (insufficient trades or invalid data): {e}")
+        error_msg = (
+            f"CRITICAL: Signal attribution validation failed: {e}. "
+            f"Cannot proceed with trading without signal quality validation. "
+            f"Insufficient trades or invalid signal data indicates a system error."
+        )
+        logger.critical(error_msg)
+        raise ValueError(error_msg) from e
     except Exception as e:
-        logger.error(f"Signal attribution failed unexpectedly: {e}", exc_info=True)
+        error_msg = f"CRITICAL: Signal attribution failed unexpectedly: {e}"
+        logger.critical(error_msg, exc_info=True)
+        raise RuntimeError(error_msg) from e
 
     log_phase_result_fn(
         7,
@@ -449,11 +463,25 @@ def _optimize_weights(config: Any, run_date: _date, log_phase_result_fn: Callabl
         else:
             logger.info("Weight optimization: no changes (insufficient trades or weights stable)")
     except ValueError as e:
-        logger.warning(f"Weight optimization skipped (insufficient trades): {e}")
+        error_msg = (
+            f"CRITICAL: Weight optimization failed: {e}. "
+            f"Cannot optimize portfolio weights without sufficient trade history. "
+            f"Portfolio exposure remains unoptimized and unvalidated."
+        )
+        logger.critical(error_msg)
+        raise ValueError(error_msg) from e
     except ImportError as e:
-        logger.warning(f"Weight optimization skipped (scipy/numpy not available): {e}")
+        error_msg = (
+            f"CRITICAL: Weight optimization requires scipy/numpy (not available): {e}. "
+            f"Cannot optimize portfolio without mathematical dependencies. "
+            f"Install: pip install scipy numpy"
+        )
+        logger.critical(error_msg)
+        raise RuntimeError(error_msg) from e
     except Exception as e:
-        logger.error(f"Weight optimization failed unexpectedly: {e}", exc_info=True)
+        error_msg = f"CRITICAL: Weight optimization failed unexpectedly: {e}"
+        logger.critical(error_msg, exc_info=True)
+        raise RuntimeError(error_msg) from e
 
     changes = opt_result.get("changes") if opt_result else []
     log_phase_result_fn(

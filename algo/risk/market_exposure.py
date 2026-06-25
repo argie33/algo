@@ -839,7 +839,30 @@ class MarketExposure:
         vix3m_row = cur.fetchone()
 
         if not vix_row or vix_row[0] is None:
-            # Fallback to market_health_daily if ^VIX missing
+            # Check if market is currently open (real-time VIX should be available during market hours)
+            from algo.infrastructure import MarketCalendar
+            from utils.infrastructure.timezone import EASTERN_TZ
+            from datetime import datetime, time
+
+            now = datetime.now(EASTERN_TZ)
+            is_market_open = (
+                MarketCalendar.is_trading_day(now.date()) and
+                time(9, 30) <= now.time() <= time(16, 0)
+            )
+
+            if is_market_open:
+                # During market hours, real-time VIX is critical for exposure calculation
+                msg = (
+                    f"[VIX CRITICAL] Real-time ^VIX missing during market hours ({eval_date} {now.time()}). "
+                    f"Cannot assess market volatility for portfolio exposure during trading session. "
+                    f"Exposure calculation halted — stale VIX data would incorrectly underestimate risk. "
+                    f"Check: (1) Is yfinance API reachable? (2) Is ^VIX in price_daily? "
+                    f"(3) Did load_prices run successfully today?"
+                )
+                logger.critical(msg)
+                raise RuntimeError(msg)
+
+            # After market close, allow fallback to market_health_daily (same-day, acceptable age)
             cur.execute(
                 """SELECT vix_level FROM market_health_daily
                    WHERE date <= %s AND vix_level IS NOT NULL
@@ -849,15 +872,18 @@ class MarketExposure:
             r2 = cur.fetchone()
             if not r2 or r2[0] is None:
                 msg = (
-                    f"[VIX CRITICAL] No VIX data available for {eval_date}: "
+                    f"[VIX CRITICAL] No VIX data available for {eval_date} (post-market fallback): "
                     f"^VIX missing from price_daily AND vix_level missing/null in market_health_daily. "
-                    f"Exposure calculation INCOMPLETE — hard veto for high VIX cannot run. "
+                    f"Exposure calculation INCOMPLETE — risk assessment unavailable. "
                     f"Check that load_market_health_daily loader is running and fetching VIX from external sources."
                 )
                 logger.critical(msg)
                 raise RuntimeError(msg)
             vix = float(r2[0])
-            logger.debug(f"[VIX] Using fallback: vix_level={vix} from market_health_daily for {eval_date}")
+            logger.info(
+                f"[VIX] Post-market fallback: using vix_level={vix} from market_health_daily "
+                f"(real-time ^VIX unavailable after close for {eval_date})"
+            )
             return self._vix_score(vix, rising=False, term_structure=None)
 
         vix = float(vix_row[0])
