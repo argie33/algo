@@ -260,10 +260,12 @@ def fetch_perf(c: None) -> dict[str, Any]:
             return FetcherValidator.build_error_response(f"Invalid recent_rets type: expected list, got {type(recent_rets_raw).__name__}")
 
         def _f(v: object) -> float | None:
-            try:
-                return float(v) if v is not None else None  # type: ignore[arg-type]
-            except (TypeError, ValueError):
+            if v is None:
                 return None
+            try:
+                return float(v)  # type: ignore[arg-type]
+            except (TypeError, ValueError) as e:
+                raise ValueError(f"Failed to convert performance metric to float: {v!r} — {e}") from e
 
         # unrealized_pnl comes from portfolio endpoint (performance endpoint doesn't have it)
         unrealized_pnl = perf.get("unrealized_pnl")
@@ -272,12 +274,10 @@ def fetch_perf(c: None) -> dict[str, Any]:
             if not port_data.get("_error") and isinstance(port_data.get("unrealized_pnl"), dict):
                 unrealized_pnl = port_data["unrealized_pnl"]
 
-        # Count of currently open positions (prefer open_losses_count for detail, fall back to open_positions)
-        open_count = perf.get("open_losses_count")
+        # Count of currently open positions — requires at least one valid source
+        open_count = perf.get("open_losses_count") or perf.get("open_positions")
         if open_count is None:
-            open_count = perf.get("open_positions")
-        if open_count is None:
-            logger.warning("Performance data missing both 'open_losses_count' and 'open_positions' fields")
+            raise ValueError("Performance data missing both 'open_losses_count' and 'open_positions' fields — cannot determine open position count")
 
         return {
             "n": n,

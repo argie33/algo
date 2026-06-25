@@ -63,10 +63,10 @@ def compute_performance_metrics(cur: Any, metric_date: date | None = None) -> di
         trades = cur.fetchall()
 
         if not trades:
-            # No trades, use defaults
-            _insert_default_metrics(cur, metric_date)
-            logger.info(f"No trades (closed or open with current price) for {metric_date}, inserted defaults")
-            return None
+            # No trades: raise instead of inserting artificial defaults
+            msg = f"No trades (closed or open with current price) for {metric_date} — cannot compute performance metrics"
+            logger.warning(msg)
+            raise ValueError(msg)
 
         # Extract metrics from trades (filter out None values for open positions lacking realized P&L)
         pnl_dollars = [float(t["profit_loss_dollars"]) for t in trades if t["profit_loss_dollars"] is not None]

@@ -45,10 +45,10 @@ def multiply(a: float | str | int | Decimal, b: float | str | int | Decimal) -> 
 
 
 def divide(a: float | str | int | Decimal, b: float | str | int | Decimal) -> float:
-    """Divide a by b with precise decimal arithmetic. Returns 0 if b is 0."""
+    """Divide a by b with precise decimal arithmetic. Raises if b is 0."""
     divisor = to_decimal(b)
     if divisor == 0:
-        return 0.0
+        raise ZeroDivisionError(f"Cannot divide {a} by zero")
     result = to_decimal(a) / divisor
     return quantize_price(result)
 
@@ -59,10 +59,10 @@ def percentage(value: float | str | int | Decimal, percentage_val: float | str |
 
 
 def percentage_change(old: float | str | int | Decimal, new: float | str | int | Decimal) -> float:
-    """Calculate percentage change from old to new. Returns 0 if old is 0."""
+    """Calculate percentage change from old to new. Raises if old is 0."""
     old_d = to_decimal(old)
     if old_d == 0:
-        return 0.0
+        raise ValueError(f"Cannot calculate percentage change: old value is 0, new value is {new}")
     change = (to_decimal(new) - old_d) / old_d * Decimal(100)
     return quantize_price(change)
 
@@ -74,11 +74,11 @@ def r_multiple(
 ) -> float:
     """
     Calculate R-multiple (risk units): (current - entry) / (entry - stop).
-    Returns 0 if risk is <= 0 (invalid setup).
+    Raises if risk is <= 0 (invalid trade setup).
     """
     risk = to_decimal(entry_price) - to_decimal(stop_loss)
     if risk <= 0:
-        return 0.0
+        raise ValueError(f"Invalid trade setup for R-multiple: entry={entry_price}, stop_loss={stop_loss}, risk={risk}")
     result = (to_decimal(current_price) - to_decimal(entry_price)) / risk
     return quantize_price(result)
 

@@ -767,7 +767,10 @@ class MarketExposure:
         )
         row = cur.fetchone()
         if not row or not row[1]:
-            return {"score_factor": None, "value": None}
+            raise RuntimeError(
+                f"[MARKET EXPOSURE CRITICAL] No breadth data for {ma_days}-day MA on {eval_date} — "
+                f"price_above_sma{ma_days} cannot be calculated. Check trend_template_data loader."
+            )
         above, total = int(row[0]), int(row[1])
         pct = above / total * 100.0 if total > 0 else 0
         # Linear: 20% -> 0pts, 80% -> 1.0
@@ -910,7 +913,10 @@ class MarketExposure:
         )
         row = cur.fetchone()
         if not row or row[0] is None:
-            return {"score_factor": None, "value": None, "reason": "No put/call data"}
+            raise RuntimeError(
+                f"[MARKET EXPOSURE CRITICAL] No put/call ratio data for {eval_date} — "
+                f"required for options sentiment factor. Check market_health_daily loader."
+            )
 
         pc = float(row[0])
 
@@ -946,7 +952,10 @@ class MarketExposure:
         )
         row = cur.fetchone()
         if row is None:
-            return {"score_factor": None, "value": None}
+            raise RuntimeError(
+                f"[MARKET EXPOSURE CRITICAL] No new highs/lows data for {eval_date} — "
+                f"required for market leadership factor. Check market_health_daily loader."
+            )
         if row["new_highs_count"] is None:
             raise ValueError(f"Breadth data missing: new_highs_count is None on {eval_date}")
         if row["new_lows_count"] is None:
@@ -992,7 +1001,10 @@ class MarketExposure:
         )
         rows = cur.fetchall()
         if len(rows) < 5:
-            return {"score_factor": None, "value": None}
+            raise RuntimeError(
+                f"[MARKET EXPOSURE CRITICAL] Insufficient A/D line data for {eval_date} — "
+                f"need 5+ trading days of advance/decline data. Check market_health_daily and price_daily loaders."
+            )
 
         # Check if SPY data is fresh (no older than 1 trading day)
         if rows and rows[-1]:
@@ -1008,10 +1020,10 @@ class MarketExposure:
                         break
                     expected_date -= timedelta(days=1)
                 if latest_date < expected_date:
-                    logger.warning(
-                        f"SPY data stale: latest {latest_date} vs expected {expected_date}, returning neutral A/D score"
+                    raise RuntimeError(
+                        f"[MARKET EXPOSURE CRITICAL] SPY data stale for A/D line calculation: "
+                        f"latest {latest_date} vs expected {expected_date}. Cannot compute A/D factor reliably."
                     )
-                    return {"score_factor": None, "value": None, "stale": True}
 
         # Compute A/D cumulative change using ratio → net = (ratio-1)/(ratio+1)
         nets = []

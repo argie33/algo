@@ -50,7 +50,7 @@ class DailyReconciliation:
                 logger.warning("Failed to send initialization failure notification")
             raise ValueError(f"Reconciliation initialization failed: {e}") from e
 
-    def run_daily_reconciliation(self, reconcile_date: Any = None, dry_run: bool = False) -> dict[str, Any]:
+    def run_daily_reconciliation(self, reconcile_date: Any = None, dry_run: bool = False) -> dict[str, Any]:  # noqa: C901
         """Run full daily reconciliation. If dry_run=True, skip Alpaca API calls and return mock data.
 
         CRITICAL SAFETY: dry_run mode must be explicitly enabled via ORCHESTRATOR_DRY_RUN environment variable
@@ -110,8 +110,8 @@ class DailyReconciliation:
                         title="Reconciliation Halted",
                         message="Broker unavailable. Reconciliation requires live account data - cannot use stale DB cache.",
                     )
-                except (ValueError, ZeroDivisionError, TypeError) as e:
-                    logger.warning(f"Failed to send notification: {e}")
+                except Exception as e:
+                    logger.error(f"Failed to send critical notification (will still raise): {e}", exc_info=True)
                 raise ValueError(
                     "Broker account data required for reconciliation - cannot proceed with DB-only fallback"
                 )
@@ -132,8 +132,8 @@ class DailyReconciliation:
                             title="Reconciliation Halted",
                             message="Broker portfolio_value missing - reconciliation requires live portfolio value for drawdown limits. Cannot use stale DB cache.",
                         )
-                    except (ValueError, ZeroDivisionError, TypeError) as e:
-                        logger.warning(f"Failed to send notification: {e}")
+                    except Exception as e:
+                        logger.error(f"Failed to send critical notification (will still raise): {e}", exc_info=True)
                     raise ValueError("Broker portfolio_value required for reconciliation - cannot proceed")
 
                 if cash is None:
@@ -144,8 +144,8 @@ class DailyReconciliation:
                             title="Reconciliation Halted",
                             message="Broker cash missing - reconciliation requires live cash value for position sizing. Cannot use stale DB cache.",
                         )
-                    except (ValueError, ZeroDivisionError, TypeError) as e:
-                        logger.warning(f"Failed to send notification: {e}")
+                    except Exception as e:
+                        logger.error(f"Failed to send critical notification (will still raise): {e}", exc_info=True)
                     raise ValueError("Broker cash required for reconciliation - cannot proceed")
 
                 # CRITICAL: Validate cash is non-negative (indicates account in consistent state)
