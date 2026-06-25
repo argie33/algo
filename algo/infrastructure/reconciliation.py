@@ -1186,7 +1186,9 @@ class DailyReconciliation:
             }
 
         variance_dollars = broker_equity - local_equity
-        variance_pct = (variance_dollars / broker_equity) * 100.0 if broker_equity > 0 else 0.0
+        if broker_equity <= 0:
+            raise ValueError("CRITICAL: Broker equity must be positive for variance calculation")
+        variance_pct = (variance_dollars / broker_equity) * 100.0
 
         threshold = 0.1  # 0.1% tolerance
 

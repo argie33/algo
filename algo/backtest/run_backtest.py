@@ -270,8 +270,10 @@ def run_backtest(
                     break
 
                 entry_price = sig["entry_price"]
+                if entry_price is None or entry_price <= 0:
+                    raise ValueError(f"CRITICAL: Invalid entry_price ({entry_price}) for backtest signal")
                 position_dollars = min(capital, total_value * position_size_pct / 100)
-                shares = position_dollars / entry_price if entry_price > 0 else 0
+                shares = int(position_dollars / entry_price)
 
                 if shares < 1:
                     continue
@@ -334,8 +336,10 @@ def run_backtest(
     final_capital = capital
     total_return_pct = (final_capital - initial_capital) / initial_capital * 100
     n_days = (end_date - start_date).days
+    if n_days <= 0:
+        raise ValueError("CRITICAL: Backtest date range invalid (end_date must be after start_date)")
     years = n_days / 365.25
-    annualized_return_pct = ((final_capital / initial_capital) ** (1.0 / years) - 1) * 100 if years > 0 else 0
+    annualized_return_pct = ((final_capital / initial_capital) ** (1.0 / years) - 1) * 100
 
     total_trades = len(completed_trades)
     winning_trades = [t for t in completed_trades if t["profit_loss_pct"] > 0]
@@ -372,10 +376,14 @@ def run_backtest(
             import statistics
 
             avg_ret = statistics.mean(daily_returns)
-            std_ret = statistics.stdev(daily_returns) if len(daily_returns) > 1 else 0
-            sharpe = round((avg_ret / std_ret * (252**0.5)) if std_ret > 0 else 0, 4)
+            if len(daily_returns) < 2:
+                raise ValueError(f"CRITICAL: Insufficient daily returns ({len(daily_returns)}) for Sharpe calculation (need 2+)")
+            std_ret = statistics.stdev(daily_returns)
+            if std_ret <= 0:
+                raise ValueError("CRITICAL: Zero or negative volatility in returns (invalid backtest data)")
+            sharpe = round((avg_ret / std_ret * (252**0.5)), 4)
 
-    avg_trade_return_pct = sum(t["profit_loss_pct"] for t in completed_trades) / total_trades if total_trades > 0 else 0
+    avg_trade_return_pct = (sum(t["profit_loss_pct"] for t in completed_trades) / total_trades) if total_trades > 0 else None
 
     results = {
         "strategy_name": strategy_name,

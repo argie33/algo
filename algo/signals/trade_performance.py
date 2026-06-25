@@ -95,6 +95,20 @@ class SignalTradePerformancePopulator:
                         holding_days,
                     ) = row
 
+                    if entry_price is None or exit_price is None or pnl_dollars is None or entry_qty is None:
+                        logger.error(
+                            f"CRITICAL: Trade {trade_id_int} ({symbol}) has NULL price/PnL data. "
+                            f"Skipping: entry={entry_price}, exit={exit_price}, pnl={pnl_dollars}, qty={entry_qty}"
+                        )
+                        continue
+
+                    if entry_price <= 0 or entry_qty <= 0:
+                        logger.error(
+                            f"CRITICAL: Trade {trade_id_int} ({symbol}) has invalid prices/quantity. "
+                            f"Skipping: entry={entry_price}, qty={entry_qty}"
+                        )
+                        continue
+
                     # Parse swing_components JSONB
                     try:
                         swing_comp = json.loads(swing_components_json) if swing_components_json else {}
@@ -151,22 +165,13 @@ class SignalTradePerformancePopulator:
                                 symbol,
                                 signal_date,
                                 exit_date,
-                                float(entry_price) if entry_price else 0,
-                                float(exit_price) if exit_price else 0,
-                                float(pnl_dollars) if pnl_dollars else 0,
-                                (
-                                    (float(pnl_dollars) / float(entry_price * entry_qty))
-                                    if (
-                                        pnl_dollars is not None
-                                        and entry_price
-                                        and entry_qty
-                                        and entry_price * entry_qty != 0
-                                    )
-                                    else 0
-                                ),
-                                int(holding_days) if holding_days else 0,
-                                float(swing_score) if swing_score else 0,
-                                float(trend_score) if trend_score else 0,
+                                float(entry_price),
+                                float(exit_price),
+                                float(pnl_dollars),
+                                float(pnl_dollars) / float(entry_price * entry_qty),
+                                int(holding_days),
+                                float(swing_score) if swing_score is not None else 0.0,
+                                float(trend_score) if trend_score is not None else 0.0,
                                 float(exit_r_multiple) if exit_r_multiple else 0,
                                 (bool(exit_r_multiple and exit_r_multiple > 0) if exit_r_multiple else False),
                             ),

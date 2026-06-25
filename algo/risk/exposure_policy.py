@@ -249,7 +249,10 @@ class ExposurePolicy:
 
         # R-multiple
         risk_per_share = entry_price - init_stop
-        r_mult = ((cur_price_float - entry_price) / risk_per_share) if risk_per_share > 0 else 0
+        if risk_per_share <= 0:
+            logger.error(f"CRITICAL: Invalid risk/reward setup for {symbol}: entry={entry_price}, stop={init_stop}")
+            return {"passed": False, "reason": "Invalid stop loss configuration (stop >= entry)"}
+        r_mult = ((cur_price_float - entry_price) / risk_per_share)
 
         # 1. CORRECTION TIER + force_exit_negative_r: cut losers
         if "force_exit_negative_r" not in tier:

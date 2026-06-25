@@ -72,9 +72,11 @@ class DailyFinanceReport:
                 raise RuntimeError(f"No portfolio snapshots available for {report_date}")
 
             current_value = float(rows[0][0]) if rows[0][0] is not None else 0
-            prior_value = float(rows[1][0]) if len(rows) > 1 and rows[1][0] is not None else current_value
-
-            daily_pnl_pct = ((current_value - prior_value) / prior_value * 100) if prior_value > 0 else 0
+            prior_value = float(rows[1][0]) if len(rows) > 1 and rows[1][0] is not None else None
+            if prior_value is None or prior_value <= 0:
+                daily_pnl_pct = None
+            else:
+                daily_pnl_pct = ((current_value - prior_value) / prior_value * 100)
 
             # YTD P&L (simplified)
             cur.execute(
@@ -84,13 +86,16 @@ class DailyFinanceReport:
                 (report_date,),
             )
             ytd_row = cur.fetchone()
-            ytd_start = float(ytd_row[0]) if ytd_row is not None and ytd_row[0] is not None else current_value
-            ytd_pnl_pct = ((current_value - ytd_start) / ytd_start * 100) if ytd_start > 0 else 0
+            ytd_start = float(ytd_row[0]) if ytd_row is not None and ytd_row[0] is not None else None
+            if ytd_start is None or ytd_start <= 0:
+                ytd_pnl_pct = None
+            else:
+                ytd_pnl_pct = ((current_value - ytd_start) / ytd_start * 100)
 
             return {
                 "current_value": round(current_value, 2),
-                "daily_pnl_pct": round(daily_pnl_pct, 2),
-                "ytd_pnl_pct": round(ytd_pnl_pct, 2),
+                "daily_pnl_pct": round(daily_pnl_pct, 2) if daily_pnl_pct is not None else None,
+                "ytd_pnl_pct": round(ytd_pnl_pct, 2) if ytd_pnl_pct is not None else None,
                 "open_positions": self._count_open_positions(cur, report_date),
             }
         except (ValueError, ZeroDivisionError, TypeError) as e:
@@ -389,7 +394,11 @@ class DailyFinanceReport:
                 (report_date,),
             )
             result = cur.fetchone()
-            return result[0] if result else 0
+            if result is None:
+                raise RuntimeError("CRITICAL: Portfolio snapshot count query returned None (database query failed)")
+            if result[0] is None:
+                raise RuntimeError("CRITICAL: Portfolio snapshot count is NULL")
+            return int(result[0])
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.warning(f"Exception: {e}")
             return 0

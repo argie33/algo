@@ -536,7 +536,10 @@ class ValueAtRisk:
                         continue
                     position_value = float(Decimal(str(qty)) * Decimal(str(cur_price)))
                     portfolio_value_float = float(portfolio_value)
-                    position_pct = position_value / portfolio_value_float * 100 if portfolio_value_float > 0 else 0
+                    if portfolio_value_float <= 0:
+                        logger.warning(f"CRITICAL: Portfolio value invalid ({portfolio_value_float}) for position {symbol}")
+                        continue
+                    position_pct = position_value / portfolio_value_float * 100
 
                     top_holdings.append(
                         {

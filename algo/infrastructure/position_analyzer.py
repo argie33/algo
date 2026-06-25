@@ -88,9 +88,10 @@ class PositionAnalyzer:
             )
 
         # Compute total unrealized P&L percentage
-        unrealized_pnl_pct = (
-            float(unrealized_pnl / total_position_value * Decimal(100)) if total_position_value > 0 else 0.0
-        )
+        if total_position_value <= 0:
+            unrealized_pnl_pct = None
+        else:
+            unrealized_pnl_pct = float(unrealized_pnl / total_position_value * Decimal(100))
 
         return {
             "total_position_value": total_position_value,

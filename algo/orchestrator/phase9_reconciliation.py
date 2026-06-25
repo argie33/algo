@@ -501,8 +501,11 @@ def _record_closed_positions_exits(
                             )
                             continue
 
+                        if entry_price is None or entry_price <= 0:
+                            logger.error(f"CRITICAL: Trade {symbol} has invalid entry_price ({entry_price}), skipping")
+                            continue
                         pnl = (exit_price - entry_price) * quantity
-                        pnl_pct = ((exit_price - entry_price) / entry_price * 100) if entry_price > 0 else 0
+                        pnl_pct = ((exit_price - entry_price) / entry_price * 100)
 
                         try:
                             write_cursor.execute(

@@ -310,7 +310,11 @@ def count_rows(
     where_sql = f" WHERE {where_clause}" if where_clause else ""
     query = f"SELECT COUNT(*) FROM {table}{where_sql}"
     result = fetch_one(query, params, timeout=timeout)
-    return result[0] if result else 0
+    if result is None:
+        raise RuntimeError(f"COUNT query failed for table '{table}': query returned None")
+    if result[0] is None:
+        raise RuntimeError(f"COUNT query returned NULL for table '{table}'")
+    return int(result[0])
 
 
 # =======================

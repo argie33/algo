@@ -73,9 +73,14 @@ def _calculate_pre_trade_impact(cur: cursor, body: dict[str, Any]) -> Any:
         else:
             position_dollars = portfolio_value * 0.0075  # default 0.75% risk unit
 
-        shares = int(position_dollars / entry_price) if entry_price and entry_price > 0 else 0
-        actual_dollars = shares * entry_price if entry_price else position_dollars
-        pct_of_portfolio = (actual_dollars / portfolio_value * 100) if portfolio_value > 0 else 0
+        if not entry_price or entry_price <= 0:
+            return error_response(400, "invalid_entry_price", "Entry price must be provided and positive")
+
+        shares = int(position_dollars / entry_price)
+        actual_dollars = shares * entry_price
+        if portfolio_value <= 0:
+            return error_response(503, "service_unavailable", "Portfolio value invalid")
+        pct_of_portfolio = (actual_dollars / portfolio_value * 100)
 
         # Symbol sector
         cur.execute(
@@ -198,8 +203,12 @@ def _calculate_trade_preview(cur: cursor, body: dict[str, Any]) -> Any:
 
         base_risk_pct = 0.0075
         position_dollars = portfolio_value * base_risk_pct
-        shares = int(position_dollars / entry_price) if entry_price > 0 else 0
-        pct_of_portfolio = (shares * entry_price / portfolio_value * 100) if portfolio_value > 0 else 0
+        if entry_price <= 0:
+            return error_response(400, "invalid_entry_price", "Entry price must be positive")
+        shares = int(position_dollars / entry_price)
+        if portfolio_value <= 0:
+            return error_response(503, "service_unavailable", "Portfolio value invalid")
+        pct_of_portfolio = (shares * entry_price / portfolio_value * 100)
         total_risk_amount = (risk_amount * shares) if risk_amount else None
 
         targets = {}

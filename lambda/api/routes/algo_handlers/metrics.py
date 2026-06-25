@@ -319,7 +319,7 @@ def _get_algo_performance(cur: cursor) -> Any:
                             if hasattr(r["snapshot_date"], "isoformat")
                             else str(r["snapshot_date"])
                         ),
-                        (float(r["daily_return_pct"]) if r.get("daily_return_pct") is not None else 0.0),
+                        (float(r["daily_return_pct"]) if r.get("daily_return_pct") is not None else None),
                     ]
                     for r in snap_rows[-10:]
                 ]

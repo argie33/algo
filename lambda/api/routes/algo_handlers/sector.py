@@ -69,7 +69,11 @@ def _get_algo_evaluate(cur: cursor) -> Any:
                 WHERE LOWER(status) = 'open'
             """)
         pos_row = cur.fetchone()
-        open_positions = pos_row["open_positions"] if pos_row else 0
+        if pos_row is None:
+            raise ValueError("CRITICAL: Failed to fetch open position count from database")
+        open_positions = pos_row["open_positions"]
+        if open_positions is None:
+            raise ValueError("CRITICAL: Position count query returned NULL")
 
         max_positions = 15
         available_slots = max(0, max_positions - open_positions)

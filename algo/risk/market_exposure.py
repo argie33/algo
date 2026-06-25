@@ -586,7 +586,12 @@ class MarketExposure:
 
         current_close = float(rows[0][1])
         past_close = float(rows[251][1])  # ~252 trading days ago
-        momentum_pct = (current_close - past_close) / past_close * 100 if past_close > 0 else 0
+        if past_close <= 0:
+            raise ValueError(
+                f"[MOMENTUM CALCULATION FAILED] Past close price invalid ({past_close}) for momentum calculation. "
+                f"Cannot compute 12-month momentum without valid historical price. Check price_daily data."
+            )
+        momentum_pct = (current_close - past_close) / past_close * 100
 
         if momentum_pct > 20:
             sf = 1.0
@@ -663,7 +668,11 @@ class MarketExposure:
             (eval_date,),
         )
         row = cur.fetchone()
-        return int(row[0]) if row is not None and row[0] is not None else 0
+        if row is None:
+            raise RuntimeError(f"CRITICAL: Market confirmation query failed (returned None) for date {eval_date}")
+        if row[0] is None:
+            raise RuntimeError(f"CRITICAL: Market confirmation count is NULL for date {eval_date}")
+        return int(row[0])
 
     def _has_market_confirmation(self, eval_date: _date, cur: PsycopgCursor[Any]) -> bool:
         """Detect a volume-backed rally day in last 30 days.
@@ -721,10 +730,17 @@ class MarketExposure:
 
         cur_close = float(rows[0][1])
         sma_now = float(rows[0][2])
-        sma_30d_ago = float(rows[30][2]) if len(rows) > 30 and rows[30][2] is not None else sma_now
+        if sma_now <= 0:
+            logger.warning(f"CRITICAL: SPY SMA is invalid ({sma_now}) on {eval_date}")
+            return {"score_factor": None, "value": None, "reason": "Invalid SMA data"}
 
-        slope = (sma_now - sma_30d_ago) / sma_30d_ago * 100.0 if sma_30d_ago > 0 else 0
-        price_pct = (cur_close - sma_now) / sma_now * 100.0 if sma_now > 0 else 0
+        sma_30d_ago = float(rows[30][2]) if len(rows) > 30 and rows[30][2] is not None else None
+        if sma_30d_ago is None or sma_30d_ago <= 0:
+            logger.warning(f"CRITICAL: SPY 30d-ago SMA is invalid ({sma_30d_ago}) on {eval_date}")
+            return {"score_factor": None, "value": None, "reason": "Insufficient 30d history"}
+
+        slope = (sma_now - sma_30d_ago) / sma_30d_ago * 100.0
+        price_pct = (cur_close - sma_now) / sma_now * 100.0
 
         # Score: above and rising = 1.0, above and flat = 0.7, near = 0.5, below = 0.0
         if price_pct > 2 and slope > 1:

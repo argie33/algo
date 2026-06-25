@@ -276,10 +276,10 @@ class TradeAuditLogger:
                 if row:
                     return {
                         "total_trades": row[0],
-                        "avg_cascade_multiplier": float(row[1]) if row[1] else 1.0,
-                        "min_cascade_multiplier": float(row[2]) if row[2] else 1.0,
-                        "max_cascade_multiplier": float(row[3]) if row[3] else 1.0,
-                        "avg_position_size_pct": float(row[4]) if row[4] else 0,
+                        "avg_cascade_multiplier": float(row[1]) if row[1] is not None else 1.0,
+                        "min_cascade_multiplier": float(row[2]) if row[2] is not None else 1.0,
+                        "max_cascade_multiplier": float(row[3]) if row[3] is not None else 1.0,
+                        "avg_position_size_pct": float(row[4]) if row[4] is not None else None,
                     }
             raise RuntimeError("No position sizing data available")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:

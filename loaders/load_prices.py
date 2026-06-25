@@ -1600,8 +1600,12 @@ class PriceLoader(OptimalLoader):
                     psycopg2.sql.SQL("SELECT COUNT(*), MAX(date) FROM {}").format(psycopg2.sql.Identifier(table_safe))
                 )
                 result = cur.fetchone()
-                total_rows = result[0] if result else 0
-                latest_date = result[1] if result else None
+                if result is None:
+                    raise RuntimeError(f"Status query failed for table '{self.table_name}': query returned None")
+                if result[0] is None:
+                    raise RuntimeError(f"COUNT query returned NULL for table '{self.table_name}'")
+                total_rows = result[0]
+                latest_date = result[1] if result[1] is not None else None
 
             if "symbols_total" not in self._stats:
                 raise RuntimeError(f"[{self.table_name}] Load stats incomplete: 'symbols_total' not tracked.")

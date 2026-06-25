@@ -347,7 +347,7 @@ def panel_sectors_expanded(srank: Any, pos: Any, port: Any, sec_rot: Any = None,
             rows.append(Text.from_markup("[dim]Portfolio by sector:[/]"))
             for sec, dv in sorted_secs:
                 pct = dv["val"] / pv * 100
-                avg_pnl = sum(dv["pnls"]) / len(dv["pnls"]) if dv["pnls"] else 0
+                avg_pnl = (sum(dv["pnls"]) / len(dv["pnls"])) if dv["pnls"] else None
                 pc = G if avg_pnl >= 0 else R
                 bar_f = int(min(pct, 25) / 25 * 8)
                 bar_s = f"[{pc}]{'█' * bar_f}[/][dim]{'░' * (8 - bar_f)}[/]"
