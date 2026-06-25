@@ -93,10 +93,20 @@ def handle(
                     max_attempts=1,
                 )
                 if not results:
-                    return list_response([])
+                    return error_response(
+                        503,
+                        "data_unavailable",
+                        "Financial metrics data unavailable. value_metrics table is empty or has no data. "
+                        "value_metrics loader must run before deep-value screening is available.",
+                    )
             except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
                 logger.debug("[DEEP_VALUE] value_metrics table not found - financial data not loaded yet")
-                return list_response([])
+                return error_response(
+                    503,
+                    "data_unavailable",
+                    "Financial metrics table not found. value_metrics loader initialization required. "
+                    "Deep-value screening unavailable until financial data is loaded.",
+                )
             except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
                 logger.error(f"[DEEP_VALUE] Database error checking value_metrics: {type(e).__name__}: {e}")
                 code, error_type, message = handle_db_error(e, "deep-value check")
@@ -281,14 +291,12 @@ def handle(
                             500, "response_validation_error", error_msg or "Deep value validation failed"
                         )
                     return deep_value_result
-                empty_result = list_response([])
-                is_valid, error_msg = ResponseValidator.validate_endpoint_response("stocks", empty_result)
-                if not is_valid:
-                    logger.error(f"Endpoint response validation failed: {error_msg}")
-                    return error_response(
-                        500, "response_validation_error", error_msg or "Stocks list validation failed"
-                    )
-                return empty_result
+                return error_response(
+                    503,
+                    "data_unavailable",
+                    "No deep-value candidates found after filtering. Financial data may be stale, "
+                    "price data incomplete, or no stocks meet value criteria. Check data freshness and loader status.",
+                )
             except (
                 psycopg2.errors.UndefinedTable,
                 psycopg2.errors.UndefinedColumn,

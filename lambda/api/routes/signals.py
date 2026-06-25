@@ -171,6 +171,13 @@ def _get_signals_stocks(
         )
         signals = cur.fetchall()
         freshness = check_data_freshness(cur, "buy_sell_daily", "date", warning_days=1)
+        if not signals:
+            return error_response(
+                503,
+                "data_unavailable",
+                f"No trading signals available for requested symbols. "
+                f"buy_sell_daily pipeline may not have run. {freshness}",
+            )
         signals_result = list_response([safe_json_serialize(dict(s)) for s in signals], data_freshness=freshness)
         is_valid, error_msg = ResponseValidator.validate_endpoint_response("sig", signals_result)
         if not is_valid:
@@ -236,6 +243,13 @@ def _get_signals_etf(cur: cursor, limit: int = 500) -> Any:
         )
         signals = cur.fetchall()
         freshness = check_data_freshness(cur, "etf_price_daily", "date", warning_days=1)
+        if not signals:
+            return error_response(
+                503,
+                "data_unavailable",
+                f"No ETF market signals available. "
+                f"ETF price_daily loader or trend_template_data generator may not have run. {freshness}",
+            )
         etf_signals_result = list_response([safe_json_serialize(dict(s)) for s in signals], data_freshness=freshness)
         is_valid, error_msg = ResponseValidator.validate_endpoint_response("sig", etf_signals_result)
         if not is_valid:

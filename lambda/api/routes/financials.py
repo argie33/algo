@@ -85,8 +85,15 @@ def handle(
                 timeout_sec=5,
             )
             freshness = check_data_freshness(cur, "value_metrics", "created_at", warning_days=7)
+            if not rows:
+                return error_response(
+                    503,
+                    "data_unavailable",
+                    f"Financial metrics not available for {sym}. "
+                    f"value_metrics loader may not have run or data is stale. {freshness}",
+                )
             result = list_response(
-                [safe_json_serialize(dict(r)) for r in rows] if rows else [],
+                [safe_json_serialize(dict(r)) for r in rows],
                 data_freshness=freshness,
             )
             is_valid, error_msg = ResponseValidator.validate_endpoint_response("financials/key-metrics", result)
@@ -109,8 +116,15 @@ def handle(
             rows = execute_with_timeout(cur, income_query, params=(sym, limit), timeout_sec=5)
             table_name = "quarterly_income_statement" if period == "quarterly" else "annual_income_statement"
             freshness = check_data_freshness(cur, table_name, "fiscal_year", warning_days=30)
+            if not rows:
+                return error_response(
+                    503,
+                    "data_unavailable",
+                    f"No {period} income statement found for {sym}. "
+                    f"{table_name} loader may not have run or data is stale. {freshness}",
+                )
             result = list_response(
-                [safe_json_serialize(dict(r)) for r in rows] if rows else [],
+                [safe_json_serialize(dict(r)) for r in rows],
                 data_freshness=freshness,
             )
             is_valid, error_msg = ResponseValidator.validate_endpoint_response("financials/income-statement", result)
@@ -135,8 +149,15 @@ def handle(
             rows = execute_with_timeout(cur, balance_query, params=(sym, limit), timeout_sec=5)
             table_name = "quarterly_balance_sheet" if period == "quarterly" else "annual_balance_sheet"
             freshness = check_data_freshness(cur, table_name, "fiscal_year", warning_days=30)
+            if not rows:
+                return error_response(
+                    503,
+                    "data_unavailable",
+                    f"No {period} balance sheet found for {sym}. "
+                    f"{table_name} loader may not have run or data is stale. {freshness}",
+                )
             result = list_response(
-                [safe_json_serialize(dict(r)) for r in rows] if rows else [],
+                [safe_json_serialize(dict(r)) for r in rows],
                 data_freshness=freshness,
             )
             is_valid, error_msg = ResponseValidator.validate_endpoint_response("financials/balance-sheet", result)
@@ -168,8 +189,15 @@ def handle(
                 )
             table_name = "quarterly_cash_flow" if period == "quarterly" else "annual_cash_flow"
             freshness = check_data_freshness(cur, table_name, "fiscal_year", warning_days=30)
+            if not rows:
+                return error_response(
+                    503,
+                    "data_unavailable",
+                    f"No {period} cash flow statement found for {sym}. "
+                    f"{table_name} loader may not have run or data is stale. {freshness}",
+                )
             result = list_response(
-                [safe_json_serialize(dict(r)) for r in rows] if rows else [],
+                [safe_json_serialize(dict(r)) for r in rows],
                 data_freshness=freshness,
             )
             is_valid, error_msg = ResponseValidator.validate_endpoint_response("financials/cash-flow", result)

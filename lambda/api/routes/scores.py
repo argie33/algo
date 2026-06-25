@@ -323,11 +323,25 @@ def _get_stock_scores(
         # Check data freshness
         freshness = check_data_freshness(cur, "stock_scores", "updated_at", warning_days=7)
 
-        # Log warning if significant number of prices missing
+        # FAIL-FAST: If >50% of scores filtered due to missing prices, fail instead of returning partial results
+        total_scores = prices_missing_count + len(items)
         if prices_missing_count > 0 and items:
-            logger.warning(
-                f"Scores endpoint: {prices_missing_count} scores filtered due to missing price data (out of {prices_missing_count + len(items)})"
-            )
+            filter_rate = prices_missing_count / total_scores if total_scores > 0 else 0
+            if filter_rate > 0.5:
+                logger.error(
+                    f"Scores endpoint: {prices_missing_count}/{total_scores} scores ({filter_rate*100:.1f}%) "
+                    f"filtered due to missing price data. Data quality threshold exceeded."
+                )
+                return error_response(
+                    503,
+                    "data_unavailable",
+                    f"Price data unavailable for {prices_missing_count}/{total_scores} symbols ({filter_rate*100:.1f}%). "
+                    "Cannot provide reliable stock scores with >50% data loss.",
+                )
+            else:
+                logger.warning(
+                    f"Scores endpoint: {prices_missing_count} scores filtered (out of {total_scores})"
+                )
 
         result = list_response(items, data_freshness=freshness)
         is_valid, error_msg = ResponseValidator.validate_endpoint_response("scores", result)
