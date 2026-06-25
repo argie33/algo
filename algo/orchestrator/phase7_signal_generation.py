@@ -222,7 +222,18 @@ def _check_liquidity_parallel(
 ) -> tuple[dict[str, Any], bool]:
     """Check liquidity for a single candidate. Returns (candidate, passed)."""
     try:
-        liquidity = LiquidityChecks(config=config if config is not None else {})
+        # CRITICAL: config must be present. Liquidity thresholds (min_adv_shares, min_adv_dollars) are
+        # non-negotiable safety gates. Empty dict fallback bypasses these filters, allowing undercapitalized
+        # or illiquid stocks to pass entry qualification. Must fail-fast if config is missing.
+        if config is None:
+            error_msg = (
+                "[PHASE 7] CRITICAL: Liquidity check configuration is None. "
+                "Cannot apply minimum ADV (average daily volume) or dollar volume thresholds. "
+                "Config must contain min_adv_shares and min_adv_dollars. Entry qualification failed."
+            )
+            logger.error(error_msg)
+            raise ValueError(error_msg)
+        liquidity = LiquidityChecks(config=config)
         liq_ok, liq_reason = liquidity.run_all(candidate["symbol"], 0, run_date)
         if not liq_ok:
             logger.debug(f"[PHASE 7] {candidate['symbol']}: liquidity — {liq_reason}")

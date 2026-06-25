@@ -409,9 +409,20 @@ def run(
     # exposure_constraints validated above - always exists
     tier_max_conc = exposure_constraints["max_concentration_pct"]
 
-    # Convert AlgoConfig to dict using to_dict() method, or use empty dict if config is None
+    # CRITICAL: config must be present. Position sizing parameters (base_risk_pct, max_positions,
+    # VIX thresholds, drawdown reductions) are non-negotiable for risk management. Empty dict
+    # fallback bypasses all position sizing safety gates. Must fail-fast if config is missing.
+    if config is None:
+        error_msg = (
+            "[PHASE 8] CRITICAL: Position sizing configuration is None. "
+            "Cannot apply position size limits (base_risk_pct, max_positions), VIX reductions, "
+            "or drawdown position size adjustments. Entry execution failed."
+        )
+        logger.error(error_msg)
+        log_phase_result_fn(8, "entry_execution", "halt", error_msg)
+        return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, error_msg)
 
-    sizer_config = config.to_dict() if config and hasattr(config, "to_dict") else {}
+    sizer_config = config.to_dict() if hasattr(config, "to_dict") else {}
 
     if tier_max_conc is not None:
         sizer_config["max_concentration_pct"] = tier_max_conc
