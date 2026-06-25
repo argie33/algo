@@ -1057,8 +1057,18 @@ class AlgoConfig:
                 for key, value, dtype in rows:
                     if value is not None:
                         try:
-                            # Normalize PostgreSQL type names to schema type names
-                            normalized_dtype = self._normalize_db_type(dtype)
+                            # Use value_type if set, otherwise normalize PostgreSQL type or infer from content
+                            if dtype:
+                                # Check if it looks like a schema type (int, float, bool, string) vs PostgreSQL type
+                                if dtype in ("int", "float", "bool", "string"):
+                                    normalized_dtype = dtype
+                                else:
+                                    # PostgreSQL type name - normalize it
+                                    normalized_dtype = self._normalize_db_type(dtype)
+                            else:
+                                # value_type is NULL - infer from value content
+                                normalized_dtype = self._infer_type_from_value(value)
+
                             self._validate_value(key, value, normalized_dtype)
                             self._config[key] = self._parse_value(value, normalized_dtype)
                             self._sources[key] = "database"
@@ -1105,6 +1115,35 @@ class AlgoConfig:
                 f"Config initialization failed: cannot load safety thresholds from database. "
                 f"System will not trade with undefined safety configuration. Caused by: {e}"
             ) from e
+
+    def _infer_type_from_value(self, value: Any) -> str:
+        """Infer configuration value type from content when type is not specified.
+
+        Heuristic: check content to determine if it's int, float, bool, or string.
+        This handles cases where value_type in database is NULL.
+        """
+        if value is None:
+            return "string"
+
+        str_value = str(value).strip().lower()
+
+        # Check for boolean
+        if str_value in ("true", "false", "yes", "no", "1", "0"):
+            return "bool"
+
+        # Check for numeric types
+        try:
+            # Try int first
+            int(str_value)
+            return "int"
+        except ValueError:
+            try:
+                # Try float
+                float(str_value)
+                return "float"
+            except ValueError:
+                # Default to string
+                return "string"
 
     def _normalize_db_type(self, db_type: str | None) -> str:
         """Convert PostgreSQL type names to schema type names.
