@@ -187,7 +187,16 @@ def _industry_list(cur: cursor, params: dict[str, Any]) -> Any:
     """,
         timeout_sec=10,
     )
-    total = int(count_rows[0].get("cnt", 0) if count_rows else 0) if count_rows else 0
+    if count_rows and len(count_rows) > 0:
+        count_val = count_rows[0].get("cnt")
+        if count_val is not None:
+            total = int(count_val)
+        else:
+            logger.warning("Industry count query returned row with NULL 'cnt' field")
+            total = 0
+    else:
+        logger.debug("Industry count query returned no rows")
+        total = 0
 
     industries = []
     for _idx, row in enumerate(industries_data):

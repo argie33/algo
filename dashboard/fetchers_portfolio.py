@@ -280,10 +280,20 @@ def fetch_perf(c: None) -> dict[str, Any]:
             if not port_data.get("_error") and isinstance(port_data.get("unrealized_pnl"), dict):
                 unrealized_pnl = port_data["unrealized_pnl"]
 
-        # Count of currently open positions — requires at least one valid source
-        open_count = perf.get("open_losses_count") or perf.get("open_positions")
-        if open_count is None:
-            raise ValueError("Performance data missing both 'open_losses_count' and 'open_positions' fields — cannot determine open position count")
+        # Count of currently open positions — requires at least one valid source (explicit validation)
+        open_losses_count = perf.get("open_losses_count")
+        open_positions_count = perf.get("open_positions")
+
+        if open_losses_count is not None:
+            open_count = open_losses_count
+        elif open_positions_count is not None:
+            open_count = open_positions_count
+            logger.debug("Using fallback 'open_positions' field (preferred: 'open_losses_count')")
+        else:
+            raise ValueError(
+                "Performance data missing both 'open_losses_count' and 'open_positions' fields — "
+                "cannot determine open position count"
+            )
 
         return {
             "n": n,

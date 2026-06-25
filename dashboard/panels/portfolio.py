@@ -395,7 +395,10 @@ def panel_performance_spark(
                 dt, ret = item[0], item[1]
             else:
                 continue
-            ret = ret or 0
+            if ret is None:
+                logger.debug("Return value is None in recent_rets, skipping display")
+                continue
+            ret = float(ret)
             rc = G if ret >= 0 else R
             if hasattr(dt, "strftime"):
                 d_s = dt.strftime("%a")
@@ -615,7 +618,10 @@ def panel_portfolio_perf_expanded(  # noqa: C901
                     dt, ret = item[0], item[1]
                 else:
                     continue
-                ret = ret or 0
+                if ret is None:
+                    logger.debug("Return value is None in recent_rets, skipping display")
+                    continue
+                ret = float(ret)
                 rc = G if ret >= 0 else R
                 try:
                     if hasattr(dt, "strftime"):

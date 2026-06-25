@@ -109,7 +109,10 @@ def panel_sector_compact(srank: Any, pos: Any, port: Any, sec_rot: Any = None, i
     # Row 1: Rotation signal
     if sec_rot and not _error_panel("sec_rot", sec_rot, "SECTORS") and safe_get_field(sec_rot, "signal"):
         sig_name = (safe_get_field(sec_rot, "signal") or "").replace("_", " ").title()
-        wks = safe_get_field(sec_rot, "weeks") or 1
+        wks = safe_get_field(sec_rot, "weeks")
+        if wks is None:
+            logger.warning("Sector rotation missing 'weeks' field — cannot display rotation window")
+            wks = None
         def_s = safe_get_field(sec_rot, "def_score")
         cyc_s = safe_get_field(sec_rot, "cyc_score")
         strength = safe_get_field(sec_rot, "strength")
@@ -119,8 +122,9 @@ def panel_sector_compact(srank: Any, pos: Any, port: Any, sec_rot: Any = None, i
         sig_c = R if def_f is not None and def_f >= 60 else (Y if def_f is not None and def_f >= 40 else G)
         scores_s = f" [dim]def:{def_f:.0f} cyc:{cyc_f:.0f}[/]" if def_f is not None or cyc_f is not None else ""
         str_s = f" [dim]spread:{strength_f:.1f}[/]" if strength_f is not None else ""
+        wks_s = f" [dim]{wks}wk[/]" if wks is not None else " [dim]--wk[/]"
         rows.append(
-            Text.from_markup(f"[dim]Sector Rotation:[/] [{sig_c}]{sig_name[:24]}[/] [dim]{wks}wk[/]{scores_s}{str_s}")
+            Text.from_markup(f"[dim]Sector Rotation:[/] [{sig_c}]{sig_name[:24]}[/]{wks_s}{scores_s}{str_s}")
         )
 
     # Holdings by sector: 2-col pairs, up to 6 sectors

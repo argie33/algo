@@ -63,7 +63,7 @@ def safe_float(
 
 def safe_float(
     value: Any,
-    default: float | None = 0.0,
+    default: float | None = None,
     *,
     context: str = "",
     strict: bool = False,
@@ -73,9 +73,9 @@ def safe_float(
 
     Args:
         value: Value to convert (can be str, int, float, None)
-        default: Default value if conversion fails (0.0 for permissive, None for strict)
+        default: Default value if conversion fails (None to require explicit handling; use strict=True for finance)
         context: Context string for logging (e.g., "symbol=AAPL, field=price")
-        strict: If True, raise StrictValidationError instead of returning default
+        strict: If True, raise StrictValidationError instead of returning default (REQUIRED for all finance paths)
         field_name: Field name for error logging (preferred over context for new code)
 
     Returns:
@@ -91,8 +91,10 @@ def safe_float(
     if value is None:
         if strict:
             raise StrictValidationError(f"Cannot convert None to float {error_ctx}")
-        if default == 0.0:
-            logger.warning(f"Converting None to 0.0 {error_ctx}—finance data should use strict=True or default=None")
+        if default is None:
+            logger.warning(f"None value in float conversion {error_ctx} — returning None (must be handled by caller)")
+        else:
+            logger.warning(f"Converting None to {default} {error_ctx}—explicitly requested default")
         return default
 
     if isinstance(value, bool):
@@ -107,12 +109,12 @@ def safe_float(
             raise StrictValidationError(
                 f"Cannot convert {field_name or 'value'}={value!r} to float {error_ctx}: {e}"
             ) from e
-        if default == 0.0:
+        if default is None:
             logger.warning(
-                f"Failed to convert {value!r} to float {error_ctx} (returning 0.0—use strict=True for finance): {e}"
+                f"Failed to convert {value!r} to float {error_ctx} (returning None—caller must handle missing data): {e}"
             )
         else:
-            logger.warning(f"Failed to convert {value!r} to float {error_ctx}: {e}")
+            logger.warning(f"Failed to convert {value!r} to float {error_ctx} (returning {default}): {e}")
         return default
 
     # Reject NaN and Infinity explicitly — fail fast instead of silently returning 0.0.
@@ -137,7 +139,7 @@ def safe_float(
 
 def safe_int(
     value: Any,
-    default: int | None = 0,
+    default: int | None = None,
     *,
     context: str = "",
     strict: bool = False,
@@ -147,9 +149,9 @@ def safe_int(
 
     Args:
         value: Value to convert (can be str, int, float, None)
-        default: Default value if conversion fails (0 for permissive, None for strict)
+        default: Default value if conversion fails (None to require explicit handling; use strict=True for finance)
         context: Context string for logging (deprecated, use field_name)
-        strict: If True, raise StrictValidationError instead of returning default
+        strict: If True, raise StrictValidationError instead of returning default (REQUIRED for all finance paths)
         field_name: Field name for error logging
 
     Returns:
@@ -163,8 +165,10 @@ def safe_int(
     if value is None:
         if strict:
             raise StrictValidationError(f"Cannot convert None to int {error_ctx}")
-        if default == 0:
-            logger.warning(f"Converting None to 0 {error_ctx}—trade counts should use strict=True or default=None")
+        if default is None:
+            logger.warning(f"None value in int conversion {error_ctx} — returning None (must be handled by caller)")
+        else:
+            logger.warning(f"Converting None to {default} {error_ctx}—explicitly requested default")
         return default
 
     if isinstance(value, bool):
@@ -179,12 +183,12 @@ def safe_int(
             raise StrictValidationError(
                 f"Cannot convert {field_name or 'value'}={value!r} to int {error_ctx}: {e}"
             ) from e
-        if default == 0:
+        if default is None:
             logger.warning(
-                f"Failed to convert {value!r} to int {error_ctx} (returning 0—use strict=True for finance): {e}"
+                f"Failed to convert {value!r} to int {error_ctx} (returning None—caller must handle missing data): {e}"
             )
         else:
-            logger.warning(f"Failed to convert {value!r} to int {error_ctx}: {e}")
+            logger.warning(f"Failed to convert {value!r} to int {error_ctx} (returning {default}): {e}")
         return default
 
 
