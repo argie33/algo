@@ -379,8 +379,8 @@ class CircuitBreaker:
         # Count consecutive losses from most recent
         streak = 0
         for r in rows:
-            pnl = _float(r[0], None, context="trade_pnl")
-            if pnl is None:
+            pnl = _float(r[0], float('nan'), context="trade_pnl")
+            if pnl is None or math.isnan(pnl):
                 logger.warning(f"Trade {r} has invalid P&L — stopping consecutive loss count")
                 break
             if pnl < 0:
