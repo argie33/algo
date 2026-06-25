@@ -400,7 +400,7 @@ def run_backtest(
         "total_trades": total_trades,
         "winning_trades": win_count,
         "losing_trades": loss_count,
-        "avg_trade_return_pct": round(avg_trade_return_pct, 4),
+        "avg_trade_return_pct": round(avg_trade_return_pct, 4) if avg_trade_return_pct is not None else None,
         "best_trade_pct": round(best_trade, 4) if best_trade is not None else None,
         "worst_trade_pct": round(worst_trade, 4) if worst_trade is not None else None,
         "avg_holding_days": round(avg_hold, 2),
