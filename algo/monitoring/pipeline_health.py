@@ -146,7 +146,12 @@ class PipelineHealth:
                 (table_name,),
             )
             result = cur.fetchone()
-            health.row_count = int(result[0]) if result else 0
+            if result is None:
+                logger.error(f"Pipeline health check failed for {table_name}: query returned None")
+                health.status = HealthStatus.ERROR
+                health.error_message = f"Failed to get row count for {table_name}"
+                return health
+            health.row_count = int(result[0])
 
             if health.row_count == 0:
                 health.status = HealthStatus.MISSING

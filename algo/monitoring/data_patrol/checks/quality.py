@@ -49,7 +49,10 @@ class QualityChecker(BaseCheck):
                 raise ValueError("COUNT(*) returned NULL — loader may be stalled")
             today_nulls = int(today_nulls)
             today_total = int(today_total)
-            null_pct = today_nulls / today_total * 100 if today_total else 0
+            if today_total <= 0:
+                logger.warning("price_daily today_total is 0 — skipping null anomaly check (no records loaded)")
+                return
+            null_pct = today_nulls / today_total * 100
 
             if null_pct > max_null_pct:
                 self.log(

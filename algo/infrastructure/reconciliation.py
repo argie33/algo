@@ -908,7 +908,9 @@ class DailyReconciliation:
             "WHERE resolved = FALSE AND failed_at > NOW() - INTERVAL '1 day'"
         )
         failure_row = cur.fetchone()
-        failure_count = failure_row[0] if failure_row else 0
+        if failure_row is None:
+            raise RuntimeError("Query for alpaca import failures returned None — database error or connection lost")
+        failure_count = failure_row[0]
         if failure_count > 5:
             try:
                 notify(

@@ -79,18 +79,21 @@ class AlignmentChecker(BaseCheck):
                     {"sqs_count": sqs_count, "buy_sell_count": 0},
                 )
             elif buy_sell_count < sqs_count:
-                coverage_pct = (buy_sell_count / sqs_count * 100) if sqs_count else 0
-                self.log(
-                    "alignment",
-                    WARN,
-                    "buy_sell_daily",
-                    f"buy_sell_daily coverage {coverage_pct:.1f}% ({buy_sell_count}/{sqs_count} symbols)",
-                    {
-                        "buy_sell_count": buy_sell_count,
-                        "sqs_count": sqs_count,
-                        "coverage_pct": round(coverage_pct, 1),
-                    },
-                )
+                if sqs_count <= 0:
+                    logger.warning("SQS count is 0 — skipping buy_sell alignment check")
+                else:
+                    coverage_pct = buy_sell_count / sqs_count * 100
+                    self.log(
+                        "alignment",
+                        WARN,
+                        "buy_sell_daily",
+                        f"buy_sell_daily coverage {coverage_pct:.1f}% ({buy_sell_count}/{sqs_count} symbols)",
+                        {
+                            "buy_sell_count": buy_sell_count,
+                            "sqs_count": sqs_count,
+                            "coverage_pct": round(coverage_pct, 1),
+                        },
+                    )
             else:
                 self.log(
                     "alignment",

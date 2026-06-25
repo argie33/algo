@@ -284,8 +284,12 @@ class PositionMonitor:
                     SELECT COUNT(*), SUM(position_value) FROM algo_positions WHERE status = 'open'
                 """)
                 count_row = cur.fetchone()
-                position_count = count_row[0] if count_row else 0
-                pos_value_sum = count_row[1] if count_row and len(count_row) > 1 else None
+                if count_row is None:
+                    raise PositionValidationError(
+                        "Query for open positions returned None — database error"
+                    )
+                position_count = count_row[0]
+                pos_value_sum = count_row[1] if len(count_row) > 1 else None
 
                 # CRITICAL: If we have open positions but position_value is NULL, that's data corruption
                 if position_count > 0 and pos_value_sum is None:
@@ -294,7 +298,11 @@ class PositionMonitor:
                         "Database corruption detected. Margin calculation halted."
                     )
 
-                pos_value = float(pos_value_sum) if pos_value_sum is not None else 0
+                if pos_value_sum is None:
+                    raise PositionValidationError(
+                        "CRITICAL: Position value sum is NULL — unable to calculate portfolio margin"
+                    )
+                pos_value = float(pos_value_sum)
                 if pos_value < 0:
                     raise PositionValidationError(
                         f"Invalid position value: {pos_value} < 0. Database corruption detected."
@@ -1231,7 +1239,10 @@ class PositionMonitor:
         if alpaca_qty == db_qty:
             return
 
-        qty_change_pct = abs(alpaca_qty - db_qty) / db_qty * 100 if db_qty > 0 else 0
+        if db_qty <= 0:
+            logger.error(f"Cannot calculate quantity variance for {symbol} (db_qty={db_qty})")
+            return
+        qty_change_pct = abs(alpaca_qty - db_qty) / db_qty * 100
         if qty_change_pct <= 20:
             return
 

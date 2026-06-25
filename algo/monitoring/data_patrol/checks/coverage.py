@@ -48,7 +48,10 @@ class CoverageChecker(BaseCheck):
                 raise ValueError("price_daily total_count returned NULL — loader may be stalled")
             today_count = int(today_count)
             total_count = int(total_count)
-            pct = today_count / total_count * 100 if total_count else 0
+            if total_count <= 0:
+                logger.warning("price_daily total_count is 0 — skipping coverage check (no expected records)")
+                return
+            pct = today_count / total_count * 100
 
             if pct < 0.1:
                 self.log(
@@ -140,7 +143,10 @@ class CoverageChecker(BaseCheck):
                 for table_name in critical_tables:
                     try:
                         table_count = results_by_table[table_name]
-                        coverage_pct = (table_count / expected_count * 100) if expected_count else 0
+                        if expected_count <= 0:
+                            logger.warning(f"{table_name} expected_count is 0 — skipping coverage check")
+                            continue
+                        coverage_pct = table_count / expected_count * 100
 
                         if coverage_pct < coverage_error_pct:
                             self.log(
