@@ -75,18 +75,16 @@ class LivePerformance:
                     f"Sharpe is critical for risk assessment — cannot use default."
                 )
 
-            values = []
+            values: list[float] = []
             for i, row in enumerate(rows):
                 val = float(row[1])
                 if val is None:
                     raise ValueError(f"Portfolio snapshot {i} has missing/invalid value")
                 values.append(val)
-            daily_returns = []
+            daily_returns: list[float] = []
             for i in range(1, len(values)):
                 if values[i - 1] > 0:
                     daily_returns.append((values[i] - values[i - 1]) / values[i - 1])
-                else:
-                    daily_returns.append(None)
 
             return MetricsCalculator.calculate_sharpe_ratio(daily_returns)
         except (ValueError, ZeroDivisionError, TypeError) as e:
@@ -283,12 +281,10 @@ class LivePerformance:
                 )
 
             values = [float(r[0]) for i, r in enumerate(rows)]
-            daily_returns = []
+            daily_returns: list[float] = []
             for i in range(1, len(values)):
                 if values[i - 1] > 0:
                     daily_returns.append((values[i] - values[i - 1]) / values[i - 1])
-                else:
-                    daily_returns.append(None)
 
             return MetricsCalculator.calculate_sortino_ratio(daily_returns)
         except ValueError:

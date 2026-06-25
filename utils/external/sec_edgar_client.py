@@ -210,7 +210,7 @@ class SecEdgarClient:
                     }
                 )
         # Sort by fiscal year (default 0) then by filed date (default empty string)
-        def sort_key(r: dict) -> tuple:
+        def sort_key(r: dict[str, Any]) -> tuple[int | float, str]:
             year = r["fiscal_year"] or 0
             filed = r.get("filed") or ""
             return (year, filed)

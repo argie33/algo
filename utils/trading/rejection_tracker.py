@@ -242,7 +242,7 @@ class RejectionTracker:
 
             return results
 
-        result = self._with_cursor(_get_reasons)
+        result: list[dict[str, Any]] = self._with_cursor(_get_reasons)
         if not result:
             raise ValueError(
                 f"Rejection reasons query for tier {tier} returned empty result. "
@@ -290,7 +290,7 @@ class RejectionTracker:
                 "rejected_tier_5": t5,
             }
 
-        result = self._with_cursor(_get_status)
+        result: dict[str, Any] = self._with_cursor(_get_status)
         if not result:
             raise ValueError(
                 "Rejection summary query returned empty result. "

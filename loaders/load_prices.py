@@ -1734,7 +1734,7 @@ class PriceLoader(OptimalLoader):
             self._rate_limit_errors,
         )
 
-        return self._stats.to_dict()  # type: ignore[call-overload,no-any-return]
+        return self._stats.to_dict()
 
     def _load_batch(self, symbols: list[str]) -> None:
         """Load a batch of symbols using batch API fetch (50x reduction in API calls)."""

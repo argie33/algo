@@ -199,7 +199,7 @@ class BreadthFetcher:
         If no data available, returns empty dict (breadth is optional).
         """
         try:
-            result = {}
+            result: dict[str, Any] = {}
             logger.debug("Breadth data not yet available in database (optional enrichment)")
             return result
         except Exception as e:

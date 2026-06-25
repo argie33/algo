@@ -51,15 +51,33 @@ class DailyReconciliation:
                 class MockBrokerAdapter(BrokerAdapter):
                     """Mock broker for dry-run testing when Alpaca credentials unavailable."""
 
-                    def get_account(self) -> dict[str, Any]:
+                    @property
+                    def alpaca_key(self) -> str | None:
+                        return None
+
+                    @property
+                    def alpaca_secret(self) -> str | None:
+                        return None
+
+                    @property
+                    def alpaca_base_url(self) -> str | None:
+                        return None
+
+                    def fetch_account(self) -> dict[str, Any]:
                         return {
                             "portfolio_value": 100000.0,
                             "cash": 50000.0,
                             "equity": 50000.0,
                         }
 
-                    def get_positions(self) -> list[dict[str, Any]]:
+                    def fetch_portfolio_history(self) -> list[float]:
                         return []
+
+                    def fetch_closed_orders(self, since: Any | None = None) -> list[dict[str, Any]]:
+                        return []
+
+                    def fetch_initial_capital(self) -> float | None:
+                        return None
 
                     def sync_positions(self, cur: Any) -> dict[str, Any]:
                         return {"imported": 0, "updated": 0, "closed": 0}

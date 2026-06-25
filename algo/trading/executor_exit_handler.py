@@ -21,6 +21,7 @@ from algo.reporting import TradeNotificationService
 from algo.trading.exceptions import (
     AuditLogError,
     DatabaseError,
+    DataUnavailableError,
     NotificationError,
     TradingError,
 )
