@@ -424,7 +424,6 @@ class CircuitBreaker:
             return {"halted": True, "reason": "Trade count data unavailable — halting as safety precaution"}
         wins = int(row[0])
         losses = int(row[1])
-        int(row[2]) if row[2] is not None else 0
         total = int(row[3])
 
         # Win rate based on wins vs (wins + losses), excluding break-even trades
