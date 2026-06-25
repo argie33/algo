@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """Diagnostic tool to identify data loading and display issues in the dashboard."""
 
+import os
 import sys
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
+from dashboard.api_data_layer import set_api_url, set_cognito_auth
+from dashboard.cognito_auth import get_cognito_auth as get_cognito_auth_instance
 from dashboard.error_boundary import has_error
 from dashboard.fetchers import load_all
 
@@ -17,6 +20,21 @@ def diagnose_data_issues() -> bool:
     print("DASHBOARD DATA DIAGNOSTIC")
     print(f"Time: {datetime.now(ET).strftime('%Y-%m-%d %H:%M:%S ET')}")
     print("=" * 80 + "\n")
+
+    # Set up Cognito auth like the main dashboard does
+    api_url = os.environ.get("DASHBOARD_API_URL")
+    pool_id = os.environ.get("COGNITO_USER_POOL_ID")
+    client_id = os.environ.get("COGNITO_CLIENT_ID")
+
+    if api_url:
+        set_api_url(api_url)
+    if pool_id and client_id:
+        try:
+            auth = get_cognito_auth_instance(require_auth=True)
+            set_cognito_auth(auth)
+        except RuntimeError as e:
+            print(f"[*] Warning: Cognito auth not available: {e}")
+            print("[*] Continuing without authentication...\n")
 
     try:
         print("[*] Loading all dashboard data...")

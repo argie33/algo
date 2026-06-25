@@ -264,9 +264,13 @@ def api_call(endpoint: str, params: dict[str, Any] | None = None, method: str = 
     with _cognito_auth_lock:
         cognito_auth = _cognito_auth
     if cognito_auth:
-        auth_headers = cognito_auth.get_authorization_header()
-        headers.update(auth_headers)
-
+        try:
+            auth_headers = cognito_auth.get_authorization_header()
+            headers.update(auth_headers)
+        except RuntimeError as auth_err:
+            logger.error(f"Cognito authorization failed for {endpoint}: {auth_err}")
+            _record_api_failure()
+            return {"_error": f"Authentication failed: {auth_err}"}
     for attempt in range(API_MAX_RETRIES + 1):
         try:
             if method == "GET":
