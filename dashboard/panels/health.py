@@ -322,7 +322,9 @@ def panel_orch(run: dict[str, Any] | None, cfg: dict[str, Any], risk: dict[str, 
 
     # VaR line — only show if table is populated with real data
     var_line = ""
-    risk_dict = (safe_get_dict(risk) if risk and not has_error(risk) else None) or {}
+    # CRITICAL: Do NOT silently fallback to empty dict when risk data is missing/error.
+    # This masks data quality issues and displays false "all clear" when risk metrics unavailable.
+    risk_dict = safe_get_dict(risk) if (risk and not has_error(risk)) else None
     var95_check = risk_dict.get("var95") if risk_dict else None
     if var95_check is not None:
         try:
@@ -1752,7 +1754,9 @@ def _build_results_panel(  # noqa: C901
             hr_s = f"  [{Y}]-> {body}[/]{ph_s}" if body else ""
             right_rows.append(Text.from_markup(f"  [{ic}]{ii}[/] [dim]{dt_s}[/]  [{ic}]{s}[/]{hr_s}"))
 
-    risk_dict_b = (safe_get_dict(risk) if not has_error(risk) else None) or {}
+    # CRITICAL: Do NOT silently fallback to empty dict when risk data is missing/error.
+    # This masks data quality issues and displays false "all clear" when risk metrics unavailable.
+    risk_dict_b = safe_get_dict(risk) if not has_error(risk) else None
     var95_b = safe_float(risk_dict_b.get("var95"), default=None) if risk_dict_b else None
     if var95_b is not None and var95_b > 0:
         right_rows.append(Rule(style="dim"))
