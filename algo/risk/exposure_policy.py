@@ -92,15 +92,19 @@ def tier_for_exposure(exposure_pct: float | None) -> dict[str, Any]:
 
     Upper bounds are exclusive so exact boundary values (e.g. 70.0) land in the
     higher (more aggressive) tier, matching the >= thresholds in algo_market_exposure.py.
-    NaN or None defaults to correction (fail-closed) — but logs error for visibility.
+    CRITICAL: Fails fast (raises) if exposure_pct is None or NaN — never silently defaults.
+    Missing market exposure indicates Phase 4 failure; trading must halt to prevent stale data usage.
     """
     if exposure_pct is None or (isinstance(exposure_pct, float) and math.isnan(exposure_pct)):
-        logger.error(
-            f"Exposure percentage is missing or invalid ({exposure_pct}). "
-            f"Defaulting to CORRECTION tier (0% new positions, force exits). "
-            f"This indicates Phase 4 market exposure calculation failed or returned invalid data."
+        msg = (
+            f"[EXPOSURE POLICY CRITICAL] Market exposure percentage is missing or invalid ({exposure_pct}). "
+            f"Phase 4 market exposure calculation must succeed for position sizing. "
+            f"Cannot proceed with trading when risk tier cannot be determined. "
+            f"Check: (1) Is Phase 4 market exposure loader running? (2) Does market_exposure_daily have today's data? "
+            f"(3) Is Phase 4 computation returning valid values?"
         )
-        return EXPOSURE_TIERS[-1]
+        logger.critical(msg)
+        raise RuntimeError(msg)
 
     for i, tier in enumerate(EXPOSURE_TIERS):
         is_last = i == len(EXPOSURE_TIERS) - 1

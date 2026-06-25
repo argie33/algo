@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import time
 from collections.abc import Callable
 from decimal import Decimal
@@ -257,6 +258,9 @@ class TradeExecutor:
                     "Clock skew or time tracking error."
                 )
 
+            # CRITICAL: TCA (Trade Cost Analysis) recording is part of compliance audit trail.
+            # Execution quality tracking must be recorded before confirming trade entry.
+            # If TCA fails, the trade must NOT proceed — missing audit record = compliance gap.
             try:
                 tca_result = self.tca.record_fill(
                     trade_id=(int(trade_id) if isinstance(trade_id, str) and trade_id.isdigit() else 0),
@@ -279,7 +283,14 @@ class TradeExecutor:
                     except NotificationError as alert_e:
                         logger.warning(f"Failed to send TCA alert (non-blocking): {alert_e}")
             except DatabaseError as tca_e:
-                logger.warning(f"TCA recording failed (database error): {tca_e} (non-blocking)")
+                msg = (
+                    f"[TCA CRITICAL] {symbol}: Failed to record execution quality data: {tca_e}. "
+                    f"TCA is part of compliance audit trail and cannot be skipped. "
+                    f"Trade entry halted — cannot proceed without audit record. "
+                    f"Check database connection and tca schema availability."
+                )
+                logger.critical(msg)
+                raise RuntimeError(msg) from tca_e
 
         try:
             notif_service = TradeNotificationService()
@@ -875,6 +886,11 @@ class TradeExecutor:
 
             try:
                 qty_float = float(qty_raw)
+                # CRITICAL: Validate qty is not NaN or Infinity (float() succeeds on these, but they're invalid)
+                if math.isnan(qty_float):
+                    raise ValueError("Order quantity is NaN (not a number)")
+                if math.isinf(qty_float):
+                    raise ValueError("Order quantity is Infinity (unbounded)")
                 alpaca_qty = int(qty_float)
             except (ValueError, TypeError) as e:
                 raise DataUnavailableError(

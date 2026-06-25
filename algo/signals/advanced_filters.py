@@ -229,8 +229,17 @@ class AdvancedFilters:
 
             # H5. Strong-sector requirement
             if self.require_strong_sector:
-                if sector and sector not in (self._strong_sectors or {}):
-                    hard_fail = hard_fail or f'Sector "{sector}" not in top {len(self._strong_sectors or {})}'
+                # CRITICAL: _strong_sectors must be loaded and non-empty (validated at init)
+                # Do NOT fallback to empty dict — if _strong_sectors is None/empty, signal must fail
+                if not self._strong_sectors:
+                    raise RuntimeError(
+                        f"[SIGNAL CRITICAL] Strong sector filter enabled but sector ranking not loaded. "
+                        f"This should have been validated at init. "
+                        f"Cannot apply sector filter without ranking data. "
+                        f"Check that sector_ranking table has data for {signal_date}."
+                    )
+                if sector and sector not in self._strong_sectors:
+                    hard_fail = hard_fail or f'Sector "{sector}" not in top {len(self._strong_sectors)}'
 
             # ===== SOFT scoring (always computed, even when hard-failed) =====
 

@@ -1178,13 +1178,37 @@ def _get_cap_distribution(cur: cursor) -> Any:
         )
 
     stocks = [safe_json_serialize(dict(r)) for r in rows]
+
+    # CRITICAL: Validate market cap data exists for all stocks before using in calculations
+    # Market cap missing/None breaks sector concentration limits used by position sizing
+    missing_cap = [s.get("symbol", "unknown") for s in stocks if "market_cap" not in s or s.get("market_cap") is None]
+    if missing_cap:
+        raise ValueError(
+            f"[MARKET DATA CRITICAL] {len(missing_cap)} stocks missing market_cap: {missing_cap[:10]}. "
+            f"Market cap required for sector concentration calculations used in position sizing. "
+            f"Cannot compute accurate sector distribution without complete market cap data. "
+            f"Check that price_daily loader populated market_cap for all universe symbols."
+        )
+
     total_cap = sum(s["market_cap"] for s in stocks if s["market_cap"])
+    if total_cap <= 0:
+        raise ValueError(
+            f"[MARKET DATA CRITICAL] Total market cap is {total_cap} (must be > 0). "
+            f"All stocks have zero market cap — data quality issue. "
+            f"Check price_daily loader."
+        )
 
     by_category: dict[Any, dict[str, Any]] = {}
     by_sector: dict[Any, dict[str, Any]] = {}
 
     for stock in stocks:
-        cap = stock.get("market_cap", 0)
+        # Market cap guaranteed to exist by validation above; no .get() fallback
+        cap = stock["market_cap"]
+        if cap is None or cap <= 0:
+            raise ValueError(
+                f"[MARKET DATA CRITICAL] {stock.get('symbol', 'unknown')}: "
+                f"market_cap is {cap} after validation passed. Data integrity error."
+            )
         category = stock.get("market_cap_category", "unknown")
         sector = stock.get("sector", "unknown")
 

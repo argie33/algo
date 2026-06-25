@@ -296,7 +296,23 @@ def _get_system_health(cur: cursor) -> Any:
         for row in cur.fetchall():
             row_dict = safe_json_serialize(dict(row))
             table_name = row_dict.get("table_name")
-            count = row_dict.get("cnt", 0)
+            # CRITICAL: Validate cnt is present and not None — don't mask data quality issues as 0
+            if "cnt" not in row_dict:
+                raise ValueError(
+                    f"[HEALTH CRITICAL] Table {table_name}: row count query missing 'cnt' field. "
+                    f"Data quality check failed."
+                )
+            count = row_dict["cnt"]
+            if count is None:
+                raise ValueError(
+                    f"[HEALTH CRITICAL] Table {table_name}: row count is NULL. "
+                    f"Cannot distinguish between 'empty table' and 'query failed'. "
+                    f"Data quality issue."
+                )
+            if not isinstance(count, int):
+                raise ValueError(
+                    f"[HEALTH CRITICAL] Table {table_name}: row count is {type(count).__name__}, expected int: {count}"
+                )
             table_counts[table_name] = count
     except (psycopg2.Error, TypeError, AttributeError) as e:
         raise RuntimeError(f"Failed to query table row counts: {type(e).__name__}: {e}") from e

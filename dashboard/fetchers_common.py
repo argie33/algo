@@ -161,10 +161,11 @@ def get_markets_cached() -> dict[str, Any]:
     """Get cached market data or fetch fresh."""
     with _market_cache_lock:
         cached = _market_cache.get("_data")
-        cached_time = _market_cache.get("_time", 0)
         now = __import__("time").time()
 
-        if cached and (now - cached_time) < 5:  # 5 second cache
+        # CRITICAL: Validate cache time is present; don't rely on fallback arithmetic
+        # Missing _time indicates corrupted cache or cache cleared — force fresh fetch
+        if cached and "_time" in _market_cache and (now - _market_cache["_time"]) < 5:  # 5 second cache
             return cast(dict[str, Any], cached)
 
     mkt = api_call("/api/algo/markets")
@@ -183,10 +184,11 @@ def get_data_status_cached() -> dict[str, Any]:
     """Get cached data status or fetch fresh."""
     with _data_status_cache_lock:
         cached = _data_status_cache.get("_data")
-        cached_time = _data_status_cache.get("_time", 0)
         now = __import__("time").time()
 
-        if cached and (now - cached_time) < 10:  # 10 second cache
+        # CRITICAL: Validate cache time is present; don't rely on fallback arithmetic
+        # Missing _time indicates corrupted cache or cache cleared — force fresh fetch
+        if cached and "_time" in _data_status_cache and (now - _data_status_cache["_time"]) < 10:  # 10 second cache
             return cast(dict[str, Any], cached)
 
     status = api_call("/api/algo/data-status")
