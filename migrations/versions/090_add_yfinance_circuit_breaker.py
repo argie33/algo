@@ -37,8 +37,8 @@ def up():
         """)
 
         cur.execute("""
-            INSERT INTO yfinance_ip_ban (state_key, is_banned, failure_count, reason)
-            VALUES ('shared', FALSE, 0, 'Initial state')
+            INSERT INTO yfinance_ip_ban (state_key, is_banned, failure_count, ban_until, reason)
+            VALUES ('shared', FALSE, 0, CURRENT_TIMESTAMP, 'Initial state')
             ON CONFLICT (state_key) DO NOTHING;
         """)
 

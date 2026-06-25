@@ -65,18 +65,26 @@ class YFinanceIPCircuitBreaker:
         if state is None:
             return False  # No ban state yet (first initialization is OK)
 
-        # Validate required fields exist and are non-None
+        # Validate required 'is_banned' field exists
         if "is_banned" not in state or state["is_banned"] is None:
             raise ValueError("Circuit breaker state missing required 'is_banned' field")
-        if "ban_until" not in state or state["ban_until"] is None:
-            raise ValueError("Circuit breaker state missing required 'ban_until' field")
 
-        ban_until = state["ban_until"]
+        is_banned = bool(state["is_banned"])
+
+        # If not banned, ban_until can be NULL (it's meaningless when not active)
+        if not is_banned:
+            return False
+
+        # If banned, ban_until MUST be non-NULL and in the future
+        ban_until = state.get("ban_until")
+        if ban_until is None:
+            raise ValueError("Circuit breaker state corrupted: is_banned=TRUE but ban_until is NULL")
+
         if ban_until <= datetime.now(timezone.utc):
             # Ban has expired — clear it
             self._clear_ban()
             return False
-        return bool(state["is_banned"])
+        return True
 
     def get_backoff_seconds(self) -> float:
         """Get how long to wait before the next request attempt.
@@ -88,11 +96,11 @@ class YFinanceIPCircuitBreaker:
         if state is None or not self.is_banned():
             return 0.0
 
-        # Validate required fields exist
-        if "ban_until" not in state or state["ban_until"] is None:
-            raise ValueError("Circuit breaker state missing required 'ban_until' field")
+        # At this point, is_banned() returned True, so ban_until must exist
+        ban_until = state.get("ban_until")
+        if ban_until is None:
+            raise ValueError("Circuit breaker corrupted: is_banned=TRUE but ban_until is NULL")
 
-        ban_until = state["ban_until"]
         now = datetime.now(timezone.utc)
         remaining = (ban_until - now).total_seconds()
         return float(max(0, remaining))
@@ -189,7 +197,7 @@ class YFinanceIPCircuitBreaker:
                 if row is None:
                     return None
 
-                # Validate all critical fields are present
+                # Validate critical fields that must always exist
                 is_banned = row[0]
                 failure_count = row[1]
                 ban_until = row[2]
@@ -198,8 +206,11 @@ class YFinanceIPCircuitBreaker:
                     raise ValueError("Circuit breaker state corrupted: is_banned is NULL in database")
                 if failure_count is None:
                     raise ValueError("Circuit breaker state corrupted: failure_count is NULL in database")
-                if ban_until is None:
-                    raise ValueError("Circuit breaker state corrupted: ban_until is NULL in database")
+
+                # ban_until can be NULL when is_banned=FALSE (no active ban)
+                # but MUST be non-NULL when is_banned=TRUE (active ban)
+                if bool(is_banned) and ban_until is None:
+                    raise ValueError("Circuit breaker state corrupted: is_banned=TRUE but ban_until is NULL")
 
                 return {
                     "is_banned": bool(is_banned),
@@ -290,15 +301,22 @@ class YFinanceIPCircuitBreaker:
                 "reason": "No ban state",
             }
 
-        # All fields must exist when state is not None
+        # Validate required fields
         is_banned = state.get("is_banned")
         failure_count = state.get("failure_count")
         ban_until = state.get("ban_until")
 
-        if is_banned is None or failure_count is None or ban_until is None:
+        if is_banned is None or failure_count is None:
             raise ValueError(
                 f"Circuit breaker state incomplete: is_banned={is_banned}, "
-                f"failure_count={failure_count}, ban_until={ban_until}"
+                f"failure_count={failure_count}"
+            )
+
+        # ban_until can be NULL when is_banned=FALSE
+        # but if is_banned=TRUE, ban_until must be non-NULL
+        if is_banned and ban_until is None:
+            raise ValueError(
+                "Circuit breaker state corrupted: is_banned=TRUE but ban_until is NULL"
             )
 
         remaining_secs = 0.0
