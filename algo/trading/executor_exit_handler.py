@@ -189,7 +189,7 @@ class ExitHandler:
 
         return None
 
-    def _execute_exit(
+    def _execute_exit(  # noqa: C901
         self,
         cur: Any,
         trade_id: int,
@@ -225,7 +225,10 @@ class ExitHandler:
         )
         row = cur.fetchone()
         if row is None:
-            return {"success": False, "message": f"Trade {trade_id} not found"}
+            raise RuntimeError(
+                f"[EXECUTOR_EXIT] Trade {trade_id} not found in database — "
+                "cannot execute exit for non-existent trade. Check if trade was properly recorded."
+            )
 
         (
             symbol,

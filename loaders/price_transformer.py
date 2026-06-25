@@ -274,8 +274,10 @@ class PriceTransformer:
 
         try:
             if not row_date_str or not isinstance(row_date_str, str):
-                logger.warning(f"[{symbol}] No date in row, skipping")
-                return False, 0, 1
+                raise ValueError(
+                    f"[PRICE_TRANSFORMER] {symbol}: Row missing required date field — "
+                    "cannot load price data without valid dates"
+                )
             row_date = datetime.fromisoformat(row_date_str).date()
             if not self._validate_row_trading_day(row_date_str, row_date, trading_day_set, symbol, tracker):
                 logger.debug(f"[{symbol}] {row_date}: Non-trading day, rejecting")

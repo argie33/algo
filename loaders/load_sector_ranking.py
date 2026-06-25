@@ -93,14 +93,22 @@ class SectorRankingLoader(OptimalLoader):
             for r in rows:
                 current_rank = r["current_rank"]
                 if current_rank is None:
-                    logger.warning(f"Sector ranking for {r['sector_name']}: missing current_rank - skipping")
-                    continue
+                    raise ValueError(
+                        f"[SECTOR_RANKING] Sector {r['sector_name']} missing required current_rank — "
+                        "all sectors must have complete ranking data for signal generation"
+                    )
+                momentum = r["momentum_score"]
+                if momentum is None:
+                    raise ValueError(
+                        f"[SECTOR_RANKING] Sector {r['sector_name']} missing required momentum_score — "
+                        "cannot default momentum to 0.0; signal requires explicit momentum data"
+                    )
                 valid_rows.append(
                     {
                         "sector_name": r["sector_name"],
                         "date": latest_date,
                         "current_rank": current_rank,
-                        "momentum_score": (float(r["momentum_score"]) if r["momentum_score"] is not None else 0.0),
+                        "momentum_score": float(momentum),
                         "rank_1w_ago": (r["rank_1w_ago"] if r["rank_1w_ago"] is not None else -1),
                         "rank_4w_ago": (r["rank_4w_ago"] if r["rank_4w_ago"] is not None else -1),
                         "rank_12w_ago": (r["rank_12w_ago"] if r["rank_12w_ago"] is not None else -1),

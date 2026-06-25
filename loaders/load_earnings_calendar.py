@@ -77,7 +77,10 @@ class EarningsCalendarLoader(OptimalLoader):
                             earnings_dates = [earnings_date_raw]
                         for ed in earnings_dates:
                             if ed is None:
-                                continue
+                                raise ValueError(
+                                    f"[EARNINGS_CALENDAR] {symbol}: Null earnings date in yfinance response — "
+                                    "cannot filter earnings data with missing dates"
+                                )
                             try:
                                 ed_date = ed if isinstance(ed, date) else pd.Timestamp(ed).date()
                             except Exception as e:

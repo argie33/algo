@@ -153,7 +153,7 @@ class SignalsDailyLoader(OptimalLoader):
                 "Cannot proceed without shared batch data (end_date, price/tech coverage, symbol watermarks) from e."
             ) from e
 
-    def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
+    def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:  # noqa: C901
         """Generate signals from technical data."""
         from datetime import datetime, timezone
 
@@ -423,8 +423,10 @@ class SignalsDailyLoader(OptimalLoader):
                         }
                     )
                 if dropped_rows > 0:
-                    logger.warning(f"{symbol}: Dropped {dropped_rows} row(s) due to missing date or close price")
-                return rows
+                    raise RuntimeError(
+                        f"[BUY_SELL] {symbol}: Dropped {dropped_rows} row(s) due to missing date or close price — "
+                        "cannot generate signals with incomplete technical data; all dates and closes required"
+                    )
         except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(
                 f"[BUY_SELL] Failed to fetch signal data for {symbol}: {e}. "

@@ -213,8 +213,13 @@ def run(  # noqa: C901
                 patrol_warn_count = 0
                 patrol_warn_checks = 0
             else:
-                patrol_warn_count = patrol_warn_row[0] if len(patrol_warn_row) > 0 else 0
-                patrol_warn_checks = patrol_warn_row[1] if len(patrol_warn_row) > 1 else 0
+                if len(patrol_warn_row) < 2:
+                    raise RuntimeError(
+                        f"[PHASE1] DataPatrol query returned incomplete row: {patrol_warn_row} — "
+                        "expected (warning_count, check_count) tuple"
+                    )
+                patrol_warn_count = patrol_warn_row[0]
+                patrol_warn_checks = patrol_warn_row[1]
             if patrol_warn_count > 0:
                 logger.warning(
                     f"[PHASE 1] DataPatrol: {patrol_warn_count} warning(s) from {patrol_warn_checks} check(s) "

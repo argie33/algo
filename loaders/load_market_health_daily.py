@@ -494,7 +494,10 @@ def _write_vix_family_prices(start: date, end: date) -> int:
 
                     close = _v("Close")
                     if close is None:
-                        continue
+                        raise RuntimeError(
+                            f"[MARKET_HEALTH] Missing close price for {sym} on {d} — "
+                            "cannot compute market health metrics without OHLCV data"
+                        )
 
                     open_val = _v("Open")
                     high_val = _v("High")
@@ -502,10 +505,11 @@ def _write_vix_family_prices(start: date, end: date) -> int:
                     volume_val = _v("Volume")
 
                     if volume_val is None:
-                        logger.debug(f"{sym} on {d}: Volume data missing")
-                        volume_val = None
-                    else:
-                        volume_val = int(volume_val)
+                        raise RuntimeError(
+                            f"[MARKET_HEALTH] Missing volume data for {sym} on {d} — "
+                            "market health calculation requires complete OHLCV data"
+                        )
+                    volume_val = int(volume_val)
 
                     records.append(
                         (
