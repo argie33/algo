@@ -105,19 +105,23 @@ def compute_performance_metrics(cur: Any, metric_date: date | None = None) -> di
         metrics["total_pnl_dollars"] = round(total_pnl_dollars, 2)
         metrics["total_pnl_pct"] = round(total_pnl_pct, 2)
 
-        # Trade statistics
-        if pnl_pcts:
-            metrics["avg_trade_pct"] = round(sum(pnl_pcts) / len(pnl_pcts), 2)
-            metrics["best_trade_pct"] = round(max(pnl_pcts), 2)
-            metrics["worst_trade_pct"] = round(min(pnl_pcts), 2)
-        else:
-            metrics["avg_trade_pct"] = 0.0
-            metrics["best_trade_pct"] = 0.0
-            metrics["worst_trade_pct"] = 0.0
+        # Trade statistics — MUST have P&L data to compute meaningful metrics
+        if not pnl_pcts:
+            raise ValueError(
+                "Cannot compute trade statistics: no P&L percentage data available. "
+                "This indicates trades are missing profit_loss_pct values in database."
+            )
+        metrics["avg_trade_pct"] = round(sum(pnl_pcts) / len(pnl_pcts), 2)
+        metrics["best_trade_pct"] = round(max(pnl_pcts), 2)
+        metrics["worst_trade_pct"] = round(min(pnl_pcts), 2)
 
-        metrics["avg_holding_days"] = (
-            round(sum(holding_days_list) / len(holding_days_list), 1) if holding_days_list else 0.0
-        )
+        # Holding days — MUST have holding period data for meaningful analysis
+        if not holding_days_list:
+            raise ValueError(
+                "Cannot compute average holding days: no holding period data available. "
+                "This indicates trades are missing trade_date or exit_date values in database."
+            )
+        metrics["avg_holding_days"] = round(sum(holding_days_list) / len(holding_days_list), 1)
 
         # Streak metrics
         best_win_streak, worst_loss_streak = _compute_streaks(pnl_dollars)

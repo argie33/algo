@@ -97,23 +97,36 @@ def _build_calendar_rows(econ_cal: Any) -> list[Text | Rule]:
 
     for ev in valid_cal[:6]:
         ed_raw = ev.get("event_date")
-        try:
-            ed = date.fromisoformat(str(ed_raw)) if ed_raw else None
-        except (ValueError, TypeError):
-            ed = None
+        ed = None
+        if ed_raw:
+            try:
+                ed = date.fromisoformat(str(ed_raw))
+            except (ValueError, TypeError) as e:
+                logger.warning(f"Economic calendar: cannot parse event_date '{ed_raw}': {e}")
+
         event_name_val = ev.get("event_name")
-        full_nm = event_name_val if event_name_val is not None else ""
-        name = str(full_nm)[:24]
-        key = (str(ed_raw) + str(full_nm)[:24]).lower()
+        if event_name_val is None:
+            logger.warning(f"Economic calendar event missing required 'event_name' field")
+            continue  # Skip events without names
+        full_nm = str(event_name_val)
+        name = full_nm[:24]
+
+        key = (str(ed_raw) + full_nm[:24]).lower()
         if key in seen_keys:
             continue
         seen_keys.add(key)
+
         importance_val = ev.get("importance")
-        imp = (importance_val if importance_val is not None else "LOW").upper()
+        if importance_val is None:
+            logger.warning(f"Economic calendar event '{name}' missing 'importance' field")
+            importance_val = "LOW"  # Default for display only, but logged
+        imp = str(importance_val).upper()
         ic = imp_c.get(imp, "dim")
+
         f_v = ev.get("forecast") if ev.get("forecast") is not None else ev.get("forecast_value")
         a_v = ev.get("actual") if ev.get("actual") is not None else ev.get("actual_value")
         p_v = ev.get("previous") if ev.get("previous") is not None else ev.get("previous_value")
+
         if ed == today:
             when = "TODAY"
         elif ed is not None:
@@ -121,24 +134,28 @@ def _build_calendar_rows(econ_cal: Any) -> list[Text | Rule]:
             when = f"+{delta}d" if delta > 0 else "YST"
         else:
             when = "--"
+
         vals = ""
         f_f: float | None = None
         if a_v is not None:
             a_f = safe_float(a_v, default=None)
             if a_f is not None:
+                # Try forecast first, but don't fallback to actual
                 f_f = safe_float(f_v, default=None)
-                if f_f is None and a_f is not None:
-                    f_f = a_f
-                ac = G if a_f <= f_f else R
+                if f_f is None and f_v is not None:
+                    logger.warning(f"Economic calendar event '{name}' has actual but invalid forecast: {f_v}")
+                ac = G if f_f is None or a_f <= f_f else R
                 vals = f" [{ac}]A={a_f:.1f}[/]"
         elif f_v is not None:
             f_f = safe_float(f_v, default=None)
             if f_f is not None:
                 vals = f" [dim]F={f_f:.1f}[/]"
+
         if p_v is not None:
             p_f = safe_float(p_v, default=None)
             if p_f is not None:
                 vals += f"[dim] P={p_f:.1f}[/]"
+
         et = ev.get("event_time")
         et_s = f" [dim]{str(et)[:5]}[/]" if et else ""
         rows.append(Text.from_markup(f"[{ic}]{when!s:<5}[/]{et_s} [white]{name!s}[/]{vals}"))

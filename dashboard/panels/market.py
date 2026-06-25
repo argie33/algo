@@ -80,6 +80,26 @@ from .data_extractors import (
 )
 
 
+def _get_market_halts(mkt_data: dict[str, Any], panel_name: str) -> list[Any]:
+    """Extract market halts with validation and logging.
+
+    Args:
+        mkt_data: Market data dict from endpoint
+        panel_name: Panel name for logging context
+
+    Returns:
+        List of halts (empty list if missing/invalid)
+    """
+    halts_raw = mkt_data.get("halts")
+    if halts_raw is None:
+        logger.warning(f"{panel_name}: halts data missing from market endpoint")
+        return []
+    halts = safe_get_list(halts_raw) or []
+    if not halts and halts_raw:
+        logger.warning(f"{panel_name}: halts data failed validation, got: {halts_raw}")
+    return halts
+
+
 @register_panel(
     "market",
     endpoint_deps=["mkt", "sentiment"],
@@ -117,7 +137,8 @@ def panel_market_full(mkt: Any, sentiment: Any = None) -> Panel:
     stage = mkt.get("stage", "N/A")
     spy_chg = safe_float(mkt.get("spy_chg"), strict=False)
     trend = mkt.get("trend", "")
-    halts = safe_get_list(mkt.get("halts")) or []
+    halts = _get_market_halts(mkt, "Market panel")
+
     upvol = safe_float(mkt.get("upvol"), strict=False)
     adr = safe_float(mkt.get("adr"), strict=False)
     nh = safe_int(mkt.get("nh"), strict=False)
@@ -241,7 +262,7 @@ def panel_market_expanded(mkt: Any, sentiment: Any = None) -> Panel:
     nl = safe_int(mkt.get("nl"), strict=False)
     pcr = safe_float(mkt.get("pcr"), strict=False)
     bmom = safe_float(mkt.get("bmom"), strict=False)
-    halts = safe_get_list(mkt.get("halts")) or []
+    halts = _get_market_halts(mkt, "Market summary panel")
 
     spy_s = f"${spy_raw:.2f}" if spy_raw else "--"
     spy_chg_safe = spy_chg if spy_chg is not None else 0
@@ -412,7 +433,7 @@ def panel_header_market(
             parts4.append(f"[dim]Yield Curve:[/][{yc_c}]{ycs:+.2f}[/]")
         if parts4:
             rows.append(Text.from_markup("  ".join(parts4)))
-        halts = safe_get_list(mkt.get("halts")) or []
+        halts = _get_market_halts(mkt, "Market details panel")
         halt_s = " ".join(str(h)[:14] for h in halts[:2]) if halts else "none"
         hc_col = Y if halts else DIM
         line5 = f"[dim]Halt:[/][{hc_col}]{halt_s}[/]"

@@ -52,7 +52,10 @@ class YFinanceIPCircuitBreaker:
         # Use cached state if recent
         now = time.time()
         if self._cached_state is not None and (now - self._last_check_time) < self._check_cache_duration_secs:
-            return bool(self._cached_state.get("is_banned", False))
+            is_banned = self._cached_state.get("is_banned")
+            if is_banned is None:
+                raise ValueError("Circuit breaker cached state corrupted: is_banned is None")
+            return bool(is_banned)
 
         # Fetch current state from PostgreSQL
         state = self._get_ban_state()
@@ -60,18 +63,20 @@ class YFinanceIPCircuitBreaker:
         self._last_check_time = now
 
         if state is None:
-            return False  # No ban state yet
+            return False  # No ban state yet (first initialization is OK)
 
-        # Check if ban has expired
-        ban_until = state.get("ban_until")
-        if ban_until is None:
-            return False
+        # Validate required fields exist and are non-None
+        if "is_banned" not in state or state["is_banned"] is None:
+            raise ValueError("Circuit breaker state missing required 'is_banned' field")
+        if "ban_until" not in state or state["ban_until"] is None:
+            raise ValueError("Circuit breaker state missing required 'ban_until' field")
 
+        ban_until = state["ban_until"]
         if ban_until <= datetime.now(timezone.utc):
             # Ban has expired — clear it
             self._clear_ban()
             return False
-        return True
+        return bool(state["is_banned"])
 
     def get_backoff_seconds(self) -> float:
         """Get how long to wait before the next request attempt.
@@ -83,11 +88,11 @@ class YFinanceIPCircuitBreaker:
         if state is None or not self.is_banned():
             return 0.0
 
-        # Calculate remaining backoff time
-        ban_until = state.get("ban_until")
-        if ban_until is None:
-            return 0.0
+        # Validate required fields exist
+        if "ban_until" not in state or state["ban_until"] is None:
+            raise ValueError("Circuit breaker state missing required 'ban_until' field")
 
+        ban_until = state["ban_until"]
         now = datetime.now(timezone.utc)
         remaining = (ban_until - now).total_seconds()
         return float(max(0, remaining))
@@ -105,7 +110,14 @@ class YFinanceIPCircuitBreaker:
             failure_count = 1
             backoff = self.INITIAL_BACKOFF_SECS
         else:
-            failure_count = (state.get("failure_count") or 0) + 1
+            # Validate failure_count exists and is numeric
+            if "failure_count" not in state or state["failure_count"] is None:
+                raise ValueError("Circuit breaker state missing required 'failure_count' field")
+            try:
+                prev_count = int(state["failure_count"])
+            except (ValueError, TypeError) as e:
+                raise ValueError(f"Circuit breaker failure_count is not numeric: {state['failure_count']}") from e
+            failure_count = prev_count + 1
             # Exponential backoff: initial 10s, then 20s, 40s, 80s, 160s, 300s, 300s, ...
             backoff = min(
                 self.INITIAL_BACKOFF_SECS * (self.BACKOFF_MULTIPLIER ** (failure_count - 1)),
@@ -134,7 +146,14 @@ class YFinanceIPCircuitBreaker:
         if state is None:
             return  # No ban state to reset
 
-        failure_count = state.get("failure_count") or 0
+        # Validate failure_count exists and is numeric
+        if "failure_count" not in state or state["failure_count"] is None:
+            raise ValueError("Circuit breaker state missing required 'failure_count' field")
+        try:
+            failure_count = int(state["failure_count"])
+        except (ValueError, TypeError) as e:
+            raise ValueError(f"Circuit breaker failure_count is not numeric: {state['failure_count']}") from e
+
         if failure_count > 0:
             logger.info(
                 f"[YFINANCE-CIRCUIT-BREAKER] Successful request after {failure_count} failures. "
@@ -153,7 +172,11 @@ class YFinanceIPCircuitBreaker:
         """Get current ban state from PostgreSQL.
 
         Returns:
-            Dict with ban state or None if not set
+            Dict with ban state or None if not set.
+
+        CRITICAL: All fields must be non-None when row exists. Missing fields
+        indicate corrupted state which must be detected and raised, not silently
+        filled with defaults.
         """
         try:
             with DatabaseContext("read") as cur:
@@ -166,10 +189,22 @@ class YFinanceIPCircuitBreaker:
                 if row is None:
                     return None
 
+                # Validate all critical fields are present
+                is_banned = row[0]
+                failure_count = row[1]
+                ban_until = row[2]
+
+                if is_banned is None:
+                    raise ValueError("Circuit breaker state corrupted: is_banned is NULL in database")
+                if failure_count is None:
+                    raise ValueError("Circuit breaker state corrupted: failure_count is NULL in database")
+                if ban_until is None:
+                    raise ValueError("Circuit breaker state corrupted: ban_until is NULL in database")
+
                 return {
-                    "is_banned": bool(row[0]),
-                    "failure_count": int(row[1]) if row[1] is not None else 0,
-                    "ban_until": row[2],
+                    "is_banned": bool(is_banned),
+                    "failure_count": int(failure_count),
+                    "ban_until": ban_until,
                     "last_error_time": row[3],
                     "last_success_time": row[4],
                     "reason": str(row[5]) if row[5] is not None else "",
@@ -255,24 +290,34 @@ class YFinanceIPCircuitBreaker:
                 "reason": "No ban state",
             }
 
+        # All fields must exist when state is not None
+        is_banned = state.get("is_banned")
+        failure_count = state.get("failure_count")
         ban_until = state.get("ban_until")
-        remaining_secs = 0.0
 
+        if is_banned is None or failure_count is None or ban_until is None:
+            raise ValueError(
+                f"Circuit breaker state incomplete: is_banned={is_banned}, "
+                f"failure_count={failure_count}, ban_until={ban_until}"
+            )
+
+        remaining_secs = 0.0
         if ban_until:
             remaining_secs = (ban_until - datetime.now(timezone.utc)).total_seconds()
             remaining_secs = max(0.0, remaining_secs)
 
         last_error_time = state.get("last_error_time")
         last_success_time = state.get("last_success_time")
+        reason = state.get("reason", "")
 
         return {
-            "is_banned": state.get("is_banned", False),
-            "failure_count": state.get("failure_count", 0),
+            "is_banned": bool(is_banned),
+            "failure_count": int(failure_count),
             "backoff_secs": remaining_secs,
             "ban_until": (ban_until.isoformat() if isinstance(ban_until, datetime) else None),
             "last_error_time": (last_error_time.isoformat() if isinstance(last_error_time, datetime) else None),
             "last_success_time": (last_success_time.isoformat() if isinstance(last_success_time, datetime) else None),
-            "reason": state.get("reason", ""),
+            "reason": str(reason),
         }
 
 
