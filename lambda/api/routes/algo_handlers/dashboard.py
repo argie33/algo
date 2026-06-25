@@ -90,7 +90,7 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:
         d = safe_json_serialize(safe_dict_convert(p))
         symbol = d.get("symbol", "unknown")
 
-        # Validate required data before adding to items (FAIL-FAST on missing required fields)
+        # Validate critical position data (required for any position to be displayed)
         pos_val_raw = d.get("position_value")
         if pos_val_raw is None:
             invalid_positions.append({
@@ -108,7 +108,7 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:
             continue
 
         # Compute ladder_pct_* fields for visualization (Issue #2)
-        # Validate all price fields before conversion (FAIL-FAST)
+        # These fields are OPTIONAL - positions without stop/target prices are still valid
         entry_raw = d.get("avg_entry_price")
         cur_price_raw = d.get("current_price")
         stop_raw = d.get("stop_loss_price")
@@ -116,51 +116,47 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:
         t2_raw = d.get("target_2_price")
         t3_raw = d.get("target_3_price")
 
-        if any(v is None for v in [entry_raw, cur_price_raw, stop_raw, t1_raw, t2_raw, t3_raw]):
-            missing_fields = [
-                f for f, v in [
-                    ("entry", entry_raw),
-                    ("current", cur_price_raw),
-                    ("stop", stop_raw),
-                    ("t1", t1_raw),
-                    ("t2", t2_raw),
-                    ("t3", t3_raw),
-                ]
-                if v is None
-            ]
-            invalid_positions.append({
-                "symbol": symbol,
-                "error": f"missing price fields: {', '.join(missing_fields)}"
-            })
-            continue
-
+        # Only compute ladder if we have the core price fields needed for visualization
         try:
-            entry = float(entry_raw)
-            cur_price = float(cur_price_raw)
-            stop = float(stop_raw)
-            t1 = float(t1_raw)
-            t2 = float(t2_raw)
-            t3 = float(t3_raw)
+            if all(v is not None for v in [entry_raw, cur_price_raw, stop_raw, t1_raw, t2_raw, t3_raw]):
+                entry = float(entry_raw)
+                cur_price = float(cur_price_raw)
+                stop = float(stop_raw)
+                t1 = float(t1_raw)
+                t2 = float(t2_raw)
+                t3 = float(t3_raw)
+
+                if entry and cur_price and stop:
+                    lo = min(stop, entry, cur_price)
+                    hi = max(t3 or t2 or t1 or entry, cur_price)
+                    span = max(0.0001, hi - lo)
+
+                    def pos(price: float | None, _lo: float = lo, _span: float = span) -> float | None:
+                        return ((price - _lo) / _span) * 100 if price is not None else None
+
+                    d["ladder_pct_stop"] = pos(stop)
+                    d["ladder_pct_entry"] = pos(entry)
+                    d["ladder_pct_current"] = pos(cur_price)
+                    d["ladder_pct_t1"] = pos(t1)
+                    d["ladder_pct_t2"] = pos(t2)
+                    d["ladder_pct_t3"] = pos(t3)
+                else:
+                    d["ladder_pct_stop"] = None
+                    d["ladder_pct_entry"] = None
+                    d["ladder_pct_current"] = None
+                    d["ladder_pct_t1"] = None
+                    d["ladder_pct_t2"] = None
+                    d["ladder_pct_t3"] = None
+            else:
+                # Missing ladder price fields - set to None
+                d["ladder_pct_stop"] = None
+                d["ladder_pct_entry"] = None
+                d["ladder_pct_current"] = None
+                d["ladder_pct_t1"] = None
+                d["ladder_pct_t2"] = None
+                d["ladder_pct_t3"] = None
         except (ValueError, TypeError) as e:
-            invalid_positions.append(d.get("symbol", "unknown"))
-            logger.warning(f"Position {d.get('symbol')} has invalid price fields: {e}")
-            continue
-
-        if entry and cur_price and stop:
-            lo = min(stop, entry, cur_price)
-            hi = max(t3 or t2 or t1 or entry, cur_price)
-            span = max(0.0001, hi - lo)
-
-            def pos(price: float | None, _lo: float = lo, _span: float = span) -> float | None:
-                return ((price - _lo) / _span) * 100 if price is not None else None
-
-            d["ladder_pct_stop"] = pos(stop)
-            d["ladder_pct_entry"] = pos(entry)
-            d["ladder_pct_current"] = pos(cur_price)
-            d["ladder_pct_t1"] = pos(t1)
-            d["ladder_pct_t2"] = pos(t2)
-            d["ladder_pct_t3"] = pos(t3)
-        else:
+            logger.warning(f"Position {symbol} has invalid price fields, skipping ladder calculation: {e}")
             d["ladder_pct_stop"] = None
             d["ladder_pct_entry"] = None
             d["ladder_pct_current"] = None
@@ -213,15 +209,24 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:
             sector_risk[sector] = 0
         sector_risk[sector] += pos_val
 
-    if invalid_positions:
+    # Only fail if we have no valid positions to display (complete data loss)
+    if not items and positions:
         error_details = "\n".join(
             f"  - {p['symbol']}: {p['error']}" for p in invalid_positions[:10]
         )
         if len(invalid_positions) > 10:
             error_details += f"\n  ... and {len(invalid_positions) - 10} more"
         raise RuntimeError(
-            f"CRITICAL: {len(invalid_positions)}/{len(positions)} positions have missing required data. "
-            f"Cannot display incomplete position list. Dashboard data integrity compromised:\n{error_details}"
+            f"CRITICAL: All {len(positions)} positions missing position_value. "
+            f"Cannot display position list:\n{error_details}"
+        )
+
+    # Log skipped positions with missing optional fields (non-fatal)
+    if invalid_positions:
+        logger.warning(
+            f"Skipped {len(invalid_positions)} positions with incomplete data "
+            f"(missing position_value or invalid values). "
+            f"These will not display in dashboard but other positions will be shown."
         )
 
     # Compute sector_allocation array after processing all positions (E5 fix)
