@@ -651,10 +651,23 @@ class AdvancedFilters:
                 "growth_metrics table empty or missing data. "
                 "Cannot compute growth catalyst score without 3-year CAGR data."
             )
-        rev_3y = float(row[0]) if row[0] is not None else 0.0
-        eps_3y = float(row[1]) if row[1] is not None else 0.0
-        mom = float(row[2]) if row[2] is not None else 0.0
-        rev_yoy = float(row[3]) if row[3] is not None else 0.0
+        if row[0] is None:
+            raise ValueError(
+                f"Revenue 3-year CAGR missing for {symbol}. "
+                "Cannot evaluate growth metrics without complete growth data."
+            )
+        if row[1] is None:
+            raise ValueError(
+                f"EPS 3-year CAGR missing for {symbol}. Cannot evaluate growth metrics without complete growth data."
+            )
+        if row[2] is None:
+            raise ValueError(
+                f"Momentum data missing for {symbol}. Cannot evaluate growth catalyst without recent momentum metrics."
+            )
+        rev_3y = float(row[0])
+        eps_3y = float(row[1])
+        mom = float(row[2])
+        rev_yoy = float(row[3]) if row[3] is not None else None
         # Allocate catalyst_growth weight across 3 metrics (EPS, revenue, momentum)
         catalyst_growth_weight = FilterRegistry.get_weight("catalyst_growth")
         pts_per_metric = catalyst_growth_weight / 3.0
@@ -666,7 +679,7 @@ class AdvancedFilters:
         return eps_p + rev_p + mom_p, {
             "eps_3y_cagr": round(eps_3y, 1),
             "rev_3y_cagr": round(rev_3y, 1),
-            "rev_yoy": round(rev_yoy, 1),
+            "rev_yoy": round(rev_yoy, 1) if rev_yoy is not None else None,
             "momentum": round(mom, 1),
         }
 

@@ -178,8 +178,7 @@ class MarketExposure:
                         )
                 except json.JSONDecodeError as e:
                     raise RuntimeError(
-                        f"Malformed factors JSON: {e}. "
-                        f"Corrupted market exposure data cannot be trusted for trading."
+                        f"Malformed factors JSON: {e}. Corrupted market exposure data cannot be trusted for trading."
                     ) from e
             else:
                 factors = {}
@@ -294,7 +293,7 @@ class MarketExposure:
 
             # --- 5. Selling pressure (heavy-volume down days) ---
             sp = self.calculator.selling_pressure(eval_date, cur)
-            if sp.get('count') is None:
+            if sp.get("count") is None:
                 raise RuntimeError("Selling pressure count unavailable — cannot calculate market distribution days")
             sp_pts, sp_avail = self.calculator._wt_pts(sp, self.W_SELLING_PRESSURE)
             avail_max += sp_avail
@@ -397,7 +396,7 @@ class MarketExposure:
                 msg = (
                     f"[MARKET EXPOSURE CRITICAL] Insufficient data for exposure calculation. "
                     f"Only {avail_max:.1f}/100 points of factor data available (threshold: {min_avail_weight}). "
-                    f"Missing {100-avail_max:.1f} points from market data pipeline. "
+                    f"Missing {100 - avail_max:.1f} points from market data pipeline. "
                     f"Cannot compute reliable market exposure score. "
                     f"Check: phase 4 loaders, technical_data_daily, price_daily freshness."
                 )
@@ -1130,7 +1129,13 @@ class MarketExposure:
             )
 
         bullish = float(row[0])
-        bearish = float(row[1]) if row[1] is not None else 0.0
+        if row[1] is None:
+            raise RuntimeError(
+                f"[MARKET EXPOSURE CRITICAL] AAII bearish sentiment missing for {eval_date} — "
+                f"cannot calculate bull-bear spread without both sentiment indicators. "
+                f"Check aaii_sentiment loader data completeness."
+            )
+        bearish = float(row[1])
         spread = bullish - bearish  # positive = more bulls than bears
 
         # Extremes-only scoring: neutral in the normal range (-15 to +15)
@@ -1546,7 +1551,7 @@ def read_market_regime(eval_date: _date) -> dict[str, Any]:
                 "exposure_pct": float(exposure_pct),
                 "regime": regime or "unknown",
                 "halt_reasons": halt_reasons,
-                "raw_score": float(raw_score) if raw_score is not None else 0,
+                "raw_score": float(raw_score) if raw_score is not None else None,
                 "exposure_tier": exposure_tier or "unknown",
             }
 
