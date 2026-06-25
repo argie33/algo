@@ -101,6 +101,10 @@ ignore = ["E203", "E501", "UP031", "RUF012"]
 "dashboard/panels/sectors.py" = ["E402"]  # Panels: TYPE_CHECKING conditional imports
 "dashboard/panels/signals.py" = ["E402"]  # Panels: TYPE_CHECKING conditional imports
 "dashboard/panels/trades.py" = ["E402"]  # Panels: TYPE_CHECKING conditional imports
+"loaders/load_prices.py" = ["E402"]  # Loader: setup_imports() before standard imports
+"loaders/load_buy_sell_daily.py" = ["E402"]  # Loader: setup_imports() before standard imports
+"loaders/load_market_health_daily.py" = ["E402"]  # Loader: setup_imports() before standard imports
+"loaders/load_swing_trader_scores_vectorized.py" = ["E402"]  # Loader: setup_imports() before standard imports
 
 [tool.ruff.lint.mccabe]
 max-complexity = 20

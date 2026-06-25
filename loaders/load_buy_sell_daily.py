@@ -527,7 +527,7 @@ def main() -> int:
                     f"[DEPENDENCY] Aborting buy_sell_daily: stock_prices_daily is {prices_status} - "
                     "waiting for price data to be available"
                 )
-                return 0  # Exit cleanly, will retry on next pipeline run
+                return 1  # Return error code (1), will retry on next pipeline run
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as status_err:
         logger.warning(f"[DEPENDENCY] Could not check stock_prices_daily status: {status_err}")
 

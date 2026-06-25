@@ -124,7 +124,8 @@ class MarketHealthDailyLoader(OptimalLoader):
             raise RuntimeError(f"[{self.table_name}] {symbol}: Failed to fetch: {e}") from e
 
         if not rows:
-            return 0
+            logger.info(f"[{self.table_name}] No incremental data available for {symbol} - will retry on next run")
+            return 1  # Return error code (1) for no data available, will retry on next pipeline run
 
         # Transform and insert
         transformed = self.transform(rows)
