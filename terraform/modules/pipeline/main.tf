@@ -6,7 +6,7 @@
  * all signal data is actually ready, not on a fixed timer.
  *
  * EOD PIPELINE (4:05 PM ET, 4h max execution):
- *   stock_symbols (10 min, 600s timeout)
+ *   market_constituents (10 min, 600s timeout)
  *     → stock_prices_daily (1.5-2h expected, 6h timeout = 21600s) [CRITICAL: must succeed]
  *       → [parallel] market_health_daily (20 min expected, 20 min timeout = 1200s)
  *                  + trend_template_data (30 min expected, 90 min timeout = 5400s)
@@ -192,7 +192,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
-          TaskDefinition       = var.loader_task_definition_arns["stock_symbols"]
+          TaskDefinition       = var.loader_task_definition_arns["market_constituents"]
           NetworkConfiguration = local.network_config
         }
         Retry = [{
@@ -213,7 +213,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Type     = "Task"
         Resource = var.loader_failure_handler_arn
         Parameters = {
-          loader_name       = "stock_symbols"
+          loader_name       = "market_constituents"
           "error.$"         = "$.loaderError.Error"
           "error_message.$" = "$.loaderError.Cause"
         }
