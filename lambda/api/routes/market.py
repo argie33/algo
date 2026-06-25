@@ -934,10 +934,35 @@ def _get_market_latest(cur: cursor) -> Any:
 
 
 def _parse_range_param(params: dict, default: int = 30) -> int:
-    try:
-        return int(params.get("range", [None])[0] or params.get("days", [default])[0])
-    except (ValueError, TypeError, IndexError):
+    if not params:
         return default
+
+    # CRITICAL: Fail-fast on malformed params. Range/days must be explicit, not silent fallback.
+    range_val = params.get("range")
+    if range_val:
+        if not isinstance(range_val, list) or not range_val:
+            raise ValueError("CRITICAL: 'range' parameter must be a non-empty list")
+        try:
+            parsed = int(range_val[0])
+            if parsed <= 0:
+                raise ValueError(f"CRITICAL: 'range' must be positive, got {parsed}")
+            return parsed
+        except (ValueError, TypeError) as e:
+            raise ValueError(f"CRITICAL: 'range' parameter invalid: {e}") from e
+
+    days_val = params.get("days")
+    if days_val:
+        if not isinstance(days_val, list) or not days_val:
+            raise ValueError("CRITICAL: 'days' parameter must be a non-empty list")
+        try:
+            parsed = int(days_val[0])
+            if parsed <= 0:
+                raise ValueError(f"CRITICAL: 'days' must be positive, got {parsed}")
+            return parsed
+        except (ValueError, TypeError) as e:
+            raise ValueError(f"CRITICAL: 'days' parameter invalid: {e}") from e
+
+    return default
 
 
 @db_route_handler("get correlation matrix")
@@ -1263,8 +1288,8 @@ def _get_cap_distribution(cur: cursor) -> Any:
                 k: {
                     "count": v["count"],
                     "total_cap": v["total_cap"],
-                    "pct_of_market": (round(v["total_cap"] / total_cap * 100, 2) if total_cap > 0 else 0),
-                    "avg_cap": (round(v["total_cap"] / v["count"], 0) if v["count"] > 0 else 0),
+                    "pct_of_market": (round(v["total_cap"] / total_cap * 100, 2) if total_cap > 0 else None),
+                    "avg_cap": (round(v["total_cap"] / v["count"], 0) if v["count"] > 0 else None),
                 }
                 for k, v in by_category.items()
             },

@@ -817,19 +817,35 @@ def _get_circuit_breakers(cur: cursor) -> Any:
                 wins = int(wr_result["wins"])
                 losses = int(wr_result["losses"])
                 decisive = wins + losses
-                win_rate = (wins / decisive * 100) if decisive > 0 else 0
+                if decisive <= 0:
+                    win_rate = None
+                else:
+                    win_rate = wins / decisive * 100
                 threshold_wr = 40.0
-                breakers.append(
-                    {
-                        "id": "win_rate",
-                        "label": "Win Rate Floor",
-                        "triggered": win_rate < threshold_wr and decisive >= 10,
-                        "current": round(win_rate, 1),
-                        "threshold": threshold_wr,
-                        "unit": "%",
-                        "description": f"Halt if win rate drops below {threshold_wr:.0f}% (last 30 closed)",
-                    }
-                )
+                if win_rate is not None:
+                    breakers.append(
+                        {
+                            "id": "win_rate",
+                            "label": "Win Rate Floor",
+                            "triggered": win_rate < threshold_wr and decisive >= 10,
+                            "current": round(win_rate, 1),
+                            "threshold": threshold_wr,
+                            "unit": "%",
+                            "description": f"Halt if win rate drops below {threshold_wr:.0f}% (last 30 closed)",
+                        }
+                    )
+                else:
+                    breakers.append(
+                        {
+                            "id": "win_rate",
+                            "label": "Win Rate Floor",
+                            "triggered": False,
+                            "current": None,
+                            "threshold": threshold_wr,
+                            "unit": "%",
+                            "description": "Insufficient trades to calculate win rate",
+                        }
+                    )
             else:
                 raise ValueError("No trade data")
         except (ValueError, ZeroDivisionError, TypeError) as e:

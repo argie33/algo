@@ -18,6 +18,7 @@ from pydantic import ValidationError
 from routes.utils import (
     check_data_freshness,
     error_response,
+    extract_param,
     handle_db_error,
     json_response,
     list_response,
@@ -115,11 +116,9 @@ def handle(
         if path == "/api/trades":
             if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(jwt_claims):
                 raise_api_error(403, "forbidden", "Admin access required")
-            limit_str = params.get("limit", [None])[0] if params else None
-            limit = safe_limit(limit_str or "500", max_val=5000)
-            offset_str = params.get("offset", [None])[0] if params else None
-            offset = safe_offset(offset_str or "0")
-            status_filter = params.get("status", [None])[0] if params else None
+            limit = safe_limit(extract_param(params, "limit"), max_val=5000, default=500)
+            offset = safe_offset(extract_param(params, "offset") or "0")
+            status_filter = extract_param(params, "status")
 
             # SECURITY FIX: Validate status filter against whitelist (enum validation)
             valid_statuses = {

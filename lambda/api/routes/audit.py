@@ -53,8 +53,27 @@ def handle(
         return error_response(403, "forbidden", "Admin access required to view audit logs")
 
     try:
-        limit_str = params.get("limit", [None])[0] if params else None
-        offset_str = params.get("offset", [None])[0] if params else None
+        # CRITICAL: Fail-fast on malformed params. Extract safely with validation.
+        limit_str = None
+        offset_str = None
+
+        if params:
+            limit_list = params.get("limit")
+            if limit_list:
+                if not isinstance(limit_list, list) or not limit_list:
+                    raise ValueError("CRITICAL: 'limit' parameter must be a non-empty list")
+                limit_str = limit_list[0]
+                if limit_str and not isinstance(limit_str, str):
+                    limit_str = str(limit_str)
+
+            offset_list = params.get("offset")
+            if offset_list:
+                if not isinstance(offset_list, list) or not offset_list:
+                    raise ValueError("CRITICAL: 'offset' parameter must be a non-empty list")
+                offset_str = offset_list[0]
+                if offset_str and not isinstance(offset_str, str):
+                    offset_str = str(offset_str)
+
         limit = safe_limit(limit_str or "500", max_val=5000)
         offset = safe_offset(offset_str or "0")
         cur.execute("SET LOCAL statement_timeout = '10000ms'")

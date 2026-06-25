@@ -16,6 +16,7 @@ from pydantic import ValidationError
 from routes.utils import (
     error_response,
     execute_with_timeout,
+    extract_param,
     handle_db_error,
     json_response,
     list_response,
@@ -262,8 +263,7 @@ def _submit_contact(cur: cursor, body: dict[str, Any]) -> Any:
 def _get_submissions(cur: cursor, params: dict[str, Any]) -> Any:
     """Get contact submissions (admin-only)."""
     try:
-        limit_raw = params.get("limit", [None])[0] if params else None
-        limit = safe_limit(str(limit_raw) if limit_raw is not None else None, default=100)
+        limit = safe_limit(extract_param(params, "limit"), default=100)
         try:
             rows = execute_with_timeout(
                 cur,

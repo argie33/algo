@@ -9,6 +9,7 @@ import psycopg2.errors
 from database_query_service import DatabaseQueryService
 from psycopg2.extensions import cursor
 from routes.utils import (
+    extract_param,
     json_response,
     raise_api_error,
     raise_db_error,
@@ -291,10 +292,8 @@ def _dispatch(
     if path == "/api/algo/status":
         return _get_algo_status(cur)
     elif path == "/api/algo/trades":
-        limit_str = params.get("limit", [None])[0] if params and params.get("limit") else None
-        limit = safe_limit(limit_str or "100", max_val=10000)
-        _status_list = params.get("status") if params else None
-        status_filter = _status_list[0] if _status_list else None
+        limit = safe_limit(extract_param(params, "limit"), max_val=10000, default=100)
+        status_filter = extract_param(params, "status")
         if status_filter and status_filter not in (
             "open",
             "closed",
@@ -318,8 +317,7 @@ def _dispatch(
     elif path == "/api/algo/circuit-breakers":
         return _get_circuit_breakers(cur)
     elif path == "/api/algo/equity-curve":
-        days_str = params.get("limit", [None])[0] if params and params.get("limit") else None
-        days = safe_days(days_str or "180", max_val=365)
+        days = safe_days(extract_param(params, "limit"), max_val=365, default=180)
         return _get_equity_curve(cur, days)
     elif path == "/api/algo/data-status":
         return _get_data_status(cur)
@@ -332,37 +330,32 @@ def _dispatch(
         if not _check_admin_access(jwt_claims):
             logger.warning(f"Unauthorized algo patrol-log access attempt by {user_id}")
             raise_api_error(403, "forbidden", "Admin access required")
-        limit_str = params.get("limit", [None])[0] if params and params.get("limit") else None
-        limit = safe_limit(limit_str or "100", max_val=10000)
-        offset_str = params.get("offset", [None])[0] if params and params.get("offset") else None
-        offset = safe_offset(offset_str or "0")
+        limit = safe_limit(extract_param(params, "limit"), max_val=10000, default=100)
+        offset = safe_offset(extract_param(params, "offset") or "0")
         return _get_patrol_log(cur, limit, offset)
     elif path == "/api/algo/sector-rotation":
-        days_str = params.get("limit", [None])[0] if params and params.get("limit") else None
-        days = safe_days(days_str or "180", max_val=365)
+        days = safe_days(extract_param(params, "limit"), max_val=365, default=180)
         return _get_sector_rotation(cur, days)
     elif path == "/api/algo/sector-breadth":
         return _get_sector_breadth(cur)
     elif path == "/api/algo/sector-position-warnings":
         return _get_sector_position_warnings(cur)
     elif path == "/api/algo/swing-scores":
-        limit_str = params.get("limit", [None])[0] if params and params.get("limit") else None
-        limit = safe_limit(limit_str or "100", max_val=10000)
-        min_score_str = params.get("min_score", [None])[0] if params else None
+        limit = safe_limit(extract_param(params, "limit"), max_val=10000, default=100)
+        min_score_str = extract_param(params, "min_score")
         min_score = None
         if min_score_str:
             try:
                 min_score = float(min_score_str)
             except (ValueError, TypeError):
                 raise_api_error(400, "bad_request", "min_score must be numeric")
-        symbol_filter = params.get("symbol", [None])[0] if params else None
+        symbol_filter = extract_param(params, "symbol")
         if symbol_filter:
             if not re.match(r"^[A-Z0-9\-\^]{1,10}$", symbol_filter.upper()):
                 raise_api_error(400, "bad_request", "Invalid symbol format")
         return _get_swing_scores(cur, limit, min_score, symbol_filter)
     elif path == "/api/algo/swing-scores-history":
-        days_str = params.get("days", [None])[0] if params else None
-        days = safe_days(days_str or "30", max_val=365)
+        days = safe_days(extract_param(params, "days"), max_val=365, default=30)
         return _get_swing_scores_history(cur, days)
     elif path == "/api/algo/rejection-funnel":
         return _get_rejection_funnel(cur)
@@ -398,11 +391,9 @@ def _dispatch(
         if not _check_admin_access(jwt_claims):
             logger.warning(f"Unauthorized algo audit-log access attempt by {user_id}")
             raise_api_error(403, "forbidden", "Admin access required")
-        limit_str = params.get("limit", [None])[0] if params and params.get("limit") else None
-        limit = safe_limit(limit_str or "100", max_val=10000)
-        offset_str = params.get("offset", [None])[0] if params and params.get("offset") else None
-        offset = safe_offset(offset_str or "0")
-        action_type = params.get("action_type", [None])[0] if params else None
+        limit = safe_limit(extract_param(params, "limit"), max_val=10000, default=100)
+        offset = safe_offset(extract_param(params, "offset") or "0")
+        action_type = extract_param(params, "action_type")
         if action_type:
             action_type = action_type.lower()
             valid_action_types = {
@@ -453,31 +444,26 @@ def _dispatch(
         if not _check_admin_access(jwt_claims):
             logger.warning(f"Unauthorized execution history access attempt by {user_id}")
             raise_api_error(403, "forbidden", "Admin access required")
-        days_str = params.get("days", [None])[0] if params else None
-        days = safe_days(days_str or "7", max_val=90)
-        limit_str = params.get("limit", [None])[0] if params and params.get("limit") else None
-        limit = safe_limit(limit_str or "50", max_val=1000)
+        days = safe_days(extract_param(params, "days"), max_val=90, default=7)
+        limit = safe_limit(extract_param(params, "limit"), max_val=1000, default=50)
         return _get_orchestrator_execution_recent(cur, days, limit)
     elif path == "/api/algo/execution/failed":
         if not _check_admin_access(jwt_claims):
             logger.warning(f"Unauthorized execution history access attempt by {user_id}")
             raise_api_error(403, "forbidden", "Admin access required")
-        days_str = params.get("days", [None])[0] if params else None
-        days = safe_days(days_str or "30", max_val=90)
+        days = safe_days(extract_param(params, "days"), max_val=90, default=30)
         return _get_orchestrator_execution_failed(cur, days)
     elif path == "/api/algo/execution/patterns":
         if not _check_admin_access(jwt_claims):
             logger.warning(f"Unauthorized execution history access attempt by {user_id}")
             raise_api_error(403, "forbidden", "Admin access required")
-        days_str = params.get("days", [None])[0] if params else None
-        days = safe_days(days_str or "30", max_val=90)
+        days = safe_days(extract_param(params, "days"), max_val=90, default=30)
         return _get_orchestrator_execution_patterns(cur, days)
     elif path == "/api/algo/execution/stats":
         if not _check_admin_access(jwt_claims):
             logger.warning(f"Unauthorized execution history access attempt by {user_id}")
             raise_api_error(403, "forbidden", "Admin access required")
-        days_str = params.get("days", [None])[0] if params else None
-        days = safe_days(days_str or "7", max_val=90)
+        days = safe_days(extract_param(params, "days"), max_val=90, default=7)
         return _get_orchestrator_execution_stats(cur, days)
     elif path == "/api/algo/daily-return-histogram":
         if path in ADMIN_RATE_LIMITS:

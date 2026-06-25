@@ -11,6 +11,7 @@ from routes.utils import (
     check_data_freshness,
     error_response,
     execute_with_timeout,
+    extract_param,
     handle_db_error,
     list_response,
     safe_json_serialize,
@@ -37,7 +38,7 @@ def handle(
 
         if symbol:
             limit = safe_limit(
-                params.get("limit", [None])[0] if params else None,
+                extract_param(params, "limit"),
                 max_val=200,
                 default=20,
             )
@@ -80,7 +81,7 @@ def handle(
             return result
 
         limit = safe_limit(
-            params.get("limit", [None])[0] if params else None,
+            extract_param(params, "limit"),
             max_val=1000,
             default=100,
         )

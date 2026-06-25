@@ -125,11 +125,15 @@ def get_portfolio_pnl(max_attempts: int = 3):
             conn.close()
 
             intraday_change = current_pnl - open_pnl
-            variance = intraday_change / total_equity if total_equity > 0 else 0.0
+            if total_equity <= 0:
+                logger.error(f"Cannot calculate portfolio variance: total_equity invalid ({total_equity})")
+                variance = None
+            else:
+                variance = intraday_change / total_equity
 
             logger.info(
                 f"Portfolio variance: current_pnl=${current_pnl:.2f}, open_pnl=${open_pnl:.2f}, "
-                f"equity=${total_equity:.2f}, intraday_change=${intraday_change:.2f}, variance={variance:.1%}"
+                f"equity=${total_equity:.2f}, intraday_change=${intraday_change:.2f}, variance={variance if variance is not None else 'INVALID'}"
             )
             return current_pnl, open_pnl, variance
 

@@ -120,9 +120,12 @@ def _calculate_pre_trade_impact(cur: cursor, body: dict[str, Any]) -> Any:
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Unexpected error: {e}") from e
 
+        if portfolio_value <= 0:
+            return error_response(400, "invalid_portfolio", f"Portfolio value invalid ({portfolio_value})")
+
         current_sector_dollars = sector_exposure.get(sector, 0.0) if sector else 0.0
         projected_sector_dollars = current_sector_dollars + actual_dollars
-        projected_sector_pct = (projected_sector_dollars / portfolio_value * 100) if portfolio_value > 0 else 0
+        projected_sector_pct = projected_sector_dollars / portfolio_value * 100
 
         max_positions = 15
         if open_positions is None:
@@ -144,7 +147,7 @@ def _calculate_pre_trade_impact(cur: cursor, body: dict[str, Any]) -> Any:
                 "available_slots": available_slots,
                 "sector_exposure": {
                     "current_pct": format_decimal_string(
-                        ((current_sector_dollars / portfolio_value * 100) if portfolio_value > 0 else 0),
+                        (current_sector_dollars / portfolio_value * 100),
                         precision=2,
                     ),
                     "projected_pct": format_decimal_string(projected_sector_pct, precision=2),

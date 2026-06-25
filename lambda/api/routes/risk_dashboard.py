@@ -214,7 +214,9 @@ def _fetch_drawdown_info(cur: cursor) -> Any:
 
     peak = float(row["peak"])
     current = float(row["current"])
-    drawdown_pct = ((peak - current) / peak) * 100 if peak > 0 else 0
+    if peak <= 0:
+        return {"current_drawdown_pct": None, "status": "invalid_peak_value", "error": f"Peak value invalid ({peak})"}
+    drawdown_pct = (peak - current) / peak * 100
 
     return {
         "current_drawdown_pct": max(0, drawdown_pct),
