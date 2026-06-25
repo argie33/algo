@@ -191,12 +191,21 @@ def _wrap_response(response: Any) -> Any:
     # Errors are returned as-is (already include errorType and _error)
     if response.get("errorType"):
         return response
-    status_code = response.get("statusCode", 200)
+    status_code = response.get("statusCode")
+    if status_code is None:
+        raise RuntimeError(
+            "[API_RESPONSE] Handler returned response dict without statusCode. "
+            "All API responses must include an explicit statusCode field. "
+            f"Response: {response}"
+        )
     try:
         if int(status_code) >= 400:
             return response
-    except (ValueError, TypeError):
-        pass
+    except (ValueError, TypeError) as e:
+        raise RuntimeError(
+            f"[API_RESPONSE] Invalid statusCode value '{status_code}' (must be integer). "
+            f"Response: {response}"
+        ) from e
 
     # Fix double-nested data issue: if data contains only a 'data' field (or data + extra fields), unwrap it
     if response.get("statusCode") == 200 and "data" in response:

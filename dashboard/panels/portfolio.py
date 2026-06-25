@@ -525,12 +525,14 @@ def panel_portfolio_perf_expanded(  # noqa: C901
 
         try:
             wr_v, _adj_w, adj_l = _calculate_adjusted_win_rate(perf, pos)
-            losing_open = (adj_l or 0) - (closed_losses or 0)
+            if adj_l is None:
+                raise ValueError("Adjusted loss count is None — cannot calculate open losing positions")
+            if closed_losses is None:
+                raise ValueError("Closed losses count is None — cannot calculate open losing positions")
+            losing_open = adj_l - closed_losses
         except ValueError as e:
             logger.error(f"Win rate calculation failed: {e}")
             raise
-            adj_l = 0
-            losing_open = 0
         wr_label = "Win Rate (adj.):" if losing_open > 0 else "Win Rate:"
 
         wrc = G if wr_v >= 45 else (Y if wr_v >= 40 else R)

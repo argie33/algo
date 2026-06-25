@@ -151,14 +151,18 @@ def _populate_signal_trade_performance(log_phase_result_fn: Callable[..., Any]) 
     try:
         stpp = SignalTradePerformancePopulator()
         stpp_result = stpp.populate_closed_trades(lookback_days=7)
-        trades_processed = stpp_result.get("trades_processed", 0)
+        trades_processed = stpp_result.get("trades_processed")
+        if trades_processed is None:
+            raise ValueError("Signal trade performance populator returned None for trades_processed count")
         logger.info(f"Signal trade performance: {stpp_result.get('message', 'N/A')}")
         if stpp_result.get("ic_values"):
             logger.info(f"  IC values computed: {stpp_result['ic_values']}")
     except Exception as e:
         logger.warning(f"Signal trade performance failed (numpy/scipy not available): {e}")
+        trades_processed = 0  # Fall back to 0 only if exception occurred
 
-    trades_processed = stpp_result.get("trades_processed", 0)
+    if trades_processed is None:
+        raise ValueError("Signal trade performance: trades_processed count is missing")
     log_phase_result_fn(
         7,
         "signal_attribution",

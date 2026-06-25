@@ -85,23 +85,27 @@ class FearGreedIndexLoader(OptimalLoader):
                     # Validate current reading score field
                     score = raw.get("score")
                     if score is None:
-                        score = raw.get("value")
-                    if score is None:
-                        logger.warning("CNN API current fear_and_greed missing both 'score' and 'value' fields; skipping current reading")
-                    else:
-                        from datetime import datetime as _dt
+                        raise RuntimeError(
+                            "[FEAR_GREED] CNN API current fear_and_greed missing required 'score' field. "
+                            "Cannot assess market sentiment without this metric."
+                        )
 
-                        rating = raw.get("rating")
-                        if rating is None:
-                            logger.warning("Fear & Greed entry missing 'rating' field; skipping")
-                        else:
-                            entries.append(
-                                {
-                                    "_date": _dt.utcnow().strftime("%Y-%m-%d"),
-                                    "y": score,
-                                    "rating": rating,
-                                }
-                            )
+                    from datetime import datetime as _dt
+
+                    rating = raw.get("rating")
+                    if rating is None:
+                        raise RuntimeError(
+                            "[FEAR_GREED] CNN API entry missing required 'rating' field. "
+                            "Sentiment classification is required for trading decisions."
+                        )
+
+                    entries.append(
+                        {
+                            "_date": _dt.utcnow().strftime("%Y-%m-%d"),
+                            "y": score,
+                            "rating": rating,
+                        }
+                    )
                 else:
                     entries = raw
 
@@ -126,18 +130,16 @@ class FearGreedIndexLoader(OptimalLoader):
                             continue
                         value = entry.get("y")
                         if value is None:
-                            value = entry.get("value")
-                        if value is None:
-                            logger.debug(
-                                f"Fear & Greed entry skipped — missing value field on {entry_date} "
-                                f"(y={entry.get('y')}, value={entry.get('value')})"
+                            raise ValueError(
+                                f"[FEAR_GREED] Entry on {entry_date} missing required 'y' (value) field. "
+                                "Cannot use incomplete Fear & Greed data for sentiment analysis."
                             )
-                            continue
                         label = entry.get("rating")
                         if label is None:
-                            label = entry.get("description")
-                        if label is None:
-                            label = "Neutral"
+                            raise ValueError(
+                                f"[FEAR_GREED] Entry on {entry_date} missing required 'rating' (label) field. "
+                                "Sentiment classification is required; cannot default to 'Neutral'."
+                            )
                         rows.append(
                             {
                                 "date": entry_date,

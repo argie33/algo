@@ -80,11 +80,17 @@ def run(
             error_msg = "(no error details provided)"
 
         if result["success"]:
+            positions_count = result.get("positions")
+            if positions_count is None:
+                raise RuntimeError(
+                    "Reconciliation succeeded but position count is missing. "
+                    "Cannot log success without position verification count."
+                )
             log_phase_result_fn(
                 "3a",
                 "reconciliation",
                 "success",
-                f"{result.get('positions', 0)} positions verified",
+                f"{positions_count} positions verified",
             )
         elif "unavailable" in error_msg.lower() or "401" in error_msg or "unauthorized" in error_msg.lower():
             # Alpaca 401 on weekends/outside market hours is expected — treat as skip, not alert

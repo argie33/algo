@@ -189,11 +189,17 @@ class MarketConstituentsLoader(OptimalLoader):
                         logger.debug(f"Excluding {sym} ({name}) by security name pattern")
                         continue
 
+                    exchange = r.get("Listing Exchange", "").upper()
+                    if not exchange:
+                        raise ValueError(
+                            f"[MARKET_CONSTITUENTS] Symbol {sym} missing required 'Listing Exchange' field. "
+                            "Cannot determine proper exchange for market constituent."
+                        )
                     rows.append(
                         {
                             "symbol": sym,
                             "security_name": name,
-                            "exchange": r.get("Listing Exchange", "NASDAQ").upper(),
+                            "exchange": exchange,
                             "etf": "N",
                         }
                     )

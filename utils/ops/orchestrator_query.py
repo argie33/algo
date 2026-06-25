@@ -247,10 +247,16 @@ def print_recent_runs(days: int = 7, limit: int | None = 10) -> None:
     logger.info("-" * 110)
 
     for run in runs:
-        ok = run["phases_completed"] or 0
-        halt = run["phases_halted"] or 0
-        err = run["phases_errored"] or 0
-        summary = (run["summary"] or "")[:45]
+        ok = run.get("phases_completed")
+        halt = run.get("phases_halted")
+        err = run.get("phases_errored")
+        if ok is None or halt is None or err is None:
+            logger.warning(
+                f"Orchestrator run {run.get('run_id')} has missing phase counts: "
+                f"completed={ok}, halted={halt}, errored={err}. Skipping display."
+            )
+            continue
+        summary = (run.get("summary") or "")[:45]
 
         logger.info(
             f"{run['run_id']:<20} {run['run_date']:<12} {run['status']:<10} {ok}/{halt}/{err:<10} {summary:<50}"

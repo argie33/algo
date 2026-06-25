@@ -159,11 +159,13 @@ class RejectionTracker:
                 return {"total_signals": 0, "tiers": []}
 
             total, t1, t2, t3, t4, t5 = row
-            t1 = t1 or 0
-            t2 = t2 or 0
-            t3 = t3 or 0
-            t4 = t4 or 0
-            t5 = t5 or 0
+            if total is None:
+                raise ValueError("Rejection tier query returned None for total signal count")
+            if t1 is None or t2 is None or t3 is None or t4 is None or t5 is None:
+                raise ValueError(
+                    f"Rejection tier query returned None for tier counts: t1={t1}, t2={t2}, t3={t3}, t4={t4}, t5={t5}. "
+                    "All tier counts are required for accuracy."
+                )
 
             return {
                 "total_signals": total,
@@ -270,13 +272,21 @@ class RejectionTracker:
             if not row:
                 raise RuntimeError(f"Failed to retrieve rejection summary for date {eval_date}")
 
+            qualified, t1, t2, t3, t4, t5 = row
+            if any(x is None for x in [qualified, t1, t2, t3, t4, t5]):
+                raise ValueError(
+                    f"Rejection summary query returned incomplete data for {eval_date}: "
+                    f"qualified={qualified}, t1={t1}, t2={t2}, t3={t3}, t4={t4}, t5={t5}. "
+                    "All rejection counts are required."
+                )
+
             return {
-                "qualified": row[0] or 0,
-                "rejected_tier_1": row[1] or 0,
-                "rejected_tier_2": row[2] or 0,
-                "rejected_tier_3": row[3] or 0,
-                "rejected_tier_4": row[4] or 0,
-                "rejected_tier_5": row[5] or 0,
+                "qualified": qualified,
+                "rejected_tier_1": t1,
+                "rejected_tier_2": t2,
+                "rejected_tier_3": t3,
+                "rejected_tier_4": t4,
+                "rejected_tier_5": t5,
             }
 
         try:

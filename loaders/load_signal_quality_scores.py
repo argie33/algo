@@ -529,9 +529,10 @@ class SignalQualityScoresLoader(OptimalLoader):
                             elif pct >= -30:
                                 distance_from_high_score = 4
                     except (ValueError, TypeError) as e:
-                        logger.warning(
-                            f"[SQS] Could not parse percent_from_52w_high '{pct_from_high}' for distance score: {e} — using default 0"
-                        )
+                        raise ValueError(
+                            f"[SQS] Critical: Cannot parse percent_from_52w_high '{pct_from_high}' for {symbol}. "
+                            f"This field is required for accurate signal quality scoring. Raw error: {e}"
+                        ) from e
 
                 # Institutional ownership score (0-10)
                 institutional_ownership_score = 0
@@ -557,9 +558,10 @@ class SignalQualityScoresLoader(OptimalLoader):
                         else:
                             market_stage_score = 2
                     except (ValueError, TypeError) as e:
-                        logger.warning(
-                            f"[SQS] Could not parse weinstein_stage '{weinstein_stage}' for market stage score: {e} — using default 0"
-                        )
+                        raise ValueError(
+                            f"[SQS] Critical: Cannot parse weinstein_stage '{weinstein_stage}' for {symbol}. "
+                            f"This field is required for market stage analysis. Raw error: {e}"
+                        ) from e
 
                 # VCP pattern score (0-10)
                 vcp_pattern_score = 0
@@ -576,9 +578,10 @@ class SignalQualityScoresLoader(OptimalLoader):
                         else:
                             vcp_pattern_score = 2
                     except (ValueError, TypeError) as e:
-                        logger.warning(
-                            f"[SQS] Could not parse vcp_strength '{vcp_strength}' for VCP pattern score: {e} — using default 0"
-                        )
+                        raise ValueError(
+                            f"[SQS] Critical: Cannot parse vcp_strength '{vcp_strength}' for {symbol}. "
+                            f"This field is required for VCP pattern analysis. Raw error: {e}"
+                        ) from e
 
                 # Distribution days score (placeholder - would need distribution_days table)
                 distribution_days_score = 5

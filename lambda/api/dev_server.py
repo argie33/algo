@@ -292,7 +292,13 @@ class APIHandler(BaseHTTPRequestHandler):
             logger.info(f"[REQ_END] {method} {path} in {elapsed:.2f}s")
 
             # Parse response
-            status_code = response.get("statusCode", 200)
+            status_code = response.get("statusCode")
+            if status_code is None:
+                raise RuntimeError(
+                    "[DEV_SERVER] Lambda handler returned response without statusCode. "
+                    "All responses must include explicit statusCode. "
+                    f"Response: {response}"
+                )
             response_body = response.get("body", "{}")
             response_headers = response.get("headers")
             if response_headers is None:

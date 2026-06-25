@@ -215,7 +215,9 @@ class VectorizedSwingScoresLoader:
                 if "minervini_trend_score" not in trend:
                     raise ValueError(f"{symbol}: trend data missing required 'minervini_trend_score' field")
                 minervini = trend.get("minervini_trend_score")
-                minervini = float(minervini) if pd.notna(minervini) else 0.0
+                if not pd.notna(minervini):
+                    raise ValueError(f"{symbol}: minervini_trend_score is NaN on {date} — required for trend-based scoring")
+                minervini = float(minervini)
 
                 # Skip stocks with insufficient trend strength (gate: minervini >= 5)
                 if minervini < 5:
@@ -231,7 +233,9 @@ class VectorizedSwingScoresLoader:
                 if "weinstein_stage" not in trend:
                     raise ValueError(f"{symbol}: trend data missing required 'weinstein_stage' field")
                 weinstein = trend.get("weinstein_stage")
-                weinstein = int(weinstein) if pd.notna(weinstein) else 0
+                if not pd.notna(weinstein):
+                    raise ValueError(f"{symbol}: weinstein_stage is NaN on {date} — required for market stage filtering")
+                weinstein = int(weinstein)
                 if weinstein != 2:
                     logger.debug(f"{symbol}: stage={weinstein} != 2, skipping (not uptrend)")
                     continue
