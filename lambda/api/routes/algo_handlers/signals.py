@@ -64,14 +64,20 @@ def _calculate_pre_trade_impact(cur: cursor, body: dict[str, Any]) -> Any:
         if not portfolio_value or portfolio_value <= 0:
             return error_response(503, "service_unavailable", "Portfolio value unavailable")
 
-        # Determine position size
+        # Determine position size - CRITICAL: both position_dollars and position_pct are optional,
+        # but at least one must be provided. Do NOT default to implicit 0.75% — caller must specify intent.
         entry_price = req.entry_price
         if req.position_dollars:
             position_dollars = req.position_dollars
         elif req.position_pct:
             position_dollars = portfolio_value * (req.position_pct / 100)
         else:
-            position_dollars = portfolio_value * 0.0075  # default 0.75% risk unit
+            return error_response(
+                400,
+                "missing_position_size",
+                "Pre-trade impact requires either position_dollars or position_pct. "
+                "Cannot default to implicit 0.75% — caller must explicitly specify intended position size."
+            )
 
         if not entry_price or entry_price <= 0:
             return error_response(400, "invalid_entry_price", "Entry price must be provided and positive")

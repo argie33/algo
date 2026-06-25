@@ -366,6 +366,13 @@ class ValueAtRisk:
                     spy_mean_val = sum(spy_returns) / len(spy_returns)
                     spy_mean = Decimal(str(spy_mean_val))
                     spy_var = Decimal(str(sum((r - spy_mean) ** 2 for r in spy_returns) / len(spy_returns)))
+                else:
+                    raise RuntimeError(
+                        f"[VAR CALCULATION CRITICAL] Cannot compute portfolio beta: insufficient SPY price history. "
+                        f"Expected 60+ days of SPY data (got {len(spy_rows)} rows). "
+                        f"SPY data is fundamental for market-relative risk assessment. "
+                        f"Check that load_prices has populated price_daily with SPY data."
+                    )
 
                 total_beta_exposure = Decimal(0)
                 positions_list = []
@@ -388,65 +395,73 @@ class ValueAtRisk:
                     position_weight = position_value / portfolio_value if portfolio_value > 0 else Decimal(0)
 
                     # Compute 60-day beta via covariance with SPY
-                    estimated_beta = Decimal("1.0")
-                    if spy_returns and spy_var > 0:
-                        try:
-                            cur.execute(
-                                """
-                                SELECT close FROM price_daily
-                                WHERE symbol = %s
-                                ORDER BY date DESC LIMIT 61
-                                """,
-                                (symbol,),
+                    if spy_var <= 0:
+                        raise RuntimeError(
+                            f"[VAR CALCULATION CRITICAL] SPY variance is zero or negative ({spy_var}). "
+                            f"Cannot compute meaningful beta without market volatility. "
+                            f"Check SPY price data quality."
+                        )
+                    try:
+                        cur.execute(
+                            """
+                            SELECT close FROM price_daily
+                            WHERE symbol = %s
+                            ORDER BY date DESC LIMIT 61
+                            """,
+                            (symbol,),
+                        )
+                        stock_rows = cur.fetchall()
+                        if len(stock_rows) < 2:
+                            raise ValueError(
+                                f"[VAR CALCULATION] {symbol}: insufficient historical price data (need 2+ prices, got {len(stock_rows)}). "
+                                f"Cannot calculate beta for portfolio VAR. Ensure price_daily has at least 60 days of data."
                             )
-                            stock_rows = cur.fetchall()
-                            if len(stock_rows) < 2:
+                        stock_prices = []
+                        for _i, r in enumerate(stock_rows):
+                            if r[0] is None:
                                 raise ValueError(
-                                    f"[VAR CALCULATION] {symbol}: insufficient historical price data (need 2+ prices, got {len(stock_rows)}). "
-                                    f"Cannot calculate beta for portfolio VAR. Ensure price_daily has at least 60 days of data."
+                                    f"[VAR CALCULATION FAILED] {symbol}: NULL historical price in price_daily. "
+                                    f"Cannot calculate beta without complete price history."
                                 )
-                            stock_prices = []
-                            for _i, r in enumerate(stock_rows):
-                                if r[0] is None:
-                                    raise ValueError(
-                                        f"[VAR CALCULATION FAILED] {symbol}: NULL historical price in price_daily. "
-                                        f"Cannot calculate beta without complete price history."
-                                    )
-                                price = float(r[0])
-                                if price <= 0:
-                                    raise ValueError(
-                                        f"[VAR CALCULATION FAILED] {symbol}: invalid historical price ({price}). "
-                                        f"All prices must be positive for beta calculation."
-                                    )
-                                stock_prices.append(Decimal(str(price)))
-                            stock_prices = list(reversed(stock_prices))
-                            if len(stock_prices) < 2:
+                            price = float(r[0])
+                            if price <= 0:
                                 raise ValueError(
-                                    f"[VAR CALCULATION] {symbol}: insufficient valid prices ({len(stock_prices)}). "
-                                    f"Cannot compute beta."
+                                    f"[VAR CALCULATION FAILED] {symbol}: invalid historical price ({price}). "
+                                    f"All prices must be positive for beta calculation."
                                 )
-                            stock_returns = [
-                                (stock_prices[i] - stock_prices[i - 1]) / stock_prices[i - 1]
-                                for i in range(1, len(stock_prices))
-                            ]
-                            n = min(len(stock_returns), len(spy_returns))
-                            if n < 20:
-                                raise ValueError(
-                                    f"[VAR CALCULATION] {symbol}: insufficient return periods ({n} < 20 required). "
-                                    f"Cannot calculate statistically significant beta."
-                                )
-                            s_rets = stock_returns[-n:]
-                            m_rets = spy_returns[-n:]
-                            s_mean = Decimal(str(sum(s_rets) / n))
-                            m_mean = Decimal(str(sum(m_rets) / n))
-                            cov = Decimal(
-                                str(sum((s_rets[i] - s_mean) * (m_rets[i] - m_mean) for i in range(n)) / n)
+                            stock_prices.append(Decimal(str(price)))
+                        stock_prices = list(reversed(stock_prices))
+                        if len(stock_prices) < 2:
+                            raise ValueError(
+                                f"[VAR CALCULATION] {symbol}: insufficient valid prices ({len(stock_prices)}). "
+                                f"Cannot compute beta."
                             )
-                            var = Decimal(str(sum((r - m_mean) ** 2 for r in m_rets) / n))
-                            if var > 0:
-                                estimated_beta = (cov / var).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-                        except (ValueError, ZeroDivisionError, TypeError) as e:
-                            raise RuntimeError(f"Beta calculation failed for {symbol}: {e}") from e
+                        stock_returns = [
+                            (stock_prices[i] - stock_prices[i - 1]) / stock_prices[i - 1]
+                            for i in range(1, len(stock_prices))
+                        ]
+                        n = min(len(stock_returns), len(spy_returns))
+                        if n < 20:
+                            raise ValueError(
+                                f"[VAR CALCULATION] {symbol}: insufficient return periods ({n} < 20 required). "
+                                f"Cannot calculate statistically significant beta."
+                            )
+                        s_rets = stock_returns[-n:]
+                        m_rets = spy_returns[-n:]
+                        s_mean = Decimal(str(sum(s_rets) / n))
+                        m_mean = Decimal(str(sum(m_rets) / n))
+                        cov = Decimal(
+                            str(sum((s_rets[i] - s_mean) * (m_rets[i] - m_mean) for i in range(n)) / n)
+                        )
+                        var = Decimal(str(sum((r - m_mean) ** 2 for r in m_rets) / n))
+                        if var <= 0:
+                            raise ValueError(
+                                f"[VAR CALCULATION] {symbol}: stock variance is zero or negative ({var}). "
+                                f"Cannot compute beta with zero volatility."
+                            )
+                        estimated_beta = (cov / var).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                    except (ValueError, ZeroDivisionError, TypeError) as e:
+                        raise RuntimeError(f"Beta calculation failed for {symbol}: {e}") from e
 
                     weighted_beta = estimated_beta * position_weight
                     total_beta_exposure += weighted_beta
@@ -537,21 +552,28 @@ class ValueAtRisk:
                 sector_exposure: dict[str, float] = {}
                 industry_exposure: dict[str, float] = {}
 
-                excluded_count = 0
+                # CRITICAL: Validate all position pricing BEFORE computing concentration
+                # Concentration metrics are only meaningful if computed on complete position data
+                for symbol, qty, cur_price, _entry_price, sector, industry in positions:
+                    if cur_price is None or float(cur_price) <= 0:
+                        raise ValueError(
+                            f"[CONCENTRATION CRITICAL] Position {symbol} has invalid or missing current_price ({cur_price}). "
+                            f"Concentration report cannot be computed on incomplete position data — "
+                            f"result would be misleading and cause incorrect risk assessment. "
+                            f"All positions must have valid current pricing. "
+                            f"Check that positions table is up-to-date with current market prices."
+                        )
+
                 for symbol, qty, cur_price, _entry_price, sector, industry in positions:
                     # CRITICAL: Do NOT use entry_price as fallback for current_price
-                    if cur_price is None or float(cur_price) <= 0:
-                        excluded_count += 1
-                        logger.warning(
-                            f"[CONCENTRATION] {symbol}: excluded (current_price={cur_price}). "
-                            f"Check positions table current_price column."
-                        )
-                        continue
                     position_value = float(Decimal(str(qty)) * Decimal(str(cur_price)))
                     portfolio_value_float = float(portfolio_value)
                     if portfolio_value_float <= 0:
-                        logger.warning(f"CRITICAL: Portfolio value invalid ({portfolio_value_float}) for position {symbol}")
-                        continue
+                        raise RuntimeError(
+                            f"Portfolio value is invalid or zero ({portfolio_value_float}). "
+                            f"Cannot compute meaningful concentration metrics. "
+                            f"Portfolio must be reconciled with valid total value."
+                        )
                     position_pct = position_value / portfolio_value_float * 100
 
                     top_holdings.append(
@@ -579,20 +601,6 @@ class ValueAtRisk:
                     industry_exposure[industry] += position_pct
 
                 top_5_pct = sum([h["pct_of_portfolio"] for h in top_holdings[:5]])
-
-                # Diagnostic: log if positions exist but concentration is 0%
-                if len(positions) > 0 and top_5_pct == 0:
-                    logger.error(
-                        f"[CONCENTRATION DATA ISSUE] {len(positions)} positions in DB but top_5_pct={top_5_pct}. "
-                        f"Excluded: {excluded_count}. Portfolio value: ${portfolio_value}. "
-                        f"Likely cause: positions missing current_price. "
-                        f"Check algo_positions table for NULL current_price values."
-                    )
-                elif excluded_count > 0:
-                    logger.warning(
-                        f"[CONCENTRATION] {excluded_count}/{len(positions)} positions excluded "
-                        f"(no valid pricing), result: {top_5_pct:.1f}%"
-                    )
 
                 return {
                     "portfolio_value": round(portfolio_value, 2),

@@ -42,7 +42,6 @@ class BuySignalGenerationHandler:
                 f"technical data unavailable. Signal generation requires OHLCV and indicator values."
             )
         signals = []
-        skipped_count = 0
 
         for i, row in enumerate(rows):
             # Extract indicator values
@@ -60,14 +59,15 @@ class BuySignalGenerationHandler:
             adx = row.get("adx")
             mansfield_rs = row.get("mansfield_rs")
 
-            # Validate required OHLC fields
+            # Validate required OHLC fields - CRITICAL for signal generation
             if close is None or high is None or low is None:
-                skipped_count += 1
-                logger.debug(
-                    f"{symbol} [{row.get('date')}]: Skipping row - missing required OHLC field "
-                    f"(close={close}, high={high}, low={low})"
+                raise ValueError(
+                    f"[SIGNAL GENERATION CRITICAL] {symbol} [{row.get('date')}]: "
+                    f"Cannot generate signals without complete OHLC data. "
+                    f"close={close}, high={high}, low={low}. "
+                    f"Check that technical_data_daily loader populated all OHLC fields. "
+                    f"Incomplete price data indicates upstream data loading failure."
                 )
-                continue
 
             # Phase 1: Find swing pivots
             recent_swing_high, swing_high_sma50 = self._find_swing_high(symbol, rows, i)
@@ -142,12 +142,6 @@ class BuySignalGenerationHandler:
                     "technical_data_age_days": tech_data_age,
                 }
                 signals.append(signal)
-
-        if skipped_count > 0:
-            logger.warning(
-                f"{symbol}: Skipped {skipped_count} row(s) during signal generation "
-                f"due to missing OHLC fields - {len(signals)} signal(s) generated"
-            )
 
         return signals
 

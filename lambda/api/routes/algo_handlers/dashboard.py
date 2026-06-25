@@ -84,28 +84,29 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:
 
     items = []
     sector_risk: dict[str, float] = {}  # For aggregating sector allocation
-    invalid_positions: list[dict[str, str]] = []  # Track errors for fail-fast
 
     for p in positions:
         d = safe_json_serialize(safe_dict_convert(p))
         symbol = d.get("symbol", "unknown")
 
-        # Validate critical position data (required for any position to be displayed)
+        # CRITICAL: Validate position_value exists and is valid - required for dashboard display
+        # All positions must have position_value; missing or invalid data indicates data quality issue
         pos_val_raw = d.get("position_value")
         if pos_val_raw is None:
-            invalid_positions.append({
-                "symbol": symbol,
-                "error": "position_value is None"
-            })
-            continue
+            raise RuntimeError(
+                f"[DASHBOARD CRITICAL] Position {symbol} has missing position_value. "
+                f"Cannot display portfolio without complete position data. "
+                f"All positions must have valid position_value for accurate risk assessment. "
+                f"Check algo_positions table for NULL or missing position_value fields."
+            )
         try:
             pos_val = float(pos_val_raw)
         except (ValueError, TypeError) as e:
-            invalid_positions.append({
-                "symbol": symbol,
-                "error": f"invalid position_value: {pos_val_raw} ({e})"
-            })
-            continue
+            raise RuntimeError(
+                f"[DASHBOARD CRITICAL] Position {symbol} has invalid position_value ({pos_val_raw}): {e}. "
+                f"Position data corruption detected. "
+                f"All positions must have numeric position_value for dashboard display."
+            )
 
         # Compute ladder_pct_* fields for visualization (Issue #2)
         # These fields are OPTIONAL - positions without stop/target prices are still valid
@@ -208,26 +209,6 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:
         if sector not in sector_risk:
             sector_risk[sector] = 0
         sector_risk[sector] += pos_val
-
-    # Only fail if we have no valid positions to display (complete data loss)
-    if not items and positions:
-        error_details = "\n".join(
-            f"  - {p['symbol']}: {p['error']}" for p in invalid_positions[:10]
-        )
-        if len(invalid_positions) > 10:
-            error_details += f"\n  ... and {len(invalid_positions) - 10} more"
-        raise RuntimeError(
-            f"CRITICAL: All {len(positions)} positions missing position_value. "
-            f"Cannot display position list:\n{error_details}"
-        )
-
-    # Log skipped positions with missing optional fields (non-fatal)
-    if invalid_positions:
-        logger.warning(
-            f"Skipped {len(invalid_positions)} positions with incomplete data "
-            f"(missing position_value or invalid values). "
-            f"These will not display in dashboard but other positions will be shown."
-        )
 
     # Compute sector_allocation array after processing all positions (E5 fix)
     # Use absolute values to handle portfolios with shorts: total = sum of |position values|
