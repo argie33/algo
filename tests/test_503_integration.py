@@ -76,26 +76,22 @@ def test_dashboard_survives_mkt_503_with_stale_fallback():
         with patch("dashboard.fetchers_market._markets_cache", {}):
             result = _get_markets_cached()
 
-            # Without the fix, this would be just:
-            # {"_error": "API error 503 after 4 attempts"}
-            # With our fix, it should have stale data:
+            # With fail-fast behavior: market data is critical
+            # 503 errors should return error, not stale data (stale prices could cause incorrect position sizing)
             assert result is not None
             assert isinstance(result, dict)
-            print(f"Result has stale data: {result.get('_data_stale')}")
-            print(f"Result has current field: {'current' in result}")
+            print(f"Result has error: {result.get('_error')}")
+            print(f"Result is transient 503: {result.get('_is_transient_503')}")
 
-            # Verify the stale data is usable
-            if result.get("_data_stale"):
-                current = result.get("current")
-                assert current is not None
-                assert current.get("spy_close") == 500.5
-                assert current.get("regime") == "healthy_uptrend"
-                print(
-                    "[OK] Dashboard survives mkt 503 with stale SPY data fallback: "
-                    f"SPY=${current.get('spy_close')}"
-                )
-            else:
-                raise AssertionError("Expected stale data fallback")
+            # Verify fail-fast: error is returned, no stale fallback
+            assert result.get("_error") is not None
+            assert "503" in result["_error"]
+            assert result.get("_data_stale") is not True
+            assert "current" not in result  # No stale data served
+            print(
+                "[OK] Dashboard fails fast on mkt 503 (no stale fallback for critical data): "
+                f"Error={result.get('_error')}"
+            )
 
 
 def test_exp_factors_skips_retry_on_503():

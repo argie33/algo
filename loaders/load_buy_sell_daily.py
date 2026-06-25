@@ -212,7 +212,7 @@ class SignalsDailyLoader(OptimalLoader):
                 raise RuntimeError(
                     f"[BUY_SELL_DAILY] Failed to read watermark for {symbol}: {e}. "
                     "Cannot determine incremental load point for buy/sell signal computation."
-                ) from None
+                ) from e
 
         if since is None:
             start = end - timedelta(days=30)
@@ -303,7 +303,7 @@ class SignalsDailyLoader(OptimalLoader):
             raise RuntimeError(
                 f"[BUY_SELL_DAILY] Failed to validate data for {symbol}: {e}. "
                 "Cannot generate signals without validation."
-            ) from None
+            ) from e
 
         # Fetch required data for signal generation
         rows = self._fetch_signal_data(symbol, start, end)
@@ -429,7 +429,7 @@ class SignalsDailyLoader(OptimalLoader):
             raise RuntimeError(
                 f"[BUY_SELL] Failed to fetch signal data for {symbol}: {e}. "
                 "Cannot generate signals without complete technical data."
-            ) from None
+            ) from e
 
     def _generate_signals(self, symbol: str, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Generate buy/sell signals matching Pine Script pivot-breakout logic.
@@ -503,7 +503,7 @@ def main() -> int:
                 logger.warning("No symbols found in stock_symbols table - exiting")
                 return 1
     except Exception as e:
-        raise RuntimeError(f"Failed to fetch active symbols: {e}. Cannot proceed without symbol list.") from None
+        raise RuntimeError(f"Failed to fetch active symbols: {e}. Cannot proceed without symbol list.") from e
 
     logger.info(f"Starting buy_sell_daily loader with {len(symbols)} symbols, parallelism={args.parallelism}")
 
@@ -570,7 +570,12 @@ def main() -> int:
                 )
                 return 1
 
-            # Check coverage: technical_data_daily must have at least 75% symbol coverage
+            if not symbols:
+                raise RuntimeError(
+                    "[DEPENDENCY] Symbol list is empty. Cannot calculate coverage percentage. "
+                    "Check stock_symbols table and active symbol configuration."
+                )
+
             cur.execute("""
                 SELECT COUNT(DISTINCT symbol) FROM technical_data_daily
                 WHERE date = (SELECT MAX(date) FROM technical_data_daily)
@@ -578,7 +583,7 @@ def main() -> int:
             cur_row = cur.fetchone()
             tech_symbol_count = cur_row[0] if cur_row else 0
 
-            coverage_pct = round(100 * tech_symbol_count / len(symbols), 1) if symbols else 0
+            coverage_pct = round(100 * tech_symbol_count / len(symbols), 1)
             if coverage_pct < 75:
                 logger.error(
                     f"[DEPENDENCY] technical_data_daily coverage is {coverage_pct}% ({tech_symbol_count}/{len(symbols)} symbols) - below 75% threshold"
@@ -592,7 +597,7 @@ def main() -> int:
         raise RuntimeError(
             f"[DEPENDENCY] Failed to validate technical_data_daily dependency: {dep_err}. "
             "Buy/sell signals require technical data availability."
-        ) from None
+        ) from dep_err
 
     loader = SignalsDailyLoader()
     try:
@@ -634,11 +639,11 @@ def main() -> int:
                 f"Marked buy_sell_daily loader as FAILED to prevent silent data corruption. "
                 f"Signal quality would be degraded with NULL technical fields. "
                 f"Details: {e!s}"
-            ) from None
+            ) from e
 
         return 0
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-        raise RuntimeError(f"Daily signals load failed: {e}") from None
+        raise RuntimeError(f"Daily signals load failed: {e}") from e
 
 
 if __name__ == "__main__":

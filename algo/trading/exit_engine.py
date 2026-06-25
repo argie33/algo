@@ -750,12 +750,16 @@ class ExitEngine:
                 "reason": f"Minimum holding period not met: {days_held} days held < {min_hold_days} required",
             }
 
-        # Consolidate all context into PositionContext for strategy evaluation
-        # Convert all parameters to Decimal types for precise decimal arithmetic
+        if cur_price is None:
+            raise RuntimeError(
+                f"Exit evaluation failed for {symbol}: current price is None. "
+                "Cannot evaluate exit conditions without current price. Check Alpaca price feed."
+            )
+
         ctx = PositionContext(
             symbol=symbol,
             current_date=current_date,
-            cur_price=Decimal(str(cur_price)) if cur_price is not None else Decimal(0),
+            cur_price=Decimal(str(cur_price)) if not isinstance(cur_price, Decimal) else cur_price,
             prev_close=Decimal(str(prev_close)) if prev_close is not None else None,
             entry_price=Decimal(str(entry_price)) if not isinstance(entry_price, Decimal) else entry_price,
             active_stop=Decimal(str(active_stop)) if not isinstance(active_stop, Decimal) else active_stop,
@@ -1030,14 +1034,16 @@ class ExitEngine:
 
         recent_high = max(Decimal(str(r[1])) if r[1] is not None else Decimal(str(r[0])) for r in rows[:5])
 
-        pullback_pct = (
-            float(
-                ((recent_high - cur_close) / recent_high * Decimal(100)).quantize(
-                    Decimal("0.01"), rounding=ROUND_HALF_UP
-                )
+        if recent_high <= 0:
+            raise RuntimeError(
+                f"Pullback detection failed: recent_high is {recent_high} (must be > 0). "
+                "Cannot compute pullback percentage with invalid price data."
             )
-            if recent_high > 0
-            else 0
+
+        pullback_pct = float(
+            ((recent_high - cur_close) / recent_high * Decimal(100)).quantize(
+                Decimal("0.01"), rounding=ROUND_HALF_UP
+            )
         )
 
         if pullback_pct >= 2.0:

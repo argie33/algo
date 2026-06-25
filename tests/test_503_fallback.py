@@ -39,43 +39,9 @@ def test_api_call_marks_503_as_transient():
         print("[OK] api_call() marks 503 responses as transient")
 
 
-def test_markets_cached_falls_back_to_stale_on_503():
-    """Verify _get_markets_cached() falls back to stale cache on 503 error."""
-    # Clear the in-memory cache
-    _markets_cache = {}
-
-    # Pre-populate response cache with good market data
-    good_market_data = {
-        "current": {
-            "exposure_pct": 65.0,
-            "raw_score": 0.65,
-            "regime": "healthy_uptrend",
-            "factors": {"factor1": 0.1},
-            "spy_close": 500.0,
-            "halt_reasons": [],
-            "distribution_days": 0,
-        },
-        "market_health": {
-            "vix_level": 15.0,
-            "market_stage": "accumulation",
-            "market_trend": "up",
-            "spy_change_pct": 1.5,
-            "up_volume_percent": 60.0,
-            "advance_decline_ratio": 1.5,
-            "new_highs_count": 100,
-            "new_lows_count": 10,
-            "put_call_ratio": 0.8,
-            "breadth_momentum_10d": 0.7,
-            "yield_curve_slope": 0.5,
-            "fed_rate_environment": "neutral",
-        },
-    }
-
-    with _response_cache_lock:
-        _response_cache["/api/algo/markets"] = {
-            "data": good_market_data,
-            "timestamp": __import__("datetime").datetime.now(__import__("datetime").timezone.utc),
-        }
+def test_markets_cached_fails_fast_on_503():
+    """Verify _get_markets_cached() returns error on 503 (fail-fast for critical data)."""
+    # Market prices are critical - failing fast is safer than serving stale data
 
     # Mock api_call to return 503 error
     with patch("dashboard.fetchers_market.api_call") as mock_api_call:
@@ -84,15 +50,16 @@ def test_markets_cached_falls_back_to_stale_on_503():
             "_is_transient_503": True,
         }
 
-        # Mock _get_markets_cached internal cache
+        # Mock _get_markets_cached internal cache (empty - no stale data)
         with patch("dashboard.fetchers_market._markets_cache", {}):
             result = _get_markets_cached()
 
-            # Should have fallback data marked as stale
+            # Should return error (fail-fast, no stale fallback for critical data)
             assert result is not None
-            assert result.get("_data_stale") is True
-            assert result.get("current") is not None
-            print("[OK] _get_markets_cached() falls back to stale cache on 503")
+            assert result.get("_error") is not None
+            assert "503" in result.get("_error", "")
+            assert result.get("_data_stale") is not True
+            print("[OK] _get_markets_cached() fails fast on 503 (no stale fallback)")
 
 
 def test_optional_fetcher_skips_retry_on_503():
@@ -149,7 +116,7 @@ def test_critical_fetcher_still_retries_on_503():
 
 if __name__ == "__main__":
     test_api_call_marks_503_as_transient()
-    test_markets_cached_falls_back_to_stale_on_503()
+    test_markets_cached_fails_fast_on_503()
     test_optional_fetcher_skips_retry_on_503()
     test_critical_fetcher_still_retries_on_503()
     print("\n[PASS] All 503 fallback tests passed!")

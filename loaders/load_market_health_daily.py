@@ -99,7 +99,7 @@ class MarketHealthDailyLoader(OptimalLoader):
                 raise RuntimeError(
                     f"[MARKET_HEALTH] Failed to read watermark from market_health_daily: {e}. "
                     "Cannot determine incremental load point."
-                ) from None
+                ) from e
 
         if since is None:
             return end - timedelta(days=5 * 365)
@@ -140,7 +140,7 @@ class MarketHealthDailyLoader(OptimalLoader):
         return written
 
     def _merge_breadth_data(self, health_metrics: list[dict[str, Any]], start: date, end: date) -> None:
-        """Merge breadth data into health metrics."""
+        """Merge breadth data into health metrics. Breadth data is optional (may be unavailable for some dates)."""
         breadth = self._breadth_fetcher.fetch(start, end)
         for m in health_metrics:
             b = breadth.get(m["date"])
@@ -293,7 +293,7 @@ class MarketHealthDailyLoader(OptimalLoader):
             raise RuntimeError(
                 f"[PRICE_DATA] Failed to fetch price data for {symbol}: {e}. "
                 "Cannot compute market health without SPY price data."
-            ) from None
+            ) from e
 
     def _compute_market_health(self, rows: list[dict[str, float | int | None | str]]) -> list[dict[str, Any]]:
         if not rows:
@@ -362,14 +362,32 @@ class MarketHealthDailyLoader(OptimalLoader):
 
             # Count distribution days (4w = 25 trading days, 20d = 20 trading days per IBD)
             # idx-24:idx+1 = 25 rows (today + 24 prior sessions)
-            dist_days_25d = int(df["distribution_day"].iloc[max(0, idx - 24) : idx + 1].sum()) if idx >= 0 else 0
-            dist_days_20d = int(df["distribution_day"].iloc[max(0, idx - 19) : idx + 1].sum()) if idx >= 0 else 0
+            if idx < 0:
+                raise RuntimeError(
+                    f"Market health computation failed: invalid index {idx}. "
+                    "Cannot compute distribution days without valid row index."
+                )
+            dist_days_25d = int(df["distribution_day"].iloc[max(0, idx - 24) : idx + 1].sum())
+            dist_days_20d = int(df["distribution_day"].iloc[max(0, idx - 19) : idx + 1].sum())
 
             spy_change_pct = None
             if idx > 0:
                 prev_close = float(df.iloc[idx - 1]["close"])
                 if prev_close > 0:
                     spy_change_pct = round((close - prev_close) / prev_close * 100, 2)
+
+            up_volume_pct = float(df["up_day"].iloc[max(0, idx - 10) : idx + 1].mean() * 100)
+            if pd.isna(up_volume_pct):
+                raise RuntimeError(
+                    f"Market health computation failed for {row.get('date', 'unknown')}: "
+                    "cannot compute up_volume_percent (NaN result). Data quality issue in up_day calculation."
+                )
+
+            if pd.isna(row["breadth_10d"]):
+                raise RuntimeError(
+                    f"Market health computation failed for {row.get('date', 'unknown')}: "
+                    "breadth_momentum_10d is NaN. Cannot proceed without valid breadth data."
+                )
 
             results.append(
                 {
@@ -378,18 +396,16 @@ class MarketHealthDailyLoader(OptimalLoader):
                     "market_stage": market_stage,
                     "distribution_days_4w": dist_days_25d,
                     "distribution_days_20d": dist_days_20d,
-                    "up_volume_percent": (
-                        float(df["up_day"].iloc[max(0, idx - 10) : idx + 1].mean() * 100) if idx >= 0 else 50
-                    ),
-                    "advance_decline_ratio": None,  # filled from _fetch_breadth_data
-                    "new_highs_count": None,  # filled from _fetch_breadth_data
-                    "new_lows_count": None,  # filled from _fetch_breadth_data
-                    "breadth_momentum_10d": (float(row["breadth_10d"]) if pd.notna(row["breadth_10d"]) else 50),
+                    "up_volume_percent": up_volume_pct,
+                    "advance_decline_ratio": None,  # filled from _merge_breadth_data
+                    "new_highs_count": None,  # filled from _merge_breadth_data
+                    "new_lows_count": None,  # filled from _merge_breadth_data
+                    "breadth_momentum_10d": float(row["breadth_10d"]),
                     "spy_change_pct": spy_change_pct,
-                    "vix_level": None,  # populated in fetch_incremental from _fetch_vix_data
+                    "vix_level": None,  # populated in fetch_incremental from _merge_vix_data
                     "put_call_ratio": None,
                     "yield_curve_slope": None,
-                    "fed_rate_environment": "unknown",
+                    "fed_rate_environment": None,
                 }
             )
 
@@ -467,7 +483,7 @@ def _write_vix_family_prices(start: date, end: date) -> int:
                         except (TypeError, ValueError) as e:
                             raise RuntimeError(
                                 f"[PRICE_EXTRACTION] Failed to parse {col}={val!r} for {sym}: {e}"
-                            ) from None
+                            ) from e
 
                     close = _v("Close")
                     if close is None:
@@ -543,7 +559,7 @@ def _write_vix_family_prices(start: date, end: date) -> int:
         raise RuntimeError(
             f"[VIX_PRICES] Failed to write VIX family prices to database: {e}. "
             "Market health daily depends on VIX/index price data availability."
-        ) from None
+        ) from e
 
 
 def main() -> int:
@@ -576,7 +592,7 @@ def main() -> int:
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.error(f"Market health daily load failed: {e}")
         tracker.failed(error_message=str(e))
-        raise RuntimeError(f"Market health daily loader failed: {e}") from None
+        raise RuntimeError(f"Market health daily loader failed: {e}") from e
 
 
 if __name__ == "__main__":

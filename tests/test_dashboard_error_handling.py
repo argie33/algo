@@ -190,25 +190,27 @@ def test_fetch_perf_analytics_none_fields_do_not_crash():
     print("OK fetch_perf_analytics handles None fields gracefully")
 
 
-def test_fetch_risk_metrics_none_fields_do_not_crash():
-    """fetch_risk_metrics must not crash when API returns None for numeric fields."""
+def test_fetch_risk_metrics_rejects_missing_required_fields():
+    """fetch_risk_metrics must fail fast when critical risk metrics are missing (None)."""
     from unittest.mock import patch
 
     from dashboard.fetchers_market import fetch_risk_metrics
 
+    # Risk metrics are critical - None values are not acceptable
     none_response = {
         "report_date": "2026-06-22",
-        "var_pct_95": None,
-        "cvar_pct_95": None,
-        "stressed_var_pct": None,
-        "portfolio_beta": None,
-        "top_5_concentration": None,
+        "var_pct_95": None,  # CRITICAL - VaR is required
+        "cvar_pct_95": None,  # CRITICAL - CVaR is required
+        "stressed_var_pct": None,  # CRITICAL - Stressed VaR is required
+        "portfolio_beta": None,  # CRITICAL - Beta is required
+        "top_5_concentration": None,  # CRITICAL - Concentration is required
     }
     with patch("dashboard.fetchers_market.api_call", return_value=none_response):
         result = fetch_risk_metrics(None)
-    assert "_error" not in result, f"Should not error on None fields, got: {result}"
-    assert result.get("var95") is None
-    print("OK fetch_risk_metrics handles None fields gracefully")
+    # Fail-fast: should return error, not silently accept None
+    assert "_error" in result, f"Should error on missing required fields, got: {result}"
+    assert "missing required fields" in result["_error"].lower()
+    print("OK fetch_risk_metrics correctly rejects missing required fields")
 
 
 def test_fetch_signal_eval_none_fields_do_not_crash():

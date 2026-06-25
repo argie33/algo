@@ -291,20 +291,34 @@ def api_call(endpoint: str, params: dict[str, Any] | None = None, method: str = 
                 return error_result
 
             data = resp.json()
-            if isinstance(data, dict) and int(data.get("statusCode", 200)) >= 400:
-                logger.warning(f"API {endpoint}: error in JSON response")
-                if attempt < API_MAX_RETRIES:
-                    backoff = min((2**attempt) + random.random() * (2**attempt), API_MAX_BACKOFF)
-                    time.sleep(backoff)
-                    continue
-                _record_api_failure()
-                status = data.get("statusCode", "unknown")
-                msg = data.get("message", "Unknown API error")
-                max_att = API_MAX_RETRIES + 1
-                error_result_json: dict[str, Any] = {"_error": f"API error {status} after {max_att} attempts: {msg}"}
-                if status == 503:
-                    error_result_json["_is_transient_503"] = True
-                return error_result_json
+            if isinstance(data, dict):
+                status_code = data.get("statusCode")
+                if status_code is None:
+                    raise RuntimeError(
+                        f"API {endpoint}: response JSON missing required 'statusCode' field. "
+                        "Cannot determine request success/failure. Response: {data}"
+                    )
+                try:
+                    status_code_int = int(status_code)
+                except (ValueError, TypeError) as e:
+                    raise RuntimeError(
+                        f"API {endpoint}: statusCode field is not an integer: {status_code}. "
+                        "Cannot parse response status. Response: {data}"
+                    ) from e
+
+                if status_code_int >= 400:
+                    logger.warning(f"API {endpoint}: error in JSON response (status {status_code_int})")
+                    if attempt < API_MAX_RETRIES:
+                        backoff = min((2**attempt) + random.random() * (2**attempt), API_MAX_BACKOFF)
+                        time.sleep(backoff)
+                        continue
+                    _record_api_failure()
+                    msg = data.get("message", "Unknown API error")
+                    max_att = API_MAX_RETRIES + 1
+                    error_result_json: dict[str, Any] = {"_error": f"API error {status_code_int} after {max_att} attempts: {msg}"}
+                    if status_code_int == 503:
+                        error_result_json["_is_transient_503"] = True
+                    return error_result_json
 
             cache_response(endpoint, data)
             _record_api_success()
@@ -381,7 +395,12 @@ def _unwrap_api_response(response: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(response, dict):
         return cast(dict[str, Any], response)
 
-    status_code = response.get("statusCode", 200)
+    status_code = response.get("statusCode")
+    if status_code is None:
+        raise RuntimeError(
+            "API response is missing required 'statusCode' field. "
+            "Cannot determine request success/failure. Response: {response}"
+        )
 
     # Extract the data field (endpoints wrap payloads in 'data' via _wrap_response)
     # This is the only field that contains actual application data

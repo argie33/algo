@@ -284,13 +284,21 @@ def fetch_risk_metrics(c: None) -> dict[str, Any]:
             return FetcherValidator.build_error_response(error_msg)
 
         d = data
+        required_fields = ["var_pct_95", "cvar_pct_95", "stressed_var_pct", "portfolio_beta", "top_5_concentration"]
+        missing_fields = [f for f in required_fields if f not in d or d[f] is None]
+        if missing_fields:
+            error_msg = f"Risk metrics API response missing required fields: {missing_fields}"
+            logger.error(error_msg)
+            record_data_quality_issue("risk", "validation", "missing_required_fields", str(missing_fields))
+            return FetcherValidator.build_error_response(error_msg)
+
         return {
             "date": d.get("report_date"),
-            "var95": safe_float(d.get("var_pct_95"), default=None),
-            "cvar95": safe_float(d.get("cvar_pct_95"), default=None),
-            "svar": safe_float(d.get("stressed_var_pct"), default=None),
-            "beta": safe_float(d.get("portfolio_beta"), default=None),
-            "conc5": safe_float(d.get("top_5_concentration"), default=None),
+            "var95": safe_float(d["var_pct_95"]),
+            "cvar95": safe_float(d["cvar_pct_95"]),
+            "svar": safe_float(d["stressed_var_pct"]),
+            "beta": safe_float(d["portfolio_beta"]),
+            "conc5": safe_float(d["top_5_concentration"]),
         }
     except Exception as e:
         error_msg = _format_fetcher_error("risk", e)

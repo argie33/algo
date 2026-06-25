@@ -116,17 +116,20 @@ def test_stale_cache_not_cached_in_memory():
     with patch("dashboard.fetchers_market.api_call", side_effect=mock_api_call_503):
         result1 = _get_markets_cached()
 
-    # Verify we got stale data with the _data_stale flag
-    assert result1.get("_data_stale") is True, "Should have stale flag"
-    assert result1.get("current", {}).get("spy_close") == 500.5, "Should have old SPY value"
+    # Verify we got an error (fail-fast: don't fall back to stale cache for market data)
+    # Market data is critical - returning stale data could lead to incorrect position sizing
+    assert result1.get("_error") is not None, "Should have error on 503"
+    assert "503" in result1.get("_error", ""), "Error should mention 503"
     assert call_count == 1, f"Should have called API once, got {call_count}"
 
-    # Verify _markets_cache is EMPTY (not populated with stale data)
-    # This is the key assertion - stale data should NOT be in the in-memory cache
-    assert "result" not in _markets_cache, "Stale data should NOT be cached in _markets_cache"
+    # Verify _markets_cache is EMPTY (not populated with error data)
+    # Errors should not be cached - next call should retry the API
+    assert "result" not in _markets_cache, "Error should NOT be cached in _markets_cache"
 
-    # Step 2: Clear in-memory cache for next scenario, simulate API recovery
-    # Update the response cache with fresh data (simulating API recovery)
+    # Step 2: Clear markets cache and update response cache with fresh data
+    # This simulates the API recovery window when fresh data becomes available
+    with _markets_lock:
+        _markets_cache.clear()
     with _response_cache_lock:
         _response_cache["/api/algo/markets"] = {
             "data": recovered_data,
@@ -145,17 +148,17 @@ def test_stale_cache_not_cached_in_memory():
     with patch("dashboard.fetchers_market.api_call", side_effect=mock_api_call_success):
         result2 = _get_markets_cached()
 
-    # Verify we got FRESH data (not the old stale data)
-    assert result2.get("_data_stale") is not True, "Should NOT have stale flag on fresh data"
+    # Verify we got FRESH data (fail-fast: markets endpoint requires fresh data)
+    assert result2.get("_error") is None, "Should NOT have error on successful API call"
     assert result2.get("current", {}).get("spy_close") == 505.5, "Should have NEW SPY value (505.5)"
     assert result2.get("current", {}).get("regime") == "confirmed_uptrend", "Should have NEW regime"
-    assert call_count == 1, f"Should have called API again for fresh data, got {call_count}"
+    assert call_count == 1, f"Should have called API for fresh data, got {call_count}"
 
     print(
-        "[OK] Stale cache fallback correctly allows API recovery:\n"
-        f"  Step 1: 503 -> returned stale data with SPY={result1.get('current', {}).get('spy_close')}\n"
+        "[OK] Fail-fast markets caching correctly handles API recovery:\n"
+        f"  Step 1: 503 -> returned error (fail-fast, no stale cache fallback)\n"
         f"  Step 2: API recovered -> returned fresh data with SPY={result2.get('current', {}).get('spy_close')}\n"
-        "  Key: Stale data was NOT cached in _markets_cache, allowing next call to retry API"
+        "  Key: Error was NOT cached in _markets_cache, allowing next call to retry and recover"
     )
 
 

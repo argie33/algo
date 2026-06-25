@@ -287,15 +287,22 @@ class ValueAtRisk:
                 returns_decimal = [(values[i] - values[i - 1]) / values[i - 1] for i in range(1, len(values))]
                 returns = np.array([float(float(r)) for i, r in enumerate(returns_decimal)])
 
-                worst_var = 0.0
-                worst_start_idx = 0
+                worst_var = None
+                worst_start_idx = None
 
                 for start_idx in range(len(returns) - 252):
                     window_returns = returns[start_idx : start_idx + 252]
                     var_thresh = np.percentile(window_returns, 1.0)
-                    if abs(var_thresh) > abs(worst_var):
+                    if worst_var is None or abs(var_thresh) > abs(worst_var):
                         worst_var = var_thresh
                         worst_start_idx = start_idx
+
+                if worst_var is None or worst_start_idx is None:
+                    logger.critical("Stressed VaR calculation failed: no valid worst-case window found")
+                    raise RuntimeError(
+                        "Cannot compute Stressed VaR: failed to identify worst 12-month rolling window. "
+                        "Portfolio return data may be corrupted."
+                    )
 
                 current_value = values[-1]
                 stressed_var_dollars = current_value * Decimal(str(abs(worst_var)))
@@ -336,7 +343,7 @@ class ValueAtRisk:
                     )
 
                 cur.execute(
-                    "SELECT total_portfolio_value FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1"
+                    "SELECT total_portfolio_value, snapshot_date FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1"
                 )
                 portfolio_row = cur.fetchone()
                 if not portfolio_row or not portfolio_row[0]:
@@ -346,6 +353,22 @@ class ValueAtRisk:
                         "Portfolio must have been reconciled at least once."
                     )
                 portfolio_value = Decimal(str(float(portfolio_row[0])))
+                snapshot_date = portfolio_row[1] if len(portfolio_row) > 1 else None
+
+                # CRITICAL: Validate snapshot freshness — stale portfolio value causes incorrect beta sizing
+                if snapshot_date:
+                    from datetime import date
+
+
+                    today = date.today()
+                    age_days = (today - snapshot_date).days
+                    if age_days > 1:  # Allow up to 1 day old for post-market calculations
+                        raise RuntimeError(
+                            f"[VAR CRITICAL] Portfolio snapshot is stale ({age_days} days old, from {snapshot_date}). "
+                            f"Beta calculations must use current portfolio value to be accurate. "
+                            f"Portfolio snapshot must be updated daily via Phase 9 reconciliation. "
+                            f"Check that daily orchestration is running."
+                        )
 
                 # Fetch SPY returns for the last 60 trading days (beta denominator)
                 cur.execute("""
@@ -537,7 +560,7 @@ class ValueAtRisk:
                     )
 
                 cur.execute(
-                    "SELECT total_portfolio_value FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1"
+                    "SELECT total_portfolio_value, snapshot_date FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1"
                 )
                 portfolio_row = cur.fetchone()
                 if not portfolio_row or not portfolio_row[0]:
@@ -546,6 +569,21 @@ class ValueAtRisk:
                         "Cannot compute concentration without portfolio snapshot. "
                         "Portfolio must have been reconciled at least once."
                     )
+                snapshot_date = portfolio_row[1] if len(portfolio_row) > 1 else None
+
+                # CRITICAL: Validate snapshot freshness — stale portfolio value causes incorrect concentration metrics
+                if snapshot_date:
+                    from datetime import date
+
+                    today = date.today()
+                    age_days = (today - snapshot_date).days
+                    if age_days > 1:  # Allow up to 1 day old for post-market calculations
+                        raise RuntimeError(
+                            f"[CONCENTRATION CRITICAL] Portfolio snapshot is stale ({age_days} days old, from {snapshot_date}). "
+                            f"Concentration metrics must use current portfolio value. "
+                            f"Portfolio snapshot must be updated daily via Phase 9 reconciliation. "
+                            f"Check that daily orchestration is running."
+                        )
                 portfolio_value = Decimal(str(portfolio_row[0]))
 
                 top_holdings = []
@@ -554,7 +592,7 @@ class ValueAtRisk:
 
                 # CRITICAL: Validate all position pricing BEFORE computing concentration
                 # Concentration metrics are only meaningful if computed on complete position data
-                for symbol, qty, cur_price, _entry_price, sector, industry in positions:
+                for symbol, _qty, cur_price, _entry_price, _sector, _industry in positions:
                     if cur_price is None or float(cur_price) <= 0:
                         raise ValueError(
                             f"[CONCENTRATION CRITICAL] Position {symbol} has invalid or missing current_price ({cur_price}). "

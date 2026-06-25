@@ -261,9 +261,19 @@ class TradeExecutor:
             # CRITICAL: TCA (Trade Cost Analysis) recording is part of compliance audit trail.
             # Execution quality tracking must be recorded before confirming trade entry.
             # If TCA fails, the trade must NOT proceed — missing audit record = compliance gap.
+            if not isinstance(trade_id, int):
+                if not (isinstance(trade_id, str) and trade_id.isdigit()):
+                    raise RuntimeError(
+                        f"[TCA CRITICAL] {symbol}: Invalid trade_id '{trade_id}' (not int or digit string). "
+                        "Trade ID must be a valid integer. Cannot record execution without valid trade ID."
+                    )
+                trade_id_int = int(trade_id)
+            else:
+                trade_id_int = trade_id
+
             try:
                 tca_result = self.tca.record_fill(
-                    trade_id=(int(trade_id) if isinstance(trade_id, str) and trade_id.isdigit() else 0),
+                    trade_id=trade_id_int,
                     symbol=symbol,
                     signal_price=float(entry_price),
                     fill_price=float(executed_price),
