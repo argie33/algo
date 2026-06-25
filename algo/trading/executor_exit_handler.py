@@ -241,7 +241,13 @@ class ExitHandler:
         entry_price = float(entry_price)
         entry_qty = int(entry_qty)
         stop_loss_price = float(stop_loss_price)
-        current_qty = int(current_qty) if current_qty else 0
+
+        if current_qty is None:
+            raise DataUnavailableError(
+                f"Position quantity unavailable for trade {trade_id} (symbol {symbol}). "
+                f"Cannot execute exit without known current position size."
+            )
+        current_qty = int(current_qty)
 
         if position_status == "closed":
             return {

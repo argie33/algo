@@ -496,7 +496,11 @@ class SignalPatternsMixin:
             is_tight = spread_pct <= 1.5
 
             ranges_pct = [(h - low) / low * 100.0 for h, low in zip(highs, lows, strict=False) if low > 0]
-            avg_range = sum(ranges_pct) / len(ranges_pct) if ranges_pct else 100
+            if not ranges_pct:
+                logger.debug(f"[3WT_PATTERN] No valid range data for {symbol}; using conservative default (100% range)")
+                avg_range = 100.0
+            else:
+                avg_range = sum(ranges_pct) / len(ranges_pct)
             is_quiet = avg_range <= 6.0
 
             if len(rows) >= 4:

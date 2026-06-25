@@ -326,6 +326,9 @@ class TradeValidator:
 
         Returns:
             (has_pending: bool, error_message: str|None, pending_count: int)
+
+        Raises:
+            RuntimeError: If database query returns no result (data integrity failure).
         """
         cur.execute(
             """
@@ -336,7 +339,12 @@ class TradeValidator:
             (symbol, TradeStatus.OPEN.value, TradeStatus.PENDING.value),
         )
         result = cur.fetchone()
-        pending_count = result[0] if result else 0
+        if result is None:
+            raise RuntimeError(
+                f"[PENDING_TRADES] Unexpected NULL from database for {symbol} pending trade count. "
+                f"Database query integrity failure — cannot safely determine if duplicate entry exists."
+            )
+        pending_count = result[0]
         if pending_count > 0:
             return (
                 True,

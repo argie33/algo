@@ -966,8 +966,16 @@ class DailyReconciliation:
 
                 db_trade_id, db_qty, _db_status = db_row
 
+                # Validate quantity data integrity
+                if db_qty is None:
+                    logger.error(
+                        f"[RECONCILIATION] Database quantity NULL for {symbol} (trade_id {db_trade_id}). "
+                        f"Cannot reconcile fill without known position size. Manual intervention required."
+                    )
+                    continue
+
                 # Check for mismatch
-                db_qty_int = int(db_qty) if db_qty else 0
+                db_qty_int = int(db_qty)
                 alpaca_filled_int = int(alpaca_filled_qty)
 
                 if alpaca_filled_int > 0 and db_qty_int != alpaca_filled_int:

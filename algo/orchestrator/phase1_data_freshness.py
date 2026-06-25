@@ -209,8 +209,12 @@ def run(
                 (run_date,),
             )
             patrol_warn_row = cur.fetchone()
-            patrol_warn_count = patrol_warn_row[0] if patrol_warn_row else 0
-            patrol_warn_checks = patrol_warn_row[1] if patrol_warn_row and len(patrol_warn_row) > 1 else 0
+            if patrol_warn_row is None:
+                patrol_warn_count = 0
+                patrol_warn_checks = 0
+            else:
+                patrol_warn_count = patrol_warn_row[0] if len(patrol_warn_row) > 0 else 0
+                patrol_warn_checks = patrol_warn_row[1] if len(patrol_warn_row) > 1 else 0
             if patrol_warn_count > 0:
                 logger.warning(
                     f"[PHASE 1] DataPatrol: {patrol_warn_count} warning(s) from {patrol_warn_checks} check(s) "
@@ -251,7 +255,12 @@ def run(
             # stock_scores must be populated by its loader before Phase 5 can generate signals
             cur.execute("SELECT COUNT(*) FROM stock_scores")
             stock_scores_count_row = cur.fetchone()
-            stock_scores_count = stock_scores_count_row[0] if stock_scores_count_row else 0
+            if stock_scores_count_row is None or len(stock_scores_count_row) == 0:
+                raise RuntimeError(
+                    "[PHASE 1] Unexpected NULL/empty result from stock_scores COUNT query. "
+                    "Database integrity check failed."
+                )
+            stock_scores_count = stock_scores_count_row[0]
 
             if stock_scores_count == 0:
                 logger.critical(

@@ -24,8 +24,14 @@ class TCARecorder:
         slippage: Decimal,
         shares: int,
     ) -> None:
-        """Record entry execution TCA metrics."""
-        slippage_pct = float(slippage / reference_price * 100) if reference_price else 0
+        """Record entry execution TCA metrics. Fails fast if reference price is invalid."""
+        if not reference_price or reference_price <= 0:
+            raise ValueError(
+                f"[TCA] Cannot calculate entry slippage for {symbol}: "
+                f"invalid reference_price={reference_price}. "
+                f"Reference price required for TCA accuracy."
+            )
+        slippage_pct = float(slippage / reference_price * 100)
         record = {
             "event": "entry",
             "symbol": symbol,
@@ -47,8 +53,14 @@ class TCARecorder:
         shares: int,
         pnl: Decimal,
     ) -> None:
-        """Record exit execution TCA metrics."""
-        slippage_pct = float(slippage / reference_price * 100) if reference_price else 0
+        """Record exit execution TCA metrics. Fails fast if reference price is invalid."""
+        if not reference_price or reference_price <= 0:
+            raise ValueError(
+                f"[TCA] Cannot calculate exit slippage for {symbol}: "
+                f"invalid reference_price={reference_price}. "
+                f"Reference price required for TCA accuracy."
+            )
+        slippage_pct = float(slippage / reference_price * 100)
         record = {
             "event": "exit",
             "symbol": symbol,

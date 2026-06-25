@@ -516,8 +516,12 @@ if __name__ == "__main__":
         for sym in candidates:
             cur.execute("SELECT sector, industry FROM company_profile WHERE ticker = %s", (sym,))
             r = cur.fetchone()
-            sector = r[0] if r else None
-            industry = r[1] if r else None
+            if r is None:
+                sector = None
+                industry = None
+            else:
+                sector = r[0] if len(r) > 0 else None
+                industry = r[1] if len(r) > 1 else None
             result = s.compute(sym, eval_date, sector=sector, industry=industry)
             if result["pass"]:
                 comp = result["components"]

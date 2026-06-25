@@ -186,7 +186,11 @@ class DailyFinanceReport:
             raise RuntimeError(f"Regime params incomplete for {report_date}: {params}")
 
         history = self.regime_mgr.regime_history(days=30)
-        days_in_regime = history[0]["days_in_regime"] if history else 0
+        if not history:
+            logger.warning(f"[DAILY_REPORT] Regime history empty for {report_date}; cannot calculate days_in_regime")
+            days_in_regime = 0
+        else:
+            days_in_regime = history[0].get("days_in_regime", 0)
 
         return {
             "current": regime,
@@ -197,7 +201,7 @@ class DailyFinanceReport:
         }
 
     def _fetch_signals(self, cur: Any, report_date: _date) -> dict[str, Any]:
-        """Signal counts for today."""
+        """Signal counts for today. Validates all query results explicitly."""
         try:
             cur.execute(
                 """SELECT COUNT(*) FROM buy_sell_daily
@@ -205,7 +209,11 @@ class DailyFinanceReport:
                 (report_date,),
             )
             result = cur.fetchone()
-            candidates = result[0] if result else 0
+            if result is None or result[0] is None:
+                logger.warning(f"[SIGNALS] Unexpected NULL count for buy_sell_daily on {report_date}")
+                candidates = 0
+            else:
+                candidates = result[0]
 
             cur.execute(
                 """SELECT COUNT(*) FROM algo_signals_evaluated
@@ -213,7 +221,11 @@ class DailyFinanceReport:
                 (report_date,),
             )
             result = cur.fetchone()
-            tier_passed = result[0] if result else 0
+            if result is None or result[0] is None:
+                logger.warning(f"[SIGNALS] Unexpected NULL count for algo_signals_evaluated on {report_date}")
+                tier_passed = 0
+            else:
+                tier_passed = result[0]
 
             cur.execute(
                 """SELECT COUNT(*) FROM algo_trades
@@ -221,7 +233,11 @@ class DailyFinanceReport:
                 (report_date,),
             )
             result = cur.fetchone()
-            entries = result[0] if result else 0
+            if result is None or result[0] is None:
+                logger.warning(f"[SIGNALS] Unexpected NULL count for algo_trades on {report_date}")
+                entries = 0
+            else:
+                entries = result[0]
 
             return {
                 "candidates_today": candidates,

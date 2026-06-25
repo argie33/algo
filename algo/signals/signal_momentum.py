@@ -202,8 +202,17 @@ class SignalMomentumMixin:
                 return {"breakout": False}
             close = float(row[0])
             pivot = float(row[1])
-            volume = float(row[2]) if row[2] else 0
-            avg_vol = float(row[3]) if row[3] else 0
+
+            if row[2] is None:
+                logger.warning(f"[PIVOT_BREAKOUT] Volume missing for {symbol}; cannot evaluate volume confirmation")
+                return {"breakout": False, "reason": "missing_volume"}
+            volume = float(row[2])
+
+            if row[3] is None:
+                logger.warning(f"[PIVOT_BREAKOUT] Average volume missing for {symbol}; cannot evaluate volume confirmation")
+                return {"breakout": False, "reason": "missing_avg_volume"}
+            avg_vol = float(row[3])
+
             breakout = close > pivot * 1.005
             on_volume = avg_vol > 0 and volume > avg_vol
             return {
@@ -257,11 +266,19 @@ class SignalMomentumMixin:
             for row in rows[1:]:  # Skip today initially
                 _date, close, prev_close, vol, rn = row
                 if prev_close is not None and close < prev_close:
-                    max_down_vol = max(max_down_vol, float(vol) if vol else 0)
+                    if vol is None:
+                        logger.warning(f"[POCKET_PIVOT] Volume missing for {symbol} on down day; cannot evaluate max down-day volume")
+                        return {"pocket_pivot": False, "reason": "missing_volume_data"}
+                    max_down_vol = max(max_down_vol, float(vol))
 
             if rows:
                 _today_date, today_close, today_prev, today_vol, _today_rn = rows[0]
-                today_vol = float(today_vol) if today_vol else 0
+
+                if today_vol is None:
+                    logger.warning(f"[POCKET_PIVOT] Today's volume missing for {symbol}; cannot evaluate pocket pivot")
+                    return {"pocket_pivot": False, "reason": "missing_today_volume"}
+                today_vol = float(today_vol)
+
                 today_prev = float(today_prev) if today_prev is not None else None
                 today_close = float(today_close) if today_close else 0
 
@@ -281,7 +298,10 @@ class SignalMomentumMixin:
             up_day_dates = []
             for row in rows[1:3]:  # Skip today, check yesterday and day-2
                 _date, close, prev_close, vol, rn = row
-                vol = float(vol) if vol else 0
+                if vol is None:
+                    logger.debug(f"[POCKET_PIVOT] Volume missing for {symbol} in historical check; skipping")
+                    continue
+                vol = float(vol)
                 prev_close = float(prev_close) if prev_close is not None else None
                 close = float(close) if close else 0
                 if prev_close is not None and close > prev_close and vol >= max_down_vol and max_down_vol > 0:
