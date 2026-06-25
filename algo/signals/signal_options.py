@@ -184,7 +184,11 @@ class SignalOptionsMixin:
 
             current_iv, days_to_exp = float(iv_row[0]), float(iv_row[1])
             if days_to_exp <= 0:
-                days_to_exp = 30  # Default to 30 DTE
+                raise ValueError(
+                    f"{symbol}: Invalid days-to-expiration ({days_to_exp}) on {eval_date}. "
+                    f"Options chains data is expired or corrupted. "
+                    f"Cannot calculate implied move with invalid time value."
+                )
 
             implied_move = current_iv * (days_to_exp / 365.0) ** 0.5 * 100
 

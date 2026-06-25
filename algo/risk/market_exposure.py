@@ -507,8 +507,14 @@ class MarketExposure:
             # Veto 5: HY credit spread systemic stress
             cs_value = cs.get("hy_oas")
             if cs_value is None:
-                logger.warning("Credit spread (hy_oas) unavailable for veto assessment — continuing without systemic stress check")
-                cs_value = 0  # Assume low stress if data unavailable
+                msg = (
+                    "Market exposure assessment failed: HY credit spread data missing. "
+                    "Credit spreads are a leading indicator of systemic risk — "
+                    "cannot assess market exposure without them. "
+                    "Check credit_spreads table in economic_data loader."
+                )
+                logger.critical(msg)
+                raise ValueError(msg)
             if cs_value > 8.5:
                 halt_reasons.append(f"HY credit spread {cs_value:.2f}% > 8.5% (systemic stress)")
                 cap = min(cap, 30.0)
