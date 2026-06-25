@@ -106,7 +106,7 @@ def _build_calendar_rows(econ_cal: Any) -> list[Text | Rule]:
 
         event_name_val = ev.get("event_name")
         if event_name_val is None:
-            logger.warning(f"Economic calendar event missing required 'event_name' field")
+            logger.warning("Economic calendar event missing required 'event_name' field")
             continue  # Skip events without names
         full_nm = str(event_name_val)
         name = full_nm[:24]
