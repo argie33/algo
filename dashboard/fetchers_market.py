@@ -181,10 +181,29 @@ def fetch_market(c: None) -> dict[str, Any]:
             record_data_quality_issue("market", "critical_field", "missing_regime")
             return FetcherValidator.build_error_response(error_msg)
 
+        # Circuit breaker halt reasons are REQUIRED for trading safety
+        halt_reasons_raw = current.get("halt_reasons")
+        if halt_reasons_raw is None:
+            error_msg = (
+                f"[MARKET CRITICAL] Circuit breaker halt reasons missing from current.halt_reasons. "
+                f"Cannot trade without halt status. Current keys: {list(current.keys())}"
+            )
+            logger.error(error_msg)
+            record_data_quality_issue("market", "critical_field", "missing_halt_reasons")
+            return FetcherValidator.build_error_response(error_msg)
+        if not isinstance(halt_reasons_raw, list):
+            error_msg = (
+                f"[MARKET CRITICAL] Circuit breaker halt reasons must be list, got {type(halt_reasons_raw).__name__}. "
+                f"Cannot trade with invalid halt status. Value: {halt_reasons_raw}"
+            )
+            logger.error(error_msg)
+            record_data_quality_issue("market", "critical_field", "invalid_halt_reasons_type")
+            return FetcherValidator.build_error_response(error_msg)
+
         return {
             "pct": safe_float(current.get("exposure_pct"), field_name="market.exposure_pct"),
             "tier": tier,
-            "halts": current.get("halt_reasons") if isinstance(current.get("halt_reasons"), list) else [],
+            "halts": halt_reasons_raw,
             "vix": vix,
             "stage": market_health.get("market_stage"),
             "trend": market_health.get("market_trend"),

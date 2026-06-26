@@ -182,18 +182,31 @@ def cache_response(endpoint: str, data: dict[str, Any]) -> None:
 
 
 def is_stale_data(data: dict[str, Any]) -> bool:
-    """Check if data is marked as stale cache.
+    """Check if data is marked as stale cache and raise error.
 
-    CRITICAL: Dashboard components must check this flag and alert users
-    when displaying stale market data during API outages.
+    CRITICAL: In a finance application, stale data (>30 min old) can lead to
+    incorrect position sizing, risk calculations, and trade decisions.
+    This function enforces fail-fast behavior by raising an error instead of
+    silently returning a metadata flag that callers might ignore.
 
     Args:
         data: Response dict (potentially with _stale_cache flag)
 
     Returns:
-        True if data is stale (>30 min old), False if fresh
+        False if data is fresh
+
+    Raises:
+        RuntimeError: If data is marked as stale (>30 min old)
     """
-    return bool(data.get("_stale_cache", False))
+    if data.get("_stale_cache", False):
+        age_seconds = data.get("_cache_age_seconds", "unknown")
+        raise RuntimeError(
+            f"Stale data rejected: cached response is >30 min old ({age_seconds}s). "
+            "Cannot use stale data in finance application — position sizing, risk calculations, "
+            "and trading decisions require fresh market data. API must be restored or dashboard "
+            "must show data unavailable."
+        )
+    return False
 
 
 def get_cache_age_seconds(data: dict[str, Any]) -> int | None:
