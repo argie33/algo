@@ -7,10 +7,10 @@ from typing import TYPE_CHECKING, Any
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from panel_registry import register_panel as register_panel
+    from dashboard.panel_registry import register_panel as register_panel
 else:
     try:
-        from panel_registry import register_panel
+        from dashboard.panel_registry import register_panel
     except ImportError as e:
         logger.warning(f"Panel registry not available: {e} - panels will not auto-register")
         from typing import TypeVar, overload
