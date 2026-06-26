@@ -166,7 +166,10 @@ def get_markets_cached() -> dict[str, Any]:
         # CRITICAL: Validate cache time is present; don't rely on fallback arithmetic
         # Missing _time indicates corrupted cache or cache cleared — force fresh fetch
         if cached and "_time" in _market_cache and (now - _market_cache["_time"]) < 5:  # 5 second cache
-            return cast(dict[str, Any], cached)
+            if not isinstance(cached, dict):
+                logger.warning(f"Market cache corrupted: _data is {type(cached).__name__}, not dict. Force refresh.")
+            else:
+                return cast(dict[str, Any], cached)
 
     mkt = api_call("/api/algo/markets")
     with _market_cache_lock:

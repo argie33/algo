@@ -506,7 +506,14 @@ def _format_recent_trade_events(act: dict[str, Any] | None) -> list[Text]:
     if act_valid and isinstance(act, dict) and "recent_actions" not in act:
         rows.append(Text.from_markup("[dim]⚠ recent_actions data missing[/]"))
         return rows
-    recent = (act.get("recent_actions", []) if isinstance(act, dict) else []) if act_valid else []
+    if not act_valid:
+        return []
+    if not isinstance(act, dict) or "recent_actions" not in act:
+        return []
+    recent = act["recent_actions"]
+    if not isinstance(recent, list):
+        logger.warning(f"Recent actions is not a list, got {type(recent).__name__}")
+        return []
 
     trade_evts = [
         a

@@ -138,8 +138,16 @@ def main() -> int:
                     "UPDATE data_loader_status SET status = %s, last_updated = NOW(), error_message = %s WHERE table_name = %s",
                     ("FAILED", f"{type(e).__name__}: {str(e)[:180]}", table_name),
                 )
-        except Exception:
-            pass
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as status_err:
+            logger.error(f"Failed to update FAILED status in data_loader_status: {status_err}")
+            raise RuntimeError(
+                f"Market exposure loader failed AND failed to record failure status: {e.__class__.__name__}: {e}"
+            ) from status_err
+        except Exception as status_err:
+            logger.error(f"Unexpected error updating loader status: {status_err}")
+            raise RuntimeError(
+                f"Market exposure loader failed AND unexpected error updating status: {status_err.__class__.__name__}: {status_err}"
+            ) from status_err
         return 1
 
 

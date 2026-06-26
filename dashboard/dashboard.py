@@ -719,7 +719,16 @@ def _render_footer_expanded_view(  # noqa: C901
                     *_exp_top,
                     Panel("[red]Positions data unavailable[/]", border_style="red"),
                 )
-            _pos_items = pos if isinstance(pos, list) else (pos.get("items", []) if isinstance(pos, dict) else [])
+            if isinstance(pos, list):
+                _pos_items = pos
+            elif isinstance(pos, dict) and "items" in pos:
+                _pos_items = pos["items"]
+            else:
+                logger.error(f"Positions data malformed: expected dict with 'items' key or list, got {type(pos).__name__}")
+                return _expanded_layout(
+                    *_exp_top,
+                    Panel("[red]Positions data structure invalid[/]", border_style="red"),
+                )
             hint = Text.from_markup("[dim]press [/][bold cyan]p[/][dim] to return to dashboard[/]")
             return _expanded_layout(
                 *_exp_top,
