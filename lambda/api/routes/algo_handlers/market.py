@@ -788,6 +788,10 @@ def _get_markets(cur: cursor) -> Any:
         market_health["spy_close"] = spy_close
         response["data"]["market_health"] = market_health
 
+        # Add spy_close and vix_level to top level (required by dashboard contract)
+        response["data"]["spy_close"] = spy_close
+        response["data"]["vix_level"] = float(market_health["vix_level"])
+
         # Validate market response against contract schema
         ensure_valid_response("mkt", response["data"])
 
