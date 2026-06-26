@@ -1016,7 +1016,13 @@ def _get_correlation_matrix(cur: cursor) -> Any:
         if sym not in prices_by_symbol:
             prices_by_symbol[sym] = []
         if not row["close"] or row["close"] <= 0:
-            logger.warning(f"Market API: Invalid close price for {sym} on {row.get('date', 'unknown')}: {row['close']}; skipping")
+            if "date" not in row or row["date"] is None:
+                raise ValueError(
+                    f"[MARKET_API_DATA_INCOMPLETE] Market data for {sym} missing required 'date' field. "
+                    f"Cannot process price data without date. Row keys: {list(row.keys())}. "
+                    f"Check upstream price data source and loader."
+                )
+            logger.warning(f"Market API: Invalid close price for {sym} on {row['date']}: {row['close']}; skipping")
             continue
         prices_by_symbol[sym].append((row["date"], float(row["close"])))
 
@@ -1385,21 +1391,34 @@ def _get_markets(cur: cursor) -> Any:
     fallback_symbols = []
 
     for row in latest:
+        if "symbol" not in row or row["symbol"] is None:
+            raise ValueError(
+                "[MARKET_API_INDICES_INCOMPLETE] Index row missing required 'symbol' field. "
+                f"Cannot process index data without symbol. Row keys: {list(row.keys())}"
+            )
+        symbol = row["symbol"]
+
         if not row["close"] or row["close"] <= 0:
-            logger.warning(f"Market API indices: Invalid close price for {row.get('symbol', 'unknown')}: {row['close']}; skipping")
+            logger.warning(f"Market API indices: Invalid close price for {symbol}: {row['close']}; skipping")
             continue
         price = float(row["close"])
         if not row["prev_close"] or row["prev_close"] <= 0:
-            logger.warning(f"Market API indices: Invalid prev_close for {row.get('symbol', 'unknown')}: {row['prev_close']}; cannot calculate change")
+            logger.warning(f"Market API indices: Invalid prev_close for {symbol}: {row['prev_close']}; cannot calculate change")
             continue
         prev_price = float(row["prev_close"])
         change = price - prev_price
         change_pct = change / prev_price * 100
 
         # Fail-fast on fallback prices: if today's quote is missing during market hours, raise 503
-        is_fallback = bool(row.get("_is_fallback", False))
+        if "_is_fallback" not in row:
+            raise ValueError(
+                f"[MARKET_API_FALLBACK_MISSING] Index {symbol} row missing '_is_fallback' indicator. "
+                f"Cannot determine if price is fresh or fallback. Check data source. "
+                f"Row keys: {list(row.keys())}"
+            )
+        is_fallback = bool(row["_is_fallback"])
         if is_fallback:
-            raise_api_error(503, "stale_data", f"Index {row['symbol']} price unavailable (today's quote missing)")
+            raise_api_error(503, "stale_data", f"Index {symbol} price unavailable (today's quote missing)")
 
         # Check data age and add to stale alerts
         if row.get("date"):

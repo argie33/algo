@@ -396,9 +396,13 @@ class MetricsValidator:
         # Trade counts consistency
         if "total_trades" in metrics and "num_wins" in metrics and "num_losses" in metrics:
             total = metrics.get("total_trades")
-            wins = metrics.get("num_wins", 0)
-            losses = metrics.get("num_losses", 0)
-            if total is not None and (wins + losses) > total:
+            wins = metrics.get("num_wins")
+            losses = metrics.get("num_losses")
+            if wins is None:
+                issues.append("num_wins is None but required for trade consistency check")
+            elif losses is None:
+                issues.append("num_losses is None but required for trade consistency check")
+            elif total is not None and (wins + losses) > total:
                 issues.append(f"wins + losses ({wins + losses}) exceeds total_trades ({total})")
 
         if issues:

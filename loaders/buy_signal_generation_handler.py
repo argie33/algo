@@ -318,13 +318,22 @@ class BuySignalGenerationHandler:
         }
 
         if signal_type == "BUY" and close:
-            # Ensure buylevel and stoplevel are Decimals for calculations
-            buy_dec = Decimal(str(close)) if buylevel is None else Decimal(str(buylevel))
-            stop_dec = (
-                (Decimal(str(close)) * (Decimal(1) - Decimal(str(risk_pct)) / Decimal(100))).quantize(Decimal("0.0001"))
-                if stoplevel is None
-                else Decimal(str(stoplevel))
-            )
+            if buylevel is None:
+                raise ValueError(
+                    "[SIGNAL_GENERATION_CRITICAL] BUY signal generated but buylevel is None. "
+                    "Signal generation logic failed to set entry price from swing pivot. "
+                    "Cannot proceed with trade entry without valid entry level. "
+                    "Check _generate_signal() logic for swing high detection."
+                )
+            if stoplevel is None:
+                raise ValueError(
+                    "[SIGNAL_GENERATION_CRITICAL] BUY signal generated but stoplevel is None. "
+                    "Signal generation logic failed to set stop loss from swing pivot. "
+                    "Cannot proceed without valid risk level. "
+                    "Check _generate_signal() logic for swing low detection."
+                )
+            buy_dec = Decimal(str(buylevel))
+            stop_dec = Decimal(str(stoplevel))
 
             result["buylevel"] = buy_dec
             result["stoplevel"] = stop_dec
@@ -344,13 +353,22 @@ class BuySignalGenerationHandler:
             ).quantize(Decimal("0.01"))
 
         elif signal_type == "SELL" and close:
-            # Ensure buylevel and stoplevel are Decimals for calculations
-            buy_dec = Decimal(str(close)) if buylevel is None else Decimal(str(buylevel))
-            stop_dec = (
-                (Decimal(str(close)) * (Decimal(1) + Decimal(str(risk_pct)) / Decimal(100))).quantize(Decimal("0.0001"))
-                if stoplevel is None
-                else Decimal(str(stoplevel))
-            )
+            if buylevel is None:
+                raise ValueError(
+                    "[SIGNAL_GENERATION_CRITICAL] SELL signal generated but buylevel is None. "
+                    "Signal generation logic failed to set reference price. "
+                    "Cannot proceed with short entry without valid reference level. "
+                    "Check _generate_signal() logic."
+                )
+            if stoplevel is None:
+                raise ValueError(
+                    "[SIGNAL_GENERATION_CRITICAL] SELL signal generated but stoplevel is None. "
+                    "Signal generation logic failed to set stop loss for short. "
+                    "Cannot proceed without valid risk level. "
+                    "Check _generate_signal() logic."
+                )
+            buy_dec = Decimal(str(buylevel))
+            stop_dec = Decimal(str(stoplevel))
 
             result["buylevel"] = buy_dec
             result["stoplevel"] = stop_dec

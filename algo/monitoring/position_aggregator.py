@@ -40,17 +40,26 @@ class PositionAggregator:
 
         # Extract RED flags (warnings)
         for factor, (score, status) in health_scores.items():
+            if factor not in self.FLAG_WEIGHTS:
+                raise ValueError(
+                    f"[CRITICAL] Health factor '{factor}' has no weight defined in FLAG_WEIGHTS. "
+                    f"Cannot calculate position health without weight for all factors. "
+                    f"Configured factors: {list(self.FLAG_WEIGHTS.keys())}. "
+                    f"Add '{factor}' to FLAG_WEIGHTS or check health scoring logic."
+                )
+
+            weight = self.FLAG_WEIGHTS[factor]
             if status == "RED":
                 flags[factor] = {
                     "status": "RED",
                     "score": score,
-                    "weight": self.FLAG_WEIGHTS.get(factor, 1.0),
+                    "weight": weight,
                 }
             elif status == "YELLOW":
                 flags[factor] = {
                     "status": "YELLOW",
                     "score": score,
-                    "weight": self.FLAG_WEIGHTS.get(factor, 1.0),
+                    "weight": weight,
                 }
 
         # Count flags

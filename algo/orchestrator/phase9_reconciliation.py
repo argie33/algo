@@ -364,11 +364,33 @@ def _compute_risk_metrics(config: Any, run_date: _date, log_phase_result_fn: Cal
         risk_report = risk.generate_daily_risk_report(run_date)
         if risk_report and risk_report.get("status") == "ok":
             risk_status = "success"
-            var_metrics = risk_report.get("var_metrics") if risk_report else None
-            var_pct = var_metrics.get("var_pct", "N/A") if var_metrics else "N/A"
-            concentration = risk_report.get("concentration") if risk_report else None
-            conc_pct = concentration.get("top_5_concentration_pct", "N/A") if concentration else "N/A"
-            alerts = risk_report.get("alerts") if risk_report else []
+            var_metrics = risk_report.get("var_metrics")
+            if var_metrics is None:
+                raise ValueError(
+                    "Risk report succeeded but var_metrics missing. "
+                    "Cannot report VaR without risk metrics data. Check ValueAtRisk.generate_daily_risk_report()."
+                )
+            var_pct = var_metrics.get("var_pct")
+            if var_pct is None:
+                raise ValueError(
+                    f"Risk metrics missing 'var_pct' field. Cannot report portfolio value at risk. "
+                    f"Available keys: {list(var_metrics.keys())}"
+                )
+
+            concentration = risk_report.get("concentration")
+            if concentration is None:
+                raise ValueError(
+                    "Risk report succeeded but concentration missing. "
+                    "Cannot report portfolio concentration without this field."
+                )
+            conc_pct = concentration.get("top_5_concentration_pct")
+            if conc_pct is None:
+                raise ValueError(
+                    f"Concentration metrics missing 'top_5_concentration_pct' field. "
+                    f"Cannot report concentration risk. Available keys: {list(concentration.keys())}"
+                )
+
+            alerts = risk_report.get("alerts", [])
             alerts_count = len(alerts) if alerts else 0
             risk_summary = f"VaR {var_pct}%, Concentration {conc_pct}%" + (
                 f", {alerts_count} alerts" if alerts_count else ""

@@ -250,8 +250,14 @@ class MarketHealthDailyLoader(OptimalLoader):
 
             # Check for unavailability marker (API failed)
             if yield_curve.get("_data_unavailable"):
-                reason = yield_curve.get("_reason", "unknown")
-                logger.warning(f"Yield curve data unavailable ({reason}) - market regime will skip inversion detection")
+                reason = yield_curve.get("_reason")
+                if reason is None:
+                    logger.warning(
+                        "Yield curve data unavailable (reason not provided) - market regime will skip inversion detection. "
+                        "Check _yield_curve_fetcher.fetch() to ensure it returns '_reason' when data is unavailable."
+                    )
+                else:
+                    logger.warning(f"Yield curve data unavailable ({reason}) - market regime will skip inversion detection")
                 return
 
             if not yield_curve:
@@ -399,7 +405,12 @@ class MarketHealthDailyLoader(OptimalLoader):
         skipped_rows = []
         for idx, row in df.iterrows():
             if not pd.notna(row["close"]) or row["close"] <= 0:
-                row_date = row.get('date', 'unknown')
+                if 'date' not in row or row.get('date') is None:
+                    raise ValueError(
+                        "[MARKET_HEALTH_CRITICAL] Market health row missing required 'date' field. "
+                        "Cannot process market data without date. Row keys: " + str(list(row.index.tolist()))
+                    )
+                row_date = row['date']
                 logger.error(
                     f"[MARKET_HEALTH_DATA_GAP] Invalid close price for {row_date}: {row['close']}. "
                     f"Skipping row - this creates gap in distribution day counts and market health metrics."
