@@ -388,9 +388,6 @@ def _dispatch(
     elif path == "/api/algo/last-run":
         return _get_last_run(cur)
     elif path == "/api/algo/audit-log":
-        if not _check_admin_access(jwt_claims):
-            logger.warning(f"Unauthorized algo audit-log access attempt by {user_id}")
-            raise_api_error(403, "forbidden", "Admin access required")
         limit = safe_limit(extract_param(params, "limit"), max_val=10000, default=100)
         offset = safe_offset(extract_param(params, "offset") or "0")
         action_type = extract_param(params, "action_type")
