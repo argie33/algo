@@ -1146,6 +1146,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
 
         # Check authorization for protected endpoints
         requires_auth, is_authorized, auth_error, jwt_claims = require_auth(event, path)
+        logger.info(f"[REQUIRE_AUTH] path={path}, requires_auth={requires_auth}, is_authorized={is_authorized}, error={auth_error}")
 
         if requires_auth and not is_authorized:
             cors_headers = get_cors_headers(event)
