@@ -234,7 +234,18 @@ class DailyReconciliation:
                     logger.info("\n1b3. Pending Reconciliations:")
                     logger.info(f"   {pending_result['message']}")
                     from dashboard.data_validation import safe_int
-                    stuck_count = safe_int(pending_result.get("stuck_count"), default=0)
+                    if "stuck_count" not in pending_result:
+                        raise RuntimeError(
+                            "[RECONCILIATION_DATA_QUALITY] pending_count > 0 but stuck_count key missing from result. "
+                            "check_pending_reconciliations() returned incomplete data. "
+                            f"Available keys: {list(pending_result.keys())}"
+                        )
+                    stuck_count = safe_int(pending_result.get("stuck_count"), default=None)
+                    if stuck_count is None:
+                        raise ValueError(
+                            "[RECONCILIATION_DATA_QUALITY] stuck_count present but value is not a valid integer. "
+                            f"Cannot parse stuck trade count. Got: {pending_result.get('stuck_count')!r}"
+                        )
                     if stuck_count > 0:
                         pending_list = pending_result.get("pending")
                         if pending_list is None:

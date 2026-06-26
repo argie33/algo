@@ -98,7 +98,7 @@ def panel_circuit(cb: Any) -> Panel:
             border_style="red",
             padding=(0, 1),
         )
-    n_f = safe_int(n_raw, default=0, field_name="circuit_breaker_count")
+    n_f = safe_int(n_raw, strict=True, field_name="circuit_breaker_count")
     any_f = any_raw if isinstance(any_raw, bool) else bool(any_raw)
     hc = R if any_f else G
     hs = f"✗ {n_f} BREAKER{'S' if n_f != 1 else ''} FIRED" if any_f else "✓ ALL CLEAR"

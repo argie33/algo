@@ -135,7 +135,7 @@ def panel_portfolio(
 
     pv = safe_float(port["total_portfolio_value"], strict=True, field_name="total_portfolio_value")
     cash = safe_float(port["total_cash"], strict=True, field_name="total_cash")
-    npos = safe_int(port["position_count"], default=0)
+    npos = safe_int(port["position_count"], strict=True, field_name="position_count")
     dr = safe_float(port.get("daily_return_pct"), default=None)
     urp = safe_float(port.get("unrealized_pnl_pct"), default=None)
     cum = safe_float(port.get("cumulative_return_pct"), default=None)

@@ -291,6 +291,12 @@ class ExitHandler:
             if exit_order_result.get("success"):
                 actual_fill_price = exit_order_result["filled_price"] if "filled_price" in exit_order_result else None
                 is_estimated_price = False
+                if actual_fill_price is None:
+                    raise DataUnavailableError(
+                        f"[CRITICAL] Exit order succeeded for {symbol} but filled_price is missing. "
+                        f"Cannot record exit with actual execution price. API response incomplete. "
+                        f"Response keys: {list(exit_order_result.keys())}"
+                    )
             else:
                 try:
                     from algo.reporting import notify
@@ -307,7 +313,12 @@ class ExitHandler:
                     "message": f"Exit order failed: {exit_order_result.get('message', 'Unknown error')}",
                 }
 
-        final_exit_price = actual_fill_price if actual_fill_price else exit_price
+        final_exit_price = actual_fill_price if actual_fill_price is not None else exit_price
+        if final_exit_price == exit_price and not is_estimated_price:
+            logger.critical(
+                f"[EXEC_EXIT_PRICE_FALLBACK] Using estimated exit price for {symbol} despite auto mode. "
+                f"This should only occur in review/paper mode. Check execution_mode={execution_mode}"
+            )
 
         # Validate prices
         if final_exit_price <= 0:
