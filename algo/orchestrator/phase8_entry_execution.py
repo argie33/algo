@@ -768,7 +768,7 @@ def run(
     log_phase_result_fn(8, "entry_execution", "success", f"{executed_count} trades executed")
 
     return PhaseResult(
-        6,
+        8,
         "entry_execution",
         "ok",
         {"entered": executed_count, "skipped": skipped_count, "failed": failed_count},

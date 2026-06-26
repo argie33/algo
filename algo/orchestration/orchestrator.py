@@ -795,9 +795,9 @@ class Orchestrator:
             logger.info("\n[HEALTH CHECK] System diagnostics before Phase 1:")
             self.db_monitor.health_check_diagnostics()
 
-            executor = self._setup_executor()
+            self.executor = self._setup_executor()
             with TimeBlock("orchestrator_executor"):
-                executor_result = executor.run()
+                executor_result = self.executor.run()
 
             if not executor_result.get("success"):
                 logger.critical(f"[EXECUTOR] Phase sequence halted at Phase {executor_result.get('error_phase')}")
@@ -885,32 +885,42 @@ class Orchestrator:
             with MetricsPublisher(dry_run=self.dry_run) as m:
                 m.put_orchestrator_result(bool(result["success"]), {str(k): v for k, v in self.phase_results.items()})
 
-                # Signal count from phase 5 summary
-                if 5 in self.phase_results:
-                    phase5 = self.phase_results[5]
-                    signals = phase5.get("signals_evaluated")
-                    if isinstance(signals, int):
-                        m.put_signal_count(signals)
-                else:
-                    logger.warning("Phase 5 result missing from phase_results")
+                # Extract numeric data from executor phase results (not self.phase_results)
+                if hasattr(self, "executor") and self.executor:
+                    # Signal count from phase 7 (signal generation)
+                    phase7_result = self.executor.get_result(7)
+                    if phase7_result and hasattr(phase7_result, "data"):
+                        signals = phase7_result.data.get("liquidity_passed")
+                        if isinstance(signals, int):
+                            m.put_signal_count(signals)
+                        else:
+                            logger.warning(f"Phase 7 returned non-int liquidity_passed: {type(signals)}")
+                    else:
+                        logger.debug("Phase 7 result not found in executor")
 
-                # Trade count from phase 6 summary
-                if 6 in self.phase_results:
-                    phase6 = self.phase_results[6]
-                    trades = phase6.get("trades_executed")
-                    if isinstance(trades, int):
-                        m.put_trade_count(trades)
-                else:
-                    logger.warning("Phase 6 result missing from phase_results")
+                    # Trade count from phase 8 (entry execution)
+                    phase8_result = self.executor.get_result(8)
+                    if phase8_result and hasattr(phase8_result, "data"):
+                        trades = phase8_result.data.get("entered")
+                        if isinstance(trades, int):
+                            m.put_trade_count(trades)
+                        else:
+                            logger.debug(f"Phase 8 returned non-int entered count: {type(trades)}")
+                    else:
+                        logger.debug("Phase 8 result not found in executor")
 
-                # Open position count from phase 7
-                if 7 in self.phase_results:
-                    phase7 = self.phase_results[7]
-                    positions = phase7.get("open_positions")
-                    if isinstance(positions, int):
-                        m.put_open_positions(positions)
+                    # Open position count from phase 9 (reconciliation)
+                    phase9_result = self.executor.get_result(9)
+                    if phase9_result and hasattr(phase9_result, "data"):
+                        positions = phase9_result.data.get("positions")
+                        if isinstance(positions, int):
+                            m.put_open_positions(positions)
+                        else:
+                            logger.debug(f"Phase 9 returned non-int positions: {type(positions)}")
+                    else:
+                        logger.debug("Phase 9 result not found in executor")
                 else:
-                    logger.warning("Phase 7 result missing from phase_results")
+                    logger.warning("Executor not available for metric extraction")
 
         except (
             ValueError,

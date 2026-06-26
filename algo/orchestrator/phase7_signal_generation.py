@@ -743,14 +743,14 @@ def run(
 
     elapsed = time.time() - phase_start
     log_phase_result_fn(
-        5,
+        7,
         "signal_generation",
         "success",
         f"{len(liq_passed)} signals qualified from {len(raw_candidates)} candidates",
     )
 
     return PhaseResult(
-        5,
+        7,
         "signal_generation",
         "ok",
         {

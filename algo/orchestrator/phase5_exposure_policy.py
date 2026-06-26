@@ -69,13 +69,13 @@ def run(
         if not actions:
             logger.info("  No exposure-policy actions")
             log_phase_result_fn(
-                "3b",
+                5,
                 "exposure_policy",
                 "success",
                 f"tier={constraints['tier_name'] if constraints else 'n/a'}, no actions",
             )
             return PhaseResult(
-                "3b",
+                5,
                 "exposure_policy",
                 "ok",
                 {"constraints": constraints, "actions": []},
@@ -87,7 +87,7 @@ def run(
         for action in actions:
             if "action" not in action or "symbol" not in action or "reason" not in action:
                 raise RuntimeError(
-                    "[PHASE 3b] Exposure action missing required fields (action, symbol, reason). "
+                    "[PHASE 5] Exposure action missing required fields (action, symbol, reason). "
                     "Cannot process exposure policy without all identifiers. "
                     "Verify ExposurePolicy.review_existing_positions() returns valid action data."
                 )
@@ -102,7 +102,7 @@ def run(
         tier_name = constraints["tier_name"] if constraints else "unknown"
         # Validate counts dict has required keys before logging
         log_phase_result_fn(
-            "3b",
+            5,
             "exposure_policy",
             "success",
             f"tier={tier_name}, "
@@ -112,7 +112,7 @@ def run(
         )
 
         return PhaseResult(
-            "3b",
+            5,
             "exposure_policy",
             "ok",
             {"constraints": constraints, "actions": actions},
@@ -150,13 +150,13 @@ def run(
                 "halt_reason": f"Market exposure data missing: {str(e)[:80]}",
             }
             log_phase_result_fn(
-                "3b",
+                5,
                 "exposure_policy",
                 "error",
                 f"Market regime unavailable, halting entries: {str(e)[:80]}",
             )
             return PhaseResult(
-                "3b",
+                5,
                 "exposure_policy",
                 "error",
                 {"constraints": fail_halt_constraints, "actions": []},
@@ -183,13 +183,13 @@ def run(
         }
 
         log_phase_result_fn(
-            "3b",
+            5,
             "exposure_policy",
             "error",
             f"Exposure policy error (transient) — halting entries: {str(e)[:80]}",
         )
         return PhaseResult(
-            "3b",
+            5,
             "exposure_policy",
             "error",
             {"constraints": fail_halt_constraints, "actions": []},
