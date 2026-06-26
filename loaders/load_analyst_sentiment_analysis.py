@@ -52,31 +52,29 @@ class AnalystSentimentLoader(OptimalLoader):
     primary_key = ("symbol", "date")
     watermark_field = "date"
 
-    def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
-        """Fetch analyst recommendations from yfinance and aggregate into sentiment."""
+    def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]] | None:
+        """Fetch analyst recommendations from yfinance and aggregate into sentiment.
+
+        Returns None if analyst coverage is unavailable (common for smaller caps, international stocks).
+        Analyst sentiment is optional enrichment; its absence does not prevent trading.
+        """
         try:
             from utils.external.yfinance import get_ticker
         except ImportError as e:
-            raise RuntimeError(
-                f"[ANALYST_SENTIMENT] Failed to import yfinance module: {e}. "
-                "Cannot fetch analyst sentiment without yfinance API."
-            ) from e
-
-        ticker = get_ticker(symbol)
-        if not ticker:
-            raise RuntimeError(
-                f"[ANALYST_SENTIMENT] Failed to fetch ticker for {symbol}. "
-                "Cannot retrieve analyst sentiment without valid ticker."
-            )
+            logger.debug(f"[ANALYST_SENTIMENT] Failed to import yfinance for {symbol}: {e} (skipping)")
+            return None
 
         try:
+            ticker = get_ticker(symbol)
+            if not ticker:
+                logger.debug(f"[ANALYST_SENTIMENT] Ticker not found for {symbol} (skipping)")
+                return None
+
             recs = ticker.recommendations
 
             if recs is None or recs.empty:
-                raise RuntimeError(
-                    f"[ANALYST_SENTIMENT] No analyst recommendations available for {symbol}. "
-                    "Cannot assess analyst sentiment without recommendation data."
-                )
+                logger.debug(f"[ANALYST_SENTIMENT] No analyst recommendations for {symbol} (skipping)")
+                return None
 
             # Group by date and aggregate sentiment counts
             sentiment_by_date: dict[Any, dict[str, int]] = {}
@@ -120,21 +118,17 @@ class AnalystSentimentLoader(OptimalLoader):
                 )
 
             if not results:
-                raise RuntimeError(
-                    f"[ANALYST_SENTIMENT] No analyst sentiment data found for {symbol}. "
-                    "Cannot load analyst sentiment without recommendations."
-                )
+                logger.debug(f"[ANALYST_SENTIMENT] No sentiment data aggregated for {symbol} (skipping)")
+                return None
+
             return results
+
         except requests.exceptions.HTTPError as e:
-            raise RuntimeError(
-                f"[ANALYST_SENTIMENT] HTTP error fetching sentiment for {symbol}: {e}. "
-                "Cannot generate signals without sentiment data."
-            ) from e
+            logger.debug(f"[ANALYST_SENTIMENT] HTTP error for {symbol} (skipping): {e}")
+            return None
         except Exception as e:
-            raise RuntimeError(
-                f"[ANALYST_SENTIMENT] Failed to fetch sentiment for {symbol}: {e}. "
-                "Cannot generate signals without sentiment data."
-            ) from e
+            logger.debug(f"[ANALYST_SENTIMENT] Error fetching for {symbol} (skipping): {e}")
+            return None
 
     def transform(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         return rows

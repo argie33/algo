@@ -37,22 +37,24 @@ class StabilityMetricsLoader(OptimalLoader):
     primary_key = ("symbol",)
     watermark_field = "created_at"
 
-    def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
-        """Compute stability metrics for this symbol."""
+    def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]] | None:
+        """Compute stability metrics for this symbol.
+
+        Returns None if unable to compute (e.g., new symbol with <30 days price history).
+        Stability metrics are optional enrichment; new symbols can trade without historical volatility.
+        """
         try:
             metrics = self._compute_stability_metrics(symbol)
             if not metrics:
-                raise RuntimeError(
-                    f"[STABILITY_METRICS] Unable to compute stability metrics for {symbol}. "
-                    "Insufficient price history or data anomalies."
-                )
+                logger.debug(f"[STABILITY_METRICS] No metrics for {symbol} (skipping)")
+                return None
             return [metrics]
-        except RuntimeError:
-            raise
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            raise RuntimeError(
-                f"[STABILITY_METRICS] Database error computing metrics for {symbol}: {e}"
-            ) from e
+            logger.debug(f"[STABILITY_METRICS] Database error for {symbol} (skipping): {e}")
+            return None
+        except Exception as e:
+            logger.debug(f"[STABILITY_METRICS] Error computing metrics for {symbol} (skipping): {e}")
+            return None
 
     def _compute_stability_metrics(self, symbol: str) -> dict[str, Any] | None:
         """Compute volatility from price_daily and beta from yfinance."""
@@ -71,10 +73,10 @@ class StabilityMetricsLoader(OptimalLoader):
                 rows = cur.fetchall()
 
             if not rows or len(rows) < 30:
-                raise RuntimeError(
-                    f"[STABILITY_METRICS] Insufficient price data for {symbol} ({len(rows) if rows else 0} days). "
-                    "Need at least 30 days of price history for volatility calculation."
+                logger.debug(
+                    f"[STABILITY_METRICS] Insufficient data for {symbol} ({len(rows) if rows else 0} days, need 30)"
                 )
+                return None
 
             # Sort chronologically (oldest to newest)
             prices = sorted(
@@ -95,10 +97,8 @@ class StabilityMetricsLoader(OptimalLoader):
                     returns.append(ret)
 
             if not returns:
-                raise RuntimeError(
-                    f"[STABILITY_METRICS] Cannot calculate returns for {symbol}. "
-                    "Price data exists but no valid return calculations possible."
-                )
+                logger.debug(f"[STABILITY_METRICS] Cannot calculate returns for {symbol} (skipping)")
+                return None
 
             # Calculate volatilities (annualized: sqrt(252) * daily_std)
             volatility_30d = self._calculate_volatility(returns[-30:]) if len(returns) >= 30 else None
@@ -118,7 +118,8 @@ class StabilityMetricsLoader(OptimalLoader):
             }
 
         except (ValueError, ZeroDivisionError, TypeError) as e:
-            raise RuntimeError(f"Operation failed: {e}") from e
+            logger.debug(f"[STABILITY_METRICS] Calculation error for {symbol} (skipping): {e}")
+            return None
 
     @staticmethod
     def _calculate_volatility(returns: list[float]) -> float | None:

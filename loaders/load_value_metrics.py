@@ -10,7 +10,6 @@ from loaders.loader_helper import setup_imports
 setup_imports()
 
 import logging  # noqa: E402
-import time  # noqa: E402
 from datetime import date, datetime, timezone  # noqa: E402
 from typing import Any  # noqa: E402
 
@@ -29,91 +28,74 @@ class ValueMetricsLoader(OptimalLoader):
     watermark_field = "updated_at"
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]] | None:
-        """Fetch value metrics from yfinance for a symbol. Fail-fast on missing value data."""
-        for attempt in range(3):
-            try:
-                ticker = get_ticker(symbol)
-                if not ticker:
-                    raise RuntimeError(
-                        f"Value metrics unavailable for {symbol}: ticker not found in data source. "
-                        "Cannot compute value-based signals without ticker data."
-                    )
+        """Fetch value metrics from yfinance for a symbol.
 
-                info = ticker.info
-                if not info:
-                    raise RuntimeError(
-                        f"Value metrics unavailable for {symbol}: no financial info from data source. "
-                        "Cannot compute PE, PB, PS ratios without ticker info."
-                    )
+        Returns None if metrics are unavailable (normal for illiquid stocks, penny stocks, etc).
+        Value metrics are optional enrichment; their absence does not prevent trading.
+        """
+        try:
+            ticker = get_ticker(symbol)
+            if not ticker:
+                logger.debug(f"[VALUE_METRICS] Ticker not found for {symbol} (skipping)")
+                return None
 
-                mkt_cap = info.get("marketCap")
+            info = ticker.info
+            if not info:
+                logger.debug(f"[VALUE_METRICS] No financial info for {symbol} (skipping)")
+                return None
 
-                # Fail-fast on illiquid symbols (market cap < $1M)
-                # These lack reliable metrics and signal incomplete data
-                if mkt_cap and mkt_cap < 1_000_000:
-                    raise RuntimeError(
-                        f"Value metrics unavailable for {symbol}: market cap ${mkt_cap:,} below $1M threshold. "
-                        "Symbol is too illiquid for reliable value factor scoring."
-                    )
+            mkt_cap = info.get("marketCap")
 
-                pe = info.get("trailingPE")
-                pb = info.get("priceToBook")
-                ps = info.get("priceToSalesTrailing12Months")
-                peg = info.get("trailingPegRatio")
-                div = info.get("dividendYield")
-                fcf = info.get("freeCashflow")
-                held_insiders = info.get("heldPercentInsiders")
-                held_institutions = info.get("heldPercentInstitutions")
+            # Skip illiquid symbols gracefully (< $1M market cap). These legitimately lack
+            # reliable metrics in yfinance and are typically excluded from trading anyway.
+            if mkt_cap and mkt_cap < 1_000_000:
+                logger.debug(f"[VALUE_METRICS] Skipping {symbol} (market cap ${mkt_cap:,} < $1M)")
+                return None
 
-                if not any([mkt_cap, pe, pb, ps]):
-                    raise RuntimeError(
-                        f"Value metrics incomplete for {symbol}: missing market cap, PE, PB, and PS. "
-                        "Cannot compute value score without at least one valuation metric."
-                    )
+            pe = info.get("trailingPE")
+            pb = info.get("priceToBook")
+            ps = info.get("priceToSalesTrailing12Months")
+            peg = info.get("trailingPegRatio")
+            div = info.get("dividendYield")
+            fcf = info.get("freeCashflow")
+            held_insiders = info.get("heldPercentInsiders")
+            held_institutions = info.get("heldPercentInstitutions")
 
-                fcf_yield = None
-                if fcf and mkt_cap and mkt_cap > 0:
-                    fcf_yield = float(fcf) / float(mkt_cap)
+            # If absolutely no metrics available, skip (but this is rare)
+            if not any([mkt_cap, pe, pb, ps]):
+                logger.debug(f"[VALUE_METRICS] No value metrics available for {symbol} (skipping)")
+                return None
 
-                def _cap(val: Any, limit: int = 9_999_999) -> float | None:
-                    return min(float(val), limit) if val else None
+            fcf_yield = None
+            if fcf and mkt_cap and mkt_cap > 0:
+                fcf_yield = float(fcf) / float(mkt_cap)
 
-                return [
-                    {
-                        "symbol": symbol,
-                        "date": date.today(),
-                        "market_cap": int(mkt_cap) if mkt_cap else None,
-                        "pe_ratio": _cap(pe) if pe and pe > 0 else None,
-                        "pb_ratio": _cap(pb) if pb and pb > 0 else None,
-                        "ps_ratio": _cap(ps) if ps and ps > 0 else None,
-                        "peg_ratio": _cap(peg) if peg and peg > 0 else None,
-                        "dividend_yield": float(div) if div else None,
-                        "fcf_yield": fcf_yield,
-                        "held_percent_insiders": (float(held_insiders) if held_insiders else None),
-                        "held_percent_institutions": (float(held_institutions) if held_institutions else None),
-                        "updated_at": datetime.now(timezone.utc).isoformat(),
-                    }
-                ]
+            def _cap(val: Any, limit: int = 9_999_999) -> float | None:
+                return min(float(val), limit) if val else None
 
-            except (ValueError, ZeroDivisionError, TypeError) as e:
-                err = str(e)
-                if "RateLimit" in err or "Too Many Requests" in err or "429" in err:
-                    if attempt < 2:
-                        wait = (attempt + 1) * 30
-                        logger.warning(f"Rate limited on {symbol}, waiting {wait}s...")
-                        time.sleep(wait)
-                        continue
-                    else:
-                        logger.error(f"Rate limit persisted after retries for {symbol}")
-                        raise RuntimeError(f"API rate limited for {symbol} after retries") from e
-                msg = f"[VALUE_METRICS] API error fetching metrics for {symbol}: {e}. Cannot compute value indicators without data."
-                logger.error(msg)
-                raise RuntimeError(msg) from e
+            return [
+                {
+                    "symbol": symbol,
+                    "date": date.today(),
+                    "market_cap": int(mkt_cap) if mkt_cap else None,
+                    "pe_ratio": _cap(pe) if pe and pe > 0 else None,
+                    "pb_ratio": _cap(pb) if pb and pb > 0 else None,
+                    "ps_ratio": _cap(ps) if ps and ps > 0 else None,
+                    "peg_ratio": _cap(peg) if peg and peg > 0 else None,
+                    "dividend_yield": float(div) if div else None,
+                    "fcf_yield": fcf_yield,
+                    "held_percent_insiders": (float(held_insiders) if held_insiders else None),
+                    "held_percent_institutions": (float(held_institutions) if held_institutions else None),
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }
+            ]
 
-        raise RuntimeError(
-            f"[VALUE_METRICS] Failed to fetch value metrics for {symbol} after {3} attempts. "
-            "Cannot proceed without value metrics data."
-        )
+        except (ValueError, ZeroDivisionError, TypeError) as e:
+            logger.debug(f"[VALUE_METRICS] Parsing error for {symbol} (skipping): {e}")
+            return None
+        except Exception as e:
+            logger.debug(f"[VALUE_METRICS] Error fetching for {symbol} (skipping): {e}")
+            return None
 
 
 def _apply_schema_migrations() -> None:
