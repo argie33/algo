@@ -1722,7 +1722,7 @@ class PriceLoader(OptimalLoader):
 
         if self.interval == "1d" and self._is_eod_pipeline:
             logger.info("[SLA_OPT] Skipping 1d price load during EOD pipeline â€” reusing morning prep data")
-            return {"symbols_loaded": 0, "symbols_failed": 0, "rows_inserted": 0}
+            return {"symbols_processed": 0, "symbols_failed": 0, "rows_inserted": 0}
 
         self._validate_and_check_preconditions()
 

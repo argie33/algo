@@ -58,8 +58,11 @@ except ImportError:
                     return ch if ch else ""
                 finally:
                     termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)  # type: ignore[attr-defined]
-            except (OSError, AttributeError, ValueError):
-                return ""
+            except (OSError, AttributeError, ValueError) as e:
+                raise RuntimeError(
+                    f"Dashboard terminal input failed: {type(e).__name__}: {e}. "
+                    "Terminal mode is broken — cannot read user input."
+                ) from e
         return ""
 
 

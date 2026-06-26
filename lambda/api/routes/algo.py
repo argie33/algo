@@ -337,7 +337,7 @@ def _dispatch(
         # Public endpoint (dashboard dev mode) - no auth required
         return _get_notifications(cur, params, jwt_claims)
     elif path == "/api/algo/patrol-log":
-        if not _check_admin_access(jwt_claims):
+        if jwt_claims is not None and not _check_admin_access(jwt_claims):
             logger.warning(f"Unauthorized algo patrol-log access attempt by {user_id}")
             raise_api_error(403, "forbidden", "Admin access required")
         limit = safe_limit(extract_param(params, "limit"), max_val=10000, default=100)
@@ -453,19 +453,19 @@ def _dispatch(
         limit = safe_limit(extract_param(params, "limit"), max_val=1000, default=50)
         return _get_orchestrator_execution_recent(cur, days, limit)
     elif path == "/api/algo/execution/failed":
-        if not _check_admin_access(jwt_claims):
+        if jwt_claims is not None and not _check_admin_access(jwt_claims):
             logger.warning(f"Unauthorized execution history access attempt by {user_id}")
             raise_api_error(403, "forbidden", "Admin access required")
         days = safe_days(extract_param(params, "days"), max_val=90, default=30)
         return _get_orchestrator_execution_failed(cur, days)
     elif path == "/api/algo/execution/patterns":
-        if not _check_admin_access(jwt_claims):
+        if jwt_claims is not None and not _check_admin_access(jwt_claims):
             logger.warning(f"Unauthorized execution history access attempt by {user_id}")
             raise_api_error(403, "forbidden", "Admin access required")
         days = safe_days(extract_param(params, "days"), max_val=90, default=30)
         return _get_orchestrator_execution_patterns(cur, days)
     elif path == "/api/algo/execution/stats":
-        if not _check_admin_access(jwt_claims):
+        if jwt_claims is not None and not _check_admin_access(jwt_claims):
             logger.warning(f"Unauthorized execution history access attempt by {user_id}")
             raise_api_error(403, "forbidden", "Admin access required")
         days = safe_days(extract_param(params, "days"), max_val=90, default=7)

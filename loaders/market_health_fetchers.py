@@ -42,13 +42,16 @@ class VIXFetcher:
         return result
 
     def _fetch_vix_data(self, start: date, end: date) -> dict[str, Any]:
-        """Internal VIX fetch implementation. Try database first, then yfinance as fallback.
+        """Internal VIX fetch implementation. Fetch from database only.
 
-        VIX data is stored in price_daily table; prefer that over yfinance to ensure consistency
-        with other market data (SPY prices, market health). Only fetch from yfinance if database
-        has gaps or is missing data entirely.
+        VIX is CRITICAL for circuit breaker logic (VIX >= 35 halts trading).
+        FAIL-FAST: Do not silently fallback to yfinance. All VIX data must come from
+        price_daily (single source of truth) to ensure circuit breaker decisions are
+        based on consistent, auditable data.
+
+        If price_daily is unavailable, this is a CRITICAL data failure that must surface
+        immediately—trading cannot proceed without reliable VIX data for halt decisions.
         """
-        # First, try to get VIX from price_daily table
         try:
             from utils.db import DatabaseContext
 
@@ -59,50 +62,31 @@ class VIXFetcher:
                     (start, end),
                 )
                 rows = cur.fetchall()
-                if rows and len(rows) > 0:
-                    result = {}
-                    for row in rows:
-                        d = row[0].isoformat() if hasattr(row[0], "isoformat") else str(row[0])
-                        result[d] = {
-                            "vix_close": float(row[1]) if row[1] is not None else None,
-                            "vix_high": float(row[3]) if row[3] is not None else None,
-                            "vix_low": float(row[2]) if row[2] is not None else None,
-                        }
-                    logger.info(f"Fetched {len(result)} VIX dates from price_daily")
-                    return result
+                if not rows or len(rows) == 0:
+                    raise RuntimeError(
+                        f"[CRITICAL] VIX data unavailable in price_daily for {start} to {end}. "
+                        "VIX is required for circuit breaker halt decisions. "
+                        "Check price_daily table and ensure VIX (^VIX) is loaded."
+                    )
+                result = {}
+                for row in rows:
+                    d = row[0].isoformat() if hasattr(row[0], "isoformat") else str(row[0])
+                    result[d] = {
+                        "vix_close": float(row[1]) if row[1] is not None else None,
+                        "vix_high": float(row[3]) if row[3] is not None else None,
+                        "vix_low": float(row[2]) if row[2] is not None else None,
+                    }
+                logger.info(f"Fetched {len(result)} VIX dates from price_daily")
+                return result
+        except RuntimeError:
+            raise
         except Exception as db_err:
-            logger.debug(f"Could not fetch VIX from price_daily: {db_err}, falling back to yfinance")
-
-        # Fallback to yfinance if database fetch fails or returns no data
-        try:
-            import yfinance
-
-            vix_data = yfinance.download("^VIX", start=start, end=end, progress=False)
-            if vix_data.empty:
-                raise ValueError(
-                    f"VIX data unavailable from yfinance for {start} to {end}. "
-                    f"Cannot compute circuit breaker decisions without valid VIX data."
-                )
-
-            result = {}
-            for idx, row in vix_data.iterrows():
-                result[idx.date().isoformat()] = {
-                    "vix_close": float(row["Close"]) if row["Close"] is not None else None,
-                    "vix_high": float(row["High"]) if row["High"] is not None else None,
-                    "vix_low": float(row["Low"]) if row["Low"] is not None else None,
-                }
-            if not result:
-                raise ValueError(
-                    f"VIX fetch returned no data points despite non-empty frame for {start} to {end}. "
-                    f"Data corruption or parsing error detected."
-                )
-            logger.info(f"Fetched {len(result)} VIX dates from yfinance")
-            return result
-        except ValueError:
-            raise
-        except Exception as e:
-            logger.warning(f"VIX fetch failed: {e}")
-            raise
+            raise RuntimeError(
+                f"[CRITICAL] Failed to fetch VIX from price_daily: {db_err}. "
+                "VIX is required for circuit breaker halt decisions. "
+                "Cannot proceed without CRITICAL market data. "
+                "Check database connectivity and price_daily schema."
+            ) from db_err
 
 
 class PutCallRatioFetcher:
