@@ -108,6 +108,17 @@ PUBLIC_RATE_LIMITS: dict[str, _RateLimitConfig] = {
         "window": DEFAULT_TIME_WINDOW,
         "description": "ReDoc documentation",
     },
+    # Dashboard endpoints (public for dev mode)
+    "/api/algo/notifications": {
+        "max_requests": PUBLIC_ENDPOINT_LIMIT,
+        "window": DEFAULT_TIME_WINDOW,
+        "description": "Notifications (dashboard dev mode)",
+    },
+    "/api/algo/execution/recent": {
+        "max_requests": PUBLIC_ENDPOINT_LIMIT,
+        "window": DEFAULT_TIME_WINDOW,
+        "description": "Recent execution history (dashboard dev mode)",
+    },
 }
 
 

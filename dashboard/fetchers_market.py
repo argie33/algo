@@ -141,10 +141,6 @@ def fetch_market(c: None) -> dict[str, Any]:
             vix_raw = market_health.get("vix_level")
             spy_raw = market_health.get("spy_close")
 
-            # Fallback: If spy_close not in market_health, try current dict (backward compatibility)
-            if spy_raw is None and isinstance(current, dict):
-                spy_raw = current.get("spy_close")
-
             # Both SPY and VIX are REQUIRED for position sizing
             if vix_raw is None:
                 error_msg = "Critical market data missing: VIX level required but not provided by API"

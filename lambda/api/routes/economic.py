@@ -518,21 +518,61 @@ def _get_yield_curve_full(cur: cursor) -> Any:
             "BAMLH0A0IG": bamlc,
             "VIXCLS": vixcls,
         }
-        credit_latest = {k: v[-1].get("value") if v else None for k, v in credit_history.items()}
+        # Extract latest values: fail if history exists but lacks "value" key (data structure error)
+        credit_latest = {}
+        for k, v in credit_history.items():
+            if v is None:
+                credit_latest[k] = None
+            elif not isinstance(v, list) or len(v) == 0:
+                credit_latest[k] = None
+            else:
+                last_item = v[-1]
+                if "value" not in last_item:
+                    raise RuntimeError(
+                        f"Economic data structure error: credit history '{k}' last item missing 'value' key. "
+                        f"Available keys: {list(last_item.keys())}. Data integrity issue."
+                    )
+                credit_latest[k] = last_item["value"]
 
         # TIPS breakeven inflation expectations
         breakevens_history = {
             "T5YIE": history.get("T5YIE"),
             "T10YIE": history.get("T10YIE"),
         }
-        breakevens_latest = {k: v[-1].get("value") if v else None for k, v in breakevens_history.items()}
+        breakevens_latest = {}
+        for k, v in breakevens_history.items():
+            if v is None:
+                breakevens_latest[k] = None
+            elif not isinstance(v, list) or len(v) == 0:
+                breakevens_latest[k] = None
+            else:
+                last_item = v[-1]
+                if "value" not in last_item:
+                    raise RuntimeError(
+                        f"Economic data structure error: breakevens history '{k}' last item missing 'value' key. "
+                        f"Available keys: {list(last_item.keys())}. Data integrity issue."
+                    )
+                breakevens_latest[k] = last_item["value"]
 
         # Financial stress indices
         stress_history = {
             "STLFSI4": history.get("STLFSI4"),
             "ANFCI": history.get("ANFCI"),
         }
-        stress_latest = {k: v[-1].get("value") if v else None for k, v in stress_history.items()}
+        stress_latest = {}
+        for k, v in stress_history.items():
+            if v is None:
+                stress_latest[k] = None
+            elif not isinstance(v, list) or len(v) == 0:
+                stress_latest[k] = None
+            else:
+                last_item = v[-1]
+                if "value" not in last_item:
+                    raise RuntimeError(
+                        f"Economic data structure error: stress history '{k}' last item missing 'value' key. "
+                        f"Available keys: {list(last_item.keys())}. Data integrity issue."
+                    )
+                stress_latest[k] = last_item["value"]
 
         result = {
             "currentCurve": current_curve,

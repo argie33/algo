@@ -721,22 +721,46 @@ class ValueAtRisk:
             }
 
             # Alert if VaR > 2%
-            if var_metrics and var_metrics.get("var_pct", 0) > 2.0:
-                msg = f"VaR Risk: Portfolio VaR is {var_metrics['var_pct']:.2f}% (>2% threshold)"
-                alerts.append(msg)
-                logger.warning(msg)
+            if var_metrics:
+                if "var_pct" not in var_metrics:
+                    raise RuntimeError(
+                        f"[VaR CRITICAL] var_metrics dict missing 'var_pct' key. "
+                        f"Cannot evaluate risk threshold without valid VaR metric. "
+                        f"Available keys: {list(var_metrics.keys())}"
+                    )
+                var_pct = float(var_metrics["var_pct"])
+                if var_pct > 2.0:
+                    msg = f"VaR Risk: Portfolio VaR is {var_pct:.2f}% (>2% threshold)"
+                    alerts.append(msg)
+                    logger.warning(msg)
 
             # Alert if concentration > 30%
-            if concentration and concentration.get("top_5_concentration_pct", 0) > 30:
-                msg = f"Concentration Risk: Top 5 holdings are {concentration['top_5_concentration_pct']:.1f}% (>30%)"
-                alerts.append(msg)
-                logger.warning(msg)
+            if concentration:
+                if "top_5_concentration_pct" not in concentration:
+                    raise RuntimeError(
+                        f"[CONCENTRATION CRITICAL] concentration dict missing 'top_5_concentration_pct' key. "
+                        f"Cannot evaluate concentration risk without valid metric. "
+                        f"Available keys: {list(concentration.keys())}"
+                    )
+                conc_pct = float(concentration["top_5_concentration_pct"])
+                if conc_pct > 30:
+                    msg = f"Concentration Risk: Top 5 holdings are {conc_pct:.1f}% (>30%)"
+                    alerts.append(msg)
+                    logger.warning(msg)
 
             # Alert if beta > 2.0
-            if beta and beta.get("portfolio_beta", 0) > 2.0:
-                msg = f"Beta Risk: Portfolio beta {beta['portfolio_beta']:.1f} (>2.0x market risk)"
-                alerts.append(msg)
-                logger.warning(msg)
+            if beta:
+                if "portfolio_beta" not in beta:
+                    raise RuntimeError(
+                        f"[BETA CRITICAL] beta dict missing 'portfolio_beta' key. "
+                        f"Cannot evaluate leverage risk without valid beta metric. "
+                        f"Available keys: {list(beta.keys())}"
+                    )
+                portfolio_beta = float(beta["portfolio_beta"])
+                if portfolio_beta > 2.0:
+                    msg = f"Beta Risk: Portfolio beta {portfolio_beta:.1f} (>2.0x market risk)"
+                    alerts.append(msg)
+                    logger.warning(msg)
 
             try:
                 with DatabaseContext("write") as cur:

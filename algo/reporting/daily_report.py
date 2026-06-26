@@ -192,10 +192,18 @@ class DailyFinanceReport:
 
         history = self.regime_mgr.regime_history(days=30)
         if not history:
-            logger.warning(f"[DAILY_REPORT] Regime history empty for {report_date}; cannot calculate days_in_regime")
-            days_in_regime = 0
-        else:
-            days_in_regime = history[0].get("days_in_regime", 0)
+            raise RuntimeError(
+                f"[DAILY_REPORT CRITICAL] Regime history empty for {report_date}. "
+                f"Cannot generate report without regime history. Check RegimeManager.regime_history()."
+            )
+
+        regime_item = history[0]
+        if "days_in_regime" not in regime_item:
+            raise RuntimeError(
+                f"[DAILY_REPORT CRITICAL] Regime history item missing 'days_in_regime' key. "
+                f"Available keys: {list(regime_item.keys())}. Data structure error."
+            )
+        days_in_regime = int(regime_item["days_in_regime"])
 
         return {
             "current": regime,
