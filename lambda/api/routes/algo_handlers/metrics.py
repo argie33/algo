@@ -454,6 +454,19 @@ def _get_algo_portfolio(cur: cursor) -> Any:
         losing_count = int(losing_count_val) if losing_count_val is not None else 0
         breakeven_count_val = data.get("unrealized_pnl_breakeven_count")
         breakeven_count = int(breakeven_count_val) if breakeven_count_val is not None else 0
+
+        # Calculate data_age_seconds from snapshot_date
+        snapshot_date = data.get("snapshot_date")
+        data_age_seconds = None
+        if snapshot_date:
+            from datetime import datetime, timezone
+            now = datetime.now(timezone.utc)
+            snapshot_dt = snapshot_date if hasattr(snapshot_date, 'tzinfo') else (
+                datetime.fromisoformat(str(snapshot_date)).replace(tzinfo=timezone.utc) if isinstance(snapshot_date, str) else None
+            )
+            if snapshot_dt:
+                data_age_seconds = int((now - snapshot_dt).total_seconds())
+
         response_data = {
             "total_portfolio_value": pv,
             "total_cash": format_decimal_string(data.get("total_cash"), precision=2, allow_none=True),
@@ -476,6 +489,7 @@ def _get_algo_portfolio(cur: cursor) -> Any:
                 data.get("largest_position_pct"), precision=2, allow_none=True
             ),
             "last_run": data.get("snapshot_date"),
+            "data_age_seconds": data_age_seconds,
         }
         validated_data = _ensure_portfolio_fields(response_data)
 

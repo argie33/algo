@@ -669,7 +669,7 @@ def _get_markets(cur: cursor) -> Any:
         market_health = {}
         try:
             cur.execute("""
-                    SELECT market_trend, market_stage, vix_level, spy_change_pct,
+                    SELECT date, market_trend, market_stage, vix_level, spy_change_pct,
                            up_volume_percent, advance_decline_ratio, new_highs_count,
                            new_lows_count, breadth_momentum_10d, put_call_ratio,
                            yield_curve_slope, fed_rate_environment
