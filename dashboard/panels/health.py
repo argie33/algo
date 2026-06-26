@@ -237,11 +237,12 @@ def _build_freshness_panel(hlth_items: list[Any], ready_to_trade: bool | None) -
     )
 
     _role_order = {"CRIT": 0, "IMP": 1, "NORM": 2}
-    def sort_key(r: dict) -> tuple:
+    def sort_key(r: dict[str, Any]) -> tuple[int, str]:
         role = r.get("role")
         if role is None:
             role = "NORM"
-        return (_role_order.get(role, 2), r.get("tbl") if r.get("tbl") is not None else "")
+        tbl = r.get("tbl")
+        return (_role_order.get(role, 2), str(tbl) if tbl is not None else "")
 
     sorted_items = sorted(
         [r for r in hlth_items if isinstance(r, dict)],
@@ -828,7 +829,7 @@ def _format_health_data_fresh_section(
     n_total = len(hlth_list)
     n_crit = len(crit)
     valid_ages = [r for r in hlth_list if _age_h(r) is not None]
-    oldest_s = f"  [dim]oldest: {_age_fmt_c(max(valid_ages, key=lambda r: _age_h(r)))}[/]" if valid_ages else ""
+    oldest_s = f"  [dim]oldest: {_age_fmt_c(max(valid_ages, key=lambda r: cast(float, _age_h(r))))}[/]" if valid_ages else ""
     crit_s = f"  [dim]crit {n_crit}[/][{G}] ok[/]" if n_crit else ""
     return f"{rtt_badge}  [dim]{n_total} tables fresh[/]{crit_s}{oldest_s}"
 
@@ -1700,7 +1701,7 @@ def _build_results_panel(  # noqa: C901
                 short = PHASE_NAMES.get(base, base.replace("phase_", "P"))[:8]
                 ps = p.get("status", "")
                 sc, si = HealthFormatter.format_phase_badge(ps)
-            phase_badges_e.append(f"[{sc}]{si}[dim]{short}[/][/]")
+                phase_badges_e.append(f"[{sc}]{si}[dim]{short}[/][/]")
     if phase_badges_e:
         right_rows.append(Text.from_markup("  ".join(phase_badges_e)))
 
@@ -1795,7 +1796,7 @@ def _build_results_panel(  # noqa: C901
     # This masks data quality issues and displays false "all clear" when risk metrics unavailable.
     risk_dict_b = safe_get_dict(risk) if not has_error(risk) else None
     var95_b = safe_float(risk_dict_b.get("var95"), default=None) if risk_dict_b else None
-    if var95_b is not None and var95_b > 0:
+    if var95_b is not None and var95_b > 0 and risk_dict_b:
         right_rows.append(Rule(style="dim"))
         var95_val_e = safe_float(var95_b, default=None)
         beta_val_e = safe_float(risk_dict_b.get("beta"), default=None)

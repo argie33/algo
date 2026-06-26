@@ -560,8 +560,8 @@ def panel_portfolio_perf_expanded(  # noqa: C901
             "Streak:",
             Text(str_s, style=str_c),
         )
-        pnl_val_safe = pnl_val if pnl_val is not None else None
-        unrlzd_pnl_safe = unrlzd_pnl if unrlzd_pnl is not None else None
+        pnl_val_safe = pnl_val if pnl_val is not None else 0
+        unrlzd_pnl_safe = unrlzd_pnl if unrlzd_pnl is not None else 0
         perfblk.add_row(
             "Total P&L:",
             Text(fmt_money(pnl_val), style=G if pnl_val_safe >= 0 else R),
