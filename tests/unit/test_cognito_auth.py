@@ -111,7 +111,7 @@ class TestAuthorizationHeaderValidation:
         auth.access_token = "not-a-valid-jwt"
         auth.token_expires_at = int(time.time()) + 3600
 
-        with pytest.raises(RuntimeError, match="token is not a valid JWT"):
+        with pytest.raises(RuntimeError, match="JWT must have exactly 3 parts"):
             auth.get_authorization_header()
 
     def test_jwt_with_missing_parts_raises_error(self):
@@ -121,7 +121,7 @@ class TestAuthorizationHeaderValidation:
         auth.access_token = "header.payload"
         auth.token_expires_at = int(time.time()) + 3600
 
-        with pytest.raises(RuntimeError, match="token is not a valid JWT"):
+        with pytest.raises(RuntimeError, match="JWT must have exactly 3 parts"):
             auth.get_authorization_header()
 
     def test_jwt_with_empty_parts_raises_error(self):
@@ -131,7 +131,7 @@ class TestAuthorizationHeaderValidation:
         auth.access_token = "header..signature"
         auth.token_expires_at = int(time.time()) + 3600
 
-        with pytest.raises(RuntimeError, match="token is not a valid JWT"):
+        with pytest.raises(RuntimeError, match="JWT contains empty parts"):
             auth.get_authorization_header()
 
     def test_jwt_format_validation(self):
@@ -149,20 +149,27 @@ class TestAuthorizationHeaderValidation:
         valid_jwt = f"{header}.{payload}.{signature}"
         assert auth._is_valid_jwt(valid_jwt) is True
 
-        # Invalid formats
-        assert auth._is_valid_jwt("not-a-jwt") is False
-        assert auth._is_valid_jwt("header.payload") is False
-        assert auth._is_valid_jwt("header..signature") is False
-        assert auth._is_valid_jwt("") is False
-        assert auth._is_valid_jwt("...") is False
+        # Invalid formats - should raise RuntimeError
+        with pytest.raises(RuntimeError):
+            auth._is_valid_jwt("not-a-jwt")
+        with pytest.raises(RuntimeError):
+            auth._is_valid_jwt("header.payload")
+        with pytest.raises(RuntimeError):
+            auth._is_valid_jwt("header..signature")
+        with pytest.raises(RuntimeError):
+            auth._is_valid_jwt("")
+        with pytest.raises(RuntimeError):
+            auth._is_valid_jwt("...")
 
-        # Valid structure but missing required claims
+        # Valid structure but missing required claims - should raise RuntimeError
         missing_claims_payload = base64.urlsafe_b64encode(json.dumps({"data": "value"}).encode()).decode().rstrip("=")
         missing_claims_jwt = f"{header}.{missing_claims_payload}.{signature}"
-        assert auth._is_valid_jwt(missing_claims_jwt) is False
+        with pytest.raises(RuntimeError, match="JWT payload missing required claims"):
+            auth._is_valid_jwt(missing_claims_jwt)
 
-        # Valid structure but invalid base64 payload
-        assert auth._is_valid_jwt("header.!!!invalid-base64!!!.signature") is False
+        # Valid structure but invalid base64 payload - should raise RuntimeError
+        with pytest.raises(RuntimeError):
+            auth._is_valid_jwt("header.!!!invalid-base64!!!.signature")
 
 
 class TestTokenExpiryBuffer:

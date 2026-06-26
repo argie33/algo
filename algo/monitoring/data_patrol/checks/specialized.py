@@ -34,17 +34,32 @@ class SpecializedChecker(BaseCheck):
             sp = f"sp_spec_{fn_name}"
             try:
                 cur.execute(f"SAVEPOINT {sp}")
-            except Exception:
-                pass
+            except psycopg2.DatabaseError as e:
+                logger.critical(f"Database error creating SAVEPOINT {sp}: {e} — data patrol cannot proceed safely")
+                self.log(
+                    fn_name,
+                    ERROR,
+                    fn_name,
+                    "SAVEPOINT creation failed — database state unknown",
+                    None,
+                )
+                continue
             try:
                 fn(cur)
             except Exception as e:
-                logger.error(f"Specialized {fn_name} failed: {e}")
+                logger.critical(f"Specialized {fn_name} check FAILED: {e} — results are incomplete")
+                self.log(
+                    fn_name,
+                    ERROR,
+                    fn_name,
+                    "Check execution failed — treating as critical failure",
+                    {"error": str(e)},
+                )
             finally:
                 try:
                     cur.execute(f"ROLLBACK TO SAVEPOINT {sp}")
-                except Exception:
-                    pass
+                except psycopg2.DatabaseError as e:
+                    logger.warning(f"Failed to rollback SAVEPOINT {sp}: {e} — transaction state may be inconsistent")
 
         return self.results
 
@@ -95,11 +110,12 @@ class SpecializedChecker(BaseCheck):
                             {"latest": str(latest), "count": count},
                         )
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+                logger.critical(f"Earnings data check for {tbl} FAILED: {e} — assuming critical data missing")
                 self.log(
                     "earnings_staleness",
-                    INFO,
+                    ERROR,
                     tbl,
-                    f"Check skipped (table may not exist): {e}",
+                    f"Check FAILED (table access error): {e}",
                     None,
                 )
 
@@ -141,11 +157,12 @@ class SpecializedChecker(BaseCheck):
             ZeroDivisionError,
             TypeError,
         ) as e:
+            logger.critical(f"Earnings coverage check FAILED: {e} — cannot validate data completeness")
             self.log(
                 "earnings_coverage",
-                WARN,
+                ERROR,
                 "earnings_estimates",
-                f"Check skipped: {e}",
+                f"Check FAILED: {e}",
                 None,
             )
 

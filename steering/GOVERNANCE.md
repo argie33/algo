@@ -132,6 +132,5 @@ Allowed: `print()` in loaders, scripts, tests only.
 
 See:
 - `steering/LINT_POLICY.md` — Lint discipline, what can/cannot be ignored, audit procedures (critical: enforced per PR)
-- `steering/REFERENCE_GOVERNANCE.md` — Exception handling, validation patterns, circuit breakers, database transactions, workflows, troubleshooting
-- `steering/OPERATIONS.md` — CI/CD procedures, dashboard diagnostics
-- `steering/REFERENCE_OPERATIONS.md` — Detailed CI gates, debugging, verification
+- `steering/OPERATIONS.md` — CI/CD procedures, deployments, dashboard diagnostics
+- `steering/SETUP_CREDENTIALS.md` — Alpaca and Cognito credential setup

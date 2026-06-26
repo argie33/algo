@@ -129,8 +129,8 @@ class StalenessChecker(BaseCheck):
             sp = f"sp_stale_{tbl}"
             try:
                 cur.execute(f"SAVEPOINT {sp}")
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Failed to create SAVEPOINT {sp}: {e} — staleness check will run without transaction protection")
             try:
                 max_days = cast(int, self.config.get(config_key, 7))
                 tbl_safe = assert_safe_table(tbl)
