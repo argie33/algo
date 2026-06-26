@@ -23,6 +23,7 @@ from typing import Any  # noqa: E402
 import requests  # noqa: E402
 
 from loaders.runner import run_loader  # noqa: E402
+from utils.loaders.transient_errors import TransientAPIError  # noqa: E402
 from utils.optimal_loader import OptimalLoader  # noqa: E402
 
 logger = logging.getLogger(__name__)
@@ -41,6 +42,9 @@ class PositioningMetricsLoader(OptimalLoader):
         Returns None if positioning data is unavailable (many symbols lack institutional ownership,
         short interest, or other positioning metrics in yfinance). This is normal for illiquid stocks
         and does not constitute a loader failure.
+
+        Raises:
+            Unexpected exceptions are re-raised to surface programming errors immediately.
         """
         try:
             metrics = self._fetch_positioning_metrics(symbol)
@@ -48,9 +52,14 @@ class PositioningMetricsLoader(OptimalLoader):
                 logger.debug(f"[POSITIONING_METRICS] No positioning data available for {symbol} (skipping)")
                 return None
             return [metrics]
-        except Exception as e:
-            logger.debug(f"[POSITIONING_METRICS] Error fetching for {symbol} (skipping): {e}")
+        except (ValueError, TypeError, ZeroDivisionError) as e:
+            # Expected errors: parsing issues, type mismatches
+            logger.debug(f"[POSITIONING_METRICS] Data parsing error for {symbol} (skipping): {e}")
             return None
+        except Exception as e:
+            # Unexpected errors (database errors, network issues, bugs) should surface immediately
+            logger.error(f"[POSITIONING_METRICS] Unexpected error for {symbol} (not data unavailability): {type(e).__name__}: {e}")
+            raise
 
     @staticmethod
     def _fetch_positioning_metrics(symbol: str) -> dict[str, Any] | None:
@@ -58,14 +67,20 @@ class PositioningMetricsLoader(OptimalLoader):
 
         Skips symbols with market cap < $50M (illiquid stocks typically lack positioning data).
         This reduces unnecessary API calls and improves loader throughput.
+
+        Raises:
+            TransientAPIError: On timeouts/connection errors (orchestrator will retry with backoff)
         """
         from utils.external.yfinance import get_ticker
 
         try:
             ticker = get_ticker(symbol)
         except requests.Timeout as e:
-            logger.debug(f"[POSITIONING_METRICS] Timeout fetching ticker for {symbol} (skipping): {e}")
-            return None
+            logger.warning(f"[POSITIONING_METRICS] Timeout fetching ticker for {symbol} (transient, will retry): {e}")
+            raise TransientAPIError(f"Timeout fetching ticker for {symbol}") from e
+        except requests.ConnectionError as e:
+            logger.warning(f"[POSITIONING_METRICS] Connection error for {symbol} (transient, will retry): {e}")
+            raise TransientAPIError(f"Connection error fetching ticker for {symbol}") from e
 
         if not ticker:
             return None
@@ -74,8 +89,11 @@ class PositioningMetricsLoader(OptimalLoader):
             try:
                 info = ticker.info
             except requests.Timeout as e:
-                logger.debug(f"[POSITIONING_METRICS] Timeout accessing ticker.info for {symbol} (skipping): {e}")
-                return None
+                logger.warning(f"[POSITIONING_METRICS] Timeout accessing ticker.info for {symbol} (transient, will retry): {e}")
+                raise TransientAPIError(f"Timeout accessing ticker.info for {symbol}") from e
+            except requests.ConnectionError as e:
+                logger.warning(f"[POSITIONING_METRICS] Connection error for {symbol} (transient, will retry): {e}")
+                raise TransientAPIError(f"Connection error accessing ticker.info for {symbol}") from e
 
             # Early exit for extremely illiquid symbols (< $1M market cap)
             # These symbols typically lack reliable positioning data and aren't trading candidates

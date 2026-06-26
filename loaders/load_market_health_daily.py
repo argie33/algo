@@ -227,11 +227,21 @@ class MarketHealthDailyLoader(OptimalLoader):
 
         Yield curve slope is used for market regime detection. Forward-fill missing dates
         using the most recent available yield curve slope (standard financial data practice).
+
+        Note: Yield curve fetcher returns {"_data_unavailable": True, ...} when API fails.
+        We explicitly check for this and log it clearly instead of silently degrading.
         """
         try:
             yield_curve = self._yield_curve_fetcher.fetch(start, end)
+
+            # Check for unavailability marker (instead of silently assuming empty dict means success)
+            if yield_curve.get("_data_unavailable"):
+                reason = yield_curve.get("_reason", "unknown")
+                logger.warning(f"Yield curve data unavailable ({reason}) - proceeding without slope enrichment")
+                return
+
             if not yield_curve:
-                logger.warning("Yield curve data unavailable - proceeding without slope enrichment")
+                logger.warning("Yield curve data unavailable (empty response) - proceeding without slope enrichment")
                 return
 
             matched_count = 0

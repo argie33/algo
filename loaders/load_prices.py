@@ -147,30 +147,49 @@ class PriceLoader(OptimalLoader):
     def _detect_eod_pipeline_context(self) -> bool:
         """Detect if running during EOD pipeline (4:05-5:30 PM ET) for timing-aware rate limiting.
 
-        Returns True if current time is 4:05 PM Â± 2 hours (accounts for slow yfinance lag).
+        Returns True if current time is 4:05 PM ± 2 hours (accounts for slow yfinance lag).
         EOD pipeline has tight deadline (85 min), so we use aggressive rate limiting strategy.
+
+        Raises:
+            RuntimeError: If timezone conversion or time calculation fails (programming error, not transient)
         """
-        from datetime import datetime
+        try:
+            from datetime import datetime
 
-        eod_window_start_min = -10
-        eod_window_end_min = 120
+            eod_window_start_min = -10
+            eod_window_end_min = 120
 
-        now_et = datetime.now(EASTERN_TZ)
-        eod_start_et = now_et.replace(hour=16, minute=5, second=0, microsecond=0)  # 4:05 PM ET
+            now_et = datetime.now(EASTERN_TZ)
+            if now_et is None:
+                raise RuntimeError("Failed to get current time in Eastern timezone (now_et is None)")
 
-        time_since_eod_start = (now_et - eod_start_et).total_seconds() / 60
-        if eod_window_start_min < time_since_eod_start < eod_window_end_min:
-            logger.info(
-                f"[CONTEXT] Running during EOD pipeline "
-                f"({time_since_eod_start:.0f} min from 4:05 PM ET), using aggressive rate limiting"
+            eod_start_et = now_et.replace(hour=16, minute=5, second=0, microsecond=0)  # 4:05 PM ET
+
+            time_delta = now_et - eod_start_et
+            time_since_eod_start = time_delta.total_seconds() / 60
+
+            if eod_window_start_min < time_since_eod_start < eod_window_end_min:
+                logger.info(
+                    f"[CONTEXT] Running during EOD pipeline "
+                    f"({time_since_eod_start:.0f} min from 4:05 PM ET), using aggressive rate limiting"
+                )
+                return True
+
+            logger.debug(
+                f"[CONTEXT] Running during morning/regular hours "
+                f"({time_since_eod_start:.0f} min from 4:05 PM ET), using conservative rate limiting"
             )
-            return True
+            return False
 
-        logger.debug(
-            f"[CONTEXT] Running during morning/regular hours "
-            f"({time_since_eod_start:.0f} min from 4:05 PM ET), using conservative rate limiting"
-        )
-        return False
+        except (ValueError, AttributeError, TypeError) as e:
+            raise RuntimeError(
+                f"[CONTEXT] Failed to detect EOD pipeline context (timezone/time calculation error): {type(e).__name__}: {e}. "
+                "Cannot proceed with price loading without knowing pipeline context."
+            ) from e
+        except Exception as e:
+            raise RuntimeError(
+                f"[CONTEXT] Unexpected error detecting EOD pipeline context: {type(e).__name__}: {e}"
+            ) from e
 
     def _validate_schema_preflight(self) -> None:
         """Pre-flight validation: Ensure table schema is correct before loading any data.

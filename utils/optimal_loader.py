@@ -11,6 +11,7 @@ from utils.bulk_insert_manager import BulkInsertManager
 from utils.db.context import DatabaseContext
 from utils.loader_infrastructure import LoaderInfrastructure
 from utils.loader_stats import LoaderStats
+from utils.loaders.transient_errors import TransientAPIError
 from utils.watermark_manager import WatermarkManager
 
 if not logging.root.handlers:
@@ -95,10 +96,35 @@ class OptimalLoader:
             if previous_date is None:
                 previous_date = self._watermark.read_from_db(symbol)
 
-        try:
-            rows = self.fetch_incremental(symbol, previous_date)
-        except Exception as e:
-            raise RuntimeError(f"[{self.table_name}] {symbol}: Failed to fetch: {e}") from e
+        # Retry transient API errors (timeouts, connection errors) with exponential backoff
+        max_attempts = 3
+        last_exception: Exception | None = None
+
+        for attempt in range(1, max_attempts + 1):
+            try:
+                rows = self.fetch_incremental(symbol, previous_date)
+                if attempt > 1:
+                    logger.info(f"[{self.table_name}] {symbol}: Success on attempt {attempt}/{max_attempts}")
+                break
+            except TransientAPIError as e:
+                last_exception = e
+                if attempt < max_attempts:
+                    delay = min(2.0 * (2.0 ** (attempt - 1)), 30.0)
+                    logger.warning(
+                        f"[{self.table_name}] {symbol}: Transient API error on attempt {attempt}/{max_attempts}, "
+                        f"retrying in {delay:.1f}s: {e}"
+                    )
+                    time.sleep(delay)
+                else:
+                    logger.error(f"[{self.table_name}] {symbol}: All {max_attempts} attempts failed due to transient errors: {e}")
+            except Exception as e:
+                logger.error(f"[{self.table_name}] {symbol}: Failed to fetch (non-transient error): {e}")
+                raise RuntimeError(f"[{self.table_name}] {symbol}: Failed to fetch: {e}") from e
+
+        if last_exception is not None:
+            raise RuntimeError(
+                f"[{self.table_name}] {symbol}: Failed to fetch after {max_attempts} attempts due to transient errors"
+            ) from last_exception
 
         if not rows:
             self._stats.increment("symbols_skipped_by_watermark")

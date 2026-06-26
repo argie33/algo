@@ -163,11 +163,15 @@ class YieldCurveFetcher:
         """Fetch yield curve data with circuit breaker protection.
 
         Returns:
-            dict with yield data keyed by date
+            dict with yield data keyed by date, or special marker dict if data unavailable.
+            Caller MUST check for _data_unavailable flag before using results.
+
+        Raises:
+            RuntimeError: Only for non-transient, non-recoverable failures (e.g., missing API key)
 
         Note: Yield curve data affects market health (Fed rate environment, inversion detection).
-        Returns empty dict (not error) only when data is genuinely unavailable (API down, no API key).
-        But consumers should explicitly handle empty result and log it for visibility.
+        Returning empty dict {} is confusing (looks like "successfully fetched 0 dates" vs. "API failed").
+        Instead, we return {"_data_unavailable": True} to force explicit caller handling.
         """
         try:
             result = self.breaker.execute(
@@ -176,14 +180,17 @@ class YieldCurveFetcher:
                 fallback_value=None,
             )
             if result is None:
-                # Circuit breaker failed multiple times - log explicitly
+                # Circuit breaker failed multiple times - return unavailable marker
                 logger.warning(f"Yield curve circuit breaker OPEN: repeated failures for {start} to {end}. Data unavailable.")
-                return {}
-            return result if isinstance(result, dict) else {}
+                return {"_data_unavailable": True, "_reason": "circuit_breaker_open"}
+            if not isinstance(result, dict):
+                logger.warning(f"Yield curve fetch returned invalid type {type(result).__name__}, treating as unavailable")
+                return {"_data_unavailable": True, "_reason": "invalid_response_type"}
+            return result
         except Exception as e:
-            # Optional data source failed - log explicitly
-            logger.warning(f"Yield curve fetch failed (optional data, will degrade gracefully): {e}")
-            return {}
+            # Optional data source failed - return unavailable marker instead of silently succeeding
+            logger.warning(f"Yield curve fetch failed (optional data, marking unavailable): {e}")
+            return {"_data_unavailable": True, "_reason": str(e)[:100]}
 
     def _fetch_yield_curve_data(self, start: date, end: date) -> dict[str, Any]:
         """Internal yield curve fetch implementation.

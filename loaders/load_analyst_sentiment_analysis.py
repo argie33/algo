@@ -42,6 +42,7 @@ from typing import Any
 import requests
 
 from loaders.runner import run_loader
+from utils.loaders.transient_errors import TransientAPIError
 from utils.optimal_loader import OptimalLoader
 
 logger = logging.getLogger(__name__)
@@ -55,89 +56,92 @@ class AnalystSentimentLoader(OptimalLoader):
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]] | None:
         """Fetch analyst recommendations from yfinance and aggregate into sentiment.
 
-        Returns None if analyst coverage is unavailable (common for smaller caps, international stocks).
+        Returns None if analyst coverage is legitimately unavailable (common for smaller caps, international stocks).
+
+        Raises:
+            TransientAPIError: On timeouts/connection errors (orchestrator will retry with backoff)
+            Exception: On unexpected errors (will be logged and handled by orchestrator)
+
         Analyst sentiment is optional enrichment; its absence does not prevent trading.
         """
         try:
             from utils.external.yfinance import get_ticker
         except ImportError as e:
-            logger.debug(f"[ANALYST_SENTIMENT] Failed to import yfinance for {symbol}: {e} (skipping)")
+            logger.debug(f"[ANALYST_SENTIMENT] Failed to import yfinance for {symbol}: {e}")
+            raise
+
+        try:
+            ticker = get_ticker(symbol)
+        except requests.Timeout as e:
+            logger.warning(f"[ANALYST_SENTIMENT] Timeout fetching ticker for {symbol} (transient, will retry): {e}")
+            raise TransientAPIError(f"Timeout fetching ticker for {symbol}") from e
+        except requests.ConnectionError as e:
+            logger.warning(f"[ANALYST_SENTIMENT] Connection error for {symbol} (transient, will retry): {e}")
+            raise TransientAPIError(f"Connection error fetching ticker for {symbol}") from e
+
+        if not ticker:
+            logger.debug(f"[ANALYST_SENTIMENT] Ticker not found for {symbol} (skipping)")
             return None
 
         try:
-            try:
-                ticker = get_ticker(symbol)
-            except requests.Timeout as e:
-                logger.debug(f"[ANALYST_SENTIMENT] Timeout fetching ticker for {symbol} (skipping): {e}")
-                return None
+            recs = ticker.recommendations
+        except requests.Timeout as e:
+            logger.warning(f"[ANALYST_SENTIMENT] Timeout fetching recommendations for {symbol} (transient, will retry): {e}")
+            raise TransientAPIError(f"Timeout fetching recommendations for {symbol}") from e
+        except requests.ConnectionError as e:
+            logger.warning(f"[ANALYST_SENTIMENT] Connection error for {symbol} (transient, will retry): {e}")
+            raise TransientAPIError(f"Connection error fetching recommendations for {symbol}") from e
 
-            if not ticker:
-                logger.debug(f"[ANALYST_SENTIMENT] Ticker not found for {symbol} (skipping)")
-                return None
-
-            try:
-                recs = ticker.recommendations
-            except requests.Timeout as e:
-                logger.debug(f"[ANALYST_SENTIMENT] Timeout fetching recommendations for {symbol} (skipping): {e}")
-                return None
-
-            if recs is None or recs.empty:
-                logger.debug(f"[ANALYST_SENTIMENT] No analyst recommendations for {symbol} (skipping)")
-                return None
-
-            # Group by date and aggregate sentiment counts
-            sentiment_by_date: dict[Any, dict[str, int]] = {}
-            for idx, row in recs.iterrows():
-                rec_date = idx.date() if hasattr(idx, "date") else idx
-                rating = row.get("To Grade", "").lower()
-
-                if rec_date not in sentiment_by_date:
-                    sentiment_by_date[rec_date] = {
-                        "bullish": 0,
-                        "bearish": 0,
-                        "neutral": 0,
-                        "total": 0,
-                    }
-
-                # Categorize rating
-                if rating in ["buy", "overweight", "outperform", "strong buy"]:
-                    sentiment_by_date[rec_date]["bullish"] += 1
-                elif rating in ["sell", "underweight", "underperform", "strong sell"]:
-                    sentiment_by_date[rec_date]["bearish"] += 1
-                elif rating in ["hold", "equal weight", "neutral"]:
-                    sentiment_by_date[rec_date]["neutral"] += 1
-
-                sentiment_by_date[rec_date]["total"] += 1
-
-            # Convert to result format
-            results: list[dict[str, Any]] = []
-            for rec_date, counts in sentiment_by_date.items():
-                results.append(
-                    {
-                        "symbol": symbol,
-                        "date": rec_date,
-                        "analyst_count": counts["total"],
-                        "bullish_count": counts["bullish"],
-                        "bearish_count": counts["bearish"],
-                        "neutral_count": counts["neutral"],
-                        "target_price": None,
-                        "current_price": None,
-                        "upside_downside_percent": None,
-                    }
-                )
-
-            if not results:
-                logger.debug(f"[ANALYST_SENTIMENT] No sentiment data aggregated for {symbol} (skipping)")
-                return None
-
-            return results
-
-        except requests.exceptions.HTTPError as e:
-            logger.debug(f"[ANALYST_SENTIMENT] HTTP error for {symbol} (skipping): {e}")
+        if recs is None or recs.empty:
+            logger.debug(f"[ANALYST_SENTIMENT] No analyst recommendations for {symbol} (skipping)")
             return None
-        except Exception as e:
-            logger.debug(f"[ANALYST_SENTIMENT] Error fetching for {symbol} (skipping): {e}")
+
+        # Group by date and aggregate sentiment counts
+        sentiment_by_date: dict[Any, dict[str, int]] = {}
+        for idx, row in recs.iterrows():
+            rec_date = idx.date() if hasattr(idx, "date") else idx
+            rating = row.get("To Grade", "").lower()
+
+            if rec_date not in sentiment_by_date:
+                sentiment_by_date[rec_date] = {
+                    "bullish": 0,
+                    "bearish": 0,
+                    "neutral": 0,
+                    "total": 0,
+                }
+
+            # Categorize rating
+            if rating in ["buy", "overweight", "outperform", "strong buy"]:
+                sentiment_by_date[rec_date]["bullish"] += 1
+            elif rating in ["sell", "underweight", "underperform", "strong sell"]:
+                sentiment_by_date[rec_date]["bearish"] += 1
+            elif rating in ["hold", "equal weight", "neutral"]:
+                sentiment_by_date[rec_date]["neutral"] += 1
+
+            sentiment_by_date[rec_date]["total"] += 1
+
+        # Convert to result format
+        results: list[dict[str, Any]] = []
+        for rec_date, counts in sentiment_by_date.items():
+            results.append(
+                {
+                    "symbol": symbol,
+                    "date": rec_date,
+                    "analyst_count": counts["total"],
+                    "bullish_count": counts["bullish"],
+                    "bearish_count": counts["bearish"],
+                    "neutral_count": counts["neutral"],
+                    "target_price": None,
+                    "current_price": None,
+                    "upside_downside_percent": None,
+                }
+            )
+
+        if not results:
+            logger.debug(f"[ANALYST_SENTIMENT] No sentiment data aggregated for {symbol} (skipping)")
             return None
+
+        return results
 
     def transform(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         return rows
