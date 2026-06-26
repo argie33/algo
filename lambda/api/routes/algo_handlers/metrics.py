@@ -124,7 +124,7 @@ def _get_algo_metrics(cur: cursor) -> Any:
 
 
 @db_route_handler("calculate performance")
-def _get_algo_performance(cur: cursor) -> Any:
+def _get_algo_performance(cur: cursor) -> Any:  # noqa: C901
     """Get comprehensive algo performance metrics from pre-computed daily snapshot.
 
     Queries latest row from algo_performance_metrics table (computed daily by
