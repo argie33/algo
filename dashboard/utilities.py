@@ -235,7 +235,11 @@ def extract_items_and_error(data: Any) -> tuple[list[Any], str | None]:
             items = data.get("items")
             if isinstance(items, list):
                 return items, None
-            return [], None
+            logger.error(f"[DATA_FORMAT] 'items' field exists but is not a list: {type(items).__name__}. Data keys: {list(data.keys())}")
+            raise TypeError(
+                f"Data 'items' field must be a list, got {type(items).__name__}. "
+                "This indicates API response corruption or schema mismatch."
+            )
         # Dict without items or error — log and fail
         logger.error(f"[DATA_FORMAT] Data dict malformed: missing 'items' and no '_error'. Keys: {list(data.keys())}")
         raise ValueError(

@@ -82,9 +82,10 @@ def _extract_items(data: Any) -> list[Any] | dict[str, Any]:
 
     Fail-fast: Propagates error dicts instead of silently returning empty list.
     Returns error dict if present, otherwise returns items list.
+    Raises ValueError if data structure is unexpected.
     """
     if data is None:
-        return []
+        raise ValueError("Cannot extract items from None data — API response missing or malformed")
     # Propagate error dicts (contains _error field)
     if isinstance(data, dict) and "_error" in data:
         return data
@@ -95,7 +96,16 @@ def _extract_items(data: Any) -> list[Any] | dict[str, Any]:
             return data["items"]
         if "trades" in data and isinstance(data["trades"], list):
             return data["trades"]
-    return []
+        # Dict exists but doesn't have expected structure
+        raise ValueError(
+            f"Cannot extract items from dict — expected 'items' or 'trades' field, got {list(data.keys())}. "
+            "API response structure does not match expected schema."
+        )
+    # Unexpected data type
+    raise TypeError(
+        f"Cannot extract items from {type(data).__name__} — expected list, dict, or error dict. "
+        "API response type is unexpected."
+    )
 
 
 @register_panel(

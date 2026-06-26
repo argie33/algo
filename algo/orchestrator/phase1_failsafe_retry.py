@@ -263,13 +263,13 @@ def invoke_loader_retry(loader_name: str, is_critical: bool) -> bool:
 
         # Map loader names to their module paths
         loader_modules = {
-            "stock_prices_daily": "loaders.load_stock_prices_daily",
-            "technical_data_daily_vectorized": "loaders.load_technical_data",
-            "swing_trader_scores_vectorized": "loaders.load_swing_trader_scores",
+            "stock_prices_daily": "loaders.load_prices",
+            "technical_data_daily_vectorized": "loaders.load_technical_data_daily_vectorized",
+            "swing_trader_scores_vectorized": "loaders.load_swing_trader_scores_vectorized",
             "growth_metrics": "loaders.load_growth_metrics",
             "value_metrics": "loaders.load_value_metrics",
             "positioning_metrics": "loaders.load_positioning_metrics",
-            "trend_template_data": "loaders.load_trend_template_data",
+            "trend_template_data": "loaders.load_trend_criteria_data",
             "market_health_daily": "loaders.load_market_health_daily",
             "sector_ranking": "loaders.load_sector_ranking",
         }

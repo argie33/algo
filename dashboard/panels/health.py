@@ -507,13 +507,21 @@ def _format_recent_trade_events(act: dict[str, Any] | None) -> list[Text]:
         rows.append(Text.from_markup("[dim]⚠ recent_actions data missing[/]"))
         return rows
     if not act_valid:
-        return []
+        raise ValueError(
+            "Recent actions data validation failed: data is None, not a dict, or contains error. "
+            "Cannot format trade events from invalid data structure."
+        )
     if not isinstance(act, dict) or "recent_actions" not in act:
-        return []
+        raise ValueError(
+            "Recent actions data missing required 'recent_actions' field. "
+            "API response structure does not match expected schema."
+        )
     recent = act["recent_actions"]
     if not isinstance(recent, list):
-        logger.warning(f"Recent actions is not a list, got {type(recent).__name__}")
-        return []
+        raise TypeError(
+            f"Recent actions field must be a list, got {type(recent).__name__}. "
+            "This indicates API response corruption or schema mismatch."
+        )
 
     trade_evts = [
         a

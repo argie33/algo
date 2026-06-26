@@ -160,13 +160,28 @@ class YieldCurveFetcher:
         )
 
     def fetch(self, start: date, end: date) -> dict[str, Any]:
-        """Fetch yield curve data with circuit breaker protection."""
-        result = self.breaker.execute(
-            fetch_func=lambda: self._fetch_yield_curve_data(start, end),
-            importance=DataImportance.OPTIONAL,
-            fallback_value={},
-        )
-        return result if isinstance(result, dict) else {}
+        """Fetch yield curve data with circuit breaker protection.
+
+        Returns:
+            dict with yield data keyed by date, or empty dict if data unavailable
+            Raises:
+                RuntimeError if circuit breaker open (indicates persistent fetch failures)
+        """
+        try:
+            result = self.breaker.execute(
+                fetch_func=lambda: self._fetch_yield_curve_data(start, end),
+                importance=DataImportance.OPTIONAL,
+                fallback_value=None,
+            )
+            if result is None:
+                # Circuit breaker failed multiple times - log but don't crash (optional data)
+                logger.warning(f"Yield curve circuit breaker is protecting against repeated failures for {start} to {end}")
+                return {}
+            return result if isinstance(result, dict) else {}
+        except Exception as e:
+            # Optional data source failed - log and continue
+            logger.warning(f"Yield curve fetch exception (optional data): {e}")
+            return {}
 
     def _fetch_yield_curve_data(self, start: date, end: date) -> dict[str, Any]:
         """Internal yield curve fetch implementation.

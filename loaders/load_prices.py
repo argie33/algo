@@ -2019,9 +2019,10 @@ def main() -> int:
     intervals = [x.strip() for x in intervals_str.split(",")]
     asset_classes = [x.strip() for x in asset_classes_str.split(",")]
 
-    # Set execution timeout (ECS task timeout for price loader is 7200s = 2h)
+    # Set execution timeout (ECS task timeout for price loader is 1800s = 30m per terraform config)
+    # Use 1700s to allow 100s buffer before ECS force-kill to ensure graceful shutdown
     # BLOCK-006 FIX: Add timeout enforcement with signal handler to prevent hanging
-    execution_timeout_sec = 7200
+    execution_timeout_sec = 1700
 
     import signal
 

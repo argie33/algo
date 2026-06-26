@@ -320,16 +320,32 @@ def run(  # noqa: C901
 
             from algo.infrastructure import MarketCalendar
 
-            # If run_date itself is a trading day, require same-day prices (algo runs post-close).
-            # If run_date is a weekend/holiday, require prices from the most recent trading day.
-            if MarketCalendar.is_trading_day(run_date):
-                last_trading_day = run_date
+            # Market hours: 9:30 AM - 4:00 PM ET.
+            # If orchestrator runs DURING market hours (before 16:00 ET), expect previous trading day's data.
+            # If orchestrator runs AFTER market close (16:00+ ET), expect same-day data.
+            if pipeline_context == "MORNING" or pipeline_context == "INTRADAY":
+                # During market hours: expect the *previous* trading day's data (today's not closed yet)
+                prev_date = run_date - td(days=1)
+                if MarketCalendar.is_trading_day(prev_date):
+                    last_trading_day = prev_date
+                else:
+                    # Find the most recent trading day before today
+                    last_trading_day = prev_date
+                    while last_trading_day > run_date - td(days=10):
+                        if MarketCalendar.is_trading_day(last_trading_day):
+                            break
+                        last_trading_day -= td(days=1)
             else:
-                last_trading_day = run_date - td(days=1)
-                while last_trading_day > run_date - td(days=10):
-                    if MarketCalendar.is_trading_day(last_trading_day):
-                        break
-                    last_trading_day -= td(days=1)
+                # After market close (EOD context): expect same-day data if it's a trading day
+                if MarketCalendar.is_trading_day(run_date):
+                    last_trading_day = run_date
+                else:
+                    # Weekend/holiday: find most recent trading day
+                    last_trading_day = run_date - td(days=1)
+                    while last_trading_day > run_date - td(days=10):
+                        if MarketCalendar.is_trading_day(last_trading_day):
+                            break
+                        last_trading_day -= td(days=1)
 
             if max_date < last_trading_day:
                 from algo.orchestrator.phase_error_handling import (
