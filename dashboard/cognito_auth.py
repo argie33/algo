@@ -247,6 +247,14 @@ def get_cognito_auth(require_auth: bool = True, interactive: bool = True) -> Cog
     client_id = os.environ.get("COGNITO_CLIENT_ID")
 
     if not (user_pool_id and client_id):
+        if require_auth:
+            msg = (
+                "Cognito not configured — missing COGNITO_USER_POOL_ID or COGNITO_CLIENT_ID env vars. "
+                "Dashboard requires authentication. "
+                "Run: scripts/setup-local-dev.ps1 or set env vars and try again."
+            )
+            logger.error(f"[Cognito] {msg}")
+            raise RuntimeError(msg)
         logger.debug("Cognito not configured (COGNITO_USER_POOL_ID or COGNITO_CLIENT_ID missing)")
         return None
 
