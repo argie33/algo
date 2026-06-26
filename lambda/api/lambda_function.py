@@ -968,7 +968,6 @@ def require_auth(event: dict, path: str) -> tuple:
         return False
 
     is_public = any(matches_prefix(path, prefix) for prefix in PUBLIC_PREFIXES)
-    logger.info(f"[AUTH_DEBUG] path={path}, is_public={is_public}, PUBLIC_PREFIXES has {len(PUBLIC_PREFIXES)} entries")
     if is_public:
         return (False, True, None, None)  # No auth required, so authorized
 
