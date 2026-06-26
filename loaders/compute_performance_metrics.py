@@ -148,13 +148,21 @@ def compute_performance_metrics(cur: Any, metric_date: date | None = None) -> di
         metrics["best_win_streak"] = best_win_streak
         metrics["worst_loss_streak"] = worst_loss_streak
 
-        # Advanced metrics from portfolio snapshots
-        sharpe, sortino, max_dd, cagr, calmar = _compute_advanced_metrics(cur, metric_date)
-        metrics["sharpe_ratio"] = round(sharpe, 4) if sharpe is not None else None
-        metrics["sortino_ratio"] = round(sortino, 4) if sortino is not None else None
-        metrics["max_drawdown_pct"] = round(max_dd * 100, 2) if max_dd is not None else None  # Convert to percentage
-        metrics["cagr_pct"] = round(cagr * 100, 4)  # Convert to percentage
-        metrics["calmar_ratio"] = round(calmar, 4) if calmar is not None else None
+        # Advanced metrics from portfolio snapshots (may be None during ramp-up)
+        try:
+            sharpe, sortino, max_dd, cagr, calmar = _compute_advanced_metrics(cur, metric_date)
+            metrics["sharpe_ratio"] = round(sharpe, 4) if sharpe is not None else None
+            metrics["sortino_ratio"] = round(sortino, 4) if sortino is not None else None
+            metrics["max_drawdown_pct"] = round(max_dd * 100, 2) if max_dd is not None else None  # Convert to percentage
+            metrics["cagr_pct"] = round(cagr * 100, 4) if cagr is not None else None
+            metrics["calmar_ratio"] = round(calmar, 4) if calmar is not None else None
+        except ValueError as e:
+            logger.warning(f"Advanced metrics unavailable (ramp-up phase): {e}")
+            metrics["sharpe_ratio"] = None
+            metrics["sortino_ratio"] = None
+            metrics["max_drawdown_pct"] = None
+            metrics["cagr_pct"] = None
+            metrics["calmar_ratio"] = None
 
         # Insert or update
         _insert_performance_metrics(cur, metric_date, metrics)

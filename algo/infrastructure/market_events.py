@@ -23,7 +23,7 @@ from algo.infrastructure import (
     get_api_timeout,
     get_market_data_timeout,
 )
-from config.api_endpoints import get_alpaca_base_url
+from config.api_endpoints import get_alpaca_base_url, get_alpaca_data_url
 from config.credential_manager import get_credential_manager
 from utils.db import DatabaseContext
 from utils.infrastructure import EASTERN_TZ
