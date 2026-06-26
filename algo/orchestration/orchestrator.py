@@ -286,6 +286,87 @@ class Orchestrator:
             logger.warning(f"[OOM_PREVENTION] Could not check/kill long-running loaders: {e}")
             # Don't halt trading for this check - it's advisory
 
+    def _wait_for_critical_loaders_proactive(self, max_wait_seconds: int = 300) -> bool:
+        """Actively wait for critical loaders to complete before Phase 1.
+
+        Polls data_loader_status for PHASE_1_CRITICAL loaders and waits until they reach
+        95%+ completion or timeout. This prevents Phase 1 from running with stale data.
+
+        Strategy:
+        1. Query which critical loaders are actively running (status = 'running', completion_pct < 95)
+        2. Poll every 5 seconds, checking for completion
+        3. If all critical loaders complete, Phase 1 proceeds immediately
+        4. If timeout expires, Phase 1 proceeds anyway but may detect degraded mode
+
+        This is the "proactive" fix vs. the reactive Phase 1 Failsafe which retries AFTER detecting
+        staleness. By waiting here, we prevent staleness from being a problem in the first place.
+
+        Args:
+            max_wait_seconds: Maximum time to wait for loaders (default 300s = 5 min)
+
+        Returns:
+            True if all critical loaders completed within timeout, False if timeout
+        """
+        from utils.loader_priority import get_critical_loaders
+
+        poll_interval_seconds = 5
+        start_time = time.time()
+        critical_loaders = get_critical_loaders()
+
+        logger.info(f"\n[PROACTIVE WAIT] Checking for running critical loaders (max wait: {max_wait_seconds}s)...")
+
+        try:
+            while time.time() - start_time < max_wait_seconds:
+                try:
+                    with DatabaseContext("read", timeout=5) as cur:
+                        cur.execute("SET LOCAL statement_timeout = '5000ms'")
+
+                        # Find critical loaders that are still running (incomplete)
+                        cur.execute(
+                            """
+                            SELECT table_name, status, completion_pct, symbols_loaded, symbol_count
+                            FROM data_loader_status
+                            WHERE table_name = ANY(%s)
+                            AND (status = 'running' OR completion_pct < 95.0)
+                            ORDER BY completion_pct ASC
+                            """,
+                            (list(critical_loaders),),
+                        )
+
+                        incomplete_loaders = cur.fetchall()
+                        if not incomplete_loaders:
+                            logger.info("[PROACTIVE WAIT] All critical loaders are at 95%+ completion")
+                            return True
+
+                        # Still running — log progress and wait
+                        elapsed = time.time() - start_time
+                        slowest = incomplete_loaders[0]
+                        slowest_name, slowest_status, slowest_pct, slowest_loaded, slowest_count = slowest
+
+                        logger.info(
+                            f"[PROACTIVE WAIT] {len(incomplete_loaders)} loader(s) still running. "
+                            f"Slowest: {slowest_name} ({slowest_pct:.1f}%, {slowest_loaded}/{slowest_count} symbols). "
+                            f"Elapsed: {elapsed:.0f}s/{max_wait_seconds}s"
+                        )
+
+                        time.sleep(poll_interval_seconds)
+
+                except (psycopg2.DatabaseError, psycopg2.OperationalError) as db_err:
+                    logger.warning(f"[PROACTIVE WAIT] Database error during poll: {db_err}. Retrying...")
+                    time.sleep(poll_interval_seconds)
+
+            # Timeout expired
+            logger.warning(
+                f"[PROACTIVE WAIT] Timeout after {max_wait_seconds}s waiting for critical loaders. "
+                f"Proceeding to Phase 1 (may detect degraded mode). "
+                f"Check EventBridge rules and ECS cluster health if loaders are perpetually incomplete."
+            )
+            return False
+
+        except Exception as e:
+            logger.debug(f"[PROACTIVE WAIT] Unexpected error during proactive wait: {e}")
+            return False
+
     def _check_loader_health(self) -> None:
         """Check if critical loaders have run recently and provide diagnostics.
 
@@ -299,10 +380,10 @@ class Orchestrator:
         CRITICAL: If ALL critical loaders are missing/stale simultaneously, this indicates
         a systemic issue (EventBridge failure, loader infrastructure down). Logs alert.
         """
-        from utils.data_tiers import CRITICAL_DATA
+        from utils.loader_priority import get_critical_loaders
 
         # Loaders that are critical for trading (MUST run before orchestrator)
-        critical_loaders = CRITICAL_DATA
+        critical_loaders = get_critical_loaders()
 
         try:
             with DatabaseContext("read", timeout=5) as cur:
@@ -903,6 +984,13 @@ class Orchestrator:
 
             logger.info("\n[LOADER CHECK] Verifying critical loaders have run recently...")
             self._check_loader_health()
+
+            logger.info("\n[PROACTIVE WAIT] Waiting for critical loaders to complete before Phase 1...")
+            loaders_ready = self._wait_for_critical_loaders_proactive(max_wait_seconds=300)
+            if loaders_ready:
+                logger.info("[OK] All critical loaders completed before Phase 1")
+            else:
+                logger.warning("[WARNING] Critical loaders did not complete within timeout. Phase 1 will check data freshness.")
 
             self.executor = self._setup_executor()
             with TimeBlock("orchestrator_executor"):
