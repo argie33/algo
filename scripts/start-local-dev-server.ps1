@@ -24,9 +24,10 @@ Write-Host "Starting API dev server for local development..."
 Write-Host ""
 
 # Clear Cognito environment variables (enables dev mode)
-$env:COGNITO_USER_POOL_ID = $null
-$env:COGNITO_CLIENT_ID = $null
-$env:COGNITO_REGION = $null
+# Use Remove-Item to properly unset the variables (setting to $null doesn't work in PowerShell)
+Remove-Item Env:\COGNITO_USER_POOL_ID -ErrorAction SilentlyContinue
+Remove-Item Env:\COGNITO_CLIENT_ID -ErrorAction SilentlyContinue
+Remove-Item Env:\COGNITO_REGION -ErrorAction SilentlyContinue
 
 # Enable local mode (use localhost postgres instead of AWS RDS)
 $env:LOCAL_MODE = "true"
