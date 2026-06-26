@@ -29,41 +29,38 @@ class AnalystRatingsLoader(OptimalLoader):
     primary_key = ("symbol", "date")
     watermark_field = "date"
 
-    def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
-        """Fetch analyst upgrades/downgrades from yfinance."""
+    def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]] | None:
+        """Fetch analyst upgrades/downgrades from yfinance.
+
+        Returns None if analyst rating history is unavailable (normal for stocks with limited analyst coverage).
+        Analyst upgrades/downgrades are optional enrichment; their absence does not prevent trading.
+        """
         try:
             from utils.external.yfinance import get_ticker
         except ImportError as e:
-            raise RuntimeError(
-                f"[ANALYST] Failed to import yfinance module: {e}. Cannot fetch analyst rating data without yfinance."
-            ) from e
+            logger.debug(f"[ANALYST] Failed to import yfinance for {symbol}: {e} (skipping)")
+            return None
 
         ticker = get_ticker(symbol)
         if not ticker:
-            raise RuntimeError(
-                f"[ANALYST] Failed to fetch ticker data for {symbol}. "
-                "Cannot fetch analyst ratings without valid ticker."
-            )
+            logger.debug(f"[ANALYST] Ticker not found for {symbol} (skipping)")
+            return None
 
         try:
             upgrades_downgrades = ticker.upgrades_downgrades
 
             if upgrades_downgrades is None or upgrades_downgrades.empty:
-                raise RuntimeError(
-                    f"[ANALYST_RATINGS] No analyst upgrade/downgrade data available for {symbol}. "
-                    "Cannot assess analyst actions without rating changes."
-                )
+                logger.debug(f"[ANALYST_RATINGS] No upgrade/downgrade history for {symbol} (skipping)")
+                return None
 
             results = []
             for idx, row in upgrades_downgrades.iterrows():
                 ud_date = idx.date() if hasattr(idx, "date") else idx
-                # Fail-fast if critical analyst rating fields missing
+                # Skip records with missing critical analyst rating fields
                 for field in ["Firm", "To Grade", "Action"]:
                     if field not in row or (isinstance(row[field], float) and pd.isna(row[field])):
-                        raise ValueError(
-                            f"Analyst upgrade/downgrade record for {symbol} missing required field '{field}' - "
-                            f"cannot proceed without complete analyst data"
-                        )
+                        logger.debug(f"[ANALYST_RATINGS] Skipping {symbol} record (missing {field})")
+                        continue
                 old_rating_raw = row.get("From Grade")
                 old_rating_str = str(old_rating_raw).strip() if old_rating_raw else None
                 results.append(
@@ -77,17 +74,13 @@ class AnalystRatingsLoader(OptimalLoader):
                     }
                 )
 
-            return results
+            return results if results else None
         except requests.exceptions.HTTPError as e:
-            raise RuntimeError(
-                f"[ANALYST_RATINGS] HTTP error fetching ratings for {symbol}: {e}. "
-                "Cannot generate signals without analyst data."
-            ) from e
+            logger.debug(f"[ANALYST_RATINGS] HTTP error for {symbol} (skipping): {e}")
+            return None
         except Exception as e:
-            raise RuntimeError(
-                f"[ANALYST_RATINGS] Failed to fetch ratings for {symbol}: {e}. "
-                "Cannot generate signals without analyst data."
-            ) from e
+            logger.debug(f"[ANALYST_RATINGS] Error fetching for {symbol} (skipping): {e}")
+            return None
 
     def transform(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         return rows
