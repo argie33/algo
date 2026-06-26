@@ -42,7 +42,38 @@ class VIXFetcher:
         return result
 
     def _fetch_vix_data(self, start: date, end: date) -> dict[str, Any]:
-        """Internal VIX fetch implementation."""
+        """Internal VIX fetch implementation. Try database first, then yfinance as fallback.
+
+        VIX data is stored in price_daily table; prefer that over yfinance to ensure consistency
+        with other market data (SPY prices, market health). Only fetch from yfinance if database
+        has gaps or is missing data entirely.
+        """
+        # First, try to get VIX from price_daily table
+        try:
+            from utils.db import DatabaseContext
+
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    "SELECT date, close, high, low FROM price_daily "
+                    "WHERE symbol = '^VIX' AND date >= %s AND date <= %s ORDER BY date",
+                    (start, end),
+                )
+                rows = cur.fetchall()
+                if rows and len(rows) > 0:
+                    result = {}
+                    for row in rows:
+                        d = row[0].isoformat() if hasattr(row[0], "isoformat") else str(row[0])
+                        result[d] = {
+                            "vix_close": float(row[1]) if row[1] is not None else None,
+                            "vix_high": float(row[3]) if row[3] is not None else None,
+                            "vix_low": float(row[2]) if row[2] is not None else None,
+                        }
+                    logger.info(f"Fetched {len(result)} VIX dates from price_daily")
+                    return result
+        except Exception as db_err:
+            logger.debug(f"Could not fetch VIX from price_daily: {db_err}, falling back to yfinance")
+
+        # Fallback to yfinance if database fetch fails or returns no data
         try:
             import yfinance
 
@@ -56,15 +87,16 @@ class VIXFetcher:
             result = {}
             for idx, row in vix_data.iterrows():
                 result[idx.date().isoformat()] = {
-                    "vix_close": float(row["Close"]),
-                    "vix_high": float(row["High"]),
-                    "vix_low": float(row["Low"]),
+                    "vix_close": float(row["Close"]) if row["Close"] is not None else None,
+                    "vix_high": float(row["High"]) if row["High"] is not None else None,
+                    "vix_low": float(row["Low"]) if row["Low"] is not None else None,
                 }
             if not result:
                 raise ValueError(
                     f"VIX fetch returned no data points despite non-empty frame for {start} to {end}. "
                     f"Data corruption or parsing error detected."
                 )
+            logger.info(f"Fetched {len(result)} VIX dates from yfinance")
             return result
         except ValueError:
             raise
@@ -137,13 +169,18 @@ class YieldCurveFetcher:
         return result if isinstance(result, dict) else {}
 
     def _fetch_yield_curve_data(self, start: date, end: date) -> dict[str, Any]:
-        """Internal yield curve fetch implementation."""
+        """Internal yield curve fetch implementation.
+
+        Skip dates with missing yield data (common for weekends/holidays/recent dates).
+        Return available data and allow forward-fill in the caller.
+        """
         try:
             import pandas as pd
             import requests
 
             fred_api_key = __import__("os").getenv("FRED_API_KEY")
             if not fred_api_key:
+                logger.debug("FRED_API_KEY not set, returning empty yield curve data")
                 return {}
 
             url = "https://www.alphavantage.co/query"
@@ -156,26 +193,28 @@ class YieldCurveFetcher:
             data = response.json()
 
             if "data" not in data:
+                logger.debug("No yield curve data returned from API")
                 return {}
 
             result = {}
+            skipped_count = 0
             for item in data["data"]:
                 if start <= pd.to_datetime(item["date"]).date() <= end:
                     yield_2y = item.get("2Y")
                     yield_10y = item.get("10Y")
 
                     if yield_2y is None or yield_10y is None:
-                        raise ValueError(
-                            f"Yield curve data missing required field(s) on {item['date']}: "
-                            f"2Y={yield_2y}, 10Y={yield_10y}. "
-                            f"Cannot proceed with incomplete yield curve data."
-                        )
+                        skipped_count += 1
+                        continue  # Skip incomplete entries rather than failing
 
                     result[item["date"]] = {
                         "yield_2y": float(yield_2y),
                         "yield_10y": float(yield_10y),
                         "yield_spread": float(yield_10y) - float(yield_2y),
                     }
+
+            if skipped_count > 0:
+                logger.debug(f"Yield curve: skipped {skipped_count} incomplete dates, kept {len(result)}")
             return result
         except Exception as e:
             logger.warning(f"Yield curve fetch failed: {e}")

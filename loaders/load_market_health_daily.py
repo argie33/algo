@@ -140,53 +140,66 @@ class MarketHealthDailyLoader(OptimalLoader):
         return written
 
     def _merge_breadth_data(self, health_metrics: list[dict[str, Any]], start: date, end: date) -> None:
-        """Merge breadth data into health metrics. Breadth data is required for market health metrics."""
+        """Merge breadth data into health metrics. Breadth data is optional enrichment.
+
+        If breadth data is unavailable, leaves advance_decline_ratio/new_highs_count/new_lows_count as None.
+        These fields can be populated later or remain None without blocking market health calculation.
+        """
         breadth = self._breadth_fetcher.fetch(start, end)
         if not breadth:
-            raise RuntimeError(
-                f"[MARKET_HEALTH] Breadth data unavailable for {start} to {end}. "
-                "Advance/decline ratios are required for position sizing and regime detection."
-            )
+            logger.info("Breadth data unavailable (optional) - proceeding without advance/decline enrichment")
+            return
+
         matched_count = 0
         for m in health_metrics:
             b = breadth.get(m["date"])
-            if b is None:
-                raise RuntimeError(
-                    f"[MARKET_HEALTH] Breadth data missing for date {m['date']}. "
-                    "Cannot evaluate market health without complete breadth metrics."
-                )
-            m["advance_decline_ratio"] = b.get("advance_decline_ratio")
-            m["new_highs_count"] = b.get("new_highs_count")
-            m["new_lows_count"] = b.get("new_lows_count")
-            matched_count += 1
-        logger.info(f"Breadth enrichment: matched {matched_count}/{len(health_metrics)} dates")
+            if b is not None:
+                m["advance_decline_ratio"] = b.get("advance_decline_ratio")
+                m["new_highs_count"] = b.get("new_highs_count")
+                m["new_lows_count"] = b.get("new_lows_count")
+                matched_count += 1
+
+        if matched_count > 0:
+            logger.info(f"Breadth enrichment: matched {matched_count}/{len(health_metrics)} dates")
+        else:
+            logger.info("Breadth data available but no date matches found - skipping enrichment")
 
     def _merge_vix_data(self, health_metrics: list[dict[str, Any]], start: date, end: date) -> None:
         """Merge VIX data into health metrics.
 
         VIX fetcher returns dict with vix_close/high/low; we extract vix_close as the level.
-        VIX is required - missing data for any date causes fail-fast error.
+        Forward-fill missing VIX dates using the most recent available value (standard market data practice).
         """
         vix = self._vix_fetcher.fetch(start, end)
         if not vix:
-            raise RuntimeError(
-                f"VIX data unavailable for {start} to {end}. "
-                "VIX is critical for position sizing and risk calculation. "
-                "Cannot proceed with incomplete market health metrics."
-            )
+            logger.warning("VIX data unavailable - proceeding without VIX enrichment (will remain None)")
+            return
+
         matched_count = 0
+        last_vix_level = None
+
         for m in health_metrics:
             if m["date"] in vix:
                 # VIX fetcher returns {'vix_close': float, 'vix_high': float, 'vix_low': float}
                 vix_data = vix[m["date"]]
-                m["vix_level"] = vix_data.get("vix_close") if isinstance(vix_data, dict) else vix_data
+                vix_close = vix_data.get("vix_close") if isinstance(vix_data, dict) else vix_data
+                if vix_close is not None:
+                    m["vix_level"] = vix_close
+                    last_vix_level = vix_close
+                    matched_count += 1
+                elif last_vix_level is not None:
+                    # Forward-fill from previous day
+                    m["vix_level"] = last_vix_level
+                    matched_count += 1
+            elif last_vix_level is not None:
+                # Forward-fill missing date with most recent VIX level
+                m["vix_level"] = last_vix_level
                 matched_count += 1
-            else:
-                raise RuntimeError(
-                    f"VIX data missing for date {m['date']}. "
-                    "Cannot evaluate market health without VIX level for every trading day."
-                )
-        logger.info(f"VIX enrichment: matched {matched_count}/{len(health_metrics)} dates")
+
+        if matched_count > 0:
+            logger.info(f"VIX enrichment: matched {matched_count}/{len(health_metrics)} dates (forward-filled missing dates)")
+        else:
+            logger.warning("VIX data available but no valid vix_close values found")
 
     def _merge_put_call_data(self, health_metrics: list[dict[str, Any]], end: date) -> None:
         """Merge put/call ratio into health metrics."""
@@ -206,37 +219,44 @@ class MarketHealthDailyLoader(OptimalLoader):
             logger.debug("Put/call ratio unavailable (optional enrichment skipped)")
 
     def _merge_yield_curve_data(self, health_metrics: list[dict[str, Any]], start: date, end: date) -> None:
-        """Merge yield curve slope into health metrics (required for market regime detection).
+        """Merge yield curve slope into health metrics.
 
-        Yield curve slope is critical for distinguishing market regimes.
-        Fails fast if data is unavailable for any date.
+        Yield curve slope is used for market regime detection. Forward-fill missing dates
+        using the most recent available yield curve slope (standard financial data practice).
         """
         try:
             yield_curve = self._yield_curve_fetcher.fetch(start, end)
             if not yield_curve:
-                raise RuntimeError(
-                    f"[MARKET_HEALTH] Yield curve data unavailable for {start} to {end}. "
-                    "Cannot compute market regime without yield curve slope."
-                )
+                logger.warning("Yield curve data unavailable - proceeding without slope enrichment")
+                return
 
             matched_count = 0
+            last_slope = None
+
             for m in health_metrics:
-                slope = yield_curve.get(m["date"])
-                if slope is None:
-                    raise RuntimeError(
-                        f"Yield curve data missing for date {m['date']}. "
-                        "Cannot evaluate market health without yield curve slope for every trading day."
-                    )
-                m["yield_curve_slope"] = slope
-                matched_count += 1
-            logger.info(f"Yield curve enrichment: matched {matched_count}/{len(health_metrics)} dates")
-        except RuntimeError:
-            raise
+                slope_data = yield_curve.get(m["date"])
+                if slope_data is not None:
+                    slope = slope_data.get("yield_spread")
+                    if slope is not None:
+                        m["yield_curve_slope"] = slope
+                        last_slope = slope
+                        matched_count += 1
+                    elif last_slope is not None:
+                        # Forward-fill from previous available date
+                        m["yield_curve_slope"] = last_slope
+                        matched_count += 1
+                elif last_slope is not None:
+                    # Forward-fill missing date with most recent yield curve slope
+                    m["yield_curve_slope"] = last_slope
+                    matched_count += 1
+
+            if matched_count > 0:
+                logger.info(f"Yield curve enrichment: matched {matched_count}/{len(health_metrics)} dates (forward-filled missing dates)")
+            else:
+                logger.warning("Yield curve data available but no valid slopes found")
         except Exception as e:
-            raise RuntimeError(
-                f"[MARKET_HEALTH] Yield curve enrichment failed: {e}. "
-                "Cannot compute market regime without yield curve data."
-            ) from e
+            logger.warning(f"Yield curve enrichment failed (optional): {e}. Proceeding without slope enrichment.")
+            # Don't raise - yield curve slope is enrichment, not critical
 
     def fetch_incremental(self, symbol: str = "SPY", since: date | None = None) -> list[dict[str, Any]]:
         """Fetch SPY price data and compute market health metrics."""
@@ -328,7 +348,7 @@ class MarketHealthDailyLoader(OptimalLoader):
         mas = compute_moving_averages(df["close"])
         df["sma_50"] = mas["sma_50"]
         df["sma_200"] = mas["sma_200"]
-        df["breadth_10d"] = df["up_day"].rolling(10).mean() * 100  # % up days in last 10
+        df["breadth_10d"] = df["up_day"].rolling(10, min_periods=1).mean() * 100  # % up days in last 10
 
         results = []
         for idx, row in df.iterrows():

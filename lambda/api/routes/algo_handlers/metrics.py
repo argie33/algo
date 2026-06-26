@@ -654,18 +654,20 @@ def _get_performance_analytics(cur: cursor) -> Any:
         avg_lr: Any = data.get("avg_loss_r_50t")
         expectancy_val: Any = data.get("expectancy")
         max_dd: Any = data.get("max_drawdown_pct")
-        return success_response(
-            {
-                "rolling_sharpe_252d": float(sharpe) if sharpe is not None else None,
-                "rolling_sortino_252d": float(sortino) if sortino is not None else None,
-                "calmar_ratio": float(calmar) if calmar is not None else None,
-                "win_rate_50t": float(wr_50t) if wr_50t is not None else None,
-                "avg_win_r_50t": float(avg_wr) if avg_wr is not None else None,
-                "avg_loss_r_50t": float(avg_lr) if avg_lr is not None else None,
-                "expectancy": (float(expectancy_val) if expectancy_val is not None else None),
-                "max_drawdown_pct": float(max_dd) if max_dd is not None else None,
-            }
-        )
+        response_dict = {
+            "rolling_sharpe_252d": float(sharpe) if sharpe is not None else None,
+            "rolling_sortino_252d": float(sortino) if sortino is not None else None,
+            "calmar_ratio": float(calmar) if calmar is not None else None,
+            "win_rate_50t": float(wr_50t) if wr_50t is not None else None,
+            "avg_win_r_50t": float(avg_wr) if avg_wr is not None else None,
+            "avg_loss_r_50t": float(avg_lr) if avg_lr is not None else None,
+            "expectancy": (float(expectancy_val) if expectancy_val is not None else None),
+            "max_drawdown_pct": float(max_dd) if max_dd is not None else None,
+        }
+        response_dict["sharpe252"] = response_dict["rolling_sharpe_252d"]
+        response_dict["sortino"] = response_dict["rolling_sortino_252d"]
+        response_dict["calmar"] = response_dict["calmar_ratio"]
+        return success_response(response_dict)
     except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
         try:
             cur.execute("ROLLBACK TO SAVEPOINT perf_analytics")
@@ -808,6 +810,7 @@ def _get_risk_metrics(cur: cursor) -> Any:
                 "var_pct_95": float(var_95) if var_95 is not None else None,
                 "cvar_pct_95": float(cvar_95) if cvar_95 is not None else None,
                 "stressed_var_pct": (float(stressed_var) if stressed_var is not None else None),
+                "svar": (float(stressed_var) if stressed_var is not None else None),
                 "portfolio_beta": (float(portfolio_beta) if portfolio_beta is not None else None),
                 "top_5_concentration": (float(concentration) if concentration is not None else None),
             }
