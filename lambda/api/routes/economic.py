@@ -497,10 +497,26 @@ def _get_yield_curve_full(cur: cursor) -> Any:
         bamlh = history.get("BAMLH0A0HYM2")
         bamlc = history.get("BAMLC0A0CM")
         vixcls = history.get("VIXCLS")
+
+        if bamlh is None:
+            raise RuntimeError(
+                "CRITICAL: High-yield credit spreads (BAMLH0A0HYM2) unavailable - "
+                "required for risk assessment"
+            )
+        if bamlc is None:
+            raise RuntimeError(
+                "CRITICAL: Investment-grade credit spreads (BAMLC0A0CM) unavailable - "
+                "required for risk assessment"
+            )
+        if vixcls is None:
+            raise RuntimeError(
+                "CRITICAL: VIX volatility data (VIXCLS) unavailable - required for position sizing"
+            )
+
         credit_history = {
-            "BAMLH0A0HYM2": bamlh if bamlh is not None else [],
-            "BAMLH0A0IG": (bamlc if bamlc is not None else []),  # BAMLC0A0CM is IG corporate OAS
-            "VIXCLS": vixcls if vixcls is not None else [],
+            "BAMLH0A0HYM2": bamlh,
+            "BAMLH0A0IG": bamlc,
+            "VIXCLS": vixcls,
         }
         credit_latest = {k: v[-1].get("value") if v else None for k, v in credit_history.items()}
 
