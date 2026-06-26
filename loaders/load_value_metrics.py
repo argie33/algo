@@ -4,6 +4,7 @@
 import sys
 
 import psycopg2
+import requests
 
 from loaders.loader_helper import setup_imports
 
@@ -15,6 +16,7 @@ from typing import Any  # noqa: E402
 
 from loaders.runner import run_loader  # noqa: E402
 from utils.external.yfinance import get_ticker  # noqa: E402
+from utils.loaders.transient_errors import TransientAPIError  # noqa: E402
 from utils.optimal_loader import OptimalLoader  # noqa: E402
 
 logger = logging.getLogger(__name__)
@@ -93,13 +95,10 @@ class ValueMetricsLoader(OptimalLoader):
         except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.debug(f"[VALUE_METRICS] Parsing error for {symbol} (skipping): {e}")
             return None
+        except (requests.Timeout, requests.ConnectionError) as e:
+            logger.warning(f"[VALUE_METRICS] API timeout/connection error for {symbol} (transient, will retry): {e}")
+            raise TransientAPIError(f"yfinance timeout fetching value metrics for {symbol}") from e
         except Exception as e:
-            import requests
-            from utils.loaders.transient_errors import TransientAPIError
-
-            if isinstance(e, (requests.Timeout, requests.ConnectionError)):
-                logger.warning(f"[VALUE_METRICS] API timeout/connection error for {symbol} (transient, will retry): {e}")
-                raise TransientAPIError(f"yfinance timeout fetching value metrics for {symbol}") from e
             logger.debug(f"[VALUE_METRICS] Error fetching for {symbol} (skipping): {e}")
             return None
 

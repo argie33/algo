@@ -42,6 +42,7 @@ import yfinance as yf
 
 from algo.infrastructure import RateLimiter, retry
 from utils.infrastructure import EASTERN_TZ
+from utils.loaders.transient_errors import TransientAPIError
 
 if TYPE_CHECKING:
     from utils.external import SecEdgarClient
@@ -560,9 +561,6 @@ class DataSourceRouter:
             from utils.external import get_ticker
 
             def fetch() -> Any:
-                from utils.loaders.transient_errors import TransientAPIError
-                import requests
-
                 ticker = get_ticker(symbol)
                 if not ticker:
                     return None

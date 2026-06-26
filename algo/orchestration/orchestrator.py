@@ -341,7 +341,7 @@ class Orchestrator:
                         # Still running — log progress and wait
                         elapsed = time.time() - start_time
                         slowest = incomplete_loaders[0]
-                        slowest_name, slowest_status, slowest_pct, slowest_loaded, slowest_count = slowest
+                        slowest_name, _, slowest_pct, slowest_loaded, slowest_count = slowest
 
                         logger.info(
                             f"[PROACTIVE WAIT] {len(incomplete_loaders)} loader(s) still running. "
