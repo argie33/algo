@@ -53,7 +53,8 @@ class AlpacaSyncManager:
         try:
             url = f"{self._alpaca_base_url}/v2/account"
             headers = {
-                "Authorization": f"Bearer {self._alpaca_key}",
+                "APCA-API-KEY-ID": self._alpaca_key,
+                "APCA-API-SECRET-KEY": self._alpaca_secret,
                 "Accept": "application/json",
             }
             response = requests.get(url, headers=headers, timeout=10)
@@ -85,7 +86,8 @@ class AlpacaSyncManager:
             # Fetch all positions from Alpaca
             url = f"{self._alpaca_base_url}/v2/positions"
             headers = {
-                "Authorization": f"Bearer {self._alpaca_key}",
+                "APCA-API-KEY-ID": self._alpaca_key,
+                "APCA-API-SECRET-KEY": self._alpaca_secret,
                 "Accept": "application/json",
             }
             resp = requests.get(url, headers=headers, timeout=10)

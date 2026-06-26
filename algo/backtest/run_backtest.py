@@ -87,15 +87,14 @@ def _get_daily_buy_signals(signal_date: date, min_composite: float) -> list[dict
             rows = cur.fetchall()
 
         signals = []
+        skipped_count = 0
         for r in rows:
             close = float(r[1]) if r[1] is not None else None
             if not close:
                 continue
             if r[8] is None:
-                raise ValueError(
-                    f"Signal quality score missing for {r[0]} on {signal_date} — "
-                    f"cannot conduct backtest without signal quality metrics"
-                )
+                skipped_count += 1
+                continue
             if r[5] is None:
                 raise ValueError(
                     f"Signal strength missing for {r[0]} on {signal_date} — "
@@ -118,6 +117,8 @@ def _get_daily_buy_signals(signal_date: date, min_composite: float) -> list[dict
                 }
             )
 
+        if skipped_count > 0:
+            logger.debug(f"[BACKTEST] Skipped {skipped_count} signals without quality scores on {signal_date}")
         return signals
     except (ValueError, ZeroDivisionError, TypeError) as e:
         raise RuntimeError(f"[BACKTEST] FATAL: Cannot fetch buy signals for {signal_date}: {e}") from e

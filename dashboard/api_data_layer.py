@@ -300,6 +300,12 @@ def api_call(endpoint: str, params: dict[str, Any] | None = None, method: str = 
             # Do NOT call _record_api_failure() — auth errors are permanent config issues, not transient API failures.
             # They should not trigger circuit breaker accumulation.
             return {"_error": f"Authentication failed: {auth_err}", "_auth_error": True}
+    else:
+        # For local development without Cognito, inject dev token automatically
+        # This allows local testing without needing to configure AWS credentials
+        if "localhost" in API_BASE_URL or "127.0.0.1" in API_BASE_URL:
+            headers["Authorization"] = "Bearer dev-admin"
+            logger.debug(f"Using dev-admin token for local API call to {endpoint}")
     for attempt in range(API_MAX_RETRIES + 1):
         try:
             if method == "GET":
