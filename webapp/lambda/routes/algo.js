@@ -1222,11 +1222,12 @@ router.get("/markets", async (req, res) => {
     ensureConnection();
     const pool = getPool();
 
-    // Parallelize all 5 independent queries
+    // Parallelize all 6 independent queries
     const [
       latestResult,
       historyResult,
       healthResult,
+      spyResult,
       sectorsResult,
       sentimentResult,
     ] = await Promise.all([
@@ -1245,9 +1246,11 @@ router.get("/markets", async (req, res) => {
       pool.query(`
         SELECT date, market_trend, market_stage, distribution_days_4w, vix_level,
                advance_decline_ratio, new_highs_count, new_lows_count, put_call_ratio,
-               breadth_momentum_10d, yield_curve_slope, fed_rate_environment, up_volume_percent,
-               spy_close, spy_change_pct
+               breadth_momentum_10d, yield_curve_slope, fed_rate_environment, up_volume_percent
         FROM market_health_daily ORDER BY date DESC LIMIT 1
+      `),
+      pool.query(`
+        SELECT close, volume FROM price_daily WHERE symbol = 'SPY' ORDER BY date DESC LIMIT 2
       `),
       pool.query(`
         SELECT sector_name, current_rank, momentum_score
@@ -1266,6 +1269,7 @@ router.get("/markets", async (req, res) => {
     validateQueryResult(latestResult, { requireRows: false });
     validateQueryResult(historyResult, { requireRows: false });
     validateQueryResult(healthResult, { requireRows: false });
+    validateQueryResult(spyResult, { requireRows: false });
     validateQueryResult(sectorsResult, { requireRows: false });
     validateQueryResult(sentimentResult, { requireRows: false });
 
@@ -1297,9 +1301,14 @@ router.get("/markets", async (req, res) => {
           yield_curve_slope: { type: "float", required: false },
           fed_rate_environment: { type: "string", required: false },
           up_volume_percent: { type: "float", required: false },
-          spy_close: { type: "float", required: false },
-          spy_change_pct: { type: "float", required: false },
         })
+      : null;
+
+    // Get SPY price (latest 2 rows for change calculation)
+    const spyPrices = spyResult.rows || [];
+    const spyClose = spyPrices.length > 0 ? parseFloat(spyPrices[0].close) : null;
+    const spyChangePct = spyPrices.length >= 2
+      ? ((parseFloat(spyPrices[0].close) - parseFloat(spyPrices[1].close)) / parseFloat(spyPrices[1].close)) * 100
       : null;
 
     // Determine active tier policy from database
@@ -1379,8 +1388,8 @@ router.get("/markets", async (req, res) => {
             yield_curve_slope: health.yield_curve_slope,
             fed_rate_environment: health.fed_rate_environment,
             up_volume_percent: health.up_volume_percent,
-            spy_close: health.spy_close,
-            spy_change_pct: health.spy_change_pct,
+            spy_close: spyClose,
+            spy_change_pct: spyChangePct,
           }
         : null,
       sectors: sectorsRows.map((r) => ({
