@@ -124,15 +124,11 @@ class AnalystSentimentLoader(OptimalLoader):
             return results
 
         except requests.exceptions.HTTPError as e:
-            raise RuntimeError(
-                f"[ANALYST_SENTIMENT] HTTP error fetching analyst sentiment for {symbol}: {e}. "
-                "Cannot generate signals without analyst sentiment data; external API failure."
-            ) from e
+            logger.debug(f"[ANALYST_SENTIMENT] HTTP error for {symbol} (skipping): {e}")
+            return None
         except Exception as e:
-            raise RuntimeError(
-                f"[ANALYST_SENTIMENT] Failed to fetch analyst sentiment for {symbol}: {e}. "
-                "Analyst sentiment is required for signal scoring; cannot proceed without data."
-            ) from e
+            logger.debug(f"[ANALYST_SENTIMENT] Error fetching for {symbol} (skipping): {e}")
+            return None
 
     def transform(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         return rows
