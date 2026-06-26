@@ -652,9 +652,11 @@ locals {
     "stability_metrics"   = { cpu = 1024, memory = 2048, timeout = 1800, parallelism = 2 }
     "stock_scores"        = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 3 }
 
-    # Earnings data — reduce parallelism to 1 to prevent SEC EDGAR rate-limit cascade
-    # FIXED 2026-06-21: Reduced timeout from 3600→1200s (1h→20m) to fail fast instead of masking failures
-    "earnings_history"  = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
+    # Earnings data — uses yfinance with 2-second rate limit per symbol
+    # With 10,574 symbols: 10574 × 2s = 21,148s = 5.87 hours for full load (but incremental after first load)
+    # FIXED 2026-06-26: Increased timeout from 1200→3600s (20m→1h) for incremental, full-load needs 7200s
+    # Parallelism=1 due to SEC EDGAR rate-limit coordination via shared circuit breaker
+    "earnings_history"  = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
     "earnings_calendar" = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
 
     # Company & analyst data — I/O bound, yfinance API calls, 5000+ symbols
