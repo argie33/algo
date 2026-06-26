@@ -115,8 +115,18 @@ def _save_settings(cur: cursor, body: dict[str, Any], jwt_claims: dict[str, Any]
         return error_response(401, "unauthorized", "User identity required")
 
     try:
-        theme = body.get("theme", "dark")
-        notifications_raw = body.get("notifications", True)
+        # Require explicit theme; don't default to dark
+        if "theme" not in body:
+            return error_response(400, "bad_request", "theme field is required in request body")
+        theme = body.get("theme")
+        if theme not in ("light", "dark"):
+            return error_response(400, "bad_request", f"Invalid theme '{theme}': must be 'light' or 'dark'")
+
+        # Require explicit notifications; don't default to True
+        if "notifications" not in body:
+            return error_response(400, "bad_request", "notifications field is required in request body")
+        notifications_raw = body.get("notifications")
+
         other_prefs = {k: v for k, v in body.items() if k not in ("user_id", "theme", "notifications")}
 
         # Validate arbitrary preference keys - limit to 50 keys to prevent storage abuse

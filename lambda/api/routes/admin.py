@@ -253,7 +253,20 @@ def _get_system_health(cur: cursor) -> Any:
 
     cur.execute("SELECT date FROM price_daily ORDER BY date DESC LIMIT 1")
     price_row = cur.fetchone()
-    last_price_date = next(iter(safe_json_serialize(dict(price_row).values())), 0) if price_row else 0
+    last_price_date = None
+    if price_row:
+        price_dict = safe_json_serialize(dict(price_row))
+        if "date" not in price_dict:
+            raise RuntimeError(
+                "[HEALTH] Database query returned row without 'date' field. "
+                "Query result structure corrupted or column missing."
+            )
+        last_price_date = price_dict["date"]
+        if last_price_date is None:
+            raise RuntimeError(
+                "[HEALTH] Latest price_daily row has NULL date. Database corruption detected."
+            )
+
     if last_price_date:
         last_price_date_typed: date = last_price_date
         today = datetime.now(timezone.utc).date()
@@ -348,7 +361,23 @@ def _get_database_stats(cur: cursor) -> Any:
         WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
     """)
     table_count_row = cur.fetchone()
-    stats["table_count"] = safe_json_serialize(dict(table_count_row)).get("table_count", 0) if table_count_row else 0
+    if not table_count_row:
+        raise RuntimeError("[HEALTH] Table count query returned no row. Database structure query failed.")
+
+    table_count_dict = safe_json_serialize(dict(table_count_row))
+    if "table_count" not in table_count_dict:
+        raise RuntimeError(
+            "[HEALTH] Table count query row missing 'table_count' field. "
+            "Query result structure corrupted."
+        )
+
+    table_count_value = table_count_dict["table_count"]
+    if table_count_value is None:
+        raise RuntimeError(
+            "[HEALTH] Table count query returned NULL. Cannot determine if database has tables."
+        )
+
+    stats["table_count"] = table_count_value
 
     stats["timestamp"] = datetime.now(timezone.utc).isoformat()
     return json_response(200, stats)
@@ -364,36 +393,66 @@ def _get_data_quality(cur: cursor) -> Any:
     cur.execute("SET LOCAL statement_timeout = '10000ms'")
 
     cur.execute("""
-        SELECT COUNT(*) FROM price_daily
+        SELECT COUNT(*) as null_count FROM price_daily
         WHERE close IS NULL OR open IS NULL OR high IS NULL OR low IS NULL
     """)
     null_row = cur.fetchone()
-    null_prices = next(iter(safe_json_serialize(dict(null_row).values())), 0) if null_row else 0
+    if not null_row:
+        raise RuntimeError("[DATA_QUALITY] NULL price count query returned no row.")
+
+    null_dict = safe_json_serialize(dict(null_row))
+    if "null_count" not in null_dict:
+        raise RuntimeError("[DATA_QUALITY] NULL price count query missing 'null_count' field.")
+
+    null_prices = null_dict["null_count"]
+    if null_prices is None:
+        raise RuntimeError("[DATA_QUALITY] NULL price count is NULL. Query failed.")
+
     quality["checks"]["null_prices"] = {
         "count": null_prices,
         "status": "ok" if null_prices == 0 else "warning",
     }
 
     cur.execute("""
-        SELECT COUNT(*) FROM (
+        SELECT COUNT(*) as dup_count FROM (
             SELECT symbol, date, COUNT(*)
             FROM price_daily
             GROUP BY symbol, date HAVING COUNT(*) > 1
         ) t
     """)
     dup_row = cur.fetchone()
-    duplicate_prices = next(iter(safe_json_serialize(dict(dup_row).values())), 0) if dup_row else 0
+    if not dup_row:
+        raise RuntimeError("[DATA_QUALITY] Duplicate price count query returned no row.")
+
+    dup_dict = safe_json_serialize(dict(dup_row))
+    if "dup_count" not in dup_dict:
+        raise RuntimeError("[DATA_QUALITY] Duplicate price count query missing 'dup_count' field.")
+
+    duplicate_prices = dup_dict["dup_count"]
+    if duplicate_prices is None:
+        raise RuntimeError("[DATA_QUALITY] Duplicate price count is NULL. Query failed.")
+
     quality["checks"]["duplicate_prices"] = {
         "count": duplicate_prices,
         "status": "ok" if duplicate_prices == 0 else "warning",
     }
 
     cur.execute("""
-        SELECT COUNT(*) FROM price_daily
+        SELECT COUNT(*) as invalid_count FROM price_daily
         WHERE high < low OR close > high OR close < low
     """)
     invalid_row = cur.fetchone()
-    invalid_prices = next(iter(safe_json_serialize(dict(invalid_row).values())), 0) if invalid_row else 0
+    if not invalid_row:
+        raise RuntimeError("[DATA_QUALITY] Invalid price range count query returned no row.")
+
+    invalid_dict = safe_json_serialize(dict(invalid_row))
+    if "invalid_count" not in invalid_dict:
+        raise RuntimeError("[DATA_QUALITY] Invalid price range count query missing 'invalid_count' field.")
+
+    invalid_prices = invalid_dict["invalid_count"]
+    if invalid_prices is None:
+        raise RuntimeError("[DATA_QUALITY] Invalid price range count is NULL. Query failed.")
+
     quality["checks"]["invalid_price_ranges"] = {
         "count": invalid_prices,
         "status": "ok" if invalid_prices == 0 else "error",

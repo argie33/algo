@@ -15,5 +15,3 @@ class TransientAPIError(Exception):
     Finance principle: Missing data (transient) != No data (permanent). Retry is appropriate
     for the former; skip is appropriate for the latter.
     """
-
-    pass

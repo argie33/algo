@@ -168,8 +168,9 @@ class MarketHealthDailyLoader(OptimalLoader):
         """Merge VIX data into health metrics.
 
         VIX fetcher returns dict with vix_close/high/low; we extract vix_close as the level.
-        Forward-fill missing VIX dates using the most recent available value (standard market data practice).
-        VIX is CRITICAL for circuit breaker logic and must be present.
+        VIX is CRITICAL for circuit breaker logic. NEVER forward-fill missing dates—they indicate
+        data corruption or loader failure. All trading dates MUST have valid VIX.
+        FAIL-FAST: Raise error if any date missing or has NULL vix_close.
         """
         vix = self._vix_fetcher.fetch(start, end)
         if not isinstance(vix, dict) or len(vix) == 0:
@@ -180,30 +181,42 @@ class MarketHealthDailyLoader(OptimalLoader):
             )
 
         matched_count = 0
-        last_vix_level = None
+        missing_dates = []
+        null_values = []
 
         for m in health_metrics:
-            if m["date"] in vix:
-                # VIX fetcher returns {'vix_close': float, 'vix_high': float, 'vix_low': float}
-                vix_data = vix[m["date"]]
-                vix_close = vix_data.get("vix_close") if isinstance(vix_data, dict) else vix_data
-                if vix_close is not None:
-                    m["vix_level"] = vix_close
-                    last_vix_level = vix_close
-                    matched_count += 1
-                elif last_vix_level is not None:
-                    # Forward-fill from previous day
-                    m["vix_level"] = last_vix_level
-                    matched_count += 1
-            elif last_vix_level is not None:
-                # Forward-fill missing date with most recent VIX level
-                m["vix_level"] = last_vix_level
-                matched_count += 1
+            if m["date"] not in vix:
+                missing_dates.append(m["date"])
+                continue
 
-        if matched_count > 0:
-            logger.info(f"VIX enrichment: matched {matched_count}/{len(health_metrics)} dates (forward-filled missing dates)")
-        else:
-            logger.warning("VIX data available but no valid vix_close values found")
+            vix_data = vix[m["date"]]
+            vix_close = vix_data.get("vix_close") if isinstance(vix_data, dict) else vix_data
+            if vix_close is None or vix_close == "":
+                null_values.append(m["date"])
+                continue
+
+            m["vix_level"] = vix_close
+            matched_count += 1
+
+        if missing_dates:
+            raise RuntimeError(
+                f"[MARKET_HEALTH] CRITICAL: VIX data missing for {len(missing_dates)} trading date(s): {missing_dates[:5]}{'...' if len(missing_dates) > 5 else ''}. "
+                "VIX is required for circuit breaker decisions. Check VIX fetcher and data source availability."
+            )
+
+        if null_values:
+            raise RuntimeError(
+                f"[MARKET_HEALTH] CRITICAL: VIX has NULL vix_close for {len(null_values)} date(s): {null_values[:5]}{'...' if len(null_values) > 5 else ''}. "
+                "Data corruption detected. Check VIX feed and database."
+            )
+
+        if matched_count == 0:
+            raise RuntimeError(
+                "[MARKET_HEALTH] CRITICAL: VIX data fetched but no valid vix_close values found for any trading date. "
+                "Data quality issue: check VIX feed format and validation."
+            )
+
+        logger.info(f"VIX enrichment: matched {matched_count}/{len(health_metrics)} dates with valid vix_close values")
 
     def _merge_put_call_data(self, health_metrics: list[dict[str, Any]], end: date) -> None:
         """Merge put/call ratio into health metrics."""
@@ -225,47 +238,62 @@ class MarketHealthDailyLoader(OptimalLoader):
     def _merge_yield_curve_data(self, health_metrics: list[dict[str, Any]], start: date, end: date) -> None:
         """Merge yield curve slope into health metrics.
 
-        Yield curve slope is used for market regime detection. Forward-fill missing dates
-        using the most recent available yield curve slope (standard financial data practice).
+        Yield curve slope is used for market regime detection. For regime accuracy,
+        ALL trading dates MUST have valid yield curve data. NEVER forward-fill—missing data
+        indicates API failure that should be visible, not hidden.
 
-        Note: Yield curve fetcher returns {"_data_unavailable": True, ...} when API fails.
-        We explicitly check for this and log it clearly instead of silently degrading.
+        Yield curve is OPTIONAL (markets work without Fed inversion data), so unavailability
+        returns early without error. But if data DOES exist, it must be 100% complete.
         """
         try:
             yield_curve = self._yield_curve_fetcher.fetch(start, end)
 
-            # Check for unavailability marker (instead of silently assuming empty dict means success)
+            # Check for unavailability marker (API failed)
             if yield_curve.get("_data_unavailable"):
                 reason = yield_curve.get("_reason", "unknown")
-                logger.warning(f"Yield curve data unavailable ({reason}) - proceeding without slope enrichment")
+                logger.warning(f"Yield curve data unavailable ({reason}) - market regime will skip inversion detection")
                 return
 
             if not yield_curve:
-                logger.warning("Yield curve data unavailable (empty response) - proceeding without slope enrichment")
+                logger.debug("Yield curve data empty - market regime will skip inversion detection")
                 return
 
             matched_count = 0
-            last_slope = None
+            missing_dates = []
+            null_values = []
 
             for m in health_metrics:
                 slope_data = yield_curve.get(m["date"])
-                if slope_data is not None:
-                    slope = slope_data.get("yield_spread")
-                    if slope is not None:
-                        m["yield_curve_slope"] = slope
-                        last_slope = slope
-                        matched_count += 1
-                    elif last_slope is not None:
-                        # Forward-fill from previous available date
-                        m["yield_curve_slope"] = last_slope
-                        matched_count += 1
-                elif last_slope is not None:
-                    # Forward-fill missing date with most recent yield curve slope
-                    m["yield_curve_slope"] = last_slope
-                    matched_count += 1
+                if slope_data is None:
+                    missing_dates.append(m["date"])
+                    continue
+
+                slope = slope_data.get("yield_spread")
+                if slope is None or slope == "":
+                    null_values.append(m["date"])
+                    continue
+
+                m["yield_curve_slope"] = slope
+                matched_count += 1
+
+            if missing_dates:
+                logger.warning(
+                    f"[MARKET_HEALTH] Yield curve incomplete: {len(missing_dates)} date(s) missing "
+                    f"({missing_dates[:3]}{'...' if len(missing_dates) > 3 else ''}). "
+                    "Regime detection will proceed without full inversion data."
+                )
+                return
+
+            if null_values:
+                logger.warning(
+                    f"[MARKET_HEALTH] Yield curve has NULL values for {len(null_values)} date(s): "
+                    f"({null_values[:3]}{'...' if len(null_values) > 3 else ''}). "
+                    "Regime detection will proceed without complete inversion data."
+                )
+                return
 
             if matched_count > 0:
-                logger.info(f"Yield curve enrichment: matched {matched_count}/{len(health_metrics)} dates (forward-filled missing dates)")
+                logger.info(f"Yield curve enrichment: matched {matched_count}/{len(health_metrics)} dates with valid yield_spread")
             else:
                 logger.warning("Yield curve data available but no valid slopes found")
         except Exception as e:

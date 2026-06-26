@@ -112,7 +112,17 @@ def tier_for_exposure(exposure_pct: float | None) -> dict[str, Any]:
         if tier["min_pct"] <= exposure_pct and upper_ok:
             return tier
 
-    return EXPOSURE_TIERS[-1] if exposure_pct < 0 else EXPOSURE_TIERS[0]
+    # If no tier matched, the exposure_pct is outside the defined range. This indicates either
+    # a bug in tier definitions (gaps) or data corruption (exposure_pct > 100% or < 0%).
+    # Never silently fallback—raise error to surface the problem.
+    tier_ranges = [f"{t['min_pct']}-{t['max_pct']}%" for t in EXPOSURE_TIERS]
+    msg = (
+        f"[EXPOSURE POLICY] Exposure percentage {exposure_pct:.1f}% does not match any tier. "
+        f"Defined tier ranges: {', '.join(tier_ranges)}. "
+        f"Cannot apply policy to unknown exposure level. Check exposure calculation logic."
+    )
+    logger.critical(msg)
+    raise RuntimeError(msg)
 
 
 class ExposurePolicy:

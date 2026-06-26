@@ -308,9 +308,27 @@ def _get_algo_performance(cur: cursor) -> Any:
             )
             snap_rows = cur.fetchall()
             if snap_rows:
-                equity_vals = [
-                    float(r["total_portfolio_value"]) for r in snap_rows if r.get("total_portfolio_value") is not None
-                ]
+                equity_vals = []
+                missing_portfolio_values = []
+                for i, r in enumerate(snap_rows):
+                    if "total_portfolio_value" not in r:
+                        raise RuntimeError(
+                            f"[METRICS] Snapshot row {i} missing 'total_portfolio_value' field. Database query failed."
+                        )
+                    pv = r["total_portfolio_value"]
+                    if pv is None:
+                        snap_date = r.get("snapshot_date", f"unknown (row {i})")
+                        missing_portfolio_values.append(snap_date)
+                        continue
+                    equity_vals.append(float(pv))
+
+                if missing_portfolio_values:
+                    logger.warning(
+                        f"[METRICS] {len(missing_portfolio_values)} snapshots have NULL total_portfolio_value: "
+                        f"{missing_portfolio_values[:3]}{'...' if len(missing_portfolio_values) > 3 else ''}. "
+                        "Equity curve will have gaps."
+                    )
+
                 # Last 10 in chronological order; panel takes [-5:] for the 5 most recent
                 recent_rets = [
                     [
