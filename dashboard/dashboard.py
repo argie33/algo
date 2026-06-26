@@ -877,7 +877,7 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
         view_mode = "normal"
         recovery = RenderRecovery()
         render_wrapper = _RenderWrapper(compact, data_source)
-        with Live(console=CONSOLE, refresh_per_second=8, screen=True) as live:
+        with Live(console=CONSOLE, refresh_per_second=4, screen=True) as live:
             try:
                 while True:
                     key = _keypress()
@@ -894,7 +894,7 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
                         render_wrapper,
                         data_source,
                     )
-                    time.sleep(0.125)
+                    time.sleep(0.25)
             except KeyboardInterrupt:
                 pass
     finally:
@@ -1132,7 +1132,7 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
         recovery = RenderRecovery()
         render_wrapper = _RenderWrapper(compact, data_source)
         render_wrapper.watch_interval = interval
-        with Live(console=CONSOLE, refresh_per_second=8, screen=True) as live:
+        with Live(console=CONSOLE, refresh_per_second=4, screen=True) as live:
             _run_watch_main_loop(
                 live,
                 state,
