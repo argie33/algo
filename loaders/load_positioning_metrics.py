@@ -47,8 +47,10 @@ class PositioningMetricsLoader(OptimalLoader):
                 return None
             return [metrics]
         except Exception as e:
-            logger.error(f"[POSITIONING_METRICS] Error fetching for {symbol}: {e}")
-            return None
+            raise RuntimeError(
+                f"[POSITIONING_METRICS] Failed to fetch positioning metrics for {symbol}: {e}. "
+                "Cannot calculate position sizes without positioning data availability check."
+            ) from e
 
     @staticmethod
     def _fetch_positioning_metrics(symbol: str) -> dict[str, Any] | None:
@@ -111,8 +113,10 @@ class PositioningMetricsLoader(OptimalLoader):
             return None
 
         except (ValueError, ZeroDivisionError, TypeError) as e:
-            logger.debug(f"[POSITIONING_METRICS] Parsing error for {symbol} (skipping): {e}")
-            return None
+            raise RuntimeError(
+                f"[POSITIONING_METRICS] Failed to parse positioning data for {symbol}: {e}. "
+                "Cannot use positioning metrics with parsing errors; data integrity required."
+            ) from e
 
     def transform(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Rows are clean."""
