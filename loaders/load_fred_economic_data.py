@@ -99,8 +99,14 @@ SERIES = [
 
 
 def get_fred_api_key() -> str:
-    """Get FRED API key from Secrets Manager, fall back to env var."""
-    return get_api_key("algo/fred", "FRED_API_KEY") or ""
+    """Get FRED API key from Secrets Manager or environment variable.
+
+    Raises ValueError if API key not found — FRED API calls require valid credentials.
+    """
+    key = get_api_key("algo/fred", "FRED_API_KEY", required=True)
+    if not key:
+        raise ValueError("FRED API key is required but was not configured")
+    return key
 
 
 class FredEconomicDataLoader(OptimalLoader):

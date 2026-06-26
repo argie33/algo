@@ -19,7 +19,7 @@ from utils.db import DatabaseContext
 logger = logging.getLogger(__name__)
 
 
-def get_api_key(secret_name: str, env_var: str, default: str | None = None) -> str | None:
+def get_api_key(secret_name: str, env_var: str, default: str | None = None, required: bool = False) -> str | None:
     """Fetch API key from AWS Secrets Manager with fallback to environment variable.
 
     Supports seamless Secrets Manager migration: tries Secrets Manager first,
@@ -29,9 +29,13 @@ def get_api_key(secret_name: str, env_var: str, default: str | None = None) -> s
         secret_name: Name of secret in AWS Secrets Manager (e.g., 'algo-alpaca-key')
         env_var: Environment variable name for fallback (e.g., 'ALPACA_API_KEY')
         default: Default value if both Secrets Manager and env var are missing
+        required: If True, raise ValueError when key not found (fail-fast). If False, return None.
 
     Returns:
-        API key string, or None if not found
+        API key string, or None if not found and not required
+
+    Raises:
+        ValueError: If required=True and key not found from any source
     """
     try:
         import boto3
@@ -62,6 +66,13 @@ def get_api_key(secret_name: str, env_var: str, default: str | None = None) -> s
     if default:
         logger.debug(f"Using default value for {secret_name}")
         return default
+
+    # Fail-fast if key is required
+    if required:
+        raise ValueError(
+            f"Required API key not found: {secret_name} (Secrets Manager) or {env_var} (environment). "
+            f"Configure credentials before proceeding."
+        )
 
     logger.warning(f"Could not find {secret_name} in Secrets Manager or {env_var} in environment")
     return None
