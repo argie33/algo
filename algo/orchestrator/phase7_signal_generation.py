@@ -544,7 +544,7 @@ def run(
     # Fails fast if ANY dependency is unavailable, preventing silent degradation
     ok, dep_error = _check_critical_dependencies(run_date, log_phase_result_fn)
     if not ok:
-        return PhaseResult(7, "signal_generation", "halted", {"qualified_trades": []}, True, dep_error)
+        return PhaseResult(7, "signal_generation", "halted", {"qualified_trades": [], "liquidity_passed": 0}, True, dep_error)
 
     # Halt flag check before generating signals
     if check_halt_flag and check_halt_flag():
@@ -556,7 +556,7 @@ def run(
             7,
             "signal_generation",
             "halted",
-            {"qualified_trades": []},
+            {"qualified_trades": [], "liquidity_passed": 0},
             True,
             "Halt flag set: data quality degradation detected",
         )
@@ -581,7 +581,7 @@ def run(
             7,
             "signal_generation",
             "halted",
-            {"qualified_trades": []},
+            {"qualified_trades": [], "liquidity_passed": 0},
             True,
             reasons[:100],
         )
@@ -595,7 +595,7 @@ def run(
         )
         logger.critical(msg)
         log_phase_result_fn(7, "signal_generation", "halt", msg)
-        return PhaseResult(7, "signal_generation", "halted", {"qualified_trades": []}, True, msg)
+        return PhaseResult(7, "signal_generation", "halted", {"qualified_trades": [], "liquidity_passed": 0}, True, msg)
 
     if exposure_constraints and exposure_constraints.get("halt_new_entries"):
         reason = exposure_constraints.get("halt_reason")
@@ -610,7 +610,7 @@ def run(
             )
         logger.warning(f"[PHASE 7] {reason}")
         log_phase_result_fn(7, "signal_generation", "halt", reason)
-        return PhaseResult(7, "signal_generation", "halted", {"qualified_trades": []}, True, reason)
+        return PhaseResult(7, "signal_generation", "halted", {"qualified_trades": [], "liquidity_passed": 0}, True, reason)
 
     # Primary: buy_sell_daily pivot-breakout BUY signals filtered by stock_scores ranking.
     # buy_sell_daily is REQUIRED (loaded by EOD pipeline at 4:05 PM ET before orchestrator runs).
@@ -640,7 +640,7 @@ def run(
             7,
             "signal_generation",
             "halted",
-            {"qualified_trades": []},
+            {"qualified_trades": [], "liquidity_passed": 0},
             True,
             error.message,
         )
@@ -664,7 +664,7 @@ def run(
             7,
             "signal_generation",
             "halted",
-            {"qualified_trades": []},
+            {"qualified_trades": [], "liquidity_passed": 0},
             True,
             error.message,
         )
@@ -677,7 +677,7 @@ def run(
         )
         logger.critical(msg)
         log_phase_result_fn(7, "signal_generation", "halt", msg)
-        return PhaseResult(7, "signal_generation", "halted", {"qualified_trades": []}, True, msg)
+        return PhaseResult(7, "signal_generation", "halted", {"qualified_trades": [], "liquidity_passed": 0}, True, msg)
 
     signal_source = "buysell_breakout"
 

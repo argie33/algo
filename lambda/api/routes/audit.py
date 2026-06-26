@@ -49,7 +49,8 @@ def handle(
 ) -> Any:
     """Handle /api/audit/* endpoints."""
     # Require admin authorization for all audit endpoints (bypass in dev mode)
-    if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(jwt_claims):
+    # In development, public endpoints (jwt_claims=None) are allowed without admin check
+    if jwt_claims is not None and os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(jwt_claims):
         return error_response(403, "forbidden", "Admin access required to view audit logs")
 
     try:
