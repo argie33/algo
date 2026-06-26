@@ -5,6 +5,7 @@ Runs the Lambda function locally on port 3001 for frontend development.
 Usage: python dev_server.py
 """
 
+import importlib
 import json
 import logging
 import os
@@ -151,7 +152,9 @@ sys.path.insert(0, root_dir)
 sys.path.insert(1, lambda_dir)
 sys.path.insert(2, api_dir)
 
-import lambda_function
+import lambda_function  # noqa: E402
+
+importlib.reload(lambda_function)  # Force fresh reload in case module was cached
 
 log_file = os.path.join(os.environ.get("TEMP", "/tmp"), "dev_server.log")
 
