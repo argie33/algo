@@ -277,20 +277,19 @@ class MarketHealthDailyLoader(OptimalLoader):
                 matched_count += 1
 
             if missing_dates:
-                logger.warning(
-                    f"[MARKET_HEALTH] Yield curve incomplete: {len(missing_dates)} date(s) missing "
+                raise RuntimeError(
+                    f"[MARKET_HEALTH] Yield curve data incomplete: {len(missing_dates)} date(s) missing "
                     f"({missing_dates[:3]}{'...' if len(missing_dates) > 3 else ''}). "
-                    "Regime detection will proceed without full inversion data."
+                    "Market regime detection requires complete yield curve data for inversion detection. "
+                    "Cannot proceed with incomplete Fed rate environment data."
                 )
-                return
 
             if null_values:
-                logger.warning(
+                raise RuntimeError(
                     f"[MARKET_HEALTH] Yield curve has NULL values for {len(null_values)} date(s): "
                     f"({null_values[:3]}{'...' if len(null_values) > 3 else ''}). "
-                    "Regime detection will proceed without complete inversion data."
+                    "Cannot proceed without complete yield spread data — market regime detection requires valid inversion data."
                 )
-                return
 
             if matched_count > 0:
                 logger.info(f"Yield curve enrichment: matched {matched_count}/{len(health_metrics)} dates with valid yield_spread")

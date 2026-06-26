@@ -228,7 +228,9 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:
     freshness = check_data_freshness(cur, "algo_positions", "updated_at", warning_days=1)
     stale_alerts = []
     if freshness.get("is_stale"):
-        stale_alerts.append(f"Position data {freshness.get('data_age_days', '?')}d old")
+        age_days = freshness.get('data_age_days')
+        age_display = f"{age_days}d old" if age_days is not None else "age unknown"
+        stale_alerts.append(f"Position data {age_display}")
 
     response_data = {
         "items": items,
@@ -460,6 +462,7 @@ def _get_circuit_breakers(cur: cursor) -> Any:
                 "open_risk_pct",
                 "consecutive_losses",
                 "market_stage",
+                "vix_level",
             ]
             missing = [f for f in critical_fields if cbm_row[f] is None]
             if missing:

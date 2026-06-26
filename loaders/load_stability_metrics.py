@@ -40,21 +40,55 @@ class StabilityMetricsLoader(OptimalLoader):
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]] | None:
         """Compute stability metrics for this symbol.
 
-        Returns None if unable to compute (e.g., new symbol with <30 days price history).
+        Returns record with data_unavailable marker if unable to compute (e.g., new symbol with <30 days price history).
         Stability metrics are optional enrichment; new symbols can trade without historical volatility.
+        But absence should be explicit (data_unavailable flag), not silent skips.
         """
         try:
             metrics = self._compute_stability_metrics(symbol)
             if not metrics:
-                logger.debug(f"[STABILITY_METRICS] No metrics for {symbol} (skipping)")
-                return None
+                logger.info(f"[STABILITY_METRICS] Insufficient data for {symbol} (< 30 days price history) — metrics unavailable")
+                return [
+                    {
+                        "symbol": symbol,
+                        "volatility_30d": None,
+                        "volatility_60d": None,
+                        "volatility_252d": None,
+                        "beta": None,
+                        "data_unavailable": True,
+                        "reason": "Insufficient price history (< 30 days)",
+                        "updated_at": datetime.now(timezone.utc).isoformat(),
+                    }
+                ]
             return [metrics]
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.debug(f"[STABILITY_METRICS] Database error for {symbol} (skipping): {e}")
-            return None
+            logger.warning(f"[STABILITY_METRICS] Database error for {symbol}: {e}")
+            return [
+                {
+                    "symbol": symbol,
+                    "volatility_30d": None,
+                    "volatility_60d": None,
+                    "volatility_252d": None,
+                    "beta": None,
+                    "data_unavailable": True,
+                    "reason": f"Database error: {str(e)[:100]}",
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }
+            ]
         except Exception as e:
-            logger.debug(f"[STABILITY_METRICS] Error computing metrics for {symbol} (skipping): {e}")
-            return None
+            logger.warning(f"[STABILITY_METRICS] Error computing metrics for {symbol}: {e}")
+            return [
+                {
+                    "symbol": symbol,
+                    "volatility_30d": None,
+                    "volatility_60d": None,
+                    "volatility_252d": None,
+                    "beta": None,
+                    "data_unavailable": True,
+                    "reason": f"Computation error: {str(e)[:100]}",
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }
+            ]
 
     def _compute_stability_metrics(self, symbol: str) -> dict[str, Any] | None:
         """Compute volatility from price_daily and beta from yfinance."""

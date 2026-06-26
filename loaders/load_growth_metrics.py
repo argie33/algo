@@ -28,8 +28,9 @@ class GrowthMetricsLoader(OptimalLoader):
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]] | None:
         """Compute multi-year growth metrics from annual income statement.
 
-        Returns None if financial data unavailable (normal for small caps, new IPOs).
+        Returns record with data_unavailable marker if financial data unavailable (normal for small caps, new IPOs).
         Growth metrics are optional enrichment; their absence does not prevent trading.
+        But unavailability should be explicit (data_unavailable flag), not silent skips.
         """
         try:
             # Fetch up to 10 years of financials to calculate 1Y, 3Y, 5Y growth
@@ -45,8 +46,20 @@ class GrowthMetricsLoader(OptimalLoader):
             )
 
             if not rows or len(rows) < 1:
-                logger.debug(f"[GROWTH_METRICS] No annual income statement data for {symbol} (skipping)")
-                return None
+                logger.info(f"[GROWTH_METRICS] No annual income statement data for {symbol} (new stock/no financials yet)")
+                return [
+                    {
+                        "symbol": symbol,
+                        "revenue_growth_1y": None,
+                        "revenue_growth_3y": None,
+                        "revenue_growth_5y": None,
+                        "eps_growth_1y": None,
+                        "eps_growth_3y": None,
+                        "eps_growth_5y": None,
+                        "data_unavailable": True,
+                        "reason": "No annual income statement data available",
+                    }
+                ]
 
             # Sort by year ascending for easier calculation
             rows_list = list(reversed(rows))
@@ -55,13 +68,37 @@ class GrowthMetricsLoader(OptimalLoader):
             metrics = self._compute_metrics(symbol, latest, rows_list)
 
             if not metrics:
-                logger.debug(f"[GROWTH_METRICS] Failed to compute metrics for {symbol} (skipping)")
-                return None
+                logger.warning(f"[GROWTH_METRICS] Failed to compute metrics for {symbol} (calculation error)")
+                return [
+                    {
+                        "symbol": symbol,
+                        "revenue_growth_1y": None,
+                        "revenue_growth_3y": None,
+                        "revenue_growth_5y": None,
+                        "eps_growth_1y": None,
+                        "eps_growth_3y": None,
+                        "eps_growth_5y": None,
+                        "data_unavailable": True,
+                        "reason": "Metrics computation failed",
+                    }
+                ]
             return [metrics]
 
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.debug(f"[GROWTH_METRICS] Database error for {symbol} (skipping): {e}")
-            return None
+            logger.warning(f"[GROWTH_METRICS] Database error for {symbol}: {e}")
+            return [
+                {
+                    "symbol": symbol,
+                    "revenue_growth_1y": None,
+                    "revenue_growth_3y": None,
+                    "revenue_growth_5y": None,
+                    "eps_growth_1y": None,
+                    "eps_growth_3y": None,
+                    "eps_growth_5y": None,
+                    "data_unavailable": True,
+                    "reason": f"Database error: {str(e)[:100]}",
+                }
+            ]
 
     @staticmethod
     def _compute_metrics(symbol: str, latest: tuple[Any, Any, Any], all_years: list[Any]) -> dict[str, Any] | None:

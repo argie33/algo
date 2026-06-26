@@ -1029,15 +1029,25 @@ def _format_risk_snapshot(risk_dict: dict[str, Any]) -> list[Text | Rule]:
     )
     var_c = HealthFormatter.var_color(var95_val)
 
-    risk_parts = [
-        f"[dim]VaR 95%:[/][{var_c}]{var95_val:.2f}%[/]",
-        f"[dim]CVaR 95%:[/][{var_c}]{cvar95_val:.2f}%[/]",
-        f"[dim]Beta:[/][{beta_c}]{beta_val:.2f}[/]",
-        f"[dim]Top-5 Conc:[/][{conc_c}]{conc5_val:.0f}%[/]",
-    ]
-    if svar_val and svar_val > 0:
-        risk_parts.append(f"[dim]Stressed VaR:[/][{R}]{svar_val:.2f}%[/]")
-    rows.append(Text.from_markup("  ".join(risk_parts)))
+    if None in (var95_val, beta_val, cvar95_val, conc5_val):
+        rows.append(
+            Text.from_markup(
+                f"[dim]VaR 95%:[/][{var_c}]{'—' if var95_val is None else f'{var95_val:.2f}%'}[/]  "
+                f"[dim]CVaR 95%:[/][{var_c}]{'—' if cvar95_val is None else f'{cvar95_val:.2f}%'}[/]  "
+                f"[dim]Beta:[/][{beta_c}]{'—' if beta_val is None else f'{beta_val:.2f}'}[/]  "
+                f"[dim]Top-5 Conc:[/][{conc_c}]{'—' if conc5_val is None else f'{conc5_val:.0f}%'}[/]"
+            )
+        )
+    else:
+        risk_parts = [
+            f"[dim]VaR 95%:[/][{var_c}]{var95_val:.2f}%[/]",
+            f"[dim]CVaR 95%:[/][{var_c}]{cvar95_val:.2f}%[/]",
+            f"[dim]Beta:[/][{beta_c}]{beta_val:.2f}[/]",
+            f"[dim]Top-5 Conc:[/][{conc_c}]{conc5_val:.0f}%[/]",
+        ]
+        if svar_val and svar_val > 0:
+            risk_parts.append(f"[dim]Stressed VaR:[/][{R}]{svar_val:.2f}%[/]")
+        rows.append(Text.from_markup("  ".join(risk_parts)))
 
     return rows
 

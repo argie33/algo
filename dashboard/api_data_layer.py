@@ -391,15 +391,17 @@ def api_call(endpoint: str, params: dict[str, Any] | None = None, method: str = 
                         error_result_json["_is_transient_503"] = True
                     return error_result_json
 
-            cache_response(endpoint, data)
             _record_api_success()
             unwrapped = _unwrap_api_response(data)
-            # Validate response at boundary (fail fast if critical fields missing)
+            # Validate response BEFORE caching (fail-fast: don't cache invalid responses)
             try:
                 validated = validate_response(endpoint, unwrapped)
+                # Cache only after validation succeeds
+                cache_response(endpoint, data)
                 return validated
             except ResponseValidationError as e:
                 logger.error(f"API response validation failed for {endpoint}: {e}")
+                # DO NOT cache invalid response — next request will retry fresh
                 return {"_error": str(e)}
         except requests.exceptions.Timeout:
             if attempt < API_MAX_RETRIES:

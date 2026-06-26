@@ -204,8 +204,11 @@ class YieldCurveFetcher:
 
             fred_api_key = __import__("os").getenv("FRED_API_KEY")
             if not fred_api_key:
-                logger.debug("FRED_API_KEY not set, returning empty yield curve data")
-                return {}
+                logger.error("CRITICAL: FRED_API_KEY environment variable not set — cannot fetch yield curve data for market regime detection")
+                raise RuntimeError(
+                    "FRED_API_KEY not configured. Yield curve data is required for market regime detection "
+                    "(Fed rate environment, inversion detection). Check AWS Secrets Manager configuration."
+                )
 
             url = "https://www.alphavantage.co/query"
             params = {
@@ -221,15 +224,15 @@ class YieldCurveFetcher:
                 return {}
 
             result = {}
-            skipped_count = 0
+            incomplete_dates = []
             for item in data["data"]:
                 if start <= pd.to_datetime(item["date"]).date() <= end:
                     yield_2y = item.get("2Y")
                     yield_10y = item.get("10Y")
 
                     if yield_2y is None or yield_10y is None:
-                        skipped_count += 1
-                        continue  # Skip incomplete entries rather than failing
+                        incomplete_dates.append(item["date"])
+                        continue
 
                     result[item["date"]] = {
                         "yield_2y": float(yield_2y),
@@ -237,8 +240,12 @@ class YieldCurveFetcher:
                         "yield_spread": float(yield_10y) - float(yield_2y),
                     }
 
-            if skipped_count > 0:
-                logger.debug(f"Yield curve: skipped {skipped_count} incomplete dates, kept {len(result)}")
+            if incomplete_dates:
+                raise RuntimeError(
+                    f"[YIELD_CURVE] Incomplete yield data for {len(incomplete_dates)} date(s): "
+                    f"{incomplete_dates[:3]}{'...' if len(incomplete_dates) > 3 else ''}. "
+                    "Market regime detection requires complete 2Y/10Y yield data. Cannot proceed with partial data."
+                )
             return result
         except Exception as e:
             logger.warning(f"Yield curve fetch failed: {e}")
@@ -260,12 +267,9 @@ class BreadthFetcher:
 
         Returns: dict[date_str] -> {advances, declines, unchanged, advance_decline_ratio}
         If no data available, returns empty dict (breadth is optional).
+
+        NOTE: Breadth calculation not yet implemented — returns empty dict.
+        Market health metrics will proceed without breadth enrichment.
         """
-        try:
-            result: dict[str, Any] = {}
-            logger.debug("Breadth data not yet available in database (optional enrichment)")
-            return result
-        except Exception as e:
-            logger.warning(f"Breadth fetch failed (optional): {e}")
-            # Don't raise - breadth is optional enrichment
-            return {}
+        logger.info("[BREADTH_FETCHER] Breadth data calculation not yet implemented — market health will proceed without breadth metrics")
+        return {}
