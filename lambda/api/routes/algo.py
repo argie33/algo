@@ -290,8 +290,14 @@ def _dispatch(
 
     # Dispatch to handler functions by path
     if path == "/api/algo/status":
+        if not _check_admin_access(jwt_claims):
+            logger.warning(f"Unauthorized algo status access attempt by {user_id}")
+            raise_api_error(403, "forbidden", "Admin access required")
         return _get_algo_status(cur)
     elif path == "/api/algo/trades":
+        if not _check_admin_access(jwt_claims):
+            logger.warning(f"Unauthorized algo trades access attempt by {user_id}")
+            raise_api_error(403, "forbidden", "Admin access required")
         limit = safe_limit(extract_param(params, "limit"), max_val=10000, default=100)
         status_filter = extract_param(params, "status")
         if status_filter and status_filter not in (
@@ -309,12 +315,18 @@ def _dispatch(
         effective_user_id = None if is_admin else user_id
         return _get_algo_trades(cur, limit, user_id=effective_user_id, status=status_filter)
     elif path == "/api/algo/positions":
+        if not _check_admin_access(jwt_claims):
+            logger.warning(f"Unauthorized algo positions access attempt by {user_id}")
+            raise_api_error(403, "forbidden", "Admin access required")
         return _get_algo_positions(cur, user_id=user_id)
     elif path == "/api/algo/dashboard-signals":
         return _get_dashboard_signals(cur)
     elif path == "/api/algo/performance":
         return _get_algo_performance(cur)
     elif path == "/api/algo/circuit-breakers":
+        if not _check_admin_access(jwt_claims):
+            logger.warning(f"Unauthorized algo circuit-breakers access attempt by {user_id}")
+            raise_api_error(403, "forbidden", "Admin access required")
         return _get_circuit_breakers(cur)
     elif path == "/api/algo/equity-curve":
         days = safe_days(extract_param(params, "limit"), max_val=365, default=180)
