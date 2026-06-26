@@ -42,46 +42,49 @@ def extract_field(data: dict[str, Any], field_name: str, default: Any = None) ->
 def extract_items_list(data: dict[str, Any]) -> list[Any]:
     """Extract items array from paginated API response.
 
-    Raises DataExtractionError if response contains _error field.
-    Returns empty list for missing or invalid items structure.
+    Raises DataExtractionError if response contains error or missing items.
+    Fail-fast: Never returns empty list as fallback.
 
     Args:
         data: Response dict containing "items" array
 
     Returns:
-        List of items, or empty list if missing/invalid
+        List of items
 
     Raises:
-        DataExtractionError: If data is a dict with error field
+        DataExtractionError: If data is not a dict, has error field, or missing items
     """
     if not isinstance(data, dict):
-        return []
+        raise DataExtractionError(f"Expected dict response, got {type(data).__name__}")
 
     if has_error(data):
         raise DataExtractionError(f"Error in response: {data.get('_error')}")
 
     items = data.get("items")
-    if items is None or not isinstance(items, list):
-        return []
+    if items is None:
+        raise DataExtractionError("Response missing required 'items' field")
+    if not isinstance(items, list):
+        raise DataExtractionError(f"Response 'items' field must be a list, got {type(items).__name__}")
     return items
 
 
 def extract_data_or_empty(data: Any, default_type: type = dict, allow_empty: bool = False) -> Any:
-    """Extract data or return empty default if missing, raise on error.
+    """Extract data or raise on error.
 
-    Raises DataExtractionError if data is a dict with _error field, or if data
-    is missing/None and allow_empty=False (fail-fast for critical finance data).
+    CRITICAL: For finance application, never returns empty defaults. Raises on any data quality issue.
+    Even with allow_empty=True, raises if data exists but is wrong type.
 
     Args:
         data: Data to extract (could be dict, list, or None)
-        default_type: Type to return if missing (dict, list, etc.)
-        allow_empty: If False (default), raise on missing data. If True, return empty.
+        default_type: Expected type (dict, list, etc.)
+        allow_empty: Deprecated. Kept for backwards compatibility but ignored.
+                     Empty defaults are never returned for critical financial data.
 
     Returns:
-        data if valid type (and no error), else empty instance of default_type (if allow_empty=True)
+        data if valid type (and no error)
 
     Raises:
-        DataExtractionError: If data is dict with _error field, or if data is missing and allow_empty=False
+        DataExtractionError: If data has error field, is missing/None, or is wrong type
     """
     if has_error(data):
         raise DataExtractionError(f"Error in response: {data.get('_error')}")
@@ -89,15 +92,14 @@ def extract_data_or_empty(data: Any, default_type: type = dict, allow_empty: boo
     if isinstance(data, default_type):
         return data
 
-    if not allow_empty and data is None:
+    # Fail-fast on missing or wrong-type data
+    if data is None:
         raise DataExtractionError("Required data is missing (None). Cannot proceed without this information.")
 
-    if default_type is dict:
-        return {}
-    elif default_type is list:
-        return []
-
-    return default_type()
+    raise DataExtractionError(
+        f"Data type mismatch: expected {default_type.__name__}, got {type(data).__name__}. "
+        "Response structure is invalid."
+    )
 
 
 # Extraction patterns for common dashboard endpoints

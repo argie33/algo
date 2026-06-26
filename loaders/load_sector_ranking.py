@@ -86,8 +86,11 @@ class SectorRankingLoader(OptimalLoader):
             """)
 
             if not rows:
-                logger.warning("No sector ranking data computed — check company_profile and stock_scores tables")
-                return None
+                raise RuntimeError(
+                    "Sector ranking data missing: No sectors found in ranking query. "
+                    "Check that company_profile and stock_scores tables have data. "
+                    "Sectors are critical for portfolio diversification signals."
+                )
 
             valid_rows = []
             for r in rows:
@@ -116,8 +119,11 @@ class SectorRankingLoader(OptimalLoader):
                 )
 
             if not valid_rows:
-                logger.warning("No valid sector ranking entries after validation")
-                return None
+                raise RuntimeError(
+                    "Sector ranking validation failed: No valid sector entries after validation checks. "
+                    "All sectors must have required fields (rank, momentum). "
+                    "Check database data integrity before proceeding."
+                )
 
             return valid_rows
 

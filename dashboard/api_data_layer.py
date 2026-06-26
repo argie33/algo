@@ -164,10 +164,14 @@ def _record_api_success() -> None:
 def cache_response(endpoint: str, data: dict[str, Any]) -> None:
     """Cache successful API response for fallback during outages.
 
-    Silently skips caching for non-dict responses. Raises for error responses.
+    Raises for non-dict responses or error responses. Fail-fast ensures only
+    valid responses are cached.
     """
     if not isinstance(data, dict):
-        return  # Silently skip caching non-dict responses
+        raise ValueError(
+            f"Cannot cache non-dict API response for {endpoint}: "
+            f"got {type(data).__name__}. API response must be dict."
+        )
     if "_error" in data:
         raise ValueError(f"Cannot cache error response for {endpoint}: {data.get('_error')}")
     with _response_cache_lock:
@@ -201,23 +205,22 @@ def get_cache_age_seconds(data: dict[str, Any]) -> int | None:
 
 
 def get_cached_response(endpoint: str, mark_stale: bool = False) -> dict[str, Any] | None:
-    """Get cached response if available.
+    """Get cached response if available and fresh.
 
-    CRITICAL: Callers must check is_stale_data(result) and alert users
-    when displaying market data that's >30 minutes old.
+    CRITICAL: This function NEVER serves stale data (>30 min old). For a finance
+    application, stale data can lead to incorrect position sizing, risk calculations,
+    and trade decisions.
 
     Args:
         endpoint: API endpoint path
-        mark_stale: If True, add _stale_cache flag when data is >30min old
-                   instead of failing. Used during circuit breaker outages to
-                   serve stale data with warning flag.
+        mark_stale: Deprecated parameter. Kept for backwards compatibility but ignored.
+                   Stale data is never served under any circumstances.
 
     Returns:
-        Cached data with optional _stale_cache flag, or None if not cached.
-        MUST call is_stale_data() on result to check freshness.
+        Cached data if available and fresh (<30 min old), or None if not cached.
 
     Raises:
-        RuntimeError: If cache > 30 min old and mark_stale=False
+        RuntimeError: If cache is stale (>30 min old), corrupted, or data structure invalid
     """
     with _response_cache_lock:
         cached = _response_cache.get(endpoint)
@@ -237,18 +240,12 @@ def get_cached_response(endpoint: str, mark_stale: bool = False) -> dict[str, An
     age_seconds = (datetime.now(timezone.utc) - timestamp).total_seconds()
 
     if age_seconds > 1800:
-        if not mark_stale:
-            raise RuntimeError(
-                f"API {endpoint}: cached response too stale "
-                f"(30+ min old, {int(age_seconds)}s). "
-                "API unavailable - cannot serve stale data."
-            )
-        cached_data = dict(cached_data)
-        cached_data["_stale_cache"] = True
-        cached_data["_cache_age_seconds"] = int(age_seconds)
-        logger.warning(
-            f"[STALE_DATA_WARNING] Returning {int(age_seconds)}s old cache for {endpoint}. "
-            "Dashboard MUST display 'DATA STALE' indicator to user."
+        # FINANCE APP SAFETY: Never serve stale data, regardless of circuit breaker state
+        raise RuntimeError(
+            f"API {endpoint}: cached response too stale "
+            f"(30+ min old, {int(age_seconds)}s). "
+            "Cannot serve stale data in finance application — risk calculations would be invalid. "
+            "API must be restored or dashboard must show data unavailable."
         )
 
     return cached_data

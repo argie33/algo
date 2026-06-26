@@ -29,30 +29,32 @@ class ValueMetricsLoader(OptimalLoader):
     watermark_field = "updated_at"
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]] | None:
-        """Fetch value metrics from yfinance for a symbol.
-
-        Skips symbols with market cap < $50M (illiquid/penny stocks won't have reliable metrics).
-        This reduces unnecessary API calls and improves loader throughput.
-        """
+        """Fetch value metrics from yfinance for a symbol. Fail-fast on missing value data."""
         for attempt in range(3):
             try:
                 ticker = get_ticker(symbol)
                 if not ticker:
-                    logger.debug(f"Ticker not found for {symbol} (no data available)")
-                    return None
+                    raise RuntimeError(
+                        f"Value metrics unavailable for {symbol}: ticker not found in data source. "
+                        "Cannot compute value-based signals without ticker data."
+                    )
 
                 info = ticker.info
                 if not info:
-                    logger.debug(f"No info available for {symbol}")
-                    return None
+                    raise RuntimeError(
+                        f"Value metrics unavailable for {symbol}: no financial info from data source. "
+                        "Cannot compute PE, PB, PS ratios without ticker info."
+                    )
 
                 mkt_cap = info.get("marketCap")
 
-                # Skip extremely illiquid symbols (market cap < $1M) to reduce unnecessary API calls
-                # These typically lack reliable metrics and aren't suitable for trading
+                # Fail-fast on illiquid symbols (market cap < $1M)
+                # These lack reliable metrics and signal incomplete data
                 if mkt_cap and mkt_cap < 1_000_000:
-                    logger.debug(f"Skipping {symbol} (market cap ${mkt_cap:,} < $1M threshold)")
-                    return None
+                    raise RuntimeError(
+                        f"Value metrics unavailable for {symbol}: market cap ${mkt_cap:,} below $1M threshold. "
+                        "Symbol is too illiquid for reliable value factor scoring."
+                    )
 
                 pe = info.get("trailingPE")
                 pb = info.get("priceToBook")
@@ -64,8 +66,10 @@ class ValueMetricsLoader(OptimalLoader):
                 held_institutions = info.get("heldPercentInstitutions")
 
                 if not any([mkt_cap, pe, pb, ps]):
-                    logger.debug(f"Insufficient metrics for {symbol}: no market cap, PE, PB, or PS")
-                    return None
+                    raise RuntimeError(
+                        f"Value metrics incomplete for {symbol}: missing market cap, PE, PB, and PS. "
+                        "Cannot compute value score without at least one valuation metric."
+                    )
 
                 fcf_yield = None
                 if fcf and mkt_cap and mkt_cap > 0:

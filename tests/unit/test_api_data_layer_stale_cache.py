@@ -47,8 +47,8 @@ class TestStaleCacheWarning:
         assert "too stale" in str(exc_info.value)
         assert "30+ min old" in str(exc_info.value)
 
-    def test_stale_cache_with_mark_adds_warning(self):
-        """Stale cache (> 30 min) adds warning flag when mark_stale=True."""
+    def test_stale_cache_with_mark_true_still_raises(self):
+        """Stale cache (> 30 min) raises error even when mark_stale=True (never serve stale data)."""
         endpoint = "/api/algo/positions"
         data = {"items": [], "total_count": 0}
         cache_response(endpoint, data)
@@ -58,16 +58,13 @@ class TestStaleCacheWarning:
             old_time = datetime.now(timezone.utc) - timedelta(seconds=2100)
             cached_entry["timestamp"] = old_time
 
-        cached = get_cached_response(endpoint, mark_stale=True)
-        assert cached is not None
-        assert cached["_stale_cache"] is True
-        assert "_cache_age_seconds" in cached
-        assert cached["_cache_age_seconds"] >= 2100
-        assert "items" in cached
-        assert "total_count" in cached
+        # New behavior: stale data NEVER served, even with mark_stale=True
+        with pytest.raises(RuntimeError) as exc_info:
+            get_cached_response(endpoint, mark_stale=True)
+        assert "too stale" in str(exc_info.value)
 
-    def test_stale_cache_preserves_original_data(self):
-        """Stale cache warning adds flags but preserves all original fields."""
+    def test_stale_cache_raises_for_all_old_data(self):
+        """Stale cache (> 30 min) always raises, regardless of mark_stale parameter."""
         endpoint = "/api/algo/performance"
         data = {
             "w": 5,
@@ -83,13 +80,11 @@ class TestStaleCacheWarning:
             old_time = datetime.now(timezone.utc) - timedelta(seconds=3600)
             cached_entry["timestamp"] = old_time
 
-        cached = get_cached_response(endpoint, mark_stale=True)
-        assert cached["w"] == 5
-        assert cached["l"] == 2
-        assert cached["n"] == 7
-        assert cached["streak"] == 2
-        assert cached["win_rate"] == 0.714
-        assert cached["_stale_cache"] is True
+        # Stale data raises error - never served in finance app
+        with pytest.raises(RuntimeError) as exc_info:
+            get_cached_response(endpoint, mark_stale=True)
+        assert "too stale" in str(exc_info.value)
+        assert "finance application" in str(exc_info.value)
 
     def test_no_cache_returns_none(self):
         """No cached data returns None regardless of mark_stale."""
@@ -124,12 +119,11 @@ class TestStaleCacheWithMalformedData:
         assert cached is not None
 
     def test_cache_response_with_none_data(self):
-        """Verify cache_response handles None data."""
+        """Verify cache_response raises on None data (fail-fast)."""
         endpoint = "/test"
-        cache_response(endpoint, None)
-        cached = get_cached_response(endpoint)
-        # Should handle None data gracefully
-        assert cached is None or cached is not None
+        # cache_response must raise on None (not a dict)
+        with pytest.raises(ValueError):
+            cache_response(endpoint, None)
 
     def test_get_cached_response_with_none_endpoint(self):
         """Verify get_cached_response handles None endpoint."""
@@ -203,7 +197,7 @@ class TestStaleCacheWithMalformedData:
             pass  # Expected
 
     def test_get_cached_response_timestamp_as_string(self):
-        """Verify age calculation handles malformed timestamp."""
+        """Verify age calculation raises on malformed timestamp (fail-fast)."""
         endpoint = "/test"
         cache_response(endpoint, {"data": "test"})
 
@@ -211,15 +205,12 @@ class TestStaleCacheWithMalformedData:
             cached_entry = _response_cache[endpoint]
             cached_entry["timestamp"] = "not a datetime"  # Invalid timestamp
 
-        try:
-            cached = get_cached_response(endpoint, mark_stale=True)
-            # Should handle or raise error
-            assert cached is None or isinstance(cached, dict)
-        except (TypeError, AttributeError):
-            pass  # Expected
+        # Should raise on invalid timestamp
+        with pytest.raises((TypeError, AttributeError)):
+            get_cached_response(endpoint, mark_stale=True)
 
     def test_get_cached_response_timestamp_as_int(self):
-        """Verify age calculation handles integer timestamp."""
+        """Verify age calculation raises on integer timestamp (fail-fast)."""
         endpoint = "/test"
         cache_response(endpoint, {"data": "test"})
 
@@ -227,34 +218,23 @@ class TestStaleCacheWithMalformedData:
             cached_entry = _response_cache[endpoint]
             cached_entry["timestamp"] = 12345  # Integer instead of datetime
 
-        try:
-            cached = get_cached_response(endpoint, mark_stale=True)
-            # Should handle gracefully
-            assert cached is None or isinstance(cached, dict)
-        except (TypeError, AttributeError):
-            pass  # Expected
+        # Should raise on invalid timestamp
+        with pytest.raises((TypeError, AttributeError)):
+            get_cached_response(endpoint, mark_stale=True)
 
     def test_cache_response_with_non_dict_data_types(self):
-        """Verify cache_response handles non-dict data types."""
+        """Verify cache_response raises on non-dict data types (fail-fast)."""
         endpoint = "/test"
-        try:
+        # Non-dict data must raise
+        with pytest.raises(ValueError):
             cache_response(endpoint, "string data")
-            cached = get_cached_response(endpoint)
-            # Should handle non-dict gracefully
-            assert cached is not None or cached is None
-        except (TypeError, KeyError):
-            pass  # Expected
 
     def test_cache_response_with_list_data(self):
-        """Verify cache_response handles list as data."""
+        """Verify cache_response raises on list data (fail-fast)."""
         endpoint = "/test"
-        try:
+        # List data must raise
+        with pytest.raises(ValueError):
             cache_response(endpoint, [1, 2, 3, 4, 5])
-            cached = get_cached_response(endpoint)
-            # Should handle or reject
-            assert cached is not None or cached is None
-        except (TypeError, KeyError):
-            pass  # Expected
 
     def test_get_cached_response_age_calculation_with_future_timestamp(self):
         """Verify age calculation handles future timestamps."""

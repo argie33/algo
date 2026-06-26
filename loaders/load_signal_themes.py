@@ -6,17 +6,17 @@ import sys
 from datetime import date
 from typing import Any
 
-import psycopg2
-
-from loaders.runner import run_loader
-from utils.loaders import execute_query, fetch_latest
-from utils.optimal_loader import OptimalLoader
-
-logger = logging.getLogger(__name__)
-
 from loaders.loader_helper import setup_imports
 
 setup_imports()
+
+import psycopg2  # noqa: E402
+
+from loaders.runner import run_loader  # noqa: E402
+from utils.loaders import execute_query, fetch_latest  # noqa: E402
+from utils.optimal_loader import OptimalLoader  # noqa: E402
+
+logger = logging.getLogger(__name__)
 
 
 class SignalThemesLoader(OptimalLoader):
@@ -27,15 +27,17 @@ class SignalThemesLoader(OptimalLoader):
     watermark_field = "created_at"
 
     def fetch_global(self, since: date | None) -> list[dict[str, Any]] | None:
-        """Fetch and group signal themes from quality scores."""
+        """Fetch and group signal themes from quality scores. Fail-fast on missing data."""
         try:
             # Get the latest price data date
             row = fetch_latest("price_daily", "date")
             latest_date = row["date"] if row else None
 
             if not latest_date:
-                logger.warning("No price data found")
-                return None
+                raise RuntimeError(
+                    "Signal themes cannot be computed: no price data found in database. "
+                    "This is critical data. Loader must fail-fast to ensure accurate signal generation."
+                )
 
             # Fetch high-scoring signals grouped by theme
             rows = execute_query(
@@ -61,7 +63,11 @@ class SignalThemesLoader(OptimalLoader):
             )
 
             if not rows:
-                return None
+                raise RuntimeError(
+                    f"Signal themes data missing for {latest_date}: "
+                    "no high-quality signals found in database. "
+                    "This indicates signal_quality_scores table is empty or stale."
+                )
 
             return [
                 {
@@ -74,7 +80,7 @@ class SignalThemesLoader(OptimalLoader):
                 for r in rows
             ]
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            raise RuntimeError(f"Operation failed: {e}") from e
+            raise RuntimeError(f"Signal themes operation failed: {e}") from e
 
 
 if __name__ == "__main__":
