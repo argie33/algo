@@ -241,6 +241,7 @@ class APIHandler(BaseHTTPRequestHandler):
 
     def _handle_request(self, method: str) -> None:
         """Route request to Lambda handler."""
+        path = None
         try:
             # Parse URL
             parsed_url = urlparse(self.path)
@@ -348,14 +349,26 @@ class APIHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(response_body_bytes)
 
-        except (FileNotFoundError, OSError) as e:
-            logger.error(f"Error handling {method} {path}: {e}", exc_info=True)
-            self.send_response(500)
-            self.send_header("Content-Type", "application/json")
-            self._set_cors_headers()
-            self.end_headers()
-            error_response = json.dumps({"statusCode": 500, "message": "Internal server error"})
-            self.wfile.write(error_response.encode("utf-8"))
+        except Exception as e:
+            # Catch all exceptions (not just FileNotFoundError/OSError) to log details
+            path_str = path or self.path or "unknown"
+            error_type = type(e).__name__
+            error_msg = str(e)[:500]
+            print(f"[DEV_SERVER_EXCEPTION] {error_type} in {method} {path_str}: {error_msg}", flush=True)
+            logger.error(
+                f"[DEV_SERVER_EXCEPTION] Exception handling {method} {path_str}: "
+                f"{error_type}: {error_msg}",
+                exc_info=True
+            )
+            try:
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json")
+                self._set_cors_headers()
+                self.end_headers()
+                error_response = json.dumps({"statusCode": 500, "message": "Internal server error"})
+                self.wfile.write(error_response.encode("utf-8"))
+            except Exception as send_err:
+                logger.error(f"[DEV_SERVER] Failed to send error response: {send_err}")
 
     def log_message(self, fmt: str, *args: Any) -> None:
         """Suppress default HTTP logging."""
