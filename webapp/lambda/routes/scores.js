@@ -23,7 +23,7 @@ router.get("/", async (req, res) => {
     const pageNum = Math.max(parseInt(page) || 1, 1);
     const offset = (pageNum - 1) * limitNum;
 
-    // Build WHERE clause
+    // Build WHERE clause - exclude ETFs using stock_symbols table
     let whereClause = "WHERE (sy.etf IS NULL OR sy.etf != 'Y')";
     const params = [];
 
@@ -49,15 +49,8 @@ router.get("/", async (req, res) => {
       ? sort_order.toUpperCase()
       : "DESC";
 
-    // Get total count
-    const countResult = await query(
-      `SELECT COUNT(*) as total FROM stock_scores ss LEFT JOIN stock_symbols sy ON sy.symbol = ss.symbol ${whereClause}`,
-      params
-    );
-    validateQueryResult(countResult, { requireRows: false });
-    const total = parseInt(countResult?.rows[0]?.total || 0);
-
-    // Get paginated results
+    // Combined query to get both count and data in a single pass
+    // This reduces database round-trips and improves Lambda performance
     const paramIndex = params.length + 1;
     const resultObj = await query(
       `
@@ -68,7 +61,8 @@ router.get("/", async (req, res) => {
         ss.value_score,
         ss.quality_score,
         ss.growth_score,
-        ss.stability_score
+        ss.stability_score,
+        COUNT(*) OVER() as total_count
       FROM stock_scores ss
       LEFT JOIN stock_symbols sy ON sy.symbol = ss.symbol
       ${whereClause}
@@ -80,9 +74,18 @@ router.get("/", async (req, res) => {
     validateQueryResult(resultObj, { requireRows: false });
 
     const scores = resultObj?.rows || [];
+    const total = scores.length > 0 ? parseInt(scores[0].total_count) : 0;
     const totalPages = Math.ceil(total / limitNum);
 
-    return sendPaginated(res, scores, {
+    return sendPaginated(res, scores.map(row => ({
+      symbol: row.symbol,
+      composite_score: row.composite_score,
+      momentum_score: row.momentum_score,
+      value_score: row.value_score,
+      quality_score: row.quality_score,
+      growth_score: row.growth_score,
+      stability_score: row.stability_score
+    })), {
       page: pageNum,
       limit: limitNum,
       total,
