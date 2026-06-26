@@ -494,9 +494,16 @@ class EntryHandler:
                         message=alert_data["message"],
                     )
                 except NotificationError as e:
-                    logger.warning(f"Failed to send TCA alert: {e}")
+                    raise RuntimeError(
+                        f"CRITICAL: Failed to send TCA alert notification: {e}. "
+                        f"Trade Cost Analysis data may not reach monitoring systems. "
+                        f"Trader was not notified of trade {trade_id}."
+                    ) from e
         except DatabaseError as e:
-            logger.warning(f"TCA recording failed: {e}")
+            raise RuntimeError(
+                f"CRITICAL: Failed to record TCA data for trade {trade_id}: {e}. "
+                f"Trade Cost Analysis audit trail lost. Cannot proceed without recording."
+            ) from e
 
     def _validate_entry_phase(
         self, cur: Any, symbol: str, signal_date: Any, entry_price: Decimal, stop_loss_price: Decimal

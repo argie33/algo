@@ -402,7 +402,12 @@ def api_call(endpoint: str, params: dict[str, Any] | None = None, method: str = 
             except ResponseValidationError as e:
                 logger.error(f"API response validation failed for {endpoint}: {e}")
                 # DO NOT cache invalid response — next request will retry fresh
-                return {"_error": str(e)}
+                # Return error response so callers can handle validation failures explicitly
+                _record_api_failure()
+                return {
+                    "_error": f"Response validation failed: {e}",
+                    "_error_type": "validation_error",
+                }
         except requests.exceptions.Timeout:
             if attempt < API_MAX_RETRIES:
                 backoff = min((2**attempt) + random.random() * (2**attempt), API_MAX_BACKOFF)

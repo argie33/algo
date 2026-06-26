@@ -284,20 +284,23 @@ def fetch_health(c: None) -> dict[str, Any]:
         sources = []
         for s in raw_sources:
             name = s.get("name", "")
-            # API now returns role (CRIT/IMP/NORM); fall back to freshness_config if absent
+            if not name:
+                error_msg = "Health API source entry missing 'name' field"
+                logger.error(error_msg)
+                record_data_quality_issue("health", "validation", "missing_source_name")
+                return FetcherValidator.build_error_response(error_msg)
+
+            # FAIL-FAST: Require role field from API. Don't fall back to config file.
+            # API structure and config file can diverge, causing incorrect role assignments.
             role = s.get("role")
             if not role:
-                try:
-                    from utils.validation.freshness_config import FRESHNESS_RULES as _FR
-
-                    r = _FR.get(name)
-                    is_crit = r and r.get("critical")
-                    max_age_val = r.get("max_age_days") if r else None
-                    max_age_days = int(max_age_val) if max_age_val is not None and isinstance(max_age_val, (int, float)) else 999
-                    is_imp = r and max_age_days <= 7
-                    role = "CRIT" if is_crit else ("IMP" if is_imp else "NORM")
-                except ImportError:
-                    role = "CRIT" if name in set(critical_stale or []) else "NORM"
+                error_msg = (
+                    f"Health API source '{name}': missing required 'role' field (CRIT/IMP/NORM). "
+                    "API response schema mismatch. Check backend response format."
+                )
+                logger.error(error_msg)
+                record_data_quality_issue("health", "validation", "missing_role_field", name)
+                return FetcherValidator.build_error_response(error_msg)
             # Explicit validation: age_hours required for freshness display
             age_hours = s.get("age_hours")
             if age_hours is None:
@@ -383,20 +386,37 @@ def fetch_circuit(c: None) -> dict[str, Any]:
                 record_data_quality_issue("cb", "validation", "breaker_missing_label")
                 return FetcherValidator.build_error_response(error_msg)
 
-            # Get current value (try current_value first, fallback to current)
+            # FAIL-FAST: Require explicit field names. API field structure changes must be caught.
+            # Do not silently fall back to alternate field names—this masks API contract violations.
             cur_val = r.get("current_value")
             if cur_val is None:
-                cur_val = r.get("current")
+                error_msg = (
+                    f"Circuit breaker {label}: missing 'current_value' field. "
+                    "API response schema mismatch. Check backend response format."
+                )
+                logger.error(error_msg)
+                record_data_quality_issue("cb", "validation", "missing_current_value", label)
+                return FetcherValidator.build_error_response(error_msg)
 
-            # Get threshold value (try threshold_value first, fallback to threshold)
             thr_val = r.get("threshold_value")
             if thr_val is None:
-                thr_val = r.get("threshold")
+                error_msg = (
+                    f"Circuit breaker {label}: missing 'threshold_value' field. "
+                    "API response schema mismatch. Check backend response format."
+                )
+                logger.error(error_msg)
+                record_data_quality_issue("cb", "validation", "missing_threshold_value", label)
+                return FetcherValidator.build_error_response(error_msg)
 
-            # Get triggered status (try is_active first, fallback to triggered)
             is_triggered = r.get("is_active")
             if is_triggered is None:
-                is_triggered = r.get("triggered")
+                error_msg = (
+                    f"Circuit breaker {label}: missing 'is_active' field. "
+                    "API response schema mismatch. Check backend response format."
+                )
+                logger.error(error_msg)
+                record_data_quality_issue("cb", "validation", "missing_is_active", label)
+                return FetcherValidator.build_error_response(error_msg)
 
             formatted_bs.append(
                 {

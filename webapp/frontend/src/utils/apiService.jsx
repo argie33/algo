@@ -70,14 +70,21 @@ export const createLogger = (componentName) => ({
 const getAuthToken = () => {
   try {
     // Use tokenManager for consistent token retrieval
-    return tokenManager.getToken("access");
+    const token = tokenManager.getToken("access");
+    if (!token) {
+      throw new Error(
+        "[apiService] Auth token is null/undefined. User may not be authenticated. " +
+        "Verify Cognito authentication state and token manager configuration."
+      );
+    }
+    return token;
   } catch (error) {
-    console.warn(
-      "[apiService] Failed to retrieve auth token:",
-      error?.message || error
+    throw new Error(
+      `[apiService] Failed to retrieve auth token: ${error?.message || error}. ` +
+      "Cannot proceed with unauthenticated API requests. " +
+      "Check Cognito configuration and token manager state."
     );
   }
-  return null;
 };
 
 // Standardized fetch wrapper with enhanced error handling
