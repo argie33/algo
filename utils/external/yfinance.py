@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 _yf_semaphore = threading.Semaphore(1)  # Max 1 concurrent request
 _yf_rate_lock = threading.Lock()
 _yf_last_request_time = [0.0]  # list for mutable access across threads
-_YF_MIN_INTERVAL_SECS = 2.0  # CRITICAL FIX: 1 req/2s = ~1800 req/hour per task. 6 tasks = 10.8k/hour max. Stays under shared IP limits when combined with circuit breaker
+_YF_MIN_INTERVAL_SECS = 1.0  # OPTIMIZATION 2026-06-26: Reduced from 2.0s to 1.0s per request. 1 req/s = 3600 req/hour per task. 6 tasks = 21.6k/hour. Circuit breaker prevents IP bans via shared coordination
 
 
 def _throttled_yf_request(fn: Any) -> Any:
