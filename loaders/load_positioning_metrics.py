@@ -20,6 +20,8 @@ import logging  # noqa: E402
 from datetime import date, datetime, timezone  # noqa: E402
 from typing import Any  # noqa: E402
 
+import requests  # noqa: E402
+
 from loaders.runner import run_loader  # noqa: E402
 from utils.optimal_loader import OptimalLoader  # noqa: E402
 
@@ -59,12 +61,21 @@ class PositioningMetricsLoader(OptimalLoader):
         """
         from utils.external.yfinance import get_ticker
 
-        ticker = get_ticker(symbol)
+        try:
+            ticker = get_ticker(symbol)
+        except requests.Timeout as e:
+            logger.debug(f"[POSITIONING_METRICS] Timeout fetching ticker for {symbol} (skipping): {e}")
+            return None
+
         if not ticker:
             return None
 
         try:
-            info = ticker.info
+            try:
+                info = ticker.info
+            except requests.Timeout as e:
+                logger.debug(f"[POSITIONING_METRICS] Timeout accessing ticker.info for {symbol} (skipping): {e}")
+                return None
 
             # Early exit for extremely illiquid symbols (< $1M market cap)
             # These symbols typically lack reliable positioning data and aren't trading candidates

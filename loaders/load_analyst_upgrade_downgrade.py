@@ -41,13 +41,22 @@ class AnalystRatingsLoader(OptimalLoader):
             logger.debug(f"[ANALYST] Failed to import yfinance for {symbol}: {e} (skipping)")
             return None
 
-        ticker = get_ticker(symbol)
-        if not ticker:
-            logger.debug(f"[ANALYST] Ticker not found for {symbol} (skipping)")
-            return None
-
         try:
-            upgrades_downgrades = ticker.upgrades_downgrades
+            try:
+                ticker = get_ticker(symbol)
+            except requests.Timeout as e:
+                logger.debug(f"[ANALYST] Timeout fetching ticker for {symbol} (skipping): {e}")
+                return None
+
+            if not ticker:
+                logger.debug(f"[ANALYST] Ticker not found for {symbol} (skipping)")
+                return None
+
+            try:
+                upgrades_downgrades = ticker.upgrades_downgrades
+            except requests.Timeout as e:
+                logger.debug(f"[ANALYST_RATINGS] Timeout fetching upgrades/downgrades for {symbol} (skipping): {e}")
+                return None
 
             if upgrades_downgrades is None or upgrades_downgrades.empty:
                 logger.debug(f"[ANALYST_RATINGS] No upgrade/downgrade history for {symbol} (skipping)")

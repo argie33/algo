@@ -65,12 +65,21 @@ class AnalystSentimentLoader(OptimalLoader):
             return None
 
         try:
-            ticker = get_ticker(symbol)
+            try:
+                ticker = get_ticker(symbol)
+            except requests.Timeout as e:
+                logger.debug(f"[ANALYST_SENTIMENT] Timeout fetching ticker for {symbol} (skipping): {e}")
+                return None
+
             if not ticker:
                 logger.debug(f"[ANALYST_SENTIMENT] Ticker not found for {symbol} (skipping)")
                 return None
 
-            recs = ticker.recommendations
+            try:
+                recs = ticker.recommendations
+            except requests.Timeout as e:
+                logger.debug(f"[ANALYST_SENTIMENT] Timeout fetching recommendations for {symbol} (skipping): {e}")
+                return None
 
             if recs is None or recs.empty:
                 logger.debug(f"[ANALYST_SENTIMENT] No analyst recommendations for {symbol} (skipping)")

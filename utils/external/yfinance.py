@@ -17,10 +17,27 @@ from typing import Any
 
 import requests
 import yfinance as yf
+from requests.adapters import HTTPAdapter
 
 from utils.external.yfinance_circuit_breaker import get_circuit_breaker
 
 logger = logging.getLogger(__name__)
+
+
+class TimeoutHTTPAdapter(HTTPAdapter):
+    """HTTP adapter that enforces timeout on all requests.
+
+    Prevents yfinance.Ticker.info from hanging indefinitely on certain symbols.
+    """
+
+    def __init__(self, timeout: tuple[int, int] | None = None, **kwargs: Any) -> None:
+        self.timeout = timeout
+        super().__init__(**kwargs)
+
+    def send(self, request: Any, **kwargs: Any) -> Any:
+        if self.timeout and "timeout" not in kwargs:
+            kwargs["timeout"] = self.timeout
+        return super().send(request, **kwargs)
 
 # Global per-process rate limiter: enforces minimum interval between requests
 # This is a BACKUP to the shared circuit breaker (DynamoDB-based).
@@ -83,13 +100,21 @@ class YFinanceWrapper:
 
     @classmethod
     def _create_session(cls) -> Any:
-        """Create a new yfinance session with retries."""
+        """Create a new yfinance session with retries and request timeout.
+
+        CRITICAL: yfinance.Ticker.info can hang indefinitely on certain symbols.
+        We mount HTTP adapters with 30s connect / 60s read timeout to prevent
+        600+ second loader timeouts on problematic symbols.
+        """
         max_retries = 3
         for attempt in range(max_retries):
             try:
                 session = requests.Session()
                 session.headers.update({"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"})
-                logger.info(f"Created yfinance session (attempt {attempt + 1})")
+                timeout_adapter = TimeoutHTTPAdapter(timeout=(30, 60))
+                session.mount("http://", timeout_adapter)
+                session.mount("https://", timeout_adapter)
+                logger.info(f"Created yfinance session with timeout=(30, 60)s (attempt {attempt + 1})")
                 return session
             except (requests.RequestException, requests.Timeout) as e:
                 logger.warning(f"Failed to create session (attempt {attempt + 1}): {e}")
@@ -151,6 +176,12 @@ class YFinanceWrapper:
             except Exception as e:
                 error_str = str(e).lower()
 
+                is_timeout_error = (
+                    isinstance(e, requests.Timeout)
+                    or "timeout" in error_str
+                    or "timed out" in error_str
+                )
+
                 is_rate_limit_error = (
                     "invalid crumb" in error_str
                     or "401" in error_str
@@ -160,7 +191,15 @@ class YFinanceWrapper:
                     or "rate" in error_str
                 )
 
-                if is_rate_limit_error:
+                if is_timeout_error:
+                    logger.warning(f"Timeout fetching {symbol} (attempt {attempt + 1}/{max_retries}): {e}")
+                    if attempt < max_retries - 1:
+                        base_wait = 2 ** min(attempt, 2)
+                        jitter = random.uniform(0, base_wait * 0.2)
+                        logger.info(f"Retrying {symbol} in {base_wait:.1f}s after timeout")
+                        time.sleep(base_wait + jitter)
+                    continue
+                elif is_rate_limit_error:
                     logger.warning(f"Rate/auth error for {symbol} (attempt {attempt + 1}/{max_retries}): {e}")
 
                     # Report to shared circuit breaker (notifies all ECS tasks)

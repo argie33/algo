@@ -24,9 +24,10 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 import psycopg2
-import yfinance as yf
+import requests
 
 from utils.db.context import DatabaseContext
+from utils.external.yfinance import get_ticker
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.loaders import create_circuit_breaker, get_active_symbols
 from utils.validation.data_freshness import FreshnessValidator
@@ -103,8 +104,16 @@ class OptionsLoader:
 
         Fails fast: raises exception if data cannot be loaded (no fallback to zero counts).
         """
-        ticker = yf.Ticker(symbol)
-        options_list = ticker.options
+        try:
+            ticker = get_ticker(symbol)
+        except requests.Timeout as e:
+            raise RuntimeError(f"Timeout fetching ticker for {symbol}: {e}") from e
+
+        try:
+            options_list = ticker.options
+        except requests.Timeout as e:
+            raise RuntimeError(f"Timeout fetching options for {symbol}: {e}") from e
+
         if not options_list:
             logger.debug(f"{symbol} has no options")
             return 0, 0
@@ -175,12 +184,15 @@ class OptionsLoader:
         # Collect IV from first 5 expirations to estimate range
         for exp_str in options_list[:5]:
             try:
-                chain = yf.Ticker(symbol).option_chain(exp_str)
+                ticker_for_chain = get_ticker(symbol)
+                chain = ticker_for_chain.option_chain(exp_str)
                 calls_df = chain.calls
                 if not calls_df.empty:
                     iv_col = calls_df.get("impliedVolatility")
                     if iv_col is not None:
                         iv_values.extend(iv_col.dropna().tolist())
+            except requests.Timeout as e:
+                raise RuntimeError(f"Timeout fetching IV for {symbol} expiration {exp_str}: {e}") from e
             except Exception as e:
                 raise RuntimeError(f"Failed to fetch IV for {symbol} expiration {exp_str}: {e}") from e
 
