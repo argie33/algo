@@ -353,7 +353,6 @@ class Orchestrator:
                 # Check for missing critical loaders
                 missing_loaders = critical_loaders - loaders_checked
                 stale_loaders = [name for name, status in loader_status.items() if status["is_stale"]]
-                incomplete_loaders = [name for name, status in loader_status.items() if not status["is_complete"]]
 
                 if missing_loaders:
                     logger.warning(
@@ -363,7 +362,7 @@ class Orchestrator:
 
                 # ESCALATION: If all critical loaders are stale/missing, this is a systemic issue
                 # (likely EventBridge failure or loader infrastructure down)
-                all_loaders_checked = {name: status for name, status in loader_status.items()}
+                all_loaders_checked = dict(loader_status)
                 all_stale_or_missing = len(all_loaders_checked) > 0 and all(
                     status["is_stale"] or status["completion_pct"] is None or status["completion_pct"] == 0
                     for status in all_loaders_checked.values()
