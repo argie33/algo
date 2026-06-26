@@ -286,6 +286,113 @@ class Orchestrator:
             logger.warning(f"[OOM_PREVENTION] Could not check/kill long-running loaders: {e}")
             # Don't halt trading for this check - it's advisory
 
+    def _check_loader_health(self) -> None:
+        """Check if critical loaders have run recently and provide diagnostics.
+
+        Queries data_loader_status to verify critical loaders (prices, technical, scores)
+        have been executed and are up-to-date. Non-blocking advisory check that helps
+        diagnose data staleness issues before Phase 1 runs.
+
+        Logs warnings if critical loaders are missing or stale (>2 hours old) — this often
+        indicates EventBridge is not firing the loader schedule, or loaders are hung.
+
+        CRITICAL: If ALL critical loaders are missing/stale simultaneously, this indicates
+        a systemic issue (EventBridge failure, loader infrastructure down). Logs alert.
+        """
+        from utils.data_tiers import CRITICAL_DATA
+
+        # Loaders that are critical for trading (MUST run before orchestrator)
+        critical_loaders = CRITICAL_DATA
+
+        try:
+            with DatabaseContext("read", timeout=5) as cur:
+                cur.execute("SET LOCAL statement_timeout = '5000ms'")
+
+                # Check when each critical loader last ran
+                cur.execute(
+                    """
+                    SELECT table_name, status, last_updated, completion_pct, symbols_loaded, symbol_count
+                    FROM data_loader_status
+                    WHERE table_name = ANY(%s)
+                    ORDER BY last_updated DESC
+                    """,
+                    (list(critical_loaders),),
+                )
+
+                loaders_checked = set()
+                loader_status = {}
+                now_utc = datetime.now(timezone.utc)
+                stale_threshold = now_utc - timedelta(hours=2)
+
+                for table_name, status, last_updated, completion_pct, symbols_loaded, symbol_count in cur.fetchall():
+                    loaders_checked.add(table_name)
+                    is_stale = last_updated < stale_threshold if last_updated else False
+                    is_complete = (completion_pct or 0) >= 95.0
+
+                    loader_status[table_name] = {
+                        "status": status,
+                        "last_updated": last_updated,
+                        "is_stale": is_stale,
+                        "is_complete": is_complete,
+                        "completion_pct": completion_pct,
+                    }
+
+                    if is_stale:
+                        age_hours = (now_utc - last_updated).total_seconds() / 3600 if last_updated else None
+                        logger.warning(
+                            f"[LOADER HEALTH] {table_name} is STALE (last run {age_hours:.1f}h ago)"
+                        )
+                    elif not is_complete:
+                        logger.warning(
+                            f"[LOADER HEALTH] {table_name} is INCOMPLETE ({completion_pct:.1f}%, "
+                            f"{symbols_loaded}/{symbol_count} symbols)"
+                        )
+                    else:
+                        logger.info(f"[LOADER HEALTH] {table_name} OK ({completion_pct:.1f}%)")
+
+                # Check for missing critical loaders
+                missing_loaders = critical_loaders - loaders_checked
+                stale_loaders = [name for name, status in loader_status.items() if status["is_stale"]]
+                incomplete_loaders = [name for name, status in loader_status.items() if not status["is_complete"]]
+
+                if missing_loaders:
+                    logger.warning(
+                        f"[LOADER HEALTH] MISSING in data_loader_status: {missing_loaders} "
+                        "(loaders have never run or been registered)"
+                    )
+
+                # ESCALATION: If all critical loaders are stale/missing, this is a systemic issue
+                # (likely EventBridge failure or loader infrastructure down)
+                all_loaders_checked = {name: status for name, status in loader_status.items()}
+                all_stale_or_missing = len(all_loaders_checked) > 0 and all(
+                    status["is_stale"] or status["completion_pct"] is None or status["completion_pct"] == 0
+                    for status in all_loaders_checked.values()
+                )
+
+                if all_stale_or_missing and (stale_loaders or missing_loaders):
+                    logger.critical(
+                        f"[LOADER HEALTH] SYSTEMIC ALERT: ALL critical loaders are stale or missing. "
+                        f"This indicates EventBridge may not be firing loader schedules, or loader "
+                        f"infrastructure is down. Stale: {stale_loaders}. Missing: {missing_loaders}. "
+                        f"Check: EventBridge rules, ECS cluster health, CloudWatch logs for loaders."
+                    )
+                    try:
+                        self.alerts.send_position_alert(
+                            "LOADER_INFRASTRUCTURE",
+                            "ALL_CRITICAL_LOADERS_STALE",
+                            f"All critical loaders are stale/missing (stale: {len(stale_loaders)}, "
+                            f"missing: {len(missing_loaders)}). EventBridge or loader infrastructure issue.",
+                            {"stale_loaders": stale_loaders, "missing_loaders": list(missing_loaders)},
+                        )
+                    except Exception as alert_err:
+                        logger.debug(f"[LOADER HEALTH] Could not send alert: {alert_err}")
+
+        except (psycopg2.DatabaseError, psycopg2.OperationalError, TimeoutError) as e:
+            logger.warning(f"[LOADER HEALTH] Could not check loader status: {e}")
+            # Non-blocking — don't halt trading
+        except Exception as e:
+            logger.debug(f"[LOADER HEALTH] Unexpected error checking loader health: {e}")
+
     def _validate_required_tables(self, cur: Any) -> bool:
         """FIXED Issue #23: Validate that all required tables exist before running phases.
 
@@ -794,6 +901,9 @@ class Orchestrator:
 
             logger.info("\n[HEALTH CHECK] System diagnostics before Phase 1:")
             self.db_monitor.health_check_diagnostics()
+
+            logger.info("\n[LOADER CHECK] Verifying critical loaders have run recently...")
+            self._check_loader_health()
 
             self.executor = self._setup_executor()
             with TimeBlock("orchestrator_executor"):

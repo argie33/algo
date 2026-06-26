@@ -27,6 +27,7 @@ from typing import Any
 
 import psycopg2
 
+from utils.data_tiers import is_critical
 from utils.db.context import DatabaseContext
 from utils.loaders.helpers import get_active_symbols
 
@@ -50,11 +51,15 @@ CRITICAL_INCOMPLETE_LOADERS = {
 }
 
 # Loaders that are auxiliary (warn if incomplete after retry, but allow proceeding)
+# NOTE: These loaders are nice-to-have enrichments; failing to load them should NOT
+# trigger retry since they don't block trading. Phase 1 only retries CRITICAL loaders.
 AUXILIARY_INCOMPLETE_LOADERS = {
     "growth_metrics",
     "value_metrics",
     "positioning_metrics",
     "analyst_sentiment_analysis",
+    "sector_ranking",
+    "trend_template_data",
 }
 
 # Time to wait before retrying (allow API throttling to reset)
@@ -132,7 +137,7 @@ def check_and_retry_incomplete_loaders(dry_run: bool = False) -> dict[str, Any]:
                     )
 
                 symbols_missing = symbol_count - symbols_loaded
-                is_critical = table_name in CRITICAL_INCOMPLETE_LOADERS
+                is_crit = is_critical(table_name)
 
                 if completion_pct is None:
                     logger.warning(
@@ -151,13 +156,24 @@ def check_and_retry_incomplete_loaders(dry_run: bool = False) -> dict[str, Any]:
                         "completion_pct": completion_pct,  # Preserve NULL (unknown) vs 0 (failed)
                         "symbols_missing": symbols_missing,
                         "error": error_msg[:100] if error_msg else None,
-                        "is_critical": is_critical,
+                        "is_critical": is_crit,
                     }
                 )
 
                 if not dry_run:
+                    # Only retry CRITICAL loaders. AUXILIARY loaders are nice-to-have;
+                    # don't spend time retrying them since they don't block trading.
+                    if not is_crit:
+                        logger.info(
+                            f"[PHASE 1 FAILSAFE] Skipping retry for auxiliary loader {table_name} "
+                            f"({completion_pct:.1f}%, {symbols_missing} missing). "
+                            "Auxiliary data missing is acceptable; trading proceeds without enrichment."
+                        )
+                        results["still_failing"].append(table_name)
+                        continue
+
                     # Trigger retry
-                    retry_result = retry_loader(table_name, symbols_missing, is_critical)
+                    retry_result = retry_loader(table_name, symbols_missing, is_crit)
 
                     if retry_result["retried"]:
                         results["retried"].append(table_name)

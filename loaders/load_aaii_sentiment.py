@@ -28,8 +28,13 @@ class AAIISentimentLoader(OptimalLoader):
     primary_key = ("date",)
     watermark_field = "date"
 
-    def fetch_global(self, since: date | None) -> list[dict[str, Any]] | None:
-        """Fetch AAII sentiment data from Excel file."""
+    def fetch_global(self, since: date | None) -> list[dict[str, Any]] | None:  # noqa: C901
+        """Fetch AAII sentiment data from Excel file.
+
+        Complexity justified: Data integrity checks (SSRF validation, zip structure,
+        coerce validation, date validation) are essential for financial data
+        security and correctness. Cannot be factored without losing failure context.
+        """
         # Set socket-level timeout to catch hanging connections early
         socket.setdefaulttimeout(60.0)
 
@@ -111,16 +116,26 @@ class AAIISentimentLoader(OptimalLoader):
 
                 for col in ["Bullish", "Neutral", "Bearish"]:
                     df[col] = df[col].astype(str).str.replace("%", "", regex=False).str.strip()
+                    # CRITICAL: Validate BEFORE coercion to detect corruption
+                    before_coerce = df[col].copy()
                     df[col] = pd.to_numeric(df[col], errors="coerce")
+                    newly_nan = before_coerce[df[col].isna() & before_coerce.notna()]
+                    if len(newly_nan) > 0:
+                        bad_values = newly_nan.unique()[:5]
+                        raise ValueError(
+                            f"[AAII_SENTIMENT] {col} contains unparseable values (data corruption): {bad_values}. "
+                            f"Cannot load sentiment data with corrupted numeric fields."
+                        )
 
                 df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
-                before_dropna = len(df)
-                df = df.dropna(subset=["Date"])
-                after_dropna = len(df)
-                if after_dropna < before_dropna:
-                    logger.warning(
-                        f"Dropped {before_dropna - after_dropna} row(s) with missing/invalid Date "
-                        f"— {after_dropna} rows remain"
+                # CRITICAL: Validate dates before dropping
+                before_coerce = df["Date"].copy()
+                invalid_dates = before_coerce[df["Date"].isna() & before_coerce.notna()]
+                if len(invalid_dates) > 0:
+                    bad_dates = invalid_dates.unique()[:5]
+                    raise ValueError(
+                        f"[AAII_SENTIMENT] Date column contains unparseable values (data corruption): {bad_dates}. "
+                        f"Cannot load sentiment data with corrupted dates."
                     )
                 df["Date"] = df["Date"].dt.strftime("%Y-%m-%d")
 

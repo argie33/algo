@@ -40,6 +40,7 @@ from loaders.technical_indicators import (
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.loaders.helpers import get_active_symbols
+from utils.validation.data_freshness import FreshnessValidator, StaleDataError
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +50,7 @@ class VectorizedTechnicalLoader:
 
     def __init__(self) -> None:
         self.table_name = "technical_data_daily"
+        self._freshness_validator = FreshnessValidator(max_age_hours={"price_data": 24.0})
 
     def run(self, symbols: list[str], since_date: date | None = None) -> dict[str, Any]:
         """Load technical indicators for all symbols vectorized.
@@ -79,6 +81,19 @@ class VectorizedTechnicalLoader:
                 )
 
             logger.info(f"Fetched {len(all_prices)} price rows across {len(symbols)} symbols")
+
+            # Validate price data freshness (critical for accurate technical indicators)
+            try:
+                self._freshness_validator.validate_data_freshness(
+                    table_name="price_daily",
+                    max_age_hours=24.0,
+                )
+            except StaleDataError as e:
+                raise RuntimeError(
+                    f"[PRICE_FRESHNESS] Price data is too stale to compute accurate technical indicators: {e}. "
+                    f"Technical indicators depend on current price data (max 24 hours old). "
+                    f"Please ensure price loader completed successfully."
+                ) from e
 
             indicators_df = self._compute_all_indicators_vectorized(all_prices)
 

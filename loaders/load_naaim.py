@@ -97,15 +97,16 @@ class NAAIMExposureLoader(OptimalLoader):
                 ]
                 df.columns = col_names[: len(df.columns)]
 
-            # Clean data
+            # Clean data with strict validation
+            before_coerce = df["Date"].copy()
             df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
-            before_dropna = len(df)
-            df = df.dropna(subset=["Date"])
-            after_dropna = len(df)
-            if after_dropna < before_dropna:
-                logger.warning(
-                    f"Dropped {before_dropna - after_dropna} row(s) with missing/invalid Date "
-                    f"— {after_dropna} rows remain"
+            # CRITICAL: Validate dates before dropping
+            invalid_dates = before_coerce[df["Date"].isna() & before_coerce.notna()]
+            if len(invalid_dates) > 0:
+                bad_dates = invalid_dates.unique()[:5]
+                raise ValueError(
+                    f"[NAAIM] Date column contains unparseable values (data corruption): {bad_dates}. "
+                    f"Cannot load NAAIM sentiment data with corrupted dates."
                 )
             df["Date"] = df["Date"].dt.strftime("%Y-%m-%d")
 
