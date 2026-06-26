@@ -161,7 +161,8 @@ def _handle_basic(cur: cursor) -> Any:
             logger.debug(f"Loader check unavailable: {sanitized}")
 
         if has_critical:
-            health["status"] = "degraded"
+            logger.error(f"Health check detected critical issues: {health}")
+            return error_response(503, "service_unavailable", "Critical health check failed - see details for issues")
 
         # Validate response matches contract before returning
         is_valid, error_msg = ResponseValidator.validate_endpoint_response("health", health)
