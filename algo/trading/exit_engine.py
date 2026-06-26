@@ -24,7 +24,6 @@ if TYPE_CHECKING:
 
 try:
     from trade_performance_auditor import TradePerformanceAuditor
-
 except ImportError:
     TradePerformanceAuditor = None
 
@@ -460,6 +459,13 @@ class ExitEngine:
         if not current_date:
             current_date = datetime.now(timezone.utc).date()
 
+        if TradePerformanceAuditor is None:
+            logger.critical(
+                "CRITICAL: trade_performance_auditor not installed. "
+                "Trade exit auditing (TCA metrics) is DISABLED. "
+                "Post-trade performance analysis will be incomplete. "
+                "Install trade_performance_auditor to enable exit auditing."
+            )
         auditor = TradePerformanceAuditor(self.config) if TradePerformanceAuditor else None
 
         with DatabaseContext("write") as cur:
@@ -674,30 +680,34 @@ class ExitEngine:
 
                 logger.info(f"{'=' * 70}\n")
 
-                # NEW: Audit closed trades for performance (Phase 2 integration)
+                # Audit closed trades for performance metrics (BLOCKING if auditor available)
 
-                try:
-                    cur.execute(
-                        """
+                if auditor:
+                    try:
+                        cur.execute(
+                            """
 
-                        SELECT DISTINCT trade_id FROM algo_trades
+                            SELECT DISTINCT trade_id FROM algo_trades
 
-                        WHERE status = %s AND exit_date = %s
+                            WHERE status = %s AND exit_date = %s
 
-                    """,
-                        (TradeStatus.CLOSED.value, current_date),
-                    )
+                        """,
+                            (TradeStatus.CLOSED.value, current_date),
+                        )
 
-                    closed_trades = cur.fetchall()
+                        closed_trades = cur.fetchall()
 
-                    for (trade_id,) in closed_trades:
-                        if auditor:
+                        for (trade_id,) in closed_trades:
                             auditor.audit_exit(trade_id)
 
-                except (DatabaseError, ValueError) as audit_err:
-                    logger.error(
-                        f"Warning: Failed to audit closed trades (non-blocking): {type(audit_err).__name__}: {audit_err}"
-                    )
+                    except (DatabaseError, ValueError) as audit_err:
+                        msg = (
+                            f"CRITICAL: Failed to audit closed trades (exit safety compromised): "
+                            f"{type(audit_err).__name__}: {audit_err}. "
+                            f"Post-trade TCA analysis is incomplete. Exit execution halted."
+                        )
+                        logger.error(msg)
+                        raise RuntimeError(msg) from audit_err
 
                 return exits_executed
 

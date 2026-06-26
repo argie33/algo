@@ -1513,6 +1513,10 @@ class MarketExposure:
             logger.error(f"persist market_exposure failed for {eval_date}: {e}", exc_info=True)
 
 
+class MarketDataUnavailableError(RuntimeError):
+    """Raised when market regime data is unavailable (Phase 4 not run or data missing)."""
+
+
 def read_market_regime(eval_date: _date) -> dict[str, Any]:
     """Read market regime from market_exposure_daily (latest snapshot on or before eval_date).
 
@@ -1530,6 +1534,10 @@ def read_market_regime(eval_date: _date) -> dict[str, Any]:
 
     Returns:
         dict with: is_entry_allowed, exposure_pct, regime, halt_reasons, raw_score, exposure_tier
+
+    Raises:
+        MarketDataUnavailableError: When Phase 4 (market exposure) has not been run or data is missing/corrupt
+        psycopg2.DatabaseError/OperationalError: For transient database issues (fail-closed, returns default regime)
     """
     try:
         with DatabaseContext("read") as cur:
@@ -1547,7 +1555,7 @@ def read_market_regime(eval_date: _date) -> dict[str, Any]:
             )
             row = cur.fetchone()
             if row is None:
-                raise RuntimeError(
+                raise MarketDataUnavailableError(
                     f"[MARKET REGIME] No market_exposure_daily data on or before {eval_date}. "
                     f"Phase 4 must compute daily market exposure. Cannot proceed with regime-aware position sizing. "
                     f"Run algo_market_exposure.py before trading."
@@ -1564,7 +1572,7 @@ def read_market_regime(eval_date: _date) -> dict[str, Any]:
             ) = row
 
             if exposure_pct is None:
-                raise RuntimeError(
+                raise MarketDataUnavailableError(
                     f"[MARKET REGIME] market_exposure_daily for {eval_date} has NULL exposure_pct. "
                     f"Critical data corruption — cannot determine position sizing constraints. "
                     f"Cannot proceed until database is repaired."

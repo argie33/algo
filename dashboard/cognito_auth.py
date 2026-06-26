@@ -34,18 +34,20 @@ class CognitoAuth:
         self._auth_lost_time: float | None = None
 
     def _parse_jwt_expiry(self, token: str) -> float | None:
-        """Parse JWT expiry time. Returns Unix timestamp or None if invalid."""
+        """Parse JWT expiry time. Returns Unix timestamp or raises RuntimeError if invalid."""
         try:
             import base64
 
             parts = token.split(".")
             if len(parts) != 3:
-                return None
+                raise RuntimeError("JWT must have exactly 3 parts (header.payload.signature)")
             payload = json.loads(base64.urlsafe_b64decode(parts[1] + "=="))
-            return cast(float, payload.get("exp"))
-        except Exception as e:
-            logger.warning(f"Failed to parse JWT expiry from token: {e}")
-            return None
+            exp = payload.get("exp")
+            if exp is None:
+                raise RuntimeError("JWT payload missing 'exp' claim")
+            return cast(float, exp)
+        except (ValueError, TypeError, RuntimeError) as e:
+            raise RuntimeError(f"Failed to parse JWT expiry: {e}") from e
 
     def authenticate(self, username: str, password: str) -> bool:
         """Authenticate user with Cognito. Returns True if successful."""
@@ -60,7 +62,8 @@ class CognitoAuth:
             self.id_token = auth_result.get("IdToken")
             self.refresh_token = auth_result.get("RefreshToken")
             self.username = username
-            self.token_expires_at = self._parse_jwt_expiry(self.access_token) if self.access_token else None
+            if self.access_token:
+                self.token_expires_at = self._parse_jwt_expiry(self.access_token)
             return bool(self.access_token)
         except ClientError as e:
             error_code = e.response.get("Error").get("Code")
@@ -70,6 +73,9 @@ class CognitoAuth:
                 logger.error(f"User not found: {username}")
             else:
                 logger.error(f"Authentication error: {e}")
+            return False
+        except RuntimeError as e:
+            logger.error(f"JWT parsing failed during authentication: {e}")
             return False
 
     def refresh_access_token(self) -> bool:
@@ -85,10 +91,14 @@ class CognitoAuth:
             auth_result = response.get("AuthenticationResult")
             self.access_token = auth_result.get("AccessToken")
             self.id_token = auth_result.get("IdToken")
-            self.token_expires_at = self._parse_jwt_expiry(self.access_token) if self.access_token else None
+            if self.access_token:
+                self.token_expires_at = self._parse_jwt_expiry(self.access_token)
             return bool(self.access_token)
         except ClientError as e:
             logger.error(f"Token refresh failed: {e}")
+            return False
+        except RuntimeError as e:
+            logger.error(f"JWT parsing failed during token refresh: {e}")
             return False
 
     def is_token_expired(self) -> bool:
@@ -123,55 +133,62 @@ class CognitoAuth:
                 self._auth_lost_time = time.time()
                 raise RuntimeError(msg)
 
-        if not self.access_token or not self._is_valid_jwt(self.access_token):
-            msg = "Authorization header validation failed: token is not a valid JWT - authentication compromised"
+        if not self.access_token:
+            msg = "Authorization header validation failed: no access token available"
             logger.error(msg)
             raise RuntimeError(msg)
+
+        try:
+            self._is_valid_jwt(self.access_token)
+        except RuntimeError as e:
+            msg = f"Authorization header validation failed: {e}"
+            logger.error(msg)
+            raise RuntimeError(msg) from e
 
         return {"Authorization": f"Bearer {self.access_token}"}
 
     def _is_valid_jwt(self, token: str) -> bool:
-        """Check if token is a valid JWT with required claims (exp, sub) and proper structure."""
+        """Check if token is a valid JWT with required claims (exp, sub) and proper structure.
+
+        Raises RuntimeError if validation fails (fail-fast for auth integrity).
+        """
         try:
             import base64
 
             parts = token.split(".")
             if len(parts) != 3:
-                return False
+                raise RuntimeError(f"JWT must have exactly 3 parts, got {len(parts)}")
 
             # All parts must be non-empty
             if not all(part for part in parts):
-                return False
+                raise RuntimeError("JWT contains empty parts")
 
             # Validate header is valid base64
             try:
                 base64.urlsafe_b64decode(parts[0] + "==")
             except Exception as e:
-                logger.debug(f"JWT header validation failed: {e}")
-                return False
+                raise RuntimeError(f"JWT header is not valid base64: {e}") from e
 
             # Validate payload is valid base64 and contains required claims
             try:
                 payload_json = json.loads(base64.urlsafe_b64decode(parts[1] + "=="))
-                # Verify required claims exist
-                if "exp" not in payload_json or "sub" not in payload_json:
-                    logger.debug("JWT payload missing required claims (exp, sub)")
-                    return False
             except Exception as e:
-                logger.debug(f"JWT payload validation failed: {e}")
-                return False
+                raise RuntimeError(f"JWT payload is not valid base64 or JSON: {e}") from e
+
+            if "exp" not in payload_json or "sub" not in payload_json:
+                raise RuntimeError(f"JWT payload missing required claims: exp={('exp' in payload_json)}, sub={('sub' in payload_json)}")
 
             # Validate signature is present and valid base64
             try:
                 base64.urlsafe_b64decode(parts[2] + "==")
             except Exception as e:
-                logger.debug(f"JWT signature validation failed: {e}")
-                return False
+                raise RuntimeError(f"JWT signature is not valid base64: {e}") from e
 
             return True
+        except RuntimeError:
+            raise
         except Exception as e:
-            logger.debug(f"JWT validation failed: {e}")
-            return False
+            raise RuntimeError(f"JWT validation failed: {e}") from e
 
     def is_authenticated(self) -> bool:
         """Check if user has valid credentials."""

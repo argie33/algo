@@ -75,9 +75,12 @@ def safe_float(
     if value is None:
         if strict:
             raise StrictValidationError(f"Cannot convert None to float{f' for {field_name}' if field_name else ''}")
+        suffix = f" for {field_name}" if field_name else ""
+        msg = f"FALLBACK: Converting None to {default}{suffix} — finance data should use strict mode"
         if default == 0.0:
-            suffix = f" for {field_name}" if field_name else ""
-            logger.warning(f"Converting None to 0.0{suffix}—finance data should use strict mode")
+            logger.error(msg)
+        else:
+            logger.warning(msg)
         return default
 
     try:
@@ -85,11 +88,12 @@ def safe_float(
     except (TypeError, ValueError) as e:
         if strict:
             raise StrictValidationError(f"Cannot convert {field_name or 'value'}={value!r} to float: {e}") from e
+        field = field_name or "value"
+        msg = f"FALLBACK: Failed to convert {field}={value!r} to float (returning {default}): {e}"
         if default == 0.0:
-            field = field_name or "value"
-            logger.warning(f"Failed to convert {field}={value!r} to float (returning 0.0—use strict mode): {e}")
-        elif default is not None:
-            logger.warning(f"Failed to convert {field_name or 'value'}={value!r} to float (returning {default}): {e}")
+            logger.error(msg)
+        else:
+            logger.warning(msg)
         return default
 
 

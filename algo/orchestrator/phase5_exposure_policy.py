@@ -36,7 +36,7 @@ def run(
         # Read market exposure from market_exposure_daily (4:05 PM EOD pipeline is sole source of truth)
         # Uses shared read_market_regime() to ensure Phase 3b and Phase 5 read same snapshot
         # with consistent JSON deserialization error handling.
-        from algo.risk import ExposurePolicy, read_market_regime
+        from algo.risk import ExposurePolicy, MarketDataUnavailableError, read_market_regime
 
         exposure = read_market_regime(run_date)
         logger.info(f"  Exposure: {exposure['exposure_pct']}% ({exposure['regime']})")
@@ -120,56 +120,46 @@ def run(
             None,
         )
 
-    except Exception as e:
-        # FAIL-CLOSED: When market exposure policy fails, distinguish between:
-        # 1. Missing market exposure data (Phase 4 failed): HALT ALL ENTRIES immediately
-        # 2. Transient database issues: Apply conservative defaults but allow limited trading
-        error_str = str(e).lower()
-        is_missing_market_data = (
-            "no market exposure" in error_str
-            or "market_exposure_daily" in error_str
-            or "phase 4" in error_str
-            or "exposure data unavailable" in error_str
+    except MarketDataUnavailableError as e:
+        # FAIL-CLOSED: Market exposure data missing (Phase 4 not run or database corrupt)
+        # CRITICAL: No market regime data means we can't assess market conditions.
+        # Halting all entries is mandatory; this is not optional.
+        logger.critical(
+            f"CRITICAL: Market exposure data missing (Phase 4 likely failed). "
+            f"Halting all new entries until market regime is available: {e}"
+        )
+        fail_halt_constraints = {
+            "tier_name": "CORRECTION",
+            "description": "Market regime data missing — no entries allowed",
+            "risk_multiplier": 0.0,
+            "max_new_positions_today": 0,
+            "min_swing_grade": "A+",
+            "halt_new_entries": True,
+            "max_concentration_pct": 0.0,
+            "halt_reason": f"Market exposure data missing: {str(e)[:80]}",
+        }
+        log_phase_result_fn(
+            5,
+            "exposure_policy",
+            "error",
+            f"Market regime unavailable, halting entries: {str(e)[:80]}",
+        )
+        return PhaseResult(
+            5,
+            "exposure_policy",
+            "error",
+            {"constraints": fail_halt_constraints, "actions": []},
+            False,
+            str(e),
         )
 
-        if is_missing_market_data:
-            # CRITICAL: No market regime data from Phase 4 means we can't assess market conditions.
-            # Halting all entries is mandatory; this is not optional.
-            logger.critical(
-                f"CRITICAL: Market exposure data missing (Phase 4 likely failed). "
-                f"Halting all new entries until market regime is available: {e}"
-            )
-            fail_halt_constraints = {
-                "tier_name": "CORRECTION",
-                "description": "Market regime data missing — no entries allowed",
-                "risk_multiplier": 0.0,
-                "max_new_positions_today": 0,
-                "min_swing_grade": "A+",
-                "halt_new_entries": True,  # HALT: Market data unavailable
-                "max_concentration_pct": 0.0,
-                "halt_reason": f"Market exposure data missing: {str(e)[:80]}",
-            }
-            log_phase_result_fn(
-                5,
-                "exposure_policy",
-                "error",
-                f"Market regime unavailable, halting entries: {str(e)[:80]}",
-            )
-            return PhaseResult(
-                5,
-                "exposure_policy",
-                "error",
-                {"constraints": fail_halt_constraints, "actions": []},
-                False,
-                str(e),
-            )
-
-        # Transient failure (e.g., database connection issue): HALT ALL ENTRIES
+    except Exception as e:
+        # FAIL-CLOSED: Transient failure (e.g., database connection issue) or computation error
         # Risk multiplier, entry constraints, and concentration limits are load-bearing.
         # Exposing them to be wrong is more dangerous than halting trading.
         logger.critical(
-            f"CRITICAL: Exposure policy computation failed on transient error. "
-            f"Cannot proceed with trading without valid risk management constraints: {e}"
+            f"CRITICAL: Exposure policy computation failed. "
+            f"Cannot proceed with trading without valid risk management constraints: {type(e).__name__}: {e}"
         )
         fail_halt_constraints = {
             "tier_name": "CORRECTION",
@@ -177,16 +167,15 @@ def run(
             "risk_multiplier": 0.0,
             "max_new_positions_today": 0,
             "min_swing_grade": "A+",
-            "halt_new_entries": True,  # HALT: System error in exposure policy
+            "halt_new_entries": True,
             "max_concentration_pct": 0.0,
-            "halt_reason": f"Exposure policy system error (transient): {str(e)[:100]}. No entries allowed until resolved.",
+            "halt_reason": f"Exposure policy error: {str(e)[:100]}. No entries allowed until resolved.",
         }
-
         log_phase_result_fn(
             5,
             "exposure_policy",
             "error",
-            f"Exposure policy error (transient) — halting entries: {str(e)[:80]}",
+            f"Exposure policy error — halting entries: {str(e)[:80]}",
         )
         return PhaseResult(
             5,

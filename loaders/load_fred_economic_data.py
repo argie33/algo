@@ -248,25 +248,33 @@ class FredEconomicDataLoader(OptimalLoader):
                                 "Value string: '{val_str}'. Cannot parse economic data."
                             ) from e
 
-                    # Validate freshness after successful fetch
+                    # Validate freshness after successful fetch (REQUIRED: economic data drives market exposure)
                     if latest_obs_date:
                         try:
-                            latest_dt: datetime | None = None
                             try:
                                 latest_dt = datetime.fromisoformat(latest_obs_date)
-                            except (ValueError, TypeError):
-                                logger.warning(f"Could not parse latest observation date {latest_obs_date}")
-                                latest_dt = None
+                            except (ValueError, TypeError) as e:
+                                raise RuntimeError(
+                                    f"Failed to parse latest FRED observation date '{latest_obs_date}': {e}. "
+                                    f"Cannot validate data freshness without valid timestamp."
+                                ) from e
 
-                            if latest_dt is not None:
-                                self._freshness_validator.check("economic_data", latest_dt, allow_missing=False)
+                            if latest_dt is None:
+                                raise RuntimeError(
+                                    f"latest_dt is None after parsing '{latest_obs_date}'. "
+                                    "Cannot validate economic data freshness."
+                                )
+
+                            self._freshness_validator.check("economic_data", latest_dt, allow_missing=False)
                         except StaleDataError as e:
-                            logger.warning(
+                            msg = (
                                 f"[FRESHNESS_VALIDATION] {e}. "
-                                "FRED economic data is stale but continuing with degraded market analysis capability."
+                                f"FRED economic data is stale (critical for market exposure tier). "
+                                f"Market analysis is unreliable without current Fed rate/economic data."
                             )
-                            # Record circuit breaker failure for stale data (REQUIRED data)
+                            logger.error(msg)
                             self._circuit_breaker.record_failure()
+                            raise RuntimeError(msg) from e
 
                     logger.info(
                         f"  {series_id}: SUCCESS ({len([r for r in all_rows if r['series_id'] == series_id])} rows)"
