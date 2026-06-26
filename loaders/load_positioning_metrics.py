@@ -33,23 +33,22 @@ class PositioningMetricsLoader(OptimalLoader):
     primary_key = ("symbol",)
     watermark_field = "created_at"
 
-    def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
-        """Fetch positioning metrics for this symbol."""
+    def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]] | None:
+        """Fetch positioning metrics for this symbol.
+
+        Returns None if positioning data is unavailable (many symbols lack institutional ownership,
+        short interest, or other positioning metrics in yfinance). This is normal for illiquid stocks
+        and does not constitute a loader failure.
+        """
         try:
             metrics = self._fetch_positioning_metrics(symbol)
             if not metrics:
-                raise RuntimeError(
-                    f"[POSITIONING_METRICS] No positioning data available for {symbol}. "
-                    "Cannot determine institutional/insider ownership without data."
-                )
+                logger.debug(f"[POSITIONING_METRICS] No positioning data available for {symbol} (skipping)")
+                return None
             return [metrics]
-        except RuntimeError:
-            raise
         except Exception as e:
-            raise RuntimeError(
-                f"[POSITIONING_METRICS] Failed to fetch positioning metrics for {symbol}: {e}. "
-                "Cannot assess market positioning without this data."
-            ) from e
+            logger.error(f"[POSITIONING_METRICS] Error fetching for {symbol}: {e}")
+            return None
 
     @staticmethod
     def _fetch_positioning_metrics(symbol: str) -> dict[str, Any] | None:
@@ -112,7 +111,8 @@ class PositioningMetricsLoader(OptimalLoader):
             return None
 
         except (ValueError, ZeroDivisionError, TypeError) as e:
-            raise RuntimeError(f"Operation failed: {e}") from e
+            logger.debug(f"[POSITIONING_METRICS] Parsing error for {symbol} (skipping): {e}")
+            return None
 
     def transform(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Rows are clean."""

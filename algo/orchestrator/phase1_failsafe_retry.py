@@ -33,10 +33,20 @@ from utils.loaders.helpers import get_active_symbols
 logger = logging.getLogger(__name__)
 
 # Loaders that are critical for downstream phases (halt if incomplete after retry)
+# These use data_loader_status.table_name values, not logical loader names
+# (PriceLoader produces multiple table_name entries: price_daily, price_weekly, etc.)
 CRITICAL_INCOMPLETE_LOADERS = {
-    "stock_prices_daily",
-    "technical_data_daily_vectorized",
-    "swing_trader_scores_vectorized",
+    # Price tables (any incomplete price table means stock_prices_daily is critical)
+    "price_daily",
+    "price_weekly",
+    "price_monthly",
+    "etf_price_daily",
+    "etf_price_weekly",
+    "etf_price_monthly",
+    # Other critical loaders
+    "stock_scores",
+    "technical_data_daily",
+    "swing_trader_scores",
 }
 
 # Loaders that are auxiliary (warn if incomplete after retry, but allow proceeding)
@@ -261,11 +271,21 @@ def invoke_loader_retry(loader_name: str, is_critical: bool) -> bool:
             f"(priority={'critical' if is_critical else 'auxiliary'})"
         )
 
-        # Map loader names to their module paths
+        # Map data_loader_status.table_name to their module paths
+        # NOTE: PriceLoader generates multiple table_name entries (price_daily, price_weekly, price_monthly, etc.)
+        # but they all come from the single "loaders.load_prices" module
         loader_modules = {
-            "stock_prices_daily": "loaders.load_prices",
-            "technical_data_daily_vectorized": "loaders.load_technical_data_daily_vectorized",
-            "swing_trader_scores_vectorized": "loaders.load_swing_trader_scores_vectorized",
+            # Stock prices (PriceLoader handles all intervals and asset classes)
+            "price_daily": "loaders.load_prices",
+            "price_weekly": "loaders.load_prices",
+            "price_monthly": "loaders.load_prices",
+            "etf_price_daily": "loaders.load_prices",
+            "etf_price_weekly": "loaders.load_prices",
+            "etf_price_monthly": "loaders.load_prices",
+            # Other single-table loaders
+            "stock_scores": "loaders.load_stock_scores",
+            "technical_data_daily": "loaders.load_technical_data_daily_vectorized",
+            "swing_trader_scores": "loaders.load_swing_trader_scores_vectorized",
             "growth_metrics": "loaders.load_growth_metrics",
             "value_metrics": "loaders.load_value_metrics",
             "positioning_metrics": "loaders.load_positioning_metrics",
