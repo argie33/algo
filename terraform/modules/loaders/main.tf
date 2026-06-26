@@ -648,7 +648,9 @@ locals {
     "growth_metrics"      = { cpu = 2048, memory = 4096, timeout = 1800, parallelism = 2 }
     "quality_metrics"     = { cpu = 2048, memory = 4096, timeout = 1800, parallelism = 2 }
     "value_metrics"       = { cpu = 2048, memory = 4096, timeout = 1800, parallelism = 2 }
-    "positioning_metrics" = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 2 }
+    # positioning_metrics: yfinance-based, was hanging for 1700+ minutes
+    # FIXED 2026-06-26: Increased timeout from 1200→3600s (20m→1h) to handle rate-limited yfinance fetches
+    "positioning_metrics" = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 2 }
     "stability_metrics"   = { cpu = 1024, memory = 2048, timeout = 1800, parallelism = 2 }
     "stock_scores"        = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 3 }
 
@@ -660,13 +662,13 @@ locals {
     "earnings_calendar" = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
 
     # Company & analyst data — I/O bound, yfinance API calls, 5000+ symbols
-    # OPTIMIZED 2026-06-21: Increased parallelism from 2→3 with RDS Proxy session pooling
-    # RDS Proxy multiplexes 3 concurrent loaders × 3 parallelism = 9 DB connections (well below 20-30 pool limit)
-    # Reduces loader execution time by ~33% while maintaining connection pool safety
-    "company_profile"             = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 3 }
-    "analyst_sentiment"           = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 3 }
-    "analyst_upgrades_downgrades" = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 3 }
-    "industry_ranking"            = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 4 }
+    # With 2s rate-limit per symbol: 10574/parallelism × 2s = timeout needed
+    # parallelism=3: ~7050s needed; parallelism=4: ~5287s needed; need additional headroom for DB ops
+    # FIXED 2026-06-26: Increased timeouts from 1200→1800s (20m→30m) to account for rate-limited yfinance calls
+    "company_profile"             = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 3 }
+    "analyst_sentiment"           = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 3 }
+    "analyst_upgrades_downgrades" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 3 }
+    "industry_ranking"            = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
 
     # Market sentiment data — small API calls (minimal DB load)
     # OPTIMIZED 2026-06-21: Increased parallelism from 1→2 (light DB usage, no connection pool contention)
