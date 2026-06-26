@@ -169,11 +169,15 @@ class MarketHealthDailyLoader(OptimalLoader):
 
         VIX fetcher returns dict with vix_close/high/low; we extract vix_close as the level.
         Forward-fill missing VIX dates using the most recent available value (standard market data practice).
+        VIX is CRITICAL for circuit breaker logic and must be present.
         """
         vix = self._vix_fetcher.fetch(start, end)
-        if not vix:
-            logger.warning("VIX data unavailable - proceeding without VIX enrichment (will remain None)")
-            return
+        if not isinstance(vix, dict) or len(vix) == 0:
+            raise RuntimeError(
+                f"[MARKET_HEALTH] VIX data unavailable or empty for {start} to {end}. "
+                "VIX is CRITICAL for circuit breaker halt decisions. "
+                "Cannot compute market health metrics without valid VIX data."
+            )
 
         matched_count = 0
         last_vix_level = None

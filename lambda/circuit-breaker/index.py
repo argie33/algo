@@ -144,7 +144,10 @@ def get_portfolio_pnl(max_attempts: int = 3):
                 time.sleep(3 * attempt)
 
     logger.error(f"Failed to query portfolio P&L after {max_attempts} attempts: {last_err}")
-    return None, None, None
+    raise RuntimeError(
+        f"Circuit breaker: Unable to calculate portfolio P&L after {max_attempts} retries. "
+        f"Final error: {last_err}. Failing fast to prevent trading on stale variance data."
+    ) from last_err
 
 
 def _set_halt_flag_rds(halt: bool, reason: str, check_time: str) -> None:
@@ -240,7 +243,26 @@ def lambda_handler(event, context):
     table = dynamodb.Table("algo_orchestrator_state")
 
     try:
-        current_pnl, _, variance = get_portfolio_pnl()
+        try:
+            current_pnl, _, variance = get_portfolio_pnl()
+        except RuntimeError as pnl_err:
+            logger.error(f"Portfolio P&L calculation failed (fail-closed): {pnl_err}")
+            _set_halt(
+                table,
+                True,
+                f"Portfolio P&L calculation failed: {str(pnl_err)[:80]}",
+                check_time,
+            )
+            return {
+                "statusCode": 500,
+                "body": json.dumps(
+                    {
+                        "action": "HALT",
+                        "reason": "Portfolio P&L calculation failed - halting for safety",
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                    }
+                ),
+            }
 
         if variance is None:
             logger.error("Unable to calculate variance after retries — halting trading (fail-closed)")

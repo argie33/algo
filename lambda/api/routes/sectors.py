@@ -266,7 +266,13 @@ def handle(
 
             sectors_data = cur.fetchall()
             cur.execute("""SELECT COUNT(DISTINCT sector) as cnt FROM company_profile WHERE sector IS NOT NULL""")
-            total = safe_json_serialize(dict(cur.fetchone())).get("cnt", 0)
+            count_row = cur.fetchone()
+            if count_row is None:
+                return error_response(503, "data_unavailable", "Sector count query failed - database unavailable")
+            count_dict = safe_json_serialize(dict(count_row))
+            total = count_dict.get("cnt")
+            if total is None or total <= 0:
+                return error_response(503, "no_sectors_available", "No sector data available in database")
 
             sectors = []
             for row in sectors_data:

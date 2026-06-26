@@ -338,7 +338,15 @@ def panel_orch(run: dict[str, Any] | None, cfg: dict[str, Any], risk: dict[str, 
                 conc5_val = safe_float(risk_metrics["conc5"], default=None)
                 svar_val = safe_float(risk_metrics["svar"], default=None)
                 if None in (var95_val, beta_val, cvar95_val, conc5_val):
-                    var_line = ""
+                    missing_fields = [
+                        name for name, val in [
+                            ("VaR95", var95_val),
+                            ("Beta", beta_val),
+                            ("CVaR95", cvar95_val),
+                            ("Concentration", conc5_val),
+                        ] if val is None
+                    ]
+                    var_line = f"\n[{R}]⚠ Risk metrics incomplete[/] - missing: {', '.join(missing_fields)}"
                 else:
                     var95_val = cast(float, var95_val)
                     beta_val = cast(float, beta_val)

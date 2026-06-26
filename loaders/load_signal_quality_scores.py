@@ -403,8 +403,13 @@ class SignalQualityScoresLoader(OptimalLoader):
                 "VCP pattern recognition is authoritative for trend confirmation."
             ) from e
 
-    def _fetch_positioning_data(self, symbol: str) -> dict[str, Any] | None:
-        """Fetch positioning data."""
+    def _fetch_positioning_data(self, symbol: str) -> dict[str, Any]:
+        """Fetch positioning data.
+
+        Positioning data (institutional ownership) is CRITICAL for signal quality scoring.
+        Raises if data is unavailable rather than returning None, ensuring callers
+        don't silently proceed with missing enrichment data.
+        """
         from utils.db.context import DatabaseContext
 
         try:
@@ -419,7 +424,12 @@ class SignalQualityScoresLoader(OptimalLoader):
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.error(f"Failed to fetch positioning data for {symbol}: {e}")
             raise
-        return None
+
+        raise RuntimeError(
+            f"[POSITIONING] Positioning data unavailable for {symbol}. "
+            "Institutional ownership is required for signal quality scoring. "
+            "Upstream loader (load_positioning_metrics.py) must provide data first."
+        )
 
     def _compute_quality_scores(
         self,
