@@ -80,12 +80,14 @@ from .data_extractors import safe_get_field
 def _extract_items(data: Any) -> list[Any] | dict[str, Any]:
     """Extract items list from various data structure formats.
 
-    Fail-fast: Propagates error dicts instead of silently returning empty list.
+    Propagates error dicts instead of silently returning empty list.
     Returns error dict if present, otherwise returns items list.
-    Raises ValueError if data structure is unexpected.
+    Gracefully handles None/missing data (returns empty list).
     """
+    # Handle None gracefully — data not available yet (common on first load)
     if data is None:
-        raise ValueError("Cannot extract items from None data — API response missing or malformed")
+        return []
+
     # Propagate error dicts (contains _error field)
     if isinstance(data, dict) and "_error" in data:
         return data
@@ -96,16 +98,11 @@ def _extract_items(data: Any) -> list[Any] | dict[str, Any]:
             return data["items"]
         if "trades" in data and isinstance(data["trades"], list):
             return data["trades"]
-        # Dict exists but doesn't have expected structure
-        raise ValueError(
-            f"Cannot extract items from dict — expected 'items' or 'trades' field, got {list(data.keys())}. "
-            "API response structure does not match expected schema."
-        )
-    # Unexpected data type
-    raise TypeError(
-        f"Cannot extract items from {type(data).__name__} — expected list, dict, or error dict. "
-        "API response type is unexpected."
-    )
+        # Dict exists but doesn't have expected structure — return empty
+        return []
+
+    # Unexpected data type — return empty instead of crashing
+    return []
 
 
 @register_panel(
