@@ -94,6 +94,12 @@ class ValueMetricsLoader(OptimalLoader):
             logger.debug(f"[VALUE_METRICS] Parsing error for {symbol} (skipping): {e}")
             return None
         except Exception as e:
+            import requests
+            from utils.loaders.transient_errors import TransientAPIError
+
+            if isinstance(e, (requests.Timeout, requests.ConnectionError)):
+                logger.warning(f"[VALUE_METRICS] API timeout/connection error for {symbol} (transient, will retry): {e}")
+                raise TransientAPIError(f"yfinance timeout fetching value metrics for {symbol}") from e
             logger.debug(f"[VALUE_METRICS] Error fetching for {symbol} (skipping): {e}")
             return None
 

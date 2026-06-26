@@ -138,6 +138,28 @@ class VectorizedTechnicalLoader:
                 "latest_date": None,
             }
 
+    def _get_required_duration(self, result: dict[str, Any]) -> float:
+        """Get duration_sec from result; fail-fast if missing.
+
+        Duration tracking is CRITICAL for monitoring loader health and detecting hung processes.
+        Defaulting to 0 would mask hangs and performance degradation.
+
+        Raises:
+            RuntimeError: If duration_sec missing or invalid
+        """
+        if "duration_sec" not in result:
+            raise RuntimeError(
+                "[TECHNICAL_DATA] Loader execution metrics incomplete: duration_sec missing. "
+                "Duration tracking is CRITICAL for monitoring loader health and detecting hung processes."
+            )
+        duration = result["duration_sec"]
+        if not isinstance(duration, (int, float)):
+            raise RuntimeError(
+                f"[TECHNICAL_DATA] Duration tracking failed: duration_sec={duration!r} is not numeric. "
+                "Cannot monitor loader performance without valid duration."
+            )
+        return float(duration)
+
     def _fetch_all_prices(self, symbols: list[str], start_date: date, end_date: date) -> list[dict[str, Any]]:
         """Fetch ALL price data in ONE query (institutional-scale efficiency).
 
@@ -620,7 +642,7 @@ def main() -> int:
                         date.today(),
                         final_status,
                         result["rows_inserted"],
-                        result.get("duration_sec", 0),  # duration_sec is optional
+                        self._get_required_duration(result),  # FAIL-FAST: duration_sec is REQUIRED for monitoring
                     ),
                 )
         except psycopg2.Error as e:

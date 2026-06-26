@@ -355,7 +355,7 @@ class Orchestrator:
                     logger.warning(f"[PROACTIVE WAIT] Database error during poll: {db_err}. Retrying...")
                     time.sleep(poll_interval_seconds)
 
-            # Timeout expired
+            # Timeout expired (expected condition)
             logger.warning(
                 f"[PROACTIVE WAIT] Timeout after {max_wait_seconds}s waiting for critical loaders. "
                 f"Proceeding to Phase 1 (may detect degraded mode). "
@@ -363,9 +363,14 @@ class Orchestrator:
             )
             return False
 
+        except (psycopg2.DatabaseError, psycopg2.OperationalError, TimeoutError) as e:
+            msg = f"[PROACTIVE WAIT] Infrastructure error during loader status check: {e}. Cannot proceed with uncertain loader state."
+            logger.error(msg)
+            raise RuntimeError(msg) from e
         except Exception as e:
-            logger.debug(f"[PROACTIVE WAIT] Unexpected error during proactive wait: {e}")
-            return False
+            msg = f"[PROACTIVE WAIT] Unexpected error during proactive wait: {e}. This indicates a programming error or unhandled exception type."
+            logger.error(msg)
+            raise RuntimeError(msg) from e
 
     def _check_loader_health(self) -> None:
         """Check if critical loaders have run recently and provide diagnostics.

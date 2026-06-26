@@ -366,7 +366,11 @@ class MarketHealthDailyLoader(OptimalLoader):
 
     def _compute_market_health(self, rows: list[dict[str, float | int | None | str]]) -> list[dict[str, Any]]:
         if not rows:
-            return []
+            raise RuntimeError(
+                "[MARKET_HEALTH] Cannot compute market health: no price data available. "
+                "Market health metrics are CRITICAL for circuit breaker decisions. "
+                "Check that price_daily table has recent SPY data loaded."
+            )
         # Warn if we have fewer than 20 rows but still process them (can happen at startup)
         if len(rows) < 20:
             logger.warning(f"Computing market health with only {len(rows)} rows (< 20 recommended)")
@@ -393,17 +397,32 @@ class MarketHealthDailyLoader(OptimalLoader):
         df["breadth_10d"] = df["up_day"].rolling(10, min_periods=1).mean() * 100  # % up days in last 10
 
         results = []
+        skipped_rows = []
         for idx, row in df.iterrows():
             if not pd.notna(row["close"]) or row["close"] <= 0:
-                logger.warning(f"Market health: Invalid close price for {row.get('date', 'unknown')}: {row['close']}; skipping row")
+                row_date = row.get('date', 'unknown')
+                logger.error(
+                    f"[MARKET_HEALTH_DATA_GAP] Invalid close price for {row_date}: {row['close']}. "
+                    f"Skipping row - this creates gap in distribution day counts and market health metrics."
+                )
+                skipped_rows.append(row_date)
                 continue
             close = float(row["close"])
             sma_200 = float(row["sma_200"]) if pd.notna(row["sma_200"]) else None
             sma_50 = float(row["sma_50"]) if pd.notna(row["sma_50"]) else None
 
+            # FAIL-FAST: Market stage classification requires at least SMA_200 (moving average data is critical)
+            # Circuit breaker decisions depend on accurate market stage; defaulting to uptrend when data missing is dangerous
+            if not sma_200:
+                raise RuntimeError(
+                    f"[MARKET_HEALTH] Market stage classification failed for {row.get('date', 'unknown')}: "
+                    f"SMA_200 is unavailable (None/NaN). Market stage is CRITICAL for circuit breaker decisions. "
+                    f"Cannot proceed without valid moving average data. Check price_daily table for SMA computation."
+                )
+
             # Determine market trend and stage
             market_trend = "neutral"
-            market_stage = 2  # Default to Stage 2 (uptrend); overridden below when MAs available
+            market_stage: int = 0
 
             if sma_200 and sma_50:
                 if close > sma_50 > sma_200:

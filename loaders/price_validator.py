@@ -114,9 +114,10 @@ class PriceValidator:
             """
             cur.execute(constraint_query, (table_name,))
             return bool(cur.fetchone())
-        except Exception as e:
-            logger.error(f"Could not verify unique constraint: {e}")
-            return False
+        except psycopg2.Error as e:
+            msg = f"[CONSTRAINT_CHECK] Failed to verify unique constraint on {table_name}: {e}. Cannot proceed without knowing constraints exist."
+            logger.error(msg)
+            raise RuntimeError(msg) from e
 
     def set_table_name(self, table_name: str) -> None:
         """Set the table name for schema validation."""
@@ -216,16 +217,19 @@ class PriceValidator:
             logger.info("[MARKET_CLOSE] Today is not a trading day, skipping check")
             return True
 
-        # Simple check: attempt to query market calendar
         try:
             is_trading = MarketCalendar.is_trading_day(today)
             if is_trading:
                 logger.debug("[MARKET_CLOSE] ✓ Market close data available")
                 return True
             return False
-        except Exception as e:
-            logger.warning(f"[MARKET_CLOSE] Could not verify market close availability: {e}")
+        except (ValueError, AttributeError, TypeError) as e:
+            logger.warning(f"[MARKET_CLOSE] Market calendar lookup failed (expected for non-trading days): {e}")
             return False
+        except Exception as e:
+            msg = f"[MARKET_CLOSE] Unexpected error checking market calendar: {e}. Cannot proceed without calendar access."
+            logger.error(msg)
+            raise RuntimeError(msg) from e
 
     def validate_row(self, row: dict[str, Any]) -> bool:
         """Validate a single price row for quality."""

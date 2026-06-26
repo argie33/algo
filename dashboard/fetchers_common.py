@@ -122,27 +122,6 @@ def get_error_message(response: dict[str, Any]) -> str:
     return f"API error {status if status is not None else 'unknown'}"
 
 
-def validate_required_fields(data_dict: Any, required_fields: list[str], source_name: str) -> None:
-    """Validate that all required fields exist in response dict. Raises error on validation failure.
-
-    CRITICAL: Raises ValueError instead of returning error dict to enforce fail-fast behavior.
-    This prevents callers from accidentally ignoring validation failures.
-
-    Args:
-        data_dict: Data dict to validate
-        required_fields: List of required field names
-        source_name: Human-readable source name for error messages
-
-    Raises:
-        ValueError: If data_dict is not a dict or is missing required fields
-    """
-    if not isinstance(data_dict, dict):
-        raise ValueError(f"{source_name}: expected dict but got {type(data_dict).__name__}")
-    missing = [f for f in required_fields if f not in data_dict]
-    if missing:
-        raise ValueError(f"{source_name}: missing required fields {missing}")
-
-
 def check_data_freshness(data_dict: Any, max_age_seconds: int = 3600) -> dict[str, Any] | None:
     """Check if data timestamp is within acceptable age. Returns error dict if stale or missing.
 

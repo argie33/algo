@@ -182,31 +182,18 @@ def cache_response(endpoint: str, data: dict[str, Any]) -> None:
 
 
 def is_stale_data(data: dict[str, Any]) -> bool:
-    """Check if data is marked as stale cache and raise error.
+    """Check if data is marked as stale cache.
 
-    CRITICAL: In a finance application, stale data (>30 min old) can lead to
-    incorrect position sizing, risk calculations, and trade decisions.
-    This function enforces fail-fast behavior by raising an error instead of
-    silently returning a metadata flag that callers might ignore.
+    CRITICAL: Dashboard components must check this flag and alert users
+    when displaying stale market data during API outages.
 
     Args:
         data: Response dict (potentially with _stale_cache flag)
 
     Returns:
-        False if data is fresh
-
-    Raises:
-        RuntimeError: If data is marked as stale (>30 min old)
+        True if data is stale (>30 min old), False if fresh
     """
-    if data.get("_stale_cache", False):
-        age_seconds = data.get("_cache_age_seconds", "unknown")
-        raise RuntimeError(
-            f"Stale data rejected: cached response is >30 min old ({age_seconds}s). "
-            "Cannot use stale data in finance application — position sizing, risk calculations, "
-            "and trading decisions require fresh market data. API must be restored or dashboard "
-            "must show data unavailable."
-        )
-    return False
+    return bool(data.get("_stale_cache", False))
 
 
 def get_cache_age_seconds(data: dict[str, Any]) -> int | None:
@@ -220,9 +207,10 @@ def get_cache_age_seconds(data: dict[str, Any]) -> int | None:
 def get_cached_response(endpoint: str, mark_stale: bool = False) -> dict[str, Any] | None:
     """Get cached response if available and fresh.
 
-    CRITICAL: This function NEVER serves stale data (>30 min old). For a finance
+    CRITICAL FAIL-FAST: This function NEVER serves stale data (>30 min old). For a finance
     application, stale data can lead to incorrect position sizing, risk calculations,
-    and trade decisions.
+    and trade decisions. Stale cache is NEVER acceptable - system must show "data unavailable"
+    to users instead.
 
     Args:
         endpoint: API endpoint path
@@ -233,7 +221,10 @@ def get_cached_response(endpoint: str, mark_stale: bool = False) -> dict[str, An
         Cached data if available and fresh (<30 min old), or None if not cached.
 
     Raises:
-        RuntimeError: If cache is stale (>30 min old), corrupted, or data structure invalid
+        RuntimeError: ALWAYS raised if cache is stale (>30 min old). This prevents silent
+                     use of outdated data. Callers MUST handle this exception and show
+                     "data unavailable" to users - they cannot fall back to stale data.
+        RuntimeError: If cache corrupted or data structure invalid (fail-fast on data integrity issues)
     """
     with _response_cache_lock:
         cached = _response_cache.get(endpoint)
@@ -272,9 +263,10 @@ def api_call(endpoint: str, params: dict[str, Any] | None = None, method: str = 
     Circuit breaker pattern prevents hammering downed API.
     Supports Cognito auth.
 
-    CRITICAL: Returns error dict on all failures (retries exhausted or circuit open).
-    Never returns stale cached data—fails fast to surface unavailability to callers.
-    Fetchers/consumers can optionally use get_cached_response() if they need stale data.
+    CRITICAL FAIL-FAST: Returns error dict on all failures (retries exhausted or circuit open).
+    Never attempts stale cache fallback. In finance applications, data unavailability must
+    surface immediately to users—stale data for position sizing or risk calculations is
+    unacceptable. Callers must show "data unavailable" error to users on API failures.
 
     Args:
         endpoint: API endpoint path (e.g., "/api/algo/positions")
@@ -284,7 +276,7 @@ def api_call(endpoint: str, params: dict[str, Any] | None = None, method: str = 
     Returns:
         Unwrapped response dict containing actual data fields (no statusCode wrapper),
         or {"_error": message} on failure. On 503 errors, includes "_is_transient_503" flag
-        so callers can decide whether to use stale cache.
+        to help callers determine if error is temporary.
     """
     if not API_BASE_URL:
         logger.error("DASHBOARD_API_URL environment variable not set - cannot make API calls")

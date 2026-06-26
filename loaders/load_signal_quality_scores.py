@@ -239,13 +239,11 @@ class SignalQualityScoresLoader(OptimalLoader):
 
         buy_sell_rows = self._fetch_buy_sell_signals(symbol, start, end)
         if not buy_sell_rows:
-            logger.debug(
-                "[signal_quality_scores] %s: No buy/sell signals for %s..%s; skipping (delisted or not in buy_sell_daily)",
-                symbol,
-                start,
-                end,
+            raise RuntimeError(
+                f"[SIGNAL_QUALITY] Signal quality scoring failed for {symbol} [{start} to {end}]: "
+                f"No buy/sell signals found. Signal quality assessment is REQUIRED for validating trades. "
+                f"Check that buy_sell_daily table has signals for this symbol or adjust date range."
             )
-            return None
 
         technical_rows = self._fetch_technical_data(symbol, start, end)
         trend_rows = self._fetch_trend_data(symbol, start, end)
@@ -261,13 +259,12 @@ class SignalQualityScoresLoader(OptimalLoader):
             positioning_data,
         )
         if not scores:
-            logger.debug(
-                "[signal_quality_scores] %s: No scores computed for %s..%s; skipping",
-                symbol,
-                start,
-                end,
+            raise RuntimeError(
+                f"[SIGNAL_QUALITY] Quality score computation failed for {symbol} [{start} to {end}]: "
+                f"No scores produced despite available buy/sell signals. "
+                f"Signal quality assessment is REQUIRED for validating trades. "
+                f"Check computation logic or validate input data (technical, trend, positioning)."
             )
-            return None
 
         # Filter to incremental range using datetime comparison (not string)
         if since is not None:
@@ -382,7 +379,10 @@ class SignalQualityScoresLoader(OptimalLoader):
                     raise RuntimeError(f"VCP count query failed for {symbol}")
                 count = row[0]
                 if count == 0:
-                    logger.debug(f"[VCP_NO_DATA] No VCP patterns found for {symbol} in date range {start} to {end}")
+                    logger.warning(
+                        f"[VCP_NO_DATA] No VCP patterns found for {symbol} in date range {start} to {end}. "
+                        f"VCP pattern data unavailable - trend confirmation signal missing."
+                    )
                     return []
 
                 cur.execute(

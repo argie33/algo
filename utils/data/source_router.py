@@ -560,25 +560,34 @@ class DataSourceRouter:
             from utils.external import get_ticker
 
             def fetch() -> Any:
-                # Use wrapper's get_ticker to ensure rate-limited access
+                from utils.loaders.transient_errors import TransientAPIError
+                import requests
+
                 ticker = get_ticker(symbol)
                 if not ticker:
                     return None
-                # earnings_dates API changed in newer yfinance — try calendar first
+
                 df: Any = None
                 try:
                     cal = ticker.calendar
                     if cal is not None and not (hasattr(cal, "empty") and cal.empty):
                         if isinstance(cal, dict):
-                            # Newer yfinance returns dict
                             return cal
                         df = cal
+                except (requests.Timeout, requests.ConnectionError) as e:
+                    logger.warning(f"[EARNINGS_DATES] API timeout/connection error for ticker.calendar ({symbol}): {e} (transient, will retry)")
+                    raise TransientAPIError(f"yfinance API timeout/connection fetching earnings calendar for {symbol}") from e
                 except Exception as e:
-                    logger.debug(f"Exception (expected): {e}")
+                    logger.warning(f"[EARNINGS_DATES] ticker.calendar unavailable for {symbol} (falling back): {e}")
+
                 try:
                     df = ticker.earnings_dates
+                except (requests.Timeout, requests.ConnectionError) as e:
+                    logger.warning(f"[EARNINGS_DATES] API timeout/connection error for ticker.earnings_dates ({symbol}): {e} (transient, will retry)")
+                    raise TransientAPIError(f"yfinance API timeout/connection fetching earnings dates for {symbol}") from e
                 except Exception as e:
-                    logger.debug(f"Exception (expected): {e}")
+                    logger.warning(f"[EARNINGS_DATES] ticker.earnings_dates unavailable for {symbol} (skipping): {e}")
+
                 return df
 
             result = _call_with_timeout(fetch, timeout_sec=30)

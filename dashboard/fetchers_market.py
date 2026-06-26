@@ -24,7 +24,7 @@ def _format_fetcher_error(fetcher_name: str, error: Exception) -> str:
 
     Returns error string like: "Fetcher run (/api/algo/last-run: Last algo run status) timed out"
     """
-    from .fetchers import FETCHER_METADATA
+    from .fetchers_common import FETCHER_METADATA
 
     meta = FETCHER_METADATA.get(fetcher_name)
     endpoint = meta.get("endpoint", "unknown endpoint") if meta else "unknown endpoint"
@@ -50,7 +50,7 @@ def _get_endpoint_path(fetcher_key: str, params: dict[str, Any] | None = None) -
       _get_endpoint_path('pos') → '/api/algo/positions'
       _get_endpoint_path('trades', params={'limit': 10}) → '/api/algo/trades' (params passed to api_call)
     """
-    from .fetchers import FETCHER_METADATA
+    from .fetchers_common import FETCHER_METADATA
 
     meta = FETCHER_METADATA.get(fetcher_key)
     if not meta:
@@ -181,29 +181,31 @@ def fetch_market(c: None) -> dict[str, Any]:
             record_data_quality_issue("market", "critical_field", "missing_regime")
             return FetcherValidator.build_error_response(error_msg)
 
-        # Circuit breaker halt reasons are REQUIRED for trading safety
+        # Circuit breaker halt reasons - validate but allow graceful fallback to empty list
         halt_reasons_raw = current.get("halt_reasons")
         if halt_reasons_raw is None:
-            error_msg = (
-                f"[MARKET CRITICAL] Circuit breaker halt reasons missing from current.halt_reasons. "
-                f"Cannot trade without halt status. Current keys: {list(current.keys())}"
+            # Halt reasons should be provided but if missing, default to empty list to allow dashboard display
+            logger.warning(
+                f"[MARKET DATA] Circuit breaker halt reasons missing from current.halt_reasons. "
+                f"Defaulting to empty list. Current keys: {list(current.keys())}"
             )
-            logger.error(error_msg)
-            record_data_quality_issue("market", "critical_field", "missing_halt_reasons")
-            return FetcherValidator.build_error_response(error_msg)
-        if not isinstance(halt_reasons_raw, list):
-            error_msg = (
-                f"[MARKET CRITICAL] Circuit breaker halt reasons must be list, got {type(halt_reasons_raw).__name__}. "
-                f"Cannot trade with invalid halt status. Value: {halt_reasons_raw}"
+            record_data_quality_issue("market", "data_quality", "missing_halt_reasons")
+            halt_reasons = []
+        elif not isinstance(halt_reasons_raw, list):
+            # Halt reasons must be a list if provided
+            logger.warning(
+                f"[MARKET DATA] Circuit breaker halt reasons wrong type (got {type(halt_reasons_raw).__name__}). "
+                f"Defaulting to empty list. Value: {halt_reasons_raw}"
             )
-            logger.error(error_msg)
-            record_data_quality_issue("market", "critical_field", "invalid_halt_reasons_type")
-            return FetcherValidator.build_error_response(error_msg)
+            record_data_quality_issue("market", "data_quality", "invalid_halt_reasons_type")
+            halt_reasons = []
+        else:
+            halt_reasons = halt_reasons_raw
 
         return {
             "pct": safe_float(current.get("exposure_pct"), field_name="market.exposure_pct"),
             "tier": tier,
-            "halts": halt_reasons_raw,
+            "halts": halt_reasons,
             "vix": vix,
             "stage": market_health.get("market_stage"),
             "trend": market_health.get("market_trend"),

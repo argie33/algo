@@ -22,7 +22,7 @@ def _format_fetcher_error(fetcher_name: str, error: Exception) -> str:
 
     Returns error string like: "Fetcher run (/api/algo/last-run: Last algo run status) timed out"
     """
-    from .fetchers import FETCHER_METADATA
+    from .fetchers_common import FETCHER_METADATA
 
     meta = FETCHER_METADATA.get(fetcher_name)
     endpoint = meta.get("endpoint", "unknown endpoint") if meta else "unknown endpoint"
@@ -48,7 +48,7 @@ def _get_endpoint_path(fetcher_key: str, params: dict[str, Any] | None = None) -
       _get_endpoint_path('pos') → '/api/algo/positions'
       _get_endpoint_path('trades', params={'limit': 10}) → '/api/algo/trades' (params passed to api_call)
     """
-    from .fetchers import FETCHER_METADATA
+    from .fetchers_common import FETCHER_METADATA
 
     meta = FETCHER_METADATA.get(fetcher_key)
     if not meta:
