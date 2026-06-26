@@ -25,8 +25,12 @@ class GrowthMetricsLoader(OptimalLoader):
     primary_key = ("symbol",)
     watermark_field = "created_at"
 
-    def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
-        """Compute multi-year growth metrics from annual income statement."""
+    def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]] | None:
+        """Compute multi-year growth metrics from annual income statement.
+
+        Returns None if financial data unavailable (normal for small caps, new IPOs).
+        Growth metrics are optional enrichment; their absence does not prevent trading.
+        """
         try:
             # Fetch up to 10 years of financials to calculate 1Y, 3Y, 5Y growth
             rows = execute_query(
@@ -41,10 +45,8 @@ class GrowthMetricsLoader(OptimalLoader):
             )
 
             if not rows or len(rows) < 1:
-                raise RuntimeError(
-                    f"[GROWTH_METRICS] No annual income statement data for {symbol}. "
-                    "Cannot compute growth metrics without multi-year financials."
-                )
+                logger.debug(f"[GROWTH_METRICS] No annual income statement data for {symbol} (skipping)")
+                return None
 
             # Sort by year ascending for easier calculation
             rows_list = list(reversed(rows))
@@ -53,14 +55,13 @@ class GrowthMetricsLoader(OptimalLoader):
             metrics = self._compute_metrics(symbol, latest, rows_list)
 
             if not metrics:
-                raise RuntimeError(
-                    f"[GROWTH_METRICS] Failed to compute growth metrics for {symbol}. "
-                    "Insufficient valid financial data across years."
-                )
+                logger.debug(f"[GROWTH_METRICS] Failed to compute metrics for {symbol} (skipping)")
+                return None
             return [metrics]
 
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            raise RuntimeError(f"Operation failed: {e}") from e
+            logger.debug(f"[GROWTH_METRICS] Database error for {symbol} (skipping): {e}")
+            return None
 
     @staticmethod
     def _compute_metrics(symbol: str, latest: tuple[Any, Any, Any], all_years: list[Any]) -> dict[str, Any] | None:
