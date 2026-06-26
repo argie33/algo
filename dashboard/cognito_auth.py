@@ -102,10 +102,14 @@ class CognitoAuth:
     def get_authorization_header(self) -> dict[str, str]:
         """Get Authorization header, refreshing if needed. Validates token format before returning.
 
-        Returns empty dict if no token available. Raises if token is present but invalid/expired.
+        Raises RuntimeError if no token available or token is invalid/expired.
+        Fail-fast: Never returns empty dict for missing token.
         """
         if not self.access_token:
-            return {}
+            raise RuntimeError(
+                "Authorization header not available: no access token. "
+                "Dashboard requires authentication - user must re-authenticate via Cognito."
+            )
 
         if self.is_token_expired():
             if not self.refresh_token:

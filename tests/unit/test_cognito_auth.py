@@ -33,10 +33,11 @@ def create_jwt(exp: int, sub: str = "user-123") -> str:
 class TestAuthorizationHeaderValidation:
     """Test authorization header generation and validation."""
 
-    def test_no_token_returns_empty_header(self):
-        """Should return empty dict when no access token exists."""
+    def test_no_token_raises_error(self):
+        """Should raise RuntimeError when no access token exists (fail-fast)."""
         auth = CognitoAuth("pool-123", "client-456")
-        assert auth.get_authorization_header() == {}
+        with pytest.raises(RuntimeError, match="no access token"):
+            auth.get_authorization_header()
 
     def test_valid_token_returns_bearer_header(self):
         """Should return Bearer token when token is valid and not expired."""
