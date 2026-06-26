@@ -163,9 +163,11 @@ class YieldCurveFetcher:
         """Fetch yield curve data with circuit breaker protection.
 
         Returns:
-            dict with yield data keyed by date, or empty dict if data unavailable
-            Raises:
-                RuntimeError if circuit breaker open (indicates persistent fetch failures)
+            dict with yield data keyed by date
+
+        Note: Yield curve data affects market health (Fed rate environment, inversion detection).
+        Returns empty dict (not error) only when data is genuinely unavailable (API down, no API key).
+        But consumers should explicitly handle empty result and log it for visibility.
         """
         try:
             result = self.breaker.execute(
@@ -174,13 +176,13 @@ class YieldCurveFetcher:
                 fallback_value=None,
             )
             if result is None:
-                # Circuit breaker failed multiple times - log but don't crash (optional data)
-                logger.warning(f"Yield curve circuit breaker is protecting against repeated failures for {start} to {end}")
+                # Circuit breaker failed multiple times - log explicitly
+                logger.warning(f"Yield curve circuit breaker OPEN: repeated failures for {start} to {end}. Data unavailable.")
                 return {}
             return result if isinstance(result, dict) else {}
         except Exception as e:
-            # Optional data source failed - log and continue
-            logger.warning(f"Yield curve fetch exception (optional data): {e}")
+            # Optional data source failed - log explicitly
+            logger.warning(f"Yield curve fetch failed (optional data, will degrade gracefully): {e}")
             return {}
 
     def _fetch_yield_curve_data(self, start: date, end: date) -> dict[str, Any]:

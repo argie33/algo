@@ -129,7 +129,14 @@ def _calculate_pre_trade_impact(cur: cursor, body: dict[str, Any]) -> Any:
         if portfolio_value <= 0:
             return error_response(400, "invalid_portfolio", f"Portfolio value invalid ({portfolio_value})")
 
-        current_sector_dollars = sector_exposure.get(sector, 0.0) if sector else 0.0
+        # CRITICAL: Sector exposure must be known or explicitly 'Unknown', never silent 0.0
+        if sector is None:
+            return error_response(400, "sector_unknown", f"Cannot size position for {symbol}: sector not found in company_profile")
+        if sector not in sector_exposure:
+            # 'Unknown' sector should exist from COALESCE in query, but validate it
+            return error_response(503, "sector_exposure_incomplete", f"Sector exposure missing for '{sector}'. Database query incomplete.")
+
+        current_sector_dollars = sector_exposure[sector]  # Explicit access, no fallback to 0.0
         projected_sector_dollars = current_sector_dollars + actual_dollars
         projected_sector_pct = projected_sector_dollars / portfolio_value * 100
 

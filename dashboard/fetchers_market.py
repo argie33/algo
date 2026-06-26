@@ -384,7 +384,10 @@ def fetch_sector_rotation(c: None) -> dict[str, Any]:
             return FetcherValidator.build_error_response(error_msg)
 
         if not items:
-            return {}
+            error_msg = "Sector rotation data unavailable: 'items' array is empty. Cannot proceed without rotation signal."
+            logger.error(error_msg)
+            record_data_quality_issue("sec_rot", "validation", "empty_items_array")
+            return FetcherValidator.build_error_response(error_msg)
 
         row = items[0]
         return {

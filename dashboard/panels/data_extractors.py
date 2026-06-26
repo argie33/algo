@@ -248,11 +248,15 @@ def extract_signal_overview(sig: dict[str, Any]) -> dict[str, Any]:
 def extract_eval_funnel(sig_eval: dict[str, Any] | None) -> dict[str, Any]:
     """Extract evaluation funnel data (error already checked, data optional).
 
-    Fail-fast: Do not fall back to empty list. If rejected field is optional,
-    caller should handle None values.
+    Fail-fast: Do not return empty dict—signal evaluation is critical for understanding
+    how many candidates were evaluated and rejected. Empty dict hides data unavailability.
     """
-    if not sig_eval or not isinstance(sig_eval, dict) or has_error(sig_eval):
-        return {}
+    if not sig_eval:
+        return {"_error": "Signal evaluation data unavailable"}
+    if not isinstance(sig_eval, dict):
+        return {"_error": f"Invalid signal evaluation data: expected dict, got {type(sig_eval).__name__}"}
+    if has_error(sig_eval):
+        return sig_eval
     return {
         "total": sig_eval.get("total"),
         "t1": sig_eval.get("t1"),
