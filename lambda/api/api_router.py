@@ -334,18 +334,32 @@ def route_request(
     for prefix, handler in PUBLIC_HANDLERS.items():
         if matches_route(path, prefix):
             try:
+                logger.debug(f"[ROUTE_REQUEST] Calling public handler for {path} (prefix {prefix})")
                 response = handler.handle(cur, path, method, params, body, jwt_claims=jwt_claims)
+                logger.debug(f"[ROUTE_REQUEST] Public handler succeeded for {path}, status={response.get('statusCode')}")
                 return _add_cors_headers(_wrap_response(response))
             except Exception as e:
+                logger.error(
+                    f"[ROUTE_REQUEST_EXCEPTION] Public handler {prefix} raised exception for {path}: "
+                    f"{type(e).__name__}: {str(e)[:200]}",
+                    exc_info=True,
+                )
                 return _add_cors_headers(_wrap_response(_format_handler_error(e)))
 
     # Check authenticated handlers
     for prefix, handler in HANDLERS.items():
         if matches_route(path, prefix):
             try:
+                logger.debug(f"[ROUTE_REQUEST] Calling handler for {path} (prefix {prefix})")
                 response = handler.handle(cur, path, method, params, body, jwt_claims=jwt_claims)
+                logger.debug(f"[ROUTE_REQUEST] Handler succeeded for {path}, status={response.get('statusCode')}")
                 return _add_cors_headers(_wrap_response(response))
             except Exception as e:
+                logger.error(
+                    f"[ROUTE_REQUEST_EXCEPTION] Handler {prefix} raised exception for {path}: "
+                    f"{type(e).__name__}: {str(e)[:200]}",
+                    exc_info=True,
+                )
                 return _add_cors_headers(_wrap_response(_format_handler_error(e)))
 
     # Check if the path matches a route module that failed to import
@@ -474,6 +488,23 @@ def _format_handler_error(e: Exception) -> dict[str, Any]:
     """
     error_type = type(e).__name__
     error_msg = str(e)
+
+    # CRITICAL DIAGNOSTIC: Log full exception details for debugging
+    # Include all attributes of the exception to understand its structure
+    exception_attrs = {}
+    for attr in ['args', 'pgcode', 'pgerror', 'cursor', 'filename', 'lineno', 'msg']:
+        if hasattr(e, attr):
+            try:
+                val = getattr(e, attr)
+                exception_attrs[attr] = str(val)[:200]
+            except Exception:
+                pass
+
+    logger.error(
+        f"[HANDLER_EXCEPTION_DETAILED] Exception in handler: "
+        f"type={error_type}, module={type(e).__module__}, "
+        f"message={error_msg[:300]}, attributes={exception_attrs}"
+    )
 
     # Handle APIException first (has explicit status code and error type)
     api_exception_failed = False
