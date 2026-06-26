@@ -690,17 +690,22 @@ router.get("/portfolio", async (req, res) => {
             largest_position_pct: null,
           };
 
+    const data_age_seconds = snapshot.snapshot_date
+      ? Math.floor((Date.now() - new Date(snapshot.snapshot_date).getTime()) / 1000)
+      : null;
+
     return sendSuccess(res, {
       data: {
-        last_run: snapshot.snapshot_date,
+        snapshot_date: snapshot.snapshot_date,
         total_portfolio_value: snapshot.total_portfolio_value,
         total_cash: snapshot.total_cash,
-        open_positions: snapshot.position_count,
+        position_count: snapshot.position_count,
         daily_return_pct: snapshot.daily_return_pct,
         unrealized_pnl_pct: snapshot.unrealized_pnl_pct,
         cumulative_return_pct: snapshot.cumulative_return_pct,
         max_drawdown_pct: snapshot.max_drawdown_pct,
         largest_position_pct: snapshot.largest_position_pct,
+        data_age_seconds: data_age_seconds,
       },
     });
   } catch (error) {
@@ -1238,7 +1243,10 @@ router.get("/markets", async (req, res) => {
         ORDER BY date ASC
       `),
       pool.query(`
-        SELECT date, market_trend, market_stage, distribution_days_4w, vix_level
+        SELECT date, market_trend, market_stage, distribution_days_4w, vix_level,
+               advance_decline_ratio, new_highs_count, new_lows_count, put_call_ratio,
+               breadth_momentum_10d, yield_curve_slope, fed_rate_environment, up_volume_percent,
+               spy_close, spy_change_pct
         FROM market_health_daily ORDER BY date DESC LIMIT 1
       `),
       pool.query(`
@@ -1281,6 +1289,16 @@ router.get("/markets", async (req, res) => {
           market_stage: { type: "int", required: false },
           distribution_days_4w: { type: "int", required: false },
           vix_level: { type: "float", required: false },
+          advance_decline_ratio: { type: "float", required: false },
+          new_highs_count: { type: "int", required: false },
+          new_lows_count: { type: "int", required: false },
+          put_call_ratio: { type: "float", required: false },
+          breadth_momentum_10d: { type: "float", required: false },
+          yield_curve_slope: { type: "float", required: false },
+          fed_rate_environment: { type: "string", required: false },
+          up_volume_percent: { type: "float", required: false },
+          spy_close: { type: "float", required: false },
+          spy_change_pct: { type: "float", required: false },
         })
       : null;
 
@@ -1349,10 +1367,20 @@ router.get("/markets", async (req, res) => {
       market_health: health
         ? {
             date: health.date,
-            trend: health.market_trend,
-            stage: health.market_stage,
+            market_trend: health.market_trend,
+            market_stage: health.market_stage,
             distribution_days_4w: health.distribution_days_4w,
             vix_level: health.vix_level || 0,
+            advance_decline_ratio: health.advance_decline_ratio,
+            new_highs_count: health.new_highs_count,
+            new_lows_count: health.new_lows_count,
+            put_call_ratio: health.put_call_ratio,
+            breadth_momentum_10d: health.breadth_momentum_10d,
+            yield_curve_slope: health.yield_curve_slope,
+            fed_rate_environment: health.fed_rate_environment,
+            up_volume_percent: health.up_volume_percent,
+            spy_close: health.spy_close,
+            spy_change_pct: health.spy_change_pct,
           }
         : null,
       sectors: sectorsRows.map((r) => ({
@@ -1838,7 +1866,7 @@ router.get("/patrol-log", requireAuth, requireAdmin, async (req, res) => {
 // ============================================================
 // NOTIFICATIONS â€” surface CRITICAL events to UI as toasts
 // ============================================================
-router.get("/notifications", async (req, res) => {
+router.get("/notifications", authenticateToken, async (req, res) => {
   try {
     ensureConnection();
     const pool = getPool();
@@ -2249,7 +2277,7 @@ router.get("/equity-curve", authenticateToken, async (req, res) => {
 // ============================================================
 // AUDIT LOG â€” every algo decision logged (admin only)
 // ============================================================
-router.get("/audit-log", async (req, res) => {
+router.get("/audit-log", authenticateToken, async (req, res) => {
   try {
     ensureConnection();
     const pool = getPool();
@@ -3565,7 +3593,7 @@ router.get("/metrics", async (req, res) => {
   }
 });
 
-router.get("/risk-metrics", async (req, res) => {
+router.get("/risk-metrics", authenticateToken, async (req, res) => {
   try {
     ensureConnection();
     const pool = getPool();
@@ -3592,11 +3620,11 @@ router.get("/risk-metrics", async (req, res) => {
     const sf = (v) => (v == null ? null : parseFloat(v));
     return sendSuccess(res, {
       report_date: row.report_date,
-      var_pct_95: sf(row.var_pct_95),
-      cvar_pct_95: sf(row.cvar_pct_95),
-      stressed_var_pct: sf(row.stressed_var_pct),
-      portfolio_beta: sf(row.portfolio_beta),
-      top_5_concentration: sf(row.top_5_concentration),
+      var95: sf(row.var_pct_95),
+      cvar95: sf(row.cvar_pct_95),
+      svar: sf(row.stressed_var_pct),
+      beta: sf(row.portfolio_beta),
+      concentration5: sf(row.top_5_concentration),
     });
   } catch (error) {
     logger.error("Error in /algo/risk-metrics:", { error: error.message });
@@ -3608,12 +3636,70 @@ router.get("/risk-metrics", async (req, res) => {
   }
 });
 
-router.get("/performance-analytics", async (req, res) => {
+router.get("/performance-analytics", authenticateToken, async (req, res) => {
   try {
+    ensureConnection();
+    const pool = getPool();
+
+    const perfResult = await pool.query(`
+      SELECT
+        win_rate_pct,
+        COALESCE(avg_win_pct, best_trade_pct) as avg_win_pct,
+        COALESCE(avg_loss_pct, worst_trade_pct) as avg_loss_pct,
+        profit_factor,
+        total_return_pct,
+        sharpe_ratio as sharpe252,
+        sortino_ratio as sortino,
+        calmar_ratio, max_drawdown_pct,
+        best_win_streak, worst_loss_streak,
+        avg_holding_days
+      FROM algo_performance_metrics
+      ORDER BY metric_date DESC LIMIT 1
+    `);
+
+    validateQueryResult(perfResult, { requireRows: false });
+
+    if (perfResult.rows.length === 0) {
+      return sendSuccess(res, {
+        wr50: null,
+        avg_w_r: null,
+        avg_l_r: null,
+        expectancy: null,
+        sharpe252: null,
+        sortino: null,
+        calmar: null,
+        maxdd: null,
+      });
+    }
+
+    const perf = validateAndCoerceRow(perfResult.rows[0], {
+      win_rate_pct: { type: "float", required: false, defaultValue: 0 },
+      avg_win_pct: { type: "float", required: false, defaultValue: 0 },
+      avg_loss_pct: { type: "float", required: false, defaultValue: 0 },
+      profit_factor: { type: "float", required: false, defaultValue: 0 },
+      total_return_pct: { type: "float", required: false, defaultValue: 0 },
+      sharpe252: { type: "float", required: false },
+      sortino: { type: "float", required: false },
+      calmar: { type: "float", required: false },
+      max_drawdown_pct: { type: "float", required: false, defaultValue: 0 },
+      best_win_streak: { type: "int", required: false, defaultValue: 0 },
+      worst_loss_streak: { type: "int", required: false, defaultValue: 0 },
+      avg_holding_days: { type: "float", required: false, defaultValue: 0 },
+    });
+
+    const expectancy = perf.profit_factor
+      ? ((perf.avg_win_pct + perf.avg_loss_pct) * perf.profit_factor) / 100
+      : null;
+
     return sendSuccess(res, {
-      metrics: {},
-      daily_returns: [],
-      trade_analysis: {},
+      wr50: perf.win_rate_pct,
+      avg_w_r: perf.avg_win_pct,
+      avg_l_r: perf.avg_loss_pct,
+      expectancy: expectancy,
+      sharpe252: perf.sharpe252,
+      sortino: perf.sortino,
+      calmar: perf.calmar,
+      maxdd: perf.max_drawdown_pct,
     });
   } catch (error) {
     logger.error("Error in /algo/performance-analytics:", {
@@ -3666,7 +3752,7 @@ router.get("/economic-calendar", async (req, res) => {
   }
 });
 
-router.get("/execution/recent", async (req, res) => {
+router.get("/execution/recent", authenticateToken, async (req, res) => {
   try {
     ensureConnection();
     const pool = getPool();
