@@ -784,6 +784,8 @@ def _get_markets(cur: cursor) -> Any:
         response["data"]["current"] = response_data
         response["data"]["active_tier"] = active_tier
         response["data"]["history"] = history
+        # Include spy_close in market_health as well (required by dashboard fetcher)
+        market_health["spy_close"] = spy_close
         response["data"]["market_health"] = market_health
 
         # Validate market response against contract schema

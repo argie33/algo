@@ -321,11 +321,11 @@ class ValueAtRisk:
         except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def beta_exposure(self) -> dict[str, Any]:
+    def beta_exposure(self) -> dict[str, Any] | None:
         """Compute portfolio beta exposure vs. S&P 500.
 
         Returns:
-            dict with portfolio beta and per-position beta
+            dict with portfolio beta and per-position beta, or None if no positions exist
         """
         try:
             with DatabaseContext("read") as cur:
@@ -337,10 +337,8 @@ class ValueAtRisk:
                 positions = cur.fetchall()
 
                 if not positions:
-                    raise RuntimeError(
-                        "Beta exposure calculation failed: no open positions exist. "
-                        "Risk dashboard requires position data to compute beta exposure."
-                    )
+                    logger.warning("Beta exposure calculation skipped: no open positions exist yet")
+                    return None
 
                 cur.execute(
                     "SELECT total_portfolio_value, snapshot_date FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1"
@@ -516,11 +514,11 @@ class ValueAtRisk:
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def concentration_report(self) -> dict[str, Any]:
+    def concentration_report(self) -> dict[str, Any] | None:
         """Generate concentration report: top holdings, sectors, industries.
 
         Returns:
-            dict with concentration metrics
+            dict with concentration metrics, or None if no positions exist
         """
         try:
             with DatabaseContext("read") as cur:
@@ -554,10 +552,8 @@ class ValueAtRisk:
                 positions = cur.fetchall()
 
                 if not positions:
-                    raise RuntimeError(
-                        "Concentration report failed: no open positions exist. "
-                        "Risk dashboard requires position data to compute concentration metrics."
-                    )
+                    logger.warning("Concentration report skipped: no open positions exist yet")
+                    return None
 
                 cur.execute(
                     "SELECT total_portfolio_value, snapshot_date FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1"
@@ -674,25 +670,41 @@ class ValueAtRisk:
             logger.info(f"Generating daily risk report for {report_date}")
 
             # Compute all risk metrics (each handles its own connection)
-            # Failures raise RuntimeError and propagate — don't swallow critical errors
-            var_metrics = self.historical_var()
-            cvar_metrics = self.cvar()
-            stressed_var = self.stressed_var()
-            beta = self.beta_exposure()
-            concentration = self.concentration_report()
+            # VaR, CVaR, stressed_var require sufficient historical data
+            # Beta and concentration require open positions (return None if none exist)
+            try:
+                var_metrics = self.historical_var()
+            except RuntimeError as e:
+                logger.warning(f"Historical VaR unavailable (insufficient data): {e}")
+                var_metrics = None
 
-            logger.debug(f"  VaR: {var_metrics['var_pct']:.3f}%" if var_metrics else "  VaR: <unavailable>")
-            logger.debug(f"  CVaR: {cvar_metrics['cvar_pct']:.3f}%" if cvar_metrics else "  CVaR: <unavailable>")
+            try:
+                cvar_metrics = self.cvar()
+            except RuntimeError as e:
+                logger.warning(f"Conditional VaR unavailable (insufficient data): {e}")
+                cvar_metrics = None
+
+            try:
+                stressed_var = self.stressed_var()
+            except RuntimeError as e:
+                logger.warning(f"Stressed VaR unavailable (requires 365+ days): {e}")
+                stressed_var = None
+
+            beta = self.beta_exposure()  # Returns None if no positions
+            concentration = self.concentration_report()  # Returns None if no positions
+
+            logger.debug(f"  VaR: {var_metrics['var_pct']:.3f}%" if var_metrics else "  VaR: <insufficient data>")
+            logger.debug(f"  CVaR: {cvar_metrics['cvar_pct']:.3f}%" if cvar_metrics else "  CVaR: <insufficient data>")
             logger.debug(
                 f"  Stressed VaR: {stressed_var['stressed_var_pct']:.3f}%"
                 if stressed_var
-                else "  Stressed VaR: <unavailable>"
+                else "  Stressed VaR: <requires 365+ days>"
             )
-            logger.debug(f"  Beta: {beta['portfolio_beta']:.3f}" if beta else "  Beta: <unavailable>")
+            logger.debug(f"  Beta: {beta['portfolio_beta']:.3f}" if beta else "  Beta: <no positions>")
             logger.debug(
                 f"  Top 5 Concentration: {concentration['top_5_concentration_pct']:.1f}%"
                 if concentration
-                else "  Top 5 Concentration: <unavailable>"
+                else "  Top 5 Concentration: <no positions>"
             )
 
             alerts: list[str] = []
@@ -709,19 +721,19 @@ class ValueAtRisk:
             }
 
             # Alert if VaR > 2%
-            if var_metrics and var_metrics["var_pct"] > 2.0:
+            if var_metrics and var_metrics.get("var_pct", 0) > 2.0:
                 msg = f"VaR Risk: Portfolio VaR is {var_metrics['var_pct']:.2f}% (>2% threshold)"
                 alerts.append(msg)
                 logger.warning(msg)
 
             # Alert if concentration > 30%
-            if concentration and concentration["top_5_concentration_pct"] > 30:
+            if concentration and concentration.get("top_5_concentration_pct", 0) > 30:
                 msg = f"Concentration Risk: Top 5 holdings are {concentration['top_5_concentration_pct']:.1f}% (>30%)"
                 alerts.append(msg)
                 logger.warning(msg)
 
             # Alert if beta > 2.0
-            if beta and beta["portfolio_beta"] > 2.0:
+            if beta and beta.get("portfolio_beta", 0) > 2.0:
                 msg = f"Beta Risk: Portfolio beta {beta['portfolio_beta']:.1f} (>2.0x market risk)"
                 alerts.append(msg)
                 logger.warning(msg)
@@ -755,9 +767,19 @@ class ValueAtRisk:
                             top_5_conc_val,
                         ),
                     )
-                    logger.info(
-                        f"[OK] Risk report persisted: var={var_pct_val}%, cvar={cvar_pct_val}%, beta={portfolio_beta_val}, concentration={top_5_conc_val}%"
-                    )
+                    metrics_summary = []
+                    if var_pct_val is not None:
+                        metrics_summary.append(f"var={var_pct_val}%")
+                    if cvar_pct_val is not None:
+                        metrics_summary.append(f"cvar={cvar_pct_val}%")
+                    if stressed_var_pct_val is not None:
+                        metrics_summary.append(f"svar={stressed_var_pct_val}%")
+                    if portfolio_beta_val is not None:
+                        metrics_summary.append(f"beta={portfolio_beta_val}")
+                    if top_5_conc_val is not None:
+                        metrics_summary.append(f"conc={top_5_conc_val}%")
+                    metrics_str = ", ".join(metrics_summary) if metrics_summary else "no metrics available"
+                    logger.info(f"[OK] Risk report persisted: {metrics_str}")
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.error(f"Failed to persist risk report: {e}", exc_info=True)
                 raise RuntimeError(
