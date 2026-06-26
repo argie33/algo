@@ -45,19 +45,13 @@ class BuySignalScorer(SignalQualityScorer):
         score = 0
 
         if rsi is not None and not pd.isna(rsi):
-            try:
-                rsi_val = float(rsi)
-                if 40 < rsi_val < 80:
-                    score += 10
-            except (ValueError, TypeError) as e:
-                logger.debug(f"Failed to convert RSI to float: {e}")
+            rsi_val = float(rsi)
+            if 40 < rsi_val < 80:
+                score += 10
 
         if macd is not None and macd_signal is not None and not pd.isna(macd) and not pd.isna(macd_signal):
-            try:
-                if float(macd) > float(macd_signal):
-                    score += 10
-            except (ValueError, TypeError) as e:
-                logger.debug(f"Failed to convert MACD to float: {e}")
+            if float(macd) > float(macd_signal):
+                score += 10
 
         return score
 
@@ -66,26 +60,20 @@ class BuySignalScorer(SignalQualityScorer):
         score = 0
 
         if minervini is not None and not pd.isna(minervini):
-            try:
-                m_val = float(minervini)
-                if m_val >= 3:
-                    score += 15
-                elif m_val >= 2:
-                    score += 10
-                else:
-                    score += 5
-            except (ValueError, TypeError) as e:
-                logger.debug(f"Failed to convert Minervini to float: {e}")
+            m_val = float(minervini)
+            if m_val >= 3:
+                score += 15
+            elif m_val >= 2:
+                score += 10
+            else:
+                score += 5
 
         if weinstein_stage is not None and not pd.isna(weinstein_stage):
-            try:
-                stage_val = int(weinstein_stage)
-                if stage_val in [2, 3]:
-                    score += 10
-                else:
-                    score += 3
-            except (ValueError, TypeError) as e:
-                logger.debug(f"Failed to convert Weinstein stage to int: {e}")
+            stage_val = int(weinstein_stage)
+            if stage_val in [2, 3]:
+                score += 10
+            else:
+                score += 3
 
         return min(25, score)
 
@@ -104,19 +92,13 @@ class SellSignalScorer(SignalQualityScorer):
         score = 0
 
         if rsi is not None and not pd.isna(rsi):
-            try:
-                rsi_val = float(rsi)
-                if 20 < rsi_val < 60:
-                    score += 10
-            except (ValueError, TypeError) as e:
-                logger.debug(f"Failed to convert RSI to float: {e}")
+            rsi_val = float(rsi)
+            if 20 < rsi_val < 60:
+                score += 10
 
         if macd is not None and macd_signal is not None and not pd.isna(macd) and not pd.isna(macd_signal):
-            try:
-                if float(macd) < float(macd_signal):
-                    score += 10
-            except (ValueError, TypeError) as e:
-                logger.debug(f"Failed to convert MACD to float: {e}")
+            if float(macd) < float(macd_signal):
+                score += 10
 
         return score
 
@@ -126,26 +108,20 @@ class SellSignalScorer(SignalQualityScorer):
         score = 0
 
         if minervini is not None and not pd.isna(minervini):
-            try:
-                m_val = float(minervini)
-                if m_val >= 3:
-                    score += 15
-                elif m_val >= 2:
-                    score += 10
-                else:
-                    score += 5
-            except (ValueError, TypeError) as e:
-                logger.debug(f"Failed to convert Minervini to float: {e}")
+            m_val = float(minervini)
+            if m_val >= 3:
+                score += 15
+            elif m_val >= 2:
+                score += 10
+            else:
+                score += 5
 
         if weinstein_stage is not None and not pd.isna(weinstein_stage):
-            try:
-                stage_val = int(weinstein_stage)
-                if stage_val in [2, 3]:
-                    score += 10
-                else:
-                    score += 3
-            except (ValueError, TypeError) as e:
-                logger.debug(f"Failed to convert Weinstein stage to int: {e}")
+            stage_val = int(weinstein_stage)
+            if stage_val in [2, 3]:
+                score += 10
+            else:
+                score += 3
 
         return min(25, score)
 
