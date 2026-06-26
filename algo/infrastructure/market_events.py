@@ -107,7 +107,9 @@ class MarketEventHandler:
             }
 
             def fetch_quotes() -> Any:
-                url = f"{self.alpaca_base_url}/v2/stocks/SPY/quotes/latest"
+                # Use Market Data API (data.alpaca.markets) not Trading API (paper-api.alpaca.markets)
+                alpaca_data_url = get_alpaca_data_url()
+                url = f"{alpaca_data_url}/v2/stocks/SPY/quotes/latest"
                 try:
                     resp = requests.get(url, headers=headers, timeout=get_api_timeout())
                     if resp.status_code != 200:
@@ -128,7 +130,9 @@ class MarketEventHandler:
                     raise RuntimeError(f"Operation failed: {e}") from e
 
             def fetch_bars() -> Any:
-                url = f"{self.alpaca_base_url}/v2/stocks/SPY/bars/latest?timeframe=1day"
+                # Use Market Data API (data.alpaca.markets) not Trading API (paper-api.alpaca.markets)
+                alpaca_data_url = get_alpaca_data_url()
+                url = f"{alpaca_data_url}/v2/stocks/SPY/bars/latest?timeframe=1day"
                 try:
                     resp = requests.get(url, headers=headers, timeout=get_market_data_timeout())
                     if resp.status_code != 200:

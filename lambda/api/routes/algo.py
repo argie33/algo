@@ -323,6 +323,7 @@ def _dispatch(
         return _get_data_status(cur)
     elif path == "/api/algo/notifications":
         # Public endpoint (dashboard dev mode) - no auth required
+        logger.info(f"[NOTIFICATIONS_DEBUG] jwt_claims={jwt_claims}, user_id={user_id}")
         return _get_notifications(cur, params, jwt_claims)
     elif path == "/api/algo/patrol-log":
         if not _check_admin_access(jwt_claims):
