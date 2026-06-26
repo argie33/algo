@@ -224,7 +224,7 @@ class CircuitBreaker:
                 logger.warning(
                     f"{error_msg} (failure {self.failure_count}/{self.failure_threshold}). "
                     "OPTIONAL DATA FETCH FAILED — continuing with fallback value. "
-                    "Will open circuit after {self.failure_threshold} failures."
+                    f"Will open circuit after {self.failure_threshold} failures."
                 )
                 return fallback_value
 
