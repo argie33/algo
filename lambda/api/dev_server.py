@@ -16,21 +16,27 @@ from urllib.parse import parse_qs, urlparse
 
 os.environ["ENVIRONMENT"] = "development"
 
+# For dev_server: Default to LOCAL_MODE=true unless explicitly disabled (LOCAL_MODE=false)
+# This ensures local development "just works" without extra configuration
+if "LOCAL_MODE" not in os.environ:
+    os.environ["LOCAL_MODE"] = "true"
+    print("[DEV_SERVER] AUTO: Setting LOCAL_MODE=true for local development", flush=True)
+
 
 # Load database credentials from AWS Secrets Manager (real AWS data) or environment variables
 def _load_db_credentials() -> dict[str, Any]:
     """Load DB credentials from AWS Secrets Manager if available, else environment variables.
 
     Behavior controlled by LOCAL_MODE environment variable:
-    - LOCAL_MODE=true: Use localhost postgres (development only)
-    - LOCAL_MODE not set: Require AWS Secrets Manager (production behavior)
+    - LOCAL_MODE=true (default): Use localhost postgres (development only)
+    - LOCAL_MODE=false: Use AWS Secrets Manager (production/testing against RDS)
     """
-    # Check if explicitly running in local mode
+    # Check if explicitly running in local mode (defaults to true for dev_server)
     local_mode = os.getenv("LOCAL_MODE", "").lower() == "true"
 
     # If LOCAL_MODE is explicitly enabled, skip AWS and use localhost immediately
     if local_mode:
-        print("[DEV_SERVER] LOCAL_MODE=true, using localhost postgres", flush=True)
+        print("[DEV_SERVER] Using localhost postgres (LOCAL_MODE=true)", flush=True)
         return {
             "host": "localhost",
             "port": int(os.getenv("DB_PORT", 5432)),
