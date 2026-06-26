@@ -500,22 +500,26 @@ def _format_exec_history_summary(exec_hist: list[Any] | None) -> list[Text]:
 
 
 def _format_recent_trade_events(act: dict[str, Any] | None) -> list[Text]:
-    """Format recent trade events (entry/exit/order)."""
+    """Format recent trade events (entry/exit/order).
+
+    Returns empty list if no data available. Raises only on actual errors (error dict).
+    """
     rows: list[Text] = []
-    act_valid = act and isinstance(act, dict) and not has_error(act)
-    if act_valid and isinstance(act, dict) and "recent_actions" not in act:
-        rows.append(Text.from_markup("[dim]⚠ recent_actions data missing[/]"))
+
+    # Handle None or empty data gracefully
+    if not act or not isinstance(act, dict):
         return rows
-    if not act_valid:
+
+    # Propagate error responses
+    if has_error(act):
         raise ValueError(
-            "Recent actions data validation failed: data is None, not a dict, or contains error. "
-            "Cannot format trade events from invalid data structure."
+            f"Recent actions API error: {act.get('_error')}. "
+            "Cannot format trade events when API fails."
         )
-    if not isinstance(act, dict) or "recent_actions" not in act:
-        raise ValueError(
-            "Recent actions data missing required 'recent_actions' field. "
-            "API response structure does not match expected schema."
-        )
+
+    # Missing recent_actions field is normal (no recent activity)
+    if "recent_actions" not in act:
+        return rows
     recent = act["recent_actions"]
     if not isinstance(recent, list):
         raise TypeError(
