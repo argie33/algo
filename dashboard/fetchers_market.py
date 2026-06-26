@@ -139,7 +139,8 @@ def fetch_market(c: None) -> dict[str, Any]:
         # VIX and SPY are critical - fail if missing or invalid
         try:
             vix_raw = market_health.get("vix_level")
-            spy_raw = market_health.get("spy_close")
+            # SPY close is in current object, not market_health
+            spy_raw = current.get("spy_close") or mkt.get("spy_close")
 
             # Both SPY and VIX are REQUIRED for position sizing
             if vix_raw is None:
