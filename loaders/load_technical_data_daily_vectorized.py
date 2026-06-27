@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """Technical Data Daily Loader — Vectorized for Institutional Speed
 
-Computes technical indicators for ALL 5000+ symbols at once (not per-symbol).
-Uses:
-- Single bulk fetch of all price data
-- Vectorized pandas operations across all symbols
+Computes technical indicators (SMA, Bollinger Bands, RSI, MACD, ATR, ADX) for ALL symbols.
+Uses vectorized bulk operations (10-20x faster than per-symbol approach):
+- Single bulk fetch of all price_daily data
+- Vectorized pandas operations across all 5000+ symbols
 - Single bulk insert for all results
+- Completes in 15-25 minutes vs 60-90 minutes with per-symbol approach
 
-This is 10-20x faster than per-symbol processing for large datasets.
-Performance: 5000 symbols in 15-25 minutes vs 60-90 minutes with per-symbol approach.
+This is the primary/only implementation; per-symbol variants were deprecated.
 
 Run: python3 loaders/load_technical_data_daily_vectorized.py [--limit 100]
 """

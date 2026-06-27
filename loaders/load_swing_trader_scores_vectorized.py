@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
-"""Swing Trader Scores Loader — Vectorized for Intraday Speed
+"""Swing Trader Scores Loader — Vectorized for Institutional Speed
 
-For intraday trading during market hours, this loader:
-- Fetches only TODAY'S data (not 300-day lookback)
-- Computes scores for ALL symbols at once (vectorized)
-- Completes in 5-15 minutes instead of 30-40 minutes
+Computes swing trader scores for ALL symbols at once (vectorized).
+- Single bulk fetch of all signal_quality_scores data
+- Vectorized pandas operations across all symbols
+- Single bulk insert for all results
+- Completes in 10-20 minutes for 5000+ symbols
 
-Use:
-- Morning prep (full): load_swing_trader_scores.py (existing, 30-40 min)
-- Intraday updates (fast): load_swing_trader_scores_vectorized.py --today (5-15 min)
+Supports intraday mode with --today flag for afternoon/preclose updates (5-15 min).
 
 Run: python3 loaders/load_swing_trader_scores_vectorized.py [--today]
 """
