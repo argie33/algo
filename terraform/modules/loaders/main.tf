@@ -393,10 +393,10 @@ locals {
     "signal_quality_scores" = "load_signal_quality_scores.py"
     "buy_sell_daily"        = "load_buy_sell_daily.py"
 
-    # Technical indicators & metrics (only vectorized versions - old files deleted)
-    "technical_data_daily_vectorized" = "load_technical_data_daily_vectorized.py"
-    "algo_metrics_daily"              = "load_algo_metrics_daily.py"
-    "swing_trader_scores_vectorized"  = "load_swing_trader_scores_vectorized.py"
+    # Technical indicators & metrics (vectorized implementations)
+    "technical_data_daily" = "load_technical_data_daily.py"
+    "algo_metrics_daily"   = "load_algo_metrics_daily.py"
+    "swing_trader_scores"  = "load_swing_trader_scores.py"
 
     # Market health & economic data
     "market_health_daily"    = "load_market_health_daily.py"
@@ -694,7 +694,7 @@ locals {
     # FIXED Issue #???: Vectorized approach: 1 bulk query → vectorized pandas → single bulk insert
     # Full load (300-day lookback): 15-25 min vs old 60-90 min
     # Intraday mode (today only): 3-8 min vs old 60-90 min
-    "technical_data_daily_vectorized" = { cpu = 2048, memory = 4096, timeout = 1800, parallelism = 1 } # Restored: 2048/4096 needed for full 10635 symbol × 300-day bulk fetch
+    "technical_data_daily" = { cpu = 2048, memory = 4096, timeout = 1800, parallelism = 1 } # Vectorized: bulk fetch + pandas ops for 5000+ symbols
 
     # Market health — reads price_daily, processes 5000+ symbols
     "market_health_daily" = { cpu = 256, memory = 512, timeout = 1200, parallelism = 1 }
@@ -709,11 +709,9 @@ locals {
     # Algo metrics — compute metrics on 5000+ symbols
     "algo_metrics_daily" = { cpu = 1024, memory = 2048, timeout = 10800, parallelism = 1 }
 
-    # Swing trader scores (vectorized) — 2-3x faster via bulk query + vectorized pandas operations
-    # FIXED Issue #???: Vectorized approach: 1 bulk query → vectorized pandas → single bulk insert
-    # Full load (30-day lookback): 10-20 min vs old 30-40 min
-    # Intraday mode (today only, --today flag): 5-15 min vs old 30-40 min
-    "swing_trader_scores_vectorized" = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 1 } # Restored: 2048/4096 needed for bulk 10635-symbol processing
+    # Swing trader scores — bulk query + vectorized pandas operations
+    # Full load (30-day lookback): 10-20 min, Intraday (--today flag): 5-15 min
+    "swing_trader_scores" = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 1 } # Vectorized: bulk processing for 5000+ symbols
 
     # Sector ranking — compute sector composite scores and rankings
     "sector_ranking" = { cpu = 512, memory = 1024, timeout = 900, parallelism = 1 }

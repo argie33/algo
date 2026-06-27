@@ -115,8 +115,8 @@ def validate_intraday_mode_support():
     print("\n=== TEST: INTRADAY_MODE Environment Variable Support ===")
 
     loader_files = [
-        "loaders/load_swing_trader_scores_vectorized.py",
-        "loaders/load_technical_data_daily_vectorized.py",
+        "loaders/load_swing_trader_scores.py",
+        "loaders/load_technical_data_daily.py",
     ]
 
     for loader_file in loader_files:

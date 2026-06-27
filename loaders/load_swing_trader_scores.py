@@ -9,7 +9,7 @@ Computes swing trader scores for ALL symbols at once (vectorized).
 
 Supports intraday mode with --today flag for afternoon/preclose updates (5-15 min).
 
-Run: python3 loaders/load_swing_trader_scores_vectorized.py [--today]
+Run: python3 loaders/load_swing_trader_scores.py [--today]
 """
 
 import argparse
@@ -78,7 +78,7 @@ class VectorizedSwingScoresLoader:
                 raise RuntimeError(
                     "[TECHNICAL] No technical indicator data found. "
                     "technical_data_daily table may be empty or stale. "
-                    "Run load_technical_data_daily_vectorized.py first."
+                    "Run load_technical_data_daily.py first."
                 )
 
             # STEP 3: Fetch trend template data (critical — cannot compute without)

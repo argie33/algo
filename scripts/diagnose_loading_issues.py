@@ -201,7 +201,7 @@ def main() -> None:
             print("  ACTION: Run missing loaders first (signal_quality_scores, trend_template_data)")
         else:
             print("✗ swing_trader_scores is EMPTY but dependencies are available")
-            print("  ACTION: Run load_swing_trader_scores_vectorized.py manually")
+            print("  ACTION: Run load_swing_trader_scores.py manually")
     else:
         print(f"✓ swing_trader_scores available ({swing_status.get('count', 0)} rows)")
 

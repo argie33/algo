@@ -472,7 +472,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
-          TaskDefinition       = var.loader_task_definition_arns["swing_trader_scores_vectorized"]
+          TaskDefinition       = var.loader_task_definition_arns["swing_trader_scores"]
           NetworkConfiguration = local.network_config
         }
         Retry = [{
@@ -532,7 +532,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
-          TaskDefinition       = var.loader_task_definition_arns["technical_data_daily_vectorized"]
+          TaskDefinition       = var.loader_task_definition_arns["technical_data_daily"]
           NetworkConfiguration = local.network_config
         }
         Retry = [{
@@ -1098,7 +1098,7 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
-          TaskDefinition       = var.loader_task_definition_arns["swing_trader_scores_vectorized"]
+          TaskDefinition       = var.loader_task_definition_arns["swing_trader_scores"]
           NetworkConfiguration = local.network_config
         }
         # Fail-open: if swing scores fail, morning prep still succeeds
@@ -1118,7 +1118,7 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
       }
 
       # ── Morning technical data daily (required for Phase 1 freshness) ──
-      # FIXED Issue #18: Add technical_data_daily_vectorized to morning pipeline for redundancy
+      # FIXED Issue #18: Add technical_data_daily to morning pipeline for redundancy
       # If EOD pipeline fails, morning pipeline ensures technical_data_daily is fresh for Phase 1 checks
       # and Phase 5 signal generation that may run later in the day.
       # Depends on: stock_prices_daily (already completed)
@@ -1131,7 +1131,7 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
-          TaskDefinition       = var.loader_task_definition_arns["technical_data_daily_vectorized"]
+          TaskDefinition       = var.loader_task_definition_arns["technical_data_daily"]
           NetworkConfiguration = local.network_config
         }
         Retry = [{
@@ -1309,11 +1309,11 @@ resource "aws_sfn_state_machine" "intraday_afternoon_update_pipeline" {
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
-          TaskDefinition       = var.loader_task_definition_arns["swing_trader_scores_vectorized"]
+          TaskDefinition       = var.loader_task_definition_arns["swing_trader_scores"]
           NetworkConfiguration = local.network_config
           Overrides = {
             ContainerOverrides = [{
-              Name = "${var.project_name}-swing_trader_scores_vectorized"
+              Name = "${var.project_name}-swing_trader_scores"
               Environment = [
                 {
                   Name  = "INTRADAY_MODE"
@@ -1341,7 +1341,7 @@ resource "aws_sfn_state_machine" "intraday_afternoon_update_pipeline" {
         Type     = "Task"
         Resource = var.loader_failure_handler_arn
         Parameters = {
-          loader_name       = "swing_trader_scores_vectorized (afternoon 1 PM)"
+          loader_name       = "swing_trader_scores (afternoon 1 PM)"
           "error.$"         = "$.loaderError.Error"
           "error_message.$" = "$.loaderError.Cause"
         }
@@ -1392,11 +1392,11 @@ resource "aws_sfn_state_machine" "intraday_preclose_update_pipeline" {
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
-          TaskDefinition       = var.loader_task_definition_arns["swing_trader_scores_vectorized"]
+          TaskDefinition       = var.loader_task_definition_arns["swing_trader_scores"]
           NetworkConfiguration = local.network_config
           Overrides = {
             ContainerOverrides = [{
-              Name = "${var.project_name}-swing_trader_scores_vectorized"
+              Name = "${var.project_name}-swing_trader_scores"
               Environment = [
                 {
                   Name  = "INTRADAY_MODE"
@@ -1424,7 +1424,7 @@ resource "aws_sfn_state_machine" "intraday_preclose_update_pipeline" {
         Type     = "Task"
         Resource = var.loader_failure_handler_arn
         Parameters = {
-          loader_name       = "swing_trader_scores_vectorized (preclose 3 PM)"
+          loader_name       = "swing_trader_scores (preclose 3 PM)"
           "error.$"         = "$.loaderError.Error"
           "error_message.$" = "$.loaderError.Cause"
         }

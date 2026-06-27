@@ -114,7 +114,7 @@ class ParallelismValidator:
             }
         """
         try:
-            from loaders.load_technical_data_daily_vectorized import (
+            from loaders.load_technical_data_daily import (
                 VectorizedTechnicalLoader,
             )
 
@@ -168,7 +168,7 @@ class ParallelismValidator:
             }
         """
         try:
-            from loaders.load_swing_trader_scores_vectorized import (
+            from loaders.load_swing_trader_scores import (
                 VectorizedSwingScoresLoader,
             )
 

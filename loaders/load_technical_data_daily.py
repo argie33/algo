@@ -10,7 +10,7 @@ Uses vectorized bulk operations (10-20x faster than per-symbol approach):
 
 This is the primary/only implementation; per-symbol variants were deprecated.
 
-Run: python3 loaders/load_technical_data_daily_vectorized.py [--limit 100]
+Run: python3 loaders/load_technical_data_daily.py [--limit 100]
 """
 
 import argparse

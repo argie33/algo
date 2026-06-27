@@ -198,7 +198,7 @@ class DatabaseContext:
        - Use: from utils.db import DatabaseContext
        - Needs: correlation_id tracking for audit trails via SQL comments
        - Timeout: 30s (longer-running batch operations)
-       - Example: load_prices.py, load_technical_data_daily_vectorized.py, load_swing_trader_scores_vectorized.py, etc.
+       - Example: load_prices.py, load_technical_data_daily.py, load_swing_trader_scores.py, etc.
 
     2. REST API (api_utils re-exports):
        - Use: from api_utils.database_context import DatabaseContext
