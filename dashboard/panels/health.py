@@ -390,9 +390,15 @@ def panel_orch(run: dict[str, Any] | None, cfg: dict[str, Any], risk: dict[str, 
         if run.get("_source") == "exec_log":
             phase_results = safe_get_list(run.get("phase_results"))
             if not phase_results:
-                logger.warning(
-                    f"[HEALTH] exec_log source missing 'phase_results'. Available keys: {list(run.keys())}. "
-                    "Phase status will not be displayed."
+                logger.error(
+                    f"[HEALTH] CRITICAL: exec_log source missing 'phase_results'. "
+                    f"Cannot display phase execution status. Available keys: {list(run.keys())}"
+                )
+                pbadges.append(
+                    Text.from_markup(
+                        "[red bold]ERROR: Phase status data unavailable[/] "
+                        "(check orchestration logs for execution details)"
+                    )
                 )
                 phase_results = []
             for p in phase_results:
@@ -1313,9 +1319,15 @@ def panel_status(  # noqa: C901
     elif act_valid and isinstance(act, dict):
         phases_list = act.get("phases")
         if not phases_list:
-            logger.warning(
-                f"[HEALTH] Activity log missing 'phases' field. Available keys: {list(act.keys())}. "
-                "Activity phase status will not be displayed."
+            logger.error(
+                f"[HEALTH] CRITICAL: Activity log missing 'phases' field. "
+                f"Cannot display activity phase status. Available keys: {list(act.keys())}"
+            )
+            rows.append(
+                Text.from_markup(
+                    "[red bold]ERROR: Activity phase status unavailable[/] "
+                    "(orchestration activity log incomplete)"
+                )
             )
             phases_list = []
         for p in phases_list:
@@ -1375,8 +1387,17 @@ def panel_status(  # noqa: C901
             ex_raw = m.get("exits")
 
             if ta_raw is None or en_raw is None or ex_raw is None:
-                logger.warning(f"Daily metrics incomplete for {d_s}: total_actions={ta_raw}, entries={en_raw}, exits={ex_raw}")
-                rows.append(Text.from_markup(f"  [dim]{d_s}:[/] [yellow]metrics unavailable[/]"))
+                logger.error(
+                    f"[AUDIT] CRITICAL: Daily metrics incomplete for {d_s}: "
+                    f"total_actions={ta_raw}, entries={en_raw}, exits={ex_raw}. "
+                    f"Cannot verify daily trading activity."
+                )
+                rows.append(
+                    Text.from_markup(
+                        f"  [dim]{d_s}:[/] [red bold]INCOMPLETE - audit data missing[/] "
+                        "(check database for corrupted metrics records)"
+                    )
+                )
                 continue
 
             try:

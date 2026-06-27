@@ -70,13 +70,13 @@ class SignalQualityScoresLoader(OptimalLoader):
                     )
                 bs_status = result[0]
 
-                if bs_status in ("RUNNING", "PENDING"):
-                    logger.warning(
-                        f"[{self.table_name}] Aborting: buy_sell_daily status is {bs_status} - "
-                        "waiting for upstream to complete"
+                # CRITICAL: Validate upstream loader is actually COMPLETED
+                if bs_status not in ("COMPLETED", "success", "OK"):
+                    raise RuntimeError(
+                        f"CRITICAL: buy_sell_daily upstream loader not ready. "
+                        f"Status: {bs_status}. Expected COMPLETED/success/OK. "
+                        f"Cannot compute signal quality scores without complete upstream signals."
                     )
-                    self._batch_context = {"_blocked": True}
-                    return
 
                 now_utc = datetime.now(timezone.utc)
                 now_et = now_utc.astimezone(EASTERN_TZ)
@@ -876,7 +876,11 @@ def _log_signal_metrics() -> None:
                     f"Quality Scores: min={min_score}, p25={p25}, median={p50}, p75={p75}, max={max_score}, avg={avg_score}"
                 )
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-        logger.warning(f"[SIGNAL_METRICS] Failed to log signal generation metrics: {e}")
+        logger.error(
+            f"[SIGNAL_METRICS] Failed to log signal generation metrics to database: {e}. "
+            f"Performance metrics will not be recorded for this batch. "
+            f"Check database connectivity and signal_metrics table."
+        )
 
 
 if __name__ == "__main__":

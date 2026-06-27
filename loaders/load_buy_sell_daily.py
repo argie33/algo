@@ -572,10 +572,10 @@ def main() -> int:
                     f"Expected at least 1 column, got {len(result)}. Query may be malformed."
                 )
             prices_status = result[0]
-            if prices_status in ("RUNNING", "PENDING"):
-                logger.warning(
-                    f"[DEPENDENCY] Aborting buy_sell_daily: stock_prices_daily is {prices_status} - "
-                    "waiting for price data to be available"
+            if prices_status not in ("COMPLETED", "success", "OK"):
+                logger.error(
+                    f"[DEPENDENCY] Aborting buy_sell_daily: stock_prices_daily status is {prices_status}. "
+                    f"Expected COMPLETED/success/OK. Cannot generate signals without complete price data."
                 )
                 return 1  # Return error code (1), will retry on next pipeline run
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as status_err:

@@ -1028,7 +1028,12 @@ class TradeExecutor:
                     },
                 )
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                logger.warning(f"Failed to send position correction alert: {e}")
+                logger.error(f"CRITICAL: Failed to send position correction alert for {symbol}: {e}")
+                raise RuntimeError(
+                    f"Position correction alert failed for {symbol}. "
+                    f"Trader MUST be alerted of quantity mismatch (DB: {db_qty} vs Alpaca: {alpaca_qty}). "
+                    f"Database error: {e}"
+                ) from e
 
             return {
                 "valid": False,

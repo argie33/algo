@@ -760,13 +760,19 @@ class PriceLoader(OptimalLoader):
         self._last_request_time = time.time()
 
     def _rate_limit_wait(self, tokens_needed: int = 1) -> None:
-        """ISSUE #3: Thread-safe token bucket with per-thread fairness.
+        """ISSUE #3: Thread-safe token bucket with per-thread fairness + exponential backoff.
 
         Tokens refill at 160 per 60 seconds (2.67/sec). Supports 6 parallel threads.
         Uses Condition variable to wake waiting threads fairly when tokens become available.
         Prevents starvation where one thread monopolizes tokens while others wait.
+
+        CRITICAL FIX: Implements exponential backoff to prevent busy-looping if
+        consistently short on tokens. Backoff resets when tokens become available.
         """
         import time
+
+        backoff_multiplier = 1.0  # Start at 1.0x, increase if repeated waits needed
+        max_backoff_multiplier = 4.0  # Cap at 4.0x to limit maximum wait
 
         while True:
             with self._rate_limit_event:  # Use Condition variable for fairness
@@ -780,21 +786,25 @@ class PriceLoader(OptimalLoader):
                 self._rate_limit_last_refill = now
 
                 if self._rate_limit_tokens >= tokens_needed:
-                    # Sufficient tokens, consume and return
+                    # Sufficient tokens, consume and return; reset backoff for next call
                     self._rate_limit_tokens -= tokens_needed
                     return
                 else:
-                    # Insufficient tokens; calculate wait time for condition variable
+                    # Insufficient tokens; calculate wait time with exponential backoff
                     tokens_short = tokens_needed - self._rate_limit_tokens
-                    wait_sec = tokens_short / self._rate_limit_refill_rate
-                    # Cap wait time to 1.0s to allow checking for other threads' progress
-                    wait_sec = min(wait_sec, 1.0)
+                    wait_sec_base = tokens_short / self._rate_limit_refill_rate
+                    # Apply exponential backoff multiplier (capped)
+                    wait_sec = wait_sec_base * backoff_multiplier
+                    # Cap wait time to 1.0s * multiplier to allow checking for progress
+                    wait_sec = min(wait_sec, 1.0 * backoff_multiplier)
+                    # Increase backoff multiplier for next iteration (cap at max)
+                    backoff_multiplier = min(backoff_multiplier * 1.5, max_backoff_multiplier)
 
             # Wait outside the lock using condition variable (wakes fairly when notified)
             if wait_sec > 0.01:  # Only log if waiting >10ms
                 logger.debug(
-                    "Rate limit: waiting {wait_sec:.2f}s for %s tokens (fair queue)",
-                    tokens_needed,
+                    f"Rate limit: waiting {wait_sec:.2f}s for {tokens_needed} tokens "
+                    f"(backoff={backoff_multiplier:.1f}x, fair queue)"
                 )
             # Note: Condition.wait() releases lock while waiting, allowing other threads to proceed
             with self._rate_limit_event:

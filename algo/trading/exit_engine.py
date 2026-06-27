@@ -1001,7 +1001,23 @@ class ExitEngine:
 
             raise RuntimeError(error_msg)
 
-        prev_close = float(rows[1][1]) if len(rows) > 1 and rows[1][1] is not None else None
+        if len(rows) < 2:
+            error_msg = f"Previous close data unavailable for {symbol} (need 2+ trading days)"
+            logger.error(error_msg)
+            raise RuntimeError(error_msg)
+
+        prev_close_raw = rows[1][1]
+        if prev_close_raw is None:
+            error_msg = f"Previous close is NULL for {symbol} on {rows[1][0]}"
+            logger.error(error_msg)
+            raise RuntimeError(error_msg)
+
+        try:
+            prev_close = float(prev_close_raw)
+        except (ValueError, TypeError) as e:
+            error_msg = f"Cannot convert previous close to float for {symbol}: {prev_close_raw}"
+            logger.error(error_msg)
+            raise RuntimeError(error_msg) from e
 
         return cur_price, prev_close
 
@@ -1301,6 +1317,15 @@ class ExitEngine:
 
         if not td_state:
             raise ValueError(f"TD Sequential calculation failed for {symbol}")
+
+        # Validate required TD Sequential fields are present
+        required_fields = ["combo_13_complete", "setup_type", "countdown", "countdown_complete"]
+        missing_fields = [f for f in required_fields if f not in td_state]
+        if missing_fields:
+            raise ValueError(
+                f"TD Sequential incomplete for {symbol}: missing fields {missing_fields}. "
+                f"Cannot determine exit triggers. Calculation returned: {td_state}"
+            )
 
         return td_state
 
