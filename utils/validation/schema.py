@@ -98,7 +98,10 @@ def validate_table_schema(
 
             table_safe = assert_safe_table(table_name)
             cur.execute(psycopg2.sql.SQL("SELECT COUNT(*) FROM {} LIMIT 1").format(psycopg2.sql.Identifier(table_safe)))
-            row_count = cur.fetchone()[0]
+            row = cur.fetchone()
+            if row is None:
+                raise RuntimeError(f"Schema validation for '{table_name}' failed: COUNT query returned no rows")
+            row_count = row[0]
             if row_count == 0:
                 errors.append(f"Table '{table_name}' is empty (0 rows)")
 

@@ -124,11 +124,21 @@ class SignalPatternsMixin:
         try:
             return cast(dict[str, Any], self._with_cursor(_fetch_and_analyze))
         except (ValueError, TypeError, IndexError) as e:
-            logger.debug(f"Base detection error for {symbol}: {e}")
-            return {"in_base": False, "reason": f"Calculation error: {str(e)[:50]}"}
+            logger.error(
+                f"[BASE_DETECTION] Data error in base_detection({symbol}): {e}. "
+                f"Missing or invalid price/technical data — cannot determine base status.",
+                exc_info=True
+            )
+            raise RuntimeError(
+                f"[BASE_DETECTION] Base pattern detection failed for {symbol}: {e}. "
+                f"Check that technical_indicators and price_daily have required fields."
+            ) from e
         except (RuntimeError, AttributeError, KeyError) as e:
-            logger.error(f"Unexpected error in base_detection({symbol}): {e}")
-            return {"in_base": False, "reason": "Unexpected error"}
+            logger.error(
+                f"[BASE_DETECTION] Unexpected error in base_detection({symbol}): {type(e).__name__}: {e}",
+                exc_info=True
+            )
+            raise  # Re-raise to propagate code bugs/configuration issues
 
     def vcp_detection(self, symbol: str, eval_date: Any) -> dict[str, Any]:
         """

@@ -25,7 +25,11 @@ print("-" * 80)
 try:
     with DatabaseContext("read") as cur:
         cur.execute("SELECT COUNT(*) FROM market_health_daily")
-        count = cur.fetchone()[0]
+        row = cur.fetchone()
+        if row is None:
+            print("[CRITICAL] market_health_daily query returned no rows")
+            exit(1)
+        count = row[0]
         print(f"Total rows: {count}")
 
         if count > 0:
@@ -37,11 +41,19 @@ try:
 
             # Count NULL vix_level
             cur.execute("SELECT COUNT(*) FROM market_health_daily WHERE vix_level IS NULL")
-            null_count = cur.fetchone()[0]
+            null_row = cur.fetchone()
+            if null_row is None:
+                print("[CRITICAL] NULL count query returned no rows")
+                exit(1)
+            null_count = null_row[0]
             print(f"\nRows with NULL vix_level: {null_count}/{count}")
 
             cur.execute("SELECT COUNT(*) FROM market_health_daily WHERE vix_level < 5")
-            low_count = cur.fetchone()[0]
+            low_row = cur.fetchone()
+            if low_row is None:
+                print("[CRITICAL] Low VIX count query returned no rows")
+                exit(1)
+            low_count = low_row[0]
             print(f"Rows with vix_level < 5: {low_count}/{count}")
 
             if null_count == count:
@@ -59,7 +71,11 @@ print("-" * 80)
 try:
     with DatabaseContext("read") as cur:
         cur.execute("SELECT COUNT(*) FROM algo_risk_daily")
-        count = cur.fetchone()[0]
+        row = cur.fetchone()
+        if row is None:
+            print("[CRITICAL] algo_risk_daily query returned no rows")
+            exit(1)
+        count = row[0]
         print(f"Total rows: {count}")
 
         if count > 0:
@@ -73,11 +89,19 @@ try:
 
             # Check NULL values
             cur.execute("SELECT COUNT(*) FROM algo_risk_daily WHERE top_5_concentration IS NULL")
-            null_count = cur.fetchone()[0]
+            null_row = cur.fetchone()
+            if null_row is None:
+                print("[CRITICAL] NULL concentration query returned no rows")
+                exit(1)
+            null_count = null_row[0]
             print(f"\nRows with NULL top_5_concentration: {null_count}/{count}")
 
             cur.execute("SELECT COUNT(*) FROM algo_risk_daily WHERE top_5_concentration = 0")
-            zero_count = cur.fetchone()[0]
+            zero_row = cur.fetchone()
+            if zero_row is None:
+                print("[CRITICAL] Zero concentration query returned no rows")
+                exit(1)
+            zero_count = zero_row[0]
             print(f"Rows with top_5_concentration = 0: {zero_count}/{count}")
 
             if null_count == count:
@@ -95,7 +119,11 @@ print("-" * 80)
 try:
     with DatabaseContext("read") as cur:
         cur.execute("SELECT COUNT(*) FROM algo_positions WHERE status = 'open'")
-        count = cur.fetchone()[0]
+        row = cur.fetchone()
+        if row is None:
+            print("[CRITICAL] algo_positions query returned no rows")
+            exit(1)
+        count = row[0]
         print(f"Total open positions: {count}")
 
         if count > 0:
@@ -109,7 +137,11 @@ try:
 
             # Check missing current_price
             cur.execute("SELECT COUNT(*) FROM algo_positions WHERE status = 'open' AND current_price IS NULL")
-            null_price = cur.fetchone()[0]
+            null_row = cur.fetchone()
+            if null_row is None:
+                print("[CRITICAL] NULL current_price query returned no rows")
+                exit(1)
+            null_price = null_row[0]
             print(f"\nPositions with NULL current_price: {null_price}/{count}")
 
             if null_price == count:

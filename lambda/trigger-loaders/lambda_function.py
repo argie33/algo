@@ -96,7 +96,15 @@ class TriggerLoadersHandler(LambdaHandler):
         tasks = response.get("tasks", [])
         if not tasks:
             failures = response.get("failures", [])
-            error_reasons = [f["reason"] for f in failures] if failures else ["Unknown error"]
+            error_reasons = []
+            if failures:
+                for f in failures:
+                    if isinstance(f, dict) and "reason" in f:
+                        error_reasons.append(f["reason"])
+                    else:
+                        error_reasons.append(f"Malformed failure object: {f}")
+            if not error_reasons:
+                error_reasons = ["Unknown error"]
             return LambdaResponse.error(
                 f"Failed to start task: {', '.join(error_reasons)}",
                 status_code=500,

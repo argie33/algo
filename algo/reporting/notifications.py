@@ -138,8 +138,16 @@ Time:         {event["created_at"].strftime("%H:%M:%S")}
         events = self.get_recent_events(minutes)
         sent = 0
         for event in events:
-            action_type = event.get("action_type", "").lower()
-            status = event.get("status", "").upper()
+            action_type = event.get("action_type")
+            if not action_type:
+                logger.warning(f"[NOTIF] Event missing 'action_type'. Available keys: {list(event.keys())}")
+                continue
+            action_type = action_type.lower()
+            status = event.get("status")
+            if not status:
+                logger.warning(f"[NOTIF] Event missing 'status'. Available keys: {list(event.keys())}")
+                continue
+            status = status.upper()
 
             if not self._should_notify(action_type, status):
                 continue

@@ -95,7 +95,9 @@ class MarketHealthDailyLoader(OptimalLoader):
                 with DatabaseContext("read") as cur:
                     cur.execute("SELECT MAX(date), COUNT(*) FROM market_health_daily")
                     row = cur.fetchone()
-                    row_count = row[1] if row else 0
+                    if row is None:
+                        raise RuntimeError("[MARKET_HEALTH] Watermark query returned no rows")
+                    row_count = row[1] if row[1] is not None else 0
                     if row and row[0]:
                         if row_count < 5:
                             logger.info(

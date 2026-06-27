@@ -736,10 +736,16 @@ class DailyReconciliation:
                     # Calculate reconciliation note with variance if estimated price exists
                     reconciliation_note = None
                     if estimated_price and estimated_price > 0:
-                        variance_pct = (filled_price - estimated_price) / estimated_price * 100.0
-                        reconciliation_note = (
-                            f"Actual: ${filled_price:.2f} vs Estimated: ${estimated_price:.2f} ({variance_pct:+.2f}%)"
-                        )
+                        if filled_price is None or filled_price <= 0:
+                            logger.warning(
+                                f"[RECONCILIATION] Cannot calculate variance for {trade_id}: "
+                                f"filled_price={filled_price} is not positive. Skipping variance calculation."
+                            )
+                        else:
+                            variance_pct = (filled_price - estimated_price) / estimated_price * 100.0
+                            reconciliation_note = (
+                                f"Actual: ${filled_price:.2f} vs Estimated: ${estimated_price:.2f} ({variance_pct:+.2f}%)"
+                            )
 
                     cur.execute(
                         """
@@ -1193,9 +1199,20 @@ class DailyReconciliation:
                 "pending": pending_list,
                 "message": f"{len(pending_list)} trades pending reconciliation ({len(stuck)} stuck > 1d)",
             }
-        except (ValueError, ZeroDivisionError, TypeError) as e:
-            logger.warning(f"Failed to check pending reconciliations: {e}")
-            return {"pending_count": 0, "message": f"Error: {e}"}
+        except (ValueError, TypeError) as e:
+            logger.error(f"Failed to check pending reconciliations: {e}", exc_info=True)
+            raise RuntimeError(
+                f"[RECONCILIATION] Cannot check pending reconciliations due to data error: {e}. "
+                f"Position reconciliation is critical for accurate portfolio reporting. "
+                f"Reconciliation check must fail explicitly rather than return incomplete data."
+            ) from e
+        except ZeroDivisionError as e:
+            logger.error(f"[RECONCILIATION] Division by zero in pending reconciliation check: {e}", exc_info=True)
+            raise RuntimeError(
+                "[RECONCILIATION] Variance calculation failed with division by zero. "
+                "This indicates missing or invalid price data in pending trade reconciliations. "
+                "Check database consistency and retry."
+            ) from e
 
     def _fetch_account(self) -> Any:
         """Fetch account data from broker via BrokerAdapter."""

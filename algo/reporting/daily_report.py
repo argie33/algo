@@ -71,8 +71,22 @@ class DailyFinanceReport:
             if not rows:
                 raise RuntimeError(f"No portfolio snapshots available for {report_date}")
 
-            current_value = float(rows[0][0]) if rows[0][0] is not None else 0
-            prior_value = float(rows[1][0]) if len(rows) > 1 and rows[1][0] is not None else None
+            if rows[0][0] is None:
+                raise RuntimeError(
+                    f"[DAILY_REPORT] Current portfolio snapshot has NULL value for {report_date}. "
+                    f"Cannot calculate daily P&L with missing current portfolio value."
+                )
+            current_value = float(rows[0][0])
+
+            if len(rows) > 1:
+                if rows[1][0] is None:
+                    raise RuntimeError(
+                        "[DAILY_REPORT] Prior portfolio snapshot has NULL value. "
+                        "Cannot calculate daily P&L with missing prior portfolio value."
+                    )
+                prior_value = float(rows[1][0])
+            else:
+                prior_value = None
             if prior_value is None or prior_value <= 0:
                 daily_pnl_pct = None
             else:

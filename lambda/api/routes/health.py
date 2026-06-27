@@ -235,7 +235,11 @@ def _handle_cognito(cur: cursor) -> Any:
                 health["cognito_verification_skipped"] = True
                 return success_response(health)
 
-            pool_response.get("UserPool")
+            pool_data = pool_response.get("UserPool")
+            if not pool_data:
+                logger.warning(f"[COGNITO] UserPool missing from describe_user_pool response. Keys: {list(pool_response.keys())}")
+                health["cognito_verification_skipped"] = True
+                return success_response(health)
 
             # List app clients in this user pool
             apps_response = cognito.list_user_pool_clients(UserPoolId=cognito_user_pool_id, MaxResults=10)
@@ -247,6 +251,10 @@ def _handle_cognito(cur: cursor) -> Any:
                 return success_response(health)
 
             clients = apps_response.get("UserPoolClients")
+            if not clients:
+                logger.warning(f"[COGNITO] UserPoolClients missing from list_user_pool_clients response. Keys: {list(apps_response.keys())}")
+                health["cognito_verification_skipped"] = True
+                return success_response(health)
 
             # Validate clients is a list
             if not isinstance(clients, list):

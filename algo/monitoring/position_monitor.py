@@ -875,10 +875,12 @@ class PositionMonitor:
             (sector, current_date),
         )
         cur_row = cur.fetchone()
-        if not cur_row:
-            logger.warning(f"Missing sector ranking data for {sector} - cannot assess health")
-            return "unknown"
-        cur_rank = int(cur_row[0]) if cur_row[0] else 99
+        if not cur_row or cur_row[0] is None:
+            raise RuntimeError(
+                f"[POSITION_MONITOR] Sector ranking data missing for {sector}. "
+                f"Cannot assess sector health without current ranking. Position monitoring halted."
+            )
+        cur_rank = int(cur_row[0])
 
         # Get rank from ~4 weeks ago for comparison
         four_weeks_ago = current_date - timedelta(days=28)
@@ -893,7 +895,10 @@ class PositionMonitor:
             (sector, four_weeks_ago, four_weeks_ago + timedelta(days=3)),
         )
         old_row = cur.fetchone()
-        old_rank = int(old_row[0]) if old_row is not None and old_row[0] is not None else cur_rank
+        if not old_row or old_row[0] is None:
+            logger.warning(f"[POSITION_MONITOR] Historical sector ranking data missing for {sector} ({four_weeks_ago}). Cannot assess trend.")
+            return "stable"
+        old_rank = int(old_row[0])
         if cur_rank > old_rank + 3:  # got worse by 3+ ranks
             return "weakening"
         if cur_rank < old_rank - 3:
@@ -1247,8 +1252,11 @@ class PositionMonitor:
             return
 
         if db_qty <= 0:
-            logger.error(f"Cannot calculate quantity variance for {symbol} (db_qty={db_qty})")
-            return
+            raise RuntimeError(
+                f"[POSITION_MONITOR] Cannot calculate quantity variance for {symbol} (db_qty={db_qty}). "
+                f"Position has invalid or missing quantity in database. "
+                f"Data integrity check failed — reconciliation cannot proceed without valid position data."
+            )
         qty_change_pct = abs(alpaca_qty - db_qty) / db_qty * 100
         if qty_change_pct <= 20:
             return

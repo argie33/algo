@@ -217,12 +217,18 @@ def _get_or_create_test_user() -> tuple[str, str]:
         try:
             with open(token_file) as f:
                 creds = json.load(f)
-                return creds.get("username", ""), creds.get("password", "")
+                if "username" not in creds or "password" not in creds:
+                    raise ValueError(
+                        f"[COGNITO] Credentials file missing required fields. "
+                        f"Available: {list(creds.keys()) if isinstance(creds, dict) else 'not a dict'}. "
+                        f"File corrupted; delete and re-authenticate."
+                    )
+                return creds["username"], creds["password"]
         except Exception as cred_err:
             logger.debug(f"Could not load cached credentials: {cred_err}")
 
-    # Return empty defaults (user will be prompted for real values)
-    return "", ""
+    # Return None to signal no cached credentials available (user will be prompted)
+    return None, None
 
 
 def _get_aws_cfn_output(key: str) -> str | None:

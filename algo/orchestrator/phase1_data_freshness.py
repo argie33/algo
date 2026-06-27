@@ -393,7 +393,13 @@ def run(  # noqa: C901
                 (prior_cutoff, recent_cutoff),
             )
             row = cur.fetchone()
-            prior_count = row[0] if row and row[0] is not None else symbols_loaded
+            if row is None or row[0] is None:
+                raise RuntimeError(
+                    "[PHASE1] Prior symbol count query failed or returned NULL. "
+                    "Cannot assess price data coverage without historical reference. "
+                    "Check that price_daily has data from 2+ days ago."
+                )
+            prior_count = row[0]
             coverage_pct = (symbols_loaded / max(prior_count, 1)) * 100
 
             if symbols_loaded < min_symbol_count or coverage_pct < min_coverage_pct:

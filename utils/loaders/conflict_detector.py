@@ -176,7 +176,10 @@ class LoaderConflictDetector:
                     AND table_name NOT IN ('swing_trader_scores', 'technical_data_daily')
                 """)
 
-                other_running = cur.fetchone()[0]
+                row = cur.fetchone()
+                if row is None:
+                    raise RuntimeError("Conflict detection failed: COUNT(*) query returned no rows")
+                other_running = row[0]
 
                 if other_running > 0:
                     recommendations.append(

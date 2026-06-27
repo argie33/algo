@@ -888,6 +888,8 @@ def require_auth(event: dict, path: str) -> tuple:
     # Public endpoints (no auth required) - only aggregate market data (no strategy/trading info)
     # SECURITY FIX: Strategy and trading endpoints require authentication
     PUBLIC_PREFIXES = {  # noqa: N806
+        # DEBUG: Added equity-curve and histogram endpoints
+
         "/api/health",  # Basic health check (no auth required for uptime monitoring)
         # /api/health/detailed and /api/health/pipeline intentionally require authentication
         # (they expose DB table names, loader names, row counts, freshness ages).

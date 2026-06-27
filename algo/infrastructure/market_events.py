@@ -403,7 +403,11 @@ class MarketEventHandler:
                 return None
 
             data = resp.json()
-            status = data.get("status", "").upper()
+            status = data.get("status")
+            if not status:
+                logger.warning(f"[MARKET_EVENTS] API response missing 'status' field for {symbol}")
+                return None
+            status = status.upper()
 
             if status in ("INACTIVE", "DELISTED"):
                 return {

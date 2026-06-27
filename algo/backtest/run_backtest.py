@@ -171,7 +171,7 @@ def _get_prices_batch(symbols: list[str], target_date: date) -> dict[str, float]
         raise RuntimeError(f"[BACKTEST] FATAL: Cannot fetch prices for symbols: {e}") from e
 
 
-def run_backtest(
+def run_backtest(  # noqa: C901
     start_date: date,
     end_date: date,
     initial_capital: float = 100_000.0,
@@ -184,6 +184,13 @@ def run_backtest(
     strategy_name: str = "composite_score_signals",
 ) -> dict[str, Any]:
     """Run backtest and return results dict."""
+    # CRITICAL: Validate initial capital is positive (required for all P&L calculations)
+    if initial_capital is None or initial_capital <= 0:
+        raise ValueError(
+            f"[BACKTEST] Invalid initial_capital={initial_capital}. "
+            f"Must be positive number (in USD). All P&L metrics depend on valid starting capital."
+        )
+
     logger.info(
         f"[BACKTEST] Starting {strategy_name}: {start_date} to {end_date}, "
         f"capital=${initial_capital:,.0f}, max_pos={max_positions}, "
@@ -387,7 +394,13 @@ def run_backtest(
     sharpe = None
     if len(equity_curve) > 30:
         values = [p["value"] for p in equity_curve]
-        daily_returns = [(values[i] - values[i - 1]) / values[i - 1] for i in range(1, len(values))]
+        # CRITICAL: Skip returns where prior value is <= 0 (cannot calculate meaningful returns)
+        daily_returns = []
+        for i in range(1, len(values)):
+            if values[i - 1] > 0:
+                daily_returns.append((values[i] - values[i - 1]) / values[i - 1])
+            else:
+                logger.warning(f"[BACKTEST] Skipped return at {i}: equity={values[i - 1]:.0f} is not positive")
         if daily_returns:
             import statistics
 

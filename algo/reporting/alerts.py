@@ -206,9 +206,16 @@ class AlertManager:
         Raises:
             RuntimeError: If alert sending fails for any configured channel
         """
-        critical = counts.get("critical", 0)
-        error = counts.get("error", 0)
-        warn = counts.get("warn", 0)
+        required_count_keys = ["critical", "error", "warn"]
+        for key in required_count_keys:
+            if key not in counts:
+                raise ValueError(
+                    f"[ALERTS] Missing required count key '{key}' in alert counts dict. "
+                    f"Available keys: {list(counts.keys())}. Cannot assess alert severity without all count metrics."
+                )
+        critical = counts["critical"]
+        error = counts["error"]
+        warn = counts["warn"]
 
         # Only alert on CRITICAL or ERROR (not WARN)
         if critical == 0 and error == 0:

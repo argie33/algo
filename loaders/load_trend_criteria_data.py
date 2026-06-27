@@ -156,8 +156,12 @@ class TrendCriteriaLoader(OptimalLoader):
         df["sma_200"] = mas["sma_200"]
 
         # Compute slopes (not in shared function)
-        df["sma_50_slope"] = df["sma_50"].diff(5) / df["sma_50"].shift(5)
-        df["sma_200_slope"] = df["sma_200"].diff(5) / df["sma_200"].shift(5)
+        # CRITICAL: Avoid division by zero - replace zero shift values with NaN before dividing
+        # This prevents inf/NaN from silently corrupting slope calculations
+        sma_50_shifted = df["sma_50"].shift(5).replace(0, None)
+        sma_200_shifted = df["sma_200"].shift(5).replace(0, None)
+        df["sma_50_slope"] = df["sma_50"].diff(5) / sma_50_shifted
+        df["sma_200_slope"] = df["sma_200"].diff(5) / sma_200_shifted
 
         # 52-week highs/lows (custom, not in shared function)
         df["high_52w"] = close.rolling(252).max()
@@ -229,7 +233,7 @@ class TrendCriteriaLoader(OptimalLoader):
 
             trend_dir = "uptrend" if score >= 6 else ("downtrend" if score <= 2 else "sideways")
 
-            # CRITICAL: SMA-based fields cannot be None - fail fast if missing
+            # CRITICAL: SMA-based fields cannot be None or zero - fail fast if missing/invalid
             # Trend signals require complete SMA data; skipping silently corrupts downstream trading logic
             if sma50 is None or sma200 is None:
                 raise RuntimeError(
@@ -238,6 +242,12 @@ class TrendCriteriaLoader(OptimalLoader):
                     f"sma_50={sma50}, sma_200={sma200}. "
                     f"Moving average calculation incomplete—check that technical_data_daily loader populated all SMA fields. "
                     f"Trend-based position entry/exit decisions require 100% data availability."
+                )
+            if sma50 <= 0 or sma200 <= 0:
+                raise RuntimeError(
+                    f"[TREND_CRITERIA] {symbol} [{row['date'].date().isoformat()}]: "
+                    f"Invalid SMA values (must be positive). sma_50={sma50}, sma_200={sma200}. "
+                    f"Prices cannot be zero or negative. Check price_daily for invalid entries."
                 )
 
             # CRITICAL: Validate SMA slope values exist before using in result

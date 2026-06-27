@@ -2134,7 +2134,10 @@ def main() -> int:  # noqa: C901
                 "SELECT pg_try_advisory_lock(hashtext(%s)::bigint)",
                 ("stock_prices_daily",),
             )
-            acquired = _cur.fetchone()[0]
+            row = _cur.fetchone()
+            if row is None:
+                raise RuntimeError("[CRITICAL] Advisory lock query returned no rows - database connection may be corrupted")
+            acquired = row[0]
         if not acquired:
             logger.warning("[MAIN] Skipping: another stock_prices_daily instance already running (advisory lock held)")
             try:
