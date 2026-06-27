@@ -182,7 +182,7 @@ class BulkInsertManager:
             )
 
             row = cur.fetchone()
-            if not row[0]:
+            if row is None or len(row) < 1 or not row[0]:
                 logger.warning(f"Table {self.table_name} does not exist")
                 return
 

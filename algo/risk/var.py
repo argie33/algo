@@ -344,7 +344,7 @@ class ValueAtRisk:
                     "SELECT total_portfolio_value, snapshot_date FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1"
                 )
                 portfolio_row = cur.fetchone()
-                if not portfolio_row or not portfolio_row[0]:
+                if portfolio_row is None or len(portfolio_row) < 1 or portfolio_row[0] is None:
                     logger.critical("Beta exposure calculation failed: no portfolio snapshot available")
                     raise RuntimeError(
                         "Cannot compute beta exposure without portfolio snapshot. "
@@ -559,7 +559,7 @@ class ValueAtRisk:
                     "SELECT total_portfolio_value, snapshot_date FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1"
                 )
                 portfolio_row = cur.fetchone()
-                if not portfolio_row or not portfolio_row[0]:
+                if portfolio_row is None or len(portfolio_row) < 1 or portfolio_row[0] is None:
                     logger.critical("Concentration report failed: no portfolio snapshot available")
                     raise RuntimeError(
                         "Cannot compute concentration without portfolio snapshot. "
