@@ -386,34 +386,63 @@ def fetch_circuit(c: None) -> dict[str, Any]:
                 record_data_quality_issue("cb", "validation", "breaker_missing_label")
                 return FetcherValidator.build_error_response(error_msg)
 
-            # Map API field names to fetcher expectations.
-            # API uses: current, threshold, triggered (strings or numbers)
-            # Fetcher expects: cur_val, thr_val, is_triggered for formatting
-            cur_val = r.get("current_value") or r.get("current")
-            if cur_val is None:
+            # Map API field names to fetcher expectations with explicit source tracking.
+            # Primary fields: current_value, threshold_value, is_active
+            # Fallback fields (for compatibility): current, threshold, triggered
+            # FAIL-FAST: Validate which field is present and log source for schema traceability
+
+            # Current value field (required)
+            if "current_value" in r:
+                cur_val = r["current_value"]
+            elif "current" in r:
+                cur_val = r["current"]
+                logger.debug(f"[CB] {label}: using fallback field 'current' instead of 'current_value'")
+            else:
                 error_msg = (
-                    f"Circuit breaker {label}: missing both 'current_value' and 'current' fields. "
-                    "API response schema incomplete."
+                    f"Circuit breaker {label}: missing required fields 'current_value' and 'current'. "
+                    f"API response schema incomplete. Available: {list(r.keys())}"
                 )
                 logger.error(error_msg)
                 record_data_quality_issue("cb", "validation", "missing_current_field", label)
                 return FetcherValidator.build_error_response(error_msg)
 
-            thr_val = r.get("threshold_value") or r.get("threshold")
-            if thr_val is None:
+            if cur_val is None:
+                error_msg = f"Circuit breaker {label}: current value is None"
+                logger.error(error_msg)
+                record_data_quality_issue("cb", "validation", "null_current_value", label)
+                return FetcherValidator.build_error_response(error_msg)
+
+            # Threshold value field (required)
+            if "threshold_value" in r:
+                thr_val = r["threshold_value"]
+            elif "threshold" in r:
+                thr_val = r["threshold"]
+                logger.debug(f"[CB] {label}: using fallback field 'threshold' instead of 'threshold_value'")
+            else:
                 error_msg = (
-                    f"Circuit breaker {label}: missing both 'threshold_value' and 'threshold' fields. "
-                    "API response schema incomplete."
+                    f"Circuit breaker {label}: missing required fields 'threshold_value' and 'threshold'. "
+                    f"API response schema incomplete. Available: {list(r.keys())}"
                 )
                 logger.error(error_msg)
                 record_data_quality_issue("cb", "validation", "missing_threshold_field", label)
                 return FetcherValidator.build_error_response(error_msg)
 
-            is_triggered = r.get("is_active") or r.get("triggered")
-            if is_triggered is None:
+            if thr_val is None:
+                error_msg = f"Circuit breaker {label}: threshold value is None"
+                logger.error(error_msg)
+                record_data_quality_issue("cb", "validation", "null_threshold_value", label)
+                return FetcherValidator.build_error_response(error_msg)
+
+            # Is active/triggered field (required)
+            if "is_active" in r:
+                is_triggered = r["is_active"]
+            elif "triggered" in r:
+                is_triggered = r["triggered"]
+                logger.debug(f"[CB] {label}: using fallback field 'triggered' instead of 'is_active'")
+            else:
                 error_msg = (
-                    f"Circuit breaker {label}: missing both 'is_active' and 'triggered' fields. "
-                    "API response schema incomplete."
+                    f"Circuit breaker {label}: missing required fields 'is_active' and 'triggered'. "
+                    f"API response schema incomplete. Available: {list(r.keys())}"
                 )
                 logger.error(error_msg)
                 record_data_quality_issue("cb", "validation", "missing_triggered_field", label)
