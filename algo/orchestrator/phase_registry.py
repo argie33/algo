@@ -87,7 +87,7 @@ class PhaseRegistry:
         PhaseRegistryEntry(
             phase_num=6,
             phase_name="EXIT EXECUTION",
-            dependencies=[5],
+            dependencies=[3, 5],
             execute_fn=None,
             skip_if_halted=False,
             always_run=True,
