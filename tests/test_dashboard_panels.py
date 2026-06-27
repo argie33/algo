@@ -3,6 +3,7 @@
 
 import os
 import sys
+
 sys.path.insert(0, os.path.dirname(__file__))
 
 # Mock the API credentials
@@ -30,21 +31,21 @@ try:
     print()
 
     panels = {
-        'market': ('Market Data', data.get('market')),
-        'config': ('Algo Config', data.get('config')),
-        'exposure': ('Exposure Factors', data.get('exposure')),
+        'mkt': ('Market Data', data.get('mkt')),
+        'cfg': ('Algo Config', data.get('cfg')),
+        'exp_factors': ('Exposure Factors', data.get('exp_factors')),
         'health': ('Health/Risk', data.get('health')),
         'run': ('Run Status', data.get('run')),
         'activity': ('Recent Activity', data.get('activity')),
-        'performance': ('Performance Analytics', data.get('performance')),
-        'economic': ('Economic Data', data.get('economic')),
-        'portfolio': ('Portfolio', data.get('portfolio')),
-        'positions': ('Positions', data.get('positions')),
-        'signals': ('Signals', data.get('signals')),
+        'perf': ('Performance Analytics', data.get('perf')),
+        'eco': ('Economic Data', data.get('eco')),
+        'port': ('Portfolio', data.get('port')),
+        'pos': ('Positions', data.get('pos')),
+        'sig': ('Signals', data.get('sig')),
         'scores': ('Signal Scores', data.get('scores')),
         'risk': ('Risk Metrics', data.get('risk')),
-        'sector_rank': ('Sector Ranking', data.get('sector_rank')),
-        'circuit': ('Circuit Breakers', data.get('circuit')),
+        'srank': ('Sector Ranking', data.get('srank')),
+        'cb': ('Circuit Breakers', data.get('cb')),
         'trades': ('Recent Trades', data.get('trades')),
         'econ_cal': ('Economic Calendar', data.get('econ_cal')),
         'sentiment': ('Market Sentiment', data.get('sentiment')),
@@ -54,7 +55,7 @@ try:
     available = []
     unavailable = []
 
-    for panel_key, (panel_name, panel_data) in panels.items():
+    for _panel_key, (panel_name, panel_data) in panels.items():
         if panel_data is None:
             status = "NOT FETCHED"
             unavailable.append((panel_name, status))
