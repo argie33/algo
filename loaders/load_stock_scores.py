@@ -202,6 +202,22 @@ class StockScoresLoader(OptimalLoader):
         except Exception as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
+    def _safe_float(self, value: Any, field_name: str) -> float | None:
+        """Convert value to float, distinguishing None (no data) from conversion errors (corrupted data).
+
+        CRITICAL: Allows operators to distinguish "no data available" from "corrupted data detected".
+        """
+        if value is None:
+            return None
+        try:
+            return float(value)
+        except (ValueError, TypeError) as e:
+            raise RuntimeError(
+                f"CRITICAL: Financial metric {field_name} cannot be converted to float: {value!r}. "
+                f"Data corruption detected or invalid format. Cannot score stock without valid financials. "
+                f"Error: {e}"
+            ) from e
+
     def _get_quality_metrics(self, cur: Any, symbol: str) -> dict[str, Any] | None:
         """Fetch quality metrics for symbol."""
         try:
@@ -212,13 +228,13 @@ class StockScoresLoader(OptimalLoader):
             row = cur.fetchone()
             if row:
                 return {
-                    "roe": float(row[0]) if row[0] is not None else None,
-                    "roa": float(row[1]) if row[1] is not None else None,
-                    "operating_margin": float(row[2]) if row[2] is not None else None,
-                    "net_margin": float(row[3]) if row[3] is not None else None,
-                    "debt_to_equity": float(row[4]) if row[4] is not None else None,
-                    "current_ratio": float(row[5]) if row[5] is not None else None,
-                    "quick_ratio": float(row[6]) if row[6] is not None else None,
+                    "roe": self._safe_float(row[0], f"{symbol}.roe"),
+                    "roa": self._safe_float(row[1], f"{symbol}.roa"),
+                    "operating_margin": self._safe_float(row[2], f"{symbol}.operating_margin"),
+                    "net_margin": self._safe_float(row[3], f"{symbol}.net_margin"),
+                    "debt_to_equity": self._safe_float(row[4], f"{symbol}.debt_to_equity"),
+                    "current_ratio": self._safe_float(row[5], f"{symbol}.current_ratio"),
+                    "quick_ratio": self._safe_float(row[6], f"{symbol}.quick_ratio"),
                 }
             return None
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
@@ -234,12 +250,12 @@ class StockScoresLoader(OptimalLoader):
             row = cur.fetchone()
             if row:
                 return {
-                    "revenue_growth_1y": float(row[0]) if row[0] is not None else None,
-                    "revenue_growth_3y": float(row[1]) if row[1] is not None else None,
-                    "revenue_growth_5y": float(row[2]) if row[2] is not None else None,
-                    "eps_growth_1y": float(row[3]) if row[3] is not None else None,
-                    "eps_growth_3y": float(row[4]) if row[4] is not None else None,
-                    "eps_growth_5y": float(row[5]) if row[5] is not None else None,
+                    "revenue_growth_1y": self._safe_float(row[0], f"{symbol}.revenue_growth_1y"),
+                    "revenue_growth_3y": self._safe_float(row[1], f"{symbol}.revenue_growth_3y"),
+                    "revenue_growth_5y": self._safe_float(row[2], f"{symbol}.revenue_growth_5y"),
+                    "eps_growth_1y": self._safe_float(row[3], f"{symbol}.eps_growth_1y"),
+                    "eps_growth_3y": self._safe_float(row[4], f"{symbol}.eps_growth_3y"),
+                    "eps_growth_5y": self._safe_float(row[5], f"{symbol}.eps_growth_5y"),
                 }
             return None
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
@@ -255,12 +271,12 @@ class StockScoresLoader(OptimalLoader):
             row = cur.fetchone()
             if row:
                 return {
-                    "pe_ratio": float(row[0]) if row[0] is not None else None,
-                    "pb_ratio": float(row[1]) if row[1] is not None else None,
-                    "ps_ratio": float(row[2]) if row[2] is not None else None,
-                    "peg_ratio": float(row[3]) if row[3] is not None else None,
-                    "dividend_yield": float(row[4]) if row[4] is not None else None,
-                    "fcf_yield": float(row[5]) if row[5] is not None else None,
+                    "pe_ratio": self._safe_float(row[0], f"{symbol}.pe_ratio"),
+                    "pb_ratio": self._safe_float(row[1], f"{symbol}.pb_ratio"),
+                    "ps_ratio": self._safe_float(row[2], f"{symbol}.ps_ratio"),
+                    "peg_ratio": self._safe_float(row[3], f"{symbol}.peg_ratio"),
+                    "dividend_yield": self._safe_float(row[4], f"{symbol}.dividend_yield"),
+                    "fcf_yield": self._safe_float(row[5], f"{symbol}.fcf_yield"),
                 }
             return None
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
@@ -276,9 +292,9 @@ class StockScoresLoader(OptimalLoader):
             row = cur.fetchone()
             if row:
                 return {
-                    "institutional_ownership": (float(row[0]) if row[0] is not None else None),
-                    "insider_ownership": float(row[1]) if row[1] is not None else None,
-                    "short_interest": float(row[2]) if row[2] is not None else None,
+                    "institutional_ownership": self._safe_float(row[0], f"{symbol}.institutional_ownership"),
+                    "insider_ownership": self._safe_float(row[1], f"{symbol}.insider_ownership"),
+                    "short_interest": self._safe_float(row[2], f"{symbol}.short_interest"),
                 }
             return None
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:

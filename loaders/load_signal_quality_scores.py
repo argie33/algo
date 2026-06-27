@@ -255,10 +255,38 @@ class SignalQualityScoresLoader(OptimalLoader):
                 f"Check that buy_sell_daily table has signals for this symbol or adjust date range."
             )
 
+        # CRITICAL: Validate ALL required data sources are available before computation
         technical_rows = self._fetch_technical_data(symbol, start, end)
+        if not technical_rows:
+            raise RuntimeError(
+                f"[SIGNAL_QUALITY] CRITICAL: No technical data for {symbol} [{start}-{end}]. "
+                "Technical indicators are REQUIRED for signal quality assessment. "
+                "Cannot compute quality scores without complete technical data."
+            )
+
         trend_rows = self._fetch_trend_data(symbol, start, end)
+        if not trend_rows:
+            raise RuntimeError(
+                f"[SIGNAL_QUALITY] CRITICAL: No trend data for {symbol} [{start}-{end}]. "
+                "Trend analysis is REQUIRED for signal quality assessment. "
+                "Cannot compute quality scores without trend data."
+            )
+
         vcp_rows = self._fetch_vcp_patterns(symbol, start, end)
+        if not vcp_rows:
+            raise RuntimeError(
+                f"[SIGNAL_QUALITY] CRITICAL: No VCP pattern data for {symbol} [{start}-{end}]. "
+                "VCP pattern analysis is REQUIRED for signal quality assessment. "
+                "Cannot compute quality scores without VCP patterns."
+            )
+
         positioning_data = self._fetch_positioning_data(symbol)
+        if not positioning_data:
+            raise RuntimeError(
+                f"[SIGNAL_QUALITY] CRITICAL: No positioning data for {symbol}. "
+                "Positioning metrics are REQUIRED for signal quality assessment. "
+                "Cannot compute quality scores without positioning data."
+            )
 
         scores = self._compute_quality_scores(
             symbol,

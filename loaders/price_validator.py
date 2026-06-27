@@ -196,11 +196,12 @@ class PriceValidator:
                 "Verify database schema and constraint creation."
             )
 
-        # For daily prices, check market close
+        # For daily prices, market close data is mandatory (fail-fast on stale data)
         if interval == "1d" and check_market_close:
             if not self._check_market_close_available():
-                logger.warning("[MARKET_CLOSE] Market close data NOT available - this may indicate data staleness")
-                return False
+                msg = "[MARKET_CLOSE] Daily price loader requires market close data. Data appears stale. Cannot proceed."
+                logger.error(msg)
+                raise RuntimeError(msg)
 
         logger.info(f"[PRECONDITION] All preflight checks passed for {self.table_name}")
         return True

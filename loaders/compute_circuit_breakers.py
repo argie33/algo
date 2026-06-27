@@ -403,12 +403,37 @@ def _compute_win_rate(cur: Any) -> float:
     return round(win_rate, 1)
 
 
+def _validate_all_metrics_present(metrics: dict[str, Any]) -> None:
+    """CRITICAL: Atomically validate ALL required circuit breaker metrics are present.
+
+    Fails immediately if ANY metric is missing or None. This prevents partial risk
+    assessment where some checks pass but complete safety evaluation is impossible.
+
+    Raises:
+        RuntimeError: If ANY required metric missing or None
+    """
+    missing_metrics = []
+    for cb in CIRCUIT_BREAKERS:
+        if cb.metric_key not in metrics or metrics[cb.metric_key] is None:
+            missing_metrics.append(cb.metric_key)
+
+    if missing_metrics:
+        raise RuntimeError(
+            f"CRITICAL RISK ASSESSMENT FAILURE: Cannot evaluate circuit breakers — "
+            f"missing metrics: {missing_metrics}. "
+            f"Must have ALL 9 metrics to perform complete risk assessment. "
+            f"Halting trading to prevent execution without complete safety checks."
+        )
+
+
 def _check_any_triggered(metrics: dict[str, Any]) -> bool:
     """Check if any circuit breaker is triggered based on registry.
 
     If a required metric is missing or None, fail closed (return True).
     This ensures data quality issues don't silently pass safety checks.
     """
+    # CRITICAL: Validate ALL metrics present before checking any breaker
+    _validate_all_metrics_present(metrics)
     return any(cb.is_triggered(metrics) for cb in CIRCUIT_BREAKERS)
 
 
@@ -418,6 +443,8 @@ def _count_triggered(metrics: dict[str, Any]) -> int:
     If a required metric is missing or None, fail closed (count as triggered).
     This ensures data quality issues don't silently reduce triggered count.
     """
+    # CRITICAL: Validate ALL metrics present before counting
+    _validate_all_metrics_present(metrics)
     return sum(1 for cb in CIRCUIT_BREAKERS if cb.is_triggered(metrics))
 
 

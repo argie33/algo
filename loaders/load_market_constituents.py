@@ -111,15 +111,42 @@ class MarketConstituentsLoader(OptimalLoader):
             logger.info(f"Fetched {len(russell_set)} Russell 2000 constituents")
 
             # Enrich base symbols with index membership flags
-            for row in base_symbols:
+            enriched_count = 0
+            for i, row in enumerate(base_symbols):
+                if "symbol" not in row or not row.get("symbol"):
+                    raise ValueError(
+                        f"CRITICAL: Market constituent row {i} missing required 'symbol' field. "
+                        f"Cannot determine index membership without symbol. Row: {row}"
+                    )
                 sym = row["symbol"]
                 row["is_sp500"] = sym in sp500_set
                 row["is_russell2000"] = sym in russell_set
+                enriched_count += 1
+
+            # Validate enrichment completed for all rows
+            if enriched_count < len(base_symbols):
+                raise RuntimeError(
+                    f"CRITICAL: Enrichment incomplete. "
+                    f"Processed {enriched_count}/{len(base_symbols)} symbols. "
+                    "Cannot proceed with partial index membership data."
+                )
+
+            # Verify all rows were enriched with flags
+            missing_flags = [i for i, r in enumerate(base_symbols) if "is_sp500" not in r or "is_russell2000" not in r]
+            if missing_flags:
+                raise RuntimeError(
+                    f"CRITICAL: Enrichment validation failed. "
+                    f"Rows {missing_flags} missing index membership flags. "
+                    "Cannot proceed with incomplete enrichment."
+                )
+
+            sp500_count = sum(1 for r in base_symbols if r.get("is_sp500"))
+            russell_count = sum(1 for r in base_symbols if r.get("is_russell2000"))
 
             logger.info(
                 f"Enriched {len(base_symbols)} symbols with index membership. "
-                f"S&P 500: {sum(1 for r in base_symbols if r['is_sp500'])} "
-                f"Russell 2000: {sum(1 for r in base_symbols if r['is_russell2000'])}"
+                f"S&P 500: {sp500_count} "
+                f"Russell 2000: {russell_count}"
             )
 
             return base_symbols

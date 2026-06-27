@@ -52,24 +52,22 @@ def _emit_cloudwatch_metric(operation_name: str, duration_seconds: float) -> Non
     except ImportError:
         logger.debug("[METRICS] boto3 not available; CloudWatch metrics disabled")
     except Exception as e:
+        error_type = type(e).__name__
         error_msg = str(e).lower()
-        # Only swallow credential-related errors (expected in local dev)
-        if any(
-            phrase in error_msg
-            for phrase in [
-                "nocredentialswarning",
-                "unable to locate credentials",
-                "not authorized",
-            ]
-        ):
-            logger.warning("[METRICS] AWS credentials unavailable; CloudWatch metrics skipped")
-        else:
-            # Fail fast on network/permission errors — observability loss is critical
-            logger.critical(
-                f"[OBSERVABILITY_LOSS] CloudWatch metric failed for {operation_name}: {e}. "
-                f"Operational metrics will not reach CloudWatch. Check AWS credentials and network connectivity."
-            )
-            raise RuntimeError(f"CloudWatch metrics unavailable: {e}") from e
+
+        # NoCredentialsError and ClientError are common in non-AWS environments
+        if error_type in ("NoCredentialsError", "ClientError"):
+            if "credential" in error_msg or "not authorized" in error_msg or "nocredentialswarning" in error_msg:
+                logger.warning("[METRICS] AWS credentials unavailable; CloudWatch metrics skipped")
+                return
+
+        # Fail fast on all other errors — observability loss is critical in production
+        logger.critical(
+            f"[OBSERVABILITY_LOSS] CloudWatch metric failed for {operation_name}: "
+            f"{error_type}: {e}. "
+            f"Operational metrics will not reach CloudWatch. Check AWS credentials, network connectivity, and IAM permissions."
+        )
+        raise RuntimeError(f"CloudWatch metrics unavailable ({error_type}): {e}") from e
 
 
 class TimeBlock:

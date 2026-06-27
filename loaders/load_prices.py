@@ -1896,10 +1896,15 @@ def _invalidate_phase1_cache() -> None:
 
     # FIX: Use ET date, not system date (AWS runs in UTC but trading is ET-based)
     try:
+        aws_region = os.getenv("AWS_REGION")
+        if not aws_region:
+            logger.error("[CACHE INVALIDATION] AWS_REGION not set. Cannot invalidate cache.")
+            return
+
         cache_date = datetime.now(EASTERN_TZ).date()
         cache_key = f"data_loader_status-{cache_date.isoformat()}"
         cache_table_name = os.getenv("CACHE_TABLE", "algo_phase1_cache")
-        dynamodb = boto3.resource("dynamodb", region_name=os.getenv("AWS_REGION", "us-east-1"))
+        dynamodb = boto3.resource("dynamodb", region_name=aws_region)
         cache_table = dynamodb.Table(cache_table_name)
 
         try:

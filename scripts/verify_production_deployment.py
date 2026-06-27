@@ -160,9 +160,12 @@ def check_database_health() -> bool:
         return True
 
     except psycopg2.OperationalError as e:
-        logger.warning(f"  ⚠ Database connection failed: {e}")
-        logger.info("  → Expected if running outside AWS VPC")
-        return True
+        logger.error(f"  ❌ CRITICAL: Database connection failed: {e}")
+        logger.error("  → Production verification FAILED: Cannot verify database connectivity")
+        logger.error("  → This may indicate network connectivity issues, invalid credentials, or RDS misconfiguration")
+        if "Cannot assign requested address" in str(e) or "Network is unreachable" in str(e):
+            logger.info("  → Running outside AWS VPC? Update network/VPC configuration for production deployment.")
+        return False
     except Exception as e:
         logger.error(f"  ❌ Database check failed: {e}")
         return False
