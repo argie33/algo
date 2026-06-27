@@ -794,7 +794,7 @@ class MarketExposure:
             (eval_date, eval_date),
         )
         row = cur.fetchone()
-        if not row or not row[1]:
+        if row is None or len(row) < 2 or row[0] is None or row[1] is None:
             raise RuntimeError(
                 f"[MARKET EXPOSURE CRITICAL] No breadth data for {ma_days}-day MA on {eval_date} — "
                 f"price_above_sma{ma_days} cannot be calculated. Check trend_template_data loader."

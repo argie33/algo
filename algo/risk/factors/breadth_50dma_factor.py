@@ -54,7 +54,7 @@ class Breadth50DMAFactor(MarketFactorStrategy):
                 (eval_date, eval_date),
             )
             row = cur.fetchone()
-            if not row or not row[1]:
+            if row is None or len(row) < 2 or row[0] is None or row[1] is None:
                 raise ValueError("Breadth 50-DMA factor: no breadth data available - cannot calculate participation")
 
             above, total = int(row[0]), int(row[1])

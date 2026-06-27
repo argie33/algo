@@ -857,10 +857,10 @@ class PositionMonitor:
             (symbol,),
         )
         srow = cur.fetchone()
-        if not srow:
+        if srow is None or len(srow) < 1:
             logger.warning(f"Sector data not found for {symbol} - assuming neutral")
             return "neutral"
-        if not srow[0]:
+        if srow[0] is None:
             logger.warning(f"NULL sector for {symbol} - assuming neutral")
             return "neutral"
         sector = srow[0]
