@@ -323,7 +323,10 @@ def _compute_open_risk(cur: Any) -> float:
     # 2. Query failed (invalid: must not silently assume 0%)
     # Distinguish by checking for open positions explicitly
     cur.execute("SELECT COUNT(*) as cnt FROM algo_positions WHERE LOWER(status) = 'open'")
-    pos_count = cur.fetchone()["cnt"]
+    result = cur.fetchone()
+    if result is None:
+        raise ValueError("[RISK_CALCULATION_CRITICAL] Query to count open positions returned no result")
+    pos_count = result["cnt"]
 
     if total_risk_val is None:
         if pos_count == 0:
