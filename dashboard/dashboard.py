@@ -1075,7 +1075,7 @@ def _run_watch_main_loop(
                 reload_thread.start()
                 with active_threads_lock:
                     active_threads.append(reload_thread)
-            time.sleep(0.5)
+            time.sleep(0.25)
     except KeyboardInterrupt:
         pass
 
