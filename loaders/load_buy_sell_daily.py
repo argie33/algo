@@ -321,7 +321,7 @@ class SignalsDailyLoader(OptimalLoader):
                         f"{symbol}: price_daily incomplete for {end}: only "
                         f"{price_coverage_symbols} symbols (expected >= 3000). "
                         "Cannot generate signals without sufficient price data coverage. "
-                        "Verify stock_prices_daily loader completed successfully."
+                        "Verify price_daily loader completed successfully."
                     )
                 # Technical coverage relative to price coverage (normal: 80-83%)
                 tech_coverage = (
@@ -559,12 +559,12 @@ def main() -> int:
     # Check upstream loader status (ISSUE #28 FIX: dependency validation)
     try:
         with DatabaseContext("read") as cur:
-            # Verify stock_prices_daily is not stuck RUNNING/PENDING
-            cur.execute("SELECT status FROM data_loader_status WHERE table_name = 'stock_prices_daily'")
+            # Verify price_daily is not stuck RUNNING/PENDING
+            cur.execute("SELECT status FROM data_loader_status WHERE table_name = 'price_daily'")
             result = cur.fetchone()
             if result is None:
                 raise RuntimeError(
-                    "CRITICAL: data_loader_status has no record for stock_prices_daily. "
+                    "CRITICAL: data_loader_status has no record for price_daily. "
                     "Loader tracking broken or upstream hasn't run. Cannot proceed."
                 )
             if len(result) < 1:
@@ -575,13 +575,13 @@ def main() -> int:
             prices_status = result[0]
             if prices_status not in ("COMPLETED", "success", "OK"):
                 logger.error(
-                    f"[DEPENDENCY] Aborting buy_sell_daily: stock_prices_daily status is {prices_status}. "
+                    f"[DEPENDENCY] Aborting buy_sell_daily: price_daily status is {prices_status}. "
                     f"Expected COMPLETED/success/OK. Cannot generate signals without complete price data."
                 )
                 return 1  # Return error code (1), will retry on next pipeline run
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as status_err:
         raise RuntimeError(
-            f"CRITICAL: Failed to check stock_prices_daily status: {status_err}. "
+            f"CRITICAL: Failed to check price_daily status: {status_err}. "
             "Cannot verify upstream loader is ready. Aborting to prevent silent dependency failure."
         ) from status_err
 
