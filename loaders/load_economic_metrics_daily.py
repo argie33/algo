@@ -35,7 +35,7 @@ class EconomicMetricsDailyLoader(OptimalLoader):
     # Allow multiple updates per day
     allow_multiple_updates_per_day = True
 
-    def fetch_global(self, since: date | None) -> list[dict[str, Any]] | None:
+    def fetch_global(self, since: date | None) -> list[dict[str, Any]] | None:  # noqa: C901
         """Compute daily economic metrics from source data.
 
         Metrics:
@@ -89,7 +89,10 @@ class EconomicMetricsDailyLoader(OptimalLoader):
                         cpi_error = "no_current_cpi"
                 except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                     cpi_error = f"cpi_error:{type(e).__name__}"
-                    logger.warning(f"Failed to compute CPI YoY: {e}")
+                    raise RuntimeError(
+                        f"[ECONOMIC_METRICS] CPI YoY calculation failed: {e}. "
+                        "CPI is critical for market regime detection and cannot be skipped."
+                    ) from e
 
                 # 2. Compute SPY daily price change
                 spy_price_change = None
@@ -122,7 +125,10 @@ class EconomicMetricsDailyLoader(OptimalLoader):
                         spy_error = f"insufficient_data:{len(spy_rows)}"
                 except (ValueError, ZeroDivisionError, TypeError) as e:
                     spy_error = f"spy_error:{type(e).__name__}"
-                    logger.warning(f"Failed to compute SPY price change: {e}")
+                    raise RuntimeError(
+                        f"[ECONOMIC_METRICS] SPY price change calculation failed: {e}. "
+                        "SPY price data is critical for market regime detection and cannot be skipped."
+                    ) from e
 
                 # 3. Compute yield curve slope (10Y - 2Y)
                 ycs_10y2y = None
@@ -152,7 +158,10 @@ class EconomicMetricsDailyLoader(OptimalLoader):
                         ycs_error = f"missing_data:DGS10={dgs10},DGS2={dgs2}"
                 except (ValueError, ZeroDivisionError, TypeError) as e:
                     ycs_error = f"ycs_error:{type(e).__name__}"
-                    logger.warning(f"Failed to compute yield curve slope: {e}")
+                    raise RuntimeError(
+                        f"[ECONOMIC_METRICS] Yield curve slope calculation failed: {e}. "
+                        "Yield curve data is critical for market regime detection and cannot be skipped."
+                    ) from e
 
                 # Yield curve slope is CRITICAL for market regime detection
                 if ycs_10y2y is None:

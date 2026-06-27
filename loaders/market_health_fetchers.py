@@ -204,8 +204,10 @@ class YieldCurveFetcher:
             data = response.json()
 
             if "data" not in data:
-                logger.debug("No yield curve data returned from API")
-                return {}
+                raise RuntimeError(
+                    "[YIELD_CURVE] No data field in API response. "
+                    "Yield curve data is critical for market regime detection and cannot be absent."
+                )
 
             result = {}
             incomplete_dates = []
@@ -250,10 +252,12 @@ class BreadthFetcher:
         """Fetch market breadth data from price_daily advances/declines computed daily.
 
         Returns: dict[date_str] -> {advances, declines, unchanged, advance_decline_ratio}
-        If no data available, returns empty dict (breadth is optional).
 
-        NOTE: Breadth calculation not yet implemented — returns empty dict.
-        Market health metrics will proceed without breadth enrichment.
+        FAIL-FAST: Breadth calculation not yet implemented.
+        Raises error so missing breadth is not silently ignored.
         """
-        logger.info("[BREADTH_FETCHER] Breadth data calculation not yet implemented — market health will proceed without breadth metrics")
-        return {}
+        raise RuntimeError(
+            "[BREADTH_FETCHER] Market breadth calculation not yet implemented. "
+            "This is a critical component of market health analysis and cannot proceed silently. "
+            "Implement breadth calculation or mark as explicitly optional with structured response."
+        )

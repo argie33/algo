@@ -37,9 +37,16 @@ def _build_buy_sig_map(buy_sigs: Any) -> dict[str, float]:
 
     Uses signal_quality_score if present, falls back to swing_score if available,
     but logs warning if neither field is present (not silent fallback to 0).
+
+    FAIL-FAST: buy_sigs must not be None; caller must validate.
     """
+    if buy_sigs is None:
+        raise ValueError(
+            "[BUY_SIGNALS] Cannot build signal map: buy_sigs is None. "
+            "Upstream pipeline did not return buy signal data."
+        )
     out: dict[str, float] = {}
-    for bs in buy_sigs or []:
+    for bs in buy_sigs:
         if not isinstance(bs, dict):
             continue
         sym = bs.get("symbol")
@@ -90,7 +97,14 @@ def _best_halt_reason(top_level: str, phase_results: list[Any]) -> list[tuple[st
 
     Falls back to top_level if no per-phase detail is found.
     Tries multiple field names so the display is robust to orchestrator schema changes.
+
+    FAIL-FAST: phase_results must not be None; caller must validate.
     """
+    if phase_results is None:
+        raise ValueError(
+            "[PHASE_RESULTS] Cannot extract halt reasons: phase_results is None. "
+            "Upstream orchestrator did not return phase data."
+        )
     fields = (
         "halt_reason",
         "reason",
@@ -102,7 +116,7 @@ def _best_halt_reason(top_level: str, phase_results: list[Any]) -> list[tuple[st
         "details",
     )
     found: list[tuple[str, str]] = []
-    for p in phase_results or []:
+    for p in phase_results:
         ps = p.get("status")
         ps = (ps if ps is not None else "").lower()
         if ps not in ("halt", "halted"):

@@ -614,13 +614,16 @@ def _format_data_health_summary(hlth_items: list[Any]) -> list[Text]:
 
 
 def _format_loader_status(loader: list[Any]) -> list[Text]:
-    """Format data loader status section."""
+    """Format data loader status section. FAIL-FAST: loader must not be None."""
     rows: list[Text] = []
+    if loader is None:
+        rows.append(Text.from_markup("[red]Loader status unavailable (data is None)[/]"))
+        return rows
     try:
-        valid_loader = safe_get_list(loader) or []
+        valid_loader = safe_get_list(loader)
     except (ValueError, TypeError) as e:
         rows.append(Text.from_markup(f"[red]Loader data error: {str(e)[:60]}[/]"))
-        valid_loader = []
+        return rows
     problem_loader = [r for r in valid_loader if (r.get("status", "")) in LOADER_STATUS_ERROR]
     running_loader = [r for r in valid_loader if (r.get("status", "")) == LOADER_STATUS_LOADING]
     ok_count = len(valid_loader) - len(problem_loader) - len(running_loader)
@@ -1377,12 +1380,16 @@ def panel_status(  # noqa: C901
             )
 
     # Data loader status (errors/stale from data_loader_status table)
+    if loader is None:
+        rows.append(Rule(style="dim"))
+        rows.append(Text.from_markup("[red]Loader status unavailable (data is None)[/]"))
+        return rows
     try:
-        valid_loader = safe_get_list(loader) or []
+        valid_loader = safe_get_list(loader)
     except (ValueError, TypeError) as e:
         rows.append(Rule(style="dim"))
         rows.append(Text.from_markup(f"[red]Loader data error: {str(e)[:60]}[/]"))
-        valid_loader = []
+        return rows
     problem_loader = [r for r in valid_loader if (r.get("status", "")) in ("error", "failed", "stale")]
     running_loader = [r for r in valid_loader if (r.get("status", "")) == "loading"]
     ok_count = len(valid_loader) - len(problem_loader) - len(running_loader)
@@ -1559,12 +1566,15 @@ def panel_algo_health(  # noqa: C901
     if phase_badges:
         rows.append(Text.from_markup("  ".join(phase_badges)))
 
-    # Fallback: use algo_metrics for today's entry/exit counts
+    # Algo metrics for today's entry/exit counts. FAIL-FAST: must not be None.
+    if algo_metrics is None:
+        logger.warning("[ALGO_METRICS] Metrics data is None")
+        return rows
     try:
-        valid_metrics = safe_get_list(algo_metrics) or []
+        valid_metrics = safe_get_list(algo_metrics)
     except (ValueError, TypeError) as e:
         logger.warning(f"Algo metrics data error: {e}")
-        valid_metrics = []
+        return rows
     today_m = valid_metrics[0] if valid_metrics else {}
     if not entries_exec:
         en = today_m.get("entries")
@@ -1723,51 +1733,59 @@ def _build_results_panel(  # noqa: C901
     phase_badges_e: list[str] = []
     if run_valid and isinstance(run, dict) and run.get("_source") == "exec_log":
         if "phase_results" in run:
-            try:
-                phase_results_list = safe_get_list(run["phase_results"]) or []
-                for p in phase_results_list:
-                    name_val = p.get("name")
-                    phase_val = p.get("phase", "")
-                    raw = (name_val if name_val is not None else phase_val).lower()
-                    parts_p = raw.split("_")
-                    base = "_".join(parts_p[:2]) if len(parts_p) >= 2 else raw
-                    short = PHASE_NAMES.get(base, base.replace("phase_", "P"))[:8]
-                    ps = p.get("status", "")
-                    sc, si = HealthFormatter.format_phase_badge(ps)
-                    phase_badges_e.append(f"[{sc}]{si}[dim]{short}[/][/]")
-            except (ValueError, TypeError) as e:
-                logger.warning(f"Phase results data error: {e}")
+            phase_data = run.get("phase_results")
+            if phase_data is None:
+                logger.warning("[PHASE_RESULTS_BADGES] Phase results data is None")
+            else:
+                try:
+                    phase_results_list = safe_get_list(phase_data)
+                    for p in phase_results_list:
+                        name_val = p.get("name")
+                        phase_val = p.get("phase", "")
+                        raw = (name_val if name_val is not None else phase_val).lower()
+                        parts_p = raw.split("_")
+                        base = "_".join(parts_p[:2]) if len(parts_p) >= 2 else raw
+                        short = PHASE_NAMES.get(base, base.replace("phase_", "P"))[:8]
+                        ps = p.get("status", "")
+                        sc, si = HealthFormatter.format_phase_badge(ps)
+                        phase_badges_e.append(f"[{sc}]{si}[dim]{short}[/][/]")
+                except (ValueError, TypeError) as e:
+                    logger.warning(f"Phase results data error: {e}")
     if phase_badges_e:
         right_rows.append(Text.from_markup("  ".join(phase_badges_e)))
 
     signals_gen = entries_exec = exits_exec = 0
     if run_valid and isinstance(run, dict) and run.get("_source") == "exec_log":
         if "phase_results" in run:
-            try:
-                phase_results_list = safe_get_list(run["phase_results"]) or []
-                for p in phase_results_list:
-                    pdata = p.get("data")
-                    if isinstance(pdata, str):
-                        try:
-                            pdata = json.loads(pdata)
-                        except (json.JSONDecodeError, ValueError):
+            phase_data = run.get("phase_results")
+            if phase_data is None:
+                logger.warning("[PHASE_RESULTS_COUNTS] Phase results data is None")
+            else:
+                try:
+                    phase_results_list = safe_get_list(phase_data)
+                    for p in phase_results_list:
+                        pdata = p.get("data")
+                        if isinstance(pdata, str):
+                            try:
+                                pdata = json.loads(pdata)
+                            except (json.JSONDecodeError, ValueError):
+                                pdata = None
+                        elif not isinstance(pdata, dict):
                             pdata = None
-                    elif not isinstance(pdata, dict):
-                        pdata = None
-                    if pdata:
-                        sg = pdata.get("signals_generated")
-                        ee = pdata.get("entries_executed")
-                        if ee is None:
-                            ee = pdata.get("trades_executed")
-                        xe = pdata.get("exits_executed")
-                        if sg:
-                            signals_gen = max(signals_gen, int(sg))
-                        if ee:
-                            entries_exec = max(entries_exec, int(ee))
-                        if xe:
-                            exits_exec = max(exits_exec, int(xe))
-            except (ValueError, TypeError) as e:
-                logger.warning(f"Phase results data error: {e}")
+                        if pdata:
+                            sg = pdata.get("signals_generated")
+                            ee = pdata.get("entries_executed")
+                            if ee is None:
+                                ee = pdata.get("trades_executed")
+                            xe = pdata.get("exits_executed")
+                            if sg:
+                                signals_gen = max(signals_gen, int(sg))
+                            if ee:
+                                entries_exec = max(entries_exec, int(ee))
+                            if xe:
+                                exits_exec = max(exits_exec, int(xe))
+                except (ValueError, TypeError) as e:
+                    logger.warning(f"Phase results data error: {e}")
 
     valid_metrics_e = (
         algo_metrics if (algo_metrics and not (isinstance(algo_metrics, dict) and has_error(algo_metrics))) else []
