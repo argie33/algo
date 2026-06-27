@@ -1379,14 +1379,14 @@ class ExitEngine:
 
         # Clean break of 50-DMA
 
-        if sma_50 and cur_price_decimal < sma_50 * Decimal("0.99"):
+        if sma_50 is not None and cur_price_decimal < sma_50 * Decimal("0.99"):
             return True
 
         # Break of EMA(21) on rising volume (institutional selling)
 
-        ema_21_float = float(ema_21) if ema_21 else None
+        ema_21_float = float(ema_21) if ema_21 is not None else None
 
-        if ema_21_float and cur_price < ema_21_float and avg_vol_50 > 0 and vol > avg_vol_50 * 1.15:
+        if ema_21_float is not None and cur_price < ema_21_float and avg_vol_50 > 0 and vol > avg_vol_50 * 1.15:
             return True
 
         return False

@@ -266,7 +266,7 @@ def _get_data_status(cur: cursor) -> Any:
             if last_updated_utc:
                 age_h = (datetime.now(timezone.utc) - last_updated_utc).total_seconds() / 3600
             else:
-                age_h = 999
+                age_h = None
 
             # Determine role based on criticality and freshness requirement
             if rule is not None and rule.get("critical"):

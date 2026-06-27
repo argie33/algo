@@ -166,7 +166,7 @@ DASHBOARD_ENDPOINTS = {
         "method": "GET",
         "description": "Portfolio snapshot",
         "response_schema": ResponseSchema(
-            required_fields=["total_portfolio_value", "total_cash", "open_positions"],
+            required_fields=["total_portfolio_value", "total_cash", "position_count"],
             optional_fields=[
                 "last_run",
                 "total_buying_power",
@@ -185,7 +185,7 @@ DASHBOARD_ENDPOINTS = {
             description="Portfolio value, cash, positions",
         ),
         "freshness_max_age_seconds": 3600,
-        "strict_fields": ["total_portfolio_value", "total_cash", "open_positions"],
+        "strict_fields": ["total_portfolio_value", "total_cash", "position_count"],
         "critical": True,
     },
     "perf": {

@@ -209,11 +209,23 @@ class SecEdgarClient:
                         "form": entry.get("form"),
                     }
                 )
-        # Sort by fiscal year (default 0) then by filed date (default empty string)
+        # Sort by fiscal year, filed date — both required for correct financial statement ordering
         def sort_key(r: dict[str, Any]) -> tuple[int | float, str]:
-            year = r["fiscal_year"] or 0
-            filed = r.get("filed") or ""
-            return (year, filed)
+            year = r.get("fiscal_year")
+            filed = r.get("filed")
+            if year is None:
+                raise ValueError(
+                    f"SEC Edgar data missing fiscal_year for {symbol} concept {concept}. "
+                    f"Cannot sort or use undated financial statements. "
+                    f"Check SEC data source or API response."
+                )
+            if not filed:
+                raise ValueError(
+                    f"SEC Edgar data missing filed date for {symbol} {year} {concept}. "
+                    f"Cannot establish statement recency. "
+                    f"Check SEC data source or API response."
+                )
+            return (int(year), filed)
         results.sort(key=sort_key)
         return results
 
@@ -246,7 +258,15 @@ class SecEdgarClient:
                         "form": entry.get("form"),
                     }
                 )
-        results.sort(key=lambda r: (r["fiscal_year"] or 0, r["fiscal_period"]))
+        # Validate fiscal_year exists before sorting quarterly data
+        for r in results:
+            if r.get("fiscal_year") is None:
+                raise ValueError(
+                    f"SEC Edgar quarterly data missing fiscal_year for {symbol} {concept}. "
+                    f"Cannot sort quarterly statements without year information. "
+                    f"Check SEC data source or API response."
+                )
+        results.sort(key=lambda r: (int(r["fiscal_year"]), r["fiscal_period"] or ""))
         return results
 
     # ----- Financial statements (balance sheet, income statement, cash flow) -----

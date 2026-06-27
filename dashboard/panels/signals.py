@@ -368,7 +368,7 @@ def _build_buy_signals_table(
             else (CY if (swing_score is not None and swing_score >= 70) else Y)
         )
         rr_c: str = (
-            G if rr_ratio and rr_ratio > 1.5 else (Y if rr_ratio and rr_ratio > 1 else (CY if rr_ratio else DIM))
+            G if rr_ratio is not None and rr_ratio > 1.5 else (Y if rr_ratio is not None and rr_ratio > 1 else (CY if rr_ratio is not None else DIM))
         )
 
         price_f: float | None = safe_float(price)

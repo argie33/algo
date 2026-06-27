@@ -1123,22 +1123,22 @@ def _get_correlation_matrix(cur: cursor) -> Any:
                     min_pair = [sym1, sym2]
                     break
 
-    avg_corr_val = round(avg_corr, 2) if avg_corr else None
+    avg_corr_val = round(avg_corr, 2) if avg_corr is not None else None
 
-    if avg_corr_val and avg_corr_val > 0.5:
+    if avg_corr_val is not None and avg_corr_val > 0.5:
         market_regime = "high_correlation"
-    elif avg_corr_val and avg_corr_val > 0.2:
+    elif avg_corr_val is not None and avg_corr_val > 0.2:
         market_regime = "moderate_correlation"
     else:
         market_regime = "low_correlation"
 
     diversification_score = round(max(0, 1.0 - (avg_corr_val)) * 100, 1) if avg_corr_val is not None else None
 
-    if avg_corr_val and avg_corr_val > 0.6:
+    if avg_corr_val is not None and avg_corr_val > 0.6:
         concentration_risk = "high"
         diversification_benefit = "low"
         portfolio_stability = "volatile"
-    elif avg_corr_val and avg_corr_val > 0.3:
+    elif avg_corr_val is not None and avg_corr_val > 0.3:
         concentration_risk = "moderate"
         diversification_benefit = "moderate"
         portfolio_stability = "moderate"

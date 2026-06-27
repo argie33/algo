@@ -72,12 +72,12 @@ class OrderManager:
                 "extended_hours": False,
             }
 
-            if stop_loss_price and stop_loss_price > 0:
+            if stop_loss_price is not None and stop_loss_price > 0:
                 order_data["order_class"] = "bracket"
                 order_data["stop_loss"] = {
                     "stop_price": str(round(stop_loss_price, 2)),
                 }
-                if take_profit_price and take_profit_price > entry_price:
+                if take_profit_price is not None and take_profit_price > entry_price:
                     order_data["take_profit"] = {
                         "limit_price": str(round(take_profit_price, 2)),
                     }

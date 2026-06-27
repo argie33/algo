@@ -168,33 +168,31 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:
         # Compute stage_label for stage distribution (Issue #8)
         stage_raw = d.get("weinstein_stage")
         stage = None
+        d["stage_label"] = None
         if stage_raw is None:
             logger.warning(f"Position {d.get('symbol')} missing weinstein_stage")
-            d["stage_label"] = "Unknown"
         else:
             try:
                 stage = int(stage_raw)
             except (ValueError, TypeError):
                 logger.warning(f"Position {d.get('symbol')} has invalid weinstein_stage: {stage_raw}")
-                d["stage_label"] = "Unknown"
 
-        trend_score_raw = d.get("minervini_trend_score")
-        trend_score = float(trend_score_raw) if trend_score_raw is not None else None
-        if stage == 2:
-            if trend_score and trend_score < 4:
-                d["stage_label"] = "Early Stage-2"
-            elif trend_score and trend_score >= 6:
-                d["stage_label"] = "Late Stage-2"
-            else:
-                d["stage_label"] = "Mid Stage-2"
-        elif stage == 1:
-            d["stage_label"] = "Stage 1 (base)"
-        elif stage == 3:
-            d["stage_label"] = "Stage 3 (top)"
-        elif stage == 4:
-            d["stage_label"] = "Stage 4 (down)"
-        else:
-            d["stage_label"] = "Unknown"
+        if stage is not None:
+            trend_score_raw = d.get("minervini_trend_score")
+            trend_score = float(trend_score_raw) if trend_score_raw is not None else None
+            if stage == 2:
+                if trend_score is not None and trend_score < 4:
+                    d["stage_label"] = "Early Stage-2"
+                elif trend_score is not None and trend_score >= 6:
+                    d["stage_label"] = "Late Stage-2"
+                else:
+                    d["stage_label"] = "Mid Stage-2"
+            elif stage == 1:
+                d["stage_label"] = "Stage 1 (base)"
+            elif stage == 3:
+                d["stage_label"] = "Stage 3 (top)"
+            elif stage == 4:
+                d["stage_label"] = "Stage 4 (down)"
 
         # Normalize field names for frontend compatibility
         if "percent_from_52w_low" in d:
@@ -205,10 +203,11 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:
         items.append(d)
 
         # Accumulate sector allocation - all added items have valid position_value
-        sector = d.get("sector", "Unknown")
-        if sector not in sector_risk:
+        sector = d.get("sector")
+        if sector is not None and sector not in sector_risk:
             sector_risk[sector] = 0
-        sector_risk[sector] += pos_val
+        if sector is not None:
+            sector_risk[sector] += pos_val
 
     # Compute sector_allocation array after processing all positions (E5 fix)
     # Use absolute values to handle portfolios with shorts: total = sum of |position values|
@@ -279,7 +278,7 @@ def _get_algo_status(cur: cursor) -> Any:
             pv = float(snap["total_portfolio_value"])
             unrealized_pnl = float(snap["unrealized_pnl_total"])
             unrealized_pnl_pct = None
-            if pv and pv > 0 and unrealized_pnl is not None:
+            if pv is not None and pv > 0 and unrealized_pnl is not None:
                 unrealized_pnl_pct = unrealized_pnl / pv * 100
             tc = snap["total_cash"]
             if tc is None or (isinstance(tc, float) and not (tc > 0 or tc == 0)):
@@ -629,7 +628,7 @@ def _get_circuit_breakers(cur: cursor) -> Any:
                     "id": "vix_spike",
                     "label": "VIX Spike",
                     "triggered": False,
-                    "current": 0,
+                    "current": None,
                     "threshold": 35,
                     "unit": "",
                     "description": "No market data yet",
@@ -776,7 +775,7 @@ def _get_circuit_breakers(cur: cursor) -> Any:
                     "id": "intraday_health",
                     "label": "Prior-Day Market Health",
                     "triggered": False,
-                    "current": 0,
+                    "current": None,
                     "threshold": -2.0,
                     "unit": "%",
                     "description": "No price history yet",
@@ -839,7 +838,7 @@ def _get_circuit_breakers(cur: cursor) -> Any:
                     "id": "win_rate",
                     "label": "Win Rate Floor",
                     "triggered": False,
-                    "current": 0,
+                    "current": None,
                     "threshold": 40,
                     "unit": "%",
                     "description": "Insufficient closed trades (need 10+)",

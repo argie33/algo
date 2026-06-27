@@ -85,7 +85,11 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
     if has_err:
         err_msg = pos.get("_error") if isinstance(pos, dict) else None
         if err_msg is None:
-            err_msg = "Unknown error"
+            raise RuntimeError(
+                "Positions panel received error flag but no error message. "
+                "Cannot display positions without error context. "
+                "Check normalize_positions_data output and _error field."
+            )
         return Panel(
             Text(f"  Error: {err_msg}", style="red"),
             title="[bold red]POSITIONS[/]",

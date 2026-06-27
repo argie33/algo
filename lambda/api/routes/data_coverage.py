@@ -64,7 +64,7 @@ def get_price_coverage(cur: cursor) -> Any:
         zero_vol = row["zero_volume_rows"]
         invalid_prices = row["invalid_price_rows"]
 
-        days_stale = (_date.today() - latest_date).days if latest_date else 999
+        days_stale = (_date.today() - latest_date).days if latest_date else None
         zero_vol_pct = (zero_vol / total_rows * 100) if total_rows else None
         invalid_pct = (invalid_prices / total_rows * 100) if total_rows else None
         coverage_pct = (round(total_symbols / sp500_total * 100, 1) if sp500_total else None)
@@ -73,9 +73,9 @@ def get_price_coverage(cur: cursor) -> Any:
             "total_symbols": total_symbols,
             "sp500_target": sp500_total,
             "coverage_pct": coverage_pct,
-            "latest_date": str(latest_date),
+            "latest_date": str(latest_date) if latest_date else None,
             "days_stale": days_stale,
-            "status": "fresh" if days_stale <= 1 else "stale",
+            "status": "fresh" if (days_stale is not None and days_stale <= 1) else ("stale" if days_stale is not None else None),
             "data_quality": {
                 "zero_volume_pct": round(zero_vol_pct, 2) if zero_vol_pct is not None else None,
                 "invalid_price_pct": round(invalid_pct, 2) if invalid_pct is not None else None,

@@ -1140,7 +1140,7 @@ def _format_risk_snapshot(risk_dict: dict[str, Any]) -> list[Text | Rule]:
             f"[dim]Beta:[/][{beta_c}]{beta_val:.2f}[/]",
             f"[dim]Top-5 Conc:[/][{conc_c}]{conc5_val:.0f}%[/]",
         ]
-        if svar_val and svar_val > 0:
+        if svar_val is not None and svar_val > 0:
             risk_parts.append(f"[dim]Stressed VaR:[/][{R}]{svar_val:.2f}%[/]")
         rows.append(Text.from_markup("  ".join(risk_parts)))
 
@@ -1788,7 +1788,7 @@ def panel_algo_health(  # noqa: C901
     risk_dict = safe_get_dict(risk) if not has_error(risk) else {}
     if risk_dict:
         var95_val = safe_float(risk_dict.get("var95"), default=None)
-        if var95_val and var95_val > 0:
+        if var95_val is not None and var95_val > 0:
             rows.append(Rule(style="dim"))
             beta_val = safe_float(risk_dict.get("beta"), default=None)
             conc5_val = safe_float(risk_dict.get("conc5"), default=None)
@@ -1811,7 +1811,7 @@ def panel_algo_health(  # noqa: C901
                 f"[dim]Beta:[/][{beta_c}]{beta_val:.2f}[/]",
                 f"[dim]Top-5 Conc:[/][{conc_c}]{conc5_val:.0f}%[/]",
             ]
-            if svar_val and svar_val > 0:
+            if svar_val is not None and svar_val > 0:
                 risk_parts.append(f"[dim]Stressed VaR:[/][{R}]{float(svar_val):.2f}%[/]")
             rows.append(Text.from_markup("  ".join(risk_parts)))
 

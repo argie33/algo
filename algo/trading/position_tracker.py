@@ -86,7 +86,7 @@ class PositionTracker:
             current_stop = float(result[1])
 
             effective_stop = new_stop_price
-            if new_stop_price and current_stop >= new_stop_price:
+            if new_stop_price is not None and current_stop >= new_stop_price:
                 effective_stop = current_stop
 
             if full_exit or new_qty <= 0:

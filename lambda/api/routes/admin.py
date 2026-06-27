@@ -192,10 +192,10 @@ def _get_loader_status(cur: cursor) -> Any:
         if last_updated:
             age_hours = (now - last_updated).total_seconds() / 3600
         else:
-            age_hours = 9999
+            age_hours = None
         # Loaders run on weekdays only; allow up to 72h (covers 3-day weekends)
-        health = "stale" if age_hours > 72 else "fresh"
-        status = row["status"] or ("fresh" if age_hours <= 72 else "stale")
+        health = "stale" if (age_hours is not None and age_hours > 72) else ("fresh" if age_hours is not None else None)
+        status = row["status"] or ("fresh" if (age_hours is not None and age_hours <= 72) else "stale")
 
         loaders.append(
             {

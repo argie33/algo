@@ -50,9 +50,27 @@ def handle(
                 """,
                 timeout_sec=3,
             )
-            row = fg_rows[0] if fg_rows else None
-            fg_value = float(row["fear_greed_value"]) if row and row["fear_greed_value"] is not None else None
-            fg_label = row["fear_greed_label"] if row else None
+            if not fg_rows:
+                raise RuntimeError(
+                    "Sentiment endpoint requires fear_greed_index data but table is empty. "
+                    "Cannot provide sentiment analysis without fear/greed index. "
+                    "Check fear_greed_index table and data loader."
+                )
+            row = fg_rows[0]
+            if not row or row.get("fear_greed_value") is None:
+                raise RuntimeError(
+                    "Sentiment endpoint requires fear_greed_value but data is NULL. "
+                    "Cannot compute market sentiment without fear/greed metric. "
+                    "Check data source and fetched row."
+                )
+            fg_value = float(row["fear_greed_value"])
+            fg_label = row.get("fear_greed_label")
+            if not fg_label:
+                raise RuntimeError(
+                    "Sentiment endpoint requires fear_greed_label but data is missing/NULL. "
+                    "Cannot provide sentiment classification without label. "
+                    "Check fear_greed_index data or API."
+                )
 
             aaii_row = None
             try:
@@ -298,9 +316,9 @@ def handle(
             bull = int(bull_val) if bull_val is not None else 0
             bear = int(bear_val) if bear_val is not None else 0
             neut = int(neut_val) if neut_val is not None else 0
-            bp = round(bull / total * 100, 1) if total and total > 0 else None
-            bep = round(bear / total * 100, 1) if total and total > 0 else None
-            np_ = round(neut / total * 100, 1) if total and total > 0 else None
+            bp = round(bull / total * 100, 1) if total > 0 else None
+            bep = round(bear / total * 100, 1) if total > 0 else None
+            np_ = round(neut / total * 100, 1) if total > 0 else None
             sentiment_data = {
                 "totalAnalysts": total,
                 "bullish": bull,
@@ -356,28 +374,36 @@ def handle(
                     LIMIT 1
                 """)
             row = cur.fetchone()
-            if row:
-                default_result = {
-                    "fear_greed": (
-                        {
-                            "value": float(row["fear_greed_value"]),
-                            "label": row["fear_greed_label"],
-                        }
-                        if row["fear_greed_value"]
-                        else None
-                    ),
-                    "put_call_ratio": (float(row["put_call_ratio"]) if row["put_call_ratio"] else None),
-                    "vix_level": (float(row["vix_level"]) if row["vix_level"] else None),
-                    "date": str(row["date"]),
-                }
-                is_valid, error_msg = ResponseValidator.validate_endpoint_response("sentiment", default_result)
-                if not is_valid:
-                    logger.error(f"Endpoint response validation failed: {error_msg}")
-                    return error_response(
-                        500, "response_validation_error", error_msg or "Default sentiment validation failed"
-                    )
-                return json_response(200, default_result)
-            return error_response(503, "no_data", "Sentiment data not available")
+            if not row:
+                return error_response(503, "no_data", "Sentiment data not available — fear_greed_index table empty or data not loaded")
+            if row["fear_greed_value"] is None:
+                raise RuntimeError(
+                    "Default sentiment endpoint requires fear_greed_value but data is NULL. "
+                    "Cannot provide sentiment analysis without fear/greed metric. "
+                    "Check fear_greed_index data loader."
+                )
+            if not row.get("fear_greed_label"):
+                raise RuntimeError(
+                    "Default sentiment endpoint requires fear_greed_label but data is missing/NULL. "
+                    "Cannot provide sentiment classification without label. "
+                    "Check fear_greed_index data or API."
+                )
+            default_result = {
+                "fear_greed": {
+                    "value": float(row["fear_greed_value"]),
+                    "label": row["fear_greed_label"],
+                },
+                "put_call_ratio": (float(row["put_call_ratio"]) if row["put_call_ratio"] else None),
+                "vix_level": (float(row["vix_level"]) if row["vix_level"] else None),
+                "date": str(row["date"]),
+            }
+            is_valid, error_msg = ResponseValidator.validate_endpoint_response("sentiment", default_result)
+            if not is_valid:
+                logger.error(f"Endpoint response validation failed: {error_msg}")
+                return error_response(
+                    500, "response_validation_error", error_msg or "Default sentiment validation failed"
+                )
+            return json_response(200, default_result)
         return error_response(404, "not_found", f"No sentiment handler for {path}")
     except (
         psycopg2.errors.UndefinedTable,
@@ -409,32 +435,26 @@ def _get_vix_data(cur) -> Any:
         if not rows:
             return error_response(503, "no_data", "Market sentiment data not yet available")
 
-        latest = safe_json_serialize(dict(rows[0])) if rows else None
+        if not rows:
+            return error_response(503, "no_data", "VIX data not available — market_health_daily table empty")
+
+        latest = safe_json_serialize(dict(rows[0]))
         history = [safe_json_serialize(dict(r)) for r in rows]
 
-        if latest:
-            if "vix_level" not in latest:
-                logger.warning(
-                    f"Market sentiment calculation: vix_level missing from latest data {latest}. "
-                    "Cannot compute market sentiment without VIX level (required for fear/greed calculation)."
-                )
-                signal = None
-            elif latest["vix_level"] is None:
-                logger.warning(
-                    "Market sentiment calculation: vix_level is None. "
-                    "Cannot compute market sentiment without VIX level (required for fear/greed calculation)."
-                )
-                signal = None
-            else:
-                vix = latest["vix_level"]
-                if vix > 25:
-                    signal = "fear"
-                elif vix > 15:
-                    signal = "neutral"
-                else:
-                    signal = "greed"
+        if not latest or "vix_level" not in latest or latest["vix_level"] is None:
+            raise RuntimeError(
+                "VIX data endpoint requires vix_level for signal calculation but data is missing/NULL. "
+                "Cannot compute market sentiment without VIX level. "
+                "Check market_health_daily table and data loader."
+            )
+
+        vix = latest["vix_level"]
+        if vix > 25:
+            signal = "fear"
+        elif vix > 15:
+            signal = "neutral"
         else:
-            signal = None
+            signal = "greed"
 
         vix_result = {"latest": latest, "history": history, "signal": signal}
         is_valid, error_msg = ResponseValidator.validate_endpoint_response("sentiment", vix_result)
