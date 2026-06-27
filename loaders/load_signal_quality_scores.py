@@ -216,7 +216,7 @@ class SignalQualityScoresLoader(OptimalLoader):
             "symbol": symbol,
             "signal_date": end,
             "buy_sell_daily_signal_count": actual_symbols,
-            "coverage_pct": (round((actual_symbols / 10000) * 100, 2) if actual_symbols > 0 else 0),
+            "coverage_pct": round((actual_symbols / 10000) * 100, 2) if actual_symbols >= 0 else None,
         }
 
         # Hard limit: if signals drop below 50 (<0.5% coverage), reject all scores
