@@ -123,14 +123,14 @@ def extract_risk_metrics(risk: dict[str, Any]) -> dict[str, Any]:
     """
     if not isinstance(risk, dict) or has_error(risk):
         return {"_error": "Risk metrics unavailable"}
-    required = ["var95", "cvar95", "svar", "beta", "conc5"]
+    required = ["var95", "cvar95", "beta", "conc5"]
     missing = [k for k in required if k not in risk]
     if missing:
         raise KeyError(f"Risk metrics missing critical fields: {missing}")
     return {
         "var95": risk["var95"],
         "cvar95": risk["cvar95"],
-        "svar": risk["svar"],
+        "svar": risk.get("svar"),
         "beta": risk["beta"],
         "conc5": risk["conc5"],
     }
@@ -328,12 +328,13 @@ def extract_performance_metrics(perf: dict[str, Any]) -> dict[str, Any]:
 def extract_risk_data(risk: dict[str, Any]) -> dict[str, Any]:
     """Extract risk data for display (error already checked).
 
-    Fail-fast: var95, cvar95, beta, conc5, svar are critical financial metrics.
+    Fail-fast: var95, cvar95, beta, conc5 are critical financial metrics.
+    svar is optional—requires historical data accumulation.
     Raises KeyError if required fields missing.
     """
     if not isinstance(risk, dict) or has_error(risk):
         return {"_error": "Risk data unavailable"}
-    required = ["var95", "cvar95", "beta", "conc5", "svar"]
+    required = ["var95", "cvar95", "beta", "conc5"]
     missing = [k for k in required if k not in risk]
     if missing:
         raise KeyError(f"Risk data missing critical fields: {missing}")
@@ -342,7 +343,7 @@ def extract_risk_data(risk: dict[str, Any]) -> dict[str, Any]:
         "cvar95": risk["cvar95"],
         "beta": risk["beta"],
         "conc5": risk["conc5"],
-        "svar": risk["svar"],
+        "svar": risk.get("svar"),
         "date": risk.get("date"),
     }
 
