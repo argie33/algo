@@ -477,11 +477,24 @@ def _get_algo_portfolio(cur: cursor) -> Any:
         snapshot_date = data.get("snapshot_date")
         data_age_seconds = None
         if snapshot_date:
+            from datetime import date as date_type
             from datetime import datetime, timezone
             now = datetime.now(timezone.utc)
-            snapshot_dt = snapshot_date if hasattr(snapshot_date, 'tzinfo') else (
-                datetime.fromisoformat(str(snapshot_date)).replace(tzinfo=timezone.utc) if isinstance(snapshot_date, str) else None
-            )
+            # Handle both datetime.date and datetime.datetime objects
+            if isinstance(snapshot_date, datetime):
+                # datetime object - use directly if it has timezone, else add UTC
+                snapshot_dt = snapshot_date if snapshot_date.tzinfo else snapshot_date.replace(tzinfo=timezone.utc)
+            elif isinstance(snapshot_date, date_type):
+                # date object - convert to datetime with UTC timezone
+                snapshot_dt = datetime.combine(snapshot_date, datetime.min.time()).replace(tzinfo=timezone.utc)
+            elif isinstance(snapshot_date, str):
+                # string - parse and add timezone if missing
+                try:
+                    snapshot_dt = datetime.fromisoformat(snapshot_date).replace(tzinfo=timezone.utc)
+                except ValueError:
+                    snapshot_dt = None
+            else:
+                snapshot_dt = None
             if snapshot_dt:
                 data_age_seconds = int((now - snapshot_dt).total_seconds())
 
