@@ -15,7 +15,8 @@ peak_value AS (
   WHERE snapshot_date >= (NOW() - INTERVAL '30 days')
 ),
 weekly_losses AS (
-  SELECT COALESCE(SUM(daily_return_pct), 0) AS sum_daily
+  -- CRITICAL: Return NULL if no snapshots available (don't hide missing data with 0)
+  SELECT SUM(daily_return_pct) AS sum_daily
   FROM algo_portfolio_snapshots
   WHERE snapshot_date >= (NOW() - INTERVAL '5 days')
 ),
@@ -49,14 +50,28 @@ first_win AS (
   WHERE profit_loss_dollars >= 0
 ),
 consecutive_losses_calc AS (
-  SELECT COALESCE(first_win_position - 1, 0) as consecutive_losses
+  -- CRITICAL: Return NULL if insufficient closed trades (don't assume 0 losses)
+  SELECT (first_win_position - 1) as consecutive_losses
   FROM first_win
 )
 SELECT
-  COALESCE(ROUND(((pv.peak - ls.total_portfolio_value) / NULLIF(pv.peak, 0)) * 100, 2), 0) AS current_drawdown_pct,
-  COALESCE(ROUND(ABS(LEAST(0, ls.daily_return_pct)) * 100, 2), 0) AS daily_loss_pct,
-  COALESCE(ROUND(ABS(LEAST(0, wl.sum_daily)) * 100, 2), 0) AS weekly_loss_pct,
-  COALESCE(ROUND((COALESCE(opr.open_risk, 0) / NULLIF(opr.port_val, 0)) * 100, 2), 0) AS total_risk_pct,
+  -- CRITICAL: Return NULL for missing data; don't hide gaps with 0%
+  CASE WHEN pv.peak IS NOT NULL AND pv.peak > 0 AND ls.total_portfolio_value IS NOT NULL
+    THEN ROUND(((pv.peak - ls.total_portfolio_value) / pv.peak) * 100, 2)
+    ELSE NULL
+  END AS current_drawdown_pct,
+  CASE WHEN ls.daily_return_pct IS NOT NULL AND ls.daily_return_pct < 0
+    THEN ROUND(ABS(ls.daily_return_pct) * 100, 2)
+    ELSE 0
+  END AS daily_loss_pct,
+  CASE WHEN wl.sum_daily IS NOT NULL AND wl.sum_daily < 0
+    THEN ROUND(ABS(wl.sum_daily) * 100, 2)
+    ELSE 0
+  END AS weekly_loss_pct,
+  CASE WHEN opr.open_risk IS NOT NULL AND opr.port_val > 0
+    THEN ROUND((opr.open_risk / opr.port_val) * 100, 2)
+    ELSE NULL
+  END AS total_risk_pct,
   clc.consecutive_losses
 FROM latest_snap ls
 CROSS JOIN peak_value pv

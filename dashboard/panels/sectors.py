@@ -318,12 +318,19 @@ def panel_sectors_expanded(srank: Any, pos: Any, port: Any, sec_rot: Any = None,
             pv = safe_float(pv_raw)
         sd: dict[str, dict[str, Any]] = {}
         invalid_count = 0
+        missing_sector_count = 0
         for p in pos_list:
             if not isinstance(p, dict):
                 invalid_count += 1
                 logger.error(f"panel_sectors_expanded: invalid position (not a dict): {type(p).__name__}")
                 continue
-            sec = safe_get_field(p, "sector", "Unknown")
+            sec = safe_get_field(p, "sector")
+            # CRITICAL: Skip positions without sector (don't default to "Unknown" which masks enrichment gaps)
+            if sec is None:
+                sym = p.get("symbol", "unknown")
+                missing_sector_count += 1
+                logger.warning(f"Position {sym} missing sector enrichment — skipping from sector breakdown")
+                continue
             val = safe_float(safe_get_field(p, "position_value"))
             pnl = safe_float(safe_get_field(p, "unrealized_pnl_pct"))
             if sec not in sd:

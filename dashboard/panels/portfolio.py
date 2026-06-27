@@ -82,14 +82,15 @@ def _calculate_adjusted_win_rate(perf: dict[str, Any] | None, pos: dict[str, Any
     Win rate should reflect all active positions (closed + open losses), not just closed trades.
     Counts open positions with unrealized_pnl_pct < 0 as losses.
     """
+    # CRITICAL: Fail-fast if performance data unavailable (don't return all zeros which masks missing data)
     if perf is None or perf.get("_error"):
-        return 0.0, 0, 0
+        raise ValueError(f"Performance data unavailable: {perf.get('_error') if perf else 'perf is None'}")
 
     wr_val = perf.get("wr")
     w_val = perf.get("w")
     l_val = perf.get("l")
     if wr_val is None or w_val is None or l_val is None:
-        return 0.0, 0, 0
+        raise ValueError(f"Performance metrics incomplete: wr={wr_val}, wins={w_val}, losses={l_val}")
 
     w_i = safe_int(w_val, 0, strict=True, field_name="closed_wins")
     l_i = safe_int(l_val, 0, strict=True, field_name="closed_losses")
@@ -567,20 +568,22 @@ def panel_portfolio_perf_expanded(  # noqa: C901
             "Streak:",
             Text(str_s, style=str_c),
         )
-        pnl_val_safe = pnl_val if pnl_val is not None else 0
-        unrlzd_pnl_safe = unrlzd_pnl if unrlzd_pnl is not None else 0
+        # CRITICAL: Only determine color if value exists (don't default None to 0 which appears GREEN)
+        pnl_display = fmt_money(pnl_val) if pnl_val is not None else "--"
+        pnl_color = (G if pnl_val >= 0 else R) if pnl_val is not None else "dim"
+
+        unrlzd_display = fmt_money(unrlzd_pnl) if unrlzd_pnl is not None else "--"
+        unrlzd_color = (G if unrlzd_pnl >= 0 else R) if unrlzd_pnl is not None else "dim"
+
         perfblk.add_row(
             "Total P&L:",
-            Text(fmt_money(pnl_val), style=G if pnl_val_safe >= 0 else R),
+            Text(pnl_display, style=pnl_color),
             "Profit Factor:",
             Text(f"{pf:.2f}" if pf else "--", style=pf_c),
         )
         perfblk.add_row(
             "Unrealized P&L:",
-            Text(
-                fmt_money(unrlzd_pnl) if unrlzd_pnl is not None else "--",
-                style=G if unrlzd_pnl_safe >= 0 else R,
-            ),
+            Text(unrlzd_display, style=unrlzd_color),
             "Open Positions:",
             Text(str(open_cnt) if open_cnt is not None else "--", style="white"),
         )
@@ -707,10 +710,11 @@ def panel_portfolio_perf_expanded(  # noqa: C901
         )
         if exp2 is not None or maxdd2 is not None:
             exp_style = G if (exp2 is not None and exp2 >= 0) else R
-            maxdd_abs = abs(maxdd2) if maxdd2 is not None else 0
+            # CRITICAL: Only set color for maxdd if value is not None (don't default to 0 which hides missing data)
+            maxdd_abs = abs(maxdd2) if maxdd2 is not None else None
             maxdd_style = (
-                R if (maxdd2 is not None and maxdd_abs >= 15)
-                else (Y if (maxdd2 is not None and maxdd_abs >= 5) else G)
+                R if (maxdd2 is not None and maxdd_abs is not None and maxdd_abs >= 15)
+                else (Y if (maxdd2 is not None and maxdd_abs is not None and maxdd_abs >= 5) else "dim" if maxdd2 is None else G)
             )
             anl.add_row(
                 "Expectancy:",
@@ -838,8 +842,8 @@ def panel_portfolio_perf_expanded(  # noqa: C901
                     ctbl2.add_column("pnl", justify="right", min_width=7)
                     for pct, sym, val, pnl in conc_rows[:15]:
                         bar_f = int(min(pct, 25) / 25 * 12)
-                        pnl_safe = pnl if pnl is not None else 0
-                        pc = G if pnl_safe >= 0 else R
+                        # CRITICAL: Only determine PnL color if value exists (don't default None to 0 which appears GREEN)
+                        pc = (G if pnl >= 0 else R) if pnl is not None else "dim"
                         bar_s = Text.from_markup(f"[{pc}]{'█' * bar_f}[/][dim]{'░' * (12 - bar_f)}[/]")
                         conc_c = R if pct >= 20 else (Y if pct >= 15 else "white")
                         ctbl2.add_row(
