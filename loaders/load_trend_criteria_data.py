@@ -229,10 +229,16 @@ class TrendCriteriaLoader(OptimalLoader):
 
             trend_dir = "uptrend" if score >= 6 else ("downtrend" if score <= 2 else "sideways")
 
-            # CRITICAL: SMA-based fields cannot be None - skip rows without SMA data
-            # rather than populating with None (which corrupts trend evaluation)
+            # CRITICAL: SMA-based fields cannot be None - fail fast if missing
+            # Trend signals require complete SMA data; skipping silently corrupts downstream trading logic
             if sma50 is None or sma200 is None:
-                continue
+                raise RuntimeError(
+                    f"[TREND_CRITERIA] {symbol} [{row['date'].date().isoformat()}]: "
+                    f"Cannot compute trend signals without complete SMA data. "
+                    f"sma_50={sma50}, sma_200={sma200}. "
+                    f"Moving average calculation incomplete—check that technical_data_daily loader populated all SMA fields. "
+                    f"Trend-based position entry/exit decisions require 100% data availability."
+                )
 
             # CRITICAL: Validate SMA slope values exist before using in result
             # NaN values corrupt technical indicators; must be explicit None instead
