@@ -379,11 +379,11 @@ class SignalQualityScoresLoader(OptimalLoader):
                     raise RuntimeError(f"VCP count query failed for {symbol}")
                 count = row[0]
                 if count == 0:
-                    logger.warning(
+                    raise RuntimeError(
                         f"[VCP_NO_DATA] No VCP patterns found for {symbol} in date range {start} to {end}. "
-                        f"VCP pattern data unavailable - trend confirmation signal missing."
+                        f"VCP pattern data is REQUIRED for signal quality scoring. "
+                        f"Cannot score signals without VCP trend confirmation data — check vcp_patterns table and data loader."
                     )
-                    return []
 
                 cur.execute(
                     "SELECT date, vcp_strength FROM vcp_patterns "

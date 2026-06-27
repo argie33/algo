@@ -147,7 +147,13 @@ def get_active_symbols(max_symbols: int | None = None, timeout_secs: int = 120) 
         if error is not None:
             raise error
 
-        symbols_result: list[str] = result["symbols"] or []
+        symbols_result: list[str] | None = result["symbols"]
+        if symbols_result is None:
+            raise RuntimeError(
+                "[SYMBOLS] Database query returned None for symbols list. "
+                "This indicates upstream database failure, not zero symbols. "
+                "Cannot proceed with loader batch without valid symbol list."
+            )
         symbols = symbols_result
 
         # Cache the result

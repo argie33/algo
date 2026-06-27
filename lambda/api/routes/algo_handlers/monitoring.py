@@ -118,13 +118,21 @@ def _get_last_run(cur: cursor) -> Any:
     completed_phases = [p for p in phases if p.get("status") == "success"]
 
     if halted and halted_phases:
-        run_summary = (
-            halted_phases[0].get("summary") or f"Halted in {halted_phases[0].get('action_type', 'unknown phase')}"
-        )
+        run_summary = halted_phases[0].get("summary")
+        if not run_summary:
+            action_type = halted_phases[0].get("action_type", "unknown phase")
+            raise RuntimeError(
+                f"[HALT_REASON] Phase {action_type} halted but missing halt reason. "
+                "Audit log must contain halt summary for all halted phases."
+            )
     elif errored and errored_phases:
-        run_summary = (
-            errored_phases[0].get("error") or f"Error in {errored_phases[0].get('action_type', 'unknown phase')}"
-        )
+        run_summary = errored_phases[0].get("error")
+        if not run_summary:
+            action_type = errored_phases[0].get("action_type", "unknown phase")
+            raise RuntimeError(
+                f"[ERROR_REASON] Phase {action_type} errored but missing error message. "
+                "Audit log must contain error details for all errored phases."
+            )
     elif success:
         run_summary = f"Completed successfully ({len(completed_phases)} phases)"
     else:

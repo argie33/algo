@@ -82,7 +82,7 @@ def _extract_items(data: Any) -> list[Any] | dict[str, Any]:
 
     Propagates error dicts instead of silently returning empty list.
     Returns error dict if present, otherwise returns items list.
-    Gracefully handles None/missing data (returns empty list).
+    Raises on malformed data to prevent silent data loss.
     """
     # Handle None gracefully — data not available yet (common on first load)
     if data is None:
@@ -98,11 +98,18 @@ def _extract_items(data: Any) -> list[Any] | dict[str, Any]:
             return data["items"]
         if "trades" in data and isinstance(data["trades"], list):
             return data["trades"]
-        # Dict exists but doesn't have expected structure — return empty
-        return []
+        # Dict exists but doesn't have expected structure — fail fast
+        raise ValueError(
+            f"Trade data dict missing 'items' or 'trades' field. "
+            f"Got keys: {list(data.keys())}. "
+            f"This indicates data structure mismatch or corruption."
+        )
 
-    # Unexpected data type — return empty instead of crashing
-    return []
+    # Unexpected data type — fail fast instead of silent empty list
+    raise TypeError(
+        f"Trade data must be None, list, or dict, got {type(data).__name__}. "
+        f"This indicates a data validation or API response issue."
+    )
 
 
 @register_panel(

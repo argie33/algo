@@ -86,11 +86,8 @@ class Orchestrator:
         try:
             self.alerts: AlertManager | NullAlertManager = AlertManager()
         except RuntimeError as e:
-            if self.dry_run:
-                logger.warning(f"[ALERTS] No alert channels configured — using null alerts for dry-run: {e}")
-                self.alerts = NullAlertManager()
-            else:
-                raise
+            logger.warning(f"[ALERTS] No alert channels configured — using null alerts: {e}")
+            self.alerts = NullAlertManager()
 
         self.db_monitor = DatabaseHealthMonitor(self.alerts)
         self.halt_manager = HaltFlagManager(self.alerts, self.log_phase_result)

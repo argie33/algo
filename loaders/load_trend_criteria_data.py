@@ -106,10 +106,11 @@ class TrendCriteriaLoader(OptimalLoader):
 
         rows = self._fetch_price_daily(symbol, start, end)
         if not rows or len(rows) < 50:
-            logger.warning(
-                f"Insufficient price data for {symbol}: {len(rows) if rows else 0} rows, need >= 50 — skipping"
+            raise RuntimeError(
+                f"Insufficient price data for {symbol}: {len(rows) if rows else 0} rows, need >= 50. "
+                "Trend criteria calculation requires minimum 50 days of historical data. "
+                "Cannot compute trend signals with incomplete data — check price_daily table and data loader status."
             )
-            return []
 
         results = self._compute_trend_criteria(symbol, rows)
         if since is not None:

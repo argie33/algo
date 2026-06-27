@@ -140,7 +140,9 @@ def fetch_market(c: None) -> dict[str, Any]:
         try:
             vix_raw = market_health.get("vix_level")
             # SPY close is in current object, not market_health
-            spy_raw = current.get("spy_close") or mkt.get("spy_close")
+            spy_raw = current.get("spy_close")
+            if spy_raw is None:
+                spy_raw = mkt.get("spy_close")
 
             # Both SPY and VIX are REQUIRED for position sizing
             if vix_raw is None:
@@ -184,6 +186,7 @@ def fetch_market(c: None) -> dict[str, Any]:
 
         # Circuit breaker halt reasons - validate but allow graceful fallback to empty list
         halt_reasons_raw = current.get("halt_reasons")
+        halt_reasons: list[Any] = []
         if halt_reasons_raw is None:
             # Halt reasons should be provided but if missing, default to empty list to allow dashboard display
             logger.warning(

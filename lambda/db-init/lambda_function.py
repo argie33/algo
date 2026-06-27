@@ -44,7 +44,9 @@ def get_credentials():
                 )
                 response = client.get_secret_value(SecretId=secret_arn)
                 secret = json.loads(response["SecretString"])
-                raw_host = os.environ.get("DB_ENDPOINT") or secret.get("host")
+                raw_host = os.environ.get("DB_ENDPOINT")
+                if not raw_host:
+                    raw_host = secret.get("host")
                 if not raw_host:
                     raise ValueError("Database host not found in secrets or DB_ENDPOINT environment variable")
                 host = raw_host.split(":")[0] if ":" in raw_host else raw_host
@@ -53,7 +55,9 @@ def get_credentials():
                 if not db_port:
                     raise ValueError("Database port not found in secrets")
 
-                db_name = os.environ.get("DB_NAME") or secret.get("dbname")
+                db_name = os.environ.get("DB_NAME")
+                if not db_name:
+                    db_name = secret.get("dbname")
                 if not db_name:
                     raise ValueError("Database name not found in environment or secrets")
 

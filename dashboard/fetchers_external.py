@@ -408,12 +408,12 @@ def fetch_activity(c: None) -> dict[str, Any]:
 
         run_at = items[0].get("action_date") if items else None
         run_id = next(
-            (i.get("details", {}).get("run_id") for i in items if i.get("details", {}).get("run_id")),
+            (i.get("details", {}).get("run_id") for i in items if i.get("details") and i.get("details").get("run_id")),
             None,
         )
         phases = [
             i for i in items
-            if (i.get("action_type") or "").startswith("phase_")
+            if i.get("action_type") and str(i.get("action_type")).startswith("phase_")
         ]
         return {
             "run_id": run_id,

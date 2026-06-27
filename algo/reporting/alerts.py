@@ -112,7 +112,9 @@ class AlertManager:
     """Send alerts via email, SNS, and webhook. Fails hard if no channels configured."""
 
     def __init__(self) -> None:
-        self.email_from = os.getenv("ALERT_SMTP_FROM") or os.getenv("ALERT_EMAIL_FROM", "noreply@algo.local")
+        self.email_from = os.getenv("ALERT_SMTP_FROM")
+        if not self.email_from:
+            self.email_from = os.getenv("ALERT_EMAIL_FROM", "noreply@algo.local")
         self.email_to = [e.strip() for e in os.getenv("ALERT_EMAIL_TO", "").split(",") if e.strip()]
         self.smtp_host = os.getenv("ALERT_SMTP_HOST")
         self.smtp_port = int(os.getenv("ALERT_SMTP_PORT", "587"))

@@ -217,5 +217,12 @@ class CredentialsProvider:
 
             parsed = urlparse(url)
             return bool(parsed.scheme and parsed.netloc)
-        except Exception:
-            return False
+        except Exception as e:
+            logger.error(
+                f"URL validation failed for API endpoint: {e}. "
+                f"Cannot validate API URL format — check configuration."
+            )
+            raise RuntimeError(
+                f"URL validation failed: {e}. "
+                "API endpoint configuration is invalid. Cannot proceed."
+            ) from e

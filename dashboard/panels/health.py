@@ -624,6 +624,9 @@ def _format_loader_status(loader: list[Any]) -> list[Text]:
     except (ValueError, TypeError) as e:
         rows.append(Text.from_markup(f"[red]Loader data error: {str(e)[:60]}[/]"))
         return rows
+    if valid_loader is None:
+        rows.append(Text.from_markup("[red]Loader data unavailable[/]"))
+        return rows
     problem_loader = [r for r in valid_loader if (r.get("status", "")) in LOADER_STATUS_ERROR]
     running_loader = [r for r in valid_loader if (r.get("status", "")) == LOADER_STATUS_LOADING]
     ok_count = len(valid_loader) - len(problem_loader) - len(running_loader)
@@ -730,7 +733,7 @@ def _format_audit_log_summary(audit: list[Any]) -> list[Text]:
     notable = [
         a
         for a in valid_audit
-        if any(k in (a.get("action_type", "") or "") for k in ("entry", "exit", "halt", "resume", "circuit"))
+        if a.get("action_type") and any(k in str(a.get("action_type", "")) for k in ("entry", "exit", "halt", "resume", "circuit"))
     ][:3]
 
     if not notable:
@@ -1390,6 +1393,10 @@ def panel_status(  # noqa: C901
         rows.append(Rule(style="dim"))
         rows.append(Text.from_markup(f"[red]Loader data error: {str(e)[:60]}[/]"))
         return rows
+    if valid_loader is None:
+        rows.append(Rule(style="dim"))
+        rows.append(Text.from_markup("[red]Loader data unavailable[/]"))
+        return rows
     problem_loader = [r for r in valid_loader if (r.get("status", "")) in ("error", "failed", "stale")]
     running_loader = [r for r in valid_loader if (r.get("status", "")) == "loading"]
     ok_count = len(valid_loader) - len(problem_loader) - len(running_loader)
@@ -1427,7 +1434,7 @@ def panel_status(  # noqa: C901
         notable = [
             a
             for a in valid_audit
-            if any(k in (a.get("action_type", "") or "") for k in ("entry", "exit", "halt", "resume", "circuit"))
+            if a.get("action_type") and any(k in str(a.get("action_type", "")) for k in ("entry", "exit", "halt", "resume", "circuit"))
         ][:3]
         if notable:
             rows.append(Rule(style="dim"))
@@ -1575,6 +1582,9 @@ def panel_algo_health(  # noqa: C901
     except (ValueError, TypeError) as e:
         logger.warning(f"Algo metrics data error: {e}")
         return rows
+    if valid_metrics is None:
+        logger.warning("[ALGO_METRICS] Metrics data is None after validation")
+        return rows
     today_m = valid_metrics[0] if valid_metrics else {}
     if not entries_exec:
         en = today_m.get("entries")
@@ -1595,7 +1605,11 @@ def panel_algo_health(  # noqa: C901
 
     # ── C: Run history (last 7 runs as badges) ───────────────────────────────
     valid_hist = safe_get_list(exec_hist)
-    history_rows = _format_run_history_summary(valid_hist)
+    if valid_hist is None:
+        logger.warning("[EXEC_HIST] Execution history is None")
+        history_rows = []
+    else:
+        history_rows = _format_run_history_summary(valid_hist)
     rows.extend(history_rows)
 
     rows.append(Rule(style="dim"))
@@ -1739,16 +1753,17 @@ def _build_results_panel(  # noqa: C901
             else:
                 try:
                     phase_results_list = safe_get_list(phase_data)
-                    for p in phase_results_list:
-                        name_val = p.get("name")
-                        phase_val = p.get("phase", "")
-                        raw = (name_val if name_val is not None else phase_val).lower()
-                        parts_p = raw.split("_")
-                        base = "_".join(parts_p[:2]) if len(parts_p) >= 2 else raw
-                        short = PHASE_NAMES.get(base, base.replace("phase_", "P"))[:8]
-                        ps = p.get("status", "")
-                        sc, si = HealthFormatter.format_phase_badge(ps)
-                        phase_badges_e.append(f"[{sc}]{si}[dim]{short}[/][/]")
+                    if phase_results_list is not None:
+                        for p in phase_results_list:
+                            name_val = p.get("name")
+                            phase_val = p.get("phase", "")
+                            raw = (name_val if name_val is not None else phase_val).lower()
+                            parts_p = raw.split("_")
+                            base = "_".join(parts_p[:2]) if len(parts_p) >= 2 else raw
+                            short = PHASE_NAMES.get(base, base.replace("phase_", "P"))[:8]
+                            ps = p.get("status", "")
+                            sc, si = HealthFormatter.format_phase_badge(ps)
+                            phase_badges_e.append(f"[{sc}]{si}[dim]{short}[/][/]")
                 except (ValueError, TypeError) as e:
                     logger.warning(f"Phase results data error: {e}")
     if phase_badges_e:
@@ -1763,27 +1778,28 @@ def _build_results_panel(  # noqa: C901
             else:
                 try:
                     phase_results_list = safe_get_list(phase_data)
-                    for p in phase_results_list:
-                        pdata = p.get("data")
-                        if isinstance(pdata, str):
-                            try:
-                                pdata = json.loads(pdata)
-                            except (json.JSONDecodeError, ValueError):
+                    if phase_results_list is not None:
+                        for p in phase_results_list:
+                            pdata = p.get("data")
+                            if isinstance(pdata, str):
+                                try:
+                                    pdata = json.loads(pdata)
+                                except (json.JSONDecodeError, ValueError):
+                                    pdata = None
+                            elif not isinstance(pdata, dict):
                                 pdata = None
-                        elif not isinstance(pdata, dict):
-                            pdata = None
-                        if pdata:
-                            sg = pdata.get("signals_generated")
-                            ee = pdata.get("entries_executed")
-                            if ee is None:
-                                ee = pdata.get("trades_executed")
-                            xe = pdata.get("exits_executed")
-                            if sg:
-                                signals_gen = max(signals_gen, int(sg))
-                            if ee:
-                                entries_exec = max(entries_exec, int(ee))
-                            if xe:
-                                exits_exec = max(exits_exec, int(xe))
+                            if pdata:
+                                sg = pdata.get("signals_generated")
+                                ee = pdata.get("entries_executed")
+                                if ee is None:
+                                    ee = pdata.get("trades_executed")
+                                xe = pdata.get("exits_executed")
+                                if sg:
+                                    signals_gen = max(signals_gen, int(sg))
+                                if ee:
+                                    entries_exec = max(entries_exec, int(ee))
+                                if xe:
+                                    exits_exec = max(exits_exec, int(xe))
                 except (ValueError, TypeError) as e:
                     logger.warning(f"Phase results data error: {e}")
 

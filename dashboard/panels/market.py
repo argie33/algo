@@ -88,16 +88,27 @@ def _get_market_halts(mkt_data: dict[str, Any], panel_name: str) -> list[Any]:
         panel_name: Panel name for logging context
 
     Returns:
-        List of halts (empty list if missing/invalid)
+        List of halts (empty if no active halts, but not if data missing)
+
+    Raises:
+        RuntimeError: If halts data missing or invalid — critical for trading safety
     """
     halts_raw = mkt_data.get("halts")
     if halts_raw is None:
-        logger.warning(f"{panel_name}: halts data missing from market endpoint")
-        return []
-    halts = safe_get_list(halts_raw) or []
-    if not halts and halts_raw:
-        logger.warning(f"{panel_name}: halts data failed validation, got: {halts_raw}")
-    return halts
+        raise RuntimeError(
+            f"{panel_name}: halts data MISSING from market endpoint. "
+            "Market halts are CRITICAL for trading safety. "
+            "Cannot proceed without halt status — check /api/algo/markets endpoint."
+        )
+    halts = safe_get_list(halts_raw)
+    if halts is None or (isinstance(halts, dict) and "_error" in halts):
+        raise RuntimeError(
+            f"{panel_name}: halts data validation FAILED. "
+            f"Got: {halts_raw}. "
+            "Cannot proceed without valid halt status — check API response format."
+        )
+    # Return actual list (may be empty if no halts active)
+    return halts if isinstance(halts, list) else []
 
 
 @register_panel(
@@ -251,7 +262,8 @@ def panel_market_expanded(mkt: Any, sentiment: Any = None) -> Panel:
     spy_raw = safe_float(mkt.get("spy"), strict=False)
     spy_chg = safe_float(mkt.get("spy_chg"), strict=False)
     stage = str(mkt.get("stage", "--"))
-    trend = (mkt.get("trend", "")).upper() or "--"
+    trend_raw = mkt.get("trend")
+    trend = trend_raw.upper() if trend_raw else "--"
     dist = safe_float(mkt.get("dist"), strict=False)
     _fed_raw = mkt.get("fed")
     fed = "--" if (_fed_raw is None or str(_fed_raw).lower() in ("unknown", "n/a", "none", "")) else str(_fed_raw)
