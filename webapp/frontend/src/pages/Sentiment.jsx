@@ -255,6 +255,7 @@ function SentimentContent() {
   );
 
   // Composite gauge (0-100) — average across available sources, normalized.
+  // FAIL-FAST: Reject incomplete source data; don't default to 0
   const compositeGauge = useMemo(() => {
     const sum = summaryQ.data || {};
     const components = [];
@@ -265,30 +266,34 @@ function SentimentContent() {
       });
     }
     if (sum.aaii) {
-      const tot =
-        (Number(sum.aaii.bullish) || 0) +
-        (Number(sum.aaii.bearish) || 0) +
-        (Number(sum.aaii.neutral) || 0);
-      if (tot > 0) {
-        const score =
-          ((Number(sum.aaii.bullish) || 0) - (Number(sum.aaii.bearish) || 0)) /
-          tot;
-        components.push({ name: "AAII Retail", value: 50 + score * 50 });
+      const bullish = Number(sum.aaii.bullish);
+      const bearish = Number(sum.aaii.bearish);
+      const neutral = Number(sum.aaii.neutral);
+      // Reject if any component missing or NaN
+      if (!isNaN(bullish) && !isNaN(bearish) && !isNaN(neutral)) {
+        const tot = bullish + bearish + neutral;
+        if (tot > 0) {
+          const score = (bullish - bearish) / tot;
+          components.push({ name: "AAII Retail", value: 50 + score * 50 });
+        }
       }
     }
     if (sum.naaim?.naaim_number_mean != null) {
       // NAAIM ranges 0-100 (sometimes -100 to 200); clamp to 0-100
       const v = Number(sum.naaim.naaim_number_mean);
-      components.push({
-        name: "NAAIM Pro",
-        value: Math.min(100, Math.max(0, v)),
-      });
+      if (!isNaN(v)) {
+        components.push({
+          name: "NAAIM Pro",
+          value: Math.min(100, Math.max(0, v)),
+        });
+      }
     }
     if (sum.analyst) {
-      const tot = Number(sum.analyst.analyst_count) || 0;
-      if (tot > 0) {
-        const bull = Number(sum.analyst.bullish_count) || 0;
-        const bear = Number(sum.analyst.bearish_count) || 0;
+      const tot = Number(sum.analyst.analyst_count);
+      const bull = Number(sum.analyst.bullish_count);
+      const bear = Number(sum.analyst.bearish_count);
+      // Reject if any component missing or NaN
+      if (!isNaN(tot) && !isNaN(bull) && !isNaN(bear) && tot > 0) {
         components.push({
           name: "Analyst",
           value: 50 + ((bull - bear) / tot) * 50,
@@ -325,10 +330,16 @@ function SentimentContent() {
           const days = (new Date(cur.date) - new Date(r.date)) / 86400000;
           return days >= 5;
         }) || rows[rows.length - 1];
-      const curScore =
-        (Number(cur.bull_percent) || 0) - (Number(cur.bear_percent) || 0);
-      const prevScore =
-        (Number(prev.bull_percent) || 0) - (Number(prev.bear_percent) || 0);
+      const curBull = Number(cur.bull_percent);
+      const curBear = Number(cur.bear_percent);
+      const prevBull = Number(prev.bull_percent);
+      const prevBear = Number(prev.bear_percent);
+      // FAIL-FAST: Reject if bull/bear percentages missing
+      if (isNaN(curBull) || isNaN(curBear) || isNaN(prevBull) || isNaN(prevBear)) {
+        return;
+      }
+      const curScore = curBull - curBear;
+      const prevScore = prevBull - prevBear;
       moves.push({
         symbol: sym,
         change: curScore - prevScore,
@@ -378,6 +389,7 @@ function SentimentContent() {
   }, [stocksList, scoresQ.data]);
 
   // Analyst rating funnel across the universe
+  // FAIL-FAST: Reject incomplete analyst data; don't default to 0
   const ratingFunnel = useMemo(() => {
     let strongBuy = 0,
       buy = 0,
@@ -387,12 +399,12 @@ function SentimentContent() {
     const list = Array.isArray(stocksList) ? stocksList : [];
     list.forEach((s) => {
       const a = s.latestAnalyst;
-      if (!a || !a.analyst_count) return;
-      const total = Number(a.analyst_count) || 0;
-      const bull = Number(a.bullish_count) || 0;
-      const bear = Number(a.bearish_count) || 0;
-      const _neut = Number(a.neutral_count) || 0;
-      if (total === 0) return;
+      if (!a) return;
+      const total = Number(a.analyst_count);
+      const bull = Number(a.bullish_count);
+      const bear = Number(a.bearish_count);
+      // FAIL-FAST: Reject if any component missing or NaN
+      if (isNaN(total) || isNaN(bull) || isNaN(bear) || total === 0) return;
       const bullPct = bull / total;
       const bearPct = bear / total;
       if (bullPct >= 0.7) strongBuy++;

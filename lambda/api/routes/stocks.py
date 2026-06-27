@@ -347,8 +347,8 @@ def handle(
         cur.execute(
             """
             SELECT ss.symbol, COALESCE(ss.security_name, ss.symbol) as company_name,
-                   COALESCE(cp.sector, 'Unknown') as sector,
-                   COALESCE(cp.industry, 'Unknown') as industry,
+                   cp.sector,
+                   cp.industry,
                    ss.is_sp500
             FROM stock_symbols ss
             LEFT JOIN company_profile cp ON ss.symbol = cp.ticker

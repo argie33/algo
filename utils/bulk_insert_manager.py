@@ -144,17 +144,22 @@ class BulkInsertManager:
         # Update watermark if provided (OUTSIDE transaction to avoid nested DatabaseContext)
         if symbol and new_watermark and watermark_mgr:
             try:
-                success = watermark_mgr.advance_watermark(
-                    new_watermark=new_watermark,
-                    symbol=symbol,
-                    rows_loaded=inserted,
-                    in_transaction=False,
-                )
-                if not success:
-                    raise RuntimeError(
-                        f"Watermark advance returned False for {self.table_name}/{symbol}. "
-                        f"Data was inserted but watermark did not advance, causing infinite re-loading."
+                # Support both Watermark and WatermarkManager classes
+                if hasattr(watermark_mgr, 'advance_watermark'):
+                    success = watermark_mgr.advance_watermark(
+                        new_watermark=new_watermark,
+                        symbol=symbol,
+                        rows_loaded=inserted,
+                        in_transaction=False,
                     )
+                    if not success:
+                        raise RuntimeError(
+                            f"Watermark advance returned False for {self.table_name}/{symbol}. "
+                            f"Data was inserted but watermark did not advance, causing infinite re-loading."
+                        )
+                else:
+                    # WatermarkManager.set() only updates in-memory cache
+                    watermark_mgr.set(symbol, new_watermark, inserted)
             except Exception as e:
                 raise RuntimeError(
                     f"CRITICAL: Failed to advance watermark for {self.table_name}/{symbol} after inserting {inserted} rows: {e}. "

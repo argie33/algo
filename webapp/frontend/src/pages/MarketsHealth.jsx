@@ -785,12 +785,16 @@ function ExposureFactors({ markets }) {
     ["aaii_sentiment", "AAII SENTIMENT (EXTREMES ONLY)", 3],
   ];
 
-  const eco = factors?.economic_overlay || {};
+  const eco = factors?.economic_overlay;
   const macroStress = eco?.macro_stress_score;
   const macroPenalty = eco?.penalty;
-  const macroSignals = eco?.signals || [];
+  const macroSignals = Array.isArray(eco?.signals) ? eco.signals : [];
   const macroColor =
-    macroStress >= 60 ? C.danger : macroStress >= 40 ? C.amber : C.success;
+    macroStress != null && macroStress >= 60
+      ? C.danger
+      : macroStress != null && macroStress >= 40
+        ? C.amber
+        : C.success;
 
   return (
     <div className="card">
@@ -807,57 +811,61 @@ function ExposureFactors({ markets }) {
         </div>
       </div>
       <div className="card-body">
-        {list.map(([key, label, max]) => {
-          const f = factors[key] || {};
-          const pct = f.max
-            ? Math.max(0, Math.min(100, (f.pts / f.max) * 100))
-            : 0;
-          const fillClass =
-            pct >= 70
-              ? "success"
-              : pct >= 40
-                ? ""
-                : pct >= 20
-                  ? "warn"
-                  : "danger";
-          const sub = [];
-          if (f.value != null) sub.push(`val ${num(f.value, 2)}`);
-          if (f.state) sub.push(f.state);
-          if (f.relation) sub.push(f.relation);
-          if (f.bull_bear_spread != null)
-            sub.push(`spread ${num(f.bull_bear_spread, 1)}`);
-          if (f.new_highs != null)
-            sub.push(`${f.new_highs} highs / ${f.new_lows} lows`);
-          if (f.distribution_days_25d != null)
-            sub.push(`${f.distribution_days_25d} dist days`);
-          if (f.widening_rapidly) sub.push("⚠ rapidly widening");
-          if (f.hy_20d_ago != null)
-            sub.push(`20d ago ${num(f.hy_20d_ago, 2)}%`);
-          return (
-            <div key={key} style={{ marginBottom: "var(--space-3)" }}>
-              <div
-                className="flex items-center justify-between"
-                style={{ marginBottom: 4 }}
-              >
-                <span className="eyebrow">{label}</span>
-                <span className="mono tnum t-xs strong">
-                  {num(f.pts || 0, 1)} / {f.max || max}
-                </span>
-              </div>
-              <div className="bar">
+        {list
+          .map(([key, label, max]) => {
+            const f = factors[key];
+            // FAIL-FAST: Skip factors with missing data; don't default to 0%
+            if (!f || f.max == null || f.pts == null) {
+              return null;
+            }
+            const pct = Math.max(0, Math.min(100, (f.pts / f.max) * 100));
+            const fillClass =
+              pct >= 70
+                ? "success"
+                : pct >= 40
+                  ? ""
+                  : pct >= 20
+                    ? "warn"
+                    : "danger";
+            const sub = [];
+            if (f.value != null) sub.push(`val ${num(f.value, 2)}`);
+            if (f.state) sub.push(f.state);
+            if (f.relation) sub.push(f.relation);
+            if (f.bull_bear_spread != null)
+              sub.push(`spread ${num(f.bull_bear_spread, 1)}`);
+            if (f.new_highs != null)
+              sub.push(`${f.new_highs} highs / ${f.new_lows} lows`);
+            if (f.distribution_days_25d != null)
+              sub.push(`${f.distribution_days_25d} dist days`);
+            if (f.widening_rapidly) sub.push("⚠ rapidly widening");
+            if (f.hy_20d_ago != null)
+              sub.push(`20d ago ${num(f.hy_20d_ago, 2)}%`);
+            return (
+              <div key={key} style={{ marginBottom: "var(--space-3)" }}>
                 <div
-                  className={`bar-fill ${fillClass}`}
-                  style={{ width: `${pct}%` }}
-                />
-              </div>
-              {sub.length > 0 && (
-                <div className="t-2xs muted" style={{ marginTop: 4 }}>
-                  {sub.join(" · ")}
+                  className="flex items-center justify-between"
+                  style={{ marginBottom: 4 }}
+                >
+                  <span className="eyebrow">{label}</span>
+                  <span className="mono tnum t-xs strong">
+                    {num(f.pts || 0, 1)} / {f.max || max}
+                  </span>
                 </div>
-              )}
-            </div>
-          );
-        })}
+                <div className="bar">
+                  <div
+                    className={`bar-fill ${fillClass}`}
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+                {sub.length > 0 && (
+                  <div className="t-2xs muted" style={{ marginTop: 4 }}>
+                    {sub.join(" · ")}
+                  </div>
+                )}
+              </div>
+            );
+          })
+          .filter(Boolean)}
 
         {/* Economic Regime Overlay */}
         {(macroStress != null || macroSignals.length > 0) && (
@@ -1403,12 +1411,24 @@ function SentimentCard({ markets, sentiment, loading, error }) {
     .reverse()
     .map((s) => ({
       date: s?.date,
-      bull: s?.bullish != null ? parseFloat(s.bullish) : 0,
-      bear: s?.bearish != null ? parseFloat(s.bearish) : 0,
-      neutral: s?.neutral != null ? parseFloat(s.neutral) : 0,
-    }));
-  const latest = data[data.length - 1] || { bull: 0, bear: 0, neutral: 0 };
-  const spread = (latest.bull || 0) - (latest.bear || 0);
+      bull: s?.bullish != null ? parseFloat(s.bullish) : null,
+      bear: s?.bearish != null ? parseFloat(s.bearish) : null,
+      neutral: s?.neutral != null ? parseFloat(s.neutral) : null,
+    }))
+    .filter((row) => row.bull != null && row.bear != null && row.neutral != null);
+
+  if (data.length === 0) {
+    return (
+      <Empty
+        title="Investor Sentiment"
+        desc="AAII data incomplete or unavailable"
+        wrap
+      />
+    );
+  }
+
+  const latest = data[data.length - 1];
+  const spread = latest.bull - latest.bear;
   return (
     <div className="card">
       <div className="card-head">
@@ -2967,14 +2987,21 @@ function SentimentCompositeCard({ markets, sentiment, loading }) {
   const aaii =
     sentiment?.aaii?.history ||
     (Array.isArray(markets?.sentiment) ? markets.sentiment : []);
+  // FAIL-FAST: Reject AAII records with missing bull/bear data
   const aaiiSeries = aaii
     .slice()
     .reverse()
-    .map((s) => ({
-      date: s.date,
-      spread: parseFloat(s.bullish || 0) - parseFloat(s.bearish || 0),
-    }));
-  const aaiiLatest = aaiiSeries[aaiiSeries.length - 1];
+    .map((s) => {
+      const bull = parseFloat(s.bullish);
+      const bear = parseFloat(s.bearish);
+      if (isNaN(bull) || isNaN(bear)) return null;
+      return {
+        date: s.date,
+        spread: bull - bear,
+      };
+    })
+    .filter((s) => s !== null);
+  const aaiiLatest = aaiiSeries.length > 0 ? aaiiSeries[aaiiSeries.length - 1] : null;
 
   if (loading || fgLoading)
     return <Empty title="Sentiment Composite" desc="Loading…" wrap />;

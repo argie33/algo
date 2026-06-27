@@ -937,7 +937,18 @@ def _get_market_latest(cur: cursor) -> Any:
     if recent_prices:
         result["prices"] = [safe_json_serialize(dict(p)) for p in recent_prices]
 
-    return json_response(200, result if result else {})
+    # FAIL-FAST: Require at least market data; don't return empty response
+    if not market_row:
+        return json_response(
+            503,
+            {
+                "isDataError": True,
+                "message": "Market data unavailable",
+                "available": list(result.keys()),
+            },
+        )
+
+    return json_response(200, result)
 
 
 def _parse_range_param(params: dict, default: int = 30) -> int:
