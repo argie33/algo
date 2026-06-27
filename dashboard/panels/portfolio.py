@@ -141,7 +141,10 @@ def panel_portfolio(
     mxdd = safe_float(port.get("max_drawdown_pct"), default=None)
     lgpos = safe_float(port.get("largest_position_pct"), default=None)
     snap = port.get("snapshot_date")
-    max_n = safe_int(cfg.get("max_pos_n") if cfg else None, default=0)
+    max_n_val = cfg.get("max_pos_n") if cfg else None
+    if max_n_val is None:
+        raise ValueError("max_pos_n config missing — cannot render portfolio position limits")
+    max_n = safe_int(max_n_val, strict=True)
     snap_s = f"  [dim]{fmt_age(snap)}[/]" if snap is not None else ""
     # Header: portfolio value + age
     header = Text.from_markup(f"[bold white]{fmt_money(pv)}[/]{snap_s}")
@@ -237,7 +240,7 @@ def panel_portfolio(
     optional=True,
     description="Performance",
 )
-def panel_performance_spark(
+def panel_performance_spark(  # noqa: C901
     perf: dict[str, Any], rec: Any, perf_anl: dict[str, Any] | None = None, pos: dict[str, Any] | None = None
 ) -> Panel:
     """Performance metrics + equity sparkline + rolling analytics."""
@@ -480,8 +483,13 @@ def panel_portfolio_perf_expanded(  # noqa: C901
             fmt_money(cash),
         )
         max_n_val = cfg.get("max_pos_n") if cfg else None
-        max_n = int(max_n_val) if max_n_val is not None and isinstance(max_n_val, (int, float)) else 0
-        slots_s = f"{npos}/{max_n}" if (npos is not None and max_n) else (str(npos) if npos is not None else "--")
+        if max_n_val is None:
+            slots_s = str(npos) if npos is not None else "--"
+        else:
+            max_n = int(max_n_val) if isinstance(max_n_val, (int, float)) else None
+            if max_n is None:
+                raise ValueError(f"max_pos_n config invalid type: {type(max_n_val).__name__}")
+            slots_s = f"{npos}/{max_n}" if npos is not None else "--"
         dr_s = f"{dr:+.2f}%" if dr is not None else "--"
         ptbl.add_row("Open Positions:", slots_s, "Day Return:", dr_s)
         urp_s = f"{urp:+.2f}%" if urp is not None else "--"

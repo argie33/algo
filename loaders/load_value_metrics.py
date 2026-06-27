@@ -142,7 +142,14 @@ class ValueMetricsLoader(OptimalLoader):
                 fcf_yield = float(fcf) / float(mkt_cap)
 
             def _cap(val: Any, limit: int = 9_999_999) -> float | None:
-                return min(float(val), limit) if val else None
+                if val is None:
+                    return None
+                try:
+                    f = float(val)
+                    return min(f, limit)
+                except (ValueError, TypeError) as e:
+                    logger.warning(f"Failed to convert value {val!r} to float: {e}")
+                    return None
 
             return [
                 {

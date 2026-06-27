@@ -90,54 +90,12 @@ def mkt_hours_str() -> tuple[str, str]:
     except Exception as market_err:
         import logging
 
-        logging.debug(f"Could not get market status from calendar: {market_err}, using fallback")  # noqa: LOG015
-
-    n = datetime.now(ET)
-    wd = n.weekday()
-    t = n.hour * 60 + n.minute
-
-    def _fmt_mins(m: int) -> str:
-        h, mm = divmod(m, 60)
-        return f"{h}h{mm:02d}m" if h > 0 else f"{mm}m"
-
-    if wd >= 5:
-        days_ahead = 7 - wd
-        open_dt = (n + timedelta(days=days_ahead)).replace(hour=9, minute=30, second=0, microsecond=0)
-        diff_m = max(0, int((open_dt - n).total_seconds() / 60))
-        return (
-            "[orange1]⊘ CLOSED[/]",
-            f"opens {open_dt.strftime('%a')} in {_fmt_mins(diff_m)}",
+        logging.critical(  # noqa: LOG015
+            f"MarketCalendar unavailable: {market_err} — cannot determine market status safely"
         )
-
-    PRE_OPEN = 4 * 60  # noqa: N806
-    OPEN = 9 * 60 + 30  # noqa: N806
-    CLOSE = 16 * 60  # noqa: N806
-    AH_END = 20 * 60  # noqa: N806
-
-    if t < PRE_OPEN:
-        diff_m = OPEN - t
-        return "[orange1]⊘ CLOSED[/]", f"opens in {_fmt_mins(diff_m)}"
-    if t < OPEN:
-        diff_m = OPEN - t
-        return "[yellow]◇ PRE-MKT[/]", f"opens in {_fmt_mins(diff_m)}"
-    if t < CLOSE:
-        diff_m = CLOSE - t
-        return "[bold bright_green]◆ OPEN[/]", f"closes in {_fmt_mins(diff_m)}"
-    if t < AH_END:
-        next_days = 3 if wd == 4 else 1
-        open_dt = (n + timedelta(days=next_days)).replace(hour=9, minute=30, second=0, microsecond=0)
-        diff_m = max(0, int((open_dt - n).total_seconds() / 60))
-        return (
-            "[orange1]⊘ AFTER-HRS[/]",
-            f"opens {open_dt.strftime('%a')} in {_fmt_mins(diff_m)}",
-        )
-    next_days = 3 if wd == 4 else 1
-    open_dt = (n + timedelta(days=next_days)).replace(hour=9, minute=30, second=0, microsecond=0)
-    diff_m = max(0, int((open_dt - n).total_seconds() / 60))
-    return (
-        "[orange1]⊘ CLOSED[/]",
-        f"opens {open_dt.strftime('%a')} in {_fmt_mins(diff_m)}",
-    )
+        raise RuntimeError(
+            "Market calendar required for accurate market status; refusing to trade based on hardcoded hours"
+        ) from market_err
 
 
 def next_run_str() -> str:
@@ -279,8 +237,12 @@ def _next_run_hardcoded() -> str:
 
 
 def hbar(cur: Any, thr: Any, w: int = 6) -> str:
-    thr_f = float(thr) if thr else 0
-    cur_f = float(cur) if cur is not None else 0
+    if thr is None:
+        return f"[red]{'✗' * w}[/]"
+    if cur is None:
+        return f"[red]{'✗' * w}[/]"
+    thr_f = float(thr)
+    cur_f = float(cur)
     if thr_f > 0:
         r = min(cur_f / thr_f, 1.0) if thr_f != 0 else 0
     elif thr_f < 0 and cur_f < 0:
@@ -317,9 +279,9 @@ def sign(v: Any) -> str:
 
 
 def sparkline(values: list[Any], width: int = 24) -> str:
-    vals = [v for v in (values or []) if v is not None and float(v) > 0]
+    vals = [v for v in (values or []) if v is not None]
     if len(vals) < 2:
-        return f"[{DIM}]{'▁' * width}[/]"
+        return f"[{DIM}]No data[/]"
     mn, mx = min(vals), max(vals)
     if mx == mn:
         return f"[{CY}]{'▄' * width}[/]"

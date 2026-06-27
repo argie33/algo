@@ -172,8 +172,8 @@ def _build_signal_header(sig_data: dict[str, Any], scores_data: dict[str, Any] |
     near_field = safe_get_field(overview, "near", [])
     near_result = safe_get_list(near_field) if near_field else None
     near: list[Any] = near_result if near_result is not None else []
-    n_near: int = len(near) if near else 0
-    near_hint: str = f"  [{CY}]{n_near} near[/]" if n_near else ""
+    n_near: int = len(near)
+    near_hint: str = f"  [{CY}]{n_near} near[/]" if n_near > 0 else ""
 
     ga_s = f"{ga}" if ga is not None else "--"
     gb_s = f"{gb}" if gb is not None else "--"

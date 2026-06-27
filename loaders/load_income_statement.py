@@ -8,18 +8,18 @@ Period determined by LOADER_PERIOD env var (financials_annual_income / financial
 or --period CLI flag for manual runs.
 """
 
-import logging
+import logging  # noqa: E402
 
-import psycopg2
+import psycopg2  # noqa: E402
 
 logger = logging.getLogger(__name__)
-import os
-from datetime import date
-from typing import Any, cast
+import os  # noqa: E402
+from datetime import date  # noqa: E402
+from typing import Any, cast  # noqa: E402
 
-from loaders.runner import run_loader
-from utils.external.sec_edgar import SecEdgarClient
-from utils.optimal_loader import OptimalLoader
+from loaders.runner import run_loader  # noqa: E402
+from utils.external.sec_edgar import SecEdgarClient  # noqa: E402
+from utils.optimal_loader import OptimalLoader  # noqa: E402
 
 _PERIOD_CONFIG = {
     "annual": {
@@ -158,7 +158,12 @@ class IncomeStatementLoader(OptimalLoader):
                 self._edgar_period,
             )
 
-            since_year = int(since.year) if since else 2000
+            if since is None:
+                raise ValueError(
+                    f"Income statement loader for {symbol} requires 'since' parameter for incremental loading. "
+                    f"Cannot load full historical data in incremental mode."
+                )
+            since_year = int(since.year)
             # Also include years already in DB where revenue is NULL (backfill ASC 606 gaps)
             null_revenue_years = self._get_null_revenue_years(symbol)
             filtered = []

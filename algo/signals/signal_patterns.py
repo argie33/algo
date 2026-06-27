@@ -393,7 +393,9 @@ class SignalPatternsMixin:
                     (symbol, eval_date),
                 )
                 r = cur.fetchone()
-                atr = float(r[0]) if r and r[0] else entry_price * 0.02
+                if not r or r[0] is None:
+                    raise ValueError(f"ATR data missing for {symbol} on {eval_date}; cannot compute stop loss")
+                atr = float(r[0])
 
             max_stop_pct = 0.08
             floor_stop = entry_price * (1.0 - max_stop_pct)
@@ -519,10 +521,8 @@ class SignalPatternsMixin:
 
             ranges_pct = [(h - low) / low * 100.0 for h, low in zip(highs, lows, strict=False) if low > 0]
             if not ranges_pct:
-                logger.debug(f"[3WT_PATTERN] No valid range data for {symbol}; using conservative default (100% range)")
-                avg_range = 100.0
-            else:
-                avg_range = sum(ranges_pct) / len(ranges_pct)
+                raise ValueError(f"[3WT_PATTERN] No valid range data for {symbol} (all lows <= 0); cannot calculate volatility")
+            avg_range = sum(ranges_pct) / len(ranges_pct)
             is_quiet = avg_range <= 6.0
 
             if len(rows) >= 4:
@@ -539,7 +539,9 @@ class SignalPatternsMixin:
                 (symbol, eval_date),
             )
             r = cur.fetchone()
-            cur_close = float(r[0]) if r else 0
+            if not r or r[0] is None:
+                raise ValueError(f"Current price missing for {symbol} on {eval_date}; cannot evaluate 3WT breakout")
+            cur_close = float(r[0])
             breakout_imminent = is_3wt and cur_close >= pivot_high * 0.98
 
             return {

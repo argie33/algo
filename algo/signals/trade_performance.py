@@ -172,8 +172,8 @@ class SignalTradePerformancePopulator:
                                 int(holding_days),
                                 float(swing_score) if swing_score is not None else 0.0,
                                 float(trend_score) if trend_score is not None else 0.0,
-                                float(exit_r_multiple) if exit_r_multiple else 0,
-                                (bool(exit_r_multiple and exit_r_multiple > 0) if exit_r_multiple else False),
+                                float(exit_r_multiple) if exit_r_multiple is not None else None,
+                                (bool(exit_r_multiple is not None and exit_r_multiple > 0)),
                             ),
                         )
                         inserted_count += 1

@@ -69,7 +69,9 @@ class LoaderConflictDetector:
 
                 for row in cur.fetchall():
                     table_name, status, execution_started, duration_sec = row
-                    duration_sec = float(duration_sec) if duration_sec else 0
+                    if duration_sec is None:
+                        raise ValueError(f"Loader duration_sec is NULL for {table_name} — loader status tracking corrupted")
+                    duration_sec = float(duration_sec)
 
                     loader_info = {
                         "table_name": table_name,

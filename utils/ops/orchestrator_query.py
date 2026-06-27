@@ -222,12 +222,26 @@ def get_success_rate(days: int = 7) -> dict[str, Any]:
             stats = dict(rows)
             total = sum(stats.values())
 
+            if total == 0:
+                return {
+                    "total_runs": 0,
+                    "by_status": {},
+                    "success_rate": "N/A",
+                    "halt_rate": "N/A",
+                    "error_rate": "N/A",
+                    "period_days": days,
+                }
+
+            for status_key in ['success', 'halted', 'error']:
+                if status_key not in stats:
+                    raise ValueError(f"Missing '{status_key}' count in orchestrator stats — data incomplete")
+
             return {
                 "total_runs": total,
                 "by_status": stats,
-                "success_rate": (f"{(stats.get('success', 0) / total * 100):.1f}%" if total > 0 else "N/A"),
-                "halt_rate": (f"{(stats.get('halted', 0) / total * 100):.1f}%" if total > 0 else "N/A"),
-                "error_rate": (f"{(stats.get('error', 0) / total * 100):.1f}%" if total > 0 else "N/A"),
+                "success_rate": f"{(stats['success'] / total * 100):.1f}%",
+                "halt_rate": f"{(stats['halted'] / total * 100):.1f}%",
+                "error_rate": f"{(stats['error'] / total * 100):.1f}%",
                 "period_days": days,
             }
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:

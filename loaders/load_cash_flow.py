@@ -8,16 +8,16 @@ Period determined by LOADER_PERIOD env var (financials_annual_cashflow / financi
 or --period CLI flag for manual runs.
 """
 
-import logging
+import logging  # noqa: E402
 
 logger = logging.getLogger(__name__)
-import os
-from datetime import date
-from typing import Any, cast
+import os  # noqa: E402
+from datetime import date  # noqa: E402
+from typing import Any, cast  # noqa: E402
 
-from loaders.runner import run_loader
-from utils.external.sec_edgar import SecEdgarClient
-from utils.optimal_loader import OptimalLoader
+from loaders.runner import run_loader  # noqa: E402
+from utils.external.sec_edgar import SecEdgarClient  # noqa: E402
+from utils.optimal_loader import OptimalLoader  # noqa: E402
 
 _PERIOD_CONFIG = {
     "annual": {
@@ -120,7 +120,12 @@ class CashFlowLoader(OptimalLoader):
                 )
             logger.info("%s: Fetched %d %s cash flow row(s)", symbol, len(rows), self.period)
 
-            since_year = int(since.year) if since else 2000
+            if since is None:
+                raise ValueError(
+                    f"Cash flow loader for {symbol} requires 'since' parameter for incremental loading. "
+                    f"Cannot load full historical data in incremental mode."
+                )
+            since_year = int(since.year)
             filtered = []
             for r in rows:
                 if "fiscal_year" not in r or r["fiscal_year"] is None:
