@@ -156,16 +156,10 @@ def _get_orchestrator_execution_stats(cur: cursor, days: int = 7) -> Any:
     stats_by_status = {r["overall_status"]: r["count"] for r in rows}
     total = sum(stats_by_status.values())
 
-    # Validation: require all expected statuses present (0 count is valid, but status must exist)
+    # Provide 0 counts for any missing statuses (no runs of that type in period is valid)
     expected_statuses = {"success", "halted", "error"}
-    missing = expected_statuses - set(stats_by_status.keys())
-    if missing:
-        raise ValueError(
-            f"Orchestration stats missing required statuses: {missing}. "
-            f"Query returned only: {list(stats_by_status.keys())}. "
-            f"Cannot compute accurate success/halt/error rates with incomplete status breakdown. "
-            f"Check orchestrator_execution_log table or query scope."
-        )
+    for status in expected_statuses:
+        stats_by_status.setdefault(status, 0)
 
     success_count = int(stats_by_status["success"])
     halt_count = int(stats_by_status["halted"])

@@ -53,8 +53,8 @@ export const ENDPOINT_SCHEMAS = {
   },
   "/api/algo/execution/recent": {
     type: "paginated",
-    itemFields: ["id", "status"],
-    paginationFields: ["page", "limit", "total"],
+    itemFields: ["run_id", "overall_status", "started_at"],
+    paginationFields: ["total", "limit"],
   },
   "/api/algo/circuit-breakers": {
     type: "object",
@@ -363,19 +363,36 @@ export const ENDPOINT_SCHEMAS = {
  * @param {string} endpoint - API endpoint path or cache key (e.g., '/api/sectors', 'sectors', or '/api/sectors?page=1')
  * @returns {object|null} Schema object or null if not found
  */
+// Map cache keys to endpoint patterns for schema lookup
+const CACHE_KEY_TO_ENDPOINT = {
+  "algo-status": "/api/algo/status",
+  "exec-stats": "/api/algo/execution/stats",
+  "exec-recent": "/api/algo/execution/recent",
+  "circuit-breakers": "/api/algo/circuit-breakers",
+  "algo-positions": "/api/algo/positions",
+  "algo-trades": "/api/algo/trades",
+  "algo-performance": "/api/algo/performance",
+  "algo-metrics": "/api/algo/metrics",
+};
+
 export function getEndpointSchema(endpoint) {
   if (!endpoint) return null;
 
   // Remove query parameters
   const basePath = endpoint.split("?")[0];
 
-  // Exact match
+  // Exact match for full API paths
   if (ENDPOINT_SCHEMAS[basePath]) {
     return ENDPOINT_SCHEMAS[basePath];
   }
 
-  // If not an API path, try to match as cache key by converting to API path
+  // If not an API path, try cache key lookup first
   if (!basePath.startsWith("/")) {
+    // Try direct cache key mapping
+    if (CACHE_KEY_TO_ENDPOINT[basePath]) {
+      return ENDPOINT_SCHEMAS[CACHE_KEY_TO_ENDPOINT[basePath]];
+    }
+
     // Cache key format: try matching against endpoint paths
     // e.g., 'algo-positions' should match '/api/algo/positions'
     // e.g., 'swing-scores' should match '/api/algo/swing-scores'

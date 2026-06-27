@@ -152,6 +152,7 @@ def _get_last_run(cur: cursor) -> Any:
         "errored": errored,
         "summary": run_summary,
         "halt_reason": run_summary if (halted or errored) else None,
+        "phases": phases,
         "phases_completed": [p.get("action_type") for p in completed_phases if p.get("action_type")],
         "phases_halted": [p.get("action_type") for p in halted_phases if p.get("action_type")],
         "phases_errored": [p.get("action_type") for p in errored_phases if p.get("action_type")],
