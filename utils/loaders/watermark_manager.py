@@ -28,8 +28,9 @@ class WatermarkManager:
                 return self.current_watermark
             return None
         except Exception as e:
-            logger.error(f"[WATERMARK] Failed to read for {self.table_name}: {e}")
-            return None
+            msg = f"[WATERMARK] Failed to read for {self.table_name}: {e}. Cannot proceed without watermark state."
+            logger.error(msg)
+            raise RuntimeError(msg) from e
 
     def update_watermark(self, cur: Any, new_value: Any) -> None:
         """Update watermark after successful load."""
