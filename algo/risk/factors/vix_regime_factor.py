@@ -71,7 +71,14 @@ class VixRegimeFactor(MarketFactorStrategy):
         adjustment = 0.0
         if vix_3m is not None:
             vix_3m = float(vix_3m)
-            term_ratio = vix_3m / vix_level if vix_level > 0 else 1.0
+            if vix_level <= 0:
+                logger.warning(
+                    "[VIX_REGIME_FACTOR] Current VIX level is invalid or zero. "
+                    "Cannot compute VIX term ratio for market regime adjustment. Using neutral adjustment."
+                )
+                term_ratio = 1.0
+            else:
+                term_ratio = vix_3m / vix_level
 
             if term_ratio > 1.05:
                 # Contango: futures rising, boost score (forward-looking optimism)

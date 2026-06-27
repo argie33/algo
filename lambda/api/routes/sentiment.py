@@ -51,7 +51,7 @@ def handle(
                 timeout_sec=3,
             )
             row = fg_rows[0] if fg_rows else None
-            fg_value = float(row["fear_greed_value"]) if row and row["fear_greed_value"] else None
+            fg_value = float(row["fear_greed_value"]) if row and row["fear_greed_value"] is not None else None
             fg_label = row["fear_greed_label"] if row else None
 
             aaii_row = None
@@ -112,8 +112,8 @@ def handle(
                 "analyst": (
                     safe_json_serialize(dict(analyst_row)) if analyst_row and analyst_row.get("analyst_count") else None
                 ),
-                "put_call_ratio": (float(row["put_call_ratio"]) if row and row["put_call_ratio"] else None),
-                "vix_level": (float(row["vix_level"]) if row and row["vix_level"] else None),
+                "put_call_ratio": (float(row["put_call_ratio"]) if row and row["put_call_ratio"] is not None else None),
+                "vix_level": (float(row["vix_level"]) if row and row["vix_level"] is not None else None),
                 "date": str(row["date"]) if row else None,
                 "data_freshness": freshness,
             }

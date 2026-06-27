@@ -22,7 +22,7 @@ class WatermarkManager:
         try:
             cur.execute(f"SELECT MAX({self.watermark_field}) FROM {self.table_name}")
             row = cur.fetchone()
-            if row and row[0]:
+            if row and row[0] is not None:
                 self.current_watermark = row[0]
                 logger.debug(f"[WATERMARK] {self.table_name}: {self.current_watermark}")
                 return self.current_watermark

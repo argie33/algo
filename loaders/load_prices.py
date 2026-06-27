@@ -1490,7 +1490,16 @@ class PriceLoader(OptimalLoader):
         """
 
         avg_batch_time = sum(batch_times) / len(batch_times) if batch_times else 0
-        completion_pct = processed / total_symbols if total_symbols else 0
+        if total_symbols <= 0:
+            logger.critical(
+                f"[LOAD_PRICES] CRITICAL: total_symbols is {total_symbols}. "
+                f"Cannot calculate progress without symbol count. Loader may have failed to fetch symbols."
+            )
+            raise RuntimeError(
+                f"Loader progress check failed: total_symbols is {total_symbols}. "
+                f"Cannot verify completion percentage. Symbol loading may have failed."
+            )
+        completion_pct = processed / total_symbols
         remaining_batches = batches_count - (processed // self.batch_size)
         estimated_remaining_sec = remaining_batches * avg_batch_time
 

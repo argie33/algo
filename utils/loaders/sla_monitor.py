@@ -158,7 +158,16 @@ class SLAMonitor:
 
         # Calculate margin as % of warning threshold
         margin = warning - elapsed
-        margin_pct = max(0, (margin / warning * 100)) if warning > 0 else 0
+        if warning <= 0:
+            logger.critical(
+                f"[SLA_MONITOR CRITICAL] Warning threshold is {warning}. "
+                f"Cannot calculate SLA margin without valid warning threshold."
+            )
+            raise RuntimeError(
+                f"SLA monitoring failed: warning threshold is invalid ({warning}). "
+                f"SLA configuration may be missing or corrupted."
+            )
+        margin_pct = max(0, (margin / warning * 100))
 
         recommendation = ""
         if is_critical:

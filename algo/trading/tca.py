@@ -225,11 +225,36 @@ class TCAEngine:
                 worst_row = cur.fetchone()
                 worst_symbol = worst_row[0] if worst_row else None
 
-                avg_abs_slippage_dec = Decimal(str(avg_abs_slippage)) if avg_abs_slippage else Decimal(0)
-                best_slippage_dec = Decimal(str(best_slippage)) if best_slippage else Decimal(0)
-                worst_slippage_dec = Decimal(str(worst_slippage)) if worst_slippage else Decimal(0)
-                avg_fill_rate_dec = Decimal(str(avg_fill_rate)) if avg_fill_rate else Decimal(0)
-                avg_latency_dec = Decimal(str(avg_latency)) if avg_latency else Decimal(0)
+                if avg_abs_slippage is None:
+                    raise RuntimeError(
+                        f"[TCA CRITICAL] Average absolute slippage is NULL for {report_date}. "
+                        f"Cannot compute TCA metrics without valid execution data."
+                    )
+                if best_slippage is None:
+                    raise RuntimeError(
+                        f"[TCA CRITICAL] Best slippage is NULL for {report_date}. "
+                        f"Cannot compute TCA metrics without valid execution data."
+                    )
+                if worst_slippage is None:
+                    raise RuntimeError(
+                        f"[TCA CRITICAL] Worst slippage is NULL for {report_date}. "
+                        f"Cannot compute TCA metrics without valid execution data."
+                    )
+                if avg_fill_rate is None:
+                    raise RuntimeError(
+                        f"[TCA CRITICAL] Average fill rate is NULL for {report_date}. "
+                        f"Cannot compute TCA metrics without valid execution data."
+                    )
+                if avg_latency is None:
+                    raise RuntimeError(
+                        f"[TCA CRITICAL] Average latency is NULL for {report_date}. "
+                        f"Cannot compute TCA metrics without valid execution data."
+                    )
+                avg_abs_slippage_dec = Decimal(str(avg_abs_slippage))
+                best_slippage_dec = Decimal(str(best_slippage))
+                worst_slippage_dec = Decimal(str(worst_slippage))
+                avg_fill_rate_dec = Decimal(str(avg_fill_rate))
+                avg_latency_dec = Decimal(str(avg_latency))
 
                 return {
                     "report_date": report_date,

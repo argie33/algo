@@ -72,7 +72,16 @@ class RDSPoolMonitor:
                 active = row[0]
                 max_conn = row[1]
 
-                utilization_pct = (active / max_conn) * 100 if max_conn > 0 else 0
+                if max_conn <= 0:
+                    logger.critical(
+                        f"[POOL_MONITOR CRITICAL] Database connection pool max_conn is {max_conn}. "
+                        f"Cannot calculate utilization without valid pool configuration."
+                    )
+                    raise RuntimeError(
+                        f"Pool monitor failed: max connection limit is invalid ({max_conn}). "
+                        f"Database connection pool may not be configured."
+                    )
+                utilization_pct = (active / max_conn) * 100
 
                 if utilization_pct >= self.CRITICAL_THRESHOLD_PCT:
                     status = "CRITICAL"

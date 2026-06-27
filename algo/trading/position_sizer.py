@@ -110,7 +110,12 @@ class PositionSizer:
             if result is not None and result[0] is not None:
                 snapshot_value = Decimal(str(result[0]))
                 snapshot_date = result[1]
-                age_days = (_date.today() - snapshot_date).days if snapshot_date else 999
+                if snapshot_date is None:
+                    raise PortfolioValueError(
+                        "Portfolio snapshot date is NULL. Cannot calculate staleness without timestamp. "
+                        "Check that Phase 7 reconciliation is updating portfolio snapshots."
+                    )
+                age_days = (_date.today() - snapshot_date).days
                 if age_days <= 1:
                     logger.info(
                         f"[PORTFOLIO] Using snapshot from {age_days}d ago (threshold: 1 day): ${snapshot_value:,.2f}"

@@ -355,10 +355,25 @@ class LivePerformance:
             backtest_wr = backtest_metrics.get("win_rate_pct")
 
             live_win_rate = live_wr.get("win_rate_pct") if isinstance(live_wr, dict) else live_wr
+            if backtest_sharpe is None or backtest_sharpe == 0:
+                logger.warning(
+                    "[PERFORMANCE_METRICS] Backtest Sharpe ratio is missing or zero. "
+                    "Cannot compute live-to-backtest Sharpe comparison."
+                )
+                sharpe_ratio = None
+            elif live_sharpe is None:
+                logger.warning(
+                    "[PERFORMANCE_METRICS] Live Sharpe ratio is missing. "
+                    "Cannot compute live-to-backtest Sharpe comparison."
+                )
+                sharpe_ratio = None
+            else:
+                sharpe_ratio = live_sharpe / backtest_sharpe
+
             return {
                 "live_sharpe": live_sharpe,
                 "backtest_sharpe": backtest_sharpe,
-                "sharpe_ratio": (live_sharpe / backtest_sharpe if backtest_sharpe else None),
+                "sharpe_ratio": sharpe_ratio,
                 "live_win_rate": live_win_rate,
                 "backtest_win_rate": backtest_wr,
                 "win_rate_ratio": (live_win_rate / backtest_wr if (live_win_rate and backtest_wr) else None),

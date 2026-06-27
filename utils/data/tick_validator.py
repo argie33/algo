@@ -171,10 +171,13 @@ class TickValidator:
         if min(prices) < 0.001:
             self.errors.append(f"price < $0.001: {min(prices)}")
 
-        spread_pct = ((high - low) / low * 100) if low > 0 else 0
-        if spread_pct > 50:
-            # More than 50% spread = likely bad data
-            self.errors.append(f"spread > 50%: {spread_pct:.1f}%")
+        if low <= 0:
+            self.errors.append(f"Low price is invalid ({low}): cannot calculate spread percent")
+        else:
+            spread_pct = ((high - low) / low * 100)
+            if spread_pct > 50:
+                # More than 50% spread = likely bad data
+                self.errors.append(f"spread > 50%: {spread_pct:.1f}%")
 
     def _check_volume_sanity(self, volume: int) -> None:
         """Check volume is reasonable for the security type."""

@@ -422,7 +422,7 @@ class SwingTraderScore:
                     (symbol, eval_date),
                 )
                 row = cur.fetchone()
-                if row and row[0]:
+                if row and row[0] is not None:
                     return cast(int, (row[0] - eval_date).days)
             raise ValueError(f"Earnings calendar data not available for {symbol} on {eval_date}")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:

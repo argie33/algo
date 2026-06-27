@@ -162,7 +162,16 @@ class TradeRecorder:
 
                 # Calculate P&L
                 pnl = (exit_price - entry_price) * quantity
-                pnl_pct = ((exit_price - entry_price) / entry_price * 100) if entry_price > 0 else 0
+                if entry_price <= 0:
+                    logger.error(
+                        f"[RECORDER CRITICAL] Cannot calculate P&L percent for {symbol}: "
+                        f"entry_price is {entry_price} (must be positive)"
+                    )
+                    raise ValueError(
+                        f"Cannot record trade P&L: entry price is invalid ({entry_price}). "
+                        f"Trade records must have valid entry prices for P&L calculation."
+                    )
+                pnl_pct = ((exit_price - entry_price) / entry_price * 100)
 
                 # Update trade record (most recent entry for this symbol)
                 cursor.execute(

@@ -835,7 +835,16 @@ def _log_signal_metrics() -> None:
                 )
             daily_signals = int(daily_result[0])
             symbols_with_signals = int(daily_result[1])
-            coverage_pct = round((symbols_with_signals / 10000) * 100, 2) if symbols_with_signals > 0 else 0
+            if symbols_with_signals == 0:
+                logger.critical(
+                    f"[LOAD_SIGNAL_QUALITY_SCORES] CRITICAL: Zero symbols have signal quality scores for {latest_signal_date}. "
+                    f"Signal quality data may not have loaded. This will block dependent loaders."
+                )
+                raise RuntimeError(
+                    f"Signal coverage check failed: 0 symbols have signal quality scores for {latest_signal_date}. "
+                    f"Loader may have failed to compute scores. Cannot calculate signal quality metrics."
+                )
+            coverage_pct = round((symbols_with_signals / 10000) * 100, 2)
 
             # Quality score distribution
             cur.execute(

@@ -1070,9 +1070,9 @@ class MarketExposure:
             )
 
         # Check if SPY data is fresh (no older than 1 trading day)
-        if rows and rows[-1]:
+        if rows and rows[-1] is not None:
             latest_date = rows[-1].get("date")
-            if latest_date:
+            if latest_date is not None:
                 from datetime import timedelta
 
                 from algo.infrastructure import MarketCalendar

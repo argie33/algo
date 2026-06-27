@@ -24,7 +24,7 @@ def up():
         cur.execute("SELECT value FROM algo_config WHERE key = 'halt_drawdown_pct'")
         row = cur.fetchone()
 
-        if row and row[0]:
+        if row and row[0] is not None:
             current = float(row[0])
             # If positive, negate it
             if current > 0:
@@ -48,7 +48,7 @@ def down():
         cur.execute("SELECT value FROM algo_config WHERE key = 'halt_drawdown_pct'")
         row = cur.fetchone()
 
-        if row and row[0]:
+        if row and row[0] is not None:
             current = float(row[0])
             # If negative, make it positive (reverting the fix)
             if current < 0:

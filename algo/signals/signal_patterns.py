@@ -108,7 +108,14 @@ class SignalPatternsMixin:
                 if len(base_vols) >= self.LOOKBACK_BARS_SHORT
                 else 0
             )
-            prior_vol = sum(volumes[20:50]) / 30 if len(volumes) >= 50 else recent_vol
+            if len(volumes) < 50:
+                logger.debug(
+                    f"[SIGNAL_PATTERNS] Insufficient volume history for pattern ({len(volumes)}/50 bars). "
+                    f"Volume dryup detection unreliable with limited data."
+                )
+                prior_vol = recent_vol
+            else:
+                prior_vol = sum(volumes[20:50]) / 30
             volume_dryup = prior_vol > 0 and recent_vol < prior_vol * 0.8
 
             return {
@@ -406,7 +413,7 @@ class SignalPatternsMixin:
                     (symbol, eval_date, eval_date, f"{strategy.lookback_days} days"),
                 )
                 r = cur.fetchone()
-                if r and r[0]:
+                if r and r[0] is not None:
                     low_price = float(r[0])
                     calc_stop, calc_reasoning = strategy.calculate(low_price, atr, entry_price)
                     candidate = calc_stop

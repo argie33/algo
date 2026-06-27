@@ -340,7 +340,7 @@ class StockScoresLoader(OptimalLoader):
             )
             row = cur.fetchone()
 
-            if row and row[0]:
+            if row and row[0] is not None:
                 prices = {
                     "current": float(row[0]) if row[0] is not None else None,
                     "price_1m_ago": float(row[1]) if row[1] is not None else None,
@@ -351,16 +351,24 @@ class StockScoresLoader(OptimalLoader):
 
                 current = prices["current"]
                 momentum_1m = (
-                    ((current / prices["price_1m_ago"] - 1) * 100) if current and prices["price_1m_ago"] else None
+                    ((current / prices["price_1m_ago"] - 1) * 100)
+                    if current is not None and prices["price_1m_ago"] is not None and prices["price_1m_ago"] != 0
+                    else None
                 )
                 momentum_3m = (
-                    ((current / prices["price_3m_ago"] - 1) * 100) if current and prices["price_3m_ago"] else None
+                    ((current / prices["price_3m_ago"] - 1) * 100)
+                    if current is not None and prices["price_3m_ago"] is not None and prices["price_3m_ago"] != 0
+                    else None
                 )
                 momentum_6m = (
-                    ((current / prices["price_6m_ago"] - 1) * 100) if current and prices["price_6m_ago"] else None
+                    ((current / prices["price_6m_ago"] - 1) * 100)
+                    if current is not None and prices["price_6m_ago"] is not None and prices["price_6m_ago"] != 0
+                    else None
                 )
                 momentum_12m = (
-                    ((current / prices["price_12m_ago"] - 1) * 100) if current and prices["price_12m_ago"] else None
+                    ((current / prices["price_12m_ago"] - 1) * 100)
+                    if current is not None and prices["price_12m_ago"] is not None and prices["price_12m_ago"] != 0
+                    else None
                 )
 
                 return {

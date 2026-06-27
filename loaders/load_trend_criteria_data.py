@@ -94,7 +94,7 @@ class TrendCriteriaLoader(OptimalLoader):
                         (symbol,),
                     )
                     row = cur.fetchone()
-                    if row and row[0]:
+                    if row and row[0] is not None:
                         since = row[0] if isinstance(row[0], date) else date.fromisoformat(str(row[0]))
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 raise RuntimeError(

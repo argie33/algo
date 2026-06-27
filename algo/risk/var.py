@@ -413,7 +413,12 @@ class ValueAtRisk:
                             f"Current price and quantity must be positive for portfolio VAR calculation."
                         )
                     position_value = Decimal(str(safe_qty)) * Decimal(str(safe_price))
-                    position_weight = position_value / portfolio_value if portfolio_value > 0 else Decimal(0)
+                    if portfolio_value <= 0:
+                        raise RuntimeError(
+                            f"[VAR CALCULATION CRITICAL] Portfolio value is invalid ({portfolio_value}). "
+                            f"Cannot compute position weights for VAR without valid total portfolio value."
+                        )
+                    position_weight = position_value / portfolio_value
 
                     # Compute 60-day beta via covariance with SPY
                     if spy_var <= 0:

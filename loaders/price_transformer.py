@@ -349,7 +349,17 @@ class PriceTransformer:
         # Log data quality summary
         if non_trading_filtered > 0 or parse_errors > 0:
             total_input = len(rows)
-            filtered_pct = (non_trading_filtered + parse_errors) / total_input * 100 if total_input > 0 else 0
+            if total_input <= 0:
+                logger.critical(
+                    f"[PRICE_TRANSFORMER] Data quality calculation failed: total_input={total_input} "
+                    f"but detected {non_trading_filtered} non-trading + {parse_errors} parse errors. "
+                    f"This indicates data structure corruption or logic error."
+                )
+                raise RuntimeError(
+                    f"Data quality metric calculation failed with invalid input count. "
+                    f"Cannot validate transformation quality."
+                )
+            filtered_pct = (non_trading_filtered + parse_errors) / total_input * 100
             if rows:
                 symbol = rows[0].get("symbol", "unknown")
                 if filtered_pct > 5:

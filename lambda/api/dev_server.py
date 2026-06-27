@@ -252,8 +252,24 @@ class APIHandler(BaseHTTPRequestHandler):
             print(f"[DEV_SERVER] Handling {method} {path}", flush=True)
 
             # Get body
-            content_length = int(self.headers.get("Content-Length", 0))
-            body_raw = self.rfile.read(content_length) if content_length > 0 else b""
+            content_length_header = self.headers.get("Content-Length")
+            if content_length_header is None:
+                logger.warning(
+                    f"[DEV_SERVER] Missing Content-Length header for {method} {path}. "
+                    f"Request body may be lost."
+                )
+                content_length = 0
+                body_raw = b""
+            else:
+                try:
+                    content_length = int(content_length_header)
+                    body_raw = self.rfile.read(content_length) if content_length > 0 else b""
+                except ValueError:
+                    logger.error(
+                        f"[DEV_SERVER CRITICAL] Invalid Content-Length header: {content_length_header}. "
+                        f"Cannot read request body safely."
+                    )
+                    raise ValueError(f"Invalid Content-Length header: {content_length_header}")
 
             try:
                 body = json.loads(body_raw.decode("utf-8")) if body_raw else None

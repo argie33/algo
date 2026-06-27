@@ -787,8 +787,24 @@ def panel_portfolio_perf_expanded(  # noqa: C901
                         val = float(val_raw) if val_raw is not None else None
                         pnl_raw = p.get("unrealized_pnl_pct")
                         pnl = float(pnl_raw) if pnl_raw is not None else None
-                        pct = val / pv_total * 100 if val else None
-                        conc_rows.append((pct if pct is not None else 0, sym, val, pnl))
+                        if val is None:
+                            logger.warning(
+                                f"[PORTFOLIO_PANEL] Position {sym} has NULL position_value in concentration calculation"
+                            )
+                            pct = None
+                        elif pv_total <= 0:
+                            logger.critical(
+                                f"[PORTFOLIO_PANEL CRITICAL] Portfolio total value is invalid ({pv_total}) "
+                                f"for concentration calculation of {sym}"
+                            )
+                            raise ValueError(
+                                f"Portfolio concentration calculation failed: total portfolio value is invalid ({pv_total})"
+                            )
+                        else:
+                            pct = val / pv_total * 100
+                        if pct is None:
+                            continue
+                        conc_rows.append((pct, sym, val, pnl))
                     conc_rows.sort(reverse=True)
                     ctbl2 = Table.grid(padding=(0, 2), expand=True)
                     ctbl2.add_column("sym", min_width=7)

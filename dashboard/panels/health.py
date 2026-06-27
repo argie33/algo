@@ -507,7 +507,14 @@ def _format_exec_history_summary(exec_hist: list[Any] | None) -> list[Text]:
     n_hlt = sum(1 for r in valid_hist if _get_status_safe(r) == "halted")
     n_err = sum(1 for r in valid_hist if _get_status_safe(r) in ("error", "failed"))
     total_h = len(valid_hist)
-    wr_h = n_ok / total_h * 100 if total_h else 0
+    if total_h == 0:
+        logger.warning(
+            "[HEALTH_PANEL] Win rate calculation failed: no execution history available. "
+            "Cannot calculate health metrics without prior runs."
+        )
+        wr_h = None
+    else:
+        wr_h = n_ok / total_h * 100
     wc_h = G if wr_h >= 80 else (Y if wr_h >= 50 else R)
 
     badges = []

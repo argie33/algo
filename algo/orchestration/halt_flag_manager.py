@@ -201,7 +201,13 @@ class HaltFlagManager:
                             first_et = first_dt.astimezone(EASTERN_TZ)
                             if first_et.date() == now_et.date():
                                 prev_halt_count = item.get("halt_count")
-                                halt_count = (prev_halt_count if prev_halt_count else 0) + 1
+                                if prev_halt_count is None:
+                                    raise RuntimeError(
+                                        "[HALT_FLAG_ESCALATION CRITICAL] Previous halt count is NULL. "
+                                        "Cannot properly escalate repeated daily halts without halt counter. "
+                                        "DynamoDB halt_flag record corrupted."
+                                    )
+                                halt_count = prev_halt_count + 1
                                 halt_escalated = True
                             logger.critical(
                                 f"[HALT_FLAG_ESCALATION] REPEATED HALT on {now_et.date()}: "

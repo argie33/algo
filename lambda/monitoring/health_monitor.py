@@ -151,7 +151,7 @@ def check_data_freshness() -> tuple[str, list[dict[str, Any]]]:
                 """)
 
                 row = cur.fetchone()
-                if row and row[0]:
+                if row and row[0] is not None:
                     max_date = row[0]
                     if max_date.tzinfo is None:
                         max_date = max_date.replace(tzinfo=timezone.utc)

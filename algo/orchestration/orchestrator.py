@@ -95,7 +95,7 @@ class Orchestrator:
     def cleanup(self) -> None:
         """No-op: RDS Proxy handles connection cleanup."""
 
-    def _kill_long_running_loaders(self) -> None:
+    def _kill_long_running_loaders(self) -> None:  # noqa: C901
         """CRITICAL: Kill hung loaders (analytics + critical-path) if approaching next orchestrator run.
 
         Analytics loaders (company_profile, analyst_sentiment, stability_metrics, value_metrics)
@@ -431,7 +431,16 @@ class Orchestrator:
                     }
 
                     if is_stale:
-                        age_hours = (now_utc - last_updated).total_seconds() / 3600 if last_updated else None
+                        if last_updated is None:
+                            logger.critical(
+                                f"[ORCHESTRATOR CRITICAL] {table_name} marked STALE but last_updated is NULL. "
+                                f"Cannot calculate staleness age. Loader may not have run yet."
+                            )
+                            raise RuntimeError(
+                                f"Loader health check failed: {table_name} is stale but has no last_updated timestamp. "
+                                f"Loader execution tracking may be corrupted."
+                            )
+                        age_hours = (now_utc - last_updated).total_seconds() / 3600
                         logger.warning(
                             f"[LOADER HEALTH] {table_name} is STALE (last run {age_hours:.1f}h ago)"
                         )

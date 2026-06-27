@@ -300,13 +300,28 @@ class VectorizedSwingScoresLoader:
                         sector_score = float(sector_momentum)
                         logger.debug(f"{symbol}: Using sector momentum score {sector_score:.1f} from sector_ranking")
 
-                # If sector data unavailable, use fundamentals as fallback (not ideal but safe)
+                # CRITICAL: Sector momentum is a required component of swing trader score
+                # Do not fall back to fundamentals_score as it's a different metric
                 if sector_score is None:
-                    sector_score = fundamentals_score
-                    if sector is not None:
-                        logger.debug(f"{symbol}: Sector momentum score unavailable, using fundamentals_score as fallback")
+                    if sector is None:
+                        # Sector data completely missing — sector_ranking table may not have run
+                        logger.warning(
+                            f"{symbol}: No sector data available from sector_ranking. "
+                            f"Sector ranking loader may not have completed for this date."
+                        )
+                        raise ValueError(
+                            f"{symbol}: Cannot compute swing trader score without sector data. "
+                            f"sector_ranking table must be populated by load_sector_ranking.py first."
+                        )
                     else:
-                        logger.debug(f"{symbol}: No sector data available, using fundamentals_score as fallback")
+                        # Sector data exists but momentum score is missing
+                        logger.warning(
+                            f"{symbol}: Sector record exists but sector_momentum_score is NULL or missing. "
+                            f"Data quality issue in sector_ranking table."
+                        )
+                        raise ValueError(
+                            f"{symbol}: Sector momentum score is NULL. Cannot compute swing trader score without valid sector metrics."
+                        )
 
                 total_score = (
                     setup_score * 0.25
@@ -330,9 +345,13 @@ class VectorizedSwingScoresLoader:
                 else:
                     grade = "F"
 
-                # Use trend_template_data date as primary (it's always in pipeline).
-                # signal_quality_scores date is a secondary source and may be absent.
-                score_date = trend["date"] if trend is not None else (sig["date"] if sig is not None else end_date)
+                # Use trend_template_data date (guaranteed non-None by line 243 validation).
+                # No fallback chain — trend data is required upstream.
+                if "date" not in trend or trend["date"] is None:
+                    raise ValueError(
+                        f"{symbol}: trend_template_data missing required 'date' field on required date"
+                    )
+                score_date = trend["date"]
                 results.append(
                     {
                         "symbol": symbol,

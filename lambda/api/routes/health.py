@@ -406,7 +406,9 @@ def _handle_pipeline(cur: cursor, jwt_claims: dict[str, Any] | None) -> Any:
             tables.append(
                 {
                     "table_name": row["table_name"],
-                    "row_count": row.get("row_count", 0),
+                    "row_count": row["row_count"] if row.get("row_count") is not None else (
+                        logger.warning(f"[HEALTH] Row count missing for table {row['table_name']}") or None
+                    ),
                     "age_days": round(age, 1),
                     "status": status,
                 }
