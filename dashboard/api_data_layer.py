@@ -62,7 +62,15 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-API_BASE_URL = os.environ.get("DASHBOARD_API_URL", "")
+# Dashboard API URL must be configured—missing URL breaks all API calls
+_dashboard_api_url = os.environ.get("DASHBOARD_API_URL")
+if not _dashboard_api_url:
+    raise RuntimeError(
+        "[DASHBOARD API] DASHBOARD_API_URL environment variable not set. "
+        "Dashboard cannot function without API endpoint. "
+        "Set DASHBOARD_API_URL in environment before running dashboard."
+    )
+API_BASE_URL = _dashboard_api_url
 API_TIMEOUT = 20
 API_MAX_RETRIES = 3
 API_MAX_BACKOFF = 30

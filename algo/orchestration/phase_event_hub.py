@@ -82,6 +82,12 @@ class PhaseCompletedEvent(PhaseEvent):
         summary: str = "",
         metrics: dict[str, Any] | None = None,
     ):
+        if metrics is None:
+            raise ValueError(
+                f"[PHASE_EVENT] Phase completion event for '{phase_name}' missing metrics. "
+                f"Cannot publish phase completion without metrics data—events with missing metrics hide phase progress. "
+                f"Ensure phase executor populates metrics before firing PhaseCompletedEvent."
+            )
         super().__init__(
             event_type="phase_completed",
             phase_num=phase_num,
@@ -89,7 +95,7 @@ class PhaseCompletedEvent(PhaseEvent):
             details={
                 "status": status.value,
                 "summary": summary,
-                "metrics": metrics or {},
+                "metrics": metrics,
             },
         )
 
