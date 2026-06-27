@@ -511,7 +511,23 @@ class EntryHandler:
     def _validate_entry_phase(
         self, cur: Any, symbol: str, signal_date: Any, entry_price: Decimal, stop_loss_price: Decimal
     ) -> tuple[bool, str, dict[str, Any]]:
-        """PHASE 1: Validate entry conditions within transaction."""
+        """PHASE 1: Validate entry conditions within transaction.
+
+        CRITICAL: Reject positions without valid downside protection.
+        """
+        # Validate stop loss exists and is properly configured (fail-fast on missing protection)
+        if stop_loss_price is None:
+            return False, f"{symbol}: Cannot enter position without stop_loss_price (required for risk management)", {}
+
+        stop_dec = Decimal(str(stop_loss_price))
+        entry_dec = Decimal(str(entry_price))
+
+        if stop_dec <= 0:
+            return False, f"{symbol}: Stop loss must be > 0, got {stop_dec}. Zero stop = immediate liquidation.", {}
+
+        if stop_dec >= entry_dec:
+            return False, f"{symbol}: Stop loss {stop_dec} must be < entry price {entry_dec}", {}
+
         is_valid, error_msg, error_details = self.context._validate_entry_conditions(
             cur, symbol, signal_date, entry_price, stop_loss_price
         )

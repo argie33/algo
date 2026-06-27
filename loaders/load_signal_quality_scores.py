@@ -411,7 +411,8 @@ class SignalQualityScoresLoader(OptimalLoader):
 
             # Check if vcp_patterns has any data
             cur.execute("SELECT COUNT(*) FROM vcp_patterns")
-            count = cur.fetchone()[0] if cur.fetchone() else 0
+            row = cur.fetchone()
+            count = row[0] if row else 0
             if count > 0:
                 logger.debug(f"[VCP] vcp_patterns already populated ({count} rows)")
                 return

@@ -20,16 +20,20 @@ weekly_losses AS (
   WHERE snapshot_date >= (NOW() - INTERVAL '5 days')
 ),
 open_positions_risk AS (
+  -- CRITICAL: Require explicit stop_loss_price for risk calculation
+  -- Missing stops = unknown risk, not zero risk. Report NULL if any stop is missing.
   SELECT
-    SUM(GREATEST(p.current_price - COALESCE(lt.stop_loss_price, p.current_price), 0) * p.quantity) AS open_risk,
+    SUM(GREATEST(p.current_price - lt.stop_loss_price, 0) * p.quantity) AS open_risk,
     (SELECT total_portfolio_value FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1) AS port_val
   FROM algo_positions p
   LEFT JOIN (
     SELECT DISTINCT ON (symbol) symbol, stop_loss_price
-    FROM algo_trades WHERE status = 'open'
+    FROM algo_trades WHERE status = 'open' AND stop_loss_price IS NOT NULL
     ORDER BY symbol, trade_date DESC
   ) lt ON lt.symbol = p.symbol
-  WHERE p.status = 'open'
+  WHERE p.status = 'open' AND EXISTS (
+    SELECT 1 FROM algo_trades WHERE symbol = p.symbol AND status = 'open' AND stop_loss_price IS NOT NULL
+  )
 ),
 recent_trades_ordered AS (
   SELECT

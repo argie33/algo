@@ -84,7 +84,9 @@ SELECT
   ap.days_since_entry,
 
   -- Stop and target levels (from latest trade)
-  COALESCE(lt.stop_loss_price, 0)::DECIMAL(12, 4) as stop_loss_price,
+  -- CRITICAL: Keep NULL for missing stop_loss_price (don't default to 0)
+  -- A stop loss of 0 would liquidate position immediately — this must fail-fast
+  lt.stop_loss_price::DECIMAL(12, 4) as stop_loss_price,
   lt.target_1_price,
   lt.target_2_price,
   lt.target_3_price,
@@ -103,33 +105,37 @@ SELECT
   lt_tech.percent_from_52w_high,
 
   -- R-multiple calculation (entry - stop relative to position value)
+  -- CRITICAL: Require stop_loss_price to be explicitly set (NULL if missing)
   CASE
-    WHEN COALESCE(lt.stop_loss_price, 0) = 0 OR ap.avg_entry_price = 0
+    WHEN lt.stop_loss_price IS NULL OR ap.avg_entry_price <= 0
     THEN NULL
-    ELSE (ap.avg_entry_price - COALESCE(lt.stop_loss_price, ap.avg_entry_price)) / NULLIF(ap.avg_entry_price, 0)
+    ELSE (ap.avg_entry_price - lt.stop_loss_price) / NULLIF(ap.avg_entry_price, 0)
   END::DECIMAL(8, 4) as r_multiple,
 
   -- Initial risk per share (entry - stop)
+  -- CRITICAL: Require explicit stop_loss_price (NULL if missing)
   CASE
-    WHEN COALESCE(lt.stop_loss_price, 0) = 0
+    WHEN lt.stop_loss_price IS NULL OR ap.avg_entry_price <= 0
     THEN NULL
-    ELSE (ap.avg_entry_price - COALESCE(lt.stop_loss_price, ap.avg_entry_price))::DECIMAL(12, 4)
+    ELSE (ap.avg_entry_price - lt.stop_loss_price)::DECIMAL(12, 4)
   END as initial_risk_per_share,
 
   -- Open risk in dollars (initial_risk_per_share × quantity)
+  -- CRITICAL: Require explicit stop_loss_price (NULL if missing)
   CASE
-    WHEN COALESCE(lt.stop_loss_price, 0) = 0
-    THEN 0
-    ELSE ((ap.avg_entry_price - COALESCE(lt.stop_loss_price, ap.avg_entry_price)) * ap.quantity)::DECIMAL(14, 2)
+    WHEN lt.stop_loss_price IS NULL OR ap.avg_entry_price <= 0
+    THEN NULL
+    ELSE ((ap.avg_entry_price - lt.stop_loss_price) * ap.quantity)::DECIMAL(14, 2)
   END as open_risk_dollars,
 
   -- Distance to stop/target levels (percentage distance, always positive)
   -- Formatted as: distance_to_stop = (current - stop) / current * 100 (cushion to stop)
   --                distance_to_tx = (target - current) / current * 100 (distance to target)
+  -- CRITICAL: Require explicit stop_loss_price (NULL if missing)
   CASE
-    WHEN COALESCE(lp.current_price, ap.current_price) = 0 OR COALESCE(lt.stop_loss_price, 0) = 0
+    WHEN COALESCE(lp.current_price, ap.current_price) <= 0 OR lt.stop_loss_price IS NULL
     THEN NULL
-    ELSE (COALESCE(lp.current_price, ap.current_price) - COALESCE(lt.stop_loss_price, ap.current_price)) / NULLIF(COALESCE(lp.current_price, ap.current_price), 0) * 100
+    ELSE (COALESCE(lp.current_price, ap.current_price) - lt.stop_loss_price) / NULLIF(COALESCE(lp.current_price, ap.current_price), 0) * 100
   END::DECIMAL(8, 4) as distance_to_stop_pct,
 
   CASE
