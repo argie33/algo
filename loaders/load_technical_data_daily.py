@@ -182,9 +182,9 @@ class VectorizedTechnicalLoader:
                         {
                             "symbol": r[0],
                             "date": r[1],
-                            "open": float(r[2]) if r[2] else None,
-                            "high": float(r[3]) if r[3] else None,
-                            "low": float(r[4]) if r[4] else None,
+                            "open": float(r[2]) if r[2] is not None else None,
+                            "high": float(r[3]) if r[3] is not None else None,
+                            "low": float(r[4]) if r[4] is not None else None,
                             "close": close,
                             "volume": volume,
                         }

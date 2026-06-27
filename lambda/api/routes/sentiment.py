@@ -245,9 +245,9 @@ def handle(
                 "bullishPercent": bp,
                 "bearishPercent": bep,
                 "neutralPercent": np_,
-                "avgPriceTarget": (float(latest["target_price"]) if latest.get("target_price") else None),
+                "avgPriceTarget": (float(latest["target_price"]) if latest.get("target_price") is not None else None),
                 "priceTargetVsCurrent": (
-                    float(latest["upside_downside_percent"]) if latest.get("upside_downside_percent") else None
+                    float(latest["upside_downside_percent"]) if latest.get("upside_downside_percent") is not None else None
                 ),
                 "consensus": (
                     (
@@ -262,7 +262,7 @@ def handle(
             price_targets = [
                 {
                     "date": str(dict(r)["date"]),
-                    "target": (float(dict(r)["target_price"]) if dict(r).get("target_price") else None),
+                    "target": (float(dict(r)["target_price"]) if dict(r).get("target_price") is not None else None),
                 }
                 for r in rows
                 if dict(r).get("target_price")
@@ -327,9 +327,9 @@ def handle(
                 "bullishPercent": bp,
                 "bearishPercent": bep,
                 "neutralPercent": np_,
-                "avgPriceTarget": (float(latest["target_price"]) if latest.get("target_price") else None),
+                "avgPriceTarget": (float(latest["target_price"]) if latest.get("target_price") is not None else None),
                 "priceTargetVsCurrent": (
-                    float(latest["upside_downside_percent"]) if latest.get("upside_downside_percent") else None
+                    float(latest["upside_downside_percent"]) if latest.get("upside_downside_percent") is not None else None
                 ),
                 "sentiment": (
                     (
@@ -344,7 +344,7 @@ def handle(
             price_targets = [
                 {
                     "date": str(dict(r)["date"]),
-                    "target": (float(dict(r)["target_price"]) if dict(r).get("target_price") else None),
+                    "target": (float(dict(r)["target_price"]) if dict(r).get("target_price") is not None else None),
                 }
                 for r in rows
                 if dict(r).get("target_price")

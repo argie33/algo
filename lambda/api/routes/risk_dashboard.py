@@ -108,7 +108,7 @@ def _get_comprehensive_risk_dashboard(cur: cursor) -> Any:
             )
             row = rows[0] if rows else None
             if row:
-                vix = float(row["vix_level"]) if row["vix_level"] else None
+                vix = float(row["vix_level"]) if row["vix_level"] is not None else None
                 if vix is None or vix <= 25:
                     risk_reduction = 1.0
                 elif vix < 35:
@@ -146,11 +146,11 @@ def _get_comprehensive_risk_dashboard(cur: cursor) -> Any:
             if row:
                 result["position_sizing_stats"] = {
                     "trades_30d": row["total_trades"],
-                    "avg_cascade_multiplier": (float(row["avg_cascade"]) if row["avg_cascade"] else None),
-                    "min_cascade_multiplier": (float(row["min_cascade"]) if row["min_cascade"] else None),
-                    "max_cascade_multiplier": (float(row["max_cascade"]) if row["max_cascade"] else None),
+                    "avg_cascade_multiplier": (float(row["avg_cascade"]) if row["avg_cascade"] is not None else None),
+                    "min_cascade_multiplier": (float(row["min_cascade"]) if row["min_cascade"] is not None else None),
+                    "max_cascade_multiplier": (float(row["max_cascade"]) if row["max_cascade"] is not None else None),
                     "avg_position_size_pct": (
-                        float(row["avg_position_size_pct"]) if row["avg_position_size_pct"] else None
+                        float(row["avg_position_size_pct"]) if row["avg_position_size_pct"] is not None else None
                     ),
                 }
             else:
@@ -360,15 +360,15 @@ def _get_position_sizing_audit(cur: cursor, days: int) -> Any:
             items.append(
                 {
                     "symbol": row["symbol"],
-                    "signal_date": (row["signal_date"].isoformat() if row["signal_date"] else None),
-                    "entry_price": (float(row["entry_price"]) if row["entry_price"] else None),
-                    "stop_loss_price": (float(row["stop_loss_price"]) if row["stop_loss_price"] else None),
+                    "signal_date": (row["signal_date"].isoformat() if row["signal_date"] is not None else None),
+                    "entry_price": (float(row["entry_price"]) if row["entry_price"] is not None else None),
+                    "stop_loss_price": (float(row["stop_loss_price"]) if row["stop_loss_price"] is not None else None),
                     "base_shares": row["base_shares"],
                     "final_shares": row["final_shares"],
-                    "position_size_pct": (float(row["position_size_pct"]) if row["position_size_pct"] else 0),
-                    "cascade_multiplier": (float(row["cascade_multiplier"]) if row["cascade_multiplier"] else 1.0),
+                    "position_size_pct": (float(row["position_size_pct"]) if row["position_size_pct"] is not None else 0),
+                    "cascade_multiplier": (float(row["cascade_multiplier"]) if row["cascade_multiplier"] is not None else 1.0),
                     "reasons": reasons,
-                    "created_at": (row["created_at"].isoformat() if row["created_at"] else None),
+                    "created_at": (row["created_at"].isoformat() if row["created_at"] is not None else None),
                 }
             )
 
@@ -403,14 +403,14 @@ def _get_stop_loss_audit(cur: cursor, days: int) -> Any:
             items.append(
                 {
                     "symbol": row["symbol"],
-                    "signal_date": (row["signal_date"].isoformat() if row["signal_date"] else None),
-                    "entry_price": (float(row["entry_price"]) if row["entry_price"] else None),
-                    "stop_loss_price": (float(row["stop_loss_price"]) if row["stop_loss_price"] else None),
-                    "distance_pct": (float(row["distance_pct"]) if row["distance_pct"] else 0),
+                    "signal_date": (row["signal_date"].isoformat() if row["signal_date"] is not None else None),
+                    "entry_price": (float(row["entry_price"]) if row["entry_price"] is not None else None),
+                    "stop_loss_price": (float(row["stop_loss_price"]) if row["stop_loss_price"] is not None else None),
+                    "distance_pct": (float(row["distance_pct"]) if row["distance_pct"] is not None else 0),
                     "stop_method": row["stop_method"],
                     "stop_reasoning": row["stop_reasoning"],
                     "candidates": candidates,
-                    "created_at": (row["created_at"].isoformat() if row["created_at"] else None),
+                    "created_at": (row["created_at"].isoformat() if row["created_at"] is not None else None),
                 }
             )
 
@@ -448,8 +448,8 @@ def _get_exit_rules_distribution(cur: cursor, days: int) -> Any:
                 {
                     "exit_rule": row["exit_rule"],
                     "count": count,
-                    "avg_pnl_pct": (float(row["avg_pnl_pct"]) if row["avg_pnl_pct"] else None),
-                    "avg_r_multiple": (float(row["avg_r_multiple"]) if row["avg_r_multiple"] else None),
+                    "avg_pnl_pct": (float(row["avg_pnl_pct"]) if row["avg_pnl_pct"] is not None else None),
+                    "avg_r_multiple": (float(row["avg_r_multiple"]) if row["avg_r_multiple"] is not None else None),
                     "winning_count": winning,
                     "losing_count": losing,
                     "win_rate_pct": win_rate,

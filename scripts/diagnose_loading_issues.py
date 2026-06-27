@@ -87,7 +87,7 @@ def main() -> None:
         result = check_table_data(table, desc)
         critical_results.append(result)
         status = result["status"]
-        marker = "✓" if status in ("FRESH", "1DAY_OLD") else "✗"
+        marker = "[OK]" if status in ("FRESH", "1DAY_OLD") else "[!]"
         info = (
             f" (max_date: {result.get('max_date', 'N/A')})"
             if "max_date" in result
@@ -118,7 +118,7 @@ def main() -> None:
         result = check_table_data(table, desc)
         score_results.append(result)
         status = result["status"]
-        marker = "✓" if status in ("FRESH", "1DAY_OLD") else "✗"
+        marker = "[OK]" if status in ("FRESH", "1DAY_OLD") else "[X]"
         info = (
             f" ({result.get('count', 0)} rows, max_date: {result.get('max_date', 'N/A')})"
             if "max_date" in result
@@ -142,7 +142,7 @@ def main() -> None:
         result = check_table_data(table, desc)
         factor_results.append(result)
         status = result["status"]
-        marker = "✓" if status != "EMPTY" else "✗"
+        marker = "[OK]" if status != "EMPTY" else "[X]"
         info = f" ({result.get('count', 0)} rows)" if "count" in result else f" ({result.get('error', 'N/A')})"
         print(f"{marker} {table:30s} {status:20s} {desc:35s}{info}")
 
@@ -159,7 +159,7 @@ def main() -> None:
         result = check_table_data(table, desc)
         options_results.append(result)
         status = result["status"]
-        marker = "✓" if status != "EMPTY" else "✗"
+        marker = "[OK]" if status != "EMPTY" else "[X]"
         info = f" ({result.get('count', 0)} rows)" if "count" in result else f" ({result.get('error', 'N/A')})"
         print(f"{marker} {table:30s} {status:20s} {desc:35s}{info}")
 
@@ -174,15 +174,15 @@ def main() -> None:
     if stock_scores_status.get("status") == "EMPTY":
         missing_factors = [name for name, r in factor_status.items() if r["status"] == "EMPTY"]
         if missing_factors:
-            print(f"✗ stock_scores is EMPTY. Missing factors: {', '.join(missing_factors)}")
+            print(f"[X] stock_scores is EMPTY. Missing factors: {', '.join(missing_factors)}")
             print(
                 "  ACTION: Run quality_metrics, growth_metrics, value_metrics, positioning_metrics, stability_metrics loaders"
             )
         else:
-            print("✗ stock_scores is EMPTY but all factor inputs are available")
+            print("[X] stock_scores is EMPTY but all factor inputs are available")
             print("  ACTION: Run load_stock_scores.py manually to populate")
     else:
-        print(f"✓ stock_scores available ({stock_scores_status.get('count', 0)} rows)")
+        print(f"[OK] stock_scores available ({stock_scores_status.get('count', 0)} rows)")
 
     # Check for swing_trader_scores blockages
     swing_status = next((r for r in score_results if r["table"] == "swing_trader_scores"), {})
@@ -197,21 +197,21 @@ def main() -> None:
             blockers.append("trend_template_data")
 
         if blockers:
-            print(f"✗ swing_trader_scores is EMPTY. Blocked by: {', '.join(blockers)}")
+            print(f"[X] swing_trader_scores is EMPTY. Blocked by: {', '.join(blockers)}")
             print("  ACTION: Run missing loaders first (signal_quality_scores, trend_template_data)")
         else:
-            print("✗ swing_trader_scores is EMPTY but dependencies are available")
+            print("[X] swing_trader_scores is EMPTY but dependencies are available")
             print("  ACTION: Run load_swing_trader_scores.py manually")
     else:
-        print(f"✓ swing_trader_scores available ({swing_status.get('count', 0)} rows)")
+        print(f"[OK] swing_trader_scores available ({swing_status.get('count', 0)} rows)")
 
     # Check for options data
     options_status = next((r for r in options_results if r["table"] == "options_chains"), {})
     if options_status.get("status") == "EMPTY":
-        print("✗ options_chains is EMPTY - put/call data not loaded")
+        print("[X] options_chains is EMPTY - put/call data not loaded")
         print("  ACTION: Run load_options_chains.py (now fixed for AWS write context)")
     else:
-        print(f"✓ options_chains available ({options_status.get('count', 0)} rows)")
+        print(f"[OK] options_chains available ({options_status.get('count', 0)} rows)")
 
     # Overall status
     print("\n### OVERALL STATUS ###")
@@ -220,9 +220,9 @@ def main() -> None:
     scores_pass = all(r["status"] != "EMPTY" for r in score_results if r.get("status") != "ERROR")
 
     if critical_pass and scores_pass:
-        print("✓ READY FOR TRADING: All critical data loaded and fresh")
+        print("[OK] READY FOR TRADING: All critical data loaded and fresh")
     else:
-        print("✗ NOT READY FOR TRADING: Some critical data missing or stale")
+        print("[X] NOT READY FOR TRADING: Some critical data missing or stale")
         if not critical_pass:
             print("  - Critical tables need attention (price_daily, buy_sell_daily, market data)")
         if not scores_pass:
