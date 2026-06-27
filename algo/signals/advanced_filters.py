@@ -406,7 +406,7 @@ class AdvancedFilters:
             (symbol, signal_date),
         )
         row = cur.fetchone()
-        if not row or not row[0] or not row[1]:
+        if row is None or len(row) < 2 or row[0] is None or row[1] is None:
             raise ValueError(f"Volume data missing for {symbol} on {signal_date} — cannot confirm volume strength")
         vol = float(row[0])
         avg = float(row[1])
@@ -769,7 +769,7 @@ class AdvancedFilters:
             (symbol, signal_date),
         )
         row = cur.fetchone()
-        if not row or not row[0] or float(row[0]) <= 0:
+        if row is None or len(row) < 1 or row[0] is None or float(row[0]) <= 0:
             raise ValueError(f"50-day SMA not available for {symbol} on {signal_date}")
         sma_50 = float(row[0])
         return ((entry_price - sma_50) / sma_50) * 100.0
@@ -874,7 +874,7 @@ class AdvancedFilters:
             (symbol,),
         )
         row = cur.fetchone()
-        if not row or not row[0]:
+        if row is None or len(row) < 1 or row[0] is None:
             raise ValueError(
                 f"Earnings date not available for {symbol} on {signal_date} — no calendar, estimates, or history found"
             )

@@ -922,7 +922,7 @@ class PositionMonitor:
             (symbol, trade_date, current_date),
         )
         row = cur.fetchone()
-        if not row or not row[0]:
+        if row is None or len(row) < 1 or row[0] is None:
             raise PositionValidationError(
                 f"No price data available for {symbol} from {trade_date} to {current_date}. Cannot calculate peak unrealized gain."
             )
@@ -960,7 +960,7 @@ class PositionMonitor:
                 (symbol,),
             )
             row = cur.fetchone()
-            if not row or not row[0]:
+            if row is None or len(row) < 1 or row[0] is None:
                 # No earnings history available — return conservative default (100 days away)
                 logger.warning(
                     f"[EARNINGS DATA] No earnings history available for {symbol}. "
