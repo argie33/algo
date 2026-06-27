@@ -127,7 +127,7 @@ class MarketConstituentsLoader(OptimalLoader):
         except (requests.RequestException, requests.Timeout, json.JSONDecodeError) as e:
             raise RuntimeError(f"[MARKET_CONSTITUENTS] Failed to fetch constituent data: {e}") from e
 
-    def _fetch_nasdaq_symbols(self) -> list[dict[str, Any]]:
+    def _fetch_nasdaq_symbols(self) -> list[dict[str, Any]]:  # noqa: C901
         """Fetch tradable symbols from NASDAQ/NYSE with security filtering."""
         # Validate URLs
         for url, url_name in [

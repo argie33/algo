@@ -439,9 +439,9 @@ class PriceLoader(OptimalLoader):
         data availability.
 
         Timeout is context-aware:
-        - EOD pipeline (4:05-6:00 PM): 1800s (30 min) -" generous buffer within 85-min pipeline window
-        - Morning prep (3:30-9:30 AM): 600s (10 min) -" market just opened, data should be fresh
-        - Other times: 300s (5 min) -" should rarely block
+        - EOD pipeline (4:05-6:00 PM): 1800s (30 min) - generous buffer within 85-min pipeline window
+        - Morning prep (3:30-9:30 AM): 600s (10 min) - market just opened, data should be fresh
+        - Other times: 300s (5 min) - should rarely block
 
         ISSUE #11 FIX: Returns False if timeout and raises RuntimeError to halt loader.
         This prevents the loader from silently proceeding with stale data.
@@ -1021,7 +1021,7 @@ class PriceLoader(OptimalLoader):
             elapsed_sec=elapsed_sec + wait_time,
         )
 
-    def _fetch_with_fallback(
+    def _fetch_with_fallback(  # noqa: C901
         self,
         symbols: list[str],
         start: date,
@@ -1476,7 +1476,7 @@ class PriceLoader(OptimalLoader):
         estimated_remaining_sec = remaining_batches * avg_batch_time
 
         logger.info(
-            "  Progress: %d/%d symbols (%.0f%%) -" batch: %.1fs, avg: %.1fs, est. %d more min",
+            "  Progress: %d/%d symbols (%.0f%%) - batch: %.1fs, avg: %.1fs, est. %d more min",
             processed,
             total_symbols,
             (completion_pct * 100),
@@ -1517,7 +1517,7 @@ class PriceLoader(OptimalLoader):
 
         if batch_elapsed > 120:
             logger.warning(
-                f"  [SLOW BATCH] {self.batch_size} symbols took {batch_elapsed:.0f}s -" "
+                f"  [SLOW BATCH] {self.batch_size} symbols took {batch_elapsed:.0f}s - "
                 "likely yfinance rate limiting. Consider reducing parallelism or checking API status."
             )
 
@@ -1734,7 +1734,7 @@ class PriceLoader(OptimalLoader):
         )
 
         if self.interval == "1d" and self._is_eod_pipeline:
-            logger.info("[SLA_OPT] Skipping 1d price load during EOD pipeline -" reusing morning prep data")
+            logger.info("[SLA_OPT] Skipping 1d price load during EOD pipeline - reusing morning prep data")
             return {"symbols_processed": 0, "symbols_failed": 0, "rows_inserted": 0}
 
         self._validate_and_check_preconditions()
@@ -2011,7 +2011,7 @@ def log_loader_execution(
         raise
 
 
-def main() -> int:
+def main() -> int:  # noqa: C901
     """Read config from environment variables (set by ECS task definition)."""
     start_time = time.time()
 
@@ -2115,7 +2115,7 @@ def main() -> int:
             return 0
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as _lock_err:
         logger.warning(
-            "[MAIN] Advisory lock check failed (%s) -" proceeding without lock",
+            "[MAIN] Advisory lock check failed (%s) - proceeding without lock",
             _lock_err,
         )
         _lock_conn = None
@@ -2197,7 +2197,7 @@ def main() -> int:
         "GLD",
         "TLT",
         "IVV",
-        "VXX",  # Macro ETFs -" correlation matrix
+        "VXX",  # Macro ETFs - correlation matrix
     ]
 
     # CREATIVE FIX #5: Interval staggering with time delays

@@ -118,7 +118,7 @@ class VectorizedSwingScoresLoader:
             return {
                 "symbols_processed": 0,
                 "rows_inserted": 0,
-                "duration_sec": 0,
+                "duration_sec": round(time.time() - start_time, 2),
                 "error": str(e),
             }
 
