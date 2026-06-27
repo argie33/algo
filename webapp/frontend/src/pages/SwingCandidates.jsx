@@ -46,6 +46,7 @@ import {
   Legend,
   Line,
 } from "recharts";
+import { SafeMetricValue } from "../components/SafeMetric";
 import { api } from "../services/api";
 import { num } from "../components/dashboard/shared/utils/dashboardFormatters";
 import ErrorBoundary from "../components/ErrorBoundary";

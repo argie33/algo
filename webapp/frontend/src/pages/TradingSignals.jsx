@@ -41,6 +41,7 @@ import {
   ReferenceLine,
 } from "recharts";
 import { useApiQuery } from "../hooks/useApiQuery";
+import { SafeMetricValue } from "../components/SafeMetric";
 import { api } from "../services/api";
 import {
   fmtMoney,

@@ -23,6 +23,7 @@ import {
   CartesianGrid,
 } from "recharts";
 import { useApiQuery, useApiPaginatedQuery } from "../hooks/useApiQuery";
+import { SafeMetricValue } from "../components/SafeMetric";
 import { api } from "../services/api";
 import {
   num,

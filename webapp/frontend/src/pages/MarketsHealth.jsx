@@ -58,6 +58,7 @@ import {
   Inbox,
 } from "lucide-react";
 import { api } from "../services/api";
+import { SafeMetricValue } from "../components/SafeMetric";
 import {
   num,
   fmtMoney,

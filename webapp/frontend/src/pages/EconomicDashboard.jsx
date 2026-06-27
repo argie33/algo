@@ -27,6 +27,7 @@ import {
 } from "recharts";
 import { useApiQuery } from "../hooks/useApiQuery";
 import { useThresholds } from "../hooks/useThresholds";
+import { SafeMetricValue } from "../components/SafeMetric";
 import { api } from "../services/api";
 import {
   pct,

@@ -30,6 +30,7 @@ import {
 } from "recharts";
 import { ArrowLeft, RefreshCw, Inbox, AlertTriangle } from "lucide-react";
 import { useApiQuery } from "../hooks/useApiQuery";
+import { SafeMetricValue } from "../components/SafeMetric";
 import { extractData } from "../utils/responseNormalizer";
 import { api } from "../services/api";
 import {
@@ -1594,7 +1595,7 @@ function AnalystsTab({ data, last, error }) {
   const rows = Array.isArray(data) ? data : data?.items || [];
   const metrics = rows[0] || data?.metrics || null;
 
-  const totalAnalysts = metrics?.totalAnalysts ?? metrics?.analyst_count ?? 0;
+  const totalAnalysts = SafeMetricValue({ value: metrics?.totalAnalysts ?? metrics?.analyst_count, fallback: 0 });
   if (!metrics || totalAnalysts === 0) {
     return (
       <Empty
@@ -1608,9 +1609,9 @@ function AnalystsTab({ data, last, error }) {
   const target = metrics?.avgPriceTarget ?? metrics?.target_price;
   const upside =
     metrics?.priceTargetVsCurrent ?? metrics?.upside_downside_percent;
-  const bullish = metrics?.bullish ?? metrics?.bullish_count ?? 0;
-  const neutral = metrics?.neutral ?? metrics?.neutral_count ?? 0;
-  const bearish = metrics?.bearish ?? metrics?.bearish_count ?? 0;
+  const bullish = SafeMetricValue({ value: metrics?.bullish ?? metrics?.bullish_count, fallback: 0 });
+  const neutral = SafeMetricValue({ value: metrics?.neutral ?? metrics?.neutral_count, fallback: 0 });
+  const bearish = SafeMetricValue({ value: metrics?.bearish ?? metrics?.bearish_count, fallback: 0 });
 
   const dist = [
     { name: "Bullish", value: Number(bullish || 0), color: "var(--success)" },
@@ -1669,7 +1670,7 @@ function AnalystsTab({ data, last, error }) {
                 <span className="mono tnum up">
                   {bullish} (
                   {num(
-                    metrics?.bullishPercent ?? metrics?.bullish_percent ?? 0,
+                    SafeMetricValue({ value: metrics?.bullishPercent ?? metrics?.bullish_percent, fallback: 0 }),
                     0
                   )}
                   %)
@@ -1682,7 +1683,7 @@ function AnalystsTab({ data, last, error }) {
                 <span className="mono tnum">
                   {neutral} (
                   {num(
-                    metrics?.neutralPercent ?? metrics?.neutral_percent ?? 0,
+                    SafeMetricValue({ value: metrics?.neutralPercent ?? metrics?.neutral_percent, fallback: 0 }),
                     0
                   )}
                   %)
@@ -1695,7 +1696,7 @@ function AnalystsTab({ data, last, error }) {
                 <span className="mono tnum down">
                   {bearish} (
                   {num(
-                    metrics?.bearishPercent ?? metrics?.bearish_percent ?? 0,
+                    SafeMetricValue({ value: metrics?.bearishPercent ?? metrics?.bearish_percent, fallback: 0 }),
                     0
                   )}
                   %)
