@@ -62,33 +62,14 @@ class StabilityMetricsLoader(OptimalLoader):
                 ]
             return [metrics]
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.warning(f"[STABILITY_METRICS] Database error for {symbol}: {e}")
-            return [
-                {
-                    "symbol": symbol,
-                    "volatility_30d": None,
-                    "volatility_60d": None,
-                    "volatility_252d": None,
-                    "beta": None,
-                    "data_unavailable": True,
-                    "reason": f"Database error: {str(e)[:100]}",
-                    "updated_at": datetime.now(timezone.utc).isoformat(),
-                }
-            ]
+            logger.error(f"[STABILITY_METRICS] Database error for {symbol}: {e}")
+            raise RuntimeError(
+                f"[STABILITY_METRICS] Database error computing metrics for {symbol}: {e}. "
+                f"Cannot compute stability metrics without price history access."
+            ) from e
         except Exception as e:
-            logger.warning(f"[STABILITY_METRICS] Error computing metrics for {symbol}: {e}")
-            return [
-                {
-                    "symbol": symbol,
-                    "volatility_30d": None,
-                    "volatility_60d": None,
-                    "volatility_252d": None,
-                    "beta": None,
-                    "data_unavailable": True,
-                    "reason": f"Computation error: {str(e)[:100]}",
-                    "updated_at": datetime.now(timezone.utc).isoformat(),
-                }
-            ]
+            logger.error(f"[STABILITY_METRICS] Unexpected error computing metrics for {symbol}: {type(e).__name__}: {e}")
+            raise
 
     def _compute_stability_metrics(self, symbol: str) -> dict[str, Any] | None:
         """Compute volatility from price_daily and beta from yfinance."""

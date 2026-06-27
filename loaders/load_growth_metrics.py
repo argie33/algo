@@ -85,20 +85,11 @@ class GrowthMetricsLoader(OptimalLoader):
             return [metrics]
 
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.warning(f"[GROWTH_METRICS] Database error for {symbol}: {e}")
-            return [
-                {
-                    "symbol": symbol,
-                    "revenue_growth_1y": None,
-                    "revenue_growth_3y": None,
-                    "revenue_growth_5y": None,
-                    "eps_growth_1y": None,
-                    "eps_growth_3y": None,
-                    "eps_growth_5y": None,
-                    "data_unavailable": True,
-                    "reason": f"Database error: {str(e)[:100]}",
-                }
-            ]
+            logger.error(f"[GROWTH_METRICS] Database error for {symbol}: {e}")
+            raise RuntimeError(
+                f"[GROWTH_METRICS] Database error fetching financials for {symbol}: {e}. "
+                f"Cannot compute growth metrics without access to financial data."
+            ) from e
 
     @staticmethod
     def _compute_metrics(symbol: str, latest: tuple[Any, Any, Any], all_years: list[Any]) -> dict[str, Any] | None:
