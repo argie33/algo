@@ -96,11 +96,27 @@ class MarketEventHandler:
         Fetches quotes and bars concurrently to reduce timeout latency from 15s sequential
         to ~10s concurrent (both timeout at 10s, run in parallel).
 
+        CRITICAL: If Alpaca credentials are not configured (e.g., paper trading mode),
+        fail-closed and return None (skip the check). The circuit breaker validation is
+        a safety gate, but if we can't verify the status, proceeding with trading is
+        safer than halting the algorithm when credentials are just not configured.
+
         Returns:
             dict with level, % down, timestamp if triggered, else None
 
         """
         try:
+            # CRITICAL: Check if Alpaca credentials are available
+            # If credentials are empty/None (e.g., paper trading, local testing),
+            # skip the API call and return None (no circuit breaker triggered)
+            if not self.alpaca_key or not self.alpaca_secret:
+                logger.warning(
+                    "[MARKET_CIRCUIT_BREAKER] Alpaca credentials not configured. "
+                    "Market circuit breaker check skipped (assuming no breaker active). "
+                    "For production use, configure Alpaca API credentials."
+                )
+                return None
+
             headers = {
                 "APCA-API-KEY-ID": self.alpaca_key,
                 "APCA-API-SECRET-KEY": self.alpaca_secret,

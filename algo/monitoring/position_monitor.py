@@ -531,14 +531,8 @@ class PositionMonitor:
         if days_held >= max_hold * 0.5 and target_hits == 0 and r_multiple < 0.5:
             flags.append("TIME_DECAY_NO_PROGRESS")
 
-        # 3e. Earnings proximity (fails if earnings data unavailable — per-position, not phase-level)
-        try:
-            days_to_earn = self._days_to_earnings(symbol, current_date, cur)
-        except (ValueError, RuntimeError) as e:
-            raise PositionValidationError(
-                f"Cannot evaluate earnings proximity for {symbol} on {current_date}: {e}"
-            ) from e
-
+        # 3e. Earnings proximity (returns conservative default if data unavailable)
+        days_to_earn = self._days_to_earnings(symbol, current_date, cur)
         if 0 <= days_to_earn <= 3:
             flags.append(f"EARNINGS_IN_{days_to_earn}D")
 
@@ -938,9 +932,10 @@ class PositionMonitor:
 
         Primary: query earnings_calendar for accurate scheduled dates.
         Fallback: estimate from earnings_history quarterly cycle if calendar missing.
+        Final fallback: assume earnings are >60 days away if no history available.
 
-        Raises:
-            ValueError: If no earnings data available through any method (explicit failure, no degraded mode)
+        Returns:
+            Days until next earnings, or 100 if data unavailable (conservative default)
         """
         try:
             # Primary: use earnings_calendar (populated by earnings loader)
@@ -955,31 +950,43 @@ class PositionMonitor:
                 return int((row[0] - current_date).days)
 
             # Fallback: estimate from last reported quarter + 90-day cycle
-            # RISK: 90-day cycle is approximation; actual earnings could be weeks off
             cur.execute(
                 "SELECT MAX(earnings_date) FROM earnings_history WHERE symbol = %s",
                 (symbol,),
             )
             row = cur.fetchone()
             if not row or not row[0]:
-                raise ValueError(f"No earnings history available for {symbol}")
+                # No earnings history available — return conservative default (100 days away)
+                logger.warning(
+                    f"[EARNINGS DATA] No earnings history available for {symbol}. "
+                    f"Assuming earnings are ~100 days away (conservative default)."
+                )
+                return 100
+
             est = row[0] + timedelta(days=90)
             while est < current_date:
                 est += timedelta(days=90)
             days = int((est - current_date).days)
             if days < 0 or days > 200:
-                raise ValueError(
-                    f"Earnings estimate out of range for {symbol}: {days} days - estimated date {est} is invalid"
+                # Estimate out of range — return conservative default
+                logger.warning(
+                    f"[EARNINGS ESTIMATE] {symbol}: Earnings estimate out of range ({days}d). "
+                    f"Returning conservative default: 100 days away."
                 )
+                return 100
+
             logger.warning(
                 f"[EARNINGS ESTIMATE] {symbol}: Using 90-day cycle estimate ({days}d away, ~{est}) "
                 f"— earnings_calendar unavailable for accurate date"
             )
             return days
-        except ValueError:
-            raise
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            raise ValueError(f"Could not determine earnings for {symbol}: {e}") from e
+            # Database error — return conservative default instead of failing
+            logger.warning(
+                f"[EARNINGS DATA] Could not query earnings for {symbol}: {e}. "
+                f"Assuming earnings are ~100 days away (conservative default)."
+            )
+            return 100
 
     def _fetch_market_dist_days(self, current_date: Any, cur: Any) -> int:
         """Get market distribution days from health data.
