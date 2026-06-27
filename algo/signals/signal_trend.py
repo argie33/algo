@@ -197,7 +197,7 @@ class SignalTrendMixin:
                 (symbol, eval_date),
             )
             row = cur.fetchone()
-            if not row or not row[0]:
+            if row is None or len(row) < 1 or row[0] is None:
                 raise ValueError(
                     f"Weinstein stage classification unavailable for {symbol} on {eval_date} — "
                     f"technical analysis required to determine market stage"

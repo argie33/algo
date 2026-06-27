@@ -1183,7 +1183,7 @@ class ExitEngine:
 
         row = cur.fetchone()
 
-        if not row or not row[0]:
+        if row is None or len(row) < 1 or row[0] is None:
             raise ValueError(f"No price data for {symbol} in 8-week window")
 
         max_close_in_window = Decimal(str(row[0]))

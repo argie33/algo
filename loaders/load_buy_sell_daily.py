@@ -587,7 +587,7 @@ def main() -> int:
         with DatabaseContext("read") as cur:
             cur.execute("SELECT MAX(date) FROM technical_data_daily")
             result = cur.fetchone()
-            if not result or not result[0]:
+            if result is None or len(result) < 1 or result[0] is None:
                 logger.error("[DEPENDENCY] technical_data_daily is empty - cannot generate signals")
                 return 1
 

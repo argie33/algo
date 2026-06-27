@@ -646,7 +646,7 @@ class CircuitBreaker:
             (current_date, week_ago),
         )
         row = cur.fetchone()
-        if not row or not row[0] or not row[1]:
+        if row is None or len(row) < 2 or row[0] is None or row[1] is None:
             return {"halted": False, "reason": "Insufficient history"}
         cur_val, week_ago_val = float(row[0]), float(row[1])
         if week_ago_val <= 0:
@@ -683,7 +683,7 @@ class CircuitBreaker:
         """
         cur.execute("SELECT date FROM price_daily WHERE symbol = 'SPY' ORDER BY date DESC LIMIT 1")
         row = cur.fetchone()
-        if not row or not row[0]:
+        if row is None or len(row) < 1 or row[0] is None:
             return {"halted": True, "reason": "No SPY data at all"}
         latest = row[0]
         days_stale = (current_date - latest).days

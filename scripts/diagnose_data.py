@@ -161,7 +161,10 @@ print("-" * 80)
 try:
     with DatabaseContext("read") as cur:
         cur.execute("SELECT COUNT(*) FROM algo_portfolio_snapshots")
-        count = cur.fetchone()[0]
+        row = cur.fetchone()
+        if row is None or len(row) < 1:
+            raise ValueError("Query to count algo_portfolio_snapshots returned no result")
+        count = row[0]
         print(f"Total rows: {count}")
 
         if count > 0:

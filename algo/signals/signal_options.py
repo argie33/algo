@@ -40,7 +40,7 @@ class SignalOptionsMixin:
                 (symbol, eval_date),
             )
             row = cur.fetchone()
-            if not row or not row[0]:
+            if row is None or len(row) < 1 or row[0] is None:
                 return {"iv_rank": None, "signal": "neutral", "bonus_pts": 0.0}
 
             # Validate all three IV values are present (fail-fast on incomplete data)
@@ -113,7 +113,7 @@ class SignalOptionsMixin:
                 (symbol, eval_date),
             )
             row = cur.fetchone()
-            if not row or not row[0] or not row[1]:
+            if row is None or len(row) < 2 or row[0] is None or row[1] is None:
                 return {"put_call_ratio": None, "signal": "neutral", "bonus_pts": 0.0}
 
             put_vol, call_vol = float(row[0]), float(row[1])
@@ -174,7 +174,7 @@ class SignalOptionsMixin:
                 (symbol, eval_date),
             )
             iv_row = cur.fetchone()
-            if not iv_row or not iv_row[0]:
+            if iv_row is None or len(iv_row) < 1 or iv_row[0] is None:
                 return {
                     "implied_move_pct": None,
                     "vs_base_depth_pct": None,

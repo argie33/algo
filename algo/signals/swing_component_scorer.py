@@ -223,7 +223,7 @@ class SwingComponentScorer:
                 (symbol, eval_date),
             )
             row = cur.fetchone()
-            if not row or not row[0]:
+            if row is None or len(row) < 1 or row[0] is None:
                 raise ValueError(
                     f"{symbol}: Technical signals missing for {eval_date}. "
                     f"Trend component requires minervini_score, weinstein_stage, and ma_30wk_slope. "
@@ -271,7 +271,7 @@ class SwingComponentScorer:
                 (symbol, eval_date),
             )
             row = cur.fetchone()
-            if not row or not row[0]:
+            if row is None or len(row) < 1 or row[0] is None:
                 raise ValueError(
                     f"{symbol}: Momentum data missing for {eval_date}. "
                     f"Momentum component requires rs_percentile, return_1m, return_3m, return_6m. "

@@ -166,7 +166,10 @@ class AWSProductionConfigValidator:
                     SELECT COUNT(*) FROM data_loader_status
                     WHERE last_updated > NOW() - INTERVAL '1 day'
                 """)
-                recent_count = cur.fetchone()[0]
+                row = cur.fetchone()
+                if row is None or len(row) < 1:
+                    raise ValueError("Query to count recent loader status entries returned no result")
+                recent_count = row[0]
 
                 if recent_count == 0:
                     self.checks_warnings.append(

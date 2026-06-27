@@ -71,7 +71,10 @@ def _table_exists(cur, table_name: str) -> bool:
         "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = %s AND table_schema = 'public')",
         (table_name,),
     )
-    return cur.fetchone()[0]
+    row = cur.fetchone()
+    if row is None or len(row) < 1:
+        raise ValueError(f"Query to check table {table_name} existence returned no result")
+    return row[0]
 
 
 def _table_from_sql(sql: str) -> str:
