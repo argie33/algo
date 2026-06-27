@@ -29,7 +29,7 @@ def check_table_data(table_name: str, description: str) -> dict[str, Any]:
 
             cur.execute(f"SELECT MAX(date) FROM {table_name}")
             row = cur.fetchone()
-            max_date = row[0] if row and row[0] else None
+            max_date = row[0] if row and row[0] is not None else None
 
             if max_date is None:
                 return {

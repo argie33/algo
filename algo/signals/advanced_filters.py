@@ -486,21 +486,23 @@ class AdvancedFilters:
         # Other exceptions (RuntimeError, ConnectionError, etc.) propagate to caller
 
         pts = 0.0
-        if base.get("in_base") and base.get("breakout_imminent"):
+        in_base = base.get("in_base")
+        breakout_imminent = base.get("breakout_imminent")
+        if in_base is True and breakout_imminent is True:
             pts += 3.0
-        elif base.get("in_base"):
+        elif in_base is True:
             pts += 1.5
-        if vcp.get("is_vcp"):
+        if vcp.get("is_vcp") is True:
             pts += 2.0
-        if pivot.get("breakout"):
+        if pivot.get("breakout") is True:
             pts += 1.0
-        if power.get("power_trend"):
+        if power.get("power_trend") is True:
             pts += 1.0
         pts = min(5.0, pts)
 
         return pts, {
-            "in_base": base.get("in_base"),
-            "breakout_imminent": base.get("breakout_imminent"),
+            "in_base": in_base,
+            "breakout_imminent": breakout_imminent,
             "base_depth_pct": base.get("base_depth_pct"),
             "is_vcp": vcp.get("is_vcp"),
             "vcp_contractions": vcp.get("contractions"),

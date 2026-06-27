@@ -45,9 +45,9 @@ def get_recent_runs(days: int = 7, limit: int | None = None) -> list[dict[str, A
             return [
                 {
                     "run_id": row[0],
-                    "run_date": row[1].isoformat() if row[1] else None,
-                    "started_at": row[2].isoformat() if row[2] else None,
-                    "completed_at": row[3].isoformat() if row[3] else None,
+                    "run_date": row[1].isoformat() if row[1] is not None else None,
+                    "started_at": row[2].isoformat() if row[2] is not None else None,
+                    "completed_at": row[3].isoformat() if row[3] is not None else None,
                     "status": row[4],
                     "phases_completed": row[5],
                     "phases_halted": row[6],
@@ -87,15 +87,15 @@ def get_run_details(run_id: str) -> dict[str, Any] | None:
 
             phase_results: list[Any] = []
             try:
-                phase_results = json.loads(row[5]) if row[5] else []
+                phase_results = json.loads(row[5]) if row[5] is not None else []
             except json.JSONDecodeError:
                 logger.warning(f"Could not parse phase_results for {run_id}")
 
             return {
                 "run_id": row[0],
-                "run_date": row[1].isoformat() if row[1] else None,
-                "started_at": row[2].isoformat() if row[2] else None,
-                "completed_at": row[3].isoformat() if row[3] else None,
+                "run_date": row[1].isoformat() if row[1] is not None else None,
+                "started_at": row[2].isoformat() if row[2] is not None else None,
+                "completed_at": row[3].isoformat() if row[3] is not None else None,
                 "status": row[4],
                 "phase_results": phase_results,
                 "summary": row[6],

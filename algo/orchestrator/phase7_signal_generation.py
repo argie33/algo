@@ -620,7 +620,7 @@ def run(
         log_phase_result_fn(7, "signal_generation", "halt", msg)
         return PhaseResult(7, "signal_generation", "halted", {"qualified_trades": [], "liquidity_passed": 0}, True, msg)
 
-    if exposure_constraints and exposure_constraints.get("halt_new_entries"):
+    if exposure_constraints and exposure_constraints.get("halt_new_entries") is True:
         reason = exposure_constraints.get("halt_reason")
         if not reason:
             logger.critical(

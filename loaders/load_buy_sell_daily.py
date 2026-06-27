@@ -460,7 +460,7 @@ class SignalsDailyLoader(OptimalLoader):
                         continue
                     rows.append(
                         {
-                            "date": r[0].isoformat() if r[0] else None,
+                            "date": r[0].isoformat() if r[0] is not None else None,
                             "rsi": float(r[1]) if r[1] is not None else None,
                             "macd": float(r[2]) if r[2] is not None else None,
                             "macd_signal": float(r[3]) if r[3] is not None else None,

@@ -326,7 +326,7 @@ class OptimalLoader:
             with DatabaseContext("read") as cur:
                 cur.execute(f"SELECT MAX({self.watermark_field}) FROM {self.table_name}")
                 row = cur.fetchone()
-                since = self._watermark._parse_watermark_date(row[0]) if row and row[0] else None
+                since = self._watermark._parse_watermark_date(row[0]) if row and row[0] is not None else None
 
             try:
                 rows = self.fetch_global(since)

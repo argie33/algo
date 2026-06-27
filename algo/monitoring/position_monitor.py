@@ -103,7 +103,7 @@ class PositionMonitor:
                     for row in stale_orders:
                         trade_id, symbol, price, qty, created_at = row
                         halt_check = meh.check_single_stock_halt(symbol)
-                        if halt_check and halt_check.get("halted"):
+                        if halt_check and halt_check.get("halted") is True:
                             logger.info(f"    {trade_id} {symbol} pending (but halted, expected)")
                             halted_orders.append(row)
                             continue

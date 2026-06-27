@@ -146,7 +146,7 @@ class RDSPoolMonitor:
                             "pid": row[0],
                             "user": row[1],
                             "query": row[2][:100],  # Truncate long queries
-                            "duration_sec": round(float(row[3]), 1) if row[3] else 0,
+                            "duration_sec": round(float(row[3]), 1) if row[3] is not None else 0,
                             "state": row[4],
                         }
                     )

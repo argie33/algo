@@ -158,10 +158,10 @@ class SignalTrendMixin:
                     "score": score,
                     "pass": score >= 5,
                     "criteria": {
-                        "percent_from_52w_high": float(row[1]) if row[1] else None,
-                        "percent_from_52w_low": float(row[2]) if row[2] else None,
-                        "weinstein_stage": int(row[3]) if row[3] else None,
-                        "trend_direction": str(row[4]) if row[4] else None,
+                        "percent_from_52w_high": float(row[1]) if row[1] is not None else None,
+                        "percent_from_52w_low": float(row[2]) if row[2] is not None else None,
+                        "weinstein_stage": int(row[3]) if row[3] is not None else None,
+                        "trend_direction": str(row[4]) if row[4] is not None else None,
                     },
                 }
 
@@ -205,7 +205,7 @@ class SignalTrendMixin:
 
             stage = int(row[0])
             # consolidation_flag=True means stock is building a base (early phase, higher confidence)
-            confidence = 1.0 if row[1] else 0.5
+            confidence = 1.0 if row[1] is not None and row[1] else 0.5
 
             return {
                 "stage": stage,

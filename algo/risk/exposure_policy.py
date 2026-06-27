@@ -398,8 +398,9 @@ if __name__ == "__main__":
         r_multiple = a.get("r_multiple")
         r_display = f"{r_multiple:+.2f}" if r_multiple is not None else "MISSING"
         logger.info(f"  {a['symbol']:6s} → {a['action'].upper():15s}  R={r_display}  {a['reason']}")
-        if a.get("new_stop"):
-            logger.info(f"            new_stop=${a['new_stop']:.2f}")
+        new_stop = a.get("new_stop")
+        if new_stop is not None:
+            logger.info(f"            new_stop=${new_stop:.2f}")
 
     logger.info("\n" + "=" * 80)
     logger.info("ALL TIER DEFINITIONS")
@@ -411,11 +412,13 @@ if __name__ == "__main__":
             f"  risk_mult={tier['risk_multiplier']}, max_new/day={tier['max_new_positions_today']}, "
             f"min_grade={tier['min_swing_grade']}"
         )
-        if tier.get("tighten_winners_at_r"):
-            logger.info(f"  tighten winners @ +{tier['tighten_winners_at_r']}R")
-        if tier.get("force_partial_at_r"):
-            logger.info(f"  force partial @ +{tier['force_partial_at_r']}R")
-        if tier.get("halt_new_entries"):
+        tighten_r = tier.get("tighten_winners_at_r")
+        if tighten_r is not None:
+            logger.info(f"  tighten winners @ +{tighten_r}R")
+        force_partial_r = tier.get("force_partial_at_r")
+        if force_partial_r is not None:
+            logger.info(f"  force partial @ +{force_partial_r}R")
+        if tier.get("halt_new_entries") is True:
             logger.info("  HALT NEW ENTRIES")
-        if tier.get("force_exit_negative_r"):
+        if tier.get("force_exit_negative_r") is True:
             logger.info("  FORCE EXIT LOSERS")

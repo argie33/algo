@@ -131,10 +131,10 @@ class DailyFinanceReport:
                 raise RuntimeError(f"No performance metrics available for {report_date}")
 
             return {
-                "sharpe_ytd": round(float(row[0]), 4) if row[0] else None,
-                "sortino": round(float(row[1]), 4) if row[1] else None,
-                "max_drawdown_pct": round(float(row[2]), 2) if row[2] else None,
-                "calmar": round(float(row[3]), 4) if row[3] else None,
+                "sharpe_ytd": round(float(row[0]), 4) if row[0] is not None else None,
+                "sortino": round(float(row[1]), 4) if row[1] is not None else None,
+                "max_drawdown_pct": round(float(row[2]), 2) if row[2] is not None else None,
+                "calmar": round(float(row[3]), 4) if row[3] is not None else None,
             }
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Database error fetching risk metrics for {report_date}: {e}") from e
@@ -155,10 +155,10 @@ class DailyFinanceReport:
                 raise RuntimeError(f"No strategy performance data available for {report_date}")
 
             return {
-                "win_rate_pct": round(float(row[0]), 2) if row[0] else None,
-                "profit_factor": round(float(row[1]), 2) if row[1] else None,
-                "avg_trade_pct": round(float(row[2]), 2) if row[2] else None,
-                "best_trade_pct": round(float(row[3]), 2) if row[3] else None,
+                "win_rate_pct": round(float(row[0]), 2) if row[0] is not None else None,
+                "profit_factor": round(float(row[1]), 2) if row[1] is not None else None,
+                "avg_trade_pct": round(float(row[2]), 2) if row[2] is not None else None,
+                "best_trade_pct": round(float(row[3]), 2) if row[3] is not None else None,
             }
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Database error fetching strategy metrics for {report_date}: {e}") from e

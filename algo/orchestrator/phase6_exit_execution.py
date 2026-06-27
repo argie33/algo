@@ -246,7 +246,7 @@ def run(
                             logger.info(f"  EARLY EXIT: {result['message']}")
                     else:
                         errors += 1
-                elif rec["action"] == "RAISE_STOP" and rec.get("new_stop_recommended"):
+                elif rec["action"] == "RAISE_STOP" and rec.get("new_stop_recommended") is not None:
                     try:
                         with DatabaseContext("write") as cur:
                             acquire_advisory_lock(cur, ALGO_POSITIONS_LOCK_ID, "algo_positions")

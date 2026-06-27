@@ -91,11 +91,11 @@ class VectorizedSignalGenerator:
                     data_by_symbol[symbol].append(
                         {
                             "date": row[1],
-                            "close": float(row[2]) if row[2] else None,
-                            "high": float(row[3]) if row[3] else None,
-                            "low": float(row[4]) if row[4] else None,
-                            "volume": int(row[5]) if row[5] else None,
-                            "open": float(row[6]) if row[6] else None,
+                            "close": float(row[2]) if row[2] is not None else None,
+                            "high": float(row[3]) if row[3] is not None else None,
+                            "low": float(row[4]) if row[4] is not None else None,
+                            "volume": int(row[5]) if row[5] is not None else None,
+                            "open": float(row[6]) if row[6] is not None else None,
                         }
                     )
 

@@ -262,7 +262,7 @@ class SignalTradePerformancePopulator:
                 return [
                     {
                         "date": str(row[0]),
-                        "ic": round(float(row[1]), 4) if row[1] else 0,
+                        "ic": round(float(row[1]), 4) if row[1] is not None else 0,
                         "sample_size": int(row[2]),
                     }
                     for row in rows

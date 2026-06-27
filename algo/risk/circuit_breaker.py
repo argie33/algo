@@ -757,10 +757,10 @@ class CircuitBreaker:
                 )
                 return {"halted": True, "reason": "Insufficient SPY price history — cannot assess market stability"}
 
-            latest = float(rows[0][0]) if rows[0][0] else None
-            prior = float(rows[1][0]) if rows[1][0] else None
+            latest = float(rows[0][0]) if rows[0][0] is not None else None
+            prior = float(rows[1][0]) if rows[1][0] is not None else None
 
-            if not latest or not prior or prior <= 0:
+            if latest is None or prior is None or prior <= 0:
                 logger.critical(
                     f"CIRCUIT BREAKER: Invalid SPY price data (latest={latest}, prior={prior}). "
                     "Cannot calculate prior-day market change. Halting to prevent trading with missing market data."

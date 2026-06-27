@@ -103,7 +103,7 @@ def run(  # noqa: C901
     # This prevents cascading failures when upstream loaders are incomplete
     failsafe_result = check_and_retry_incomplete_loaders(dry_run=dry_run)
 
-    if failsafe_result.get("halt_required"):
+    if failsafe_result.get("halt_required") is True:
         logger.critical(
             "[PHASE 1] CRITICAL: Incomplete critical loaders even after failsafe retry. "
             "Cannot proceed with data processing."
@@ -127,7 +127,7 @@ def run(  # noqa: C901
             f"Critical loaders incomplete after retry: {still_failing_first}",
         )
 
-    if failsafe_result.get("incomplete_loaders"):
+    if failsafe_result.get("incomplete_loaders") is True:
         recovered = failsafe_result.get("recovered")
         if recovered is None:
             recovered = []

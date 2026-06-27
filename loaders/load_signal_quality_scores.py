@@ -863,10 +863,10 @@ def _log_signal_metrics() -> None:
                     )
                 min_score = score_result[0]
                 max_score = score_result[1]
-                avg_score = round(score_result[2], 2) if score_result[2] else None
-                p25 = round(score_result[3], 2) if score_result[3] else None
-                p50 = round(score_result[4], 2) if score_result[4] else None
-                p75 = round(score_result[5], 2) if score_result[5] else None
+                avg_score = round(score_result[2], 2) if score_result[2] is not None else None
+                p25 = round(score_result[3], 2) if score_result[3] is not None else None
+                p50 = round(score_result[4], 2) if score_result[4] is not None else None
+                p75 = round(score_result[5], 2) if score_result[5] is not None else None
 
                 # Determine health status
                 if daily_signals < 50:

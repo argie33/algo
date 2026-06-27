@@ -501,7 +501,7 @@ class StockScoresLoader(OptimalLoader):
         total_weight = 0.0
 
         # P/E ratio: sweet spot 15-30 for growth momentum stocks
-        if metrics.get("pe_ratio") and metrics["pe_ratio"] > 0:
+        if metrics.get("pe_ratio") is not None and metrics["pe_ratio"] > 0:
             pe = metrics["pe_ratio"]
             if pe <= 10:
                 pe_score = 40 + pe * 2  # very cheap / possibly value trap
@@ -515,7 +515,7 @@ class StockScoresLoader(OptimalLoader):
             total_weight += 0.50
 
         # P/B ratio: lower is better for value; < 3 is reasonable for most sectors
-        if metrics.get("pb_ratio") and metrics["pb_ratio"] > 0:
+        if metrics.get("pb_ratio") is not None and metrics["pb_ratio"] > 0:
             pb = metrics["pb_ratio"]
             if pb <= 1.0:
                 pb_score = 100
@@ -536,7 +536,7 @@ class StockScoresLoader(OptimalLoader):
             total_weight += 0.15
 
         # Dividend yield: bonus signal for income/quality (optional)
-        if metrics.get("dividend_yield") and metrics["dividend_yield"] > 0:
+        if metrics.get("dividend_yield") is not None and metrics["dividend_yield"] > 0:
             div = min(metrics["dividend_yield"] * 100, 6)  # decimal ? percent, cap 6%
             div_score = min(100, div * 16.7)
             weighted_sum += div_score * 0.10
