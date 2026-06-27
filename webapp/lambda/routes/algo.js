@@ -340,17 +340,18 @@ router.get("/evaluate", async (req, res) => {
     }
 
     // Transform into evaluation objects with database-driven thresholds
+    // NOTE: Removed defaultValue: 0 for signal quality metrics - missing data must be visible
     const evaluated = validateAndCoerceRows(result, {
       symbol: { type: "string", required: true },
       date: { type: "date", required: true },
-      trend_score: { type: "int", required: false, defaultValue: 0 },
-      pct_from_52w_low: { type: "float", required: false, defaultValue: 0 },
-      completeness_pct: { type: "float", required: false, defaultValue: 0 },
-      sqs: { type: "int", required: false, defaultValue: 0 },
+      trend_score: { type: "int", required: false },
+      pct_from_52w_low: { type: "float", required: false },
+      completeness_pct: { type: "float", required: false },
+      sqs: { type: "int", required: false },
     }).map((row) => {
-      const tier1 = row.completeness_pct >= filterConfig.completeness_pct_min;
-      const tier3 = row.trend_score >= filterConfig.trend_score_min;
-      const tier4 = row.sqs >= filterConfig.sqs_min;
+      const tier1 = (row.completeness_pct ?? 0) >= filterConfig.completeness_pct_min;
+      const tier3 = (row.trend_score ?? 0) >= filterConfig.trend_score_min;
+      const tier4 = (row.sqs ?? 0) >= filterConfig.sqs_min;
 
       const all_tiers_pass = filterConfig.require_all_tiers
         ? tier1 && tier3 && tier4
@@ -1381,14 +1382,14 @@ router.get("/markets", async (req, res) => {
     const sectorsRows = validateAndCoerceRows(sectorsResult, {
       sector_name: { type: "string", required: false },
       current_rank: { type: "int", required: false },
-      momentum_score: { type: "float", required: false, defaultValue: 0 },
+      momentum_score: { type: "float", required: false },
     });
 
     const sentimentRows = validateAndCoerceRows(sentimentResult, {
       date: { type: "date", required: false },
-      bullish: { type: "float", required: false, defaultValue: 0 },
-      bearish: { type: "float", required: false, defaultValue: 0 },
-      neutral: { type: "float", required: false, defaultValue: 0 },
+      bullish: { type: "float", required: false },
+      bearish: { type: "float", required: false },
+      neutral: { type: "float", required: false },
     });
 
     // Parse halt_reasons: stored as VARCHAR containing JSON array string (e.g. "[]")
@@ -1405,32 +1406,72 @@ router.get("/markets", async (req, res) => {
       }
     }
 
+    // Validate critical fields in current snapshot
+    let currentSnapshot = null;
+    let currentErrors = [];
+    if (latest) {
+      const exposureValidation = requireExposure(latest.exposure_pct);
+      const scoreValidation = requireSignalQuality(latest.raw_score);
+
+      if (isDataError(exposureValidation) || isDataError(scoreValidation)) {
+        currentErrors = [exposureValidation, scoreValidation].filter(isDataError);
+        if (exposureError) {
+          currentErrors.push(exposureError);
+        }
+      } else {
+        currentSnapshot = {
+          date: latest.date,
+          exposure_pct: exposureValidation,
+          raw_score: scoreValidation,
+          regime: latest.regime,
+          distribution_days: latest.distribution_days,
+          factors: latest.factors || {},
+          halt_reasons: parsedHaltReasons,
+        };
+      }
+    }
+
+    // Validate history rows - exposure is critical for risk tracking
+    const validatedHistory = historyRows
+      .map((r) => {
+        const exposureValidation = requireExposure(r.exposure_pct);
+        if (isDataError(exposureValidation)) {
+          return { error: exposureValidation, original: r };
+        }
+        return {
+          date: r.date,
+          exposure_pct: exposureValidation,
+          regime: r.regime,
+          distribution_days: r.distribution_days,
+        };
+      });
+
+    const historyErrors = validatedHistory
+      .filter(h => h.error)
+      .map(h => h.error);
+
+    const validHistory = validatedHistory
+      .filter(h => !h.error);
+
+    // Collect all errors from all sections
+    const allErrors = [...currentErrors, ...historyErrors];
+
+    // If critical current snapshot failed, return error response
+    if (currentErrors.length > 0 && !currentSnapshot) {
+      return sendSuccess(res, createErrorResponse(allErrors));
+    }
+
     return sendSuccess(res, {
-      current: latest
-        ? {
-            date: latest.date,
-            exposure_pct: latest.exposure_pct || 0,
-            raw_score: latest.raw_score || 0,
-            regime: latest.regime,
-            distribution_days: latest.distribution_days,
-            factors: latest.factors || {},
-            halt_reasons: parsedHaltReasons,
-          }
-        : null,
+      current: currentSnapshot,
       active_tier: policy,
-      history: historyRows.map((r) => ({
-        date: r.date,
-        exposure_pct: r.exposure_pct || 0,
-        regime: r.regime,
-        distribution_days: r.distribution_days,
-      })),
+      history: validHistory,
       market_health: health
         ? {
             date: health.date,
             market_trend: health.market_trend,
             market_stage: health.market_stage,
             distribution_days_4w: health.distribution_days_4w,
-            vix_level: health.vix_level || 0,
+            vix_level: health.vix_level,
             advance_decline_ratio: health.advance_decline_ratio,
             new_highs_count: health.new_highs_count,
             new_lows_count: health.new_lows_count,
@@ -1446,13 +1487,14 @@ router.get("/markets", async (req, res) => {
       sectors: sectorsRows.map((r) => ({
         name: r.sector_name,
         rank: r.current_rank,
-        momentum: r.momentum_score || 0,
+        momentum: r.momentum_score,
       })),
+      ...(allErrors.length > 0 && { data_errors: allErrors }),
       sentiment: sentimentRows.map((r) => ({
         date: r.date,
-        bullish: r.bullish || 0,
-        bearish: r.bearish || 0,
-        neutral: r.neutral || 0,
+        bullish: r.bullish,
+        bearish: r.bearish,
+        neutral: r.neutral,
       })),
     });
   } catch (error) {

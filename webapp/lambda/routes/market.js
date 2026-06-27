@@ -12,6 +12,7 @@ const {
 const { validateQueryResult } = require("../utils/responseValidation");
 const logger = require("../utils/logger");
 const paginationConfig = require("../config/pagination");
+const { requireNumericField, isDataError } = require("../utils/strictValidation");
 
 let query;
 try {
@@ -2388,12 +2389,18 @@ router.get("/aaii", async (req, res) => {
       [days, 1000]
     );
 
-    const data = (result?.rows || []).map((row) => ({
-      date: row.date,
-      bullish: parseFloat(row.bullish || 0),
-      neutral: parseFloat(row.neutral || 0),
-      bearish: parseFloat(row.bearish || 0),
-    }));
+    const data = (result?.rows || []).map((row) => {
+      const bullishValidation = requireNumericField(row.bullish, 'bullish', { min: 0, max: 100 });
+      const neutralValidation = requireNumericField(row.neutral, 'neutral', { min: 0, max: 100 });
+      const bearishValidation = requireNumericField(row.bearish, 'bearish', { min: 0, max: 100 });
+
+      return {
+        date: row.date,
+        bullish: !isDataError(bullishValidation) ? bullishValidation : null,
+        neutral: !isDataError(neutralValidation) ? neutralValidation : null,
+        bearish: !isDataError(bearishValidation) ? bearishValidation : null,
+      };
+    });
 
     return sendPaginated(res, data, {
       total: data.length,
@@ -3482,7 +3489,32 @@ router.get("/technicals-fresh", async (req, res) => {
         ? (breadth.advancing / breadth.declining).toFixed(2)
         : "N/A";
 
-    // Return comprehensive market technicals
+    // Validate critical market data - all required for market assessment
+    const breadthValidations = {
+      total_stocks: requireNumericField(breadth?.total_stocks, 'total_stocks', { min: 0 }),
+      advancing: requireNumericField(breadth?.advancing, 'advancing', { min: 0 }),
+      declining: requireNumericField(breadth?.declining, 'declining', { min: 0 }),
+      unchanged: requireNumericField(breadth?.unchanged, 'unchanged', { min: 0 }),
+      avg_change: requireNumericField(breadth?.avg_abs_change, 'average_change_percent', { min: 0 }),
+    };
+
+    const internalsValidations = {
+      total_stocks: requireNumericField(internals?.total_stocks, 'internals_total_stocks', { min: 0 }),
+      above_20_ma: requireNumericField(internals?.above_20_ma, 'above_20_ma', { min: 0 }),
+      above_50_ma: requireNumericField(internals?.above_50_ma, 'above_50_ma', { min: 0 }),
+      above_200_ma: requireNumericField(internals?.above_200_ma, 'above_200_ma', { min: 0 }),
+      pct_20_ma: requireNumericField(internals?.pct_above_20_ma, 'pct_above_20_ma', { min: 0, max: 100 }),
+      pct_50_ma: requireNumericField(internals?.pct_above_50_ma, 'pct_above_50_ma', { min: 0, max: 100 }),
+      pct_200_ma: requireNumericField(internals?.pct_above_200_ma, 'pct_above_200_ma', { min: 0, max: 100 }),
+    };
+
+    const volatilityValidations = {
+      market_vol: volatility?.market_volatility ? requireNumericField(volatility.market_volatility, 'market_volatility', { min: 0 }) : null,
+      daily_move: volatility?.avg_daily_move ? requireNumericField(volatility.avg_daily_move, 'avg_daily_move', { min: 0 }) : null,
+      max_move: volatility?.max_daily_move ? requireNumericField(volatility.max_daily_move, 'max_daily_move', { min: 0 }) : null,
+    };
+
+    // Return comprehensive market technicals with validated data
     return sendSuccess(res, {
       mcclellan_oscillator:
         mcclellan.map((m) => ({
@@ -3490,33 +3522,27 @@ router.get("/technicals-fresh", async (req, res) => {
           advance_decline_line: m.advance_decline_line,
         })) || [],
       breadth: {
-        total_stocks: parseInt(breadth.total_stocks) || 0,
-        advancing: parseInt(breadth.advancing) || 0,
-        declining: parseInt(breadth.declining) || 0,
-        unchanged: parseInt(breadth.unchanged) || 0,
+        total_stocks: !isDataError(breadthValidations.total_stocks) ? breadthValidations.total_stocks : null,
+        advancing: !isDataError(breadthValidations.advancing) ? breadthValidations.advancing : null,
+        declining: !isDataError(breadthValidations.declining) ? breadthValidations.declining : null,
+        unchanged: !isDataError(breadthValidations.unchanged) ? breadthValidations.unchanged : null,
         advance_decline_ratio: advance_decline_ratio,
-        average_change_percent: parseFloat(breadth.avg_abs_change) || 0,
+        average_change_percent: !isDataError(breadthValidations.avg_change) ? breadthValidations.avg_change : null,
       },
       distribution_days: distributionDays,
       volatility: {
-        market_volatility: volatility.market_volatility
-          ? parseFloat(volatility.market_volatility)
-          : 0,
-        avg_daily_move: volatility.avg_daily_move
-          ? parseFloat(volatility.avg_daily_move)
-          : 0,
-        max_daily_move: volatility.max_daily_move
-          ? parseFloat(volatility.max_daily_move)
-          : 0,
+        market_volatility: !isDataError(volatilityValidations.market_vol) ? volatilityValidations.market_vol : null,
+        avg_daily_move: !isDataError(volatilityValidations.daily_move) ? volatilityValidations.daily_move : null,
+        max_daily_move: !isDataError(volatilityValidations.max_move) ? volatilityValidations.max_move : null,
       },
       internals: {
-        total_stocks: parseInt(internals.total_stocks) || 0,
-        above_20_ma: parseInt(internals.above_20_ma) || 0,
-        above_50_ma: parseInt(internals.above_50_ma) || 0,
-        above_200_ma: parseInt(internals.above_200_ma) || 0,
-        pct_above_20_ma: parseFloat(internals.pct_above_20_ma) || 0,
-        pct_above_50_ma: parseFloat(internals.pct_above_50_ma) || 0,
-        pct_above_200_ma: parseFloat(internals.pct_above_200_ma) || 0,
+        total_stocks: !isDataError(internalsValidations.total_stocks) ? internalsValidations.total_stocks : null,
+        above_20_ma: !isDataError(internalsValidations.above_20_ma) ? internalsValidations.above_20_ma : null,
+        above_50_ma: !isDataError(internalsValidations.above_50_ma) ? internalsValidations.above_50_ma : null,
+        above_200_ma: !isDataError(internalsValidations.above_200_ma) ? internalsValidations.above_200_ma : null,
+        pct_above_20_ma: !isDataError(internalsValidations.pct_20_ma) ? internalsValidations.pct_20_ma : null,
+        pct_above_50_ma: !isDataError(internalsValidations.pct_50_ma) ? internalsValidations.pct_50_ma : null,
+        pct_above_200_ma: !isDataError(internalsValidations.pct_200_ma) ? internalsValidations.pct_200_ma : null,
       },
       timestamp: new Date().toISOString(),
       source: "database-fresh",

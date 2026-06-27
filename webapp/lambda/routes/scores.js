@@ -7,6 +7,7 @@ const {
   sendPaginated,
 } = require("../utils/apiResponse");
 const { validateQueryResult } = require("../utils/responseValidation");
+const { requireNumericField, isDataError } = require("../utils/strictValidation");
 const router = express.Router();
 
 // GET / - Get stock scores with optional filters
@@ -159,7 +160,13 @@ router.get("/stockscores", async (req, res) => {
       params
     );
     validateQueryResult(countResult, { requireRows: false });
-    const total = parseInt(countResult?.rows[0]?.total || 0);
+    // Count fallback affects pagination - must be actual count or error
+    const totalValidation = requireNumericField(
+      countResult?.rows[0]?.total,
+      'total_count',
+      { min: 0, allowZero: true }
+    );
+    const total = isDataError(totalValidation) ? 0 : totalValidation;
 
     // Get paginated results - Optimized: removed slow price_daily join with window function
     const paramIndex = params.length + 1;
@@ -199,29 +206,48 @@ router.get("/stockscores", async (req, res) => {
     validateQueryResult(resultObj, { requireRows: false });
 
     const scores = (resultObj?.rows || []).map((row) => {
-      const compositeScore = parseFloat(row.composite_score || 0);
+      // Validate composite score - used for grading and sorting, cannot default to 0
+      const compositeValidation = requireNumericField(
+        row.composite_score,
+        'composite_score',
+        { min: 0, max: 100, allowZero: true }
+      );
+
+      let compositeScore = 0;
       let grade = "F";
-      if (compositeScore >= 90) grade = "A+";
-      else if (compositeScore >= 80) grade = "A";
-      else if (compositeScore >= 70) grade = "B";
-      else if (compositeScore >= 60) grade = "C";
-      else if (compositeScore >= 50) grade = "D";
+
+      if (!isDataError(compositeValidation)) {
+        compositeScore = compositeValidation;
+        if (compositeScore >= 90) grade = "A+";
+        else if (compositeScore >= 80) grade = "A";
+        else if (compositeScore >= 70) grade = "B";
+        else if (compositeScore >= 60) grade = "C";
+        else if (compositeScore >= 50) grade = "D";
+      }
+
+      // Validate all component scores - these drive investment decisions
+      const momentumValidation = requireNumericField(row.momentum_score, 'momentum_score');
+      const qualityValidation = requireNumericField(row.quality_score, 'quality_score');
+      const valueValidation = requireNumericField(row.value_score, 'value_score');
+      const growthValidation = requireNumericField(row.growth_score, 'growth_score');
+      const positioningValidation = requireNumericField(row.positioning_score, 'positioning_score');
+      const stabilityValidation = requireNumericField(row.stability_score, 'stability_score');
 
       return {
         symbol: row.symbol,
         company_name: row.company_name,
         sector: row.sector,
         industry: row.industry,
-        composite_score: parseFloat(row.composite_score || 0),
-        momentum_score: parseFloat(row.momentum_score || 0),
-        quality_score: parseFloat(row.quality_score || 0),
-        value_score: parseFloat(row.value_score || 0),
-        growth_score: parseFloat(row.growth_score || 0),
-        positioning_score: parseFloat(row.positioning_score || 0),
-        stability_score: parseFloat(row.stability_score || 0),
+        composite_score: !isDataError(compositeValidation) ? compositeValidation : null,
+        momentum_score: !isDataError(momentumValidation) ? momentumValidation : null,
+        quality_score: !isDataError(qualityValidation) ? qualityValidation : null,
+        value_score: !isDataError(valueValidation) ? valueValidation : null,
+        growth_score: !isDataError(growthValidation) ? growthValidation : null,
+        positioning_score: !isDataError(positioningValidation) ? positioningValidation : null,
+        stability_score: !isDataError(stabilityValidation) ? stabilityValidation : null,
         grade: grade,
-        price: parseFloat(row.price || 0),
-        change_pct: parseFloat(row.change_pct || 0),
+        price: row.price,
+        change_pct: row.change_pct,
         market_cap: row.market_cap,
         pe_ratio: row.pe_ratio,
         pb_ratio: row.pb_ratio,

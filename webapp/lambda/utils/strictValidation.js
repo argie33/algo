@@ -4,7 +4,7 @@
  * For finance applications, missing or invalid data must raise errors, not default.
  * These validators return either a valid value or a DataError object.
  *
- * Usage: const price = requirePrice(symbol, value); if (isDataError(price)) { /* error */ }
+ * Usage: const price = requirePrice(symbol, value); if (isDataError(price)) check error flag
  */
 
 const { DataError, isDataError } = require('./errorEnvelopes');

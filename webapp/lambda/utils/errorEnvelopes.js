@@ -76,7 +76,7 @@ function createPartialResponse(validData = {}, errors = []) {
 
 /**
  * Check if a value is a DataError
- * Use in validation: if (isDataError(value)) { /* handle error */ }
+ * Use in validation: if (isDataError(value)) to check before using
  */
 function isDataError(value) {
   return value && typeof value === 'object' && value.isDataError === true;
