@@ -48,13 +48,13 @@ class HealthFormatter:
         ad = r.get("age")
         if ah is not None:
             try:
-                ah_f = safe_float(ah, strict=True, field_name="age_hours")
+                ah_f = safe_float(ah, None, strict=True, field_name="age_hours")
                 return f"{ah_f:.0f}h" if ah_f < 24 else f"{ah_f / 24:.1f}d"
             except (StrictValidationError, ValueError, TypeError):
                 return "?"
         elif ad is not None:
             try:
-                ad_f = safe_float(ad, strict=True, field_name="age")
+                ad_f = safe_float(ad, None, strict=True, field_name="age")
                 return f"{ad_f:.1f}d"
             except (StrictValidationError, ValueError, TypeError):
                 return "?"
@@ -614,18 +614,18 @@ def _format_data_health_summary(hlth_items: list[Any]) -> list[Text]:
 
 
 def _format_loader_status(loader: list[Any]) -> list[Text]:
-    """Format data loader status section. FAIL-FAST: loader must not be None."""
+    """Format data loader status section."""
     rows: list[Text] = []
-    if loader is None:
-        rows.append(Text.from_markup("[red]Loader status unavailable (data is None)[/]"))
-        return rows
     try:
         valid_loader = safe_get_list(loader)
     except (ValueError, TypeError) as e:
         rows.append(Text.from_markup(f"[red]Loader data error: {str(e)[:60]}[/]"))
         return rows
     if valid_loader is None:
-        rows.append(Text.from_markup("[red]Loader data unavailable[/]"))
+        rows.append(Text.from_markup("[red]Loader data unavailable (None)[/]"))
+        return rows
+    if len(valid_loader) == 0:
+        rows.append(Text.from_markup("[dim]No loaders configured[/]"))
         return rows
     problem_loader = [r for r in valid_loader if (r.get("status", "")) in LOADER_STATUS_ERROR]
     running_loader = [r for r in valid_loader if (r.get("status", "")) == LOADER_STATUS_LOADING]
