@@ -283,11 +283,13 @@ def _get_sector_breadth(cur: cursor) -> Any:
                 )
                 SELECT
                     sector,
-                    ROUND(COALESCE(pct_above_50d, 0)::NUMERIC, 2) AS pct_above_50d,
-                    ROUND(COALESCE(pct_above_200d, 0)::NUMERIC, 2) AS pct_above_200d,
+                    -- CRITICAL: Return NULL instead of 0 - _is_fallback marker indicates missing data
+                    ROUND(pct_above_50d::NUMERIC, 2) AS pct_above_50d,
+                    ROUND(pct_above_200d::NUMERIC, 2) AS pct_above_200d,
                     (pct_above_50d IS NULL OR pct_above_200d IS NULL) AS _is_fallback
                 FROM sector_breadth
-                ORDER BY pct_above_50d DESC
+                WHERE pct_above_50d IS NOT NULL OR pct_above_200d IS NOT NULL
+                ORDER BY pct_above_50d DESC NULLS LAST
             """)
         breadth = cur.fetchall()
         cur.execute("RELEASE SAVEPOINT sector_breadth_check")

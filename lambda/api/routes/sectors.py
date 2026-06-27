@@ -111,12 +111,18 @@ def handle(
                             "avgPrice",
                             ROUND(("avgPrice" / NULLIF(ma_10, 0) - 1) * 100, 2) AS "dailyStrengthScore",
                             ROUND((PERCENT_RANK() OVER (ORDER BY "avgPrice") * 100)::numeric, 2) AS rank,
-                            ROUND((COALESCE(ma_10, 0) - COALESCE(ma_20, 0)) / NULLIF(ma_20, 0) * 100, 2) AS "momentumScore",
+                            -- CRITICAL: Return NULL for moving averages instead of 0 when data is missing
+                            -- This prevents meaningless momentum scores from missing MA data
+                            CASE WHEN ma_10 IS NOT NULL AND ma_20 IS NOT NULL
+                              THEN ROUND((ma_10 - ma_20) / NULLIF(ma_20, 0) * 100, 2)
+                              ELSE NULL
+                            END AS "momentumScore",
                             'momentum' AS momentum,
-                            ROUND(COALESCE(ma_10, 0), 2) AS ma_10,
-                            ROUND(COALESCE(ma_20, 0), 2) AS ma_20,
+                            ROUND(ma_10, 2) AS ma_10,
+                            ROUND(ma_20, 2) AS ma_20,
                             (ma_10 IS NULL OR ma_20 IS NULL) AS _is_fallback
                         FROM sector_with_ma
+                        WHERE ma_10 IS NOT NULL AND ma_20 IS NOT NULL
                         ORDER BY date DESC
                     """,
                     (sector_name, days),
