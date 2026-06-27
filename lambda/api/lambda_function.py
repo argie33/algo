@@ -975,6 +975,7 @@ def require_auth(event: dict, path: str) -> tuple:
         return False
 
     is_public = any(matches_prefix(path, prefix) for prefix in PUBLIC_PREFIXES)
+    logger.info(f"[AUTH_CHECK] path={path}, is_public={is_public}, in_prefixes={'/api/algo/equity-curve' in PUBLIC_PREFIXES}")
     if is_public:
         return (False, True, None, None)  # No auth required, so authorized
 
@@ -1050,6 +1051,10 @@ if not IMPORT_ERROR:
 
 def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     """Handle API Gateway v2 (HTTP API) requests by routing to extracted handler modules."""
+    # Log entry for debugging
+    path = event.get("rawPath") or event.get("path", "UNKNOWN")
+    logger.info(f"[LAMBDA_START] Handling {event.get('httpMethod', 'GET')} {path}")
+
     # Credential cache uses 5-minute TTL to balance freshness with API costs
     # Expired entries are automatically skipped; clearing cache is optional for rotation speed.
     try:
