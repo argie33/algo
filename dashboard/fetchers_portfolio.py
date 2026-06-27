@@ -84,13 +84,14 @@ def fetch_portfolio(c: None) -> dict[str, Any]:
             "position_count",
             "last_run",
         ]
-        # Increased threshold to 10 days (864000s) to allow for Phase 9 scheduling variance
-        # while still detecting when orchestration stalls (>10 days = clear failure)
+        # Portfolio data is critical for position sizing. Must be fresh to avoid using stale
+        # portfolio values (outdated after market moves, withdrawals, or deposits).
+        # 5-minute threshold ensures we use current portfolio state for all calculations.
         valid, error_msg = FetcherValidator.validate_response(
             response=port,
             required_fields=required_fields,
             source_name="fetch_portfolio",
-            max_age_seconds=864000,
+            max_age_seconds=300,
             timestamp_field="last_run",
         )
         if not valid:
