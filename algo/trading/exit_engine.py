@@ -1135,7 +1135,7 @@ class ExitEngine:
 
         row = cur.fetchone()
 
-        if not row or row[0] is None or row[1] is None:
+        if not row or len(row) < 2 or row[0] is None or row[1] is None:
             raise ValueError(f"Insufficient RS data for {symbol} to calculate RS line break")
 
         cur_rs = Decimal(str(row[0]))
@@ -1282,7 +1282,7 @@ class ExitEngine:
 
             row = cur.fetchone()
 
-            if not row or not row[0] or not row[1]:
+            if not row or len(row) < 2 or row[0] is None or row[1] is None:
                 raise ValueError(f"Insufficient data for {symbol} to calculate chandelier stop")
 
             hh = float(row[0])
@@ -1416,7 +1416,7 @@ class ExitEngine:
 
         row = cur.fetchone()
 
-        if not row or row[0] is None or row[1] is None:
+        if not row or len(row) < 2 or row[0] is None or row[1] is None:
             raise ValueError(f"Volume data unavailable for {symbol} on {current_date}")
 
         today_vol = float(row[0])
@@ -1455,7 +1455,7 @@ class ExitEngine:
 
         row = cur.fetchone()
 
-        if not row or row[0] is None or row[1] is None:
+        if not row or len(row) < 2 or row[0] is None or row[1] is None:
             raise ValueError(f"Insufficient {n_days}-day price data for {symbol}")
 
         current = Decimal(str(row[0]))

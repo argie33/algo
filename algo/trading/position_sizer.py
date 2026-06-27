@@ -158,7 +158,11 @@ class PositionSizer:
             key = _creds.get("key")
             secret = _creds.get("secret")
         except (ImportError, AttributeError, KeyError) as e:
-            logger.debug(f"Failed to get credentials from credential manager, falling back to env vars: {e}")
+            logger.warning(
+                f"CRITICAL: Credential manager unavailable ({type(e).__name__}: {e}). "
+                f"Falling back to environment variables (LESS SECURE). "
+                f"Production deployments must use AWS Secrets Manager."
+            )
             key = os.getenv("APCA_API_KEY_ID")
             secret = os.getenv("APCA_API_SECRET_KEY")
         base = os.getenv("APCA_API_BASE_URL")
@@ -236,7 +240,7 @@ class PositionSizer:
         def calc_drawdown(cur: Any) -> Decimal:
             cur.execute("SELECT COUNT(*) FROM algo_portfolio_snapshots")
             count_result = cur.fetchone()
-            if not count_result or count_result[0] == 0:
+            if count_result is None or len(count_result) < 1 or count_result[0] is None or count_result[0] == 0:
                 raise RuntimeError(
                     "No portfolio snapshots found. Phase 7 must run daily to maintain drawdown tracking."
                 )
@@ -249,7 +253,7 @@ class PositionSizer:
                 FROM algo_portfolio_snapshots
             """)
             result = cur.fetchone()
-            if not result or not result[0] or not result[1]:
+            if result is None or len(result) < 2 or result[0] is None or result[1] is None:
                 raise RuntimeError(
                     "Portfolio snapshot data inconsistent. Cannot calculate drawdown for position sizing."
                 )
@@ -400,7 +404,7 @@ class PositionSizer:
                 WHERE status = 'open'
             """)
             result = cur.fetchone()
-            if not result:
+            if result is None or len(result) < 1:
                 raise ValueError("Position sum query returned no data")
             total = result[0]
             if total is None and total_open == 0:

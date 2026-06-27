@@ -218,7 +218,7 @@ def _build_freshness_panel(hlth_items: list[Any], ready_to_trade: bool | None) -
     crit_stale = [r for r in hlth_items if isinstance(r, dict) and r.get("role") == "CRIT" and r.get("st") != "ok"]
 
     if crit_stale:
-        crit_names = "  ".join(f"[bold white]{r.get('tbl', '')[:18]}[/]" for r in crit_stale)
+        crit_names = "  ".join(f"[bold white]{(r.get('tbl') or 'unknown')[:18]}[/]" for r in crit_stale)
         left_rows.append(Text.from_markup(f"[bold {R}]⚠ CRIT STALE:[/]  {crit_names}"))
 
     rtt_part = ""
@@ -403,18 +403,27 @@ def panel_orch(run: dict[str, Any] | None, cfg: dict[str, Any], risk: dict[str, 
                 phase_results = []
             for p in phase_results:
                 name_val = p.get("name")
-                phase_val = p.get("phase", "")
+                phase_val = p.get("phase")
+                if phase_val is None:
+                    phase_val = ""
                 raw = (name_val if name_val is not None else phase_val).lower()
                 parts = raw.split("_")
                 base = "_".join(parts[:2]) if len(parts) >= 2 else raw
                 short = PHASE_NAMES.get(base, base.replace("phase_", "P"))[:9]
-                ps = (p.get("status", "")).lower()
+                ps_raw = p.get("status")
+                if ps_raw is None:
+                    ps_raw = ""
+                ps = ps_raw.lower()
                 pc = G if ps in ("success", "completed") else (Y if ps in ("halt", "halted", "warn") else R)
                 pi = "✓" if ps in ("success", "completed") else ("~" if ps in ("halt", "halted", "warn") else "✗")
                 pbadges.append(f"[{pc}]{pi}{short}[/]")
             # Show halt reason if halted
-            halt_r = run.get("halt_reason", "")
-            summary = run.get("summary", "")
+            halt_r = run.get("halt_reason")
+            if halt_r is None:
+                halt_r = ""
+            summary = run.get("summary")
+            if summary is None:
+                summary = ""
             if halt_r or run.get("halted"):
                 phase_results_temp = run.get("phase_results")
                 if phase_results_temp is None:
@@ -437,7 +446,10 @@ def panel_orch(run: dict[str, Any] | None, cfg: dict[str, Any], risk: dict[str, 
                 )
                 phases_list = []
             for p in phases_list:
-                at = p.get("action_type", "")
+                at_raw = p.get("action_type")
+                if at_raw is None:
+                    at_raw = ""
+                at = at_raw
                 if not at.startswith("phase_"):
                     continue
                 parts = at.split("_")
@@ -448,7 +460,10 @@ def panel_orch(run: dict[str, Any] | None, cfg: dict[str, Any], risk: dict[str, 
                 name_parts = parts[2:] if len(parts) > 2 else []
                 default_short = "_".join(name_parts)[:7] if name_parts else f"P{num}"
                 short = PHASE_NAMES.get(phase_key, default_short)[:9]
-                ps = p.get("status", "")
+                ps_raw = p.get("status")
+                if ps_raw is None:
+                    ps_raw = ""
+                ps = ps_raw
                 pc = G if ps == "success" else (Y if ps in ("halt", "warn") else R)
                 pi = "✓" if ps == "success" else ("~" if ps in ("halt", "warn") else "✗")
                 pbadges.append(f"[{pc}]{pi}{short}[/]")
@@ -512,11 +527,13 @@ def _format_exec_history_summary(exec_hist: list[Any] | None) -> list[Text]:
     )
 
     last_halt = next(
-        (r for r in valid_hist if (r.get("overall_status", "") if r.get("overall_status") is not None else "").lower() == "halted"),
+        (r for r in valid_hist if _get_status_safe(r) == "halted"),
         None,
     )
     if last_halt:
-        lhr = last_halt.get("halt_reason", "")
+        lhr = last_halt.get("halt_reason")
+        if lhr is None:
+            lhr = ""
         lph = _fmt_phases_halted(last_halt.get("phases_halted"))
         body = lhr or lph
         if body:
@@ -568,7 +585,10 @@ def _format_recent_trade_events(act: dict[str, Any] | None) -> list[Text]:
         )
     ]
     for a in trade_evts[:4]:
-        at = a.get("action_type", "")
+        at_raw = a.get("action_type")
+        if at_raw is None:
+            at_raw = ""
+        at = at_raw
         det = a.get("details")
         if isinstance(det, str):
             try:
@@ -578,7 +598,10 @@ def _format_recent_trade_events(act: dict[str, Any] | None) -> list[Text]:
                 det = None
         elif not isinstance(det, dict) and det is not None:
             det = None
-        sym = det.get("symbol", "") if det else ""
+        sym_raw = det.get("symbol") if det else None
+        if sym_raw is None:
+            sym_raw = ""
+        sym = sym_raw
         ic = G if ("executed" in at or at == "position_exited") else (Y if "placed" in at else R)
         lbl = at.replace("_", " ").title()[:20]
         rows.append(Text.from_markup(f"  [{ic}]{lbl}{(' ' + sym) if sym else ''}[/]"))
@@ -597,11 +620,13 @@ def _format_data_health_summary(hlth_items: list[Any]) -> list[Text]:
         rows.append(Text.from_markup(f"[{G}]OK Data OK[/]  [dim]{len(hlth_items)} tables[/]"))
         crit = [r for r in hlth_items if isinstance(r, dict) and r.get("role") == "CRIT"]
         if crit:
-            crit_parts = "  ".join(f"[{G}]OK[/][dim]{r.get('tbl', '')[:13]}[/]" for r in crit)
+            crit_parts = "  ".join(f"[{G}]OK[/][dim]{(r.get('tbl') or 'unknown')[:13]}[/]" for r in crit)
             rows.append(Text.from_markup(f"  {crit_parts}"))
     else:
         for r in stale[:4]:
-            tbl_val = r.get("tbl", "")
+            tbl_val = r.get("tbl")
+            if tbl_val is None:
+                tbl_val = ""
             nm = str((tbl_val if tbl_val else "--")[:13])
             age_hours = safe_float(r.get("age_hours"), default=None)
             age_days = safe_float(r.get("age"), default=None)
@@ -611,7 +636,10 @@ def _format_data_health_summary(hlth_items: list[Any]) -> list[Text]:
                 age_s = f"{age_days:.1f}d"
             else:
                 age_s = "?"
-            rc = r.get("role", "")
+            rc_raw = r.get("role")
+            if rc_raw is None:
+                rc_raw = ""
+            rc = rc_raw
             cc = "bold white" if rc == "CRIT" else "white"
             lat = r.get("last_updated")
             if lat is None:
@@ -645,28 +673,34 @@ def _format_loader_status(loader: list[Any]) -> list[Text]:
     if len(valid_loader) == 0:
         rows.append(Text.from_markup("[dim]No loaders configured[/]"))
         return rows
-    problem_loader = [r for r in valid_loader if (r.get("status", "")) in LOADER_STATUS_ERROR]
-    running_loader = [r for r in valid_loader if (r.get("status", "")) == LOADER_STATUS_LOADING]
+    problem_loader = [r for r in valid_loader if (r.get("status") or "") in LOADER_STATUS_ERROR]
+    running_loader = [r for r in valid_loader if (r.get("status") or "") == LOADER_STATUS_LOADING]
     ok_count = len(valid_loader) - len(problem_loader) - len(running_loader)
 
     if problem_loader:
         ok_s = f"  [dim]{ok_count} ok[/]" if ok_count > 0 else ""
         rows.append(Text.from_markup(f"[{Y}]Loaders ({len(problem_loader)} issues){ok_s}:[/]"))
         for r in problem_loader[:3]:
-            table_name_val = r.get("table_name", "")
+            table_name_val = r.get("table_name")
+            if table_name_val is None:
+                table_name_val = ""
             nm = str((table_name_val if table_name_val else "--")[:14])
             status_val = r.get("status")
             st = status_val if status_val is not None else "?"
             age = r.get("age_days")
             age_s = str(f"{int(age)}d" if age is not None else "--")
             sc = R if st in ("error", "failed") else Y
-            error_msg_val = r.get("error_message", "")
+            error_msg_val = r.get("error_message")
+            if error_msg_val is None:
+                error_msg_val = ""
             err = (error_msg_val if error_msg_val else "")[:20]
             rows.append(Text.from_markup(f"  [{sc}]{nm:<14}[/] [dim]{age_s}[/]" + (f" [dim]{err}[/]" if err else "")))
     elif valid_loader:
         if running_loader:
             for r in running_loader[:3]:
-                table_name_val = r.get("table_name", "")
+                table_name_val = r.get("table_name")
+                if table_name_val is None:
+                    table_name_val = ""
                 nm = (table_name_val if table_name_val else "")[:12]
                 pct = r.get("completion_pct")
                 pct_s = f" {float(pct):.0f}%" if pct is not None else ""
@@ -685,13 +719,21 @@ def _format_notifications_summary(notifs: list[Any]) -> list[Text]:
         return rows
 
     for n in valid_notifs[:4]:
-        sc = SEV_COLORS.get(n.get("severity", "info"), DIM)
-        title_val = n.get("title", "")
+        severity_val = n.get("severity")
+        if severity_val is None:
+            severity_val = "info"
+        sc = SEV_COLORS.get(severity_val, DIM)
+        title_val = n.get("title")
+        if title_val is None:
+            title_val = ""
         raw_t = title_val if title_val else ""
         tl = raw_t.lower()
         title = next((v for k, v in NOTIF_SHORT_NAMES.items() if k in tl), raw_t[:24])
         age = fmt_age(n.get("created_at"))
-        unread = "-" if not n.get("seen", True) else " "
+        seen_val = n.get("seen")
+        if seen_val is None:
+            seen_val = True
+        unread = "-" if not seen_val else " "
         rows.append(Text.from_markup(f"[{sc}]{unread}[/] [{sc}]{title}[/] [dim]{age}[/]"))
 
     return rows
@@ -751,7 +793,7 @@ def _format_audit_log_summary(audit: list[Any]) -> list[Text]:
     notable = [
         a
         for a in valid_audit
-        if a.get("action_type") and any(k in str(a.get("action_type", "")) for k in ("entry", "exit", "halt", "resume", "circuit"))
+        if a.get("action_type") and any(k in str(a.get("action_type") or "") for k in ("entry", "exit", "halt", "resume", "circuit"))
     ][:3]
 
     if not notable:
@@ -759,11 +801,18 @@ def _format_audit_log_summary(audit: list[Any]) -> list[Text]:
 
     rows.append(Text.from_markup("[dim]Audit:[/]"))
     for a in notable:
-        action_type_val = a.get("action_type", "")
+        action_type_val = a.get("action_type")
+        if action_type_val is None:
+            action_type_val = ""
         at = (action_type_val if action_type_val else "").replace("_", " ")
-        symbol_val = a.get("symbol", "")
+        symbol_val = a.get("symbol")
+        if symbol_val is None:
+            symbol_val = ""
         sym = symbol_val if symbol_val else ""
-        st = a.get("status", "")
+        st_raw = a.get("status")
+        if st_raw is None:
+            st_raw = ""
+        st = st_raw
         sc = G if st == "success" else (Y if st == "warn" else R)
         rows.append(Text.from_markup(f"  [{sc}]{at[:22]}[/]" + (f" [white]{sym}[/]" if sym else "")))
 
@@ -883,12 +932,17 @@ def _build_phase_badges_and_metrics(run: dict[str, Any], phase_results: list[Any
 
     for p in phase_results:
         name_val = p.get("name")
-        phase_val = p.get("phase", "")
+        phase_val = p.get("phase")
+        if phase_val is None:
+            phase_val = ""
         raw = (name_val if name_val is not None else phase_val).lower()
         parts_p = raw.split("_")
         base = "_".join(parts_p[:2]) if len(parts_p) >= 2 else raw
         short = PHASE_NAMES.get(base, base.replace("phase_", "P"))[:8]
-        ps = p.get("status", "")
+        ps_raw = p.get("status")
+        if ps_raw is None:
+            ps_raw = ""
+        ps = ps_raw
         sc, si = HealthFormatter.format_phase_badge(ps)
         phase_badges.append(f"[{sc}]{si}[dim]{short}[/][/]")
 
@@ -914,7 +968,10 @@ def _build_phase_badges_from_audit(phases_list: list[Any]) -> list[str]:
     """Build phase badges from audit log format."""
     phase_badges = []
     for p in phases_list:
-        at = p.get("action_type", "")
+        at_raw = p.get("action_type")
+        if at_raw is None:
+            at_raw = ""
+        at = at_raw
         if not at.startswith("phase_"):
             continue
         parts_p = at.split("_")
@@ -925,7 +982,10 @@ def _build_phase_badges_from_audit(phases_list: list[Any]) -> list[str]:
         name_parts = parts_p[2:] if len(parts_p) > 2 else []
         default_short = "_".join(name_parts)[:7] if name_parts else f"P{num}"
         short = PHASE_NAMES.get(phase_key, default_short)[:8]
-        st = p.get("status", "")
+        st_raw = p.get("status")
+        if st_raw is None:
+            st_raw = ""
+        st = st_raw
         sc, si = HealthFormatter.format_phase_badge(st)
         phase_badges.append(f"[{sc}]{si}[dim]{short}[/][/]")
     return phase_badges
@@ -990,15 +1050,14 @@ def _format_run_history_summary(valid_hist: list[Any] | None) -> list[Text]:
     if not valid_hist:
         return rows
 
-    n_ok = sum(1 for r in valid_hist if (r.get("overall_status") if r.get("overall_status") is not None else "").lower() in ("success", "completed"))
-    n_hlt = sum(1 for r in valid_hist if (r.get("overall_status") if r.get("overall_status") is not None else "").lower() == "halted")
-    n_err = sum(1 for r in valid_hist if (r.get("overall_status") if r.get("overall_status") is not None else "").lower() in ("error", "failed"))
+    n_ok = sum(1 for r in valid_hist if _get_status_safe(r) in ("success", "completed"))
+    n_hlt = sum(1 for r in valid_hist if _get_status_safe(r) == "halted")
+    n_err = sum(1 for r in valid_hist if _get_status_safe(r) in ("error", "failed"))
     total_h = len(valid_hist)
 
     badges = []
     for r in valid_hist[:7]:
-        status_val = r.get("overall_status")
-        s = (status_val if status_val is not None else "").lower()
+        s = _get_status_safe(r)
         badges.append(
             f"[{G}]OK[/]" if s in ("success", "completed") else (f"[{Y}]~[/]" if s == "halted" else f"[{R}]X[/]")
         )
@@ -1014,11 +1073,13 @@ def _format_run_history_summary(valid_hist: list[Any] | None) -> list[Text]:
     )
 
     last_halt = next(
-        (r for r in valid_hist if (r.get("overall_status") if r.get("overall_status") is not None else "").lower() == "halted"),
+        (r for r in valid_hist if _get_status_safe(r) == "halted"),
         None,
     )
     if last_halt:
-        lhr = last_halt.get("halt_reason", "")
+        lhr = last_halt.get("halt_reason")
+        if lhr is None:
+            lhr = ""
         lph = _fmt_phases_halted(last_halt.get("phases_halted"))
         body = lhr or lph
         if body:
@@ -1085,15 +1146,23 @@ def _format_notifications_section(valid_notifs: list[Any]) -> list[Text | Rule]:
     rows.append(Rule(style="dim"))
     notif_parts = []
     for n in valid_notifs[:5]:
-        sc = SEV_COLORS.get(n.get("severity", "info"), DIM)
-        title_val = n.get("title", "")
+        severity_val = n.get("severity")
+        if severity_val is None:
+            severity_val = "info"
+        sc = SEV_COLORS.get(severity_val, DIM)
+        title_val = n.get("title")
+        if title_val is None:
+            title_val = ""
         raw_t = title_val if title_val else ""
         title = next(
             (v for k, v in NOTIF_SHORT_NAMES.items() if k in raw_t.lower()),
             raw_t[:20],
         )
         age = fmt_age(n.get("created_at"))
-        unread = "-" if not n.get("seen", True) else "·"
+        seen_val = n.get("seen")
+        if seen_val is None:
+            seen_val = True
+        unread = "-" if not seen_val else "·"
         notif_parts.append(f"[{sc}]{unread}{title}[/][dim]{age}[/]")
     rows.append(Text.from_markup("[dim]Alerts:[/] " + "  ".join(notif_parts)))
 
@@ -1127,11 +1196,12 @@ def panel_status(  # noqa: C901
     # ── Run status + schedule + mode + trading config ────────────────────────────
     run_valid = run and isinstance(run, dict) and not has_error(run)
     act_valid = act and isinstance(act, dict) and not has_error(act)
-    run_id_top = (
-        cast(dict[str, Any], run).get("run_id", "")
+    run_id_top_raw = (
+        cast(dict[str, Any], run).get("run_id")
         if run_valid
-        else (cast(dict[str, Any], act).get("run_id", "") if act_valid else "")
+        else (cast(dict[str, Any], act).get("run_id") if act_valid else None)
     )
+    run_id_top = run_id_top_raw if run_id_top_raw is not None else ""
     run_at_top = (
         cast(dict[str, Any], run).get("run_at")
         if run_valid
@@ -1157,8 +1227,10 @@ def panel_status(  # noqa: C901
     # Config extraction — use helper to reduce .get() calls
     cfg_v = safe_get_dict(cfg)
     cfg_params = extract_config_params(cfg_v) if cfg_v else {}
-    mode = cfg_params.get("mode", "")
-    en = cfg_params.get("enabled", True)
+    mode_raw = cfg_params.get("mode")
+    mode = mode_raw if mode_raw is not None else ""
+    en_raw = cfg_params.get("enabled")
+    en = en_raw if en_raw is not None else True
     mc = G if "LIVE" in str(mode) else Y
     ec = G if en else R
     en_s = "ENABLED" if en else "DISABLED"
@@ -1224,8 +1296,12 @@ def panel_status(  # noqa: C901
     phase_badges = []
     run_source = (run.get("_source") if isinstance(run, dict) else None) if run_valid else None
     if run_valid and isinstance(run, dict) and run_source == "exec_log":
-        halt_r = run.get("halt_reason", "")
-        summary = run.get("summary", "")
+        halt_r = run.get("halt_reason")
+        if halt_r is None:
+            halt_r = ""
+        summary = run.get("summary")
+        if summary is None:
+            summary = ""
         if run.get("halted") or halt_r:
             pr_val = (run.get("phase_results") if isinstance(run, dict) else None)
             if pr_val is None:
@@ -1246,12 +1322,17 @@ def panel_status(  # noqa: C901
         phase_results = run["phase_results"]
         for p in phase_results:
             name_val = p.get("name")
-            phase_val = p.get("phase", "")
+            phase_val = p.get("phase")
+            if phase_val is None:
+                phase_val = ""
             raw = (name_val if name_val is not None else phase_val).lower()
             parts = raw.split("_")
             base = "_".join(parts[:2]) if len(parts) >= 2 else raw
             short = PHASE_NAMES.get(base, base.replace("phase_", "P"))[:9]
-            ps = (p.get("status", "")).lower()
+            ps_raw = p.get("status")
+            if ps_raw is None:
+                ps_raw = ""
+            ps = ps_raw.lower()
             sc = (
                 G
                 if ps in ("success", "completed", "ok")
@@ -1265,7 +1346,9 @@ def panel_status(  # noqa: C901
             phase_badges.append(f"[{sc}]{si}[dim]{short}[/][/]")
 
             # Show error or key data for failed/halted phases
-            error_val = p.get("error", "")
+            error_val = p.get("error")
+            if error_val is None:
+                error_val = ""
             err = error_val if error_val else ""
             pdata = p.get("data")
             if isinstance(pdata, str):
@@ -1279,8 +1362,12 @@ def panel_status(  # noqa: C901
             if err and ps not in ("success", "completed", "ok"):
                 rows.append(Text.from_markup(f"  [{sc}]a†³ {err[:62]}[/]"))
             elif ps in ("halt", "halted") and pdata:
-                halt_reason_val = pdata.get("halt_reason", "")
-                reason_val = pdata.get("reason", "")
+                halt_reason_val = pdata.get("halt_reason")
+                if halt_reason_val is None:
+                    halt_reason_val = ""
+                reason_val = pdata.get("reason")
+                if reason_val is None:
+                    reason_val = ""
                 reason = (halt_reason_val if halt_reason_val else (reason_val if reason_val else ""))[:55]
                 if reason:
                     rows.append(Text.from_markup(f"  [{Y}]a†³ {reason}[/]"))
@@ -1331,7 +1418,10 @@ def panel_status(  # noqa: C901
             )
             phases_list = []
         for p in phases_list:
-            at = p.get("action_type", "")
+            at_raw = p.get("action_type")
+            if at_raw is None:
+                at_raw = ""
+            at = at_raw
             if not at.startswith("phase_"):
                 continue
             parts = at.split("_")
@@ -1342,7 +1432,10 @@ def panel_status(  # noqa: C901
             name_parts = parts[2:] if len(parts) > 2 else []
             default_short = "_".join(name_parts)[:7] if name_parts else f"P{num}"
             short = PHASE_NAMES.get(phase_key, default_short)[:9]
-            st = p.get("status", "")
+            st_raw = p.get("status")
+            if st_raw is None:
+                st_raw = ""
+            st = st_raw
             sc, si = HealthFormatter.format_phase_badge(st)
             phase_badges.append(f"[{sc}]{si}[dim]{short}[/][/]")
         if phase_badges:
@@ -1363,13 +1456,13 @@ def panel_status(  # noqa: C901
     if valid_notifs:
         rows.append(Rule(style="dim"))
         for n in valid_notifs[:4]:
-            sc = SEV_COLORS.get(n.get("severity", "info"), DIM)
-            title_val = n.get("title", "")
+            sc = SEV_COLORS.get((n.get("severity") or "info"), DIM)
+            title_val = (n.get("title") or "")
             raw_t = title_val if title_val else ""
             tl = raw_t.lower()
             title = next((v for k, v in NOTIF_SHORT_NAMES.items() if k in tl), raw_t[:24])
             age = fmt_age(n.get("created_at"))
-            unread = "-" if not n.get("seen", True) else " "
+            unread = "-" if not (n.get("seen") if n.get("seen") is not None else True) else " "
             rows.append(Text.from_markup(f"[{sc}]{unread}[/] [{sc}]{title}[/] [dim]{age}[/]"))
 
     # Algo metrics daily (action counts)
@@ -1430,8 +1523,8 @@ def panel_status(  # noqa: C901
             rows.append(Rule(style="dim"))
             rows.append(Text.from_markup("[red]Loader data unavailable[/]"))
     if valid_loader is not None:
-        problem_loader = [r for r in valid_loader if (r.get("status", "")) in ("error", "failed", "stale")]
-        running_loader = [r for r in valid_loader if (r.get("status", "")) == "loading"]
+        problem_loader = [r for r in valid_loader if (r.get("status") or "") in ("error", "failed", "stale")]
+        running_loader = [r for r in valid_loader if (r.get("status") or "") == "loading"]
         ok_count = len(valid_loader) - len(problem_loader) - len(running_loader)
     else:
         problem_loader = []
@@ -1442,21 +1535,27 @@ def panel_status(  # noqa: C901
         ok_s = f"  [dim]{ok_count} ok[/]" if ok_count > 0 else ""
         rows.append(Text.from_markup(f"[{Y}]Loaders ({len(problem_loader)} issues){ok_s}:[/]"))
         for r in problem_loader[:3]:
-            table_name_val = r.get("table_name", "")
+            table_name_val = r.get("table_name")
+            if table_name_val is None:
+                table_name_val = ""
             nm = str((table_name_val if table_name_val else "--")[:14])
             status_val = r.get("status")
             st = status_val if status_val is not None else "?"
             age = r.get("age_days")
             age_s = str(f"{int(age)}d" if age is not None else "--")
             sc = R if st in ("error", "failed") else Y
-            error_msg_val = r.get("error_message", "")
+            error_msg_val = r.get("error_message")
+            if error_msg_val is None:
+                error_msg_val = ""
             err = (error_msg_val if error_msg_val else "")[:20]
             rows.append(Text.from_markup(f"  [{sc}]{nm:<14}[/] [dim]{age_s}[/]" + (f" [dim]{err}[/]" if err else "")))
     elif valid_loader:
         if running_loader:
             rows.append(Rule(style="dim"))
             for r in running_loader[:3]:
-                table_name_val = r.get("table_name", "")
+                table_name_val = r.get("table_name")
+                if table_name_val is None:
+                    table_name_val = ""
                 nm = (table_name_val if table_name_val else "")[:12]
                 pct = r.get("completion_pct")
                 pct_s = f" {float(pct):.0f}%" if pct is not None else ""
@@ -1471,17 +1570,24 @@ def panel_status(  # noqa: C901
         notable = [
             a
             for a in valid_audit
-            if a.get("action_type") and any(k in str(a.get("action_type", "")) for k in ("entry", "exit", "halt", "resume", "circuit"))
+            if a.get("action_type") and any(k in str(a.get("action_type") or "") for k in ("entry", "exit", "halt", "resume", "circuit"))
         ][:3]
         if notable:
             rows.append(Rule(style="dim"))
             rows.append(Text.from_markup("[dim]Audit:[/]"))
             for a in notable:
-                action_type_val = a.get("action_type", "")
+                action_type_val = a.get("action_type")
+                if action_type_val is None:
+                    action_type_val = ""
                 at = (action_type_val if action_type_val else "").replace("_", " ")
-                symbol_val = a.get("symbol", "")
+                symbol_val = a.get("symbol")
+                if symbol_val is None:
+                    symbol_val = ""
                 sym = symbol_val if symbol_val else ""
-                st = a.get("status", "")
+                st_raw = a.get("status")
+                if st_raw is None:
+                    st_raw = ""
+                st = st_raw
                 sc = G if st == "success" else (Y if st == "warn" else R)
                 rows.append(Text.from_markup(f"  [{sc}]{at[:22]}[/]" + (f" [white]{sym}[/]" if sym else "")))
 
@@ -1705,15 +1811,15 @@ def panel_algo_health(  # noqa: C901
         rows.append(Rule(style="dim"))
         notif_parts = []
         for n in valid_notifs[:5]:
-            sc = SEV_COLORS.get(n.get("severity", "info"), DIM)
-            title_val = n.get("title", "")
+            sc = SEV_COLORS.get((n.get("severity") or "info"), DIM)
+            title_val = (n.get("title") or "")
             raw_t = title_val if title_val else ""
             title = next(
                 (v for k, v in NOTIF_SHORT_NAMES.items() if k in raw_t.lower()),
                 raw_t[:20],
             )
             age = fmt_age(n.get("created_at"))
-            unread = "-" if not n.get("seen", True) else "·"
+            unread = "-" if not (n.get("seen") if n.get("seen") is not None else True) else "·"
             notif_parts.append(f"[{sc}]{unread}{title}[/][dim]{age}[/]")
         rows.append(Text.from_markup("[dim]Alerts:[/] " + "  ".join(notif_parts)))
 
@@ -1770,10 +1876,17 @@ def _build_results_panel(  # noqa: C901
             if run.get("success") and not run.get("halted")
             else (f"[bold {Y}]~ HALTED[/]" if run.get("halted") else f"[bold {R}]X ERROR[/]")
         )
-        rid = run.get("run_id", "")
+        rid_raw = run.get("run_id")
+        if rid_raw is None:
+            rid_raw = ""
+        rid = rid_raw
         right_rows.append(Text.from_markup(f"{sts}{age_s}  [dim]{rid}[/]"))
-        halt_r = run.get("halt_reason", "")
-        summary = run.get("summary", "")
+        halt_r = run.get("halt_reason")
+        if halt_r is None:
+            halt_r = ""
+        summary = run.get("summary")
+        if summary is None:
+            summary = ""
         if run.get("halted") or halt_r:
             phase_results_val = run.get("phase_results")
             phase_results_list = phase_results_val if phase_results_val is not None else []
@@ -1795,12 +1908,17 @@ def _build_results_panel(  # noqa: C901
                     if phase_results_list is not None:
                         for p in phase_results_list:
                             name_val = p.get("name")
-                            phase_val = p.get("phase", "")
+                            phase_val = p.get("phase")
+                            if phase_val is None:
+                                phase_val = ""
                             raw = (name_val if name_val is not None else phase_val).lower()
                             parts_p = raw.split("_")
                             base = "_".join(parts_p[:2]) if len(parts_p) >= 2 else raw
                             short = PHASE_NAMES.get(base, base.replace("phase_", "P"))[:8]
-                            ps = p.get("status", "")
+                            ps_raw = p.get("status")
+                            if ps_raw is None:
+                                ps_raw = ""
+                            ps = ps_raw
                             sc, si = HealthFormatter.format_phase_badge(ps)
                             phase_badges_e.append(f"[{sc}]{si}[dim]{short}[/][/]")
                 except (ValueError, TypeError) as e:
@@ -1885,19 +2003,20 @@ def _build_results_panel(  # noqa: C901
 
     valid_hist_e = exec_hist if (exec_hist and not (isinstance(exec_hist, dict) and has_error(exec_hist))) else []
     if valid_hist_e:
-        n_ok = sum(1 for r in valid_hist_e if (r.get("overall_status", "") if r.get("overall_status") is not None else "").lower() in ("success", "completed"))
+        n_ok = sum(1 for r in valid_hist_e if _get_status_safe(r) in ("success", "completed"))
         wc = G if n_ok == len(valid_hist_e) else (Y if n_ok > 0 else R)
         right_rows.append(
             Text.from_markup(f"[dim]Run history ({len(valid_hist_e)}):[/]  [{wc}]{n_ok}/{len(valid_hist_e)} success[/]")
         )
         for r in valid_hist_e:
-            status_val = r.get("overall_status", "")
-            s = (status_val if status_val is not None else "").lower()
+            s = _get_status_safe(r)
             dt = r.get("started_at")
             dt_s = dt.strftime("%b %d  %I:%M %p") if hasattr(dt, "strftime") else str(dt or "")[:16]
             ic = G if s in ("success", "completed") else (Y if s == "halted" else R)
             ii = "v" if s in ("success", "completed") else ("~" if s == "halted" else "x")
-            hr = r.get("halt_reason", "")
+            hr = r.get("halt_reason")
+            if hr is None:
+                hr = ""
             lph = _fmt_phases_halted(r.get("phases_halted"))
             body = hr or lph
             ph_s = f"  [dim]({lph})[/]" if lph and lph not in (hr or "") else ""
@@ -1944,11 +2063,19 @@ def _build_results_panel(  # noqa: C901
         right_rows.append(Rule(style="dim"))
         right_rows.append(Text.from_markup("[dim]Notifications:[/]"))
         for n in valid_notifs:
-            sc = SEV_COLORS.get(n.get("severity", "info"), DIM)
-            title_val = n.get("title", "")
+            severity_val = n.get("severity")
+            if severity_val is None:
+                severity_val = "info"
+            sc = SEV_COLORS.get(severity_val, DIM)
+            title_val = n.get("title")
+            if title_val is None:
+                title_val = ""
             title = title_val if title_val else ""
             age = fmt_age(n.get("created_at"))
-            unread = "-" if not n.get("seen", True) else "."
+            seen_val = n.get("seen")
+            if seen_val is None:
+                seen_val = True
+            unread = "-" if not seen_val else "."
             right_rows.append(Text.from_markup(f"  [{sc}]{unread} {title}[/] [dim]{age}[/]"))
 
     valid_audit_exp = safe_get_list(audit)
@@ -1956,11 +2083,18 @@ def _build_results_panel(  # noqa: C901
         right_rows.append(Rule(style="dim"))
         right_rows.append(Text.from_markup("[dim]Audit log:[/]"))
         for a in valid_audit_exp[:20]:
-            action_type_val = a.get("action_type", "")
+            action_type_val = a.get("action_type")
+            if action_type_val is None:
+                action_type_val = ""
             at = (action_type_val if action_type_val else "").replace("_", " ")
-            symbol_val = a.get("symbol", "")
+            symbol_val = a.get("symbol")
+            if symbol_val is None:
+                symbol_val = ""
             sym = symbol_val if symbol_val else ""
-            st_a = a.get("status", "")
+            st_a_raw = a.get("status")
+            if st_a_raw is None:
+                st_a_raw = ""
+            st_a = st_a_raw
             sc = G if st_a in ("success", "ok") else (Y if st_a in ("warn", "warning") else R)
             created_at_val = a.get("created_at")
             timestamp_val = a.get("timestamp")

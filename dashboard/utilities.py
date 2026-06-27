@@ -258,21 +258,35 @@ def extract_items_and_error(data: Any) -> tuple[list[Any], str | None]:
 def validate_data_freshness(data: dict[str, Any], max_age_hours: int = 24, field_name: str = "timestamp") -> bool:
     """Validate data freshness by checking timestamp field age.
 
-    Returns True if data is fresh or timestamp unavailable, logs warning if stale.
+    FAIL-FAST: Raises exception on unparseable or invalid timestamp (data corruption).
+    Finance principle: Do not silently accept malformed data.
+
+    Returns: True if data is fresh, False if stale
+    Raises: ValueError if timestamp is malformed or missing (cannot validate freshness)
     """
     if not isinstance(data, dict):
-        return True
-    if field_name not in data or data[field_name] is None:
-        return True
+        raise ValueError(f"Data freshness validation requires dict, got {type(data).__name__}")
+    if field_name not in data:
+        raise ValueError(f"Timestamp field '{field_name}' missing from data. Cannot validate freshness.")
+    if data[field_name] is None:
+        raise ValueError(f"Timestamp field '{field_name}' is NULL. Data freshness cannot be determined.")
+
     ts = data[field_name]
     if isinstance(ts, str):
         try:
             ts = datetime.fromisoformat(ts.replace("Z", "+00:00"))
         except (ValueError, AttributeError, TypeError) as e:
-            logger.warning(f"Could not parse timestamp in {field_name}: {e}")
-            return True
+            raise ValueError(
+                f"Cannot parse timestamp in '{field_name}': {ts!r}. "
+                f"Expected ISO format (got error: {e}). Data may be corrupted."
+            ) from e
+
     if not isinstance(ts, datetime):
-        return True
+        raise ValueError(
+            f"Timestamp field '{field_name}' has invalid type {type(ts).__name__}, expected datetime. "
+            f"Data schema mismatch or corruption."
+        )
+
     if ts.tzinfo is None:
         ts = ts.replace(tzinfo=ET)
     age_hours = (datetime.now(ET) - ts).total_seconds() / 3600
