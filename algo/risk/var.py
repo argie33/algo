@@ -407,10 +407,10 @@ class ValueAtRisk:
                         )
                     safe_price = float(cur_price)
                     safe_qty = float(qty)
-                    if safe_price is None or safe_price <= 0 or safe_qty is None or safe_qty <= 0:
+                    if safe_price <= 0 or safe_qty <= 0:
                         raise ValueError(
                             f"[VAR CALCULATION FAILED] {symbol}: invalid current_price ({cur_price}) or quantity ({qty}). "
-                            f"Cannot calculate portfolio VAR with invalid position data."
+                            f"Current price and quantity must be positive for portfolio VAR calculation."
                         )
                     position_value = Decimal(str(safe_qty)) * Decimal(str(safe_price))
                     position_weight = position_value / portfolio_value if portfolio_value > 0 else Decimal(0)

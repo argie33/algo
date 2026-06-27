@@ -181,27 +181,20 @@ def fetch_market(c: None) -> dict[str, Any]:
             record_data_quality_issue("market", "critical_field", "missing_regime")
             return FetcherValidator.build_error_response(error_msg)
 
-        # Circuit breaker halt reasons - validate but allow graceful fallback to empty list
+        # CRITICAL: Circuit breaker halt reasons validation - fail fast on missing data
         halt_reasons_raw = current.get("halt_reasons")
-        halt_reasons: list[Any] = []
         if halt_reasons_raw is None:
-            # Halt reasons should be provided but if missing, default to empty list to allow dashboard display
-            logger.warning(
-                f"[MARKET DATA] Circuit breaker halt reasons missing from current.halt_reasons. "
-                f"Defaulting to empty list. Current keys: {list(current.keys())}"
+            raise ValueError(
+                f"[MARKET DATA CRITICAL] Circuit breaker halt reasons missing from current data. "
+                f"Halt validation is REQUIRED for trading safety. Cannot proceed without halt data. "
+                f"Current keys: {list(current.keys())}"
             )
-            record_data_quality_issue("market", "data_quality", "missing_halt_reasons")
-            halt_reasons = []
-        elif not isinstance(halt_reasons_raw, list):
-            # Halt reasons must be a list if provided
-            logger.warning(
-                f"[MARKET DATA] Circuit breaker halt reasons wrong type (got {type(halt_reasons_raw).__name__}). "
-                f"Defaulting to empty list. Value: {halt_reasons_raw}"
+        if not isinstance(halt_reasons_raw, list):
+            raise ValueError(
+                f"[MARKET DATA CRITICAL] Circuit breaker halt reasons wrong type (got {type(halt_reasons_raw).__name__}). "
+                f"Expected list[str]. Cannot proceed with invalid halt data. Value: {halt_reasons_raw}"
             )
-            record_data_quality_issue("market", "data_quality", "invalid_halt_reasons_type")
-            halt_reasons = []
-        else:
-            halt_reasons = halt_reasons_raw
+        halt_reasons = halt_reasons_raw
 
         return {
             "pct": safe_float(current.get("exposure_pct"), field_name="market.exposure_pct"),

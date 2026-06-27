@@ -226,14 +226,16 @@ class PriceLoader(OptimalLoader):
                 if not is_valid:
                     error_msg = "\n".join(errors)
                     logger.error(
-                        f"[SCHEMA] âŒ Schema validation FAILED for {self.table_name}:\n{error_msg}\n"
+                        f"[SCHEMA] Œ Schema validation FAILED for {self.table_name}:\n{error_msg}\n"
                         "This will cause data loading to fail. "
                         "Verify table schema matches expected definition."
                     )
                     raise RuntimeError(f"Schema validation failed for {self.table_name}: {error_msg}")
 
                 logger.info(
-                    f"[SCHEMA] âœ“ Schema validation passed for {self.table_name} ({len(required_schema)} columns)"
+                    "[SCHEMA] Schema validation passed for %s (%d columns)",
+                    self.table_name,
+                    len(required_schema),
                 )
 
                 # CRITICAL FIX: Verify unique constraint exists (prevents duplicate insertions)
@@ -297,13 +299,13 @@ class PriceLoader(OptimalLoader):
 
             if constraint_exists or index_exists:
                 logger.info(
-                    "[CONSTRAINT] âœ“ Unique constraint/index found on {self.table_name}(%s)",
+                    "[CONSTRAINT]  Unique constraint/index found on {self.table_name}(%s)",
                     pk_cols,
                 )
             else:
                 # This is a CRITICAL error - without the constraint, duplicates can occur
                 error_msg = (
-                    f"[CONSTRAINT] âŒ CRITICAL: No UNIQUE constraint or index on {self.table_name}({pk_cols}). "
+                    f"[CONSTRAINT] Œ CRITICAL: No UNIQUE constraint or index on {self.table_name}({pk_cols}). "
                     f"This allows duplicate rows to be inserted, corrupting the dataset. "
                     f"Root cause analysis: https://github.com/yourorg/algo/blob/main/steering/duplicate_rows_root_cause_analysis.md. "
                     f"Create constraint with: ALTER TABLE {self.table_name} ADD CONSTRAINT "
@@ -419,7 +421,7 @@ class PriceLoader(OptimalLoader):
         self._batch_success_count = success_count
         self._batch_total_count = total_count
         if total_count == 0:
-            raise ValueError("No symbols to fetch â€” batch size calculation error")
+            raise ValueError("No symbols to fetch -" batch size calculation error")
         self._batch_failure_ratio = 1.0 - (success_count / total_count)
 
         if success_count < total_count:
@@ -437,9 +439,9 @@ class PriceLoader(OptimalLoader):
         data availability.
 
         Timeout is context-aware:
-        - EOD pipeline (4:05-6:00 PM): 1800s (30 min) â€” generous buffer within 85-min pipeline window
-        - Morning prep (3:30-9:30 AM): 600s (10 min) â€” market just opened, data should be fresh
-        - Other times: 300s (5 min) â€” should rarely block
+        - EOD pipeline (4:05-6:00 PM): 1800s (30 min) -" generous buffer within 85-min pipeline window
+        - Morning prep (3:30-9:30 AM): 600s (10 min) -" market just opened, data should be fresh
+        - Other times: 300s (5 min) -" should rarely block
 
         ISSUE #11 FIX: Returns False if timeout and raises RuntimeError to halt loader.
         This prevents the loader from silently proceeding with stale data.
@@ -572,7 +574,7 @@ class PriceLoader(OptimalLoader):
                 if data_available:
                     elapsed = time.time() - start_time
                     logger.info(
-                        "[MARKET_CLOSE] âœ“ Data available after {elapsed:.1f}s (attempt %s)",
+                        "[MARKET_CLOSE]  Data available after {elapsed:.1f}s (attempt %s)",
                         attempt,
                     )
                     # Emit success metric
@@ -690,7 +692,7 @@ class PriceLoader(OptimalLoader):
             "Check yfinance API status and RDS connection pool health. "
             f"[Consecutive timeouts: {self._market_close_timeout_count}/24h]"
         )
-        logger.error("[{self._correlation_id}] [MARKET_CLOSE] âœ— %s", error_msg)
+        logger.error("[{self._correlation_id}] [MARKET_CLOSE] ✓ %s", error_msg)
         raise RuntimeError(error_msg)
 
     def _record_request_latency(self, latency_sec: float) -> None:
@@ -1187,17 +1189,17 @@ class PriceLoader(OptimalLoader):
                     )
                     if reduced_attempt is not None and any(v is not None for v in reduced_attempt.values()):
                         logger.info(
-                            “[CIRCUIT BREAKER] Partial success with batch=%s (INCOMPLETE: only %d of %d symbols)”,
+                            "[CIRCUIT BREAKER] Partial success with batch=%s (INCOMPLETE: only %d of %d symbols)",
                             reduced_size,
                             sum(1 for v in reduced_attempt.values() if v is not None),
                             len(symbols),
                         )
                         # CRITICAL: Mark this batch as incomplete (partial data)
                         # Downstream must check _is_incomplete flag to validate coverage
-                        reduced_attempt[“_is_incomplete”] = True
-                        reduced_attempt[“_incomplete_reason”] = f”Batch size reduced from {batch_size} to {reduced_size} due to rate limiting”
-                        reduced_attempt[“_symbols_requested”] = len(symbols)
-                        reduced_attempt[“_symbols_fetched”] = sum(1 for v in reduced_attempt.values() if v is not None)
+                        reduced_attempt["_is_incomplete"] = True
+                        reduced_attempt["_incomplete_reason"] = f"Batch size reduced from {batch_size} to {reduced_size} due to rate limiting"
+                        reduced_attempt["_symbols_requested"] = len(symbols)
+                        reduced_attempt["_symbols_fetched"] = sum(1 for v in reduced_attempt.values() if v is not None)
                         return reduced_attempt
 
                 # All reduced sizes failed — circuit breaker triggered, fail immediately
@@ -1474,7 +1476,7 @@ class PriceLoader(OptimalLoader):
         estimated_remaining_sec = remaining_batches * avg_batch_time
 
         logger.info(
-            "  Progress: %d/%d symbols (%.0f%%) â€” batch: %.1fs, avg: %.1fs, est. %d more min",
+            "  Progress: %d/%d symbols (%.0f%%) -" batch: %.1fs, avg: %.1fs, est. %d more min",
             processed,
             total_symbols,
             (completion_pct * 100),
@@ -1515,7 +1517,7 @@ class PriceLoader(OptimalLoader):
 
         if batch_elapsed > 120:
             logger.warning(
-                f"  [SLOW BATCH] {self.batch_size} symbols took {batch_elapsed:.0f}s â€” "
+                f"  [SLOW BATCH] {self.batch_size} symbols took {batch_elapsed:.0f}s -" "
                 "likely yfinance rate limiting. Consider reducing parallelism or checking API status."
             )
 
@@ -1732,7 +1734,7 @@ class PriceLoader(OptimalLoader):
         )
 
         if self.interval == "1d" and self._is_eod_pipeline:
-            logger.info("[SLA_OPT] Skipping 1d price load during EOD pipeline â€” reusing morning prep data")
+            logger.info("[SLA_OPT] Skipping 1d price load during EOD pipeline -" reusing morning prep data")
             return {"symbols_processed": 0, "symbols_failed": 0, "rows_inserted": 0}
 
         self._validate_and_check_preconditions()
@@ -1889,7 +1891,7 @@ def _invalidate_phase1_cache() -> None:
             # Step 1: Try direct deletion
             cache_table.delete_item(Key={"cache_key": cache_key})
             logger.info(
-                "[CACHE INVALIDATION] âœ“ Successfully deleted Phase 1 cache: %s",
+                "[CACHE INVALIDATION]  Successfully deleted Phase 1 cache: %s",
                 cache_key,
             )
             return
@@ -1905,11 +1907,11 @@ def _invalidate_phase1_cache() -> None:
                 )
                 return
             logger.error(
-                f"[CACHE INVALIDATION] âœ— DELETE FAILED: {type(delete_err).__name__}: {delete_err}. Attempting cache poisoning..."
+                f"[CACHE INVALIDATION] ✓ DELETE FAILED: {type(delete_err).__name__}: {delete_err}. Attempting cache poisoning..."
             )
         except Exception as delete_err:
             logger.error(
-                f"[CACHE INVALIDATION] âœ— DELETE FAILED: {type(delete_err).__name__}: {delete_err}. Attempting cache poisoning..."
+                f"[CACHE INVALIDATION] ✓ DELETE FAILED: {type(delete_err).__name__}: {delete_err}. Attempting cache poisoning..."
             )
 
         # Step 2: If delete failed, try to poison the cache so Phase 1 knows not to use it
@@ -1925,7 +1927,7 @@ def _invalidate_phase1_cache() -> None:
                 },
             )
             logger.warning(
-                "[CACHE INVALIDATION] âœ“ POISONED cache (set invalidation_failed=true) - Phase 1 will skip stale data"
+                "[CACHE INVALIDATION]  POISONED cache (set invalidation_failed=true) - Phase 1 will skip stale data"
             )
             return
         except ClientError as poison_err:
@@ -1940,12 +1942,12 @@ def _invalidate_phase1_cache() -> None:
                 )
                 return
             logger.error(
-                "[CACHE INVALIDATION] âœ— POISONING ALSO FAILED: {type(poison_err).__name__}: %s",
+                "[CACHE INVALIDATION] ✓ POISONING ALSO FAILED: {type(poison_err).__name__}: %s",
                 poison_err,
             )
         except (ValueError, ZeroDivisionError, TypeError) as poison_err:
             logger.error(
-                "[CACHE INVALIDATION] âœ— POISONING ALSO FAILED: {type(poison_err).__name__}: %s",
+                "[CACHE INVALIDATION] ✓ POISONING ALSO FAILED: {type(poison_err).__name__}: %s",
                 poison_err,
             )
 
@@ -1954,7 +1956,7 @@ def _invalidate_phase1_cache() -> None:
 
     # Step 3: Both deletion AND poisoning failed - CRITICAL: MUST HALT
     logger.critical(
-        "[CACHE INVALIDATION] âœ—âœ— CRITICAL FAILURE: Could not delete OR poison cache. "
+        "[CACHE INVALIDATION] ✓✓ CRITICAL FAILURE: Could not delete OR poison cache. "
         "Phase 1 will potentially use stale data. HALTING LOADER IMMEDIATELY."
     )
     raise RuntimeError(
@@ -2113,7 +2115,7 @@ def main() -> int:
             return 0
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as _lock_err:
         logger.warning(
-            "[MAIN] Advisory lock check failed (%s) â€” proceeding without lock",
+            "[MAIN] Advisory lock check failed (%s) -" proceeding without lock",
             _lock_err,
         )
         _lock_conn = None
@@ -2180,12 +2182,12 @@ def main() -> int:
         "SPY",
         "QQQ",
         "IWM",
-        "DIA",  # Index ETFs â€” IndicesStrip sparklines
+        "DIA",  # Index ETFs -" IndicesStrip sparklines
         "XLK",
         "XLF",
         "XLV",
         "XLY",
-        "XLC",  # Sector ETFs â€” SectorHeatMap + sector_performance
+        "XLC",  # Sector ETFs -" SectorHeatMap + sector_performance
         "XLI",
         "XLP",
         "XLE",
@@ -2195,7 +2197,7 @@ def main() -> int:
         "GLD",
         "TLT",
         "IVV",
-        "VXX",  # Macro ETFs â€” correlation matrix
+        "VXX",  # Macro ETFs -" correlation matrix
     ]
 
     # CREATIVE FIX #5: Interval staggering with time delays
