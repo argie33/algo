@@ -287,14 +287,11 @@ def panel_market_expanded(mkt: Any, sentiment: Any = None) -> Panel:
     halts = _get_market_halts(mkt, "Market summary panel")
 
     spy_s = f"${spy_raw:.2f}" if spy_raw else "--"
-    spy_chg_safe = spy_chg if spy_chg is not None else 0
-    spy_chg_c = G if spy_chg_safe >= 0 else R
+    spy_chg_c = G if (spy_chg is not None and spy_chg >= 0) else R
     spy_chg_s = f"{sign(spy_chg)}{spy_chg:.2f}%" if spy_chg is not None else "--"
-    dist_safe = dist if dist is not None else 0
-    dist_c = R if dist_safe >= 5 else (Y if dist_safe >= 3 else G)
+    dist_c = R if (dist is not None and dist >= 5) else (Y if (dist is not None and dist >= 3) else G)
     dist_s = f"{dist} days" if dist is not None else "--"
-    ycs_safe = ycs if ycs is not None else 0
-    yc_c = G if ycs_safe >= 0.5 else (Y if ycs_safe >= 0 else R)
+    yc_c = G if (ycs is not None and ycs >= 0.5) else (Y if (ycs is not None and ycs >= 0) else G)
     yc_s = f"{ycs:+.3f}" if ycs is not None else "--"
     uvc = DIM if upvol is None else (G if upvol >= 60 else (Y if upvol >= 50 else R))
     upvol_s = f"{upvol:.1f}%" if upvol is not None else "--"
@@ -302,8 +299,7 @@ def panel_market_expanded(mkt: Any, sentiment: Any = None) -> Panel:
     nh_s = str(nh) if nh is not None else "--"
     nl_s = str(nl) if nl is not None else "--"
     nhnl = (nh - nl) if (nh is not None and nl is not None) else None
-    nhnl_safe = nhnl if nhnl is not None else 0
-    nhnl_c = (G if nhnl_safe >= 50 else (Y if nhnl_safe >= 0 else R)) if nhnl is not None else DIM
+    nhnl_c = (G if (nhnl is not None and nhnl >= 50) else (Y if (nhnl is not None and nhnl >= 0) else R)) if nhnl is not None else DIM
     nhnl_s = f"{sign(nhnl)}{nhnl}" if nhnl is not None else "--"
     bmc = DIM if bmom is None else (G if bmom >= 0.5 else (Y if bmom >= 0 else R))
     bmom_s = f"{bmom:.3f}" if bmom is not None else "--"
@@ -401,9 +397,8 @@ def panel_header_market(
         trend_s = f"  [dim]Trend:[/][white]{trend_raw[:10]}[/]" if trend_raw else ""
         spy_raw = safe_float(mkt.get("spy"), strict=False)
         spy_chg = safe_float(mkt.get("spy_chg"), strict=False)
-        spy_chg_safe = spy_chg if spy_chg is not None else 0
         spy_chg_s = (
-            f" [{G if spy_chg_safe >= 0 else R}]{sign(spy_chg_safe)}{spy_chg:.1f}%[/]" if spy_chg is not None else ""
+            f" [{G if (spy_chg is not None and spy_chg >= 0) else R}]{sign(spy_chg)}{spy_chg:.1f}%[/]" if spy_chg is not None else ""
         )
         spy_s = f"  SPY:[white]${spy_raw:.2f}[/]{spy_chg_s}" if spy_raw else ""
         rows.append(
@@ -419,11 +414,10 @@ def panel_header_market(
         if upvol is not None:
             uvc = G if upvol >= 60 else (Y if upvol >= 50 else R)
             nhnl = (nh - nl) if (nh is not None and nl is not None) else None
-            nhnl_safe = nhnl if nhnl is not None else 0
-            nhnl_c = (G if nhnl_safe >= 50 else (Y if nhnl_safe >= 0 else R)) if nhnl is not None else DIM
+            nhnl_c = (G if (nhnl is not None and nhnl >= 50) else (Y if (nhnl is not None and nhnl >= 0) else R)) if nhnl is not None else DIM
             adr_s = f"  [dim]Adv/Dec:[/][white]{adr:.1f}[/]" if adr is not None else ""
             nhnl_s = (
-                f"[dim]New Hi-Lo:[/][{nhnl_c}]{sign(nhnl_safe)}{int(nhnl_safe)}[/]"
+                f"[dim]New Hi-Lo:[/][{nhnl_c}]{sign(nhnl)}{int(nhnl)}[/]"
                 if nhnl is not None
                 else "[dim]New Hi-Lo: --[/]"
             )

@@ -659,28 +659,44 @@ def panel_portfolio_perf_expanded(  # noqa: C901
         avg_l_r = safe_float(perf_anl.get("avg_l_r"), default=None)
         exp2 = safe_float(perf_anl.get("expectancy"), default=None)
         maxdd2 = safe_float(perf_anl.get("maxdd"), default=None)
+        sharpe_style = (
+            G if (sharpe252 is not None and sharpe252 >= 1)
+            else (Y if (sharpe252 is not None and sharpe252 >= 0) else R)
+        )
+        sortino_style = (
+            G if (sortino is not None and sortino >= 1.5)
+            else (Y if (sortino is not None and sortino >= 0) else R)
+        )
         anl.add_row(
             "Sharpe (252d):",
             Text(
                 f"{sharpe252:.2f}" if sharpe252 is not None else "--",
-                style=(G if (sharpe252 is not None and sharpe252 >= 1) else (Y if (sharpe252 is not None and sharpe252 >= 0) else R)),
+                style=sharpe_style,
             ),
             "Sortino:",
             Text(
                 f"{sortino:.2f}" if sortino is not None else "--",
-                style=G if (sortino is not None and sortino >= 1.5) else (Y if (sortino is not None and sortino >= 0) else R),
+                style=sortino_style,
             ),
+        )
+        calmar_style = (
+            G if (calmar is not None and calmar >= 0.5)
+            else (Y if (calmar is not None and calmar >= 0) else R)
+        )
+        wr50_style = (
+            G if (wr50 is not None and wr50 >= 50)
+            else (Y if (wr50 is not None and wr50 >= 42) else R)
         )
         anl.add_row(
             "Calmar:",
             Text(
                 f"{calmar:.2f}" if calmar is not None else "--",
-                style=G if (calmar is not None and calmar >= 0.5) else (Y if (calmar is not None and calmar >= 0) else R),
+                style=calmar_style,
             ),
             "Win Rate (50T):",
             Text(
                 f"{wr50:.0f}%" if wr50 is not None else "--",
-                style=G if (wr50 is not None and wr50 >= 50) else (Y if (wr50 is not None and wr50 >= 42) else R),
+                style=wr50_style,
             ),
         )
         anl.add_row(
@@ -690,13 +706,19 @@ def panel_portfolio_perf_expanded(  # noqa: C901
             Text(f"{avg_l_r:.2f}R" if avg_l_r else "--", style=R),
         )
         if exp2 is not None or maxdd2 is not None:
+            exp_style = G if (exp2 is not None and exp2 >= 0) else R
+            maxdd_abs = abs(maxdd2) if maxdd2 is not None else 0
+            maxdd_style = (
+                R if (maxdd2 is not None and maxdd_abs >= 15)
+                else (Y if (maxdd2 is not None and maxdd_abs >= 5) else G)
+            )
             anl.add_row(
                 "Expectancy:",
-                Text(f"{exp2:.2f}R" if exp2 is not None else "--", style=G if (exp2 is not None and exp2 >= 0) else R),
+                Text(f"{exp2:.2f}R" if exp2 is not None else "--", style=exp_style),
                 "Max Drawdown:",
                 Text(
-                    f"-{abs(maxdd2):.1f}%" if maxdd2 is not None else "--",
-                    style=(R if (maxdd2 is not None and abs(maxdd2) >= 15) else (Y if (maxdd2 is not None and abs(maxdd2) >= 5) else G)),
+                    f"-{maxdd_abs:.1f}%" if maxdd2 is not None else "--",
+                    style=maxdd_style,
                 ),
             )
         rows.append(anl)
