@@ -101,6 +101,10 @@ def run(
                 log_level="warning",
             )
             log_phase_error(2, error, log_phase_result_fn)
+            logger.warning(
+                f"Market circuit breaker check skipped due to dependency failure: {e}. "
+                f"Proceeding with account circuit breakers only."
+            )
 
         if result["halted"]:
             halt_reasons = result.get("halt_reasons", ["unknown"])
