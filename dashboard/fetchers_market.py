@@ -56,9 +56,17 @@ def _get_endpoint_path(fetcher_key: str, params: dict[str, Any] | None = None) -
     if not meta:
         # For endpoints with direct paths (like '/api/algo/last-run')
         return fetcher_key
-    endpoint = meta.get("endpoint", "")
+    if "endpoint" not in meta:
+        raise KeyError(
+            f"CRITICAL: Fetcher configuration for '{fetcher_key}' missing required 'endpoint' field. "
+            "Configuration incomplete. Cannot construct API path."
+        )
+    endpoint = meta["endpoint"]
     if not endpoint:
-        return fetcher_key
+        raise ValueError(
+            f"CRITICAL: Fetcher configuration for '{fetcher_key}' has empty 'endpoint' field. "
+            "Endpoint must be a non-empty API path."
+        )
     return endpoint
 
 
@@ -405,9 +413,14 @@ def fetch_sector_rotation(c: None) -> dict[str, Any]:
             return FetcherValidator.build_error_response(error_msg)
 
         row = items[0]
+        if "signal" not in row or not row.get("signal"):
+            raise ValueError(
+                f"CRITICAL: Sector rotation signal missing required 'signal' field. "
+                f"Cannot display sector rotation without signal data. Row: {row}"
+            )
         return {
             "date": row.get("date"),
-            "signal": row.get("signal", ""),
+            "signal": row["signal"],
             "strength": safe_float(row.get("spread"), default=None, field_name="sec_rot.spread"),
             "weeks": row.get("weeks_persistent", 1),
             "def_score": safe_float(
