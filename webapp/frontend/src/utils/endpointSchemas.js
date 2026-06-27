@@ -66,8 +66,8 @@ export const ENDPOINT_SCHEMAS = {
   // Trading positions and trades
   "/api/algo/positions": {
     type: "paginated",
-    itemFields: ["id", "ticker"],
-    paginationFields: ["page", "limit", "total"],
+    itemFields: ["symbol", "position_value"],
+    paginationFields: ["total", "limit"],
     requireNonEmptyList: false, // Can be empty if no open positions
     decimalFields: [
       "avg_entry_price",
@@ -92,8 +92,8 @@ export const ENDPOINT_SCHEMAS = {
   },
   "/api/algo/trades": {
     type: "paginated",
-    itemFields: ["id", "ticker", "side"],
-    paginationFields: ["page", "limit", "total"],
+    itemFields: ["trade_id", "symbol", "status"],
+    paginationFields: ["total", "limit"],
     requireNonEmptyList: false, // Can be empty if no trade history
     decimalFields: [
       "entry_price",

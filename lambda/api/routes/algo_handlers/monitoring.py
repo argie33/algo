@@ -158,10 +158,19 @@ def _get_last_run(cur: cursor) -> Any:
         "phases_errored": [p.get("action_type") for p in errored_phases if p.get("action_type")],
     }
 
+    print(f"[_get_last_run DEBUG] response_data keys before ensure_valid: {list(response_data.keys())}", flush=True)
+    print(f"[_get_last_run DEBUG] 'phases' in response_data: {'phases' in response_data}", flush=True)
+
     # Validate response matches contract schema
     ensure_valid_response("run", response_data)
 
-    return json_response(200, response_data)
+    print(f"[_get_last_run DEBUG] response_data keys after ensure_valid: {list(response_data.keys())}", flush=True)
+
+    result = json_response(200, response_data)
+    print(f"[_get_last_run DEBUG] json_response result type: {type(result)}", flush=True)
+    if isinstance(result, dict) and 'data' in result:
+        print(f"[_get_last_run DEBUG] result['data'] keys: {list(result['data'].keys())}", flush=True)
+    return result
 
 
 @db_route_handler("fetch notifications")
