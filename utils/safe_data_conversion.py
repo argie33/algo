@@ -137,6 +137,38 @@ def safe_float(
 # ──────────────────────────────────────────────────────────────────────────────
 
 
+@overload
+def safe_int(
+    value: Any,
+    default: int,
+    *,
+    context: str = "",
+    strict: bool = False,
+    field_name: str | None = None,
+) -> int: ...
+
+
+@overload
+def safe_int(
+    value: Any,
+    default: None,
+    *,
+    context: str = "",
+    strict: bool = False,
+    field_name: str | None = None,
+) -> int | None: ...
+
+
+@overload
+def safe_int(
+    value: Any,
+    *,
+    context: str = "",
+    strict: bool = False,
+    field_name: str | None = None,
+) -> int | None: ...
+
+
 def safe_int(
     value: Any,
     default: int | None = None,

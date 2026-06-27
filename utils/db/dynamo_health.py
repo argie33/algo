@@ -117,7 +117,20 @@ class DynamoDBHealthCheck:
             response = table.get_item(Key={"key": "phase1_degraded_mode"})
             item = response.get("Item")
 
-            degraded = item.get("degraded", False) is True
+            if item is None:
+                return {
+                    "degraded_mode_active": False,
+                    "reason": None,
+                    "set_time": None,
+                    "available": True,
+                }
+
+            degraded = item.get("degraded")
+            if degraded is None:
+                degraded = False
+            else:
+                degraded = degraded is True
+
             reason = item.get("reason")
             set_time = item.get("set_at")
 

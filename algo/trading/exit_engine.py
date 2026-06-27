@@ -669,18 +669,19 @@ class ExitEngine:
                         cur=cur,
                     )
 
-                    if fraction == 0 and result.get("success"):
+                    if "success" not in result:
+                        raise RuntimeError("Exit trade result missing 'success' field")
+                    success = result["success"]
+                    message = result.get("message", "(no message provided)")
+
+                    if fraction == 0 and success:
                         logger.info(f"      -> Stop raised to ${new_stop:.2f}")
-
                         exits_executed += 1
-
-                    elif result.get("success"):
+                    elif success:
                         exits_executed += 1
-
-                        logger.info(f"      -> {result['message']}")
-
+                        logger.info(f"      -> {message}")
                     else:
-                        logger.error(f"      -> FAILED: {result.get('message')}")
+                        logger.error(f"      -> FAILED: {message}")
 
                 logger.info(f"\n{'=' * 70}")
 

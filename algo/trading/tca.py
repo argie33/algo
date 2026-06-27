@@ -184,7 +184,7 @@ class TCAEngine:
                 )
                 row = cur.fetchone()
 
-                if not row or row[0] == 0:
+                if row is None or len(row) < 1:
                     return {
                         "report_date": report_date,
                         "fill_count": 0,
@@ -288,7 +288,7 @@ class TCAEngine:
                 )
                 row = cur.fetchone()
 
-                if not row or row[0] == 0:
+                if row is None or len(row) < 1:
                     return {
                         "period": f"{year}-{month:02d}",
                         "status": "no_data",

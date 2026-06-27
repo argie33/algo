@@ -129,20 +129,24 @@ def panel_circuit(cb: Any) -> Panel:
                     f"[{R if fired else 'dim'}]{lbl_s}:[/]{cur_s}{br.get('u', '')!s}[dim]/{thr_s}{br.get('u', '')!s}[/]"
                 )
             try:
-                thr_f = safe_float(thr, strict=True, field_name="circuit_breaker_threshold")
-                cur_f = safe_float(cur, strict=True, field_name="circuit_breaker_current")
+                thr_f = safe_float(thr, 0.0, strict=True, field_name="circuit_breaker_threshold")
+                cur_f = safe_float(cur, 0.0, strict=True, field_name="circuit_breaker_current")
             except StrictValidationError:
                 return f"[{R}]{lbl_s}:[/] [red]✗ BAD DATA[/]"
-            if thr_f > 0:
+            if thr_f is not None and thr_f > 0 and cur_f is not None:
                 util = cur_f / thr_f
-            elif thr_f < 0 and cur_f < 0:
+            elif thr_f is not None and thr_f < 0 and cur_f is not None and cur_f < 0:
                 util = min(cur_f / thr_f, 1.0)
             else:
                 util = 0
             fc = R if fired else (Y if util >= 0.75 else G)
             ind = "[bold red] ![/]" if fired else ""
             pct_s = f"[dim] {util * 100:.0f}%[/]" if not fired else ""
-            cur_fmt = f"{cur_f:.1f}" if cur_f != int(cur_f) else f"{int(cur_f)}"
+            cur_fmt = (
+                f"{cur_f:.1f}"
+                if cur_f is not None and cur_f != int(cur_f)
+                else (f"{int(cur_f)}" if cur_f is not None else "0")
+            )
             return (
                 f"[{fc}]{lbl_s}:[/]{cur_fmt}{br.get('u', '')!s}"
                 f"[dim]/{thr_f:.0f}{br.get('u', '')!s}[/]{hbar(cur_f, thr_f, w=4)}{pct_s}{ind}"
@@ -220,17 +224,17 @@ def panel_circuit_expanded(cb: Any) -> Panel:
                 status = Text("UNKNOWN", style="dim")
             else:
                 try:
-                    thr_f = safe_float(thr, strict=True, field_name="circuit_breaker_threshold")
-                    cur_f = safe_float(cur, strict=True, field_name="circuit_breaker_current")
+                    thr_f = safe_float(thr, 0.0, strict=True, field_name="circuit_breaker_threshold")
+                    cur_f = safe_float(cur, 0.0, strict=True, field_name="circuit_breaker_current")
                 except StrictValidationError:
                     status = Text("BAD DATA", style=R)
                     util_bar = Text("!/ !", style=R)
                     cur_s = f"{cur}{u}"
                     thr_s = f"{thr}{u}"
                 else:
-                    if thr_f > 0:
+                    if thr_f is not None and thr_f > 0 and cur_f is not None:
                         util = cur_f / thr_f
-                    elif thr_f < 0 and cur_f < 0:
+                    elif thr_f is not None and thr_f < 0 and cur_f is not None and cur_f < 0:
                         util = min(cur_f / thr_f, 1.0)
                     else:
                         util = 0

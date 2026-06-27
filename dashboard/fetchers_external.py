@@ -408,7 +408,7 @@ def fetch_activity(c: None) -> dict[str, Any]:
 
         run_at = items[0].get("action_date") if items else None
         run_id = next(
-            (i.get("details", {}).get("run_id") for i in items if i.get("details") and i.get("details").get("run_id")),
+            (details.get("run_id") for i in items if (details := i.get("details")) is not None and details.get("run_id")),
             None,
         )
         phases = [

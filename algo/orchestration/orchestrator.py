@@ -998,8 +998,17 @@ class Orchestrator:
             with TimeBlock("orchestrator_executor"):
                 executor_result = self.executor.run()
 
-            if not executor_result.get("success"):
-                logger.critical(f"[EXECUTOR] Phase sequence halted at Phase {executor_result.get('error_phase')}")
+            # Validate executor result structure
+            if "success" not in executor_result:
+                raise RuntimeError(
+                    f"Executor result missing 'success' field. "
+                    f"Available keys: {list(executor_result.keys())}. "
+                    f"Cannot determine if execution succeeded."
+                )
+
+            if not executor_result["success"]:
+                error_phase = executor_result.get("error_phase", "unknown")
+                logger.critical(f"[EXECUTOR] Phase sequence halted at Phase {error_phase}")
                 return self._final_report()
 
             # Log performance metrics and total time

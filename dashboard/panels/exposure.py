@@ -185,7 +185,11 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
                 items.append(f"[dim]{label}:[/] [yellow]⚠ {str(e)[:30]}[/]")
                 continue
             bar = mini_bar(pts, max_pts, w=4)
-            fc = G if pts >= max_pts * 0.75 else (Y if pts >= max_pts * 0.35 else R)
+            fc = (
+                G
+                if pts is not None and pts >= max_pts * 0.75
+                else (Y if pts is not None and pts >= max_pts * 0.35 else R)
+            )
             det = factor_detail(key)
             det_s = f" [dim]{det.strip()}[/]" if det else ""
             items.append(f"[dim]{label}:[/] {bar} [{fc}]{pts:.0f}/{max_pts}[/]{det_s}")
@@ -208,7 +212,8 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
             logger.warning("sector_rotation factor missing 'pts' field")
         else:
             try:
-                sr_pen = safe_float(sr_pts_raw, strict=True, field_name="sector_rotation_pts")
+                sr_pen_tmp = safe_float(sr_pts_raw, 0.0, strict=True, field_name="sector_rotation_pts")
+                sr_pen = sr_pen_tmp if sr_pen_tmp is not None else 0.0
             except StrictValidationError as e:
                 logger.warning(f"sector_rotation pts conversion failed: {e}")
     if eco:
@@ -217,7 +222,8 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
             logger.warning("economic_overlay factor missing 'pts' field")
         else:
             try:
-                eco_pen = safe_float(eco_pts_raw, strict=True, field_name="economic_overlay_pts")
+                eco_pen_tmp = safe_float(eco_pts_raw, 0.0, strict=True, field_name="economic_overlay_pts")
+                eco_pen = eco_pen_tmp if eco_pen_tmp is not None else 0.0
             except StrictValidationError as e:
                 logger.warning(f"economic_overlay pts conversion failed: {e}")
     if sr_pen < 0 and sr:
@@ -348,8 +354,8 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
                 context,
             )
             continue
-        bar_f = int(min(pts / max_pts, 1.0) * 12) if max_pts > 0 else 0
-        fc = G if pts >= max_pts * 0.75 else (Y if pts >= max_pts * 0.35 else R)
+        bar_f = int(min(pts / max_pts, 1.0) * 12) if max_pts > 0 and pts is not None else 0
+        fc = G if pts is not None and pts >= max_pts * 0.75 else (Y if pts is not None and pts >= max_pts * 0.35 else R)
         bar_s = Text.from_markup(f"[{fc}]{'█' * bar_f}[/][dim]{'░' * (12 - bar_f)}[/]  [{fc}]{pts:.0f}/{max_pts}[/]")
 
         # Build value string per factor
@@ -427,7 +433,8 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
             logger.warning("sector_rotation factor missing 'pts' field")
         else:
             try:
-                sr_pen = safe_float(sr_pts_raw, strict=True, field_name="sector_rotation_pts")
+                sr_pen_tmp = safe_float(sr_pts_raw, 0.0, strict=True, field_name="sector_rotation_pts")
+                sr_pen = sr_pen_tmp if sr_pen_tmp is not None else 0.0
             except StrictValidationError as e:
                 logger.warning(f"sector_rotation pts conversion failed: {e}")
     if eco:
@@ -436,7 +443,8 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
             logger.warning("economic_overlay factor missing 'pts' field")
         else:
             try:
-                eco_pen = safe_float(eco_pts_raw, strict=True, field_name="economic_overlay_pts")
+                eco_pen_tmp = safe_float(eco_pts_raw, 0.0, strict=True, field_name="economic_overlay_pts")
+                eco_pen = eco_pen_tmp if eco_pen_tmp is not None else 0.0
             except StrictValidationError as e:
                 logger.warning(f"economic_overlay pts conversion failed: {e}")
     if sr_pen != 0 or eco_pen != 0:

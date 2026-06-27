@@ -217,12 +217,27 @@ class ParallelismValidator:
             "swing_scores": self.validate_swing_scores_loader(),
         }
 
-        passed = sum(1 for r in results.values() if r.get("test_passed", False))
+        # Validate result structure — test_passed must be present and bool
+        passed = 0
+        for name, r in results.items():
+            if "test_passed" not in r:
+                raise ValueError(
+                    f"Loader validation result for '{name}' missing 'test_passed' field. "
+                    f"Keys: {list(r.keys())}. Validation result structure is invalid."
+                )
+            if not isinstance(r["test_passed"], bool):
+                raise ValueError(
+                    f"Loader validation result for '{name}': 'test_passed' is {type(r['test_passed']).__name__}, "
+                    f"expected bool"
+                )
+            if r["test_passed"]:
+                passed += 1
+
         total = len(results)
 
         failures = []
         for name, r in results.items():
-            if not r.get("test_passed", False):
+            if not r["test_passed"]:
                 issues = r.get('issues_found')
                 issues_str = '; '.join(issues) if issues else ""
                 failures.append(f"{name}: {issues_str}")

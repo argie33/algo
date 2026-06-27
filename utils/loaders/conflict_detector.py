@@ -93,7 +93,9 @@ class LoaderConflictDetector:
                 # Check 2: Detect concurrent runs of SAME table (shouldn't happen)
                 table_counts: dict[str, int] = {}
                 for loader in running_loaders:
-                    name = loader["table_name"]
+                    name = loader.get("table_name")
+                    if name is None:
+                        raise ValueError("Loader record missing table_name — loader status tracking corrupted")
                     table_counts[name] = table_counts.get(name, 0) + 1
 
                 conflicts = [name for name, count in table_counts.items() if count > 1]

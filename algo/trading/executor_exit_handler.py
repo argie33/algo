@@ -275,10 +275,15 @@ class ExitHandler:
         # Cancel bracket orders on full exit
         if full_exit and alpaca_order_id:
             cancel_result = self.context._cancel_bracket_orders(alpaca_order_id)
-            if not cancel_result.get("success"):
-                logger.warning(
-                    f"Failed to cancel bracket for {trade_id}: {cancel_result.get('message', 'Unknown error')}"
+            if "success" not in cancel_result:
+                raise RuntimeError(
+                    f"Cancel bracket result missing 'success' field. "
+                    f"Available keys: {list(cancel_result.keys())}. "
+                    f"Cannot determine if bracket was cancelled."
                 )
+            if not cancel_result["success"]:
+                message = cancel_result.get("message", "Unknown error")
+                logger.warning(f"Failed to cancel bracket for {trade_id}: {message}")
 
         # Execute exit order (if not review/paper mode)
         execution_mode = self.context.execution_mode
@@ -288,8 +293,17 @@ class ExitHandler:
 
         if execution_mode == "auto":
             exit_order_result = self.context._send_alpaca_exit(symbol, shares_to_exit)
-            if exit_order_result.get("success"):
-                actual_fill_price = exit_order_result["filled_price"] if "filled_price" in exit_order_result else None
+
+            # Validate result structure
+            if "success" not in exit_order_result:
+                raise RuntimeError(
+                    f"Exit order result missing 'success' field. "
+                    f"Available keys: {list(exit_order_result.keys())}. "
+                    f"Cannot determine if exit order succeeded."
+                )
+
+            if exit_order_result["success"]:
+                actual_fill_price = exit_order_result.get("filled_price")
                 is_estimated_price = False
                 if actual_fill_price is None:
                     raise DataUnavailableError(
@@ -298,19 +312,20 @@ class ExitHandler:
                         f"Response keys: {list(exit_order_result.keys())}"
                     )
             else:
+                error_message = exit_order_result.get("message", "Unknown error")
                 try:
                     from algo.reporting import notify
 
                     notify(
                         "critical",
                         title=f"EXIT ORDER FAILED: {symbol}",
-                        message=f"Trade {trade_id}: Failed to exit {shares_to_exit}sh. {exit_order_result['message'] if 'message' in exit_order_result else 'Unknown error'}",
+                        message=f"Trade {trade_id}: Failed to exit {shares_to_exit}sh. {error_message}",
                     )
                 except NotificationError as e:
                     logger.warning(f"Failed to send exit failure alert (non-blocking): {e}")
                 return {
                     "success": False,
-                    "message": f"Exit order failed: {exit_order_result.get('message', 'Unknown error')}",
+                    "message": f"Exit order failed: {error_message}",
                 }
 
         final_exit_price = actual_fill_price if actual_fill_price is not None else exit_price

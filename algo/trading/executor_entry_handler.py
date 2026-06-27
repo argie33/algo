@@ -564,7 +564,14 @@ class EntryHandler:
                     f"Cannot validate bracket order without legs. OrderManager contract violated."
                 )
 
-            if order_result.get("order_class") == "bracket" and len(legs) < 2:
+            order_class = order_result.get("order_class")
+            if order_class is None:
+                raise RuntimeError(
+                    f"[ENTRY_HANDLER] {symbol}: OrderManager result missing 'order_class' field. "
+                    f"Cannot validate order type. OrderManager contract violated."
+                )
+
+            if order_class == "bracket" and len(legs) < 2:
                 try:
                     self.context._cancel_bracket_orders(alpaca_order_id)
                 except (

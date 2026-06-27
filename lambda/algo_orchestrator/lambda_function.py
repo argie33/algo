@@ -329,11 +329,40 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
         logger.info("Starting orchestrator run")
         try:
             result = orchestrator.run()
-            success = result.get("success", False)
-            run_id = result.get("run_id", "unknown")
+
+            # Validate orchestrator result structure
+            if "success" not in result:
+                raise ValueError(
+                    f"Orchestrator result missing 'success' field. "
+                    f"Available keys: {list(result.keys())}. "
+                    f"Cannot determine if orchestrator run succeeded."
+                )
+
+            success = result["success"]
+
+            if "run_id" not in result:
+                raise ValueError(
+                    f"Orchestrator result missing 'run_id' field. "
+                    f"Available keys: {list(result.keys())}. "
+                    f"Cannot track orchestrator execution."
+                )
+
+            run_id = result["run_id"]
+
+            if "skipped" not in result:
+                raise ValueError(
+                    f"Orchestrator result missing 'skipped' field. "
+                    f"Available keys: {list(result.keys())}. "
+                    f"Cannot determine if orchestrator was skipped."
+                )
+
+            skipped = result["skipped"]
+
+            reason = result.get("reason")
+            if reason is None:
+                reason = ""
 
             # Return response
-            skipped = result.get("skipped", False)
             return {
                 "statusCode": 200 if success else 500,
                 "body": json.dumps(
@@ -345,7 +374,7 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
                         "run_id": run_id,
                         "phases": result.get("phases"),
                         "skipped": skipped,
-                        "reason": result.get("reason", ""),
+                        "reason": reason,
                         "source": source,
                         "lambda_timeout_seconds": lambda_timeout,
                     }

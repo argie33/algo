@@ -82,21 +82,20 @@ def _calculate_adjusted_win_rate(perf: dict[str, Any] | None, pos: dict[str, Any
     Win rate should reflect all active positions (closed + open losses), not just closed trades.
     Counts open positions with unrealized_pnl_pct < 0 as losses.
     """
-    if not perf or perf.get("_error"):
-        wr_val = perf.get("wr") if perf else None
-        w_val = perf.get("w") if perf else None
-        l_val = perf.get("l") if perf else None
-        if wr_val is None or w_val is None or l_val is None:
-            raise ValueError("Performance data missing: cannot calculate win rate without w/l/wr counts")
-        wr_f = safe_float(wr_val, strict=True, field_name="win_rate_pct")
-        w_i = safe_int(w_val, strict=True, field_name="closed_wins")
-        l_i = safe_int(l_val, strict=True, field_name="closed_losses")
-        return wr_f, w_i, l_i
+    if perf is None or perf.get("_error"):
+        return 0.0, 0, 0
 
-    closed_wins = perf.get("w")
-    closed_losses = perf.get("l")
-    if closed_wins is None or closed_losses is None:
-        raise ValueError("Performance data incomplete: missing win or loss count")
+    wr_val = perf.get("wr")
+    w_val = perf.get("w")
+    l_val = perf.get("l")
+    if wr_val is None or w_val is None or l_val is None:
+        return 0.0, 0, 0
+
+    w_i = safe_int(w_val, 0, strict=True, field_name="closed_wins")
+    l_i = safe_int(l_val, 0, strict=True, field_name="closed_losses")
+
+    closed_wins = w_i
+    closed_losses = l_i
     losing_open = 0
 
     if pos and not pos.get("_error"):
@@ -187,7 +186,7 @@ def panel_portfolio(
     # Largest position
     if lgpos is not None:
         try:
-            lgpos_f = safe_float(lgpos, strict=True, field_name="largest_position_pct")
+            lgpos_f = safe_float(lgpos, 0.0, strict=True, field_name="largest_position_pct")
             lp_c = R if lgpos_f >= 20 else (Y if lgpos_f >= 15 else "white")
             tbl.add_row(
                 cell("Largest Position:", f"[{lp_c}]{lgpos_f:.1f}%[/]"),
@@ -206,7 +205,7 @@ def panel_portfolio(
         svar_v = safe_float(risk.get("svar"), strict=False, field_name="svar", default=None)
 
         # All critical fields available — render
-        if var_v > 0 and cvar_v is not None and beta_v is not None and conc5_v is not None:
+        if var_v is not None and var_v > 0 and cvar_v is not None and beta_v is not None and conc5_v is not None:
             conc_c = R if conc5_v >= 35 else (Y if conc5_v >= 25 else "white")
             var_c = R if var_v >= 4 else (Y if var_v >= 2 else "white")
             beta_c = R if beta_v >= 1.2 else (Y if beta_v >= 0.8 else G)
@@ -510,7 +509,7 @@ def panel_portfolio_perf_expanded(  # noqa: C901
         l_val = perf.get("l")
         closed_losses = safe_int(l_val, strict=True, field_name="closed_losses_l")
         streak_val = perf.get("streak")
-        streak = safe_int(streak_val, strict=True, field_name="win_streak")
+        streak = safe_int(streak_val, 0, strict=True, field_name="win_streak")
         pnl_val = safe_float(perf.get("pnl"), default=None)
         unrlzd_pnl = safe_float(perf.get("unrealized_pnl"), default=None)
         open_cnt = safe_int(perf.get("open_count"), default=None)
@@ -735,9 +734,17 @@ def panel_portfolio_perf_expanded(  # noqa: C901
                 )
 
                 beta_display = f"{beta:.2f}" if beta is not None else "N/A"
-                beta_c = R if (beta is not None and beta >= 1.2) else (Y if (beta is not None and beta >= 0.8) else (G if beta is not None else "dim"))
+                beta_c = (
+                    R
+                    if (beta is not None and beta >= 1.2)
+                    else (Y if (beta is not None and beta >= 0.8) else (G if beta is not None else "dim"))
+                )
                 conc_display = f"{conc5:.0f}%" if conc5 is not None else "N/A"
-                conc_c = R if (conc5 is not None and conc5 >= 35) else (Y if (conc5 is not None and conc5 >= 25) else (G if conc5 is not None else "dim"))
+                conc_c = (
+                    R
+                    if (conc5 is not None and conc5 >= 35)
+                    else (Y if (conc5 is not None and conc5 >= 25) else (G if conc5 is not None else "dim"))
+                )
 
                 rtbl.add_row(
                     "Portfolio Beta:",

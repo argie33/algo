@@ -48,8 +48,12 @@ class HealthFormatter:
         ad = r.get("age")
         if ah is not None:
             try:
-                ah_f = safe_float(ah, None, strict=True, field_name="age_hours")
-                return f"{ah_f:.0f}h" if ah_f < 24 else f"{ah_f / 24:.1f}d"
+                ah_f = safe_float(ah, 0.0, strict=True, field_name="age_hours")
+                return (
+                    f"{ah_f:.0f}h"
+                    if ah_f is not None and ah_f < 24
+                    else (f"{ah_f / 24:.1f}d" if ah_f is not None else "?")
+                )
             except (StrictValidationError, ValueError, TypeError):
                 return "?"
         elif ad is not None:
@@ -237,6 +241,7 @@ def _build_freshness_panel(hlth_items: list[Any], ready_to_trade: bool | None) -
     )
 
     _role_order = {"CRIT": 0, "IMP": 1, "NORM": 2}
+
     def sort_key(r: dict[str, Any]) -> tuple[int, str]:
         role = r.get("role")
         if role is None:
@@ -339,12 +344,14 @@ def panel_orch(run: dict[str, Any] | None, cfg: dict[str, Any], risk: dict[str, 
                 svar_val = safe_float(risk_metrics["svar"], default=None)
                 if None in (var95_val, beta_val, cvar95_val, conc5_val):
                     missing_fields = [
-                        name for name, val in [
+                        name
+                        for name, val in [
                             ("VaR95", var95_val),
                             ("Beta", beta_val),
                             ("CVaR95", cvar95_val),
                             ("Concentration", conc5_val),
-                        ] if val is None
+                        ]
+                        if val is None
                     ]
                     var_line = f"\n[{R}]⚠ Risk metrics incomplete[/] - missing: {', '.join(missing_fields)}"
                 else:
@@ -385,7 +392,7 @@ def panel_orch(run: dict[str, Any] | None, cfg: dict[str, Any], risk: dict[str, 
             else ("[bold yellow]~ HALTED[/]" if run.get("halted") else "[bold bright_red]✗ ERROR[/]")
         )
 
-        pbadges = []
+        pbadges: list[str] = []
         # exec_log source: structured per-phase objects with names + statuses
         if run.get("_source") == "exec_log":
             phase_results = safe_get_list(run.get("phase_results"))
@@ -395,10 +402,7 @@ def panel_orch(run: dict[str, Any] | None, cfg: dict[str, Any], risk: dict[str, 
                     f"Cannot display phase execution status. Available keys: {list(run.keys())}"
                 )
                 pbadges.append(
-                    Text.from_markup(
-                        "[red bold]ERROR: Phase status data unavailable[/] "
-                        "(check orchestration logs for execution details)"
-                    )
+                    "[red bold]ERROR: Phase status data unavailable[/] (check orchestration logs for execution details)"
                 )
                 phase_results = []
             for p in phase_results:
@@ -469,7 +473,7 @@ def panel_orch(run: dict[str, Any] | None, cfg: dict[str, Any], risk: dict[str, 
                 pbadges.append(f"[{pc}]{pi}{short}[/]")
             extra = ""
 
-        phases_str = "  ".join(pbadges) if pbadges else "[dim]──[/]"
+        phases_str = "  ".join(str(b) for b in pbadges) if pbadges else "[dim]──[/]"
         body = Text.from_markup(
             f"{sts}  [dim]{age}[/]\n"
             f"[{mc2}]{mode}[/]  [{ec}]{en}[/]\n"
@@ -556,10 +560,7 @@ def _format_recent_trade_events(act: dict[str, Any] | None) -> list[Text]:
 
     # Propagate error responses
     if has_error(act):
-        raise ValueError(
-            f"Recent actions API error: {act.get('_error')}. "
-            "Cannot format trade events when API fails."
-        )
+        raise ValueError(f"Recent actions API error: {act.get('_error')}. Cannot format trade events when API fails.")
 
     # Missing recent_actions field is normal (no recent activity)
     if "recent_actions" not in act:
@@ -793,7 +794,8 @@ def _format_audit_log_summary(audit: list[Any]) -> list[Text]:
     notable = [
         a
         for a in valid_audit
-        if a.get("action_type") and any(k in str(a.get("action_type") or "") for k in ("entry", "exit", "halt", "resume", "circuit"))
+        if a.get("action_type")
+        and any(k in str(a.get("action_type") or "") for k in ("entry", "exit", "halt", "resume", "circuit"))
     ][:3]
 
     if not notable:
@@ -914,7 +916,9 @@ def _format_health_data_fresh_section(
     n_total = len(hlth_list)
     n_crit = len(crit)
     valid_ages = [r for r in hlth_list if _age_h(r) is not None]
-    oldest_s = f"  [dim]oldest: {_age_fmt_c(max(valid_ages, key=lambda r: cast(float, _age_h(r))))}[/]" if valid_ages else ""
+    oldest_s = (
+        f"  [dim]oldest: {_age_fmt_c(max(valid_ages, key=lambda r: cast(float, _age_h(r))))}[/]" if valid_ages else ""
+    )
     crit_s = f"  [dim]crit {n_crit}[/][{G}] ok[/]" if n_crit else ""
     return f"{rtt_badge}  [dim]{n_total} tables fresh[/]{crit_s}{oldest_s}"
 
@@ -1303,7 +1307,7 @@ def panel_status(  # noqa: C901
         if summary is None:
             summary = ""
         if run.get("halted") or halt_r:
-            pr_val = (run.get("phase_results") if isinstance(run, dict) else None)
+            pr_val = run.get("phase_results") if isinstance(run, dict) else None
             if pr_val is None:
                 pr_val = []
             for label, detail in _best_halt_reason(halt_r, pr_val):
@@ -1412,8 +1416,7 @@ def panel_status(  # noqa: C901
             )
             rows.append(
                 Text.from_markup(
-                    "[red bold]ERROR: Activity phase status unavailable[/] "
-                    "(orchestration activity log incomplete)"
+                    "[red bold]ERROR: Activity phase status unavailable[/] (orchestration activity log incomplete)"
                 )
             )
             phases_list = []
@@ -1457,7 +1460,7 @@ def panel_status(  # noqa: C901
         rows.append(Rule(style="dim"))
         for n in valid_notifs[:4]:
             sc = SEV_COLORS.get((n.get("severity") or "info"), DIM)
-            title_val = (n.get("title") or "")
+            title_val = n.get("title") or ""
             raw_t = title_val if title_val else ""
             tl = raw_t.lower()
             title = next((v for k, v in NOTIF_SHORT_NAMES.items() if k in tl), raw_t[:24])
@@ -1570,7 +1573,8 @@ def panel_status(  # noqa: C901
         notable = [
             a
             for a in valid_audit
-            if a.get("action_type") and any(k in str(a.get("action_type") or "") for k in ("entry", "exit", "halt", "resume", "circuit"))
+            if a.get("action_type")
+            and any(k in str(a.get("action_type") or "") for k in ("entry", "exit", "halt", "resume", "circuit"))
         ][:3]
         if notable:
             rows.append(Rule(style="dim"))
@@ -1812,7 +1816,7 @@ def panel_algo_health(  # noqa: C901
         notif_parts = []
         for n in valid_notifs[:5]:
             sc = SEV_COLORS.get((n.get("severity") or "info"), DIM)
-            title_val = (n.get("title") or "")
+            title_val = n.get("title") or ""
             raw_t = title_val if title_val else ""
             title = next(
                 (v for k, v in NOTIF_SHORT_NAMES.items() if k in raw_t.lower()),
@@ -2044,7 +2048,11 @@ def _build_results_panel(  # noqa: C901
             if conc5_val_e is not None and conc5_val_e >= 35
             else (Y if conc5_val_e is not None and conc5_val_e >= 25 else "white")
         )
-        var_c = R if var95_val_e is not None and var95_val_e >= 4 else (Y if var95_val_e is not None and var95_val_e >= 2 else "white")
+        var_c = (
+            R
+            if var95_val_e is not None and var95_val_e >= 4
+            else (Y if var95_val_e is not None and var95_val_e >= 2 else "white")
+        )
         risk_parts_e = [
             f"[dim]VaR95:[/][{var_c}]{var95_val_e:.2f}%[/]",
         ]

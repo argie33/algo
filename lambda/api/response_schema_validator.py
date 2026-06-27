@@ -25,7 +25,13 @@ class SchemaValidator:
         if not schema:
             return True, ""
 
-        required = schema.get("required", [])
+        required = schema.get("required")
+        if required is None:
+            raise ValueError(f"Schema for endpoint '{endpoint}' missing 'required' field")
+
+        if not isinstance(required, list):
+            raise ValueError(f"Schema 'required' field must be a list, got {type(required).__name__}")
+
         missing = set(required) - set(data.keys())
 
         if missing:

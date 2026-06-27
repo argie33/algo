@@ -128,22 +128,49 @@ class MetricsPublisher:
 
     def put_loader_result(self, loader: str, stats: dict[str, Any]) -> None:
         """Publish OptimalLoader run stats (rows_inserted, symbols_failed, duration_sec)."""
+        # Validate required fields are present
+        required_fields = ["rows_inserted", "symbols_failed", "duration_sec"]
+        missing = [f for f in required_fields if f not in stats]
+        if missing:
+            raise ValueError(
+                f"Loader stats for '{loader}' missing required fields: {missing}. "
+                f"Cannot publish incomplete metrics. Available: {list(stats.keys())}"
+            )
+
         dims = {"Loader": loader}
+        rows_inserted = stats["rows_inserted"]
+        symbols_failed = stats["symbols_failed"]
+        duration_sec = stats["duration_sec"]
+
+        # Validate types
+        if not isinstance(rows_inserted, (int, float)):
+            raise ValueError(
+                f"Loader stats 'rows_inserted' must be numeric, got {type(rows_inserted).__name__}"
+            )
+        if not isinstance(symbols_failed, (int, float)):
+            raise ValueError(
+                f"Loader stats 'symbols_failed' must be numeric, got {type(symbols_failed).__name__}"
+            )
+        if not isinstance(duration_sec, (int, float)):
+            raise ValueError(
+                f"Loader stats 'duration_sec' must be numeric, got {type(duration_sec).__name__}"
+            )
+
         self._emit(
             "LoaderRowsInserted",
-            stats.get("rows_inserted", 0),
+            rows_inserted,
             unit="Count",
             dimensions=dims,
         )
         self._emit(
             "LoaderSymbolsFailed",
-            stats.get("symbols_failed", 0),
+            symbols_failed,
             unit="Count",
             dimensions=dims,
         )
         self._emit(
             "LoaderDurationSeconds",
-            stats.get("duration_sec", 0.0),
+            duration_sec,
             unit="Seconds",
             dimensions=dims,
         )

@@ -41,7 +41,12 @@ def _get_algo_audit_log(cur: cursor, limit: int = 100, offset: int = 0, action_t
         )
     else:
         cur.execute("SELECT COUNT(*) as total FROM algo_audit_log")
-    total = cur.fetchone()["total"]
+    count_row = cur.fetchone()
+    if count_row is None:
+        raise RuntimeError("Failed to fetch audit log count: query returned no results")
+    total = count_row["total"]
+    if total is None:
+        raise RuntimeError("Audit log count query returned None for 'total' field")
 
     if action_type:
         cur.execute(

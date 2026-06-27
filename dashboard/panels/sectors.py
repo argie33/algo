@@ -123,9 +123,7 @@ def panel_sector_compact(srank: Any, pos: Any, port: Any, sec_rot: Any = None, i
         scores_s = f" [dim]def:{def_f:.0f} cyc:{cyc_f:.0f}[/]" if def_f is not None or cyc_f is not None else ""
         str_s = f" [dim]spread:{strength_f:.1f}[/]" if strength_f is not None else ""
         wks_s = f" [dim]{wks}wk[/]" if wks is not None else " [dim]--wk[/]"
-        rows.append(
-            Text.from_markup(f"[dim]Sector Rotation:[/] [{sig_c}]{sig_name[:24]}[/]{wks_s}{scores_s}{str_s}")
-        )
+        rows.append(Text.from_markup(f"[dim]Sector Rotation:[/] [{sig_c}]{sig_name[:24]}[/]{wks_s}{scores_s}{str_s}"))
 
     # Holdings by sector: 2-col pairs, up to 6 sectors
     try:

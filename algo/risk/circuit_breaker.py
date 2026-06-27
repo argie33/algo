@@ -818,7 +818,9 @@ class CircuitBreaker:
                 _, sector = row[0], row[1]
                 if not sector:
                     raise RuntimeError("Sector concentration check: row has None/empty sector")
-                sector_counts[sector] = sector_counts.get(sector, 0) + 1
+                if sector not in sector_counts:
+                    sector_counts[sector] = 0
+                sector_counts[sector] += 1
 
             concentrated = {s: n for s, n in sector_counts.items() if n >= max_sector_positions and s != "Unknown"}
             if concentrated:

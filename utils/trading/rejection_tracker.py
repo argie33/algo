@@ -47,7 +47,11 @@ class RejectionTracker:
                     raise ValueError(
                         f"Tier {tier} result missing from tier_results - cannot determine pass/fail status"
                     )
-                if not tier_result.get("pass", False):
+                if "pass" not in tier_result:
+                    raise ValueError(
+                        f"Tier {tier} result missing 'pass' field. Keys: {list(tier_result.keys())}"
+                    )
+                if not tier_result["pass"]:
                     rejected_at_tier = tier
                     break
 
@@ -57,7 +61,8 @@ class RejectionTracker:
                 if tier_result is None:
                     rejection_reason = "TIER_RESULT_MISSING"
                 else:
-                    rejection_reason = tier_result.get("reason", "Unknown")
+                    reason = tier_result.get("reason")
+                    rejection_reason = reason if reason is not None else "Unknown"
 
             # Extract tier results explicitly (fail-fast if missing)
             tier_pass: dict[int, bool] = {}
@@ -66,8 +71,16 @@ class RejectionTracker:
                 result = tier_results.get(tier)
                 if result is None:
                     raise ValueError(f"Tier {tier} result missing - cannot extract pass/reason")
-                tier_pass[tier] = result.get("pass", False)
-                tier_reason[tier] = result.get("reason", "")
+                if "pass" not in result:
+                    raise ValueError(
+                        f"Tier {tier} result missing 'pass' field. Keys: {list(result.keys())}"
+                    )
+                if "reason" not in result:
+                    raise ValueError(
+                        f"Tier {tier} result missing 'reason' field. Keys: {list(result.keys())}"
+                    )
+                tier_pass[tier] = result["pass"]
+                tier_reason[tier] = result["reason"]
 
             cur.execute(
                 """

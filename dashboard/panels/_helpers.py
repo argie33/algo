@@ -42,8 +42,7 @@ def _build_buy_sig_map(buy_sigs: Any) -> dict[str, float]:
     """
     if buy_sigs is None:
         raise ValueError(
-            "[BUY_SIGNALS] Cannot build signal map: buy_sigs is None. "
-            "Upstream pipeline did not return buy signal data."
+            "[BUY_SIGNALS] Cannot build signal map: buy_sigs is None. Upstream pipeline did not return buy signal data."
         )
     out: dict[str, float] = {}
     for bs in buy_sigs:

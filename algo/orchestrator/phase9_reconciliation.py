@@ -133,8 +133,14 @@ def _audit_exit_prices_step(
     try:
         with DatabaseContext("read") as audit_cur:
             stale_audit = recon.audit_stale_estimated_prices(audit_cur)
-            if stale_audit.get("status", "OK") != "OK":
-                msg = stale_audit.get("message", str(stale_audit))
+            status = stale_audit.get("status")
+            if status is None:
+                raise ValueError(f"Exit price audit result missing 'status' field. Keys: {list(stale_audit.keys())}")
+
+            if status != "OK":
+                msg = stale_audit.get("message")
+                if msg is None:
+                    raise ValueError(f"Exit price audit status '{status}' but message missing. Keys: {list(stale_audit.keys())}")
                 logger.warning(f"[PHASE 7 AUDIT] Stale estimated prices detected: {msg}")
                 log_phase_result_fn(9, "exit_reconciliation_audit", "warn", msg)
             else:

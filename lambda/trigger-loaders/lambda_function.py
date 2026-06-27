@@ -32,8 +32,8 @@ class TriggerLoadersHandler(LambdaHandler):
         """
         loader_name = event.get("loader_name")
         if not loader_name:
-            path_params = event.get("pathParameters", {})
-            loader_name = path_params.get("loader") if path_params else None
+            path_params = event.get("pathParameters")
+            loader_name = path_params.get("loader") if path_params is not None and isinstance(path_params, dict) else None
 
         if not loader_name:
             return LambdaResponse.validation_error("loader_name", "loader_name is required")

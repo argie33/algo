@@ -222,7 +222,7 @@ class PositionTracker:
                     (symbol,),
                 )
                 row = cur.fetchone()
-                if row is None or row[0] is None:
+                if row is None or len(row) < 1 or row[0] is None:
                     raise ValueError(f"Cannot determine DB quantity for {symbol} — position not found in database")
                 return int(row[0])
 
