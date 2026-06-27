@@ -106,10 +106,14 @@ class StockScoresLoader(OptimalLoader):
             min_required_metrics = 2
 
             if data_count < min_required_metrics:
-                logger.debug(
-                    f"{symbol}: insufficient data ({data_count}/6 metrics, {data_completeness:.0f}% complete) - skipping"
+                logger.error(
+                    f"[STOCK_SCORES] {symbol}: insufficient metrics ({data_count}/6, {data_completeness:.0f}% complete). "
+                    f"Composite score requires at least {min_required_metrics} real metrics to avoid single-metric bias."
                 )
-                return None
+                raise ValueError(
+                    f"{symbol}: insufficient metrics for scoring ({data_count}/6 < {min_required_metrics} required). "
+                    f"Cannot compute composite score without diverse factor coverage."
+                )
 
             # Compute weighted composite score with NORMALIZED weights
             # When metrics are missing, redistribute their weight to available metrics
@@ -124,7 +128,14 @@ class StockScoresLoader(OptimalLoader):
             }
 
             if not real_scores:
-                return None  # No real data at all
+                logger.error(
+                    f"[STOCK_SCORES] {symbol}: no real score data available. "
+                    f"All metric calculations failed or returned None."
+                )
+                raise ValueError(
+                    f"{symbol}: no real score data available. Cannot compute composite score without any real metrics. "
+                    f"Upstream metrics (quality, growth, value, positioning, stability, momentum) not computed."
+                )
 
             score_availability = {
                 "quality": quality_score is not None,

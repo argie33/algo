@@ -853,7 +853,13 @@ def _run_once_update_display(
         render_wrapper.frame = frame
         render_wrapper.view_mode = view_mode
     try:
-        layout, _recovery_status = recovery.render_with_recovery(state.result or {}, render_wrapper)
+        if state.result is None:
+            raise RuntimeError(
+                "[DASHBOARD] Orchestrator state result is None. "
+                "Cannot render dashboard without valid orchestrator state. "
+                "Check algo_orchestrator.py logs for phase execution failures."
+            )
+        layout, _recovery_status = recovery.render_with_recovery(state.result, render_wrapper)
         live.update(layout)
     except Exception as e:
         error_panel = _handle_render_error(e, recovery.get_recovery_status())

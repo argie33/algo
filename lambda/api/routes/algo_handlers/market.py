@@ -621,7 +621,12 @@ def _get_markets(cur: cursor) -> Any:
                 f"Unknown market regime '{tier_key}' — cannot apply risk tier constraints",
             )
         active_tier = {"name": tier_key, **tier_conf}
-        active_tier["halt"] = bool(halt_reasons) or tier_conf.get("halt", False)
+        if "halt" not in tier_conf:
+            raise KeyError(
+                f"[MARKETS API] Tier config for '{tier_key}' missing 'halt' field. "
+                f"Configuration incomplete—cannot determine entry eligibility rules."
+            )
+        active_tier["halt"] = bool(halt_reasons) or tier_conf["halt"]
 
         # History: last 90 sessions for ExposureHistory chart
         cur.execute("""

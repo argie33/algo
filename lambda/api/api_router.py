@@ -497,8 +497,9 @@ def _format_handler_error(e: Exception) -> dict[str, Any]:
             try:
                 val = getattr(e, attr)
                 exception_attrs[attr] = str(val)[:200]
-            except Exception:
-                pass
+            except Exception as attr_err:
+                logger.warning(f"[EXCEPTION_LOGGING] Failed to stringify exception attr '{attr}': {type(attr_err).__name__}")
+                exception_attrs[attr] = f"<{type(attr_err).__name__}>"
 
     logger.error(
         f"[HANDLER_EXCEPTION_DETAILED] Exception in handler: "

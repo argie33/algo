@@ -189,10 +189,16 @@ class IncomeStatementLoader(OptimalLoader):
     _QUARTER_MAP = {"Q1": 1, "Q2": 2, "Q3": 3, "Q4": 4}
 
     def transform(self, rows: Any) -> list[dict[str, Any]]:
+        if self._field_mapping is None:
+            raise RuntimeError(
+                f"[{self.table_name}] Field mapping not initialized. "
+                f"Configuration missing 'field_mapping' key. "
+                f"Cannot transform SEC EDGAR data without field mapping rules."
+            )
         transformed = []
         for r in rows:
             row: dict[str, Any] = {}
-            field_mapping = self._field_mapping or {}
+            field_mapping = self._field_mapping
             for sec_field, value in r.items():
                 # Apply field mapping first
                 db_field = field_mapping.get(sec_field, sec_field)

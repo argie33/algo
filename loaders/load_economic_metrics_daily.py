@@ -139,7 +139,12 @@ class EconomicMetricsDailyLoader(OptimalLoader):
                         WHERE series_id IN ('DGS10', 'DGS2')
                         ORDER BY series_id, date DESC
                     """)
-                    ycs_rows = cur.fetchall() or []
+                    ycs_rows = cur.fetchall()
+                    if ycs_rows is None:
+                        raise RuntimeError(
+                            "Yield curve spread query returned None—database error or connection lost. "
+                            "Cannot compute economic metrics without yield curve data."
+                        )
 
                     # Each series_id appears once (most recent date)
                     dgs10 = None

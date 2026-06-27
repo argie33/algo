@@ -143,11 +143,17 @@ class CashFlowLoader(OptimalLoader):
             ) from e
 
     def transform(self, rows: Any) -> list[dict[str, Any]]:
+        if self._field_mapping is None:
+            raise RuntimeError(
+                f"[{self.table_name}] Field mapping not initialized. "
+                f"Configuration missing 'field_mapping' key. "
+                f"Cannot transform SEC EDGAR cash flow data without field mapping rules."
+            )
         transformed = []
         for r in rows:
             row: dict[str, Any] = {}
             capex = None
-            field_mapping = self._field_mapping or {}
+            field_mapping = self._field_mapping
             for sec_field, value in r.items():
                 # Apply field mapping first
                 db_field = field_mapping.get(sec_field, sec_field)

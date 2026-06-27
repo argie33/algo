@@ -361,6 +361,7 @@ class OptimalLoader:
         pass
 
     def _run_serial(self, symbols: list[str]) -> None:
+        failed_symbols: list[str] = []
         for i, symbol in enumerate(symbols, 1):
             if self._infrastructure.check_shutdown_requested():
                 logger.warning(f"[{self.table_name}] Graceful shutdown - stopping after {i - 1} symbols")
@@ -369,16 +370,21 @@ class OptimalLoader:
                 try:
                     with DatabaseContext("read") as cur:
                         cur.execute("SELECT 1")
-                except Exception:
-                    pass
+                except Exception as health_err:
+                    logger.critical(f"[{self.table_name}] Database health check failed at symbol {i}/{len(symbols)}: {health_err}")
+                    raise RuntimeError(f"[{self.table_name}] Database health check failed—connection unreliable. Halting loader.") from health_err
             try:
                 self.load_symbol(symbol)
                 self._stats.increment("symbols_processed")
             except Exception as e:
                 self._stats.increment("symbols_failed")
                 logger.error(f"[{self.table_name}] {symbol} failed: {e}")
+                failed_symbols.append(symbol)
             if i % 100 == 0:
                 logger.info(f"  Progress: {i}/{len(symbols)}")
+
+        if failed_symbols:
+            raise RuntimeError(f"[{self.table_name}] {len(failed_symbols)} symbols failed—incomplete dataset. Failed: {failed_symbols[:10]}{'...' if len(failed_symbols) > 10 else ''}")
 
     def _run_parallel(self, symbols: list[str], workers: int) -> None:
         from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -408,6 +414,10 @@ class OptimalLoader:
                 self._stats.increment("symbols_failed", len(pending))
                 for f in futures.keys():
                     f.cancel()
+
+        failed_count = self._stats.get("symbols_failed", 0)
+        if failed_count > 0:
+            raise RuntimeError(f"[{self.table_name}] {failed_count}/{len(symbols)} symbols failed—incomplete dataset cannot be used")
 
     def _safe_load_symbol(self, symbol: str) -> None:
         try:
@@ -528,5 +538,6 @@ class OptimalLoader:
             dynamodb = boto3.resource("dynamodb", region_name=os.getenv("AWS_REGION", "us-east-1"))
             cache_table = dynamodb.Table(os.getenv("CACHE_TABLE", "algo_phase1_cache"))
             cache_table.delete_item(Key={"cache_key": f"data_loader_status-{date.today().isoformat()}"})
-        except Exception:
-            pass
+        except Exception as cache_err:
+            logger.critical(f"[{self.table_name}] Cache invalidation failed: {cache_err}. Stale cache will persist—orchestrator may use old data.")
+            raise RuntimeError(f"[{self.table_name}] Cache invalidation FAILED. Stale phase1 cache must be cleared. {cache_err}") from cache_err

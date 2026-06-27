@@ -124,8 +124,9 @@ class DataPatrol:
                 finally:
                     try:
                         cur.execute(f"ROLLBACK TO SAVEPOINT {savepoint_name}")
-                    except Exception:
-                        pass
+                    except Exception as rollback_err:
+                        logger.error(f"CRITICAL: Rollback of savepoint {savepoint_name} failed: {rollback_err}. Connection corrupted—data patrol must halt.")
+                        raise RuntimeError(f"Data patrol connection corrupted during check rollback: {rollback_err}") from rollback_err
             except Exception as e:
                 logger.error(f"Failed to create savepoint for {check_name}: {e}")
             elapsed = time.time() - start
