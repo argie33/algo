@@ -19,6 +19,15 @@ _markets_cache: dict[str, Any] = {}
 _markets_lock = threading.Lock()
 
 
+def clear_markets_cache() -> None:
+    """Clear the markets cache to ensure fresh data on next fetch.
+
+    Called by load_all() to prevent stale data between refresh cycles.
+    """
+    with _markets_lock:
+        _markets_cache.clear()
+
+
 def _format_fetcher_error(fetcher_name: str, error: Exception) -> str:
     """Format fetcher error with endpoint context for better troubleshooting.
 

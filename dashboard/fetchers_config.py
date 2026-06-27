@@ -19,6 +19,15 @@ _data_status_cache: dict[str, Any] = {}
 _data_status_lock = threading.Lock()
 
 
+def clear_data_status_cache() -> None:
+    """Clear the data-status cache to ensure fresh data on next fetch.
+
+    Called by load_all() to prevent stale data between refresh cycles.
+    """
+    with _data_status_lock:
+        _data_status_cache.clear()
+
+
 def _format_fetcher_error(fetcher_name: str, error: Exception) -> str:
     """Format fetcher error with endpoint context for better troubleshooting.
 

@@ -20,6 +20,7 @@ from typing import Any
 from .api_data_layer import API_MAX_BACKOFF
 from .fetchers_common import FETCHER_METADATA, format_fetcher_error
 from .fetchers_config import (
+    clear_data_status_cache,
     fetch_algo_config,
     fetch_algo_metrics,
     fetch_circuit,
@@ -37,6 +38,7 @@ from .fetchers_external import (
     fetch_sentiment,
 )
 from .fetchers_market import (
+    clear_markets_cache,
     fetch_exp_factors,
     fetch_market,
     fetch_risk_metrics,
@@ -184,7 +186,13 @@ def load_all() -> dict[str, Any]:
     Issue 12 FIX: API calls use retry logic with capped exponential backoff.
     Issue 14 FIX: Consolidated duplicate /api/algo/markets fetches via shared cache.
     Issue #40 FIX: Per-fetcher timeout (critical: 8s, optional: 3s) prevents one slow endpoint from blocking refresh.
+    CACHE FIX: Clear perpetual data status and markets caches to ensure fresh data on each refresh cycle.
     """
+    # Clear perpetual caches to ensure fresh data fetching on each refresh (watch mode, scheduled tasks)
+    # Without this, health and market data would be cached indefinitely and never refresh
+    clear_data_status_cache()
+    clear_markets_cache()
+
     out: dict[str, Any] = {}
     max_retries = 3
     batch_timeout = 200
