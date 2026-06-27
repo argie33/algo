@@ -210,6 +210,35 @@ def handle(
                 )
                 rows = execute_with_timeout(cur, etf_query, [*qparams, limit], timeout_sec=10)
                 used_table = etf_table_name
+
+                if not rows:
+                    # Symbol not found in either table OR no data for requested date range
+                    # Check if symbol exists at all (distinguishes 'symbol not loaded' from 'no data for dates')
+                    check_query = psycopg2.sql.SQL(
+                        "SELECT COUNT(*) FROM {} WHERE symbol = %s"
+                    ).format(psycopg2.sql.Identifier(table_name))
+                    cur.execute(check_query, (symbol,))
+                    stock_row = cur.fetchone()
+                    stock_count = stock_row[0] if stock_row else 0
+
+                    check_etf_query = psycopg2.sql.SQL(
+                        "SELECT COUNT(*) FROM {} WHERE symbol = %s"
+                    ).format(psycopg2.sql.Identifier(etf_table_name))
+                    cur.execute(check_etf_query, (symbol,))
+                    etf_row = cur.fetchone()
+                    etf_count = etf_row[0] if etf_row else 0
+
+                    symbol_exists = (stock_count + etf_count) > 0
+
+                    if not symbol_exists:
+                        # Symbol has never been loaded into price database
+                        return error_response(
+                            503,
+                            "no_data_available",
+                            f"Price data not available for {symbol}. Symbol may not be loaded yet or not covered.",
+                        )
+                    # Symbol exists but no data for this date range — valid empty result
+
             freshness = check_data_freshness(cur, used_table, "date", warning_days=1)
             result = list_response(
                 [safe_json_serialize(dict(r)) for r in rows] if rows else [],

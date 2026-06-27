@@ -1212,6 +1212,21 @@ def _get_cap_distribution(cur: cursor) -> Any:
     rows = cur.fetchall()
 
     if not rows:
+        # Distinguish between "no stocks loaded" vs "data quality issue"
+        # Check if company_profile or key_metrics tables are empty
+        cur.execute("SELECT COUNT(*) FROM company_profile WHERE sector IS NOT NULL")
+        profile_count = cur.fetchone()[0]
+        cur.execute("SELECT COUNT(*) FROM key_metrics WHERE market_cap > 0")
+        metrics_count = cur.fetchone()[0]
+
+        if profile_count == 0 or metrics_count == 0:
+            raise_api_error(
+                503,
+                "incomplete_data",
+                f"Market cap data not fully loaded. company_profile: {profile_count} records, "
+                f"key_metrics: {metrics_count} records. Data loaders may not have completed.",
+            )
+
         return json_response(
             200,
             {
