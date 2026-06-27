@@ -62,8 +62,9 @@ SELECT
   lt.target_2_r_multiple,
   lt.target_3_r_multiple,
 
-  COALESCE(lt.sector, cp.sector, 'Unknown') AS sector,
-  COALESCE(lt.industry, cp.industry, 'Unknown') AS industry,
+  -- CRITICAL FIX: Return NULL for missing sector/industry (don't hide with 'Unknown')
+  COALESCE(lt.sector, cp.sector) AS sector,
+  COALESCE(lt.industry, cp.industry) AS industry,
 
   lt_tech.minervini_trend_score,
   lt_tech.weinstein_stage,
@@ -82,10 +83,11 @@ SELECT
     ELSE (ap.avg_entry_price - COALESCE(ap.stop_loss_price, ap.avg_entry_price))::DECIMAL(12, 4)
   END AS initial_risk_per_share,
 
+  -- CRITICAL FIX: Return NULL when stop_loss_price is missing (don't show 0 risk = false confidence)
   CASE
-    WHEN COALESCE(ap.stop_loss_price, 0) = 0
-    THEN 0
-    ELSE ((ap.avg_entry_price - COALESCE(ap.stop_loss_price, ap.avg_entry_price)) * ap.quantity)::DECIMAL(14, 2)
+    WHEN ap.stop_loss_price IS NULL OR ap.stop_loss_price <= 0
+    THEN NULL
+    ELSE ((ap.avg_entry_price - ap.stop_loss_price) * ap.quantity)::DECIMAL(14, 2)
   END AS open_risk_dollars,
 
   CASE

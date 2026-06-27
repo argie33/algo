@@ -73,8 +73,9 @@ SELECT
   lt.target_2_r_multiple,
   lt.target_3_r_multiple,
 
-  COALESCE(lt.sector, cp.sector, 'Unknown') AS sector,
-  COALESCE(lt.industry, cp.industry, 'Unknown') AS industry,
+  -- CRITICAL FIX: Return NULL for missing sector/industry (don't hide with 'Unknown')
+  COALESCE(lt.sector, cp.sector) AS sector,
+  COALESCE(lt.industry, cp.industry) AS industry,
 
   lt_tech.minervini_trend_score,
   lt_tech.weinstein_stage,
@@ -84,20 +85,21 @@ SELECT
   ls.swing_score,
 
   CASE
-    WHEN COALESCE(ap.stop_loss_price, ap.current_stop_price, 0) = 0 OR ap.avg_entry_price = 0
+    WHEN (ap.stop_loss_price IS NULL AND ap.current_stop_price IS NULL) OR ap.avg_entry_price = 0
     THEN NULL
     ELSE (ap.avg_entry_price - COALESCE(ap.stop_loss_price, ap.current_stop_price, ap.avg_entry_price)) / NULLIF(ap.avg_entry_price, 0)
   END::DECIMAL(8, 4) AS r_multiple,
 
   CASE
-    WHEN COALESCE(ap.stop_loss_price, ap.current_stop_price, 0) = 0
+    WHEN ap.stop_loss_price IS NULL AND ap.current_stop_price IS NULL
     THEN NULL
     ELSE (ap.avg_entry_price - COALESCE(ap.stop_loss_price, ap.current_stop_price, ap.avg_entry_price))::DECIMAL(12, 4)
   END AS initial_risk_per_share,
 
+  -- CRITICAL FIX: Return NULL when stop_loss_price is missing (don't show 0 risk = false confidence)
   CASE
-    WHEN COALESCE(ap.stop_loss_price, ap.current_stop_price, 0) = 0
-    THEN 0
+    WHEN ap.stop_loss_price IS NULL AND ap.current_stop_price IS NULL
+    THEN NULL
     ELSE ((ap.avg_entry_price - COALESCE(ap.stop_loss_price, ap.current_stop_price, ap.avg_entry_price)) * ap.quantity)::DECIMAL(14, 2)
   END AS open_risk_dollars,
 
