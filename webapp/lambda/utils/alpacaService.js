@@ -62,23 +62,60 @@ class AlpacaService {
 
       const account = await this.client.getAccount();
 
+      const requiredFields = [
+        'id', 'status', 'currency', 'buying_power', 'cash', 'portfolio_value',
+        'equity', 'last_equity', 'daytrade_count', 'daytrading_buying_power',
+        'regt_buying_power', 'initial_margin', 'maintenance_margin',
+        'long_market_value', 'short_market_value', 'multiplier'
+      ];
+      for (const field of requiredFields) {
+        if (account[field] === undefined || account[field] === null) {
+          throw new Error(`Alpaca account data missing required field: ${field}`);
+        }
+      }
+
+      const buyingPower = parseFloat(account.buying_power);
+      const cash = parseFloat(account.cash);
+      const portfolioValue = parseFloat(account.portfolio_value);
+      const equity = parseFloat(account.equity);
+      const lastEquity = parseFloat(account.last_equity);
+      const dayTradeCount = parseInt(account.daytrade_count);
+      const dayTradingBuyingPower = parseFloat(account.daytrading_buying_power);
+      const regtBuyingPower = parseFloat(account.regt_buying_power);
+      const initialMargin = parseFloat(account.initial_margin);
+      const maintenanceMargin = parseFloat(account.maintenance_margin);
+      const longMarketValue = parseFloat(account.long_market_value);
+      const shortMarketValue = parseFloat(account.short_market_value);
+      const multiplier = parseFloat(account.multiplier);
+
+      const numericFields = [
+        buyingPower, cash, portfolioValue, equity, lastEquity, dayTradingBuyingPower,
+        regtBuyingPower, initialMargin, maintenanceMargin, longMarketValue, shortMarketValue, multiplier
+      ];
+      if (numericFields.some(v => isNaN(v))) {
+        throw new Error("Alpaca account numeric fields contain NaN values - data quality issue");
+      }
+      if (isNaN(dayTradeCount)) {
+        throw new Error("Alpaca account daytrade_count is not a valid integer");
+      }
+
       return {
         accountId: account.id,
         status: account.status,
         currency: account.currency,
-        buyingPower: parseFloat(account.buying_power),
-        cash: parseFloat(account.cash),
-        portfolioValue: parseFloat(account.portfolio_value),
-        equity: parseFloat(account.equity),
-        lastEquity: parseFloat(account.last_equity),
-        dayTradeCount: parseInt(account.daytrade_count),
-        dayTradingBuyingPower: parseFloat(account.daytrading_buying_power),
-        regtBuyingPower: parseFloat(account.regt_buying_power),
-        initialMargin: parseFloat(account.initial_margin),
-        maintenanceMargin: parseFloat(account.maintenance_margin),
-        longMarketValue: parseFloat(account.long_market_value),
-        shortMarketValue: parseFloat(account.short_market_value),
-        multiplier: parseFloat(account.multiplier),
+        buyingPower,
+        cash,
+        portfolioValue,
+        equity,
+        lastEquity,
+        dayTradeCount,
+        dayTradingBuyingPower,
+        regtBuyingPower,
+        initialMargin,
+        maintenanceMargin,
+        longMarketValue,
+        shortMarketValue,
+        multiplier,
         createdAt: account.created_at,
         tradingBlocked: account.trading_blocked,
         transfersBlocked: account.transfers_blocked,

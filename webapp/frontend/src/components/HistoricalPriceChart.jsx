@@ -59,15 +59,33 @@ const HistoricalPriceChart = ({ symbol = "AAPL", days = 90 }) => {
               ? responseData.data
               : [];
 
-        // Transform data for chart
-        const transformed = data.map((row) => ({
-          date: row.date || new Date().toISOString().split("T")[0],
-          close: parseFloat(row.close || row.price || 0),
-          open: parseFloat(row.open || row.price || 0),
-          high: parseFloat(row.high || row.price || 0),
-          low: parseFloat(row.low || row.price || 0),
-          volume: parseInt(row.volume || 0),
-        }));
+        // Transform and validate OHLCV data
+        const transformed = data.map((row) => {
+          const close = parseFloat(row.close ?? row.price);
+          const open = parseFloat(row.open ?? row.price);
+          const high = parseFloat(row.high ?? row.price);
+          const low = parseFloat(row.low ?? row.price);
+          const volume = parseInt(row.volume);
+
+          if (isNaN(close) || isNaN(open) || isNaN(high) || isNaN(low)) {
+            throw new Error(`Invalid OHLCV data for ${row.date}: close=${close}, open=${open}, high=${high}, low=${low}`);
+          }
+          if (isNaN(volume)) {
+            throw new Error(`Invalid volume data for ${row.date}: volume=${volume}`);
+          }
+          if (!row.date) {
+            throw new Error("Chart data missing date field");
+          }
+
+          return {
+            date: row.date,
+            close,
+            open,
+            high,
+            low,
+            volume,
+          };
+        });
 
         setChartData(transformed);
       } catch (err) {

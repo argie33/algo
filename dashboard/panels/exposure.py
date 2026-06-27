@@ -90,7 +90,9 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
         return Text.from_markup("[red]✗ Exposure data missing 'factors' field[/] (API schema issue)")
     raw = exp_f.get("raw_score")
     epct = exp_f.get("exposure_pct")
-    regime = exp_f.get("regime", "")
+    regime = exp_f.get("regime")
+    if regime is None or regime == "":
+        regime = "[yellow]UNAVAILABLE[/]"
     factors = exp_f["factors"]
     tier = _tier_formatter.format(epct)
     tc = TIER_COLOR.get(tier, "dim")
@@ -144,7 +146,11 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
             return f" {v:.0f}" if v is not None else ""
         if key == "distribution_days":
             cnt = f.get("count")
-            regime = (f.get("regime", ""))[:5]
+            regime = f.get("regime")
+            if regime is None or regime == "":
+                regime = "UNK"
+            else:
+                regime = regime[:5]
             return f" {cnt}d/{regime}" if cnt is not None else ""
         return ""
 

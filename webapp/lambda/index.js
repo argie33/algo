@@ -445,18 +445,27 @@ app.get("/api/database-status", async (req, res) => {
 
     // Count active connections
     const connResult = await query("SELECT count(*) FROM pg_stat_activity WHERE state != 'idle'");
-    stats.active_connections = parseInt(connResult.rows[0]?.count || 0);
+    if (!connResult.rows[0] || connResult.rows[0].count === undefined) {
+      throw new Error("Database query returned unexpected structure: missing active connection count");
+    }
+    stats.active_connections = parseInt(connResult.rows[0].count);
 
     // Get database size
     const sizeResult = await query("SELECT pg_size_pretty(pg_database_size(current_database())) as total_size");
-    stats.total_database_size = sizeResult.rows[0]?.total_size || 'unknown';
+    if (!sizeResult.rows[0] || !sizeResult.rows[0].total_size) {
+      throw new Error("Database query returned unexpected structure: missing database size");
+    }
+    stats.total_database_size = sizeResult.rows[0].total_size;
 
     // Count tables
     const tableResult = await query(`
       SELECT COUNT(*) as table_count FROM information_schema.tables
       WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
     `);
-    stats.table_count = parseInt(tableResult.rows[0]?.table_count || 0);
+    if (!tableResult.rows[0] || tableResult.rows[0].table_count === undefined) {
+      throw new Error("Database query returned unexpected structure: missing table count");
+    }
+    stats.table_count = parseInt(tableResult.rows[0].table_count);
 
     stats.timestamp = new Date().toISOString();
     stats.status = 'connected';

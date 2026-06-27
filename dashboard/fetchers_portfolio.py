@@ -5,9 +5,11 @@ from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from algo.infrastructure.market_calendar import MarketCalendar
 from utils.safe_data_conversion import safe_float
 
 from .api_data_layer import api_call
+from .fetcher_validator import FetcherValidator
 from .panels.data_extractors import safe_get_dict, safe_get_list
 
 ET = ZoneInfo("America/New_York")
@@ -70,12 +72,20 @@ def fetch_portfolio(c: None) -> dict[str, Any]:
     NOTE: Portfolio data is updated by Phase 9 daily reconciliation. If data is stale
     (>7 days old), Phase 9 orchestration may be halted or failed — check orchestration
     logs and algo_portfolio_snapshots table for recent updates.
-    """
-    from dashboard.fetcher_validator import FetcherValidator
 
+    Non-trading days: On weekends and holidays, portfolio data is NOT updated because
+    Phase 9 only runs during trading days. Freshness check is relaxed on non-trading days
+    to accept data from the last trading day.
+    """
     try:
         data = api_call("/api/algo/portfolio")
         port = data
+
+        # Determine appropriate max_age_seconds based on market status
+        # On trading days: data must be fresh (5 min) since Phase 9 runs daily
+        # On non-trading days: accept data from last trading day (up to 48 hours)
+        is_trading_day = MarketCalendar.is_trading_day()
+        max_age_seconds = 300 if is_trading_day else 172800  # 48 hours for non-trading days
 
         # Comprehensive validation using FetcherValidator
         required_fields = [
@@ -86,12 +96,13 @@ def fetch_portfolio(c: None) -> dict[str, Any]:
         ]
         # Portfolio data is critical for position sizing. Must be fresh to avoid using stale
         # portfolio values (outdated after market moves, withdrawals, or deposits).
-        # 5-minute threshold ensures we use current portfolio state for all calculations.
+        # On trading days: 5-minute threshold ensures we use current portfolio state.
+        # On non-trading days: accept data from last trading day (no market moves expected).
         valid, error_msg = FetcherValidator.validate_response(
             response=port,
             required_fields=required_fields,
             source_name="fetch_portfolio",
-            max_age_seconds=300,
+            max_age_seconds=max_age_seconds,
             timestamp_field="last_run",
         )
         if not valid:
@@ -125,8 +136,6 @@ def fetch_portfolio(c: None) -> dict[str, Any]:
             "data_age_seconds": port.get("data_age_seconds"),
         }
     except Exception as e:
-        from dashboard.fetcher_validator import FetcherValidator
-
         error_msg = _format_fetcher_error("port", e)
         logger.error(error_msg)
         record_data_quality_issue("portfolio", "exception", type(e).__name__, str(e))

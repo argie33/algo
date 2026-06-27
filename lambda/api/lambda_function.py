@@ -860,7 +860,11 @@ def log_api_request(
         _req_ctx = _req_ctx if _req_ctx is not None else {}
         http_ctx = _req_ctx.get("http")
         http_ctx = http_ctx if http_ctx is not None else {}
-        method = http_ctx.get("method", event.get("httpMethod", "UNKNOWN"))
+        method = http_ctx.get("method")
+        if method is None:
+            method = event.get("httpMethod")
+        if method is None:
+            method = f"UNKNOWN_METHOD (event has no httpMethod or http.method field; keys: {list(event.keys())})"
         request_id = _req_ctx.get("requestId", "unknown")
 
         audit_log = {
@@ -1356,7 +1360,11 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
                 log_api_request(event, status)
             # Log errors (4xx, 5xx)
             elif status >= 400:
-                error_msg = response.get("message", response.get("error", "unknown_error"))
+                error_msg = response.get("message")
+                if error_msg is None:
+                    error_msg = response.get("error")
+                if error_msg is None:
+                    error_msg = f"Error response missing 'message' and 'error' fields. Response keys: {list(response.keys())}"
                 log_api_request(event, status, error_msg=str(error_msg))
 
             return {"statusCode": status, "headers": headers, "body": body}

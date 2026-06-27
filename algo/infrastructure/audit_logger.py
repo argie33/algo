@@ -338,13 +338,11 @@ class TradeAuditLogger:
                 cur.execute(
                     """
                     INSERT INTO algo_audit_log (
-                        operation_type, entity_type, entity_id, actor,
-                        operation_details, created_at
-                    ) VALUES (%s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+                        action_type, symbol, actor, details
+                    ) VALUES (%s, %s, %s, %s)
                     """,
                     (
                         "PORTFOLIO_SNAPSHOT",
-                        "PORTFOLIO",
                         str(snapshot_date),
                         "reconciliation",
                         audit_msg,
@@ -374,13 +372,11 @@ class TradeAuditLogger:
                 cur.execute(
                     """
                     INSERT INTO algo_audit_log (
-                        operation_type, entity_type, entity_id, actor,
-                        operation_details, created_at
-                    ) VALUES (%s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+                        action_type, symbol, actor, details
+                    ) VALUES (%s, %s, %s, %s)
                     """,
                     (
                         "POSITION_RECONCILIATION",
-                        "POSITION",
                         symbol,
                         "reconciliation",
                         audit_msg,
