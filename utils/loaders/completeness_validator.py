@@ -184,7 +184,27 @@ class LoaderCompletenessValidator:
 
                 symbols_loaded, symbol_count, completion_pct, status = result
 
-                # NULL completion_pct means global loader (not symbol-based)
+                # Validate all fields are present (non-NULL from database)
+                # CRITICAL: None values indicate database query failure — must fail-fast, not silently default to 0
+                if symbols_loaded is None or symbol_count is None or status is None:
+                    logger.error(
+                        f"[{self.table_name}→{upstream_table}] Database returned NULL values: "
+                        f"symbols_loaded={symbols_loaded}, symbol_count={symbol_count}, status={status}. "
+                        "Cannot assess upstream loader completeness."
+                    )
+                    return CompletenessResult(
+                        is_complete=False,
+                        completion_pct=0,
+                        symbols_loaded=0,
+                        symbols_expected=0,
+                        failure_reason=f"Upstream {upstream_table} loader status query returned NULL values (database error)",
+                        recommendations=[
+                            "Check database connectivity and RDS Proxy status",
+                            "Verify data_loader_status table has recent records",
+                        ],
+                    )
+
+                # NULL completion_pct means global loader (not symbol-based) — treat as 100%
                 if completion_pct is None:
                     completion_pct = 100.0
 
@@ -201,9 +221,9 @@ class LoaderCompletenessValidator:
 
                 return CompletenessResult(
                     is_complete=is_complete,
-                    completion_pct=completion_pct or 0,
-                    symbols_loaded=symbols_loaded or 0,
-                    symbols_expected=symbol_count or 0,
+                    completion_pct=completion_pct,
+                    symbols_loaded=symbols_loaded,
+                    symbols_expected=symbol_count,
                     failure_reason=(
                         f"Upstream {upstream_table} only {completion_pct:.1f}% complete " if not is_complete else None
                     ),

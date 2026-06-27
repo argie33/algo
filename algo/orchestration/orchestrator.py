@@ -410,7 +410,17 @@ class Orchestrator:
                 for table_name, status, last_updated, completion_pct, symbols_loaded, symbol_count in cur.fetchall():
                     loaders_checked.add(table_name)
                     is_stale = last_updated < stale_threshold if last_updated else False
-                    is_complete = (completion_pct or 0) >= 95.0
+
+                    # CRITICAL: completion_pct is None only if database query failed or loader hasn't reported yet
+                    # Treat None as incomplete (fail-safe) — don't silently use 0 (which looks like successful 0% load)
+                    if completion_pct is None:
+                        is_complete = False
+                        logger.error(
+                            f"[LOADER HEALTH] {table_name} completion_pct is NULL (database error or loader never reported). "
+                            "Treating as incomplete until next status update."
+                        )
+                    else:
+                        is_complete = completion_pct >= 95.0
 
                     loader_status[table_name] = {
                         "status": status,
@@ -426,10 +436,15 @@ class Orchestrator:
                             f"[LOADER HEALTH] {table_name} is STALE (last run {age_hours:.1f}h ago)"
                         )
                     elif not is_complete:
-                        logger.warning(
-                            f"[LOADER HEALTH] {table_name} is INCOMPLETE ({completion_pct:.1f}%, "
-                            f"{symbols_loaded}/{symbol_count} symbols)"
-                        )
+                        if completion_pct is None:
+                            logger.warning(
+                                f"[LOADER HEALTH] {table_name} is INCOMPLETE (completion_pct=NULL, status={status})"
+                            )
+                        else:
+                            logger.warning(
+                                f"[LOADER HEALTH] {table_name} is INCOMPLETE ({completion_pct:.1f}%, "
+                                f"{symbols_loaded}/{symbol_count} symbols)"
+                            )
                     else:
                         logger.info(f"[LOADER HEALTH] {table_name} OK ({completion_pct:.1f}%)")
 
