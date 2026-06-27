@@ -1051,7 +1051,6 @@ if not IMPORT_ERROR:
 
 def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     """Handle API Gateway v2 (HTTP API) requests by routing to extracted handler modules."""
-    # Log entry for debugging
     path = event.get("rawPath") or event.get("path", "UNKNOWN")
     logger.info(f"[LAMBDA_START] Handling {event.get('httpMethod', 'GET')} {path}")
 
