@@ -427,11 +427,18 @@ def fetch_sector_rotation(c: None) -> dict[str, Any]:
                 f"CRITICAL: Sector rotation signal missing required 'signal' field. "
                 f"Cannot display sector rotation without signal data. Row: {row}"
             )
+        weeks_raw = row.get("weeks_persistent")
+        if weeks_raw is None:
+            raise ValueError(
+                "CRITICAL: Sector rotation weeks_persistent missing. "
+                "Cannot determine signal persistence without weeks duration. "
+                "Check sector rotation calculation."
+            )
         return {
             "date": row.get("date"),
             "signal": row["signal"],
             "strength": safe_float(row.get("spread"), default=None, field_name="sec_rot.spread"),
-            "weeks": row.get("weeks_persistent", 1),
+            "weeks": int(weeks_raw),
             "def_score": safe_float(
                 row.get("defensive_lead_score"),
                 default=None,

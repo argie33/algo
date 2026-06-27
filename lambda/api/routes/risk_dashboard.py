@@ -109,7 +109,13 @@ def _get_comprehensive_risk_dashboard(cur: cursor) -> Any:
             row = rows[0] if rows else None
             if row:
                 vix = float(row["vix_level"]) if row["vix_level"] is not None else None
-                if vix is None or vix <= 25:
+                if vix is None or vix <= 0:
+                    raise RuntimeError(
+                        f"Market health data invalid: VIX level missing or invalid ({vix}). "
+                        "Cannot compute risk-adjusted drawdown multiplier. "
+                        "Check market_health_daily table and load_market_health_daily logs."
+                    )
+                if vix <= 25:
                     risk_reduction = 1.0
                 elif vix < 35:
                     risk_reduction = 0.75
@@ -209,8 +215,16 @@ def _fetch_drawdown_info(cur: cursor) -> Any:
         timeout_sec=8,
     )
     row = rows[0] if rows else None
-    if row is None or row["peak"] is None or row["current"] is None:
-        return {"current_drawdown_pct": 0, "status": "no_history"}
+    if row is None:
+        raise ValueError(
+            "Portfolio drawdown data unavailable: algo_portfolio_snapshots table empty or query failed. "
+            "No portfolio history yet or snapshot loader not running. Check data loader status."
+        )
+    if row["peak"] is None or row["current"] is None:
+        raise ValueError(
+            f"Portfolio snapshot incomplete: peak={row['peak']}, current={row['current']}. "
+            "Cannot compute drawdown without both values. Check snapshot calculation."
+        )
 
     peak = float(row["peak"])
     current = float(row["current"])
@@ -352,6 +366,21 @@ def _get_position_sizing_audit(cur: cursor, days: int) -> Any:
 
         items = []
         for row in audit_rows:
+            if row["position_size_pct"] is None:
+                error_msg = (
+                    f"Position sizing audit incomplete for {row['symbol']}: position_size_pct missing. "
+                    "Cannot provide forensics without calculated position size. Check position sizing calculation."
+                )
+                logger.error(error_msg)
+                return error_response(503, "incomplete_audit_data", error_msg)
+            if row["cascade_multiplier"] is None:
+                error_msg = (
+                    f"Position sizing audit incomplete for {row['symbol']}: cascade_multiplier missing. "
+                    "Cannot determine position scaling without multiplier. Check cascade calculation."
+                )
+                logger.error(error_msg)
+                return error_response(503, "incomplete_audit_data", error_msg)
+
             try:
                 reasons = json.loads(row["reasons_json"]) if row["reasons_json"] else {}
             except (json.JSONDecodeError, TypeError):
@@ -365,8 +394,8 @@ def _get_position_sizing_audit(cur: cursor, days: int) -> Any:
                     "stop_loss_price": (float(row["stop_loss_price"]) if row["stop_loss_price"] is not None else None),
                     "base_shares": row["base_shares"],
                     "final_shares": row["final_shares"],
-                    "position_size_pct": (float(row["position_size_pct"]) if row["position_size_pct"] is not None else 0),
-                    "cascade_multiplier": (float(row["cascade_multiplier"]) if row["cascade_multiplier"] is not None else 1.0),
+                    "position_size_pct": float(row["position_size_pct"]),
+                    "cascade_multiplier": float(row["cascade_multiplier"]),
                     "reasons": reasons,
                     "created_at": (row["created_at"].isoformat() if row["created_at"] is not None else None),
                 }
@@ -395,6 +424,18 @@ def _get_stop_loss_audit(cur: cursor, days: int) -> Any:
 
         items = []
         for row in cur.fetchall():
+            if row["distance_pct"] is None:
+                error_msg = (
+                    f"Stop loss audit incomplete for {row['symbol']}: distance_pct missing. "
+                    "Cannot compute R-multiple without stop loss distance. Check stop loss calculation."
+                )
+                logger.error(error_msg)
+                return error_response(
+                    503,
+                    "incomplete_stop_loss_data",
+                    error_msg,
+                )
+
             try:
                 candidates = json.loads(row["candidates_json"]) if row["candidates_json"] else {}
             except (json.JSONDecodeError, TypeError):
@@ -406,7 +447,7 @@ def _get_stop_loss_audit(cur: cursor, days: int) -> Any:
                     "signal_date": (row["signal_date"].isoformat() if row["signal_date"] is not None else None),
                     "entry_price": (float(row["entry_price"]) if row["entry_price"] is not None else None),
                     "stop_loss_price": (float(row["stop_loss_price"]) if row["stop_loss_price"] is not None else None),
-                    "distance_pct": (float(row["distance_pct"]) if row["distance_pct"] is not None else 0),
+                    "distance_pct": float(row["distance_pct"]),
                     "stop_method": row["stop_method"],
                     "stop_reasoning": row["stop_reasoning"],
                     "candidates": candidates,

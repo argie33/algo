@@ -101,7 +101,13 @@ def _get_algo_metrics(cur: cursor) -> Any:
             try:
                 avg_signal_score = float(avg_signal_score_raw)
             except (ValueError, TypeError) as e:
-                logger.warning(f"Cannot convert avg_signal_score to float: {avg_signal_score_raw} ({e})")
+                logger.error(f"CRITICAL: avg_signal_score conversion failed: {avg_signal_score_raw} ({e})")
+                return error_response(
+                    503,
+                    "data_corruption",
+                    f"Algo metrics data corrupt: avg_signal_score is '{avg_signal_score_raw}' (expected float). "
+                    "Check algo_metrics_daily table data type or calculation.",
+                )
 
         return success_response(
             {
@@ -182,7 +188,16 @@ def _get_algo_performance(cur: cursor) -> Any:  # noqa: C901
         total_trades = int(total_trades_raw)
         winning = int(winning_raw)
         losing = int(losing_raw)
-        breakeven = int(breakeven_raw) if breakeven_raw is not None else 0
+        if breakeven_raw is None:
+            logger.error("Performance metrics incomplete: breakeven_trades count missing")
+            return error_response(
+                503,
+                "incomplete_data",
+                "Performance metrics missing breakeven_trades count. "
+                "Cannot compute accurate win rate without complete trade classification. "
+                "Check algo_performance_metrics table.",
+            )
+        breakeven = int(breakeven_raw)
         win_loss_total = winning + losing
 
         # Compute trade-level metrics missing from algo_performance_metrics (CRITICAL for performance panel)
@@ -263,12 +278,32 @@ def _get_algo_performance(cur: cursor) -> Any:  # noqa: C901
                 """)
             pos_row = cur.fetchone()
             if pos_row:
-                open_losses_count = int(pos_row["open_losses"]) if pos_row["open_losses"] is not None else 0
+                open_losses_count_raw = pos_row["open_losses"]
+                if open_losses_count_raw is None:
+                    logger.error("Position data incomplete: Cannot determine open losing positions")
+                    return error_response(
+                        503,
+                        "incomplete_position_data",
+                        "Performance metrics incomplete: Cannot fetch count of open losing positions. "
+                        "Query result missing 'open_losses' field. Check database and algo_positions table.",
+                    )
+                open_losses_count = int(open_losses_count_raw)
                 total_losses_raw = pos_row["total_losses"]
                 # CRITICAL: Distinguish between "no open positions" (NULL) and "zero losses" (0)
                 if total_losses_raw is None:
-                    logger.warning("No open losing positions found (data quality check)")
-                    total_open_losses_dollars = 0.0
+                    if open_losses_count > 0:
+                        logger.error(
+                            f"Position data inconsistency: {open_losses_count} open losses found but total_losses is NULL"
+                        )
+                        return error_response(
+                            503,
+                            "data_inconsistency",
+                            f"Position data inconsistent: {open_losses_count} losing positions exist but sum is missing. "
+                            "Check algo_positions query and calculation.",
+                        )
+                    else:
+                        logger.info("No open losing positions found (data quality check)")
+                        total_open_losses_dollars = 0.0
                 else:
                     total_open_losses_dollars = float(total_losses_raw)
                 win_rate_val = metrics.get("win_rate_pct")
@@ -470,7 +505,15 @@ def _get_algo_portfolio(cur: cursor) -> Any:
         data = safe_dict_convert(row)
         pv = format_decimal_string(data.get("total_portfolio_value"), precision=2, allow_none=True)
         position_count_val = data.get("position_count")
-        position_count = int(position_count_val) if position_count_val is not None else 0
+        if position_count_val is None:
+            logger.error("Portfolio snapshot incomplete: position_count missing")
+            return error_response(
+                503,
+                "incomplete_snapshot",
+                "Portfolio snapshot missing position_count field. "
+                "Cannot assess portfolio composition. Check algo_portfolio_snapshots table schema.",
+            )
+        position_count = int(position_count_val)
         winning_count_val = data.get("unrealized_pnl_winning_count")
         winning_count = int(winning_count_val) if winning_count_val is not None else 0
         losing_count_val = data.get("unrealized_pnl_losing_count")
