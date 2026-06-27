@@ -180,7 +180,7 @@ DASHBOARD_ENDPOINTS = {
             field_types={
                 "total_portfolio_value": (float, int),
                 "total_cash": (float, int),
-                "open_positions": int,
+                "position_count": int,
             },
             description="Portfolio value, cash, positions",
         ),
