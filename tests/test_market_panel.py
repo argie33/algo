@@ -22,17 +22,18 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import pytest
 from rich.panel import Panel
+
 from dashboard.panels.market import (
-    panel_market_full,
-    panel_market_expanded,
     panel_header_market,
+    panel_market_expanded,
+    panel_market_full,
 )
 from tests.test_helpers import (
-    render_panel_to_text,
-    assert_panel_error,
-    assert_panel_success,
-    assert_panel_renders_without_crash,
     TestDataFactory,
+    assert_panel_error,
+    assert_panel_renders_without_crash,
+    assert_panel_success,
+    render_panel_to_text,
 )
 
 
@@ -79,6 +80,7 @@ class TestMarketPanelValidation:
             "pct": 65.5,
             "vix": "18.5",  # String instead of float - safe_float handles
             "spy": 450.25,
+            "halts": [],  # CRITICAL: halt_reasons now required
         }
         panel = panel_market_full(mkt=malformed_mkt)
 
@@ -126,6 +128,7 @@ class TestMarketPanelValidation:
             "pct": "65.5",  # String - can coerce to float
             "vix": 18.5,
             "spy": 450.25,
+            "halts": [],  # CRITICAL: halt_reasons now required
         }
         panel = panel_market_full(mkt=malformed_mkt)
 
@@ -209,6 +212,7 @@ class TestMarketExpandedPanelValidation:
             "pct": None,
             "vix": None,
             "spy": None,
+            "halts": [],  # CRITICAL: halt_reasons now required
         }
         panel = panel_market_expanded(mkt=minimal_mkt)
 
@@ -266,11 +270,13 @@ class TestMarketHeaderPanelValidation:
         )
 
     def test_header_panel_mkt_with_errors(self):
-        """Should handle error dict from market data."""
+        """Should handle error dict from market data gracefully."""
         error_mkt = {
-            "error": "Data loading failed",
+            "_error": "Data loading failed",
             "statusCode": 500,
         }
+        # Error dicts are caught by has_error() check and handled gracefully
+        # (shows "no market data" instead of crashing)
         panel = panel_header_market(
             mkt=error_mkt,
             sentiment=None,
@@ -278,9 +284,9 @@ class TestMarketHeaderPanelValidation:
             mkt_s="MARKET",
             elapsed=1.5,
         )
-
-        # Should render without crashing
-        text = assert_panel_renders_without_crash(panel, "Header with error data")
+        text = assert_panel_renders_without_crash(panel, "Should handle error dict gracefully")
+        # Should show timestamp and basic info but skip market data
+        assert "12:30" in text, "Should show timestamp even with error"
 
     def test_header_panel_sentiment_incomplete(self):
         """Should handle incomplete sentiment data."""
@@ -298,7 +304,7 @@ class TestMarketHeaderPanelValidation:
         )
 
         # Should render without crashing (uses defaults)
-        text = assert_panel_renders_without_crash(panel, "Header with incomplete sentiment")
+        assert_panel_renders_without_crash(panel, "Header with incomplete sentiment")
 
     def test_header_panel_config_mode_none(self):
         """Should handle config mode as None."""

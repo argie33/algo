@@ -9,7 +9,18 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from dashboard.api_data_layer import api_call
+from dashboard.api_data_layer import _circuit_breaker_state, api_call
+
+
+@pytest.fixture(autouse=True)
+def reset_circuit_breaker(monkeypatch):
+    """Reset circuit breaker state before each test."""
+    import dashboard.api_data_layer as api_layer
+
+    # Reset circuit breaker to closed state
+    monkeypatch.setattr(api_layer, "_circuit_breaker_state", "closed")
+    monkeypatch.setattr(api_layer, "_circuit_breaker_failures", 0)
+    monkeypatch.setattr(api_layer, "_circuit_breaker_reset_time", None)
 
 
 def test_api_call_validates_portfolio_response():

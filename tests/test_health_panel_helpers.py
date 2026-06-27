@@ -212,7 +212,10 @@ class TestFormatLoaderStatus:
 
     def test_empty_loader_returns_empty_list(self):
         result = _format_loader_status([])
-        assert result == []
+        # Empty loader list now shows informational message instead of empty
+        assert len(result) > 0  # Should show "No loaders configured" message
+        result_str = " ".join(str(r) for r in result)
+        assert "No loaders" in result_str or "configured" in result_str
 
     def test_healthy_loaders_shown(self):
         loader = [
