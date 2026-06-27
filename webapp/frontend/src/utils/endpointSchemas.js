@@ -369,10 +369,18 @@ const CACHE_KEY_TO_ENDPOINT = {
   "exec-stats": "/api/algo/execution/stats",
   "exec-recent": "/api/algo/execution/recent",
   "circuit-breakers": "/api/algo/circuit-breakers",
+  "algo-circuit-breakers": "/api/algo/circuit-breakers",
   "algo-positions": "/api/algo/positions",
   "algo-trades": "/api/algo/trades",
+  "algo-trades-recent": "/api/algo/trades",
   "algo-performance": "/api/algo/performance",
   "algo-metrics": "/api/algo/metrics",
+  "algo-markets": "/api/algo/markets",
+  "algo-equity-curve": "/api/algo/equity-curve",
+  "algo-daily-return-histogram": "/api/algo/daily-return-histogram",
+  "algo-trade-distribution": "/api/algo/trade-distribution",
+  "algo-holding-period-distribution": "/api/algo/holding-period-distribution",
+  "algo-stage-distribution": "/api/algo/stage-distribution",
 };
 
 export function getEndpointSchema(endpoint) {
