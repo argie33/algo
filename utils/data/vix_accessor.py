@@ -113,7 +113,7 @@ class VIXAccessor:
             Dict with latest VIX data and computed signal
         """
         latest = VIXAccessor.get_latest_vix(timeout=timeout)
-        if not latest or latest.get("vix_level") is None:
+        if latest is None or latest.get("vix_level") is None:
             return None
 
         vix = latest["vix_level"]

@@ -68,7 +68,9 @@ class MarketEventHandler:
                 raise RuntimeError(
                     f"Cannot parse market event status from {url}. Invalid JSON: {e}. Check data provider and retry."
                 ) from e
-            status = data.get("status", "").upper()
+            if "status" not in data or data["status"] is None:
+                raise ValueError(f"Missing required 'status' field in market event response for {symbol}")
+            status = data["status"].upper()
             tradable = data.get("tradable", False)
 
             if not tradable or status != "ACTIVE":

@@ -123,9 +123,12 @@ def _build_calendar_rows(econ_cal: Any) -> list[Text | Rule]:
         imp = str(importance_val).upper()
         ic = imp_c.get(imp, "dim")
 
-        f_v = ev.get("forecast") if ev.get("forecast") is not None else ev.get("forecast_value")
-        a_v = ev.get("actual") if ev.get("actual") is not None else ev.get("actual_value")
-        p_v = ev.get("previous") if ev.get("previous") is not None else ev.get("previous_value")
+        forecast_val = ev.get("forecast")
+        f_v = forecast_val if forecast_val is not None else ev.get("forecast_value")
+        actual_val = ev.get("actual")
+        a_v = actual_val if actual_val is not None else ev.get("actual_value")
+        previous_val = ev.get("previous")
+        p_v = previous_val if previous_val is not None else ev.get("previous_value")
 
         if ed == today:
             when = "TODAY"

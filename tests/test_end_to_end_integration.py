@@ -109,7 +109,10 @@ class EndToEndIntegrationTest:
         try:
             with DatabaseContext("read") as cur:
                 cur.execute("SELECT COUNT(*) FROM data_loader_status")
-                count = cur.fetchone()[0]
+                row = cur.fetchone()
+                if row is None:
+                    raise RuntimeError("COUNT(*) query returned no rows")
+                count = row[0]
                 checks["database_connectivity"] = True
                 logger.info(f"✓ Database connectivity OK ({count} loader records)")
         except Exception as e:

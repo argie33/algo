@@ -133,7 +133,9 @@ def _best_halt_reason(top_level: str, phase_results: list[Any]) -> list[tuple[st
             continue
         raw = p.get("name")
         if raw is None:
-            raw = p.get("phase", "")
+            if "phase" not in p or p["phase"] is None:
+                continue
+            raw = p["phase"]
         raw = (raw if raw is not None else "").lower()
         parts = raw.split("_")
         base = "_".join(parts[:2]) if len(parts) >= 2 else raw

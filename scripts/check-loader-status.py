@@ -58,7 +58,11 @@ def check_data_freshness(conn: Any) -> bool:
         for table, date_col, max_age_days in checks:
             try:
                 cursor.execute(f"SELECT MAX({date_col}) FROM {table}")
-                max_date = cursor.fetchone()[0]
+                row = cursor.fetchone()
+                if row is None:
+                    results.append((table, "✗", "Query returned no rows"))
+                    continue
+                max_date = row[0]
 
                 if max_date is None:
                     results.append((table, "EMPTY", "∅"))

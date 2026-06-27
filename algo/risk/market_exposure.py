@@ -296,6 +296,11 @@ class MarketExposure:
 
             # --- 5. Selling pressure (heavy-volume down days) ---
             sp = self.calculator.selling_pressure(eval_date, cur)
+            if sp is None or not isinstance(sp, dict):
+                raise RuntimeError(
+                    f"Selling pressure calculation failed (returned {type(sp).__name__}). "
+                    f"Cannot calculate market distribution days."
+                )
             if sp.get("count") is None:
                 raise RuntimeError("Selling pressure count unavailable — cannot calculate market distribution days")
             sp_pts, sp_avail = self.calculator._wt_pts(sp, self.W_SELLING_PRESSURE)

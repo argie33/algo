@@ -302,6 +302,11 @@ class ExitHandler:
                     f"Cannot determine if exit order succeeded."
                 )
 
+            if exit_order_result is None or "success" not in exit_order_result:
+                raise RuntimeError(
+                    "[CRITICAL] Exit order result is None or missing 'success' field. "
+                    "Cannot proceed with exit."
+                )
             if exit_order_result["success"]:
                 actual_fill_price = exit_order_result.get("filled_price")
                 is_estimated_price = False

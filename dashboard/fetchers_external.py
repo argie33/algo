@@ -177,7 +177,8 @@ def fetch_economic_pulse(c: None) -> dict[str, Any]:
         be5 = by_series.get("T5YIE")
         dxy = by_series.get("DTWEXBGS")
         oil = by_series.get("DCOILWTICO")
-        nfci = by_series.get("ANFCI") if by_series.get("ANFCI") is not None else by_series.get("STLFSI4")
+        anfci = by_series.get("ANFCI")
+        nfci = anfci if anfci is not None else by_series.get("STLFSI4")
         umcsent = by_series.get("UMCSENT")
         mortgage = by_series.get("MORTGAGE30US")
 

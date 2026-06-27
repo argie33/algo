@@ -101,11 +101,16 @@ class PreTradeChecks:
             try:
                 earnings_check = EarningsBlackout(config=self.config)
                 result = earnings_check.run(symbol, eval_date)
-                if not result.get("pass"):
-                    return (
-                        False,
-                        result.get("reason", "Failed earnings blackout check"),
+                if result is None or not isinstance(result, dict):
+                    raise ValueError(
+                        f"Earnings blackout check returned invalid result: {type(result).__name__}. "
+                        f"Expected dict with 'pass' and 'reason' fields."
                     )
+                if not result.get("pass"):
+                    reason = result.get("reason")
+                    if reason is None:
+                        raise ValueError("Earnings check failed but 'reason' field is missing")
+                    return (False, reason)
             except ValueError as e:
                 return (False, f"Earnings blackout check failed: {e}")
 

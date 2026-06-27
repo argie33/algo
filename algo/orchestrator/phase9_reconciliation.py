@@ -255,9 +255,9 @@ def _generate_daily_report(run_date: _date, log_phase_result_fn: Callable[..., A
         if not report or "portfolio" not in report:
             raise ValueError("Daily report generated but missing portfolio data")
         portfolio_data = report.get("portfolio")
-        if not portfolio_data or "current_value" not in portfolio_data or portfolio_data.get("current_value") is None:
+        if portfolio_data is None or "current_value" not in portfolio_data or portfolio_data.get("current_value") is None:
             raise ValueError("Portfolio data missing current_value")
-        if not portfolio_data or "daily_pnl_pct" not in portfolio_data or portfolio_data.get("daily_pnl_pct") is None:
+        if portfolio_data is None or "daily_pnl_pct" not in portfolio_data or portfolio_data.get("daily_pnl_pct") is None:
             raise ValueError("Portfolio data missing daily_pnl_pct")
 
         # Log to algo_audit_log for historical tracking

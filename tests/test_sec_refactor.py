@@ -52,7 +52,11 @@ try:
 
     facts = client.get_company_facts(aapl_cik)
     if facts and "facts" in facts:
-        us_gaap = facts.get("facts").get("us-gaap")
+        facts_dict = facts["facts"]
+        if facts_dict is None or "us-gaap" not in facts_dict:
+            print("[FAIL] No us-gaap data in facts")
+            sys.exit(1)
+        us_gaap = facts_dict["us-gaap"]
         print(f"[OK] Got {len(us_gaap)} concepts from us-gaap")
 
         # Check for key concepts

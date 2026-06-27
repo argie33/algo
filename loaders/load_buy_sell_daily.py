@@ -128,7 +128,12 @@ class SignalsDailyLoader(OptimalLoader):
                         f"CRITICAL: price_daily coverage query returned invalid row structure. "
                         f"Expected at least 1 column, got {len(price_row)}."
                     )
-                price_coverage_symbols = int(price_row[0]) if price_row[0] is not None else 0
+                if price_row[0] is None:
+                    raise RuntimeError(
+                        f"CRITICAL: Price data count is NULL for {end}. "
+                        "Database query returned invalid data. Cannot generate signals."
+                    )
+                price_coverage_symbols = int(price_row[0])
                 if price_coverage_symbols == 0:
                     raise RuntimeError(
                         f"CRITICAL: No price data found for {end}. "
@@ -232,11 +237,11 @@ class SignalsDailyLoader(OptimalLoader):
                             (symbol,),
                         )
                         row = cur.fetchone()
-                        if row and row[0]:
+                        if row is not None and len(row) >= 1 and row[0] is not None:
                             max_date = row[0]
 
                 # Convert max_date to date if found
-                if max_date:
+                if max_date is not None:
                     if isinstance(max_date, date) and not isinstance(max_date, datetime):
                         since = max_date
                     elif isinstance(max_date, datetime):
@@ -381,12 +386,27 @@ class SignalsDailyLoader(OptimalLoader):
                     (symbol,),
                 )
                 row = cur.fetchone()
-                if row and row[0]:
-                    max_date = row[0] if isinstance(row[0], date) else date.fromisoformat(str(row[0]))
-                    # FIX: Use ET date, not system date (AWS runs in UTC but trading is ET-based)
-                    today_et = datetime.now(EASTERN_TZ).date()
-                    age_days = (today_et - max_date).days
-                    return age_days
+                if row is None or len(row) < 1 or row[0] is None:
+                    return None
+                max_date_val = row[0]
+                if isinstance(max_date_val, date) and not isinstance(max_date_val, datetime):
+                    max_date = max_date_val
+                elif isinstance(max_date_val, datetime):
+                    max_date = max_date_val.date()
+                elif isinstance(max_date_val, str):
+                    try:
+                        max_date = date.fromisoformat(max_date_val)
+                    except ValueError as e:
+                        raise RuntimeError(f"Invalid date format in buy_sell_daily: {max_date_val!r}") from e
+                else:
+                    raise RuntimeError(
+                        f"Unexpected type for buy_sell_daily date: {type(max_date_val).__name__}. "
+                        f"Expected date or string, got {max_date_val!r}"
+                    )
+                # FIX: Use ET date, not system date (AWS runs in UTC but trading is ET-based)
+                today_et = datetime.now(EASTERN_TZ).date()
+                age_days = (today_et - max_date).days
+                return age_days
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
         return None
