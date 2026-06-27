@@ -16,6 +16,7 @@ Connections idle > max_idle_sec are closed and removed from the pool.
 """
 
 import logging
+import os
 import threading
 import time
 from collections import deque
@@ -243,9 +244,11 @@ class PoolSemaphore:
 
 
 # Global pool semaphore - enforces max concurrent loaders
-# Set to 10 to safely support 10 concurrent loaders holding connections,
-# with room for 10 more in the SimpleConnectionPool for API/internal use
-_pool_semaphore = PoolSemaphore(max_concurrent=10, timeout_sec=30)
+# Dynamically scale based on ECS task parallelism: allow up to 60 concurrent loaders
+# RDS max_connections=200, minus 20 for API/orchestrator/internal = 180 available
+_pool_semaphore = PoolSemaphore(
+    max_concurrent=int(os.getenv("LOADER_POOL_MAX_CONCURRENT", "60")), timeout_sec=30
+)
 
 
 class PooledConnectionManager:

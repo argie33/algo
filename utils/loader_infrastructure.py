@@ -32,6 +32,7 @@ class LoaderInfrastructure:
         self._shutdown_lock = threading.Lock()
         self._heartbeat_thread: threading.Thread | None = None
         self._heartbeat_running = False
+        self._heartbeat_exception: Exception | None = None
         self._heartbeat_lock = threading.Lock()
         self._heartbeat_interval = 60
         self._setup_signal_handlers()
@@ -87,8 +88,10 @@ class LoaderInfrastructure:
             if self._heartbeat_running:
                 return
             self._heartbeat_running = True
+            self._heartbeat_exception = None
 
         def heartbeat_worker() -> None:
+            consecutive_failures = 0
             while self._heartbeat_running:
                 try:
                     time.sleep(self._heartbeat_interval)
@@ -99,16 +102,27 @@ class LoaderInfrastructure:
                                 "WHERE table_name = %s AND status = %s",
                                 (self.table_name, "RUNNING"),
                             )
+                        consecutive_failures = 0
                 except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+                    consecutive_failures += 1
                     error_msg = (
-                        f"[{self.table_name}] Heartbeat update failed: {e}. "
-                        "Phase 1 hung task detection cannot run without a live heartbeat. "
-                        "Check database connectivity."
+                        f"[{self.table_name}] Heartbeat update failed ({consecutive_failures}/3): {e}. "
+                        "If failures persist, loader will be marked as failed."
                     )
-                    logger.critical(error_msg)
-                    raise RuntimeError(error_msg) from None
+                    logger.error(error_msg)
+                    if consecutive_failures >= 3:
+                        with self._heartbeat_lock:
+                            self._heartbeat_exception = RuntimeError(
+                                f"Heartbeat failed {consecutive_failures} times. Database connectivity lost."
+                            )
+                        self._heartbeat_running = False
+                except Exception as e:
+                    logger.error(f"[{self.table_name}] Unexpected heartbeat error: {e}", exc_info=True)
+                    with self._heartbeat_lock:
+                        self._heartbeat_exception = e
+                    self._heartbeat_running = False
 
-        self._heartbeat_thread = threading.Thread(target=heartbeat_worker, daemon=True)
+        self._heartbeat_thread = threading.Thread(target=heartbeat_worker, daemon=True, name=f"heartbeat-{self.table_name}")
         self._heartbeat_thread.start()
 
     def stop_heartbeat(self) -> None:
@@ -117,6 +131,20 @@ class LoaderInfrastructure:
             self._heartbeat_running = False
         if self._heartbeat_thread:
             self._heartbeat_thread.join(timeout=5)
+
+    def check_heartbeat_health(self) -> None:
+        """Check if heartbeat has failed and raise if it has.
+
+        Call periodically from loader main loop to detect database connectivity issues early.
+        Prevents hung tasks that silently fail to update their status.
+        """
+        with self._heartbeat_lock:
+            if self._heartbeat_exception:
+                raise RuntimeError(
+                    f"[{self.table_name}] Heartbeat health check failed. "
+                    f"Loader cannot continue without database connectivity. "
+                    f"Error: {self._heartbeat_exception}"
+                ) from self._heartbeat_exception
 
     def update_loader_status(self, status: str) -> None:
         """Update loader status in data_loader_status table.

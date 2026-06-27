@@ -141,16 +141,27 @@ class BulkInsertManager:
 
             cur.execute(psycopg2.sql.SQL("DROP TABLE {}").format(psycopg2.sql.Identifier(staging)))
 
-            # Update watermark if provided
-            if symbol and new_watermark and watermark_mgr:
-                watermark_mgr.advance_watermark(
+        # Update watermark if provided (OUTSIDE transaction to avoid nested DatabaseContext)
+        if symbol and new_watermark and watermark_mgr:
+            try:
+                success = watermark_mgr.advance_watermark(
                     new_watermark=new_watermark,
                     symbol=symbol,
                     rows_loaded=inserted,
-                    in_transaction=True,
+                    in_transaction=False,
                 )
+                if not success:
+                    raise RuntimeError(
+                        f"Watermark advance returned False for {self.table_name}/{symbol}. "
+                        f"Data was inserted but watermark did not advance, causing infinite re-loading."
+                    )
+            except Exception as e:
+                raise RuntimeError(
+                    f"CRITICAL: Failed to advance watermark for {self.table_name}/{symbol} after inserting {inserted} rows: {e}. "
+                    f"Data is in database but loader cannot track progress. Manual watermark reset required."
+                ) from e
 
-            return inserted
+        return inserted
 
     def _ensure_unique_constraint(self, cur: Any) -> None:
         """Ensure primary_key columns have a UNIQUE constraint."""

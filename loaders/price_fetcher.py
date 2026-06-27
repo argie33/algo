@@ -145,7 +145,12 @@ class PriceFetcher:
 
     def set_circuit_breaker(self, circuit_breaker: Any) -> None:
         """Set circuit breaker for API call protection."""
-        """Set circuit breaker for API call protection."""
+        if circuit_breaker is None:
+            logger.warning(
+                "[PRICE_FETCHER] Circuit breaker not configured. "
+                "Price fetches will execute without API outage protection. "
+                "This is a degraded state - consider re-checking initialization."
+            )
         self._circuit_breaker = circuit_breaker
 
     def get_current_batch_size(self) -> int:
@@ -218,7 +223,10 @@ class PriceFetcher:
         adaptive_batch_size = min(len(symbols), self._get_smart_batch_size())
         logger.debug(f"[FETCH] {len(symbols)} symbols, adaptive batch size: {adaptive_batch_size}")
 
-        return self._fetch_with_fallback(symbols, start, end, batch_size=adaptive_batch_size, attempt=0)
+        result = self._fetch_with_fallback(symbols, start, end, batch_size=adaptive_batch_size, attempt=0)
+        if result:
+            self._record_successful_fetch()
+        return result
 
     def _try_fetch(self, symbol: str, start: date, end: date, max_retries: int = 5) -> Any:
         """Try to fetch data from yfinance with retry logic for transient failures."""
@@ -296,15 +304,24 @@ class PriceFetcher:
                 )
             return batch_result
 
-        if self._circuit_breaker:
-            from utils.infrastructure.circuit_breaker import DataImportance
+        try:
+            if self._circuit_breaker:
+                from utils.infrastructure.circuit_breaker import DataImportance
 
-            result = self._circuit_breaker.execute(fetch_func=fetch_batch, importance=DataImportance.CRITICAL)
-        else:
-            result = fetch_batch()
+                result = self._circuit_breaker.execute(fetch_func=fetch_batch, importance=DataImportance.CRITICAL)
+            else:
+                result = fetch_batch()
 
-        if result is None:
-            raise RuntimeError("Circuit breaker returned None for price batch fetch. Cannot proceed without price data.")
+            if result is None:
+                raise RuntimeError("Circuit breaker returned None for price batch fetch. Cannot proceed without price data.")
+        except RuntimeError as e:
+            error_str = str(e).lower()
+            if any(x in error_str for x in ["circuit", "breaker", "open", "unavailable"]):
+                raise
+            raise RuntimeError(
+                f"Price batch fetch failed: {e}. "
+                f"Likely transient API error - retry with smaller batch size may succeed."
+            ) from e
 
         request_latency = time.time() - request_start
         self._record_request_latency(request_latency)
@@ -366,6 +383,18 @@ class PriceFetcher:
                 raise
 
         return all_results
+
+    def _record_successful_fetch(self) -> None:
+        """Record a successful fetch and reset rate limit counters if API has recovered."""
+        if self._rate_limit_errors > 0:
+            error_window = time.time() - (self._rate_limit_error_start_time or time.time())
+            logger.info(
+                f"[RATE_LIMIT] API recovered after {self._rate_limit_errors} errors "
+                f"({error_window:.0f}s duration). Resetting rate limit counters."
+            )
+            self._rate_limit_errors = 0
+            self._rate_limit_error_start_time = None
+            self._adaptive_request_interval = max(0.1, self._adaptive_request_interval * 0.9)
 
     def _handle_rate_limit_error(
         self,
