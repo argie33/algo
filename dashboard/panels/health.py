@@ -361,8 +361,7 @@ def panel_orch(run: dict[str, Any] | None, cfg: dict[str, Any], risk: dict[str, 
                     conc5_val = cast(float, conc5_val)
                     beta_c = R if beta_val >= 1.2 else (Y if beta_val >= 0.8 else G)
                     var_c = HealthFormatter.var_color(var95_val)
-                    svar_f = float(svar_val) if svar_val is not None else 0.0
-                    svar_s = f"\n[dim]Stressed VaR:[/][{R}]{svar_f:.2f}%[/]" if svar_f > 0 else ""
+                    svar_s = f"\n[dim]Stressed VaR:[/][{R}]{float(svar_val):.2f}%[/]" if svar_val is not None and float(svar_val) > 0 else ""
                     var_line = (
                         f"\n[dim]VaR 95%:[/][{var_c}]{var95_val:.2f}%[/]"
                         f"  [dim]CVaR 95%:[/][{var_c}]{cvar95_val:.2f}%[/]"

@@ -199,7 +199,11 @@ def _handle_technicals(cur: cursor) -> Any:
         """
         breadth_rows = execute_with_timeout(cur, breadth_query, timeout_sec=3)
         cur.execute("RELEASE SAVEPOINT technicals_breadth")
-        base["breadth"] = dict(breadth_rows[0]) if breadth_rows else {}
+        if not breadth_rows:
+            logger.warning("[TECHNICALS_BREADTH] No breadth data available — advancing/declining counts unavailable")
+            base["_breadth_missing"] = True
+        else:
+            base["breadth"] = dict(breadth_rows[0])
     except psycopg2.errors.QueryCanceled as e:
         _rollback_savepoint(cur, "technicals_breadth")
         raise RuntimeError(f"Market technicals breadth calculation timed out: {e}") from e
@@ -236,7 +240,7 @@ def _handle_technicals(cur: cursor) -> Any:
         psycopg2.errors.QueryCanceled,
     ) as e:
         logger.warning(f"[MCCLELLAN] Database error: {type(e).__name__}")
-        base["mcclellan_oscillator"] = []
+        base["_mcclellan_error"] = str(e)[:100]
 
     freshness = check_data_freshness(cur, "market_health_daily", "date", warning_days=1)
     return json_response(200, base, data_freshness=freshness)

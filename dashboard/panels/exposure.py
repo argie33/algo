@@ -204,16 +204,15 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
         if isinstance(eco_raw, dict):
             eco = eco_raw
 
-    sr_pen = 0.0
-    eco_pen = 0.0
+    sr_pen = None
+    eco_pen = None
     if sr:
         sr_pts_raw = sr.get("pts")
         if sr_pts_raw is None:
             logger.warning("sector_rotation factor missing 'pts' field")
         else:
             try:
-                sr_pen_tmp = safe_float(sr_pts_raw, 0.0, strict=True, field_name="sector_rotation_pts")
-                sr_pen = sr_pen_tmp if sr_pen_tmp is not None else 0.0
+                sr_pen = safe_float(sr_pts_raw, None, strict=True, field_name="sector_rotation_pts")
             except StrictValidationError as e:
                 logger.warning(f"sector_rotation pts conversion failed: {e}")
     if eco:
@@ -222,26 +221,28 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
             logger.warning("economic_overlay factor missing 'pts' field")
         else:
             try:
-                eco_pen_tmp = safe_float(eco_pts_raw, 0.0, strict=True, field_name="economic_overlay_pts")
-                eco_pen = eco_pen_tmp if eco_pen_tmp is not None else 0.0
+                eco_pen = safe_float(eco_pts_raw, None, strict=True, field_name="economic_overlay_pts")
             except StrictValidationError as e:
                 logger.warning(f"economic_overlay pts conversion failed: {e}")
-    if sr_pen < 0 and sr:
+    if sr_pen is not None and sr_pen < 0 and sr:
         sig = (sr.get("signal", "")).replace("_", " ")[:18]
         items.append(f"[dim]Sector Rotation:[/] [{R}]{sr_pen:+.0f}[/] [dim]{sig}[/]")
-    if eco_pen < 0 and eco:
+    if eco_pen is not None and eco_pen < 0 and eco:
         eco_err = (eco.get("error", ""))[:18]
         items.append(f"[dim]Economic Overlay:[/] [{R}]{eco_pen:+.0f}[/]" + (f" [dim]{eco_err}[/]" if eco_err else ""))
 
     for a, b in zip(items[::2], [*items[1::2], ""], strict=False):
         tbl.add_row(Text.from_markup(a), Text.from_markup(b))
 
-    raw_bar = mini_bar(raw if raw is not None else 0, 100, w=8)
-    raw_s = f"{raw:.0f}" if raw is not None else "--"
-    epct_s = f"{epct:.0f}" if epct is not None else "--"
-    header = Text.from_markup(
-        f"[dim]Score:[/] [white]{raw_s}[/][dim]/100[/] {raw_bar} [dim]↳ allocation[/] [{tc}][bold]{epct_s}%[/][/]  [dim]{regime[:24]}[/]"
-    )
+    if raw is None or epct is None:
+        header = Text.from_markup("[red]Exposure score calculation failed — raw_score or exposure_pct missing[/]")
+    else:
+        raw_bar = mini_bar(raw, 100, w=8)
+        raw_s = f"{raw:.0f}"
+        epct_s = f"{epct:.0f}"
+        header = Text.from_markup(
+            f"[dim]Score:[/] [white]{raw_s}[/][dim]/100[/] {raw_bar} [dim]↳ allocation[/] [{tc}][bold]{epct_s}%[/][/]  [dim]{regime[:24]}[/]"
+        )
     return Panel(
         Group(header, tbl),
         title=f"[bold blue]EXPOSURE SCORE BREAKDOWN ({len(factor_map)} factors / 100pts)[/]  [dim][x] expand[/]",

@@ -769,40 +769,47 @@ def panel_portfolio_perf_expanded(  # noqa: C901
         if pos_items:
             rows.append(Rule(style="dim"))
             rows.append(Text.from_markup("[dim bold]POSITION CONCENTRATION[/]"))
-            pv_total = float(port["total_portfolio_value"]) if port and not port.get("_error") else 0
-            conc_rows: list[tuple[float, Any, float | None, float | None]] = []
-            for p in pos_items:
-                if not isinstance(p, dict):
-                    continue
-                symbol_val = p.get("symbol")
-                sym = symbol_val if symbol_val is not None else "--"
-                val_raw = p.get("position_value")
-                val = float(val_raw) if val_raw is not None else None
-                pnl_raw = p.get("unrealized_pnl_pct")
-                pnl = float(pnl_raw) if pnl_raw is not None else None
-                pct = val / pv_total * 100 if (val and pv_total) else 0
-                conc_rows.append((pct, sym, val, pnl))
-            conc_rows.sort(reverse=True)
-            ctbl2 = Table.grid(padding=(0, 2), expand=True)
-            ctbl2.add_column("sym", min_width=7)
-            ctbl2.add_column("bar")
-            ctbl2.add_column("pct", justify="right", min_width=6)
-            ctbl2.add_column("val", justify="right", min_width=8)
-            ctbl2.add_column("pnl", justify="right", min_width=7)
-            for pct, sym, val, pnl in conc_rows[:15]:
-                bar_f = int(min(pct, 25) / 25 * 12)
-                pnl_safe = pnl if pnl is not None else 0
-                pc = G if pnl_safe >= 0 else R
-                bar_s = Text.from_markup(f"[{pc}]{'█' * bar_f}[/][dim]{'░' * (12 - bar_f)}[/]")
-                conc_c = R if pct >= 20 else (Y if pct >= 15 else "white")
-                ctbl2.add_row(
-                    Text(sym, style="bold white"),
-                    bar_s,
-                    Text(f"{pct:.1f}%", style=conc_c),
-                    Text(fmt_money_short(val) if val else "--", style="dim"),
-                    Text(f"{pnl:+.1f}%" if pnl is not None else "--", style=pc),
-                )
-            rows.append(ctbl2)
+            pv_total_val = port.get("total_portfolio_value") if port and not port.get("_error") else None
+            if pv_total_val is None:
+                rows.append(Text("[red]Portfolio value unavailable — cannot compute concentration[/]", style="dim"))
+            else:
+                pv_total = float(pv_total_val)
+                if pv_total <= 0:
+                    rows.append(Text("[red]Portfolio value must be positive for concentration calculation[/]", style="dim"))
+                else:
+                    conc_rows: list[tuple[float, Any, float | None, float | None]] = []
+                    for p in pos_items:
+                        if not isinstance(p, dict):
+                            continue
+                        symbol_val = p.get("symbol")
+                        sym = symbol_val if symbol_val is not None else "--"
+                        val_raw = p.get("position_value")
+                        val = float(val_raw) if val_raw is not None else None
+                        pnl_raw = p.get("unrealized_pnl_pct")
+                        pnl = float(pnl_raw) if pnl_raw is not None else None
+                        pct = val / pv_total * 100 if val else None
+                        conc_rows.append((pct if pct is not None else 0, sym, val, pnl))
+                    conc_rows.sort(reverse=True)
+                    ctbl2 = Table.grid(padding=(0, 2), expand=True)
+                    ctbl2.add_column("sym", min_width=7)
+                    ctbl2.add_column("bar")
+                    ctbl2.add_column("pct", justify="right", min_width=6)
+                    ctbl2.add_column("val", justify="right", min_width=8)
+                    ctbl2.add_column("pnl", justify="right", min_width=7)
+                    for pct, sym, val, pnl in conc_rows[:15]:
+                        bar_f = int(min(pct, 25) / 25 * 12)
+                        pnl_safe = pnl if pnl is not None else 0
+                        pc = G if pnl_safe >= 0 else R
+                        bar_s = Text.from_markup(f"[{pc}]{'█' * bar_f}[/][dim]{'░' * (12 - bar_f)}[/]")
+                        conc_c = R if pct >= 20 else (Y if pct >= 15 else "white")
+                        ctbl2.add_row(
+                            Text(sym, style="bold white"),
+                            bar_s,
+                            Text(f"{pct:.1f}%", style=conc_c),
+                            Text(fmt_money_short(val) if val else "--", style="dim"),
+                            Text(f"{pnl:+.1f}%" if pnl is not None else "--", style=pc),
+                        )
+                    rows.append(ctbl2)
 
     return Panel(
         Group(*rows),
