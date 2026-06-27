@@ -67,7 +67,13 @@ def _get_data_quality(cur: cursor) -> Any:
         for row in patrol_rows:
             row_dict = safe_json_serialize(safe_dict_convert(row))
             if row_dict.get("rn") == 1:  # Latest entry per table
-                table_name = row_dict.get("table_name", "unknown")
+                table_name = row_dict.get("table_name")
+                if not table_name:
+                    raise ValueError(
+                        "[DATA QUALITY] Patrol log row missing table_name. "
+                        "Cannot identify which table is being monitored. "
+                        "Check data_patrol_log table for NULL target_table values."
+                    )
                 tables_dict[table_name] = row_dict
 
         # Get latest timestamp
@@ -77,7 +83,13 @@ def _get_data_quality(cur: cursor) -> Any:
         severity_counts = {"critical": 0, "error": 0, "warn": 0, "healthy": 0}
         table_statuses = []
         for table_name, entry in tables_dict.items():
-            severity = entry.get("severity", "healthy")
+            severity = entry.get("severity")
+            if not severity:
+                raise ValueError(
+                    f"[DATA QUALITY] Patrol log entry for {table_name} missing severity. "
+                    f"Cannot determine health status of this table. "
+                    f"Check data_patrol_log.severity column for NULL values."
+                )
             severity_counts[severity if severity in severity_counts else "warn"] += 1
             if severity == "critical":
                 status_label = "failed"

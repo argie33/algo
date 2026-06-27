@@ -17,6 +17,7 @@ from routes.utils import (
     handle_db_error,
     json_response,
     list_response,
+    raise_api_error,
     safe_dict_convert,
     safe_json_serialize,
     success_response,
@@ -48,18 +49,11 @@ def _get_algo_evaluate(cur: cursor) -> Any:
             """)
         sig_row = cur.fetchone()
         if not sig_row or not sig_row.get("candidates_screened"):
-            return json_response(
-                200,
-                {
-                    "stage": "no_data",
-                    "candidates_screened": 0,
-                    "candidates_passing": 0,
-                    "constraints": {
-                        "max_positions": 15,
-                        "current_positions": 0,
-                        "available_slots": 15,
-                    },
-                },
+            raise_api_error(
+                503,
+                "no_data",
+                "Signal data not yet available. Swing trader scores have not been computed. "
+                "Check that orchestrator Phase 7 (Signal Generation & Ranking) has completed."
             )
 
         # Current portfolio positions and constraints
@@ -109,30 +103,11 @@ def _get_algo_evaluate(cur: cursor) -> Any:
             """)
         risk_row = cur.fetchone()
         if not risk_row:
-            # No portfolio snapshot data yet (algo just started) — fail-fast
-            return json_response(
-                200,
-                {
-                    "stage": "no_data",
-                    "candidates_screened": 0,
-                    "candidates_passing": 0,
-                    "constraints": {
-                        "max_positions": 15,
-                        "current_positions": 0,
-                        "available_slots": 15,
-                    },
-                    "portfolio_health": {
-                        "today_return_pct": None,
-                        "unrealized_pnl": {
-                            "total_dollars": None,
-                            "total_pct": None,
-                            "winning_positions": 0,
-                            "losing_positions": 0,
-                            "breakeven_positions": 0,
-                            "source": "no_data",
-                        },
-                    },
-                },
+            raise_api_error(
+                503,
+                "no_data",
+                "Portfolio snapshot not yet available. Algo has not generated a portfolio snapshot yet. "
+                "Check that orchestrator has run at least once to generate algo_portfolio_snapshots."
             )
 
         # Fail-fast: critical fields must be present
@@ -147,12 +122,11 @@ def _get_algo_evaluate(cur: cursor) -> Any:
         missing = [f for f in critical_fields if risk_row.get(f) is None]
         if missing:
             logger.error(f"Portfolio snapshot data incomplete: missing {missing}")
-            return json_response(
+            raise_api_error(
                 503,
-                {
-                    "stage": "incomplete_data",
-                    "_error": f"Portfolio health metrics incomplete: {', '.join(missing)}",
-                },
+                "incomplete_data",
+                f"Portfolio health metrics incomplete: {', '.join(missing)}. "
+                f"Check that algo_portfolio_snapshots table has complete data."
             )
 
         today_return = risk_row.get("today_return_pct")

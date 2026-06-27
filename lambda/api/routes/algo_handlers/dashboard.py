@@ -87,7 +87,15 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:
 
     for p in positions:
         d = safe_json_serialize(safe_dict_convert(p))
-        symbol = d.get("symbol", "unknown")
+        symbol = d.get("symbol")
+
+        # CRITICAL: Symbol is required to identify position; fail-fast if missing
+        if not symbol:
+            raise RuntimeError(
+                "[DASHBOARD CRITICAL] Position missing symbol identifier. "
+                "Cannot display position without knowing which security it represents. "
+                "Check algo_positions table for NULL symbol fields."
+            )
 
         # CRITICAL: Validate position_value exists and is valid - required for dashboard display
         # All positions must have position_value; missing or invalid data indicates data quality issue
@@ -106,7 +114,7 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:
                 f"[DASHBOARD CRITICAL] Position {symbol} has invalid position_value ({pos_val_raw}): {e}. "
                 f"Position data corruption detected. "
                 f"All positions must have numeric position_value for dashboard display."
-            )
+            ) from e
 
         # Compute ladder_pct_* fields for visualization (Issue #2)
         # These fields are OPTIONAL - positions without stop/target prices are still valid

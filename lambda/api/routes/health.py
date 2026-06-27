@@ -395,9 +395,22 @@ def _handle_pipeline(cur: cursor, jwt_claims: dict[str, Any] | None) -> Any:
         config = get_config()
         tables = []
         for row in rows:
-            age = float(row.get("age_days")) if row.get("age_days") is not None else 999
-            row_count = row.get("row_count")
-            if age <= config.pipeline_healthy_days and row_count is not None and row_count > 0:
+            # FAIL-FAST: age_days and row_count are critical for pipeline health assessment
+            if row.get("age_days") is None:
+                raise RuntimeError(
+                    f"[PIPELINE HEALTH CRITICAL] Table {row.get('table_name', 'unknown')} missing age_days. "
+                    f"Cannot determine freshness. Check that pipeline query is computing MAX(created_at) or MAX(date)."
+                )
+            if row.get("row_count") is None:
+                raise RuntimeError(
+                    f"[PIPELINE HEALTH CRITICAL] Table {row.get('table_name', 'unknown')} missing row_count. "
+                    f"Cannot determine if table has data. Check pipeline query COUNT(*) result."
+                )
+
+            age = float(row["age_days"])
+            row_count = int(row["row_count"])
+
+            if age <= config.pipeline_healthy_days and row_count > 0:
                 status = "HEALTHY"
             elif age <= config.pipeline_critical_days:
                 status = "STALE"
@@ -406,9 +419,7 @@ def _handle_pipeline(cur: cursor, jwt_claims: dict[str, Any] | None) -> Any:
             tables.append(
                 {
                     "table_name": row["table_name"],
-                    "row_count": row["row_count"] if row.get("row_count") is not None else (
-                        logger.warning(f"[HEALTH] Row count missing for table {row['table_name']}") or None
-                    ),
+                    "row_count": row_count,
                     "age_days": round(age, 1),
                     "status": status,
                 }
