@@ -153,7 +153,10 @@ class OptimalLoader:
             chunk = rows[chunk_start : chunk_start + self.chunk_size]
             is_final = chunk_start + self.chunk_size >= len(rows)
             inserted += self._bulk_insert_mgr.bulk_insert(
-                chunk, symbol=symbol if is_final else None, new_watermark=new_wm if is_final else None
+                chunk,
+                symbol=symbol if is_final else None,
+                new_watermark=new_wm if is_final else None,
+                watermark_mgr=self._watermark if is_final else None,
             )
 
         if new_wm:

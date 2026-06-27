@@ -1841,6 +1841,7 @@ class PriceLoader(OptimalLoader):
                     chunk,
                     symbol=symbol if is_final_chunk else None,
                     new_watermark=chunk_wm,
+                    watermark_mgr=self._watermark if is_final_chunk else None,
                 )
 
             if dedup and self.primary_key:
