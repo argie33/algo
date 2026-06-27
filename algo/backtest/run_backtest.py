@@ -79,21 +79,19 @@ def _get_daily_buy_signals(signal_date: date, min_composite: float) -> list[dict
                 WHERE b.date = %s
                   AND b.signal_type = 'BUY'
                   AND b.close IS NOT NULL
-                  AND b.close > COALESCE(b.sma_50, 0)
-                ORDER BY COALESCE(b.signal_quality_score, 0) DESC
+                  AND b.sma_50 IS NOT NULL
+                  AND b.close > b.sma_50
+                  AND b.signal_quality_score IS NOT NULL
+                ORDER BY b.signal_quality_score DESC
                 """,
                 (signal_date,),
             )
             rows = cur.fetchall()
 
         signals = []
-        skipped_count = 0
         for r in rows:
-            close = float(r[1]) if r[1] is not None else None
+            close = float(r[1])
             if not close:
-                continue
-            if r[8] is None:
-                skipped_count += 1
                 continue
             if r[5] is None:
                 raise ValueError(
@@ -117,8 +115,6 @@ def _get_daily_buy_signals(signal_date: date, min_composite: float) -> list[dict
                 }
             )
 
-        if skipped_count > 0:
-            logger.debug(f"[BACKTEST] Skipped {skipped_count} signals without quality scores on {signal_date}")
         return signals
     except (ValueError, ZeroDivisionError, TypeError) as e:
         raise RuntimeError(f"[BACKTEST] FATAL: Cannot fetch buy signals for {signal_date}: {e}") from e

@@ -287,7 +287,7 @@ def down():
               ap.stage_in_exit_plan,
               ap.days_since_entry,
 
-              COALESCE(lt.stop_loss_price, 0)::DECIMAL(12, 4) as stop_loss_price,
+              lt.stop_loss_price as stop_loss_price,
               lt.target_1_price,
               lt.target_2_price,
               lt.target_3_price,
@@ -295,8 +295,8 @@ def down():
               lt.target_2_r_multiple,
               lt.target_3_r_multiple,
 
-              COALESCE(lt.sector, 'Unknown') as sector,
-              COALESCE(lt.industry, 'Unknown') as industry,
+              lt.sector,
+              lt.industry,
 
               lt_tech.minervini_trend_score,
               lt_tech.weinstein_stage,
@@ -304,27 +304,27 @@ def down():
               lt_tech.percent_from_52w_high,
 
               CASE
-                WHEN COALESCE(lt.stop_loss_price, 0) = 0 OR ap.avg_entry_price = 0
+                WHEN lt.stop_loss_price IS NULL OR ap.avg_entry_price = 0
                 THEN NULL
-                ELSE (ap.avg_entry_price - COALESCE(lt.stop_loss_price, ap.avg_entry_price)) / NULLIF(ap.avg_entry_price, 0)
+                ELSE (ap.avg_entry_price - lt.stop_loss_price) / NULLIF(ap.avg_entry_price, 0)
               END::DECIMAL(8, 4) as r_multiple,
 
               CASE
-                WHEN COALESCE(lt.stop_loss_price, 0) = 0
+                WHEN lt.stop_loss_price IS NULL
                 THEN NULL
-                ELSE (ap.avg_entry_price - COALESCE(lt.stop_loss_price, ap.avg_entry_price))::DECIMAL(12, 4)
+                ELSE (ap.avg_entry_price - lt.stop_loss_price)::DECIMAL(12, 4)
               END as initial_risk_per_share,
 
               CASE
-                WHEN COALESCE(lt.stop_loss_price, 0) = 0
-                THEN 0
-                ELSE ((ap.avg_entry_price - COALESCE(lt.stop_loss_price, ap.avg_entry_price)) * ap.quantity)::DECIMAL(14, 2)
+                WHEN lt.stop_loss_price IS NULL
+                THEN NULL
+                ELSE ((ap.avg_entry_price - lt.stop_loss_price) * ap.quantity)::DECIMAL(14, 2)
               END as open_risk_dollars,
 
               CASE
-                WHEN COALESCE(lp.current_price, ap.current_price) = 0 OR COALESCE(lt.stop_loss_price, 0) = 0
+                WHEN COALESCE(lp.current_price, ap.current_price) IS NULL OR lt.stop_loss_price IS NULL
                 THEN NULL
-                ELSE (COALESCE(lp.current_price, ap.current_price) - COALESCE(lt.stop_loss_price, ap.current_price)) / NULLIF(COALESCE(lp.current_price, ap.current_price), 0) * 100
+                ELSE (COALESCE(lp.current_price, ap.current_price) - lt.stop_loss_price) / NULLIF(COALESCE(lp.current_price, ap.current_price), 0) * 100
               END::DECIMAL(8, 4) as distance_to_stop_pct,
 
               CASE
