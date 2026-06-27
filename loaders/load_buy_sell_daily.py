@@ -277,11 +277,8 @@ class SignalsDailyLoader(OptimalLoader):
                 tech_count = row[0]
 
                 if tech_count == 0:
-                    raise RuntimeError(
-                        f"[BUY_SELL_DAILY] {symbol}: No technical data for {end} — "
-                        "technical indicators are required to generate buy/sell signals. "
-                        "Symbol may be delisted or data loading failed."
-                    )
+                    logger.debug(f"[BUY_SELL_DAILY] {symbol}: No technical data for {end} - skipping")
+                    return []
 
                 # Validate upstream loader completeness before generating signals.
                 # buy_sell_daily depends on price_daily and technical_data_daily.
@@ -347,10 +344,10 @@ class SignalsDailyLoader(OptimalLoader):
         # Fetch required data for signal generation
         rows = self._fetch_signal_data(symbol, start, end)
         if not rows:
-            raise RuntimeError(
-                f"[BUY_SELL_DAILY] No technical data found for {symbol} between {start} and {end}. "
-                "Cannot generate signals without technical indicators."
+            logger.debug(
+                f"[BUY_SELL_DAILY] No technical data for {symbol} - skipping signal generation"
             )
+            return []
 
         # Generate signals
         signals = self._generate_signals(symbol, rows)
