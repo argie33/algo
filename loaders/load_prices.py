@@ -1172,7 +1172,10 @@ class PriceLoader(OptimalLoader):
                         continue  # Skip if not smaller than current
 
                     logger.info(
-                        f"[CIRCUIT BREAKER] Retrying with reduced batch size: {reduced_size} (was {batch_size}), elapsed {elapsed_sec:.0f}s"
+                        "[CIRCUIT BREAKER] Retrying with reduced batch size: %s (was %s), elapsed %.0fs",
+                        reduced_size,
+                        batch_size,
+                        elapsed_sec,
                     )
                     reduced_attempt = self._fetch_with_fallback(
                         symbols,
@@ -1184,9 +1187,17 @@ class PriceLoader(OptimalLoader):
                     )
                     if reduced_attempt is not None and any(v is not None for v in reduced_attempt.values()):
                         logger.info(
-                            "[CIRCUIT BREAKER] âœ“ Partial success with batch=%s",
+                            “[CIRCUIT BREAKER] Partial success with batch=%s (INCOMPLETE: only %d of %d symbols)”,
                             reduced_size,
+                            sum(1 for v in reduced_attempt.values() if v is not None),
+                            len(symbols),
                         )
+                        # CRITICAL: Mark this batch as incomplete (partial data)
+                        # Downstream must check _is_incomplete flag to validate coverage
+                        reduced_attempt[“_is_incomplete”] = True
+                        reduced_attempt[“_incomplete_reason”] = f”Batch size reduced from {batch_size} to {reduced_size} due to rate limiting”
+                        reduced_attempt[“_symbols_requested”] = len(symbols)
+                        reduced_attempt[“_symbols_fetched”] = sum(1 for v in reduced_attempt.values() if v is not None)
                         return reduced_attempt
 
                 # All reduced sizes failed — circuit breaker triggered, fail immediately

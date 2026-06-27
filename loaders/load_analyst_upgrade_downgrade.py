@@ -30,14 +30,15 @@ class AnalystRatingsLoader(OptimalLoader):
     primary_key = ("symbol", "date")
     watermark_field = "date"
 
-    def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]] | None:
+    def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Fetch analyst upgrades/downgrades from yfinance.
 
-        Returns None if analyst rating history is legitimately unavailable (normal for limited analyst coverage).
+        Returns empty list (not None) if analyst rating history is unavailable.
+        All returned records must have complete analyst rating data (Firm, To Grade, Action).
 
         Raises:
             TransientAPIError: On timeouts/connection errors (orchestrator will retry with backoff)
-            Exception: On unexpected errors (will be logged and handled by orchestrator)
+            ValueError: If a record is missing required analyst rating field (indicates data format change)
 
         Analyst upgrades/downgrades are optional enrichment; their absence does not prevent trading.
         """
@@ -57,8 +58,8 @@ class AnalystRatingsLoader(OptimalLoader):
             raise TransientAPIError(f"Connection error fetching ticker for {symbol}") from e
 
         if not ticker:
-            logger.debug(f"[ANALYST] Ticker not found for {symbol} (skipping)")
-            return None
+            logger.info(f"[ANALYST] Ticker not found for {symbol} — no upgrade/downgrade data")
+            return []
 
         try:
             upgrades_downgrades = ticker.upgrades_downgrades
@@ -70,17 +71,19 @@ class AnalystRatingsLoader(OptimalLoader):
             raise TransientAPIError(f"Connection error fetching upgrades/downgrades for {symbol}") from e
 
         if upgrades_downgrades is None or upgrades_downgrades.empty:
-            logger.debug(f"[ANALYST_RATINGS] No upgrade/downgrade history for {symbol} (skipping)")
-            return None
+            logger.info(f"[ANALYST_RATINGS] No upgrade/downgrade history for {symbol} — no data available")
+            return []
 
         results = []
         for idx, row in upgrades_downgrades.iterrows():
             ud_date = idx.date() if hasattr(idx, "date") else idx
-            # Skip records with missing critical analyst rating fields
+            # CRITICAL: Validate all required analyst rating fields
             for field in ["Firm", "To Grade", "Action"]:
                 if field not in row or (isinstance(row[field], float) and pd.isna(row[field])):
-                    logger.debug(f"[ANALYST_RATINGS] Skipping {symbol} record (missing {field})")
-                    continue
+                    raise ValueError(
+                        f"[ANALYST_RATINGS] Missing or invalid '{field}' field for {symbol} on {ud_date}. "
+                        "yfinance API response format may have changed. Cannot parse analyst upgrade/downgrade without all required fields."
+                    )
             old_rating_raw = row.get("From Grade")
             old_rating_str = str(old_rating_raw).strip() if old_rating_raw else None
             results.append(
@@ -94,7 +97,7 @@ class AnalystRatingsLoader(OptimalLoader):
                 }
             )
 
-        return results if results else None
+        return results
 
     def transform(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         return rows

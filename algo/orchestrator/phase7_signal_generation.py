@@ -354,14 +354,37 @@ def _get_candidates_from_buysell(
 
         candidates = []
         for r in rows:
-            close = float(r[6]) if r[6] is not None else None
-            composite = float(r[1]) if r[1] is not None else None
-            raw_strength = float(r[15]) if r[15] is not None else None
-            swing_score = float(r[19]) if r[19] is not None else 0.0
-            swing_components = r[20] if r[20] is not None else None
+            symbol = r[0]
+
+            # Composite score guaranteed by JOIN (stock_scores inner join)
+            if r[1] is None:
+                raise ValueError(f"[PHASE 7] {symbol}: composite_score is NULL — "
+                                "stock_scores join guarantees non-null composite_score")
+            composite = float(r[1])
+
+            # Close guaranteed by LATERAL price_daily join
+            if r[6] is None:
+                raise ValueError(f"[PHASE 7] {symbol}: close price is NULL — "
+                                "price_daily lateral join guarantees latest close")
+            close = float(r[6])
+
+            # Signal strength guaranteed by WHERE clause (bsd.strength IS NOT NULL)
+            if r[15] is None:
+                raise ValueError(f"[PHASE 7] {symbol}: signal_strength is NULL — "
+                                "WHERE clause guarantees non-null strength")
+            raw_strength = float(r[15])
+
+            # Swing score guaranteed by INNER JOIN with IS NOT NULL check
+            if r[19] is None:
+                raise ValueError(f"[PHASE 7] {symbol}: swing_score is NULL — "
+                                "INNER JOIN with IS NOT NULL guarantee violated")
+            swing_score = float(r[19])
+
+            swing_components = r[20]  # Part of swing_trader_scores join
+
             candidates.append(
                 {
-                    "symbol": r[0],
+                    "symbol": symbol,
                     "composite_score": composite,
                     "quality_score": float(r[2]) if r[2] is not None else None,
                     "growth_score": float(r[3]) if r[3] is not None else None,

@@ -29,30 +29,82 @@ class ValueMetricsLoader(OptimalLoader):
     primary_key = ("symbol",)
     watermark_field = "updated_at"
 
-    def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]] | None:
+    def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Fetch value metrics from yfinance for a symbol.
 
-        Returns None if metrics are unavailable (normal for illiquid stocks, penny stocks, etc).
-        Value metrics are optional enrichment; their absence does not prevent trading.
+        Returns record with data_unavailable=True if metrics cannot be computed.
+        Value metrics are optional enrichment, but absence must be EXPLICIT (not silent None).
+        Downstream systems must acknowledge data absence via data_unavailable flag.
         """
         try:
             ticker = get_ticker(symbol)
             if not ticker:
-                logger.debug(f"[VALUE_METRICS] Ticker not found for {symbol} (skipping)")
-                return None
+                logger.info(f"[VALUE_METRICS] Ticker not found for {symbol} — metrics unavailable")
+                return [
+                    {
+                        "symbol": symbol,
+                        "date": date.today(),
+                        "market_cap": None,
+                        "pe_ratio": None,
+                        "pb_ratio": None,
+                        "ps_ratio": None,
+                        "peg_ratio": None,
+                        "dividend_yield": None,
+                        "fcf_yield": None,
+                        "held_percent_insiders": None,
+                        "held_percent_institutions": None,
+                        "data_unavailable": True,
+                        "reason": "Ticker not found in data source",
+                        "updated_at": datetime.now(timezone.utc).isoformat(),
+                    }
+                ]
 
             info = ticker.info
             if not info:
-                logger.debug(f"[VALUE_METRICS] No financial info for {symbol} (skipping)")
-                return None
+                logger.info(f"[VALUE_METRICS] No financial info for {symbol} — metrics unavailable")
+                return [
+                    {
+                        "symbol": symbol,
+                        "date": date.today(),
+                        "market_cap": None,
+                        "pe_ratio": None,
+                        "pb_ratio": None,
+                        "ps_ratio": None,
+                        "peg_ratio": None,
+                        "dividend_yield": None,
+                        "fcf_yield": None,
+                        "held_percent_insiders": None,
+                        "held_percent_institutions": None,
+                        "data_unavailable": True,
+                        "reason": "No financial info available from data source",
+                        "updated_at": datetime.now(timezone.utc).isoformat(),
+                    }
+                ]
 
             mkt_cap = info.get("marketCap")
 
             # Skip illiquid symbols gracefully (< $1M market cap). These legitimately lack
             # reliable metrics in yfinance and are typically excluded from trading anyway.
             if mkt_cap and mkt_cap < 1_000_000:
-                logger.debug(f"[VALUE_METRICS] Skipping {symbol} (market cap ${mkt_cap:,} < $1M)")
-                return None
+                logger.info(f"[VALUE_METRICS] Skipping {symbol} (market cap ${mkt_cap:,} < $1M) — metrics unavailable")
+                return [
+                    {
+                        "symbol": symbol,
+                        "date": date.today(),
+                        "market_cap": int(mkt_cap),
+                        "pe_ratio": None,
+                        "pb_ratio": None,
+                        "ps_ratio": None,
+                        "peg_ratio": None,
+                        "dividend_yield": None,
+                        "fcf_yield": None,
+                        "held_percent_insiders": None,
+                        "held_percent_institutions": None,
+                        "data_unavailable": True,
+                        "reason": f"Market cap ${mkt_cap:,} below $1M liquidity threshold",
+                        "updated_at": datetime.now(timezone.utc).isoformat(),
+                    }
+                ]
 
             pe = info.get("trailingPE")
             pb = info.get("priceToBook")
@@ -63,10 +115,27 @@ class ValueMetricsLoader(OptimalLoader):
             held_insiders = info.get("heldPercentInsiders")
             held_institutions = info.get("heldPercentInstitutions")
 
-            # If absolutely no metrics available, skip (but this is rare)
+            # If absolutely no metrics available, return data_unavailable record
             if not any([mkt_cap, pe, pb, ps]):
-                logger.debug(f"[VALUE_METRICS] No value metrics available for {symbol} (skipping)")
-                return None
+                logger.info(f"[VALUE_METRICS] No value metrics available for {symbol} — metrics unavailable")
+                return [
+                    {
+                        "symbol": symbol,
+                        "date": date.today(),
+                        "market_cap": int(mkt_cap) if mkt_cap else None,
+                        "pe_ratio": None,
+                        "pb_ratio": None,
+                        "ps_ratio": None,
+                        "peg_ratio": None,
+                        "dividend_yield": None,
+                        "fcf_yield": None,
+                        "held_percent_insiders": None,
+                        "held_percent_institutions": None,
+                        "data_unavailable": True,
+                        "reason": "No value metrics (PE, PB, PS) found in data source",
+                        "updated_at": datetime.now(timezone.utc).isoformat(),
+                    }
+                ]
 
             fcf_yield = None
             if fcf and mkt_cap and mkt_cap > 0:
@@ -88,19 +157,37 @@ class ValueMetricsLoader(OptimalLoader):
                     "fcf_yield": fcf_yield,
                     "held_percent_insiders": (float(held_insiders) if held_insiders else None),
                     "held_percent_institutions": (float(held_institutions) if held_institutions else None),
+                    "data_unavailable": False,
                     "updated_at": datetime.now(timezone.utc).isoformat(),
                 }
             ]
 
         except (ValueError, ZeroDivisionError, TypeError) as e:
-            logger.debug(f"[VALUE_METRICS] Parsing error for {symbol} (skipping): {e}")
-            return None
+            logger.info(f"[VALUE_METRICS] Parsing error for {symbol} — metrics unavailable: {e}")
+            return [
+                {
+                    "symbol": symbol,
+                    "date": date.today(),
+                    "market_cap": None,
+                    "pe_ratio": None,
+                    "pb_ratio": None,
+                    "ps_ratio": None,
+                    "peg_ratio": None,
+                    "dividend_yield": None,
+                    "fcf_yield": None,
+                    "held_percent_insiders": None,
+                    "held_percent_institutions": None,
+                    "data_unavailable": True,
+                    "reason": f"Data parsing error: {str(e)[:100]}",
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }
+            ]
         except (requests.Timeout, requests.ConnectionError) as e:
             logger.warning(f"[VALUE_METRICS] API timeout/connection error for {symbol} (transient, will retry): {e}")
             raise TransientAPIError(f"yfinance timeout fetching value metrics for {symbol}") from e
         except Exception as e:
-            logger.debug(f"[VALUE_METRICS] Error fetching for {symbol} (skipping): {e}")
-            return None
+            logger.error(f"[VALUE_METRICS] Unexpected error for {symbol} (not data unavailability): {type(e).__name__}: {e}")
+            raise
 
 
 def _apply_schema_migrations() -> None:

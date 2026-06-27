@@ -493,6 +493,14 @@ def main() -> int:
             final_status = "failed"
 
         # Log execution time
+        # CRITICAL: duration_sec is required — do not default to 0
+        if "duration_sec" not in result:
+            logger.error("[SWING_TRADER_SCORES] Missing 'duration_sec' in execution result")
+            final_status = "error"
+            duration_sec = 0
+        else:
+            duration_sec = result["duration_sec"]
+
         try:
             with DatabaseContext("write") as cur:
                 cur.execute(
@@ -515,7 +523,7 @@ def main() -> int:
                         date.today(),
                         final_status,
                         result["rows_inserted"],
-                        result.get("duration_sec", 0),  # duration_sec is optional
+                        duration_sec,
                     ),
                 )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:

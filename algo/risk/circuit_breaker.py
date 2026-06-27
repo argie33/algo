@@ -509,7 +509,16 @@ class CircuitBreaker:
             (current_date,),
         )
         row = cur.fetchone()
-        vix = _float(row[0], None, context="vix_level") if row is not None and row[0] is not None else None
+        # First check if row/data exists; if not, return None for later detection
+        if row is None or row[0] is None:
+            vix = None
+        else:
+            # Row data exists — validate with _float to reject NaN/Inf
+            try:
+                vix = _float(row[0], context="vix_level")
+            except ValueError:
+                # NaN/Inf in vix_level — treat as missing data
+                vix = None
 
         # CRITICAL: VIX data unavailable — cannot safely assess volatility risk.
         # Fail-closed: cannot use fallback estimates. Even computed estimates from SPY

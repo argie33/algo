@@ -36,12 +36,12 @@ class PositioningMetricsLoader(OptimalLoader):
     primary_key = ("symbol",)
     watermark_field = "created_at"
 
-    def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]] | None:
+    def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Fetch positioning metrics for this symbol.
 
-        Returns None if positioning data is unavailable (many symbols lack institutional ownership,
-        short interest, or other positioning metrics in yfinance). This is normal for illiquid stocks
-        and does not constitute a loader failure.
+        Returns record with data_unavailable=True if positioning data is unavailable
+        (many symbols lack institutional ownership, short interest, or other metrics in yfinance).
+        This is normal for illiquid stocks but absence must be EXPLICIT (not silent None).
 
         Raises:
             Unexpected exceptions are re-raised to surface programming errors immediately.
@@ -49,13 +49,35 @@ class PositioningMetricsLoader(OptimalLoader):
         try:
             metrics = self._fetch_positioning_metrics(symbol)
             if not metrics:
-                logger.debug(f"[POSITIONING_METRICS] No positioning data available for {symbol} (skipping)")
-                return None
+                logger.info(f"[POSITIONING_METRICS] No positioning data available for {symbol} — metrics unavailable")
+                return [
+                    {
+                        "symbol": symbol,
+                        "institutional_ownership": None,
+                        "insider_ownership": None,
+                        "short_interest_percent": None,
+                        "short_interest_trend": None,
+                        "data_unavailable": True,
+                        "reason": "Positioning metrics not found in data source",
+                        "updated_at": datetime.now(timezone.utc).isoformat(),
+                    }
+                ]
             return [metrics]
         except (ValueError, TypeError, ZeroDivisionError) as e:
             # Expected errors: parsing issues, type mismatches
-            logger.debug(f"[POSITIONING_METRICS] Data parsing error for {symbol} (skipping): {e}")
-            return None
+            logger.info(f"[POSITIONING_METRICS] Data parsing error for {symbol} — metrics unavailable: {e}")
+            return [
+                {
+                    "symbol": symbol,
+                    "institutional_ownership": None,
+                    "insider_ownership": None,
+                    "short_interest_percent": None,
+                    "short_interest_trend": None,
+                    "data_unavailable": True,
+                    "reason": f"Data parsing error: {str(e)[:100]}",
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }
+            ]
         except Exception as e:
             # Unexpected errors (database errors, network issues, bugs) should surface immediately
             logger.error(f"[POSITIONING_METRICS] Unexpected error for {symbol} (not data unavailability): {type(e).__name__}: {e}")
@@ -67,6 +89,8 @@ class PositioningMetricsLoader(OptimalLoader):
 
         Skips symbols with market cap < $50M (illiquid stocks typically lack positioning data).
         This reduces unnecessary API calls and improves loader throughput.
+
+        Returns None if no positioning data found (caller will add data_unavailable flag).
 
         Raises:
             TransientAPIError: On timeouts/connection errors (orchestrator will retry with backoff)
@@ -99,7 +123,7 @@ class PositioningMetricsLoader(OptimalLoader):
             # These symbols typically lack reliable positioning data and aren't trading candidates
             mkt_cap = info.get("marketCap")
             if mkt_cap and mkt_cap < 1_000_000:
-                logger.debug(f"Skipping {symbol} (market cap ${mkt_cap:,} < $1M threshold)")
+                logger.info(f"Skipping {symbol} (market cap ${mkt_cap:,} < $1M threshold)")
                 return None
 
             institutional_ownership = None
@@ -134,13 +158,14 @@ class PositioningMetricsLoader(OptimalLoader):
                     "insider_ownership": (round(insider_ownership, 2) if insider_ownership else None),
                     "short_interest_percent": (round(short_interest_percent, 2) if short_interest_percent else None),
                     "short_interest_trend": short_interest_trend,
+                    "data_unavailable": False,
                     "updated_at": datetime.now(timezone.utc).isoformat(),
                 }
 
             return None
 
         except (ValueError, ZeroDivisionError, TypeError) as e:
-            logger.debug(f"[POSITIONING_METRICS] Parsing error for {symbol} (skipping): {e}")
+            logger.info(f"[POSITIONING_METRICS] Parsing error for {symbol}: {e}")
             return None
 
     def transform(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:

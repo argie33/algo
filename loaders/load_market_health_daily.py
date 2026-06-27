@@ -307,8 +307,11 @@ class MarketHealthDailyLoader(OptimalLoader):
             else:
                 logger.warning("Yield curve data available but no valid slopes found")
         except Exception as e:
-            logger.warning(f"Yield curve enrichment failed (optional): {e}. Proceeding without slope enrichment.")
-            # Don't raise - yield curve slope is enrichment, not critical
+            raise RuntimeError(
+                f"[MARKET_HEALTH] Yield curve enrichment failed: {e}. "
+                "Market regime detection requires yield spread data for inversion signals. "
+                "Cannot proceed without valid yield curve data."
+            ) from e
 
     def fetch_incremental(self, symbol: str = "SPY", since: date | None = None) -> list[dict[str, Any]]:
         """Fetch SPY price data and compute market health metrics."""

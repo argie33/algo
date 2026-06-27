@@ -166,11 +166,28 @@ class MarketConstituentsLoader(OptimalLoader):
             for text in [nas_text, oth_text]:
                 reader = csv.DictReader(text.splitlines(), delimiter="|")
                 for r in reader:
-                    sym = r.get("Symbol", "").strip()
-                    if not sym or sym.startswith("File Creation Time"):
+                    # CRITICAL: Symbol is required — explicit validation, no defaults
+                    if "Symbol" not in r or not r["Symbol"]:
+                        raise ValueError(
+                            "[MARKET_CONSTITUENTS] Missing or empty 'Symbol' field in row. "
+                            "Cannot process market constituent without symbol."
+                        )
+                    sym = r["Symbol"].strip()
+                    if sym.startswith("File Creation Time"):
                         continue
 
-                    name = r.get("Security Name", "").strip()
+                    # CRITICAL: Security Name is required
+                    if "Security Name" not in r:
+                        raise ValueError(
+                            f"[MARKET_CONSTITUENTS] Symbol {sym} missing required 'Security Name' field. "
+                            "Cannot process market constituent without name."
+                        )
+                    name = r["Security Name"].strip()
+                    if not name:
+                        raise ValueError(
+                            f"[MARKET_CONSTITUENTS] Symbol {sym} has empty 'Security Name' field. "
+                            "Cannot process market constituent with empty name."
+                        )
 
                     # ETFs go to separate table (not stock_symbols)
                     if r.get("ETF", "").upper() == "Y":
@@ -189,12 +206,13 @@ class MarketConstituentsLoader(OptimalLoader):
                         logger.debug(f"Excluding {sym} ({name}) by security name pattern")
                         continue
 
-                    exchange = r.get("Listing Exchange", "").upper()
-                    if not exchange:
+                    # CRITICAL: Listing Exchange is required
+                    if "Listing Exchange" not in r or not r["Listing Exchange"]:
                         raise ValueError(
-                            f"[MARKET_CONSTITUENTS] Symbol {sym} missing required 'Listing Exchange' field. "
+                            f"[MARKET_CONSTITUENTS] Symbol {sym} missing or empty 'Listing Exchange' field. "
                             "Cannot determine proper exchange for market constituent."
                         )
+                    exchange = r["Listing Exchange"].upper()
                     rows.append(
                         {
                             "symbol": sym,

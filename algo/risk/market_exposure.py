@@ -890,7 +890,13 @@ class MarketExposure:
             return self._vix_score(vix, rising=False, term_structure=None)
 
         vix = float(vix_row[0])
-        prior = float(vix_row[1]) if vix_row[1] is not None else vix
+        if vix_row[1] is None:
+            raise RuntimeError(
+                f"[VIX CRITICAL] Prior VIX value missing for {eval_date}. "
+                f"Cannot assess VIX trend without historical comparison. "
+                f"VIX direction signals are required for exposure risk adjustment."
+            )
+        prior = float(vix_row[1])
         rising = vix > prior * 1.05
 
         term_structure = None
@@ -1267,7 +1273,13 @@ class MarketExposure:
 
         hy = float(rows[0][0])
         # Trend: compare latest vs 20 days ago
-        hy_20d_ago = float(rows[-1][0]) if len(rows) >= 20 else hy
+        if len(rows) < 20:
+            raise RuntimeError(
+                f"[HY CRITICAL] Insufficient credit spread history for {eval_date} — "
+                f"need 20+ trading days to assess trend. Got {len(rows)} days. "
+                f"Credit cycle risk assessment requires historical context."
+            )
+        hy_20d_ago = float(rows[-1][0])
         widening_1pp = (hy - hy_20d_ago) > 1.0  # widened > 1pp in ~20 trading days
 
         if hy < 3.5:

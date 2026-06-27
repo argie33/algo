@@ -64,13 +64,22 @@ class TrendCriteriaLoader(OptimalLoader):
         self._batch_context = {"end_date": end}
 
     def fetch_incremental(self, symbol: str, since: date | None = None) -> list[dict[str, Any]]:
-        # Use end date cached at batch start (avoids per-symbol SELECT on price_daily)
-        if not self._batch_context or "end_date" not in self._batch_context:
+        # CRITICAL: Batch context MUST exist — fail fast if missing
+        # Never fall back to per-symbol recomputation; all symbols in batch must use same end_date
+        if not self._batch_context:
             raise RuntimeError(
                 f"[TrendCriteria] Batch context not initialized for {symbol}. "
                 "Batch context must be populated in _prepare_batch_context() before fetch_incremental(). "
                 "Cannot compute trend criteria with missing batch context — indicates loader initialization failure."
             )
+        if "end_date" not in self._batch_context:
+            raise RuntimeError(
+                f"[TrendCriteria] Batch context missing 'end_date' key for {symbol}. "
+                f"Available keys: {list(self._batch_context.keys())}. "
+                "All symbols must use the same batch end_date. "
+                "Check _prepare_batch_context() implementation."
+            )
+
         end = self._batch_context["end_date"]
 
         # When since is None (e.g. first call after an ECS task restart), read the actual
@@ -225,6 +234,20 @@ class TrendCriteriaLoader(OptimalLoader):
             if sma50 is None or sma200 is None:
                 continue
 
+            # CRITICAL: Validate SMA slope values exist before using in result
+            # NaN values corrupt technical indicators; must be explicit None instead
+            sma50_slope_val = row["sma_50_slope"]
+            if pd.isna(sma50_slope_val):
+                sma50_slope = None
+            else:
+                sma50_slope = round(float(sma50_slope_val), 4)
+
+            sma200_slope_val = row["sma_200_slope"]
+            if pd.isna(sma200_slope_val):
+                sma200_slope = None
+            else:
+                sma200_slope = round(float(sma200_slope_val), 4)
+
             results.append(
                 {
                     "symbol": symbol,
@@ -233,16 +256,8 @@ class TrendCriteriaLoader(OptimalLoader):
                     "price_52w_low": round(float(low52), 4) if low52 else None,
                     "percent_from_52w_low": (round(float(pct_from_low), 2) if pct_from_low is not None else None),
                     "percent_from_52w_high": (round(float(pct_from_high), 2) if pct_from_high is not None else None),
-                    "sma_50_slope": (
-                        round(float(row["sma_50_slope"]), 4)
-                        if pd.notna(row["sma_50_slope"])
-                        else None
-                    ),
-                    "sma_200_slope": (
-                        round(float(row["sma_200_slope"]), 4)
-                        if pd.notna(row["sma_200_slope"])
-                        else None
-                    ),
+                    "sma_50_slope": sma50_slope,
+                    "sma_200_slope": sma200_slope,
                     "price_above_sma50": bool(c > sma50),
                     "price_above_sma200": bool(c > sma200),
                     "sma50_above_sma200": bool(sma50 > sma200),
