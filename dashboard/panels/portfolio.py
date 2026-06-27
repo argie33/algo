@@ -133,6 +133,10 @@ def panel_portfolio(
     if err_panel:
         return err_panel
 
+    err_panel = _error_panel("config", cfg, "PORTFOLIO", border="green")
+    if err_panel:
+        return err_panel
+
     pv_raw = port.get("total_portfolio_value")
     cash_raw = port.get("total_cash")
     npos_raw = port.get("position_count")

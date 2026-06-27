@@ -41,73 +41,77 @@ class DailyReconciliation:
             self.audit_logger = TradeAuditLogger()
             self.trading_client = True  # Signals credentials are available
         except (KeyError, ValueError, AttributeError) as e:
-            # Auto-detect offline/no-credentials mode: allow graceful fallback to mock broker
-            # This supports both dry-run mode AND local development without internet
+            # Only use mock broker when EXPLICITLY in dry-run mode
             dry_run_enabled = os.getenv("ORCHESTRATOR_DRY_RUN", "").lower() in ("true", "1", "yes")
             has_alpaca_creds = bool(os.getenv("APCA_API_KEY_ID")) and bool(os.getenv("APCA_API_SECRET_KEY"))
 
-            # Use mock broker if: explicitly in dry-run mode OR credentials missing
-            if dry_run_enabled or not has_alpaca_creds:
-                if not has_alpaca_creds:
-                    logger.warning(
-                        f"Reconciliation broker adapter initialization failed (Alpaca credentials missing): {e}. "
-                        "Auto-enabling mock broker for local/offline mode. "
-                        "To use live Alpaca trading, set APCA_API_KEY_ID and APCA_API_SECRET_KEY environment variables."
-                    )
-                else:
-                    logger.warning(
-                        f"Reconciliation broker adapter initialization failed (expected in dry-run): {e}. "
-                        "Will use mock broker for dry-run mode."
-                    )
-                # Create a mock broker that returns dummy data
-                class MockBrokerAdapter(BrokerAdapter):
-                    """Mock broker for dry-run testing when Alpaca credentials unavailable."""
-
-                    @property
-                    def alpaca_key(self) -> str | None:
-                        return None
-
-                    @property
-                    def alpaca_secret(self) -> str | None:
-                        return None
-
-                    @property
-                    def alpaca_base_url(self) -> str | None:
-                        return None
-
-                    def fetch_account(self) -> dict[str, Any]:
-                        return {
-                            "portfolio_value": 100000.0,
-                            "cash": 50000.0,
-                            "equity": 50000.0,
-                        }
-
-                    def fetch_portfolio_history(self) -> list[float]:
-                        return []
-
-                    def fetch_closed_orders(self, since: Any | None = None) -> list[dict[str, Any]]:
-                        return []
-
-                    def fetch_initial_capital(self) -> float | None:
-                        return None
-
-                    def sync_positions(self, cur: Any) -> dict[str, Any]:
-                        return {"imported": 0, "updated": 0, "closed": 0}
-
-                self.broker = MockBrokerAdapter()
-                self.audit_logger = TradeAuditLogger()
-                self.trading_client = False  # No real credentials
-            else:
-                logger.critical(f"Reconciliation manager initialization FAILED: {e}")
+            # CRITICAL: If NOT in explicit dry-run mode, initialization failure is fatal
+            # This prevents silent fallback to mock $100k broker masking real credential issues
+            if not dry_run_enabled:
+                logger.critical(
+                    f"[CRITICAL] Reconciliation broker adapter initialization failed "
+                    f"{'(Alpaca credentials missing - production misconfiguration)' if not has_alpaca_creds else '(broker adapter failed to initialize)'}: {e}. "
+                    "Reconciliation cannot proceed without live broker connection. "
+                    "Set ORCHESTRATOR_DRY_RUN=true to enable dry-run testing mode."
+                )
                 try:
                     notify(
                         "critical",
-                        title="Reconciliation Initialization Failed",
-                        message=f"Manager initialization failed: {e}. Reconciliation cannot proceed.",
+                        title="Reconciliation Initialization Failed - Production Blocker",
+                        message=f"Broker adapter failed to initialize: {e}. "
+                        f"{'Alpaca credentials missing.' if not has_alpaca_creds else 'Broker initialization error.'} "
+                        "Reconciliation requires live broker connection in production.",
                     )
                 except (psycopg2.DatabaseError, psycopg2.OperationalError):
                     logger.warning("Failed to send initialization failure notification")
-                raise ValueError(f"Reconciliation initialization failed: {e}") from e
+                raise ValueError(
+                    f"Reconciliation initialization failed (production mode): {e}. "
+                    f"{'Alpaca credentials missing (APCA_API_KEY_ID, APCA_API_SECRET_KEY required).' if not has_alpaca_creds else 'Broker adapter initialization failed.'}"
+                ) from e
+
+            # Only reach here if explicitly in dry-run mode
+            logger.warning(
+                f"[DRY-RUN] Reconciliation broker adapter initialization failed: {e}. "
+                "Using mock broker for dry-run testing only."
+            )
+            # Create a mock broker that returns dummy data
+            class MockBrokerAdapter(BrokerAdapter):
+                """Mock broker for dry-run testing when explicitly enabled."""
+
+                @property
+                def alpaca_key(self) -> str | None:
+                    return None
+
+                @property
+                def alpaca_secret(self) -> str | None:
+                    return None
+
+                @property
+                def alpaca_base_url(self) -> str | None:
+                    return None
+
+                def fetch_account(self) -> dict[str, Any]:
+                    return {
+                        "portfolio_value": 100000.0,
+                        "cash": 50000.0,
+                        "equity": 50000.0,
+                    }
+
+                def fetch_portfolio_history(self) -> list[float]:
+                    return []
+
+                def fetch_closed_orders(self, since: Any | None = None) -> list[dict[str, Any]]:
+                    return []
+
+                def fetch_initial_capital(self) -> float | None:
+                    return None
+
+                def sync_positions(self, cur: Any) -> dict[str, Any]:
+                    return {"imported": 0, "updated": 0, "closed": 0}
+
+            self.broker = MockBrokerAdapter()
+            self.audit_logger = TradeAuditLogger()
+            self.trading_client = False  # Mock broker, no real credentials
 
     def run_daily_reconciliation(self, reconcile_date: Any = None, dry_run: bool = False) -> dict[str, Any]:  # noqa: C901
         """Run full daily reconciliation. If dry_run=True, skip Alpaca API calls and return mock data.

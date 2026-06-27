@@ -711,8 +711,14 @@ class AdvancedFilters:
                 "analyst_upgrade_downgrade table empty or missing data. "
                 "Cannot compute analyst sentiment catalyst score."
             )
-        ups = int(row[0]) if row[0] is not None else 0
-        downs = int(row[1]) if row[1] is not None else 0
+        if row[0] is None or row[1] is None:
+            raise ValueError(
+                f"Analyst sentiment data incomplete for {symbol}: "
+                f"upgrades={row[0]}, downgrades={row[1]}. "
+                "Cannot compute reliable catalyst score from incomplete analyst data."
+            )
+        ups = int(row[0])
+        downs = int(row[1])
         net = ups - downs
         # net score scaled from analyst_net_positive_threshold to analyst_net_full_score
         catalyst_analyst_weight = FilterRegistry.get_weight("catalyst_analyst")
@@ -748,8 +754,14 @@ class AdvancedFilters:
                 "insider_transactions table empty or missing data. "
                 "Cannot compute insider activity catalyst score."
             )
-        buys = float(row[0]) if row[0] is not None else 0
-        sells = float(row[1]) if row[1] is not None else 0
+        if row[0] is None or row[1] is None:
+            raise ValueError(
+                f"Insider transaction data incomplete for {symbol}: "
+                f"buy_value={row[0]}, sell_value={row[1]}. "
+                "Cannot compute reliable catalyst score from incomplete insider data."
+            )
+        buys = float(row[0])
+        sells = float(row[1])
         net = buys - sells
         if net <= 0:
             return 0.0, net

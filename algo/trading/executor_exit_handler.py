@@ -136,6 +136,28 @@ class ExitHandler:
             }
 
         def _raise_stop(cursor: Any) -> dict[str, Any]:
+            # Validate position has existing stop price (cannot raise NULL stop)
+            cursor.execute(
+                """SELECT p.current_stop_price FROM algo_positions p
+                   JOIN algo_trades t ON t.trade_id = ANY(p.trade_ids_arr)
+                   WHERE t.trade_id = %s
+                     AND p.status = %s
+                   LIMIT 1""",
+                (trade_id, PositionStatus.OPEN.value),
+            )
+            existing_stop = cursor.fetchone()
+            if not existing_stop or existing_stop[0] is None:
+                return {
+                    "success": False,
+                    "message": f"Cannot raise stop: position has no existing stop price (position state incomplete). "
+                    "Initialize stop price explicitly before raising.",
+                }
+            if new_stop_price <= existing_stop[0]:
+                return {
+                    "success": False,
+                    "message": f"Stop raise rejected: new stop ${new_stop_price:.2f} not above existing ${existing_stop[0]:.2f}",
+                }
+
             cursor.execute(
                 """UPDATE algo_positions p
                    SET current_stop_price = %s
@@ -143,7 +165,8 @@ class ExitHandler:
                    WHERE t.trade_id = ANY(p.trade_ids_arr)
                      AND t.trade_id = %s
                      AND p.status = %s
-                     AND %s > COALESCE(p.current_stop_price, 0)""",
+                     AND p.current_stop_price IS NOT NULL
+                     AND %s > p.current_stop_price""",
                 (
                     new_stop_price,
                     trade_id,

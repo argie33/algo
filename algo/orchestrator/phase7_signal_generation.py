@@ -382,14 +382,33 @@ def _get_candidates_from_buysell(
 
             swing_components = r[20]  # Part of swing_trader_scores join
 
+            # Validate signal has complete scoring
+            quality_score = float(r[2]) if r[2] is not None else None
+            growth_score = float(r[3]) if r[3] is not None else None
+            momentum_score = float(r[4]) if r[4] is not None else None
+            rs_percentile = float(r[5]) if r[5] is not None else None
+
+            # CRITICAL: Core signal quality metrics should be present
+            # If >2 of these are missing, signal is incomplete
+            missing_scores = sum([quality_score is None, growth_score is None,
+                                momentum_score is None, rs_percentile is None])
+            if missing_scores > 2:
+                logger.warning(
+                    f"[SIGNAL_QUALITY] {symbol}: Signal generated with incomplete scoring "
+                    f"({missing_scores}/4 component scores missing). "
+                    f"quality={quality_score}, growth={growth_score}, "
+                    f"momentum={momentum_score}, rs={rs_percentile}. "
+                    f"Position sizing should account for reduced signal quality."
+                )
+
             candidates.append(
                 {
                     "symbol": symbol,
                     "composite_score": composite,
-                    "quality_score": float(r[2]) if r[2] is not None else None,
-                    "growth_score": float(r[3]) if r[3] is not None else None,
-                    "momentum_score": float(r[4]) if r[4] is not None else None,
-                    "rs_percentile": float(r[5]) if r[5] is not None else None,
+                    "quality_score": quality_score,
+                    "growth_score": growth_score,
+                    "momentum_score": momentum_score,
+                    "rs_percentile": rs_percentile,
                     "swing_score": swing_score,
                     "swing_components": swing_components,
                     "close": close,

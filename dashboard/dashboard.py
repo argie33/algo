@@ -616,11 +616,7 @@ def _render_dashboard_body(
         Layout(health_panel, ratio=5, name="health"),
     )
 
-    port_panel = (
-        safe_render_panel(panel_portfolio, port, cfg, risk=risk, perf=perf)
-        if not (has_error(port) or has_error(cfg))
-        else Panel("[red]Portfolio unavailable[/]", border_style="red")
-    )
+    port_panel = safe_render_panel(panel_portfolio, port, cfg, risk=risk, perf=perf)
     perf_panel = (
         safe_render_panel(panel_performance_spark, perf, rec, perf_anl, pos=pos)
         if not (has_error(perf) or has_error(rec))
@@ -643,11 +639,7 @@ def _render_dashboard_body(
         if not (has_error(sig) or has_error(scores))
         else Panel("[red]Signals unavailable[/]", border_style="red")
     )
-    sector_panel = (
-        safe_render_panel(panel_sector_compact, srank, pos, port, sec_rot, irank)
-        if not (has_error(pos) or has_error(port))
-        else Panel("[red]Sectors unavailable[/]", border_style="red")
-    )
+    sector_panel = safe_render_panel(panel_sector_compact, srank, pos, port, sec_rot, irank)
 
     outer["r3"].split_row(
         Layout(sig_panel, ratio=3, name="signals"),
@@ -796,11 +788,6 @@ def _render_footer_expanded_view(  # noqa: C901
                 risk=risk,
             )
         case "sectors":
-            if has_error(pos) or has_error(port):
-                return _expanded_layout(
-                    *_exp_top,
-                    Panel("[red]Sectors data unavailable[/]", border_style="red"),
-                )
             return _expanded_layout(*_exp_top, panel_sectors_expanded(srank, pos, port, sec_rot, irank))
         case "trades":
             if has_error(rec):
@@ -817,11 +804,6 @@ def _render_footer_expanded_view(  # noqa: C901
                 )
             return _expanded_layout(*_exp_top, panel_economic_expanded(eco, econ_cal))
         case "portfolio":
-            if has_error(port) or has_error(cfg):
-                return _expanded_layout(
-                    *_exp_top,
-                    Panel("[red]Portfolio data unavailable[/]", border_style="red"),
-                )
             return _expanded_layout(
                 *_exp_top,
                 panel_portfolio_perf_expanded(port, cfg, risk=risk, perf=perf, perf_anl=perf_anl, pos=pos),

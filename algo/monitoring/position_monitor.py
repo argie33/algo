@@ -395,7 +395,7 @@ class PositionMonitor:
 
             return recs
 
-    def _evaluate_position(self, row: Any, current_date: Any, cur: Any) -> dict[str, Any]:
+    def _evaluate_position(self, row: Any, current_date: Any, cur: Any) -> dict[str, Any]:  # noqa: C901
         (
             trade_id,
             symbol,
@@ -750,12 +750,19 @@ class PositionMonitor:
         if close_price is None:
             raise ValueError(f"Invalid price for {symbol} on {current_date} - close price is NULL")
 
-        return (
-            close_price,
-            float(row[1]) if row[1] is not None else None,
-            float(row[2]) if row[2] is not None else None,
-            float(row[3]) if row[3] is not None else None,
-        )
+        atr = float(row[1]) if row[1] is not None else None
+        sma_50 = float(row[2]) if row[2] is not None else None
+        sma_200 = float(row[3]) if row[3] is not None else None
+
+        # CRITICAL: Trailing stop calculations require technical data
+        # Warn if BOTH primary indicators are missing (but allow partial data)
+        if atr is None and sma_50 is None:
+            logger.warning(
+                f"[DATA_QUALITY] Technical data incomplete for {symbol} on {current_date}: "
+                f"atr=None, sma_50=None. Trailing stop calculation will be incomplete (falling back to active_stop only)."
+            )
+
+        return (close_price, atr, sma_50, sma_200)
 
     def _compute_trailing_stop(
         self,

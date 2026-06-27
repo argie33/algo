@@ -70,8 +70,11 @@ class MarketEventHandler:
                 ) from e
             if "status" not in data or data["status"] is None:
                 raise ValueError(f"Missing required 'status' field in market event response for {symbol}")
+            if "tradable" not in data or data["tradable"] is None:
+                raise ValueError(f"Missing required 'tradable' field in market event response for {symbol}. "
+                                f"API response structure may have changed or symbol data is incomplete.")
             status = data["status"].upper()
-            tradable = data.get("tradable", False)
+            tradable = data["tradable"]
 
             if not tradable or status != "ACTIVE":
                 return {

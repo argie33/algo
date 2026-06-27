@@ -53,20 +53,16 @@ class VectorizedSignalGenerator:
                 symbol_count = int(row[0])
                 price_date = eval_date
 
-                # If eval_date has insufficient data, fall back to most recent date with >1000 symbols
+                # CRITICAL: Do not fall back to stale data if eval_date insufficient
+                # Stale price data causes signals to be dated incorrectly and break timing invariants
                 if symbol_count < 1000:
-                    logger.debug(
-                        f"[VECTORIZED] eval_date={eval_date} has {symbol_count} symbols; finding recent date with >1000"
+                    raise ValueError(
+                        f"[CRITICAL] Insufficient price data on eval_date={eval_date}: "
+                        f"only {symbol_count} symbols available (need >=1000). "
+                        f"Cannot generate signals with incomplete price history. "
+                        f"Data pipeline may be stalled or incomplete for this date. "
+                        f"Do not fall back to earlier dates — signal date must match eval date."
                     )
-                    cur.execute(
-                        "SELECT date, COUNT(DISTINCT symbol) FROM price_daily GROUP BY date ORDER BY date DESC LIMIT 5"
-                    )
-                    for row in cur.fetchall():
-                        if row[1] >= 1000:
-                            price_date = row[0]
-                            symbol_count = row[1]
-                            logger.info(f"[VECTORIZED] Using price_date={price_date} ({symbol_count} symbols)")
-                            break
 
                 # Fetch 300 days of history for all symbols in ONE query
                 cur.execute(
