@@ -122,10 +122,11 @@ def get_error_message(response: dict[str, Any]) -> str:
     return f"API error {status if status is not None else 'unknown'}"
 
 
-def check_data_freshness(data_dict: Any, max_age_seconds: int = 3600) -> dict[str, Any] | None:
-    """Check if data timestamp is within acceptable age. Returns error dict if stale or missing.
+def check_data_freshness(data_dict: Any, max_age_seconds: int = 3600) -> None:
+    """Check if data timestamp is within acceptable age. Raises ValueError if invalid or stale.
 
-    Raises ValueError if timestamp is missing or invalid (financial data freshness is critical).
+    CRITICAL: In finance applications, data freshness is non-negotiable. Always fails fast
+    on stale data instead of returning error dicts that callers might ignore.
     """
     if not isinstance(data_dict, dict):
         raise ValueError(f"Expected dict for freshness check, got {type(data_dict).__name__}")
@@ -136,10 +137,14 @@ def check_data_freshness(data_dict: Any, max_age_seconds: int = 3600) -> dict[st
         ts_dt = datetime.fromisoformat(ts) if isinstance(ts, str) else ts
         age = (datetime.now(ts_dt.tzinfo or ET) - ts_dt).total_seconds()
         if age > max_age_seconds:
-            return {"_error": f"Data too stale: {age:.0f}s old (max {max_age_seconds}s)"}
+            raise ValueError(
+                f"Data too stale: {age:.0f}s old (max {max_age_seconds}s). "
+                "Cannot use stale data for trading decisions — must use fresh data or show error to user."
+            )
     except (ValueError, TypeError, AttributeError) as e:
+        if isinstance(e, ValueError) and "too stale" in str(e):
+            raise
         raise ValueError(f"Cannot parse data timestamp {ts!r}: {e}") from e
-    return None
 
 
 # Cache for market data (used by both fetch_market and fetch_exp_factors)

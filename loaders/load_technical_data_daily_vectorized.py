@@ -124,7 +124,7 @@ class VectorizedTechnicalLoader:
             return {
                 "symbols_processed": 0,
                 "rows_inserted": 0,
-                "duration_sec": 0,
+                "duration_sec": round(time.time() - start_time, 2),
                 "error": str(e),
                 "latest_date": None,
             }
@@ -133,7 +133,7 @@ class VectorizedTechnicalLoader:
             return {
                 "symbols_processed": 0,
                 "rows_inserted": 0,
-                "duration_sec": 0,
+                "duration_sec": round(time.time() - start_time, 2),
                 "error": f"Unexpected error: {e!s}",
                 "latest_date": None,
             }
@@ -642,7 +642,7 @@ def main() -> int:
                         date.today(),
                         final_status,
                         result["rows_inserted"],
-                        self._get_required_duration(result),  # FAIL-FAST: duration_sec is REQUIRED for monitoring
+                        loader._get_required_duration(result),  # FAIL-FAST: duration_sec is REQUIRED for monitoring
                     ),
                 )
         except psycopg2.Error as e:
