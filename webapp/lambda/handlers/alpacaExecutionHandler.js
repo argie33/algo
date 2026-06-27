@@ -7,6 +7,7 @@
 
 const { initializeAlpacaTrader } = require("../utils/alpacaTrading");
 const { query } = require("../utils/database");
+const { requirePrice, isDataError } = require("../utils/strictValidation");
 
 /**
  * Check if an order for this symbol/side/quantity already exists today (prevents duplicates on retry)
@@ -222,7 +223,18 @@ async function executeOptimizationTrades(
         }
 
         // Check if we have enough buying power
-        const estimatedCost = trade.quantity * (trade.current_price || 150); // Fallback to $150 estimate
+        const priceValidation = requirePrice(trade.symbol, trade.current_price, 'order_cost_estimation');
+        if (isDataError(priceValidation)) {
+          failedTrades.push({
+            ...trade,
+            status: 'price_validation_failed',
+            error: `Price data missing/invalid for ${trade.symbol}: ${priceValidation.reason}`,
+            data_error: priceValidation
+          });
+          continue;
+        }
+
+        const estimatedCost = trade.quantity * priceValidation;
         if (estimatedCost > updatedBuyingPower * 0.95) {
           // Keep 5% buffer
           failedTrades.push({

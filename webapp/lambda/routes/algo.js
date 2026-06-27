@@ -29,6 +29,22 @@ const {
 } = require("../utils/responseValidation");
 const { getActiveTiers, getActiveTier } = require("../utils/tiers");
 const { getSwingGrades, getGradeForScore } = require("../utils/grades");
+const {
+  requireNumericField,
+  requirePrice,
+  requirePortfolioValue,
+  requireSignalQuality,
+  requireExposure,
+  requirePositionCount,
+  requireUnrealizedPnl,
+  isDataError
+} = require("../utils/strictValidation");
+const {
+  createErrorResponse,
+  createPartialResponse,
+  isDataError: isDataErrorEnvelope,
+  collectErrors
+} = require("../utils/errorEnvelopes");
 
 const router = express.Router();
 
@@ -166,10 +182,40 @@ router.get("/status", async (req, res) => {
       }
     });
 
-    const totalValue = snapshot.total_portfolio_value || 0;
-    const unrealizedPnlPct = snapshot.unrealized_pnl_pct || 0;
-    const unrealizedPnlDollars =
-      totalValue > 0 ? (totalValue * unrealizedPnlPct) / 100 : 0;
+    // Validate critical portfolio metrics - cannot use defaults
+    const totalValueValidation = requirePortfolioValue(snapshot?.total_portfolio_value);
+    const unrealizedPnlValidation = requireUnrealizedPnl(snapshot?.unrealized_pnl_pct);
+
+    if (isDataError(totalValueValidation) || isDataError(unrealizedPnlValidation)) {
+      const errors = [totalValueValidation, unrealizedPnlValidation].filter(isDataError);
+      return sendSuccess(res, createErrorResponse(errors));
+    }
+
+    const totalValue = totalValueValidation;
+    const unrealizedPnlPct = unrealizedPnlValidation;
+    const unrealizedPnlDollars = (totalValue * unrealizedPnlPct) / 100;
+
+    const positionCountValidation = requirePositionCount(positions?.open_count);
+    const positionValueValidation = requireNumericField(positions?.total_value, 'total_position_value');
+
+    const errors = [positionCountValidation, positionValueValidation].filter(isDataError);
+    if (errors.length > 0) {
+      return sendSuccess(res, createPartialResponse({
+        algo_enabled,
+        execution_mode,
+        status: "operational",
+        portfolio: {
+          total_value: totalValue,
+          position_count: isDataError(positionCountValidation) ? null : positionCountValidation,
+          total_position_value: isDataError(positionValueValidation) ? null : positionValueValidation,
+          unrealized_pnl_pct: unrealizedPnlPct,
+          unrealized_pnl_dollars: Number(unrealizedPnlDollars.toFixed(2)),
+        }
+      }, errors));
+    }
+
+    const positionCount = positionCountValidation;
+    const positionValue = positionValueValidation;
 
     return sendSuccess(res, {
       algo_enabled: algo_enabled,
@@ -177,17 +223,17 @@ router.get("/status", async (req, res) => {
       status: "operational",
       portfolio: {
         total_value: totalValue,
-        position_count: positions.open_count,
-        total_position_value: positions.total_value || 0,
+        position_count: positionCount,
+        total_position_value: positionValue,
         unrealized_pnl_pct: unrealizedPnlPct,
         unrealized_pnl_dollars: Number(unrealizedPnlDollars.toFixed(2)),
-        daily_return_pct: snapshot.daily_return_pct || 0,
+        daily_return_pct: snapshot?.daily_return_pct,
       },
       market: {
-        trend: health.market_trend,
-        stage: health.market_stage,
-        distribution_days: health.distribution_days_4w || 0,
-        vix: health.vix_level || 0,
+        trend: health?.market_trend,
+        stage: health?.market_stage,
+        distribution_days: health?.distribution_days_4w,
+        vix: health?.vix_level,
       },
     });
   } catch (error) {
@@ -1311,12 +1357,17 @@ router.get("/markets", async (req, res) => {
       ? ((parseFloat(spyPrices[0].close) - parseFloat(spyPrices[1].close)) / parseFloat(spyPrices[1].close)) * 100
       : null;
 
-    // Determine active tier policy from database
+    // Determine active tier policy from database - exposure is critical for tier decisions
     let policy = null;
+    let exposureError = null;
     if (latest) {
-      const exposurePct = latest.exposure_pct || 0;
-      const tiers = await getActiveTiers();
-      policy = getActiveTier(exposurePct, tiers);
+      const exposureValidation = requireExposure(latest.exposure_pct);
+      if (isDataError(exposureValidation)) {
+        exposureError = exposureValidation;
+      } else {
+        const tiers = await getActiveTiers();
+        policy = getActiveTier(exposureValidation, tiers);
+      }
     }
 
     // Validate and coerce all rows
