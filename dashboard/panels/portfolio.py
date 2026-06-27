@@ -133,9 +133,20 @@ def panel_portfolio(
     if err_panel:
         return err_panel
 
-    pv = safe_float(port["total_portfolio_value"], strict=True, field_name="total_portfolio_value")
-    cash = safe_float(port["total_cash"], strict=True, field_name="total_cash")
-    npos = safe_int(port["position_count"], strict=True, field_name="position_count")
+    pv_raw = port.get("total_portfolio_value")
+    cash_raw = port.get("total_cash")
+    npos_raw = port.get("position_count")
+
+    if pv_raw is None:
+        raise ValueError("Portfolio total_portfolio_value missing")
+    if cash_raw is None:
+        raise ValueError("Portfolio total_cash missing")
+    if npos_raw is None:
+        raise ValueError("Portfolio position_count missing")
+
+    pv = safe_float(pv_raw, strict=True, field_name="total_portfolio_value")
+    cash = safe_float(cash_raw, strict=True, field_name="total_cash")
+    npos = safe_int(npos_raw, strict=True, field_name="position_count")
     dr = safe_float(port.get("daily_return_pct"), default=None)
     urp = safe_float(port.get("unrealized_pnl_pct"), default=None)
     cum = safe_float(port.get("cumulative_return_pct"), default=None)
@@ -447,9 +458,9 @@ def panel_portfolio_perf_expanded(  # noqa: C901
 
     # ── Portfolio snapshot ────────────────────────────────────────────────────
     if port and not port.get("_error"):
-        pv_val: Any = port["total_portfolio_value"]
-        cash_val: Any = port["total_cash"]
-        npos_val: Any = port["position_count"]
+        pv_val: Any = port.get("total_portfolio_value")
+        cash_val: Any = port.get("total_cash")
+        npos_val: Any = port.get("position_count")
         if pv_val is None:
             raise ValueError("Portfolio total_portfolio_value missing - cannot render snapshot")
         if cash_val is None:

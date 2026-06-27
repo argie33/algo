@@ -189,13 +189,15 @@ def panel_sector_compact(srank: Any, pos: Any, port: Any, sec_rot: Any = None, i
             mma = safe_get_field(a, "momentum_score")
             mma_f = safe_float(mma)
             ms_a = f"[dim] mom:{mma_f:.0f}[/]" if mma_f is not None else ""
-            la = f"[{G}]#{a['current_rank']:<2}[/] [dim]{na}[/]{ms_a}{_rdelta(a, wk4='rank_4w_ago')}"
+            rank_a = safe_get_field(a, "current_rank", "--")
+            la = f"[{G}]#{rank_a:<2}[/] [dim]{na}[/]{ms_a}{_rdelta(a, wk4='rank_4w_ago')}"
             if b:
                 nb = (safe_get_field(b, "sector_name", ""))[:13]
                 mmb = safe_get_field(b, "momentum_score")
                 mmb_f = safe_float(mmb)
                 ms_b = f"[dim] mom:{mmb_f:.0f}[/]" if mmb_f is not None else ""
-                lb = f"[{G}]#{b['current_rank']:<2}[/] [dim]{nb}[/]{ms_b}{_rdelta(b, wk4='rank_4w_ago')}"
+                rank_b = safe_get_field(b, "current_rank", "--")
+                lb = f"[{G}]#{rank_b:<2}[/] [dim]{nb}[/]{ms_b}{_rdelta(b, wk4='rank_4w_ago')}"
             else:
                 lb = ""
             srank_tbl.add_row(Text.from_markup(la), Text.from_markup(lb) if lb else Text(""))
@@ -231,12 +233,14 @@ def panel_sector_compact(srank: Any, pos: Any, port: Any, sec_rot: Any = None, i
             na = (safe_get_field(a, "industry", ""))[:14]
             mma = safe_get_field(a, "momentum_score")
             ms_a = f"[dim] mom:{float(mma):.0f}[/]" if mma is not None else ""
-            la = f"[{CY}]#{a['current_rank']:<2}[/] [white]{na}[/]{ms_a}{_rdelta(a)}"
+            rank_a = safe_get_field(a, "current_rank", "--")
+            la = f"[{CY}]#{rank_a:<2}[/] [white]{na}[/]{ms_a}{_rdelta(a)}"
             if b:
                 nb = (safe_get_field(b, "industry", ""))[:14]
                 mmb = safe_get_field(b, "momentum_score")
                 ms_b = f"[dim] mom:{float(mmb):.0f}[/]" if mmb is not None else ""
-                lb = f"[{CY}]#{b['current_rank']:<2}[/] [white]{nb}[/]{ms_b}{_rdelta(b)}"
+                rank_b = safe_get_field(b, "current_rank", "--")
+                lb = f"[{CY}]#{rank_b:<2}[/] [white]{nb}[/]{ms_b}{_rdelta(b)}"
             else:
                 lb = ""
             irank_tbl.add_row(Text.from_markup(la), Text.from_markup(lb) if lb else Text(""))

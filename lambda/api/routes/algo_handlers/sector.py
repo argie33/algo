@@ -96,14 +96,15 @@ def _get_algo_evaluate(cur: cursor) -> Any:
         sector_exposure = [safe_json_serialize(safe_dict_convert(r)) for r in cur.fetchall()]
 
         # Risk metrics
+        # FAIL-FAST: Use NULL for missing data; don't default to 0 (can't distinguish missing from break-even)
         cur.execute("""
                 SELECT
-                    COALESCE(MAX(CASE WHEN snapshot_date = CURRENT_DATE THEN daily_return_pct END), 0) as today_return_pct,
-                    COALESCE(MAX(CASE WHEN snapshot_date = CURRENT_DATE THEN unrealized_pnl_total END), 0) as unrealized_pnl_total,
-                    COALESCE(MAX(CASE WHEN snapshot_date = CURRENT_DATE THEN unrealized_pnl_pct END), 0) as unrealized_pnl_pct,
-                    COALESCE(MAX(CASE WHEN snapshot_date = CURRENT_DATE THEN unrealized_pnl_winning_count END), 0) as winning_count,
-                    COALESCE(MAX(CASE WHEN snapshot_date = CURRENT_DATE THEN unrealized_pnl_losing_count END), 0) as losing_count,
-                    COALESCE(MAX(CASE WHEN snapshot_date = CURRENT_DATE THEN unrealized_pnl_breakeven_count END), 0) as breakeven_count
+                    MAX(CASE WHEN snapshot_date = CURRENT_DATE THEN daily_return_pct END) as today_return_pct,
+                    MAX(CASE WHEN snapshot_date = CURRENT_DATE THEN unrealized_pnl_total END) as unrealized_pnl_total,
+                    MAX(CASE WHEN snapshot_date = CURRENT_DATE THEN unrealized_pnl_pct END) as unrealized_pnl_pct,
+                    MAX(CASE WHEN snapshot_date = CURRENT_DATE THEN unrealized_pnl_winning_count END) as winning_count,
+                    MAX(CASE WHEN snapshot_date = CURRENT_DATE THEN unrealized_pnl_losing_count END) as losing_count,
+                    MAX(CASE WHEN snapshot_date = CURRENT_DATE THEN unrealized_pnl_breakeven_count END) as breakeven_count
                 FROM algo_portfolio_snapshots
             """)
         risk_row = cur.fetchone()
@@ -451,9 +452,9 @@ def _get_sector_rotation(cur: cursor, days: int = 180) -> Any:
             )
             SELECT
                 date,
-                ROUND((COALESCE(defensive_strength, 0))::NUMERIC, 2) AS defensive_lead_score,
-                ROUND((COALESCE(cyclical_strength, 0))::NUMERIC, 2) AS cyclical_weak_score,
-                ROUND((COALESCE(defensive_strength, 0) - COALESCE(cyclical_strength, 0))::NUMERIC, 2) AS spread,
+                ROUND(defensive_strength::NUMERIC, 2) AS defensive_lead_score,
+                ROUND(cyclical_strength::NUMERIC, 2) AS cyclical_weak_score,
+                ROUND((defensive_strength - cyclical_strength)::NUMERIC, 2) AS spread,
                 signal,
                 ROW_NUMBER() OVER (PARTITION BY signal_group_id ORDER BY date DESC) AS weeks_persistent,
                 (defensive_strength IS NULL OR cyclical_strength IS NULL) AS _is_fallback
