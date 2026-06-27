@@ -74,6 +74,7 @@ DASHBOARD_ENDPOINTS = {
         "response_schema": ResponseSchema(
             required_fields=["run_id", "completed_at", "started_at", "success"],
             optional_fields=[
+                "phases",
                 "halted",
                 "errored",
                 "summary",
