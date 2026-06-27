@@ -496,9 +496,9 @@ def main() -> int:
         if "duration_sec" not in result:
             logger.error("[SWING_TRADER_SCORES] Missing 'duration_sec' in execution result")
             final_status = "error"
-            duration_sec = 0
+            duration_sec: int | float = 0
         else:
-            duration_sec = result["duration_sec"]
+            duration_sec = result["duration_sec"]  # type: ignore[assignment]
 
         try:
             with DatabaseContext("write") as cur:

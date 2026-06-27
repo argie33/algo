@@ -200,7 +200,7 @@ def check_and_retry_incomplete_loaders(dry_run: bool = False) -> dict[str, Any]:
                                 f"[PHASE 1 FAILSAFE] Loader still failing after retry: {table_name} — {reason_msg}"
                             )
 
-                            if is_critical:
+                            if is_crit:
                                 results["halt_required"] = True
 
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
