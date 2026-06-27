@@ -741,10 +741,13 @@ function OverviewTab({
 
 function StockDetail({ stock, onClose }) {
   const a = stock.latestAnalyst || {};
-  const total = a.analyst_count || 1;
-  const bull = a.bullish_count || 0;
-  const neut = a.neutral_count || 0;
-  const bear = a.bearish_count || 0;
+  // FAIL-FAST: Require all analyst fields; don't default to 1 or 0
+  const total = Number(a.analyst_count);
+  const bull = Number(a.bullish_count);
+  const neut = Number(a.neutral_count);
+  const bear = Number(a.bearish_count);
+  const hasCompleteData =
+    !isNaN(total) && !isNaN(bull) && !isNaN(neut) && !isNaN(bear) && total > 0;
   const upside = parseFloat(a.upside_downside_percent);
 
   // Build a 30-day analyst sentiment time series
@@ -810,8 +813,9 @@ function StockDetail({ stock, onClose }) {
               </span>
             </div>
             <div className="t-xs muted">
-              {a.analyst_count || 0} analysts · {bull} bullish · {neut} neutral
-              · {bear} bearish
+              {hasCompleteData
+                ? `${total} analysts · ${bull} bullish · ${neut} neutral · ${bear} bearish`
+                : "Analyst data incomplete"}
             </div>
           </div>
         </div>

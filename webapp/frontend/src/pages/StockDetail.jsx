@@ -1609,14 +1609,19 @@ function AnalystsTab({ data, last, error }) {
   const target = metrics?.avgPriceTarget ?? metrics?.target_price;
   const upside =
     metrics?.priceTargetVsCurrent ?? metrics?.upside_downside_percent;
-  const bullish = SafeMetricValue({ value: metrics?.bullish ?? metrics?.bullish_count, fallback: 0 });
-  const neutral = SafeMetricValue({ value: metrics?.neutral ?? metrics?.neutral_count, fallback: 0 });
-  const bearish = SafeMetricValue({ value: metrics?.bearish ?? metrics?.bearish_count, fallback: 0 });
+
+  // FAIL-FAST: Validate analyst count data before using in chart
+  const bullishCount = Number(metrics?.bullish ?? metrics?.bullish_count);
+  const neutralCount = Number(metrics?.neutral ?? metrics?.neutral_count);
+  const bearishCount = Number(metrics?.bearish ?? metrics?.bearish_count);
+  const bullish = SafeMetricValue({ value: bullishCount, fallback: "—" });
+  const neutral = SafeMetricValue({ value: neutralCount, fallback: "—" });
+  const bearish = SafeMetricValue({ value: bearishCount, fallback: "—" });
 
   const dist = [
-    { name: "Bullish", value: Number(bullish || 0), color: "var(--success)" },
-    { name: "Neutral", value: Number(neutral || 0), color: "var(--amber)" },
-    { name: "Bearish", value: Number(bearish || 0), color: "var(--danger)" },
+    { name: "Bullish", value: isNaN(bullishCount) ? 0 : bullishCount, color: "var(--success)" },
+    { name: "Neutral", value: isNaN(neutralCount) ? 0 : neutralCount, color: "var(--amber)" },
+    { name: "Bearish", value: isNaN(bearishCount) ? 0 : bearishCount, color: "var(--danger)" },
   ];
 
   return (
