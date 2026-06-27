@@ -52,8 +52,12 @@ class TradeNotificationService:
         """Format trade entry notification."""
         try:
             details = json.loads(event["details"]) if isinstance(event["details"], str) else event["details"]
-            symbol = event.get("symbol") or details.get("symbol")
-            if not symbol:
+            if "symbol" in event and event["symbol"]:
+                symbol = event["symbol"]
+            elif "symbol" in details and details["symbol"]:
+                symbol = details["symbol"]
+                logger.debug(f"Event {event.get('id')}: Using symbol from details instead of event")
+            else:
                 raise ValueError(
                     f"CRITICAL: Trade entry event missing symbol. "
                     f"Cannot format notification without knowing which symbol was entered. "
@@ -79,8 +83,12 @@ Time:         {event["created_at"].strftime("%H:%M:%S")}
         """Format trade exit notification."""
         try:
             details = json.loads(event["details"]) if isinstance(event["details"], str) else event["details"]
-            symbol = event.get("symbol") or details.get("symbol")
-            if not symbol:
+            if "symbol" in event and event["symbol"]:
+                symbol = event["symbol"]
+            elif "symbol" in details and details["symbol"]:
+                symbol = details["symbol"]
+                logger.debug(f"Event {event.get('id')}: Using symbol from details instead of event")
+            else:
                 raise ValueError(
                     f"CRITICAL: Trade exit event missing symbol. "
                     f"Cannot format notification without knowing which symbol was exited. "

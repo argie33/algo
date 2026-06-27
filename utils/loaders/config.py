@@ -229,12 +229,35 @@ class LoaderConfigManager:
 
             if "Item" in response:
                 item = response["Item"]
-                return {
-                    "loader_name": item.get("loader_name").get("S", loader_name),
-                    "parallelism": int(item.get("parallelism").get("N", "1")),
-                    "enabled": item.get("enabled").get("BOOL", True),
-                    "updated_at": item.get("updated_at").get("S", ""),
-                }
+                # CRITICAL: Validate DynamoDB item structure (no chained .get() without None checks)
+                try:
+                    loader_name_attr = item.get("loader_name")
+                    if loader_name_attr is None:
+                        raise ValueError(
+                            "[CONFIG_LOADER] CRITICAL: Missing 'loader_name' attribute. "
+                            f"Available: {list(item.keys())}"
+                        )
+                    parallelism_attr = item.get("parallelism")
+                    if parallelism_attr is None:
+                        raise ValueError(
+                            "[CONFIG_LOADER] CRITICAL: Missing 'parallelism' attribute. "
+                            f"Available: {list(item.keys())}"
+                        )
+                    enabled_attr = item.get("enabled")
+                    if enabled_attr is None:
+                        raise ValueError("[CONFIG_LOADER] CRITICAL: Missing 'enabled' attribute")
+                    updated_at_attr = item.get("updated_at")
+
+                    return {
+                        "loader_name": loader_name_attr.get("S", loader_name),
+                        "parallelism": int(parallelism_attr.get("N", "1")),
+                        "enabled": enabled_attr.get("BOOL", True),
+                        "updated_at": updated_at_attr.get("S", "") if updated_at_attr else "",
+                    }
+                except (KeyError, ValueError, TypeError) as e:
+                    raise RuntimeError(
+                        f"[CONFIG_LOADER] CRITICAL: Failed to parse DynamoDB config: {e}"
+                    ) from e
             return None
         except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e

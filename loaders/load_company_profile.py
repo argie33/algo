@@ -41,8 +41,12 @@ class CompanyProfileLoader(OptimalLoader):
                 market_cap = info.get("market_cap")
 
             # Company name is REQUIRED - fail fast if missing
-            company_name = info.get("longName") or info.get("shortName")
-            if not company_name:
+            if "longName" in info and info["longName"]:
+                company_name = info["longName"]
+            elif "shortName" in info and info["shortName"]:
+                company_name = info["shortName"]
+                logger.debug(f"{symbol}: Using shortName instead of longName for company name")
+            else:
                 raise RuntimeError(
                     f"[COMPANY_PROFILE] {symbol}: Missing company name (longName/shortName). "
                     "Cannot store company profile without a name."

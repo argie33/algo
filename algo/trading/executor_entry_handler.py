@@ -198,9 +198,12 @@ class EntryHandler:
                 cur, symbol, signal_date, entry_price, stop_loss_price
             )
             if not is_valid:
+                trade_id_for_error = None
+                if error_details and "trade_id" in error_details:
+                    trade_id_for_error = error_details["trade_id"]
                 result: dict[str, Any] = {
                     "success": False,
-                    "trade_id": error_details.get("trade_id", ""),
+                    "trade_id": trade_id_for_error,
                     "message": error_msg,
                 }
                 if error_details:

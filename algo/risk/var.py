@@ -565,21 +565,31 @@ class ValueAtRisk:
                         "Cannot compute concentration without portfolio snapshot. "
                         "Portfolio must have been reconciled at least once."
                     )
-                snapshot_date = portfolio_row[1] if len(portfolio_row) > 1 else None
+                if len(portfolio_row) < 2:
+                    raise RuntimeError(
+                        f"[CONCENTRATION CRITICAL] Portfolio snapshot row has {len(portfolio_row)} column(s), "
+                        f"need at least 2 (value, date). Query may have been corrupted. "
+                        f"Cannot compute concentration without snapshot date for freshness validation."
+                    )
+                snapshot_date = portfolio_row[1]
 
                 # CRITICAL: Validate snapshot freshness — stale portfolio value causes incorrect concentration metrics
-                if snapshot_date:
-                    from datetime import date
+                if snapshot_date is None:
+                    raise RuntimeError(
+                        "[CONCENTRATION CRITICAL] Portfolio snapshot has NULL date. "
+                        "Cannot validate data freshness. Snapshot must always have a timestamp."
+                    )
+                from datetime import date
 
-                    today = date.today()
-                    age_days = (today - snapshot_date).days
-                    if age_days > 1:  # Allow up to 1 day old for post-market calculations
-                        raise RuntimeError(
-                            f"[CONCENTRATION CRITICAL] Portfolio snapshot is stale ({age_days} days old, from {snapshot_date}). "
-                            f"Concentration metrics must use current portfolio value. "
-                            f"Portfolio snapshot must be updated daily via Phase 9 reconciliation. "
-                            f"Check that daily orchestration is running."
-                        )
+                today = date.today()
+                age_days = (today - snapshot_date).days
+                if age_days > 1:  # Allow up to 1 day old for post-market calculations
+                    raise RuntimeError(
+                        f"[CONCENTRATION CRITICAL] Portfolio snapshot is stale ({age_days} days old, from {snapshot_date}). "
+                        f"Concentration metrics must use current portfolio value. "
+                        f"Portfolio snapshot must be updated daily via Phase 9 reconciliation. "
+                        f"Check that daily orchestration is running."
+                    )
                 portfolio_value = Decimal(str(portfolio_row[0]))
 
                 top_holdings = []

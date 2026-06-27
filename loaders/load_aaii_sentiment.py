@@ -69,7 +69,10 @@ class AAIISentimentLoader(OptimalLoader):
                         logger.error(f"SSRF prevention: Redirect to invalid URL: {error_msg}")
                         raise ValueError(f"Redirect to invalid URL: {error_msg}")
 
-                content_type = response.headers.get("Content-Type", "")
+                content_type = response.headers.get("Content-Type")
+                if not content_type:
+                    logger.error("Missing Content-Type header in AAII response")
+                    raise ValueError("Missing Content-Type header in AAII response (cannot verify Excel file)")
                 if "html" in content_type.lower():
                     logger.error("Server returned HTML instead of Excel")
                     raise ValueError("Server returned HTML instead of Excel")

@@ -217,7 +217,15 @@ class MarketConstituentsLoader(OptimalLoader):
                         )
 
                     # ETFs go to separate table (not stock_symbols)
-                    if r.get("ETF", "").upper() == "Y":
+                    required_classifier_fields = ["ETF", "Test Issue", "Financial Status"]
+                    for field in required_classifier_fields:
+                        if field not in r:
+                            raise ValueError(
+                                f"[MARKET_CONSTITUENTS] Symbol {sym} missing required field '{field}'. "
+                                f"Cannot safely classify security. Available fields: {list(r.keys())}"
+                            )
+
+                    if r["ETF"].upper() == "Y":
                         etf_rows.append({"symbol": sym, "security_name": name})
                         continue
 
@@ -225,9 +233,9 @@ class MarketConstituentsLoader(OptimalLoader):
                         continue
                     if re.match(r"^[A-Z]+\.[A-Z]$", sym):
                         continue
-                    if r.get("Test Issue", "").upper() == "Y":
+                    if r["Test Issue"].upper() == "Y":
                         continue
-                    if r.get("Financial Status", "").strip() == "D":
+                    if r["Financial Status"].strip() == "D":
                         continue
                     if "etf" in name.lower() or "fund" in name.lower():
                         logger.debug(f"Excluding {sym} ({name}) by security name pattern")

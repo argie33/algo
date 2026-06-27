@@ -65,16 +65,17 @@ class SignalsDailyLoader(OptimalLoader):
                     ("signal_quality_scores",),
                 )
                 sqs_status = cur.fetchone()
-                if not sqs_status or sqs_status[0] not in (
-                    "COMPLETED",
-                    "success",
-                    "OK",
-                ):
+                if not sqs_status:
                     logger.warning(
-                        "signal_quality_scores is not COMPLETED (status=%s). "
-                        "Proceeding with NULL quality scores on this run. "
-                        "Run signal_quality_scores after completion to backfill scores.",
-                        sqs_status[0] if sqs_status else "no record",
+                        "signal_quality_scores loader has not run yet. "
+                        "Buy/sell signals will have NULL quality scores until SQS backfill completes. "
+                        "This is expected on first run; subsequent runs will have quality validation."
+                    )
+                elif sqs_status[0] not in ("COMPLETED", "success", "OK"):
+                    logger.critical(
+                        f"signal_quality_scores loader status is '{sqs_status[0]}' (not COMPLETED). "
+                        f"Proceeding with NULL quality scores represents degraded signal validation. "
+                        f"AUDIT: Trading on unvalidated signals. Trader awareness required."
                     )
 
             now_utc = datetime.now(timezone.utc)

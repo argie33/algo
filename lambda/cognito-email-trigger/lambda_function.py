@@ -44,9 +44,29 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     """Handle Cognito custom message trigger."""
 
     trigger_source = event.get("triggerSource")
-    user_attributes = event.get("request").get("userAttributes")
-    code_parameter = event.get("request").get("codeParameter", "")
+
+    # CRITICAL: Validate Cognito event structure before accessing nested fields
+    request_data = event.get("request")
+    if request_data is None:
+        raise RuntimeError(
+            "[COGNITO_EMAIL_TRIGGER] CRITICAL: Missing 'request' key in Cognito event. "
+            "Cannot extract user attributes or confirmation code. Check Cognito trigger configuration."
+        )
+
+    user_attributes = request_data.get("userAttributes")
+    if user_attributes is None:
+        raise RuntimeError(
+            "[COGNITO_EMAIL_TRIGGER] CRITICAL: Missing 'userAttributes' in Cognito request. "
+            "Cognito trigger must provide user attributes. Check trigger configuration."
+        )
+
+    code_parameter = request_data.get("codeParameter", "")
     email = user_attributes.get("email", "")
+    if not email:
+        raise RuntimeError(
+            "[COGNITO_EMAIL_TRIGGER] CRITICAL: User email missing from attributes. "
+            "Cannot send confirmation email without recipient address."
+        )
 
     logger.info(f"Cognito trigger: {trigger_source} for user {email}")
 

@@ -66,7 +66,11 @@ class CognitoAuth:
                 self.token_expires_at = self._parse_jwt_expiry(self.access_token)
             return bool(self.access_token)
         except ClientError as e:
-            error_code = e.response.get("Error").get("Code")
+            error_dict = e.response.get("Error", {})
+            if not error_dict:
+                logger.error(f"[COGNITO] ClientError with malformed response (missing 'Error' dict): {e.response}")
+                return False
+            error_code = error_dict.get("Code")
             if error_code == "NotAuthorizedException":
                 logger.error(f"Invalid credentials for user: {username}")
             elif error_code == "UserNotFoundException":

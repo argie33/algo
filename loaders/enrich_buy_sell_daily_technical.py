@@ -187,7 +187,12 @@ def enrich_technical_data(
                     logger.warning(error_msg)
 
             # Check if enrichment coverage meets minimum threshold (fail-close)
-            checked: int = stats.get("checked", 0)
+            if "checked" not in stats:
+                raise ValueError(
+                    "[ENRICHMENT] Missing 'checked' count in enrichment stats — "
+                    "cannot assess technical enrichment coverage without tracking record count"
+                )
+            checked: int = stats["checked"]
             if checked is None or checked == 0:
                 raise ValueError("No records checked for technical enrichment")
             if checked > 0:

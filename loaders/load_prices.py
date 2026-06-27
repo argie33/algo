@@ -2252,7 +2252,13 @@ def main() -> int:  # noqa: C901
                 for interval in intervals:
                     try:
                         # CREATIVE FIX #5: Apply interval staggering delay
-                        stagger_delay = interval_stagger_delays.get(interval, 0)
+                        if interval not in interval_stagger_delays:
+                            raise ValueError(
+                                f"Missing stagger delay configuration for interval '{interval}'. "
+                                f"Available intervals: {list(interval_stagger_delays.keys())}. "
+                                f"Cannot proceed without explicit stagger configuration to prevent rate limit bursts."
+                            )
+                        stagger_delay = interval_stagger_delays[interval]
                         if stagger_delay > 0:
                             logger.info(
                                 f"[CREATIVE FIX #5] Staggering {interval} load by {stagger_delay}s to spread API pressure..."
