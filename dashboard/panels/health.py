@@ -1383,23 +1383,27 @@ def panel_status(  # noqa: C901
             )
 
     # Data loader status (errors/stale from data_loader_status table)
+    valid_loader: list[Any] | None = None
     if loader is None:
         rows.append(Rule(style="dim"))
         rows.append(Text.from_markup("[red]Loader status unavailable (data is None)[/]"))
-        return rows
-    try:
-        valid_loader = safe_get_list(loader)
-    except (ValueError, TypeError) as e:
-        rows.append(Rule(style="dim"))
-        rows.append(Text.from_markup(f"[red]Loader data error: {str(e)[:60]}[/]"))
-        return rows
-    if valid_loader is None:
-        rows.append(Rule(style="dim"))
-        rows.append(Text.from_markup("[red]Loader data unavailable[/]"))
-        return rows
-    problem_loader = [r for r in valid_loader if (r.get("status", "")) in ("error", "failed", "stale")]
-    running_loader = [r for r in valid_loader if (r.get("status", "")) == "loading"]
-    ok_count = len(valid_loader) - len(problem_loader) - len(running_loader)
+    else:
+        try:
+            valid_loader = safe_get_list(loader)
+        except (ValueError, TypeError) as e:
+            rows.append(Rule(style="dim"))
+            rows.append(Text.from_markup(f"[red]Loader data error: {str(e)[:60]}[/]"))
+        if valid_loader is None:
+            rows.append(Rule(style="dim"))
+            rows.append(Text.from_markup("[red]Loader data unavailable[/]"))
+    if valid_loader is not None:
+        problem_loader = [r for r in valid_loader if (r.get("status", "")) in ("error", "failed", "stale")]
+        running_loader = [r for r in valid_loader if (r.get("status", "")) == "loading"]
+        ok_count = len(valid_loader) - len(problem_loader) - len(running_loader)
+    else:
+        problem_loader = []
+        running_loader = []
+        ok_count = 0
     if problem_loader:
         rows.append(Rule(style="dim"))
         ok_s = f"  [dim]{ok_count} ok[/]" if ok_count > 0 else ""
@@ -1574,30 +1578,32 @@ def panel_algo_health(  # noqa: C901
         rows.append(Text.from_markup("  ".join(phase_badges)))
 
     # Algo metrics for today's entry/exit counts. FAIL-FAST: must not be None.
+    valid_metrics: list[Any] | None = None
     if algo_metrics is None:
         logger.warning("[ALGO_METRICS] Metrics data is None")
-        return rows
-    try:
-        valid_metrics = safe_get_list(algo_metrics)
-    except (ValueError, TypeError) as e:
-        logger.warning(f"Algo metrics data error: {e}")
-        return rows
-    if valid_metrics is None:
-        logger.warning("[ALGO_METRICS] Metrics data is None after validation")
-        return rows
-    today_m = valid_metrics[0] if valid_metrics else {}
-    if not entries_exec:
-        en = today_m.get("entries")
-        if en is not None:
-            entries_exec = int(en)
-    if not exits_exec:
-        ex = today_m.get("exits")
-        if ex is not None:
-            exits_exec = int(ex)
+    else:
+        try:
+            valid_metrics = safe_get_list(algo_metrics)
+        except (ValueError, TypeError) as e:
+            logger.warning(f"Algo metrics data error: {e}")
+        if valid_metrics is None:
+            logger.warning("[ALGO_METRICS] Metrics data is None after validation")
+
+    today_m: dict[str, Any] = {}
+    if valid_metrics:
+        today_m = valid_metrics[0] if valid_metrics else {}
+        if not entries_exec:
+            en = today_m.get("entries")
+            if en is not None:
+                entries_exec = int(en)
+        if not exits_exec:
+            ex = today_m.get("exits")
+            if ex is not None:
+                exits_exec = int(ex)
 
     # "What did the algo do today?" summary and 5-day activity
     action_activity_rows = _format_algo_actions_and_activity(
-        signals_gen, entries_exec, exits_exec, today_m, valid_metrics
+        signals_gen, entries_exec, exits_exec, today_m, valid_metrics if valid_metrics else []
     )
     rows.extend(action_activity_rows)
 

@@ -100,14 +100,14 @@ def _extract_items(data: Any) -> list[Any] | dict[str, Any]:
             return data["trades"]
         # Dict exists but doesn't have expected structure — fail fast
         raise ValueError(
-            f"Trade data dict missing 'items' or 'trades' field. "
+            f"Data dict missing 'items' or 'trades' field. "
             f"Got keys: {list(data.keys())}. "
             f"This indicates data structure mismatch or corruption."
         )
 
     # Unexpected data type — fail fast instead of silent empty list
     raise TypeError(
-        f"Trade data must be None, list, or dict, got {type(data).__name__}. "
+        f"Data must be None, list, or dict, got {type(data).__name__}. "
         f"This indicates a data validation or API response issue."
     )
 

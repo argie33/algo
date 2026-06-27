@@ -91,7 +91,8 @@ def _get_market_halts(mkt_data: dict[str, Any], panel_name: str) -> list[Any]:
         List of halts (empty if no active halts, but not if data missing)
 
     Raises:
-        RuntimeError: If halts data missing or invalid — critical for trading safety
+        RuntimeError: If halts data missing
+        ValueError: If halts data is invalid (propagated from safe_get_list)
     """
     halts_raw = mkt_data.get("halts")
     if halts_raw is None:
@@ -100,10 +101,11 @@ def _get_market_halts(mkt_data: dict[str, Any], panel_name: str) -> list[Any]:
             "Market halts are CRITICAL for trading safety. "
             "Cannot proceed without halt status — check /api/algo/markets endpoint."
         )
+    # safe_get_list raises ValueError if data contains error, TypeError for unexpected types
     halts = safe_get_list(halts_raw)
-    if halts is None or (isinstance(halts, dict) and "_error" in halts):
+    if halts is None:
         raise RuntimeError(
-            f"{panel_name}: halts data validation FAILED. "
+            f"{panel_name}: halts data validation FAILED (returned None). "
             f"Got: {halts_raw}. "
             "Cannot proceed without valid halt status — check API response format."
         )
@@ -148,7 +150,15 @@ def panel_market_full(mkt: Any, sentiment: Any = None) -> Panel:
     stage = mkt.get("stage", "N/A")
     spy_chg = safe_float(mkt.get("spy_chg"), strict=False)
     trend = mkt.get("trend", "")
-    halts = _get_market_halts(mkt, "Market panel")
+    try:
+        halts = _get_market_halts(mkt, "Market panel")
+    except (ValueError, RuntimeError) as e:
+        return Panel(
+            Text.from_markup(f"[red]Market halt data error: {str(e)[:100]}[/]"),
+            title="[bold blue]MARKET (HALT DATA ERROR)[/]",
+            border_style="red",
+            padding=(0, 1),
+        )
 
     upvol = safe_float(mkt.get("upvol"), strict=False)
     adr = safe_float(mkt.get("adr"), strict=False)

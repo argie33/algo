@@ -362,6 +362,13 @@ def render_dashboard(
         view_mode = "normal"
 
     run = data.get("run")
+    def safe_extract_items(raw_data: Any) -> list[Any] | dict[str, Any]:
+        """Safely extract items, catching exceptions and converting to error dicts."""
+        try:
+            return _extract_items(raw_data)
+        except (ValueError, TypeError) as e:
+            return {"_error": f"Failed to extract items: {e}"}
+
     cfg = data.get("cfg")
     mkt = data.get("mkt")
     port = data.get("port")
@@ -371,21 +378,21 @@ def render_dashboard(
     hlth = data.get("health")
     cb = data.get("cb")
     rec = data.get("trades")
-    srank = _extract_items(data.get("srank"))
+    srank = safe_extract_items(data.get("srank"))
     act = data.get("activity")
     exp_f = data.get("exp_factors")
     eco = data.get("eco")
     notifs = data.get("notifs")
     sentiment = data.get("sentiment")
-    econ_cal = _extract_items(data.get("econ_cal"))
+    econ_cal = safe_extract_items(data.get("econ_cal"))
     risk = data.get("risk")
     perf_anl = data.get("perf_anl")
     sig_eval = data.get("sig_eval")
     sec_rot = data.get("sec_rot")
-    algo_metrics = _extract_items(data.get("algo_metrics"))
-    irank = _extract_items(data.get("irank"))
-    audit = _extract_items(data.get("audit"))
-    exec_hist = _extract_items(data.get("exec_hist"))
+    algo_metrics = safe_extract_items(data.get("algo_metrics"))
+    irank = safe_extract_items(data.get("irank"))
+    audit = safe_extract_items(data.get("audit"))
+    exec_hist = safe_extract_items(data.get("exec_hist"))
     scores = data.get("scores")
 
     hdr_panel, exp_panel = _render_header_components(

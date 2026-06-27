@@ -63,14 +63,14 @@ def _get_endpoint_path(fetcher_key: str, params: dict[str, Any] | None = None) -
 
 
 def _get_markets_cached() -> dict[str, Any]:
-    """Issue 14 FIX: Unified fetch for /api/algo/markets endpoint with 503 fallback.
+    """Unified fetch for /api/algo/markets endpoint (cached, no stale fallback).
 
     Both fetch_market and fetch_exp_factors need the same endpoint. This
     caches the result to avoid duplicate API calls when both are fetched
     in parallel. Thread-safe with lock to ensure single API call.
 
-    On transient 503 errors: Attempts to use stale cache from previous successful calls
-    to maintain dashboard stability during API service interruptions.
+    CRITICAL: Never returns stale cache on 503 errors. Market prices must be current
+    for accurate position sizing. If API is unavailable, returns error dict instead.
     """
     if "result" in _markets_cache:
         return cast(dict[str, Any], _markets_cache["result"])
@@ -83,19 +83,16 @@ def _get_markets_cached() -> dict[str, Any]:
             data = api_call("/api/algo/markets")
 
             # CRITICAL: Never fall back to stale market data. Market prices must be current.
-            # If API is unavailable, it's better to fail and alert the user than to show
-            # outdated prices that could lead to incorrect position sizing.
-            if data.get("_is_transient_503"):
-                error_result = {
-                    "_error": "Market data API unavailable (503). Fresh market prices required for trading decisions."
-                }
-                logger.error("API /api/algo/markets returned 503 - returning error, not stale cache")
-                # Don't cache 503 error - let next call retry the API
-                return error_result
+            # If API is unavailable (503), return error — never return stale cache.
+            # Stale prices could lead to incorrect position sizing and losses.
+            # The 503 response indicates service degradation, so dashboard MUST show error state.
+            if data.get("_error"):
+                # API error — no caching, no fallback to stale data
+                logger.error(f"API /api/algo/markets failed: {data.get('_error')}")
+                return data
 
             # Only cache successful responses (no _error field)
-            if not data.get("_error"):
-                _markets_cache["result"] = data
+            _markets_cache["result"] = data
             return data
         except Exception as e:
             error_result = {"_error": str(e)}

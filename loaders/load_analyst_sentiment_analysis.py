@@ -100,7 +100,20 @@ class AnalystSentimentLoader(OptimalLoader):
         sentiment_by_date: dict[Any, dict[str, int]] = {}
         for idx, row in recs.iterrows():
             rec_date = idx.date() if hasattr(idx, "date") else idx
-            rating = row.get("To Grade", "").lower()
+
+            # Explicit validation: To Grade must exist
+            if "To Grade" not in row:
+                raise ValueError(
+                    f"[ANALYST_SENTIMENT] Missing 'To Grade' field for {symbol} on {rec_date}. "
+                    "yfinance API response format may have changed. Cannot parse analyst sentiment without ratings."
+                )
+
+            rating = str(row["To Grade"]).lower().strip()
+            if not rating:
+                raise ValueError(
+                    f"[ANALYST_SENTIMENT] Empty 'To Grade' rating for {symbol} on {rec_date}. "
+                    "Cannot compute sentiment with missing rating data."
+                )
 
             if rec_date not in sentiment_by_date:
                 sentiment_by_date[rec_date] = {
@@ -117,6 +130,11 @@ class AnalystSentimentLoader(OptimalLoader):
                 sentiment_by_date[rec_date]["bearish"] += 1
             elif rating in ["hold", "equal weight", "neutral"]:
                 sentiment_by_date[rec_date]["neutral"] += 1
+            else:
+                logger.warning(
+                    f"[ANALYST_SENTIMENT] Unknown rating '{rating}' for {symbol} on {rec_date}. "
+                    "Skipping unrecognized sentiment category."
+                )
 
             sentiment_by_date[rec_date]["total"] += 1
 

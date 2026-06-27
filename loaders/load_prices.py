@@ -1832,7 +1832,15 @@ class PriceLoader(OptimalLoader):
 
             if dedup and self.primary_key:
                 for row in rows:
-                    key = ":".join(str(row.get(c, "")) for c in self.primary_key)
+                    # Validate all primary key fields present before deduplication
+                    for pk_field in self.primary_key:
+                        if pk_field not in row or row[pk_field] is None:
+                            raise ValueError(
+                                f"[PRICES] Primary key field '{pk_field}' missing or None for symbol {symbol}. "
+                                "Cannot deduplicate without complete primary key. "
+                                f"Row: {row}"
+                            )
+                    key = ":".join(str(row[c]) for c in self.primary_key)
                     dedup.add(key)
 
             self._stats["rows_inserted"] += inserted
