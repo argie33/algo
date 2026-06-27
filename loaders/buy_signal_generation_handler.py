@@ -146,23 +146,29 @@ class BuySignalGenerationHandler:
         return signals
 
     def _find_swing_high(self, symbol: str, rows: list[dict[str, Any]], i: int) -> tuple[float | None, float | None]:
-        """Find most recent swing high using 20-bar lookback (3-bar pivot)."""
+        """Find most recent swing high using extended 50-bar lookback with lenient data requirements.
+
+        ISSUE FIX: Increased from 20-bar to 50-bar lookback to detect pivots that occurred
+        further back. Made data completeness lenient to work with real-world incomplete data
+        while maintaining pivot integrity.
+        """
         recent_swing_high = None
         swing_high_sma50 = None
 
-        for j in range(max(0, i - 20), i):
+        for j in range(max(0, i - 50), i):
             candidate = rows[j].get("high")
             if not candidate:
                 continue
 
-            # Require complete data: all lookback and lookforward bars must have valid highs
-            lookback_bars = [rows[k].get("high") for k in range(max(0, j - 3), j)]
-            lookforward_bars = [rows[k].get("high") for k in range(j + 1, min(len(rows), j + 4))]
+            # Collect nearby bars (may have gaps)
+            lookback_bars = [rows[k].get("high") for k in range(max(0, j - 3), j) if rows[k].get("high")]
+            lookforward_bars = [rows[k].get("high") for k in range(j + 1, min(len(rows), j + 4)) if rows[k].get("high")]
 
-            if not all(lookback_bars) or not all(lookforward_bars):
+            # Lenient requirement: need at least 2 lookback and 2 lookforward bars (was requiring all)
+            if len(lookback_bars) < 2 or len(lookforward_bars) < 2:
                 continue
 
-            # Validate pivot: candidate must be higher than all lookback and lookforward bars
+            # Validate pivot: candidate must be higher than all available lookback and lookforward bars
             if all(candidate > b for b in lookback_bars) and all(candidate > b for b in lookforward_bars):
                 if recent_swing_high is None or candidate > recent_swing_high:
                     recent_swing_high = candidate
@@ -171,22 +177,28 @@ class BuySignalGenerationHandler:
         return recent_swing_high, swing_high_sma50
 
     def _find_swing_low(self, symbol: str, rows: list[dict[str, Any]], i: int) -> float | None:
-        """Find most recent swing low using 10-bar lookback (3-bar pivot)."""
+        """Find most recent swing low using extended 50-bar lookback with lenient data requirements.
+
+        ISSUE FIX: Increased from 10-bar to 50-bar lookback to detect stop loss levels
+        further back. Made data completeness lenient to work with real-world incomplete data
+        while maintaining pivot integrity.
+        """
         recent_swing_low = None
 
-        for j in range(max(0, i - 10), i):
+        for j in range(max(0, i - 50), i):
             candidate = rows[j].get("low")
             if not candidate:
                 continue
 
-            # Require complete data: all lookback and lookforward bars must have valid lows
-            lookback_bars = [rows[k].get("low") for k in range(max(0, j - 3), j)]
-            lookforward_bars = [rows[k].get("low") for k in range(j + 1, min(len(rows), j + 4))]
+            # Collect nearby bars (may have gaps)
+            lookback_bars = [rows[k].get("low") for k in range(max(0, j - 3), j) if rows[k].get("low")]
+            lookforward_bars = [rows[k].get("low") for k in range(j + 1, min(len(rows), j + 4)) if rows[k].get("low")]
 
-            if not all(lookback_bars) or not all(lookforward_bars):
+            # Lenient requirement: need at least 2 lookback and 2 lookforward bars (was requiring all)
+            if len(lookback_bars) < 2 or len(lookforward_bars) < 2:
                 continue
 
-            # Validate pivot: candidate must be lower than all lookback and lookforward bars
+            # Validate pivot: candidate must be lower than all available lookback and lookforward bars
             if all(candidate < b for b in lookback_bars) and all(candidate < b for b in lookforward_bars):
                 if recent_swing_low is None or candidate < recent_swing_low:
                     recent_swing_low = candidate

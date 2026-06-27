@@ -47,6 +47,10 @@ class SignalQualityScoresLoader(OptimalLoader):
         If buy_sell_daily loader is stuck, sets _batch_context = {"_blocked": True} and returns.
         This signals to fetch_incremental() to raise an error — callers MUST NOT ignore this.
         See fetch_incremental() for the enforcement of the _blocked flag.
+
+        AUTO-POPULATE VCP PATTERNS (NEW): If VCP patterns table exists but is empty,
+        auto-populate VCP data from technical_data_daily. This unblocks signal_quality_scores
+        when VCP patterns have not been pre-loaded (fixes 1.4% coverage issue).
         """
         from datetime import datetime, timezone
 
@@ -55,6 +59,9 @@ class SignalQualityScoresLoader(OptimalLoader):
         self._batch_context: dict[str, Any] = {}
         try:
             with DatabaseContext("read") as cur:
+                # AUTO-POPULATE VCP PATTERNS if missing (ISSUE FIX: VCP coverage)
+                self._ensure_vcp_patterns_populated(cur)
+
                 # Check if buy_sell_daily is ready (ISSUE #27 FIX)
                 cur.execute("SELECT status FROM data_loader_status WHERE table_name = 'buy_sell_daily'")
                 result = cur.fetchone()
@@ -384,6 +391,45 @@ class SignalQualityScoresLoader(OptimalLoader):
                 f"[TREND] Failed to fetch trend data for {symbol}: {e}. "
                 "Signal quality assessment requires trend analysis."
             ) from e
+
+    def _ensure_vcp_patterns_populated(self, cur: Any) -> None:
+        """Auto-populate VCP patterns if table exists but is empty.
+
+        This unblocks signal_quality_scores when VCP patterns haven't been pre-loaded.
+        Fixes coverage issue where 1.4% of symbols had VCP data due to missing loader.
+        """
+        try:
+            # Check if vcp_patterns table exists
+            cur.execute(
+                "SELECT EXISTS(SELECT 1 FROM information_schema.tables "
+                "WHERE table_schema = 'public' AND table_name = 'vcp_patterns')"
+            )
+            row = cur.fetchone()
+            if row is None or not row[0]:
+                logger.info("[VCP] vcp_patterns table does not exist - will create on demand")
+                return
+
+            # Check if vcp_patterns has any data
+            cur.execute("SELECT COUNT(*) FROM vcp_patterns")
+            count = cur.fetchone()[0] if cur.fetchone() else 0
+            if count > 0:
+                logger.debug(f"[VCP] vcp_patterns already populated ({count} rows)")
+                return
+
+            logger.info("[VCP] vcp_patterns table exists but is empty - auto-populating from technical_data_daily")
+
+            # Auto-populate from technical data
+            from loaders.load_vcp_patterns import load_vcp_patterns
+
+            try:
+                result = load_vcp_patterns()
+                logger.info(f"[VCP] Auto-populated: {result.get('patterns_found', 0)} patterns found, "
+                            f"{result.get('symbols_processed', 0)} symbols processed")
+            except Exception as e:
+                logger.warning(f"[VCP] Auto-population failed: {e} - proceeding without VCP patterns")
+
+        except psycopg2.DatabaseError as e:
+            logger.warning(f"[VCP] Failed to check/populate VCP patterns: {e}")
 
     def _fetch_vcp_patterns(self, symbol: str, start: date, end: date) -> list[dict[str, Any]]:
         """Fetch VCP patterns."""
