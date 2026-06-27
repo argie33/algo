@@ -365,68 +365,91 @@ class VectorizedSwingScoresLoader:
             return 50 + ((rsi - 40) / 30) * 50
 
     def _bulk_insert(self, df: pd.DataFrame) -> int:
-        """Bulk insert all scores at once using INSERT statements."""
+        """Bulk insert all scores at once using COPY (fast batch insert)."""
         if df.empty:
             return 0
 
+        # Validate required score fields exist
+        required_score_fields = [
+            "grade",
+            "setup_score",
+            "trend_score",
+            "momentum_score",
+            "volume_score",
+            "fundamentals_score",
+            "sector_score",
+            "multi_tf_score",
+            "total_score",
+        ]
+        missing_fields = [f for f in required_score_fields if f not in df.columns]
+        if missing_fields:
+            raise ValueError(f"DataFrame missing required score fields: {missing_fields}")
+
         try:
+            import json
+            from io import StringIO
+
             with DatabaseContext("write") as cur:
-                import json
+                # Prepare data: build JSON components and format for insertion
+                df["date"] = df["date"].dt.date.astype(str)
 
-                inserted = 0
-
+                # Build components JSON for each row
+                components_list = []
                 for _, row in df.iterrows():
-                    # Validate required score fields exist
-                    required_score_fields = [
-                        "grade",
-                        "setup_score",
-                        "trend_score",
-                        "momentum_score",
-                        "volume_score",
-                        "fundamentals_score",
-                        "sector_score",
-                        "multi_tf_score",
-                        "total_score",
-                    ]
-                    missing_fields = [f for f in required_score_fields if f not in row or pd.isna(row.get(f))]
-                    if missing_fields:
-                        raise ValueError(
-                            f"{row.get('symbol', '?')}: Score data missing required fields {missing_fields}"
-                        )
-
                     grade = row["grade"]
-                    # Include grade in components so API can read it via components->>'grade'
                     components = {
-                        "grade": grade,
-                        "setup": float(row["setup_score"]),
-                        "trend": float(row["trend_score"]),
-                        "momentum": float(row["momentum_score"]),
-                        "volume": float(row["volume_score"]),
-                        "fundamentals": float(row["fundamentals_score"]),
-                        "sector": float(row["sector_score"]),
-                        "multi_tf": float(row["multi_tf_score"]),
+                        "grade": str(grade) if not pd.isna(grade) else None,
+                        "setup": float(row["setup_score"]) if not pd.isna(row["setup_score"]) else None,
+                        "trend": float(row["trend_score"]) if not pd.isna(row["trend_score"]) else None,
+                        "momentum": float(row["momentum_score"]) if not pd.isna(row["momentum_score"]) else None,
+                        "volume": float(row["volume_score"]) if not pd.isna(row["volume_score"]) else None,
+                        "fundamentals": float(row["fundamentals_score"]) if not pd.isna(row["fundamentals_score"]) else None,
+                        "sector": float(row["sector_score"]) if not pd.isna(row["sector_score"]) else None,
+                        "multi_tf": float(row["multi_tf_score"]) if not pd.isna(row["multi_tf_score"]) else None,
                     }
+                    components_list.append(json.dumps(components))
 
-                    cur.execute(
-                        """INSERT INTO swing_trader_scores
-                           (symbol, date, score, components, created_at)
-                           VALUES (%s, %s, %s, %s, NOW())
-                           ON CONFLICT (symbol, date) DO UPDATE
-                           SET score = EXCLUDED.score, components = EXCLUDED.components
-                        """,
-                        (
-                            row["symbol"],
-                            row["date"],
-                            float(row["total_score"]),
-                            json.dumps(components),
-                        ),
-                    )
-                    inserted += cur.rowcount if hasattr(cur, "rowcount") else 1
+                df["components"] = components_list
+                df["score"] = df["total_score"].astype(float)
 
+                # Select only columns needed for COPY
+                insert_columns = ["symbol", "date", "score", "components"]
+                insert_df = df[insert_columns].copy()
+
+                # Lock table for atomic delete/insert (prevents concurrent loader corruption)
+                cur.execute("LOCK TABLE swing_trader_scores IN EXCLUSIVE MODE")
+
+                # Delete existing rows for symbols being loaded (allows re-compute)
+                symbols_to_load = insert_df["symbol"].unique().tolist()
+                placeholders = ",".join(["%s"] * len(symbols_to_load))
+                delete_sql = f"DELETE FROM swing_trader_scores WHERE symbol IN ({placeholders})"
+                cur.execute(delete_sql, symbols_to_load)
+                logger.info(f"Deleted {cur.rowcount} stale rows for {len(symbols_to_load)} symbols")
+
+                # Build COPY command
+                import psycopg2.sql
+
+                col_ids = [psycopg2.sql.Identifier(c) for c in insert_columns]
+                sql = psycopg2.sql.SQL(
+                    "COPY {table} ({fields}) FROM STDIN WITH (FORMAT CSV, FORCE_NULL ({fields}))"
+                ).format(
+                    table=psycopg2.sql.Identifier("swing_trader_scores"),
+                    fields=psycopg2.sql.SQL(", ").join(col_ids),
+                )
+
+                # Stream CSV data to COPY (fast batch insert)
+                csv_string = insert_df.to_csv(index=False, header=False, na_rep="")
+                csv_buffer = StringIO(csv_string)
+                cur.copy_expert(sql, csv_buffer)
+
+                inserted = int(cur.rowcount) if cur.rowcount is not None else 0
+                logger.info(f"Bulk inserted {inserted} swing trader scores via COPY")
                 return inserted
 
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"[BULK INSERT FAILED] Cannot persist swing trader scores: {e}") from e
+        except (ValueError, TypeError, KeyError) as e:
+            raise RuntimeError(f"[BULK INSERT FORMAT ERROR] Invalid data format for bulk insert: {e}") from e
 
 
 def _update_swing_loader_status(status: str, error_message: str | None = None) -> None:
