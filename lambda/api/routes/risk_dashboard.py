@@ -209,7 +209,7 @@ def _fetch_drawdown_info(cur: cursor) -> Any:
         timeout_sec=8,
     )
     row = rows[0] if rows else None
-    if not row or not row["peak"] or not row["current"]:
+    if row is None or row["peak"] is None or row["current"] is None:
         return {"current_drawdown_pct": 0, "status": "no_history"}
 
     peak = float(row["peak"])

@@ -174,7 +174,7 @@ class RDSPoolMonitor:
 
                 states = {}
                 for row in cur.fetchall():
-                    state_name = row[0] or "other"
+                    state_name = row[0] if row[0] is not None else "other"
                     states[state_name] = row[1]
 
                 return states

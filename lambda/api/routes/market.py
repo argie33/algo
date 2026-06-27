@@ -1015,7 +1015,7 @@ def _get_correlation_matrix(cur: cursor) -> Any:
         sym = row["symbol"]
         if sym not in prices_by_symbol:
             prices_by_symbol[sym] = []
-        if not row["close"] or row["close"] <= 0:
+        if row["close"] is None or row["close"] <= 0:
             if "date" not in row or row["date"] is None:
                 raise ValueError(
                     f"[MARKET_API_DATA_INCOMPLETE] Market data for {sym} missing required 'date' field. "
@@ -1398,11 +1398,11 @@ def _get_markets(cur: cursor) -> Any:
             )
         symbol = row["symbol"]
 
-        if not row["close"] or row["close"] <= 0:
+        if row["close"] is None or row["close"] <= 0:
             logger.warning(f"Market API indices: Invalid close price for {symbol}: {row['close']}; skipping")
             continue
         price = float(row["close"])
-        if not row["prev_close"] or row["prev_close"] <= 0:
+        if row["prev_close"] is None or row["prev_close"] <= 0:
             logger.warning(f"Market API indices: Invalid prev_close for {symbol}: {row['prev_close']}; cannot calculate change")
             continue
         prev_price = float(row["prev_close"])

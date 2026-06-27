@@ -95,7 +95,7 @@ def _get_last_run(cur: cursor) -> Any:
         LIMIT 1
     """)
     latest = cur.fetchone()
-    if not latest or not latest["run_id"]:
+    if latest is None or latest["run_id"] is None or latest["run_id"] == "":
         return error_response(503, "no_data", "No orchestrator run data available yet")
 
     run_id = latest["run_id"]

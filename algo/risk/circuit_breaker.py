@@ -625,7 +625,7 @@ class CircuitBreaker:
             }
 
         stage = int(row[1])
-        trend = row[2] or "unknown"
+        trend = row[2] if row[2] is not None else "unknown"
         # Stage 4 = halt new entries (full downtrend). Stage 3 = caution but allow.
         halted = stage == 4
         return {
