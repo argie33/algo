@@ -5,19 +5,19 @@ Detects volatility contraction patterns in technical data and populates the vcp_
 This is CRITICAL: signal_quality_scorer depends on this data to compute quality scores.
 
 VCP Detection Logic:
-- VCP = recent volatility significantly lower than historical average
-- Measured as: recent_atr (14d) / historical_atr (50d) ratio
-- VCP_strength = how much volatility has contracted (0-100 scale)
-- VCP_pattern_score = combined score with price action confirmation
+- VCP = recent ATR significantly lower than 30-day average
+- Measured as: current_atr / atr_30d_avg ratio
+- atr_compression_pct = how much volatility has contracted (0-100 scale)
+- vcp_strength = composite score combining ATR and range compression
 
 This loader is a DEPENDENCY for signal quality score computation.
 """
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
-from utils.db import DatabaseContext
+from utils.db.context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
@@ -30,8 +30,8 @@ class VCPPatternsLoader:
         self.symbols_failed = 0
         self.patterns_found = 0
 
-    def run(self, end_date: datetime | None = None) -> dict[str, Any]:
-        """Load VCP patterns for all symbols.
+    def run(self, end_date: date | None = None) -> dict[str, Any]:
+        """Load VCP patterns for all symbols across all historical dates.
 
         Args:
             end_date: End date for analysis (default: today)
@@ -67,24 +67,38 @@ class VCPPatternsLoader:
                     "Run database migrations first."
                 )
 
+            # Get all unique dates from technical_data_daily
+            cur.execute(
+                "SELECT DISTINCT date FROM technical_data_daily WHERE atr_14 IS NOT NULL ORDER BY date"
+            )
+            dates = [row[0] for row in cur.fetchall()]
+
+            if not dates:
+                logger.warning("[VCP_LOADER] No technical data available with atr_14")
+                return {
+                    "symbols_processed": 0,
+                    "symbols_failed": 0,
+                    "patterns_found": 0,
+                }
+
+            logger.info(f"[VCP_LOADER] Processing VCP patterns for {len(dates)} dates")
+
             # Get all symbols with technical data
             cur.execute(
                 "SELECT DISTINCT symbol FROM technical_data_daily "
-                "WHERE date >= %s AND atr_14 IS NOT NULL AND atr_50 IS NOT NULL "
-                "ORDER BY symbol",
-                (end_date - timedelta(days=100),),
+                "WHERE atr_14 IS NOT NULL ORDER BY symbol"
             )
             symbols = [row[0] for row in cur.fetchall()]
 
-            logger.info(f"[VCP_LOADER] Processing {len(symbols)} symbols for VCP patterns")
-
-            for symbol in symbols:
-                try:
-                    self._process_symbol(cur, symbol, end_date)
-                    self.symbols_processed += 1
-                except Exception as e:
-                    logger.warning(f"[VCP_LOADER] {symbol}: {e}")
-                    self.symbols_failed += 1
+            # Process each date for all symbols
+            for process_date in dates:
+                for symbol in symbols:
+                    try:
+                        self._process_symbol(cur, symbol, process_date)
+                        self.symbols_processed += 1
+                    except Exception as e:
+                        logger.debug(f"[VCP_LOADER] {symbol} {process_date}: {e}")
+                        self.symbols_failed += 1
 
             cur.connection.commit()
 
@@ -94,7 +108,7 @@ class VCPPatternsLoader:
             "patterns_found": self.patterns_found,
         }
 
-    def _process_symbol(self, cur: Any, symbol: str, end_date: datetime) -> None:
+    def _process_symbol(self, cur: Any, symbol: str, end_date: date) -> None:
         """Calculate and store VCP pattern for a symbol.
 
         Args:
@@ -102,93 +116,99 @@ class VCPPatternsLoader:
             symbol: Stock symbol
             end_date: Analysis end date
         """
-        # Get recent ATR (14-day) and historical ATR (50-day)
+        # Fetch the last 30 days of ATR data for the symbol
         cur.execute(
-            "SELECT atr_14, atr_50, close FROM technical_data_daily "
-            "WHERE symbol = %s AND date = %s",
-            (symbol, end_date),
+            "SELECT date, atr_14 FROM technical_data_daily "
+            "WHERE symbol = %s AND date >= %s AND date <= %s AND atr_14 IS NOT NULL "
+            "ORDER BY date DESC LIMIT 30",
+            (symbol, end_date - timedelta(days=30), end_date),
         )
-        row = cur.fetchone()
-        if not row or row[0] is None or row[1] is None:
+        rows = cur.fetchall()
+        if not rows:
             return
 
-        atr_14 = float(row[0])
-        atr_50 = float(row[1])
-        close = float(row[2]) if row[2] else None
+        # Current ATR is the most recent value
+        current_atr = float(rows[0][1])
 
-        if atr_50 == 0:
+        # Calculate 30-day average ATR
+        atrs = [float(row[1]) for row in rows]
+        atr_30d_avg = sum(atrs) / len(atrs)
+
+        if atr_30d_avg == 0:
             return
 
-        # Calculate VCP strength: how much has volatility contracted
-        # atr_14 / atr_50 ratio: <0.7 = strong contraction, >1.0 = expansion
-        vcp_ratio = atr_14 / atr_50
+        # Calculate ATR compression percentage (how much lower current is vs average)
+        atr_compression_pct = max(0, (1.0 - (current_atr / atr_30d_avg)) * 100)
 
-        # VCP strength (0-100): 0=expansion, 100=maximum contraction
-        if vcp_ratio >= 1.0:
-            vcp_strength = 0  # No contraction
+        # Fetch price range data (high - low) for last 30 days
+        cur.execute(
+            "SELECT date, (high - low) as range FROM price_daily "
+            "WHERE symbol = %s AND date >= %s AND date <= %s "
+            "ORDER BY date DESC LIMIT 30",
+            (symbol, end_date - timedelta(days=30), end_date),
+        )
+        range_rows = cur.fetchall()
+
+        if range_rows:
+            ranges = [float(row[1]) if row[1] else 0 for row in range_rows]
+            range_30d_avg = sum(ranges) / len(ranges) if ranges else 0
+            range_current = float(range_rows[0][1]) if range_rows[0][1] else 0
         else:
-            # Map 0.3-1.0 range to 0-100 scale
-            vcp_strength = max(0, min(100, int((1.0 - vcp_ratio) / 0.7 * 100)))
+            range_30d_avg = 0
+            range_current = 0
 
-        # Calculate pattern score (0-100)
-        # Combines VCP strength with price action
-        vcp_pattern_score = self._calculate_pattern_score(cur, symbol, end_date, vcp_strength, atr_14, close)
+        # Calculate range compression
+        range_compression_pct = 0
+        if range_30d_avg > 0:
+            range_compression_pct = max(0, (1.0 - (range_current / range_30d_avg)) * 100)
+
+        # Calculate volume ratio for breakout confirmation
+        cur.execute(
+            "SELECT date, volume FROM price_daily "
+            "WHERE symbol = %s AND date >= %s AND date <= %s "
+            "ORDER BY date DESC LIMIT 30",
+            (symbol, end_date - timedelta(days=30), end_date),
+        )
+        vol_rows = cur.fetchall()
+        breakout_volume_ratio = 0.0
+        if vol_rows:
+            current_vol = float(vol_rows[0][1]) if vol_rows[0][1] else 0
+            vols = [float(row[1]) if row[1] else 0 for row in vol_rows[1:]]
+            avg_vol = sum(vols) / len(vols) if vols else 0
+            if avg_vol > 0:
+                breakout_volume_ratio = current_vol / avg_vol
+
+        # Calculate VCP strength (0-100 scale)
+        # Strong VCP: ATR compression > 30% and range compression > 20%
+        avg_compression = (atr_compression_pct + range_compression_pct) / 2
+        vcp_strength = min(100, max(0, int(avg_compression)))
 
         # Store VCP pattern
         cur.execute(
-            "INSERT INTO vcp_patterns (symbol, date, atr_14, atr_50, vcp_ratio, vcp_strength, vcp_pattern_score) "
-            "VALUES (%s, %s, %s, %s, %s, %s, %s) "
+            "INSERT INTO vcp_patterns "
+            "(symbol, date, atr_30d_avg, atr_current, atr_compression_pct, "
+            "range_30d_avg, range_current, vcp_strength, breakout_volume_ratio) "
+            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) "
             "ON CONFLICT (symbol, date) DO UPDATE SET "
+            "  atr_compression_pct = EXCLUDED.atr_compression_pct, "
             "  vcp_strength = EXCLUDED.vcp_strength, "
-            "  vcp_pattern_score = EXCLUDED.vcp_pattern_score",
-            (symbol, end_date, atr_14, atr_50, vcp_ratio, vcp_strength, vcp_pattern_score),
+            "  breakout_volume_ratio = EXCLUDED.breakout_volume_ratio",
+            (
+                symbol,
+                end_date,
+                atr_30d_avg,
+                current_atr,
+                atr_compression_pct,
+                range_30d_avg,
+                range_current,
+                vcp_strength,
+                breakout_volume_ratio,
+            ),
         )
 
         if vcp_strength > 50:
             self.patterns_found += 1
-            logger.debug(f"[VCP] {symbol}: VCP strength={vcp_strength}, score={vcp_pattern_score}")
-
-    def _calculate_pattern_score(
-        self, cur: Any, symbol: str, end_date: datetime, vcp_strength: int, atr_14: float, close: float | None
-    ) -> int:
-        """Calculate VCP pattern score (0-100) based on multiple factors.
-
-        Args:
-            cur: Database cursor
-            symbol: Stock symbol
-            end_date: Analysis end date
-            vcp_strength: VCP contraction strength (0-100)
-            atr_14: Recent ATR (14-day)
-            close: Current close price
-
-        Returns:
-            Pattern score (0-100)
-        """
-        score = vcp_strength  # Start with VCP strength
-
-        # Bonus: Price above 200-day SMA (uptrend support)
-        cur.execute(
-            "SELECT sma_200 FROM technical_data_daily WHERE symbol = %s AND date = %s",
-            (symbol, end_date),
-        )
-        row = cur.fetchone()
-        if row and row[0] and close:
-            sma_200 = float(row[0])
-            if close > sma_200:
-                score = min(100, score + 10)
-
-        # Bonus: Recent uptrend (close > sma_50)
-        cur.execute(
-            "SELECT sma_50 FROM technical_data_daily WHERE symbol = %s AND date = %s",
-            (symbol, end_date),
-        )
-        row = cur.fetchone()
-        if row and row[0] and close:
-            sma_50 = float(row[0])
-            if close > sma_50:
-                score = min(100, score + 5)
-
-        return min(100, score)
+            logger.debug(f"[VCP] {symbol}: strength={vcp_strength}, atr_compression={atr_compression_pct:.1f}%")
 
 
 def load_vcp_patterns(end_date: datetime | None = None) -> dict[str, Any]:

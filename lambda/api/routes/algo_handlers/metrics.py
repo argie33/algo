@@ -194,8 +194,10 @@ def _get_algo_performance(cur: cursor) -> Any:  # noqa: C901
                         AVG(CASE WHEN profit_loss_pct < 0 THEN profit_loss_pct END) AS avg_loss_pct,
                         AVG(CASE WHEN exit_r_multiple > 0 THEN exit_r_multiple END) AS avg_win_r,
                         AVG(CASE WHEN exit_r_multiple < 0 THEN exit_r_multiple END) AS avg_loss_r,
-                        COALESCE(SUM(CASE WHEN profit_loss_dollars > 0 THEN profit_loss_dollars ELSE 0 END), 0) AS gross_win_dollars,
-                        COALESCE(ABS(SUM(CASE WHEN profit_loss_dollars < 0 THEN profit_loss_dollars ELSE 0 END)), 0) AS gross_loss_dollars
+                        -- CRITICAL: Remove outer COALESCE to detect missing trade data
+                        -- NULL means no winning trades found (different from 0 winning dollars)
+                        NULLIF(SUM(CASE WHEN profit_loss_dollars > 0 THEN profit_loss_dollars ELSE 0 END), 0) AS gross_win_dollars,
+                        NULLIF(ABS(SUM(CASE WHEN profit_loss_dollars < 0 THEN profit_loss_dollars ELSE 0 END)), 0) AS gross_loss_dollars
                     FROM algo_trades
                     WHERE status = 'closed' AND exit_date IS NOT NULL
                 """)
@@ -254,18 +256,21 @@ def _get_algo_performance(cur: cursor) -> Any:  # noqa: C901
             cur.execute("""
                     SELECT
                         COUNT(*) FILTER (WHERE unrealized_pnl < 0) AS open_losses,
-                        COALESCE(SUM(CASE WHEN unrealized_pnl < 0 THEN unrealized_pnl ELSE 0 END), 0) AS total_losses
+                        -- CRITICAL: Use NULLIF instead of COALESCE to detect missing position data
+                        NULLIF(SUM(CASE WHEN unrealized_pnl < 0 THEN unrealized_pnl ELSE 0 END), 0) AS total_losses
                     FROM algo_positions
                     WHERE status = 'open' AND quantity > 0
                 """)
             pos_row = cur.fetchone()
             if pos_row:
-                open_losses_count = int(pos_row["open_losses"])
-                if open_losses_count is None:
-                    open_losses_count = 0
-                total_open_losses_dollars = float(pos_row["total_losses"])
-                if total_open_losses_dollars is None:
+                open_losses_count = int(pos_row["open_losses"]) if pos_row["open_losses"] is not None else 0
+                total_losses_raw = pos_row["total_losses"]
+                # CRITICAL: Distinguish between "no open positions" (NULL) and "zero losses" (0)
+                if total_losses_raw is None:
+                    logger.warning("No open losing positions found (data quality check)")
                     total_open_losses_dollars = 0.0
+                else:
+                    total_open_losses_dollars = float(total_losses_raw)
                 win_rate_val = metrics.get("win_rate_pct")
                 wr = float(win_rate_val) if win_rate_val is not None else None
                 if open_losses_count > 0 and wr is not None:

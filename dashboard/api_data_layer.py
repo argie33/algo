@@ -437,7 +437,7 @@ def api_call(endpoint: str, params: dict[str, Any] | None = None, method: str = 
                 "_error": f"API unavailable after {max_att} attempts",
                 "_is_transient_503": True,
             }
-        except Exception as e:
+        except requests.exceptions.RequestException as e:
             if attempt < API_MAX_RETRIES:
                 backoff = min((2**attempt) + random.random() * (2**attempt), API_MAX_BACKOFF)
                 att_str = f"attempt {attempt + 1}/{API_MAX_RETRIES + 1}"

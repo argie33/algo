@@ -3,6 +3,7 @@
 Handles dynamic token lifecycle: authentication, refresh, caching, and expiry.
 """
 
+import binascii
 import json
 import logging
 import os
@@ -170,13 +171,13 @@ class CognitoAuth:
             # Validate header is valid base64
             try:
                 base64.urlsafe_b64decode(parts[0] + "==")
-            except Exception as e:
+            except binascii.Error as e:
                 raise RuntimeError(f"JWT header is not valid base64: {e}") from e
 
             # Validate payload is valid base64 and contains required claims
             try:
                 payload_json = json.loads(base64.urlsafe_b64decode(parts[1] + "=="))
-            except Exception as e:
+            except (binascii.Error, json.JSONDecodeError) as e:
                 raise RuntimeError(f"JWT payload is not valid base64 or JSON: {e}") from e
 
             if "exp" not in payload_json or "sub" not in payload_json:
@@ -185,14 +186,12 @@ class CognitoAuth:
             # Validate signature is present and valid base64
             try:
                 base64.urlsafe_b64decode(parts[2] + "==")
-            except Exception as e:
+            except binascii.Error as e:
                 raise RuntimeError(f"JWT signature is not valid base64: {e}") from e
 
             return True
         except RuntimeError:
             raise
-        except Exception as e:
-            raise RuntimeError(f"JWT validation failed: {e}") from e
 
     def is_authenticated(self) -> bool:
         """Check if user has valid credentials."""
@@ -203,7 +202,7 @@ class CognitoAuth:
         return self._auth_lost_time is not None
 
 
-def _get_or_create_test_user() -> tuple[str, str]:
+def _get_or_create_test_user() -> tuple[str | None, str | None]:
     """Try to get test user credentials from various sources."""
     # Try environment variables
     username = os.environ.get("COGNITO_TEST_USER_EMAIL")
@@ -372,11 +371,16 @@ def get_cognito_auth(require_auth: bool = True, interactive: bool = True) -> Cog
             print("Set COGNITO_USERNAME + COGNITO_PASSWORD env vars to skip this prompt.")
             username = input(f"Email [{saved_user}]: ").strip() or saved_user
             password = input("Password: ").strip()
-            if auth.authenticate(username, password):
-                logger.info(f"[Cognito] Authenticated as {username}")
-                return auth
+            # Type guard: ensure username and password are strings before authenticating
+            if username and password:
+                if auth.authenticate(username, password):
+                    logger.info(f"[Cognito] Authenticated as {username}")
+                    return auth
+                else:
+                    print("[ERROR] Authentication failed")
+                    return None
             else:
-                print("[ERROR] Authentication failed")
+                print("[ERROR] Username or password missing")
                 return None
         except (KeyboardInterrupt, EOFError):
             logger.info("[Cognito] Authentication cancelled")

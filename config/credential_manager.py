@@ -26,6 +26,8 @@ import threading
 import time
 from typing import Any, cast
 
+from botocore.exceptions import BotoCoreError, ClientError
+
 logger = logging.getLogger(__name__)
 
 
@@ -421,8 +423,9 @@ class CredentialManager:
                     except ValueError:
                         # Re-raise ValueError (validation errors) without catching
                         raise
-                    except Exception as e:
-                        # Convert other exceptions to ValueError to trigger fail-hard below
+                    except (ClientError, BotoCoreError) as e:
+                        # Boto3 API errors: auth/permissions (ClientError) or network/config (BotoCoreError)
+                        # Both are fatal since we can't fall back to shared credentials (wrong account risk)
                         raise ValueError(
                             f"[CREDENTIALS_CRITICAL] Could not fetch user-specific Alpaca credentials for {user_id}: {e}. "
                             f"Cannot fall back to shared credentials (would trade under wrong account)."
@@ -457,7 +460,7 @@ class CredentialManager:
                         )
             except ValueError as e:
                 logger.warning(f"[CREDENTIALS] ALGO_SECRETS_ARN validation failed: {e}")
-            except Exception as e:
+            except (ClientError, BotoCoreError) as e:
                 logger.error(
                     f"[CREDENTIALS] Could not fetch Alpaca credentials from configured secret: {_sanitize_error(e)}"
                 )
@@ -483,7 +486,7 @@ class CredentialManager:
                         raise ValueError(f"Alpaca secret '{alpaca_secret_id}' exists but missing api_key or api_secret")
             except ValueError as e:
                 logger.warning(f"Alpaca secret validation failed: {e}")
-            except Exception as e:
+            except (ClientError, BotoCoreError) as e:
                 logger.warning(f"Could not fetch Alpaca secret from Secrets Manager: {_sanitize_error(e)}")
 
         # Step 4: Try individual secrets (legacy format) — get_password already tries Secrets Manager then env var

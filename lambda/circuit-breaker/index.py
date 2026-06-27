@@ -95,9 +95,10 @@ def get_portfolio_pnl(max_attempts: int = 3):
             cur = conn.cursor()
 
             # Get current portfolio: total position value and current unrealized P&L
+            # CRITICAL: Do NOT use COALESCE(..., 0) - missing data must be NULL, not silently 0
             cur.execute("""
-                SELECT COALESCE(SUM(position_value), 0) as total_equity,
-                       COALESCE(SUM(unrealized_pnl), 0) as current_pnl
+                SELECT SUM(position_value) as total_equity,
+                       SUM(unrealized_pnl) as current_pnl
                 FROM algo_positions
                 WHERE status = 'open'
             """)
@@ -105,20 +106,23 @@ def get_portfolio_pnl(max_attempts: int = 3):
             if row is None:
                 raise RuntimeError("Circuit breaker: Cannot query portfolio positions from database")
             if row[0] is None or row[1] is None:
-                raise RuntimeError(f"Circuit breaker: Portfolio query returned NULL values: total_equity={row[0]}, current_pnl={row[1]}")
+                raise RuntimeError(f"Circuit breaker: Portfolio data unavailable: total_equity={row[0]}, current_pnl={row[1]} (no open positions or data missing)")
             total_equity = float(row[0])
             current_pnl = float(row[1])
 
             # Get session opening P&L snapshot (captured at market open).
+            # CRITICAL: Do NOT use COALESCE(..., 0) - must detect missing snapshots
             cur.execute("""
-                SELECT COALESCE(unrealized_pnl_total, 0) as session_open_pnl
+                SELECT unrealized_pnl_total as session_open_pnl
                 FROM algo_portfolio_snapshots
                 WHERE snapshot_date = CURRENT_DATE
                 LIMIT 1
             """)
             session_row = cur.fetchone()
-            if session_row is None or session_row[0] is None:
-                raise RuntimeError("Circuit breaker: Cannot retrieve session opening P&L snapshot")
+            if session_row is None:
+                raise RuntimeError("Circuit breaker: Session opening P&L snapshot not found (market may not have opened yet)")
+            if session_row[0] is None:
+                raise RuntimeError("Circuit breaker: Session opening P&L value is NULL (data quality issue)")
             open_pnl = float(session_row[0])
 
             cur.close()

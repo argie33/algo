@@ -394,13 +394,15 @@ def _get_sector_rotation(cur: cursor, days: int = 180) -> Any:
                 SELECT 'Technology'
             ),
             sector_perf AS (
+                -- CRITICAL: Do NOT COALESCE to 0 - NULL values are valid and affect AVG calculations
+                -- Missing data must be NULL, not silently 0
                 SELECT
                     date,
                     sector,
-                    COALESCE(return_pct, 0) AS return_pct,
-                    COALESCE(relative_strength, 0) AS relative_strength
+                    return_pct,
+                    relative_strength
                 FROM sector_performance
-                WHERE date >= %s
+                WHERE date >= %s AND return_pct IS NOT NULL AND relative_strength IS NOT NULL
             ),
             rotation_stats AS (
                 SELECT

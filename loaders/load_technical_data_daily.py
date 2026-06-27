@@ -264,6 +264,7 @@ class VectorizedTechnicalLoader:
 
                 # ATR & ADX
                 symbol_df["atr_14"] = compute_atr(symbol_df["high"], symbol_df["low"], symbol_df["close"], 14)
+                symbol_df["atr_50"] = compute_atr(symbol_df["high"], symbol_df["low"], symbol_df["close"], 50)
                 symbol_df["atr"] = symbol_df["atr_14"]
                 symbol_df["plus_di"], symbol_df["minus_di"], symbol_df["adx"] = compute_adx(
                     symbol_df["high"], symbol_df["low"], symbol_df["close"], 14
@@ -395,6 +396,7 @@ class VectorizedTechnicalLoader:
             "ema_26",
             "atr",
             "atr_14",
+            "atr_50",
             "bb_upper",
             "bb_middle",
             "bb_lower",
