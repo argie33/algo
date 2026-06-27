@@ -34,19 +34,31 @@ class DailyReconciliation:
         self.trading_client: bool | None = None  # Kept for backward compat
 
         # Initialize broker adapter (abstracted from Alpaca-specific implementation)
+        import os
+
         try:
             self.broker: BrokerAdapter = AlpacaBrokerAdapter(config)
             self.audit_logger = TradeAuditLogger()
             self.trading_client = True  # Signals credentials are available
         except (KeyError, ValueError, AttributeError) as e:
-            import os
+            # Auto-detect offline/no-credentials mode: allow graceful fallback to mock broker
+            # This supports both dry-run mode AND local development without internet
+            dry_run_enabled = os.getenv("ORCHESTRATOR_DRY_RUN", "").lower() in ("true", "1", "yes")
+            has_alpaca_creds = bool(os.getenv("APCA_API_KEY_ID")) and bool(os.getenv("APCA_API_SECRET_KEY"))
 
-            # Allow initialization to succeed in dry-run/local development mode without credentials
-            if os.getenv("ORCHESTRATOR_DRY_RUN", "").lower() in ("true", "1", "yes"):
-                logger.warning(
-                    f"Reconciliation broker adapter initialization failed (expected in dry-run): {e}. "
-                    "Will use mock broker for dry-run mode."
-                )
+            # Use mock broker if: explicitly in dry-run mode OR credentials missing
+            if dry_run_enabled or not has_alpaca_creds:
+                if not has_alpaca_creds:
+                    logger.warning(
+                        f"Reconciliation broker adapter initialization failed (Alpaca credentials missing): {e}. "
+                        "Auto-enabling mock broker for local/offline mode. "
+                        "To use live Alpaca trading, set APCA_API_KEY_ID and APCA_API_SECRET_KEY environment variables."
+                    )
+                else:
+                    logger.warning(
+                        f"Reconciliation broker adapter initialization failed (expected in dry-run): {e}. "
+                        "Will use mock broker for dry-run mode."
+                    )
                 # Create a mock broker that returns dummy data
                 class MockBrokerAdapter(BrokerAdapter):
                     """Mock broker for dry-run testing when Alpaca credentials unavailable."""
