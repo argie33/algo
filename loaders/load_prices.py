@@ -469,6 +469,11 @@ class PriceLoader(OptimalLoader):
                     config_cur.execute("SELECT value FROM algo_config WHERE key = %s", (config_key,))
                     config_result = config_cur.fetchone()
                     if config_result:
+                        if len(config_result) < 1:
+                            raise RuntimeError(
+                                f"[MARKET_CLOSE] Config query returned invalid row structure for {config_key}. "
+                                f"Expected at least 1 column, got {len(config_result)}."
+                            )
                         try:
                             config_value = int(config_result[0])
                             # CRITICAL: Validate timeout is reasonable (1s-3600s)
@@ -1638,6 +1643,11 @@ class PriceLoader(OptimalLoader):
                 result = cur.fetchone()
                 if result is None:
                     raise RuntimeError(f"Status query failed for table '{self.table_name}': query returned None")
+                if len(result) < 2:
+                    raise RuntimeError(
+                        f"CRITICAL: Status query for '{self.table_name}' returned invalid row structure. "
+                        f"Expected 2 columns (count, max_date), got {len(result)}."
+                    )
                 if result[0] is None:
                     raise RuntimeError(f"COUNT query returned NULL for table '{self.table_name}'")
                 total_rows = result[0]

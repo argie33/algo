@@ -10,6 +10,7 @@ class LoaderStats:
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._stats: dict[str, Any] = {
+            "symbols_total": 0,
             "symbols_processed": 0,
             "symbols_skipped_by_watermark": 0,
             "symbols_failed": 0,

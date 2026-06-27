@@ -217,6 +217,7 @@ class OptimalLoader:
             start = time.time()
             self._execution_start_time = start
             symbols = list(symbols)
+            self._stats["symbols_total"] = len(symbols)
 
             try:
                 self._prepare_batch_context()

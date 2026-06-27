@@ -96,7 +96,17 @@ class SignalsDailyLoader(OptimalLoader):
                     (end,),
                 )
                 price_max_date_row = cur.fetchone()
-                price_max_date = price_max_date_row[0] if price_max_date_row and price_max_date_row[0] else None
+                if price_max_date_row is None:
+                    raise RuntimeError(
+                        f"CRITICAL: price_daily query returned None for {end}. "
+                        "Query malformed or price_daily table empty. Cannot determine end date for signal generation."
+                    )
+                if len(price_max_date_row) < 1:
+                    raise RuntimeError(
+                        f"CRITICAL: price_daily query returned invalid row structure. "
+                        f"Expected at least 1 column, got {len(price_max_date_row)}."
+                    )
+                price_max_date = price_max_date_row[0]
 
                 # If there's no price data on the calculated end date, use the most recent available
                 if price_max_date:
@@ -107,19 +117,45 @@ class SignalsDailyLoader(OptimalLoader):
                     (end,),
                 )
                 price_row = cur.fetchone()
-                if price_row is None or price_row[0] is None:
-                    raise ValueError(f"Price coverage query returned NULL for {end} — cannot determine price data availability for batch validation")
-                price_coverage_symbols = int(price_row[0])
+                if price_row is None:
+                    raise RuntimeError(
+                        f"CRITICAL: price_daily coverage query returned None for {end}. "
+                        "Query malformed. Cannot validate price data availability."
+                    )
+                if len(price_row) < 1:
+                    raise RuntimeError(
+                        f"CRITICAL: price_daily coverage query returned invalid row structure. "
+                        f"Expected at least 1 column, got {len(price_row)}."
+                    )
+                price_coverage_symbols = int(price_row[0]) if price_row[0] is not None else 0
+                if price_coverage_symbols == 0:
+                    raise RuntimeError(
+                        f"CRITICAL: No price data found for {end}. "
+                        "Upstream loader failed. Cannot generate signals without price data."
+                    )
 
                 cur.execute(
                     "SELECT COUNT(DISTINCT symbol), MAX(date) FROM technical_data_daily WHERE date = %s",
                     (end,),
                 )
                 tech_row = cur.fetchone()
-                if tech_row is None or tech_row[0] is None:
-                    raise ValueError(f"Technical data coverage query returned NULL for {end} — cannot determine technical data availability")
-                tech_coverage_symbols = int(tech_row[0])
-                tech_max_date = tech_row[1] if tech_row else None
+                if tech_row is None:
+                    raise RuntimeError(
+                        f"CRITICAL: technical_data_daily query returned None for {end}. "
+                        "Query malformed or table empty. Cannot determine technical data availability."
+                    )
+                if len(tech_row) < 2:
+                    raise RuntimeError(
+                        f"CRITICAL: technical_data_daily query returned invalid structure. "
+                        f"Expected 2 columns, got {len(tech_row)}."
+                    )
+                tech_coverage_symbols = int(tech_row[0]) if tech_row[0] is not None else 0
+                if tech_coverage_symbols == 0:
+                    raise RuntimeError(
+                        f"CRITICAL: No symbols found in technical_data_daily for {end}. "
+                        "Upstream loader failed. Cannot generate signals."
+                    )
+                tech_max_date = tech_row[1]
 
                 # ISSUE #9 FIX: Pre-cache all per-symbol watermarks at startup
                 # Fetch in one query: symbol -> max(date) mapping for entire table
@@ -525,7 +561,17 @@ def main() -> int:
             # Verify stock_prices_daily is not stuck RUNNING/PENDING
             cur.execute("SELECT status FROM data_loader_status WHERE table_name = 'stock_prices_daily'")
             result = cur.fetchone()
-            prices_status = result[0] if result else None
+            if result is None:
+                raise RuntimeError(
+                    "CRITICAL: data_loader_status has no record for stock_prices_daily. "
+                    "Loader tracking broken or upstream hasn't run. Cannot proceed."
+                )
+            if len(result) < 1:
+                raise RuntimeError(
+                    f"CRITICAL: data_loader_status query returned invalid row structure. "
+                    f"Expected at least 1 column, got {len(result)}. Query may be malformed."
+                )
+            prices_status = result[0]
             if prices_status in ("RUNNING", "PENDING"):
                 logger.warning(
                     f"[DEPENDENCY] Aborting buy_sell_daily: stock_prices_daily is {prices_status} - "
@@ -533,7 +579,10 @@ def main() -> int:
                 )
                 return 1  # Return error code (1), will retry on next pipeline run
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as status_err:
-        logger.warning(f"[DEPENDENCY] Could not check stock_prices_daily status: {status_err}")
+        raise RuntimeError(
+            f"CRITICAL: Failed to check stock_prices_daily status: {status_err}. "
+            "Cannot verify upstream loader is ready. Aborting to prevent silent dependency failure."
+        ) from status_err
 
     # ISSUE #7: Validate dependency - technical_data_daily must be fresh and have good coverage
     try:
@@ -585,7 +634,17 @@ def main() -> int:
                 WHERE date = (SELECT MAX(date) FROM technical_data_daily)
             """)
             cur_row = cur.fetchone()
-            tech_symbol_count = cur_row[0] if cur_row else 0
+            if cur_row is None or len(cur_row) < 1:
+                raise RuntimeError(
+                    "CRITICAL: Failed to count technical_data_daily symbols. "
+                    "Query returned invalid row structure. Cannot verify coverage."
+                )
+            tech_symbol_count = int(cur_row[0]) if cur_row[0] is not None else 0
+            if tech_symbol_count == 0:
+                raise RuntimeError(
+                    "CRITICAL: No symbols found in technical_data_daily on latest date. "
+                    "Upstream loader failed or data missing. Cannot generate signals."
+                )
 
             coverage_pct = round(100 * tech_symbol_count / len(symbols), 1)
             if coverage_pct < 75:

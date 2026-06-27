@@ -71,8 +71,17 @@ class MarketHealthDailyLoader(OptimalLoader):
         now_utc = datetime.now(timezone.utc)
         now_et = now_utc.astimezone(EASTERN_TZ)
         end = now_et.date()
-        while end > date(2020, 1, 1) and not MarketCalendar.is_trading_day(end):
+        max_iterations = 365
+        iterations = 0
+        while end > date(2020, 1, 1) and not MarketCalendar.is_trading_day(end) and iterations < max_iterations:
             end = end - timedelta(days=1)
+            iterations += 1
+
+        if iterations >= max_iterations:
+            logger.warning(
+                f"[MARKET_HEALTH] MarketCalendar loop exceeded {max_iterations} iterations. "
+                "Possible calendar bug. Using {end} as fallback."
+            )
         return end
 
     def _get_start_date(self, end: date, since: date | None) -> date:

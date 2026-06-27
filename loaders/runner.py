@@ -19,6 +19,7 @@ Benefits:
 
 import argparse
 import logging
+import socket
 
 from utils.loaders.config import get_default_parallelism
 from utils.loaders.helpers import get_active_symbols
@@ -43,6 +44,8 @@ def run_loader(
     Returns:
         Exit code: 0 on success, 1 if fail_rate > 5%.
     """
+    socket.setdefaulttimeout(30.0)
+
     parser = argparse.ArgumentParser(description=description or f"{loader_class.table_name} loader")
 
     if not global_mode:

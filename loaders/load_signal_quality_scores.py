@@ -58,7 +58,17 @@ class SignalQualityScoresLoader(OptimalLoader):
                 # Check if buy_sell_daily is ready (ISSUE #27 FIX)
                 cur.execute("SELECT status FROM data_loader_status WHERE table_name = 'buy_sell_daily'")
                 result = cur.fetchone()
-                bs_status = result[0] if result else None
+                if result is None:
+                    raise RuntimeError(
+                        "CRITICAL: data_loader_status has no record for buy_sell_daily. "
+                        "Upstream loader not found. Cannot verify dependency readiness."
+                    )
+                if len(result) < 1:
+                    raise RuntimeError(
+                        f"CRITICAL: Upstream status query returned invalid row structure. "
+                        f"Expected 1 column, got {len(result)}."
+                    )
+                bs_status = result[0]
 
                 if bs_status in ("RUNNING", "PENDING"):
                     logger.warning(
@@ -780,8 +790,21 @@ def _log_signal_metrics() -> None:
                 (latest_signal_date,),
             )
             daily_result = cur.fetchone()
-            if daily_result is None or daily_result[0] is None or daily_result[1] is None:
-                raise ValueError(f"Signal count query returned invalid result for {latest_signal_date}")
+            if daily_result is None:
+                raise RuntimeError(
+                    f"CRITICAL: Signal count query returned None for {latest_signal_date}. "
+                    "Query malformed or signal_quality_scores table empty."
+                )
+            if len(daily_result) < 2:
+                raise RuntimeError(
+                    f"CRITICAL: Signal count query returned invalid row structure. "
+                    f"Expected 2 columns, got {len(daily_result)}."
+                )
+            if daily_result[0] is None or daily_result[1] is None:
+                raise RuntimeError(
+                    f"CRITICAL: Signal count query returned NULL values for {latest_signal_date}. "
+                    "Cannot calculate signal coverage metrics."
+                )
             daily_signals = int(daily_result[0])
             symbols_with_signals = int(daily_result[1])
             coverage_pct = round((symbols_with_signals / 10000) * 100, 2) if symbols_with_signals > 0 else 0
@@ -797,6 +820,11 @@ def _log_signal_metrics() -> None:
             )
             score_result = cur.fetchone()
             if score_result:
+                if len(score_result) < 6:
+                    raise RuntimeError(
+                        f"CRITICAL: Quality score query returned invalid row structure. "
+                        f"Expected 6 columns (min/max/avg/p25/p50/p75), got {len(score_result)}."
+                    )
                 min_score = score_result[0]
                 max_score = score_result[1]
                 avg_score = round(score_result[2], 2) if score_result[2] else None

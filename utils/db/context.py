@@ -48,14 +48,17 @@ class _ErrorLoggedCursor:
         try:
             return self.cursor.execute(query, args)
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            context = StructuredDBLogger.extract_context_from_params(args)
-            StructuredDBLogger.log_db_error(
-                operation_name=self.operation_name,
-                query=query,
-                params=args,
-                error=e,
-                context=context if context else None,
-            )
+            try:
+                context = StructuredDBLogger.extract_context_from_params(args)
+                StructuredDBLogger.log_db_error(
+                    operation_name=self.operation_name,
+                    query=query,
+                    params=args,
+                    error=e,
+                    context=context if context else None,
+                )
+            except Exception as log_err:
+                logger.error(f"[DB_LOGGING] Failed to log error (original error: {e}): {log_err}")
             raise
 
     def executemany(self, query: str, args: Any) -> Any:
@@ -65,14 +68,17 @@ class _ErrorLoggedCursor:
         try:
             return self.cursor.executemany(query, args)
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            context = StructuredDBLogger.extract_context_from_params(args)
-            StructuredDBLogger.log_db_error(
-                operation_name=self.operation_name,
-                query=query,
-                params=args,
-                error=e,
-                context=context if context else None,
-            )
+            try:
+                context = StructuredDBLogger.extract_context_from_params(args)
+                StructuredDBLogger.log_db_error(
+                    operation_name=self.operation_name,
+                    query=query,
+                    params=args,
+                    error=e,
+                    context=context if context else None,
+                )
+            except Exception as log_err:
+                logger.error(f"[DB_LOGGING] Failed to log error (original error: {e}): {log_err}")
             raise
 
     def fetchone(self) -> Any:

@@ -136,8 +136,10 @@ class PriceFetcher:
 
     def _record_batch_result(self, batch_size: int, success_count: int, total_count: int) -> None:
         """Record batch fetch result for smart sizing."""
-        """Record batch fetch result for smart sizing."""
         if batch_size not in self._batch_size_performance:
+            if len(self._batch_size_performance) >= 50:
+                self._batch_size_performance.clear()
+
             self._batch_size_performance[batch_size] = [0, 0]
 
         self._batch_size_performance[batch_size][0] += success_count
@@ -353,7 +355,8 @@ class PriceFetcher:
                 result = self.execute_batch_fetch(batch, start, end)
                 if result:
                     all_results.update(result)
-                    self._record_batch_result(batch_size, len([r for r in result.values() if r]), len(batch))
+                    success_count = len([r for r in result.values() if r is not None])
+                    self._record_batch_result(batch_size, success_count, len(batch))
             except RuntimeError as e:
                 error_str = str(e).lower()
                 # Rate limit errors - use dedicated handler
