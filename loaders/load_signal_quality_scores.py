@@ -13,20 +13,20 @@ from loaders.loader_helper import setup_imports
 
 setup_imports()
 
-import argparse
-import logging
-from datetime import date, timedelta
-from typing import Any
+import argparse  # noqa: E402
+import logging  # noqa: E402
+from datetime import date, timedelta  # noqa: E402
+from typing import Any  # noqa: E402
 
-import pandas as pd
-import psycopg2
+import pandas as pd  # noqa: E402
+import psycopg2  # noqa: E402
 
-from utils.db.context import DatabaseContext
-from utils.infrastructure.timezone import EASTERN_TZ
-from utils.loaders.config import get_default_parallelism
-from utils.loaders.helpers import get_active_symbols
-from utils.optimal_loader import OptimalLoader
-from utils.validation import safe_parse_date
+from utils.db.context import DatabaseContext  # noqa: E402
+from utils.infrastructure.timezone import EASTERN_TZ  # noqa: E402
+from utils.loaders.config import get_default_parallelism  # noqa: E402
+from utils.loaders.helpers import get_active_symbols  # noqa: E402
+from utils.optimal_loader import OptimalLoader  # noqa: E402
+from utils.validation import safe_parse_date  # noqa: E402
 
 logger = logging.getLogger(__name__)
 

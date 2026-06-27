@@ -381,7 +381,13 @@ class TradeExecutor:
                 take_profit_price=float(target_1_price) if target_1_price else None,
             )
 
-            if not order_result.get("success"):
+            # FAIL-FAST: Validate response schema before using (contract enforcement)
+            if "success" not in order_result:
+                raise OrderExecutionError(
+                    f"[ENTRY] {symbol}: OrderManager returned malformed response (missing 'success' field). "
+                    f"Contract violation. Available keys: {list(order_result.keys())}"
+                )
+            if not order_result["success"]:
                 error_msg = order_result.get("message")
                 if not error_msg:
                     raise OrderExecutionError(

@@ -459,6 +459,19 @@ def panel_orch(run: dict[str, Any] | None, cfg: dict[str, Any], risk: dict[str, 
     return Panel(body, title="[bold cyan]ORCHESTRATOR[/]", border_style="cyan", padding=(0, 1))
 
 
+def _get_status_safe(run: dict[str, Any]) -> str:
+    """Get overall_status with explicit validation (fail-fast on missing field)."""
+    status = run.get("overall_status")
+    if status is None:
+        logger.error(
+            f"[DASHBOARD] Execution history missing 'overall_status' field. "
+            f"Available: {list(run.keys())}. "
+            f"Cannot classify run status without explicit field."
+        )
+        return "unknown"
+    return str(status).lower()
+
+
 def _format_exec_history_summary(exec_hist: list[Any] | None) -> list[Text]:
     """Format last N runs summary (used in panel_status and panel_algo_health)."""
     rows: list[Text] = []
@@ -466,17 +479,16 @@ def _format_exec_history_summary(exec_hist: list[Any] | None) -> list[Text]:
     if not valid_hist:
         return rows
 
-    n_ok = sum(1 for r in valid_hist if (r.get("overall_status", "") if r.get("overall_status") is not None else "").lower() in ("success", "completed"))
-    n_hlt = sum(1 for r in valid_hist if (r.get("overall_status", "") if r.get("overall_status") is not None else "").lower() == "halted")
-    n_err = sum(1 for r in valid_hist if (r.get("overall_status", "") if r.get("overall_status") is not None else "").lower() in ("error", "failed"))
+    n_ok = sum(1 for r in valid_hist if _get_status_safe(r) in ("success", "completed"))
+    n_hlt = sum(1 for r in valid_hist if _get_status_safe(r) == "halted")
+    n_err = sum(1 for r in valid_hist if _get_status_safe(r) in ("error", "failed"))
     total_h = len(valid_hist)
     wr_h = n_ok / total_h * 100 if total_h else 0
     wc_h = G if wr_h >= 80 else (Y if wr_h >= 50 else R)
 
     badges = []
     for r in valid_hist[:7]:
-        status_val = r.get("overall_status", "")
-        s = (status_val if status_val is not None else "").lower()
+        s = _get_status_safe(r)
         if s in ("success", "completed"):
             badges.append(f"[{G}]OK[/]")
         elif s == "halted":

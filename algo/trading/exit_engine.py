@@ -314,7 +314,15 @@ class PositionContext:
         if bool(td_seq_enabled) and self.target_hits >= 1:
             if r_mult >= Decimal("0.5"):
                 td_state = engine._get_td_state(self.cur, self.symbol, self.current_date)
-                if td_state.get("combo_13_complete") and td_state.get("setup_type") == "sell":
+                # FAIL-FAST: Validate critical TD Sequential fields present before using
+                required_fields = ["combo_13_complete", "completed_9", "setup_type"]
+                missing = [f for f in required_fields if f not in td_state]
+                if missing:
+                    raise ValueError(
+                        f"[TD_SEQUENTIAL] {self.symbol}: TD state missing critical fields {missing}. "
+                        f"Cannot make exit decision without complete TD data. Available: {list(td_state.keys())}"
+                    )
+                if td_state["combo_13_complete"] and td_state["setup_type"] == "sell":
                     return (
                         True,
                         {
@@ -323,7 +331,7 @@ class PositionContext:
                             "reason": f"TD Combo 13-count exhaustion (FULL EXIT, R={float(r_mult):.2f})",
                         },
                     )
-                if td_state.get("completed_9") and td_state.get("setup_type") == "sell":
+                if td_state["completed_9"] and td_state["setup_type"] == "sell":
                     return (
                         True,
                         {
