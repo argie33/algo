@@ -123,6 +123,35 @@ export const extractData = (response) => {
 
   // Handle single object responses (data field)
   if (data.data !== null && data.data !== undefined) {
+    // Check if data.data contains paginated items (list_response structure)
+    // API returns: { statusCode: 200, data: { items: [...], total: N, limit: N, offset: N } }
+    if (Array.isArray(data.data.items)) {
+      const filteredItems = data.data.items.filter(
+        (item) => item !== null && item !== undefined
+      );
+      const pag = data.data.pagination || {};
+      const limit = pag.limit ?? data.data.limit ?? 50;
+      const offset = pag.offset ?? data.data.offset ?? 0;
+      const total = pag.total ?? data.data.total ?? filteredItems.length;
+      return {
+        items: filteredItems,
+        pagination: {
+          limit,
+          offset,
+          total,
+          page: pag.page ?? data.data.page ?? 1,
+          totalPages:
+            pag.totalPages ?? data.data.totalPages ?? Math.ceil(total / (limit || 1)),
+          hasNext:
+            pag.hasNext !== undefined
+              ? pag.hasNext
+              : offset + filteredItems.length < total,
+          hasPrev: pag.hasPrev !== undefined ? pag.hasPrev : offset > 0,
+        },
+        statusCode: httpStatus,
+        success: true,
+      };
+    }
     // If data.data is an array, wrap it in items property
     if (Array.isArray(data.data)) {
       return {

@@ -590,11 +590,23 @@ def _render_dashboard_body(
 
     Modifies outer Layout in place.
     """
+    def safe_render_panel(panel_fn: Any, *args: Any, **kwargs: Any) -> Panel:
+        """Safely render panel, catching validation/rendering exceptions."""
+        try:
+            return panel_fn(*args, **kwargs)
+        except Exception as e:
+            return Panel(
+                Text.from_markup(f"[red]Panel rendering failed[/]: {type(e).__name__}\n[dim]{str(e)[:80]}[/]"),
+                title="[bold red]ERROR[/]",
+                border_style="red",
+                padding=(0, 1),
+            )
+
     cb_panel = (
-        panel_circuit(cb) if not has_error(cb) else Panel("[red]Circuit breakers unavailable[/]", border_style="red")
+        safe_render_panel(panel_circuit, cb) if not has_error(cb) else Panel("[red]Circuit breakers unavailable[/]", border_style="red")
     )
     health_panel = (
-        panel_algo_health(run, act, hlth, notifs, algo_metrics, audit, exec_hist, risk=risk)
+        safe_render_panel(panel_algo_health, run, act, hlth, notifs, algo_metrics, audit, exec_hist, risk=risk)
         if not (has_error(run) or has_error(hlth))
         else Panel("[red]Health data unavailable[/]", border_style="red")
     )
@@ -605,17 +617,17 @@ def _render_dashboard_body(
     )
 
     port_panel = (
-        panel_portfolio(port, cfg, risk=risk, perf=perf)
+        safe_render_panel(panel_portfolio, port, cfg, risk=risk, perf=perf)
         if not (has_error(port) or has_error(cfg))
         else Panel("[red]Portfolio unavailable[/]", border_style="red")
     )
     perf_panel = (
-        panel_performance_spark(perf, rec, perf_anl, pos=pos)
+        safe_render_panel(panel_performance_spark, perf, rec, perf_anl, pos=pos)
         if not (has_error(perf) or has_error(rec))
         else Panel("[red]Performance unavailable[/]", border_style="red")
     )
     eco_panel = (
-        panel_economic_pulse(eco, econ_cal)
+        safe_render_panel(panel_economic_pulse, eco, econ_cal)
         if not has_error(eco)
         else Panel("[red]Economic data unavailable[/]", border_style="red")
     )
@@ -627,12 +639,12 @@ def _render_dashboard_body(
     )
 
     sig_panel = (
-        panel_signals_compact(sig, sig_eval, scores=scores)
+        safe_render_panel(panel_signals_compact, sig, sig_eval, scores=scores)
         if not (has_error(sig) or has_error(scores))
         else Panel("[red]Signals unavailable[/]", border_style="red")
     )
     sector_panel = (
-        panel_sector_compact(srank, pos, port, sec_rot, irank)
+        safe_render_panel(panel_sector_compact, srank, pos, port, sec_rot, irank)
         if not (has_error(pos) or has_error(port))
         else Panel("[red]Sectors unavailable[/]", border_style="red")
     )
@@ -643,12 +655,12 @@ def _render_dashboard_body(
     )
 
     pos_panel = (
-        panel_positions(pos, compact, trades=rec)
+        safe_render_panel(panel_positions, pos, compact, trades=rec)
         if not (has_error(pos) or has_error(rec))
         else Panel("[red]Positions unavailable[/]", border_style="red")
     )
     trades_panel = (
-        panel_recent_trades(rec)
+        safe_render_panel(panel_recent_trades, rec)
         if not has_error(rec)
         else Panel("[red]Recent trades unavailable[/]", border_style="red")
     )
