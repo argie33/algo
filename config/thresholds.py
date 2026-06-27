@@ -26,20 +26,20 @@ class ThresholdConfig:
     """Unified threshold configuration — delegates to algo_config."""
 
     @staticmethod
-    def _get_config_value(key: str, default: Any) -> Any:
+    def _get_config_value(key: str, default: Any, allow_fallback: bool = False) -> Any:
         """Load a config value from AlgoConfig.
 
         Args:
             key: Configuration key in algo_config table
-            default: Fallback used if key is absent from the DB (allows loaders to
-                     start before migration 092 is applied; DB value takes precedence
-                     once the row exists)
+            default: Fallback used if key is absent from the DB (only if allow_fallback=True)
+            allow_fallback: If False (CRITICAL thresholds), raises error if key missing.
+                           If True (non-critical), uses default during migration period.
 
         Returns:
             Config value
 
         Raises:
-            RuntimeError: If config cannot be loaded and no default is provided.
+            RuntimeError: If config cannot be loaded and fallback not allowed.
         """
         import logging
 
@@ -49,12 +49,23 @@ class ThresholdConfig:
             val = get_config().get(key)
             if val is not None:
                 return val
+
+            # CRITICAL thresholds must always exist in database (no fallback)
+            if not allow_fallback:
+                raise RuntimeError(
+                    f"[CONFIG CRITICAL] Missing required configuration key: '{key}'. "
+                    "This threshold is CRITICAL for trading and must be configured in algo_config table. "
+                    "No fallback allowed—database configuration is mandatory."
+                )
+
+            # Non-critical thresholds can use defaults during migration period
             if default is not None:
                 logging.getLogger(__name__).warning(
                     f"[CONFIG FALLBACK] Key '{key}' missing from algo_config table. "
                     f"Using code default: {default}. Apply pending migrations to resolve."
                 )
                 return default
+
             raise RuntimeError(
                 f"[CONFIG] Missing required configuration key: '{key}'. "
                 "No hardcoded fallback allowed. Check algo_config table for this key."
@@ -136,18 +147,18 @@ class ThresholdConfig:
 
     @staticmethod
     def data_staleness_fresh_days() -> int:
-        """Data age (days) considered fresh."""
-        return int(ThresholdConfig._get_config_value("data_staleness_fresh_days", 3))
+        """Data age (days) considered fresh. CRITICAL: blocks trading if not met."""
+        return int(ThresholdConfig._get_config_value("data_staleness_fresh_days", None, allow_fallback=False))
 
     @staticmethod
     def data_staleness_stale_days_monday() -> int:
-        """Data age (days) on Monday to be considered stale."""
-        return int(ThresholdConfig._get_config_value("data_staleness_stale_days_monday", 10))
+        """Data age (days) on Monday to be considered stale. CRITICAL: blocks trading if exceeded."""
+        return int(ThresholdConfig._get_config_value("data_staleness_stale_days_monday", None, allow_fallback=False))
 
     @staticmethod
     def data_staleness_stale_days_other() -> int:
-        """Data age (days) on non-Monday to be considered stale."""
-        return int(ThresholdConfig._get_config_value("data_staleness_stale_days_other", 3))
+        """Data age (days) on non-Monday to be considered stale. CRITICAL: blocks trading if exceeded."""
+        return int(ThresholdConfig._get_config_value("data_staleness_stale_days_other", None, allow_fallback=False))
 
     @staticmethod
     def get_data_staleness_days(is_monday: bool) -> int:
@@ -176,9 +187,9 @@ class ThresholdConfig:
 
         Range is (day_high - day_low). Quality gate filters weak closes (near day lows)
         which often indicate distribution/selling pressure rather than accumulation.
-        For example, 40% means close must be in the upper 60% of the day's range.
+        CRITICAL: Gate determines signal validity. Must be explicitly configured.
         """
-        return float(ThresholdConfig._get_config_value("min_close_quality_pct", 40.0))
+        return float(ThresholdConfig._get_config_value("min_close_quality_pct", None, allow_fallback=False))
 
     @staticmethod
     def dashboard_metrics_max_age_minutes() -> int:
@@ -196,13 +207,13 @@ class ThresholdConfig:
 
     @staticmethod
     def loader_rate_limit_circuit_break_threshold_eod() -> int:
-        """Circuit break threshold (seconds) during EOD."""
-        return int(ThresholdConfig._get_config_value("loader_rate_limit_circuit_break_threshold_eod", 180))
+        """Circuit break threshold (seconds) during EOD. CRITICAL: loader timeout management."""
+        return int(ThresholdConfig._get_config_value("loader_rate_limit_circuit_break_threshold_eod", None, allow_fallback=False))
 
     @staticmethod
     def loader_rate_limit_circuit_break_threshold_morning() -> int:
-        """Circuit break threshold (seconds) during morning prep."""
-        return int(ThresholdConfig._get_config_value("loader_rate_limit_circuit_break_threshold_morning", 480))
+        """Circuit break threshold (seconds) during morning prep. CRITICAL: loader timeout management."""
+        return int(ThresholdConfig._get_config_value("loader_rate_limit_circuit_break_threshold_morning", None, allow_fallback=False))
 
     @staticmethod
     def loader_emergency_mode_threshold_multiplier() -> float:
@@ -231,33 +242,33 @@ class ThresholdConfig:
 
     @staticmethod
     def vix_max_threshold() -> float:
-        """VIX level to halt trading."""
-        return float(ThresholdConfig._get_config_value("vix_max_threshold", 35.0))
+        """VIX level to halt trading. CRITICAL: safety circuit breaker."""
+        return float(ThresholdConfig._get_config_value("vix_max_threshold", None, allow_fallback=False))
 
     @staticmethod
     def vix_alert_threshold() -> float:
-        """VIX level to trigger RED alert (dashboard)."""
-        return float(ThresholdConfig._get_config_value("vix_alert_threshold", 30.0))
+        """VIX level to trigger RED alert. CRITICAL: market condition monitoring."""
+        return float(ThresholdConfig._get_config_value("vix_alert_threshold", None, allow_fallback=False))
 
     @staticmethod
     def vix_caution_threshold() -> float:
-        """VIX level to reduce positions."""
-        return float(ThresholdConfig._get_config_value("vix_caution_threshold", 25.0))
+        """VIX level to reduce positions. CRITICAL: risk management."""
+        return float(ThresholdConfig._get_config_value("vix_caution_threshold", None, allow_fallback=False))
 
     @staticmethod
     def halt_drawdown_pct() -> float:
-        """Portfolio drawdown % to halt trading (CB1)."""
-        return float(ThresholdConfig._get_config_value("halt_drawdown_pct", 20.0))
+        """Portfolio drawdown % to halt trading. CRITICAL: loss limit."""
+        return float(ThresholdConfig._get_config_value("halt_drawdown_pct", None, allow_fallback=False))
 
     @staticmethod
     def max_daily_loss_pct() -> float:
-        """Max daily loss % before halt."""
-        return float(ThresholdConfig._get_config_value("max_daily_loss_pct", 2.0))
+        """Max daily loss % before halt. CRITICAL: daily risk limit."""
+        return float(ThresholdConfig._get_config_value("max_daily_loss_pct", None, allow_fallback=False))
 
     @staticmethod
     def max_total_risk_pct() -> float:
-        """Max total open risk %."""
-        return float(ThresholdConfig._get_config_value("max_total_risk_pct", 4.0))
+        """Max total open risk %. CRITICAL: portfolio risk limit."""
+        return float(ThresholdConfig._get_config_value("max_total_risk_pct", None, allow_fallback=False))
 
     @staticmethod
     def portfolio_variance_threshold() -> float:
