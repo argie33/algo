@@ -42,8 +42,13 @@ async function getActiveTiers() {
     `);
 
     if (!result || !result.rows) {
-      logger.error("Invalid tier query result structure");
-      return [];
+      const error = new Error("Invalid tier query result structure - database may be unavailable");
+      logger.error("Critical error in getActiveTiers", {
+        error: error.message,
+        hasResult: !!result,
+        hasRows: !!result?.rows,
+      });
+      throw error;
     }
 
     // Normalize field names for backward compatibility
@@ -76,11 +81,14 @@ async function getActiveTiers() {
 
     return tiers;
   } catch (error) {
-    logger.error("Error fetching tiers from database", {
-      error: error.message,
+    const tiersError = new Error(`Failed to load market exposure tiers (tier policy decisions will be unsafe): ${error.message}`);
+    tiersError.originalError = error;
+    logger.error("CRITICAL: Market exposure tiers unavailable", {
+      error: tiersError.message,
+      originalError: error.message,
       stack: error.stack,
     });
-    return [];
+    throw tiersError;
   }
 }
 

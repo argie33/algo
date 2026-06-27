@@ -347,14 +347,27 @@ const ensureDatabase = async () => {
         try {
           await initializeSchema();
         } catch (err) {
-          console.warn("Schema initialization warning (non-critical):", err.message);
-          // Don't fail - schema initialization is non-critical
+          const schemaError = new Error(`Database schema initialization failed: ${err.message}`);
+          schemaError.originalError = err;
+          console.error("CRITICAL: Schema initialization failed - materialized views may be invalid", {
+            error: schemaError.message,
+            originalError: err.message,
+          });
+          // Schema must be initialized for data integrity - fail loudly
+          throw schemaError;
         }
         // Preload market cache for MAX(date) optimization
         try {
           await marketCache.preload();
         } catch (err) {
-          console.warn("Market cache preload warning (non-critical):", err.message);
+          const cacheError = new Error(`Market cache preload failed (performance metrics may be unavailable): ${err.message}`);
+          cacheError.originalError = err;
+          console.error("WARNING: Market cache preload failed", {
+            error: cacheError.message,
+            originalError: err.message,
+          });
+          // Cache preload is important but not block-blocking - log and continue
+          // but don't silently ignore
         }
         return pool;
       })
@@ -621,21 +634,22 @@ app.get("/api/signals/search", authenticateToken, cacheMiddleware(60), async (re
       // Execute query with reasonable timeout
       dataResult = await query(dataQuery, params);
     } catch (err) {
-      // If query fails with timeout, return graceful response instead of crashing
-      console.warn(`Query failed: ${err.message}`);
-      return sendSuccess(res, {
-        items: [],
-        pagination: {
-          limit: safeLimit,
-          offset,
-          total: 0,
-          page: safePage,
-          totalPages: 0,
-          hasNext: false,
-          hasPrev: false
-        },
-        note: 'Query timeout on large dataset. Try with more specific filters (symbol, date range, or signal type).'
+      // Don't silently return empty results - query failure must be visible to caller
+      const queryError = new Error(`Signals query failed (data may be incomplete or missing): ${err.message}`);
+      queryError.originalError = err;
+      queryError.isTimeout = err.message && err.message.includes("timeout");
+      console.error("CRITICAL: Signals search query failed", {
+        error: queryError.message,
+        query: dataQuery.substring(0, 200),
+        params,
+        isTimeout: queryError.isTimeout,
       });
+
+      // Return error response so caller knows data is unavailable
+      if (queryError.isTimeout) {
+        return sendError(res, "Query timeout on large dataset. Try with more specific filters (symbol, date range, or signal type).", 504);
+      }
+      return sendError(res, queryError.message, 500);
     }
 
     // Check if there are more results

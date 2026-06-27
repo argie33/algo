@@ -1553,17 +1553,28 @@ router.get("/swing-scores", async (req, res) => {
     const grades = await getSwingGrades();
 
     const parseComponentsJSON = (components) => {
-      if (!components) return {};
+      if (!components) return null; // Explicitly indicate missing data
       if (typeof components === "object") return components;
-      if (typeof components !== "string") return {};
+      if (typeof components !== "string") {
+        logger.warn("swing_trader_scores components field is non-string, non-object type", {
+          actualType: typeof components,
+          value: String(components).substring(0, 100),
+        });
+        return null;
+      }
       try {
         return JSON.parse(components);
       } catch (e) {
-        logger.warn(
-          `Failed to parse swing_trader_scores components: ${components.substring(0, 100)}`,
-          { error: e.message }
+        const parseError = new Error(
+          `Cannot parse swing_trader_scores components (data corruption): ${components.substring(0, 100)}`
         );
-        return {};
+        parseError.originalError = e;
+        logger.error("CRITICAL: swing_trader_scores components JSON parse failed", {
+          error: parseError.message,
+          originalError: e.message,
+          componentsSample: components.substring(0, 200),
+        });
+        throw parseError;
       }
     };
 

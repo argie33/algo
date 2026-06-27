@@ -35,8 +35,13 @@ async function getSwingGrades() {
     `);
 
     if (!result || !result.rows) {
-      logger.error("Invalid grade query result structure");
-      return [];
+      const error = new Error("Invalid swing grades query result structure - database may be unavailable");
+      logger.error("Critical error in getSwingGrades", {
+        error: error.message,
+        hasResult: !!result,
+        hasRows: !!result?.rows,
+      });
+      throw error;
     }
 
     const grades = result.rows.map((g) => ({
@@ -55,11 +60,14 @@ async function getSwingGrades() {
 
     return grades;
   } catch (error) {
-    logger.error("Error fetching swing grades from database", {
-      error: error.message,
+    const gradesError = new Error(`Failed to load swing score grades (grading will be unsafe): ${error.message}`);
+    gradesError.originalError = error;
+    logger.error("CRITICAL: Swing score grades unavailable", {
+      error: gradesError.message,
+      originalError: error.message,
       stack: error.stack,
     });
-    return [];
+    throw gradesError;
   }
 }
 

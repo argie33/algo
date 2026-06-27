@@ -187,7 +187,13 @@ class AlpacaService {
       });
 
       if (!portfolio.timestamp || !portfolio.equity) {
-        return [];
+        const error = new Error(`Alpaca portfolio history response missing required fields (timestamp: ${!!portfolio.timestamp}, equity: ${!!portfolio.equity})`);
+        console.error("Critical: Alpaca returned incomplete portfolio history", {
+          error: error.message,
+          period,
+          timeframe,
+        });
+        throw error;
       }
 
       // Convert timestamps and equity values to a usable format
@@ -609,9 +615,15 @@ class AlpacaService {
         page_token: null,
       });
 
-      if (!bars || !bars.bars || bars.bars.length === 0) {
-        console.warn(`⚠️ No bars data returned for ${symbol}`);
-        return [];
+      if (!bars || !bars.bars) {
+        const error = new Error(`Alpaca API returned invalid response structure for ${symbol} bars data`);
+        console.error(error.message);
+        throw error;
+      }
+      if (bars.bars.length === 0) {
+        const error = new Error(`No bars data available for ${symbol} in requested timeframe (may indicate market-closed period or invalid symbol)`);
+        console.warn(error.message);
+        throw error;
       }
 
       return bars.bars.map((bar) => ({
@@ -626,15 +638,19 @@ class AlpacaService {
         vwap: parseFloat(bar.VWAP) || null,
       }));
     } catch (error) {
-      console.error(` Alpaca bars fetch error for ${symbol}:`, {
-        error: error.message,
+      const barsError = new Error(`Failed to fetch bars for ${symbol}: ${error.message}`);
+      barsError.originalError = error;
+      barsError.statusCode = error.status;
+      barsError.symbol = symbol;
+      barsError.timeframe = options?.timeframe;
+      console.error(` Critical: Alpaca bars fetch failed`, {
+        error: barsError.message,
         statusCode: error.status,
         errorCode: error.code,
-        options,
+        symbol,
+        timeframe: options?.timeframe,
       });
-
-      // Don't throw - return empty array to let calling code handle gracefully
-      return [];
+      throw barsError;
     }
   }
 
