@@ -100,7 +100,7 @@ class DataPatrolConfig:
                 "earnings_history": 120,
             }
         """
-        return {
+        windows = {
             "price_daily": self.get("patrol_staleness_price_daily", 7),
             "technical_data_daily": self.get("patrol_staleness_technical_daily", 7),
             "buy_sell_daily": self.get("patrol_staleness_buy_sell_daily", 7),
@@ -116,6 +116,12 @@ class DataPatrolConfig:
             "growth_metrics": self.get("patrol_staleness_growth_metrics", 30),
             "earnings_history": self.get("patrol_staleness_earnings_history", 120),
         }
+        # Log if using defaults (indicates config DB may be down or incomplete)
+        defaults_used = [k for k, v in windows.items() if (v == 7 or v == 30 or v == 120)]
+        if defaults_used:
+            logger.debug(f"[CONFIG] Data patrol staleness using defaults for {len(defaults_used)} tables; "
+                        f"override with patrol_staleness_* config keys if needed")
+        return windows
 
     def get_coverage_thresholds(self) -> dict[str, int]:
         """Get data patrol coverage ratio thresholds.

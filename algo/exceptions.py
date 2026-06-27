@@ -8,8 +8,11 @@ logging, recovery strategies, and API responses. Each exception includes:
 - context: Additional context about the error (file, data, etc.)
 """
 
+import logging
 from enum import Enum
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 class ErrorCategory(Enum):
@@ -46,6 +49,13 @@ class AlgoError(Exception):
         self.retry_eligible = retry_eligible
         self.recovery_suggestion = recovery_suggestion
         self.context = context or {}
+
+        # Warn for critical errors raised without diagnostic context
+        if not context and error_category in (ErrorCategory.DATA_QUALITY, ErrorCategory.PERMANENT):
+            logger.warning(
+                f"[ERROR_CONTEXT_MISSING] {error_category.value} error raised without diagnostic context: {message}. "
+                f"Pass 'context' dict with relevant details (field, table, data) for better troubleshooting."
+            )
 
     def to_dict(self) -> dict[str, Any]:
         """Convert exception to structured dict for API responses."""

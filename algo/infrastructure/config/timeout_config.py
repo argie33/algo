@@ -87,7 +87,10 @@ class TimeoutConfig:
         env_val = os.getenv("API_TIMEOUT")
         if env_val:
             return int(env_val)
-        return cast(int, self.get("api_request_timeout_seconds", 5))
+        timeout = cast(int, self.get("api_request_timeout_seconds", 5))
+        if timeout == 5:
+            logger.debug("[CONFIG] API timeout using default (5s); override with api_request_timeout_seconds config")
+        return timeout
 
     def get_db_timeout(self) -> int:
         """Get database connection timeout in seconds.
@@ -105,7 +108,10 @@ class TimeoutConfig:
         env_val = os.getenv("DB_TIMEOUT_SECONDS")
         if env_val:
             return int(env_val)
-        return cast(int, self.get("db_connection_timeout_seconds", 15))
+        timeout = cast(int, self.get("db_connection_timeout_seconds", 15))
+        if timeout == 15:
+            logger.debug("[CONFIG] DB timeout using default (15s); override with db_connection_timeout_seconds config")
+        return timeout
 
     def get_market_data_timeout(self) -> int:
         """Get market data API timeout in seconds.
@@ -171,7 +177,10 @@ class TimeoutConfig:
         env_val = os.getenv("LOADER_TIMEOUT")
         if env_val:
             return int(env_val)
-        return cast(int, self.get("loader_timeout_seconds", 300))
+        timeout = cast(int, self.get("loader_timeout_seconds", 300))
+        if timeout == 300:
+            logger.debug("[CONFIG] Loader timeout using default (300s); override with loader_timeout_seconds config")
+        return timeout
 
     def get_all_timeouts(self) -> dict[str, int]:
         """Get all timeout values for debugging/logging.
