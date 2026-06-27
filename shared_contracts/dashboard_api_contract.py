@@ -729,7 +729,7 @@ DASHBOARD_PANELS = {
         "description": "Portfolio snapshot",
     },
     "performance": {
-        "endpoint_deps": ["per", "trades", "perf_anl"],
+        "endpoint_deps": ["perf", "trades", "perf_anl"],
         "optional": True,
         "description": "Performance metrics and sparklines",
     },
