@@ -390,7 +390,14 @@ def _compute_risk_metrics(config: Any, run_date: _date, log_phase_result_fn: Cal
                     f"Cannot report concentration risk. Available keys: {list(concentration.keys())}"
                 )
 
-            alerts = risk_report.get("alerts", [])
+            if "alerts" not in risk_report:
+                logger.warning(
+                    f"[PHASE 9] Risk report missing 'alerts' field. "
+                    f"Cannot determine if critical risk alerts present. Available keys: {list(risk_report.keys())}"
+                )
+                alerts = []
+            else:
+                alerts = risk_report["alerts"]
             alerts_count = len(alerts) if alerts else 0
             risk_summary = f"VaR {var_pct}%, Concentration {conc_pct}%" + (
                 f", {alerts_count} alerts" if alerts_count else ""

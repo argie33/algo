@@ -1152,11 +1152,11 @@ def _get_correlation_matrix(cur: cursor) -> Any:
                 "avg_correlation": avg_corr_val,
                 "max_correlation": {
                     "value": round(max_corr, 2) if max_corr else None,
-                    "pair": max_pair or [],
+                    "pair": max_pair if max_pair is not None else (logger.warning("[MARKET API] Max correlation pair not found—data incomplete"), [])[1],
                 },
                 "min_correlation": {
                     "value": round(min_corr, 2) if min_corr else None,
-                    "pair": min_pair or [],
+                    "pair": min_pair if min_pair is not None else (logger.warning("[MARKET API] Min correlation pair not found—data incomplete"), [])[1],
                 },
             },
             "analysis": {
