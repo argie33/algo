@@ -148,11 +148,17 @@ class StockScoresLoader(OptimalLoader):
 
             # Normalize weights: keep weights of available metrics, redistribute missing weights
             available_weight_sum = sum(w for k, w in base_weights.items() if score_availability[k])
+            if available_weight_sum <= 0:
+                raise ValueError(
+                    f"[STOCK_SCORES] No component scores available for {symbol}. "
+                    "Stock score computation requires at least one available component (quality/growth/value/positioning/stability). "
+                    "Check upstream loader status and data availability."
+                )
             normalized_weights = {}
             for key, weight in base_weights.items():
                 if score_availability[key]:
                     # Scale up available weights to sum to 1.0
-                    normalized_weights[key] = weight / available_weight_sum if available_weight_sum > 0 else 0
+                    normalized_weights[key] = weight / available_weight_sum
                 else:
                     normalized_weights[key] = 0
 

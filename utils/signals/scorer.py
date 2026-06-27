@@ -177,7 +177,12 @@ class SignalScorer:
         for component_name, (score, max_pts) in scores.items():
             weight = weights.get(component_name, 1.0)
             # Normalize score to 0-100
-            normalized = (score / max_pts * 100) if max_pts > 0 else 0
+            if max_pts <= 0:
+                raise ValueError(
+                    f"Component '{component_name}' has invalid max_pts={max_pts}. "
+                    "Score components must have max_pts > 0. Check scorer configuration."
+                )
+            normalized = score / max_pts * 100
             total_weighted += normalized * weight
             total_weight += weight
 
