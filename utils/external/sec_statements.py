@@ -179,17 +179,31 @@ def _aggregate_concepts(
                 # Snake-case the concept for column compatibility
                 col = _to_snake(concept)
                 # Keep latest filing if multiple for same period
-                entry_filed = entry.get("filed") or ""
-                row_filed = row.get(f"_filed_{col}") or ""
-                if col not in row or entry_filed > row_filed:
+                entry_filed = entry.get("filed")
+                if not entry_filed:
+                    raise ValueError(
+                        f"SEC data missing filed date for {symbol} {period}. "
+                        f"Cannot determine latest filing without date information. "
+                        f"Check SEC data source or API response."
+                    )
+                row_filed = row.get(f"_filed_{col}")
+                if col not in row or (row_filed is None or entry_filed > row_filed):
                     row[col] = entry.get("val")
                     row[f"_filed_{col}"] = entry.get("filed")
 
-    # Drop helper fields, return sorted
+    # Drop helper fields, return sorted (require fiscal_year for ordering)
     result = []
     for row in rows.values():
         result.append({k: v for k, v in row.items() if not k.startswith("_filed_")})
-    result.sort(key=lambda r: (r["fiscal_year"] or 0, r["fiscal_period"]))
+    # Validate fiscal_year exists before sorting (critical for financial statement ordering)
+    for r in result:
+        if r.get("fiscal_year") is None:
+            raise ValueError(
+                f"SEC statements missing fiscal_year for {symbol} {period}. "
+                f"Cannot sort or aggregate financial statements without year information. "
+                f"Check SEC data source or API response."
+            )
+    result.sort(key=lambda r: (int(r["fiscal_year"]), r["fiscal_period"] or ""))
     return result
 
 
