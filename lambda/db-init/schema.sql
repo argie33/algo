@@ -3554,23 +3554,25 @@ CREATE INDEX IF NOT EXISTS idx_algo_performance_metrics_date ON algo_performance
 CREATE OR REPLACE VIEW sector_allocation_summary AS
 SELECT
   CURRENT_DATE as snapshot_date,
-  COALESCE(cp.sector, 'Unknown') as sector,
+  -- CRITICAL: Return NULL for missing sector (don't hide with 'Unknown')
+  cp.sector,
   COUNT(DISTINCT ap.symbol) as position_count,
-  COALESCE(SUM(ap.position_value), 0) as total_value_dollars,
+  -- CRITICAL: Return NULL when no position value (don't hide with 0)
+  NULLIF(SUM(ap.position_value), 0) as total_value_dollars,
   CASE
-    WHEN (SELECT COALESCE(SUM(position_value), 0) FROM algo_positions WHERE status IN ('open', 'partially_closed')) > 0
-    THEN ROUND((COALESCE(SUM(ap.position_value), 0) / (SELECT COALESCE(SUM(position_value), 0) FROM algo_positions WHERE status IN ('open', 'partially_closed')) * 100)::numeric, 2)
-    ELSE 0
+    WHEN (SELECT NULLIF(SUM(position_value), 0) FROM algo_positions WHERE status IN ('open', 'partially_closed')) > 0
+    THEN ROUND((NULLIF(SUM(ap.position_value), 0) / NULLIF((SELECT NULLIF(SUM(position_value), 0) FROM algo_positions WHERE status IN ('open', 'partially_closed')), 0) * 100)::numeric, 2)
+    ELSE NULL
   END as allocation_pct,
   CASE
-    WHEN (COALESCE(SUM(ap.position_value), 0) / NULLIF((SELECT COALESCE(SUM(position_value), 0) FROM algo_positions WHERE status IN ('open', 'partially_closed')), 0) * 100) > 25 THEN true
+    WHEN (NULLIF(SUM(ap.position_value), 0) / NULLIF((SELECT NULLIF(SUM(position_value), 0) FROM algo_positions WHERE status IN ('open', 'partially_closed')), 0) * 100) > 25 THEN true
     ELSE false
   END as is_overweight
 FROM algo_positions ap
 LEFT JOIN company_profile cp ON cp.ticker = ap.symbol
 WHERE ap.status IN ('open', 'partially_closed')
 GROUP BY cp.sector
-ORDER BY allocation_pct DESC;
+ORDER BY allocation_pct DESC NULLS LAST;
 
 --
 -- Missing pre-computed loader tables

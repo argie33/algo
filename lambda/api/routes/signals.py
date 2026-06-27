@@ -129,8 +129,9 @@ def _get_signals_stocks(
                 t.weinstein_stage AS stage_number,
                 b.close,
                 b.volume,
-                COALESCE(cp.sector, 'Unknown') AS sector,
-                COALESCE(cp.industry, 'Unknown') AS industry,
+                -- CRITICAL FIX: Return NULL for missing sector (don't hide with 'Unknown')
+                cp.sector,
+                cp.industry,
                 b.rsi,
                 b.ema_21,
                 b.atr,

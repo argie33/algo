@@ -139,8 +139,9 @@ def _get_stock_scores(
                 SELECT
                     sc.symbol,
                     COALESCE(ss.security_name, sc.symbol) AS company_name,
-                    COALESCE(cp.sector, 'Unknown') AS sector,
-                    COALESCE(cp.industry, 'Unknown') AS industry,
+                    -- CRITICAL FIX: Return NULL for missing sector (don't hide with 'Unknown')
+                    cp.sector,
+                    cp.industry,
                     sc.composite_score, sc.momentum_score, sc.quality_score,
                     sc.value_score, sc.growth_score, sc.positioning_score, sc.stability_score,
                     sc.rs_percentile, sc.data_completeness,

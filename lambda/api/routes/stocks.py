@@ -195,8 +195,9 @@ def handle(
                 SELECT
                     ss.symbol,
                     COALESCE(ss.security_name, ss.symbol) AS company_name,
-                    COALESCE(cp.sector, 'Unknown') AS sector,
-                    COALESCE(cp.industry, 'Unknown') AS industry,
+                    -- CRITICAL FIX: Return NULL for missing sector (don't hide with 'Unknown')
+                    cp.sector,
+                    cp.industry,
                     vm.market_cap,
                     lp.current_price,
                     (lp.current_price IS NULL OR s52.high_52w IS NULL

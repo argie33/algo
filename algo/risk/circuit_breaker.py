@@ -802,7 +802,8 @@ class CircuitBreaker:
             max_sector_positions = int(max_sector_val)
 
             cur.execute("""
-                SELECT ap.symbol, COALESCE(cp.sector, 'Unknown') AS sector
+                -- CRITICAL FIX: Return NULL for missing sector (don't hide with 'Unknown')
+                SELECT ap.symbol, cp.sector
                 FROM algo_positions ap
                 LEFT JOIN company_profile cp ON cp.ticker = ap.symbol
                 WHERE ap.status = 'open'
