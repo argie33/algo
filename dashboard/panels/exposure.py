@@ -118,9 +118,18 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
             return f" {v:+.1f}%" if v is not None else ""
         if key == "put_call_ratio":
             v = f.get("value")
+            # Handle nested structure: put_call_ratio might be {put_call_ratio, pts, max, score}
+            if v is None and isinstance(f.get("put_call_ratio"), dict):
+                v = f["put_call_ratio"].get("put_call_ratio")
+            if v is None and isinstance(f.get("put_call_ratio"), dict):
+                # Fallback to pts score if actual ratio unavailable
+                v = f["put_call_ratio"].get("pts")
             if v is not None:
                 return f" {v:.2f}"
-            return " [yellow]⚠[/]" if f.get("reason") else ""
+            reason = f.get("reason")
+            if not reason and isinstance(f.get("put_call_ratio"), dict):
+                reason = f["put_call_ratio"].get("reason")
+            return " [yellow]⚠[/]" if reason else ""
         if key == "vix_regime":
             v = f.get("value")
             return f" {v:.1f}" if v is not None else ""
