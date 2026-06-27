@@ -90,8 +90,16 @@ class VectorizedSwingScoresLoader:
                     "Run load_trend_template_data.py first."
                 )
 
-            # STEP 4: Compute scores for ALL symbols vectorized
-            scores_df = self._compute_all_scores_vectorized(symbols, signal_scores, technical_data, trend_data)
+            # STEP 4: Fetch sector ranking data (sector health metric — may be empty if sector ranking not yet run)
+            sector_data = self._fetch_sector_and_ranking_data(symbols, start_date, end_date)
+            if sector_data.empty:
+                logger.warning(
+                    "[SECTOR RANKING] No sector ranking data found. "
+                    "sector_ranking table may be empty. Sector scores will be omitted from computation."
+                )
+
+            # STEP 5: Compute scores for ALL symbols vectorized
+            scores_df = self._compute_all_scores_vectorized(symbols, signal_scores, technical_data, trend_data, sector_data)
 
             if scores_df.empty:
                 raise RuntimeError(
@@ -179,12 +187,33 @@ class VectorizedSwingScoresLoader:
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"[TREND DATA FETCH FAILED] Cannot load trend template data: {e}") from e
 
+    def _fetch_sector_and_ranking_data(self, symbols: list[str], start_date: date, end_date: date) -> pd.DataFrame:
+        """Fetch sector names and sector ranking momentum scores for all symbols."""
+        try:
+            with DatabaseContext("read") as cur:
+                ph = ",".join(["%s"] * len(symbols))
+                cur.execute(
+                    "SELECT cp.ticker AS symbol, sr.date, cp.sector, sr.momentum_score "
+                    " FROM company_profile cp "
+                    " LEFT JOIN sector_ranking sr ON cp.sector = sr.sector_name "
+                    " WHERE cp.ticker IN (" + ph + ")"
+                    " AND sr.date >= %s AND sr.date <= %s ORDER BY cp.ticker, sr.date DESC",
+                    [*symbols, start_date, end_date],
+                )
+                return pd.DataFrame(
+                    cur.fetchall(),
+                    columns=["symbol", "date", "sector", "sector_momentum_score"],
+                )
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            raise RuntimeError(f"[SECTOR RANKING FETCH FAILED] Cannot load sector ranking data: {e}") from e
+
     def _compute_all_scores_vectorized(
         self,
         symbols: list[str],
         signal_scores: pd.DataFrame,
         technical_data: pd.DataFrame,
         trend_data: pd.DataFrame,
+        sector_data: pd.DataFrame | None = None,
         end_date: date | None = None,
     ) -> pd.DataFrame:
         """Compute swing scores for ALL symbols at once (vectorized)."""
@@ -192,6 +221,9 @@ class VectorizedSwingScoresLoader:
             from datetime import date as _date
 
             end_date = _date.today()
+
+        if sector_data is None:
+            sector_data = pd.DataFrame()
 
         results = []
 
@@ -204,6 +236,8 @@ class VectorizedSwingScoresLoader:
                 tech = tech_df.iloc[0] if not tech_df.empty else None
                 trend_df = trend_data[trend_data["symbol"] == symbol]
                 trend = trend_df.iloc[0] if not trend_df.empty else None
+                sector_df = sector_data[sector_data["symbol"] == symbol]
+                sector = sector_df.iloc[0] if not sector_df.empty else None
 
                 # trend_template_data (always in pipeline) is the only hard requirement
                 if trend is None:
@@ -258,6 +292,22 @@ class VectorizedSwingScoresLoader:
                     raise ValueError(f"Signal quality score is NaN for {symbol} on {date}")
                 fundamentals_score = float(sqs)
 
+                # Fetch sector momentum score (real sector health metric, not placeholder)
+                sector_score = None
+                if sector is not None and "sector_momentum_score" in sector:
+                    sector_momentum = sector.get("sector_momentum_score")
+                    if pd.notna(sector_momentum):
+                        sector_score = float(sector_momentum)
+                        logger.debug(f"{symbol}: Using sector momentum score {sector_score:.1f} from sector_ranking")
+
+                # If sector data unavailable, use fundamentals as fallback (not ideal but safe)
+                if sector_score is None:
+                    sector_score = fundamentals_score
+                    if sector is not None:
+                        logger.debug(f"{symbol}: Sector momentum score unavailable, using fundamentals_score as fallback")
+                    else:
+                        logger.debug(f"{symbol}: No sector data available, using fundamentals_score as fallback")
+
                 total_score = (
                     setup_score * 0.25
                     + trend_score * 0.20
@@ -292,7 +342,7 @@ class VectorizedSwingScoresLoader:
                         "momentum_score": momentum_score,
                         "volume_score": volume_score,
                         "fundamentals_score": fundamentals_score,
-                        "sector_score": fundamentals_score,  # Placeholder
+                        "sector_score": sector_score,
                         "multi_tf_score": (trend_score + momentum_score) / 2,
                         "total_score": round(total_score, 1),
                         "grade": grade,
@@ -354,7 +404,7 @@ class VectorizedSwingScoresLoader:
                         "volume": float(row["volume_score"]),
                         "fundamentals": float(row["fundamentals_score"]),
                         "sector": float(row["sector_score"]),
-                        "multi_t": float(row["multi_tf_score"]),
+                        "multi_tf": float(row["multi_tf_score"]),
                     }
 
                     cur.execute(

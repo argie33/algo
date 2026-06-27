@@ -560,10 +560,47 @@ class OptimalLoader:
     def _invalidate_cache(self) -> None:
         try:
             import boto3
+            from botocore.exceptions import ClientError
 
             dynamodb = boto3.resource("dynamodb", region_name=os.getenv("AWS_REGION", "us-east-1"))
             cache_table = dynamodb.Table(os.getenv("CACHE_TABLE", "algo_phase1_cache"))
-            cache_table.delete_item(Key={"cache_key": f"data_loader_status-{date.today().isoformat()}"})
-        except Exception as cache_err:
-            logger.critical(f"[{self.table_name}] Cache invalidation failed: {cache_err}. Stale cache will persist—orchestrator may use old data.")
-            raise RuntimeError(f"[{self.table_name}] Cache invalidation FAILED. Stale phase1 cache must be cleared. {cache_err}") from cache_err
+            cache_key = f"data_loader_status-{date.today().isoformat()}"
+
+            try:
+                cache_table.delete_item(Key={"cache_key": cache_key})
+                logger.info(f"[{self.table_name}] Cache invalidation successful")
+                return
+            except ClientError as delete_err:
+                error_dict = delete_err.response.get("Error", {})
+                if error_dict.get("Code") in ("AccessDenied", "AccessDeniedException"):
+                    logger.warning(
+                        f"[{self.table_name}] Cache invalidation: No DynamoDB write access (permission denied). "
+                        "Loader will continue, but Phase 1 may use stale data from previous run."
+                    )
+                    return
+                logger.error(f"[{self.table_name}] Cache delete failed: {delete_err}. Attempting cache poisoning...")
+
+            try:
+                from decimal import Decimal
+
+                cache_table.update_item(
+                    Key={"cache_key": cache_key},
+                    UpdateExpression="SET invalidation_failed = :true, poisoned_at = :now",
+                    ExpressionAttributeValues={
+                        ":true": True,
+                        ":now": Decimal(str(time.time())),
+                    },
+                )
+                logger.warning(f"[{self.table_name}] Cache poisoned (set invalidation_failed=true) - Phase 1 will skip stale data")
+                return
+            except ClientError as poison_err:
+                error_dict = poison_err.response.get("Error", {})
+                if error_dict.get("Code") in ("AccessDenied", "AccessDeniedException"):
+                    logger.warning(
+                        f"[{self.table_name}] Cache poisoning: No DynamoDB write access (permission denied). "
+                        "Loader will continue, but Phase 1 may use stale data from previous run."
+                    )
+                    return
+                logger.error(f"[{self.table_name}] Cache poisoning failed: {poison_err}")
+        except Exception as setup_err:
+            logger.error(f"[{self.table_name}] Cache invalidation setup error: {setup_err}")
