@@ -190,6 +190,12 @@ def check_data_freshness() -> tuple[str, list[dict[str, Any]]]:
 def send_metric(metric_name: str, value: float, unit: str = "None", dimensions: dict[str, str] | None = None) -> None:
     """Send custom CloudWatch metric."""
     try:
+        metric_dims = []
+        if dimensions is None:
+            logger.warning(f"[HEALTH_MONITOR] Metric '{metric_name}' published without dimensions. Monitoring may lack context.")
+        else:
+            metric_dims = [{"Name": k, "Value": v} for k, v in dimensions.items()]
+
         cloudwatch.put_metric_data(
             Namespace="Algo/HealthMonitor",
             MetricData=[
@@ -198,7 +204,7 @@ def send_metric(metric_name: str, value: float, unit: str = "None", dimensions: 
                     "Value": value,
                     "Unit": unit,
                     "Timestamp": datetime.now(timezone.utc),
-                    "Dimensions": [{"Name": k, "Value": v} for k, v in (dimensions or {}).items()],
+                    "Dimensions": metric_dims,
                 }
             ],
         )

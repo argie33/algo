@@ -200,14 +200,16 @@ class SignalsDailyLoader(OptimalLoader):
 
                 # Convert max_date to date if found
                 if max_date:
-                    # Handle different date types from database
                     if isinstance(max_date, date) and not isinstance(max_date, datetime):
                         since = max_date
                     elif isinstance(max_date, datetime):
                         since = max_date.date()
                     else:
-                        # Try string conversion as fallback
-                        since = date.fromisoformat(str(max_date).split(" ")[0])
+                        raise RuntimeError(
+                            f"[BUY_SELL_DAILY] Unexpected date type from database: {type(max_date).__name__}. "
+                            f"Expected date or datetime, got: {max_date}. "
+                            f"Database query may be returning wrong type or corrupted data."
+                        )
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 raise RuntimeError(
                     f"[BUY_SELL_DAILY] Failed to read watermark for {symbol}: {e}. "

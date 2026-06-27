@@ -821,8 +821,12 @@ class PriceLoader(OptimalLoader):
                                 row_date = datetime.fromisoformat(row_date_str)
                                 if latest_price_date is None or row_date > latest_price_date:
                                     latest_price_date = row_date
-                            except (ValueError, TypeError):
-                                pass
+                            except (ValueError, TypeError) as e:
+                                raise RuntimeError(
+                                    f"[PRICE_LOADER] Cannot parse price date: '{row_date_str}'. "
+                                    f"Expected ISO format (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS). "
+                                    f"Price data may be corrupted. Error: {e}"
+                                ) from e
 
             if latest_price_date is not None:
                 try:

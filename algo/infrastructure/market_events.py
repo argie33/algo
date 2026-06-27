@@ -431,13 +431,32 @@ class MarketEventHandler:
                 check_name = futures[future]
                 try:
                     result["checks"][check_name] = future.result()
-                except (
-                    requests.RequestException,
-                    requests.Timeout,
-                    json.JSONDecodeError,
-                ) as e:
-                    logger.warning(f"Pre-market check {check_name} failed: {e}")
-                    result["checks"][check_name] = None
+                except Exception as e:
+                    logger.critical(
+                        f"[MARKET_EVENTS] Pre-market check '{check_name}' failed: {e}. "
+                        f"Cannot verify market state. Failing-closed with worst-case assumption."
+                    )
+                    if check_name == "early_close":
+                        result["checks"][check_name] = True
+                        result["alerts"].append(
+                            "⚠ EARLY_CLOSE CHECK FAILED - Assuming market closes early at 13:00 ET (conservative)"
+                        )
+                    elif check_name == "circuit_breaker":
+                        result["checks"][check_name] = {
+                            "level": 3,
+                            "description": "Circuit breaker status unknown (API failed) - treating as LEVEL 3 HALT",
+                            "pct_down": None,
+                            "action": "HALT_ALL_ENTRIES",
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                        }
+                        result["alerts"].append(
+                            "⚠ CIRCUIT_BREAKER CHECK FAILED - Assuming Level 3 halt (conservative)"
+                        )
+                    elif check_name == "after_hours_window":
+                        result["checks"][check_name] = True
+                        result["alerts"].append(
+                            "⚠ AFTER_HOURS CHECK FAILED - Assuming trading window restricted (conservative)"
+                        )
 
         if result["checks"].get("early_close"):
             result["alerts"].append("MARKET CLOSES EARLY AT 13:00 ET")

@@ -623,15 +623,19 @@ def _write_vix_family_prices(start: date, end: date) -> int:
                     )
                 logger.info(f"Fetched {len([r for r in records if r[0] == sym])} rows for {sym}")
             except (AttributeError, KeyError, ValueError, TypeError) as e:
-                logger.error(f"Failed to fetch {sym}: Data format error: {e}")
-                failed_symbols[sym] = f"Data format error: {str(e)[:50]}"
-                continue
+                logger.error(f"[MARKET_HEALTH] Cannot fetch {sym}: Data format corrupted: {e}")
+                raise RuntimeError(
+                    f"[MARKET_HEALTH] Market health data corrupted for {sym}. "
+                    f"Cannot proceed with incomplete market health context. "
+                    f"Error: {e}"
+                ) from e
             except RuntimeError:
                 raise
             except ZeroDivisionError as e:
-                logger.error(f"Failed to fetch {sym}: Unexpected error: {e}")
-                failed_symbols[sym] = f"Unexpected error: {str(e)[:50]}"
-                continue
+                logger.error(f"[MARKET_HEALTH] Unexpected calculation error for {sym}: {e}")
+                raise RuntimeError(
+                    f"[MARKET_HEALTH] Unexpected error loading market health for {sym}: {e}"
+                ) from e
 
         coverage = (len(INDEX_SYMBOLS_FOR_PRICE_DAILY) - len(failed_symbols)) / len(INDEX_SYMBOLS_FOR_PRICE_DAILY) * 100
         if coverage < 80:

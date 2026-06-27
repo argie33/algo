@@ -165,8 +165,14 @@ class PositioningMetricsLoader(OptimalLoader):
             return None
 
         except (ValueError, ZeroDivisionError, TypeError) as e:
-            logger.info(f"[POSITIONING_METRICS] Parsing error for {symbol}: {e}")
-            return None
+            logger.error(
+                f"[POSITIONING_METRICS] Cannot parse positioning data for {symbol}: {e}. "
+                f"Data may be corrupted or API format changed."
+            )
+            raise RuntimeError(
+                f"[POSITIONING_METRICS] Positioning metrics data for {symbol} is corrupted. "
+                f"Cannot parse positioning information. Error: {e}"
+            ) from e
 
     def transform(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Rows are clean."""

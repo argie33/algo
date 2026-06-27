@@ -74,17 +74,6 @@ class OrchestratorPhaseExecutor:
         """Get result from a previously executed phase."""
         return self.phase_results.get(phase_num)
 
-    def get_phase_data(self, phase_num: int | str, key: str, default: Any = None) -> Any:
-        """Convenience method to get specific data from a phase result.
-
-        DEPRECATED: Use get_phase_data_required() for explicit validation.
-        This method silently returns default, hiding missing dependencies.
-        """
-        result = self.phase_results.get(phase_num)
-        if result:
-            return result.data.get(key, default)
-        return default
-
     def get_phase_data_required(self, phase_num: int | str, *keys: str) -> Any:
         """Extract required data from phase result with validation.
 

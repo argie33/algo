@@ -134,23 +134,18 @@ class AlpacaSyncManager:
 
         Returns status dict with recovery actions taken and message.
 
-        TODO: Implement actual failure recovery. Currently returns placeholder.
+        Raises RuntimeError if position reconciliation cannot proceed (fail-fast).
         """
         if not alpaca_positions:
-            logger.error("Cannot process failed imports without Alpaca position data")
-            return {
-                "recovered": 0,
-                "failed": 0,
-                "message": "No Alpaca positions available for recovery",
-            }
+            raise RuntimeError(
+                "[ALPACA_SYNC] Cannot reconcile failed imports: Alpaca position data unavailable. "
+                "This indicates either Alpaca credentials failed or API is down. "
+                "Cannot proceed with position recovery without authoritative Alpaca state. "
+                "Check Alpaca API status and credentials before resuming trading."
+            )
 
-        logger.warning(
-            f"Failed imports placeholder executed with {len(alpaca_positions)} Alpaca positions. "
-            "Recovery logic not yet implemented."
+        raise RuntimeError(
+            "[ALPACA_SYNC] Position failure recovery not yet fully implemented. "
+            f"Found {len(alpaca_positions)} positions in Alpaca but recovery logic is incomplete. "
+            "This is a placeholder. Implement actual failure recovery logic before production use."
         )
-
-        return {
-            "recovered": 0,
-            "failed": 0,
-            "message": "Placeholder: No failed imports processed",
-        }
