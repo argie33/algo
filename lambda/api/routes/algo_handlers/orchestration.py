@@ -175,9 +175,9 @@ def _get_orchestrator_execution_stats(cur: cursor, days: int = 7) -> Any:
         {
             "total_runs": total,
             "by_status": stats_by_status,
-            "success_rate": (f"{(success_count / total * 100):.1f}%" if total > 0 else "N/A"),
-            "halt_rate": f"{(halt_count / total * 100):.1f}%" if total > 0 else "N/A",
-            "error_rate": f"{(error_count / total * 100):.1f}%" if total > 0 else "N/A",
+            "success_rate": (f"{(success_count / total * 100):.1f}%" if total > 0 else None),
+            "halt_rate": (f"{(halt_count / total * 100):.1f}%" if total > 0 else None),
+            "error_rate": (f"{(error_count / total * 100):.1f}%" if total > 0 else None),
             "period_days": days,
         }
     )

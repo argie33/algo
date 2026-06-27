@@ -101,9 +101,7 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
             padding=(0, 1),
         )
 
-    # Only consider data as placeholder if BOTH flag is set AND we have no items (already checked above)
-    # If we reach here, we have actual position data, so never show placeholder warning
-    is_placeholder = False
+    is_placeholder = isinstance(pos, dict) and pos.get("_data_unavailable", False)
 
     t = Table(
         box=box.SIMPLE_HEAD,

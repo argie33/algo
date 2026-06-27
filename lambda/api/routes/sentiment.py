@@ -201,11 +201,9 @@ def handle(
                 return json_response(
                     200,
                     {
+                        "_data_unavailable": True,
                         "metrics": None,
                         "priceTargets": [],
-                        "momentum": None,
-                        "coverage": None,
-                        "recentUpgrades": [],
                     },
                 )
             # Use latest row for metrics summary
@@ -255,9 +253,6 @@ def handle(
             analyst_result = {
                 "metrics": metrics,
                 "priceTargets": price_targets,
-                "momentum": None,
-                "coverage": None,
-                "recentUpgrades": [],
                 "data_freshness": freshness,
             }
             is_valid, error_msg = ResponseValidator.validate_endpoint_response("sentiment", analyst_result)
@@ -289,11 +284,9 @@ def handle(
                 return json_response(
                     200,
                     {
+                        "_data_unavailable": True,
                         "sentiment": None,
                         "priceTargets": [],
-                        "coverage": None,
-                        "momentum": None,
-                        "recentTrends": [],
                     },
                 )
             latest = dict(latest)
@@ -342,8 +335,6 @@ def handle(
                 "sentiment": sentiment_data,
                 "priceTargets": price_targets,
                 "coverage": {"totalAnalysts": total} if total else None,
-                "momentum": None,
-                "recentTrends": [],
             }
             is_valid, error_msg = ResponseValidator.validate_endpoint_response("sentiment", social_result)
             if not is_valid:

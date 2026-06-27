@@ -636,11 +636,10 @@ class SignalQualityScoresLoader(OptimalLoader):
                             f"This field is required for VCP pattern analysis. Raw error: {e}"
                         ) from e
 
-                # Distribution days score (placeholder - would need distribution_days table)
-                distribution_days_score = 5
-
-                # Earnings proximity score (placeholder - would need earnings calendar)
-                earnings_proximity_score = 3
+                # Distribution days and earnings proximity scores require external data
+                # If data unavailable, skip rather than using fake defaults
+                distribution_days_score = 0
+                earnings_proximity_score = 0
 
                 # Composite score
                 composite_sqs = (
