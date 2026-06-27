@@ -160,14 +160,14 @@ def compute_sector_agg(pos: Any, port: dict[str, Any]) -> tuple[list[tuple[str, 
 
     Thread-safe: Uses lock during cache reads/writes to prevent race conditions.
     """
-    pos, err_msg, has_error = normalize_positions_data(pos)
+    pos_items, pos_timestamp, has_error = normalize_positions_data(pos)
     if has_error:
-        raise ValueError(f"Cannot compute sector aggregation: {err_msg}")
+        raise ValueError("Cannot compute sector aggregation: positions data contains error")
 
-    if not pos:
+    if not pos_items:
         raise ValueError("Cannot compute sector aggregation: positions data is empty")
 
-    pos_hash = hashlib.md5(json.dumps(pos, sort_keys=True, default=str).encode()).hexdigest()
+    pos_hash = hashlib.md5(json.dumps(pos_items, sort_keys=True, default=str).encode()).hexdigest()
 
     with _sector_cache_lock:
         if pos_hash in _sector_agg_cache:
@@ -177,7 +177,7 @@ def compute_sector_agg(pos: Any, port: dict[str, Any]) -> tuple[list[tuple[str, 
     pv = safe_float(port.get("total_portfolio_value"), default=None)
     sd: dict[str, dict[str, Any]] = {}
     invalid_count = 0
-    for p in pos:
+    for p in pos_items:
         if not isinstance(p, dict):
             invalid_count += 1
             logger.error(f"compute_sector_agg: invalid position (not a dict): {type(p).__name__}")
