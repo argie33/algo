@@ -275,6 +275,12 @@ class MarketFactorCalculator:
             if not row or row[0] is None:
                 raise RuntimeError(f"Put/call ratio unavailable for {eval_date}")
             pcr = float(row[0])
+            if pcr <= 0:
+                raise RuntimeError(
+                    f"Put/call ratio invalid for {eval_date}: {pcr}. "
+                    f"Put/call ratio must be > 0 (ratio of puts to calls). "
+                    f"Value of {pcr} is placeholder/corrupted data. Check market_health_daily data quality."
+                )
             score = max(0, min(100, (pcr - 0.7) * 100))
             return {"put_call_ratio": round(pcr, 2), "score": score}
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
