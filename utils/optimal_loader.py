@@ -363,7 +363,15 @@ class OptimalLoader:
 
     def _run_serial(self, symbols: list[str]) -> None:
         failed_symbols: list[str] = []
+        per_symbol_timeout = int(os.getenv("LOADER_PER_SYMBOL_TIMEOUT_SECONDS", "600"))
+        max_batch_time = int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", "10800"))
+        batch_start = time.time()
+
         for i, symbol in enumerate(symbols, 1):
+            elapsed_batch = time.time() - batch_start
+            if elapsed_batch > max_batch_time:
+                logger.critical(f"[{self.table_name}] HARD LIMIT: Batch exceeded {max_batch_time}s SLA after {i}/{len(symbols)} symbols. Halting.")
+                raise RuntimeError(f"Loader exceeded hard SLA limit ({max_batch_time}s) after {i} symbols")
             if self._infrastructure.check_shutdown_requested():
                 logger.warning(f"[{self.table_name}] Graceful shutdown - stopping after {i - 1} symbols")
                 break
@@ -375,7 +383,11 @@ class OptimalLoader:
                     logger.critical(f"[{self.table_name}] Database health check failed at symbol {i}/{len(symbols)}: {health_err}")
                     raise RuntimeError(f"[{self.table_name}] Database health check failed—connection unreliable. Halting loader.") from health_err
             try:
+                symbol_start = time.time()
                 self.load_symbol(symbol)
+                symbol_elapsed = time.time() - symbol_start
+                if symbol_elapsed > per_symbol_timeout:
+                    logger.warning(f"[{self.table_name}] {symbol}: Slow symbol took {symbol_elapsed:.1f}s (threshold {per_symbol_timeout}s)")
                 self._stats.increment("symbols_processed")
             except Exception as e:
                 self._stats.increment("symbols_failed")
@@ -391,11 +403,21 @@ class OptimalLoader:
         from concurrent.futures import ThreadPoolExecutor, as_completed
         from concurrent.futures import TimeoutError as FutureTimeoutError
 
+        per_symbol_timeout = int(os.getenv("LOADER_PER_SYMBOL_TIMEOUT_SECONDS", "600"))
+        max_batch_time = int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", "10800"))
+        batch_start = time.time()
+
         with ThreadPoolExecutor(max_workers=workers) as exe:
             futures = {exe.submit(self._safe_load_symbol, s): s for s in symbols}
             done = 0
             try:
-                for fut in as_completed(futures, timeout=3600):
+                for fut in as_completed(futures, timeout=per_symbol_timeout):
+                    elapsed_batch = time.time() - batch_start
+                    if elapsed_batch > max_batch_time:
+                        logger.critical(f"[{self.table_name}] HARD LIMIT: Batch exceeded {max_batch_time}s SLA. Killing all workers.")
+                        for f in futures:
+                            f.cancel()
+                        raise RuntimeError(f"Loader exceeded hard SLA limit ({max_batch_time}s)")
                     if self._infrastructure.check_shutdown_requested():
                         logger.warning(f"[{self.table_name}] Graceful shutdown - cancelling remaining tasks")
                         for f in futures:
@@ -411,7 +433,7 @@ class OptimalLoader:
                         logger.info(f"  Progress: {done}/{len(symbols)}")
             except FutureTimeoutError:
                 pending = [s for f, s in futures.items() if not f.done()]
-                logger.error(f"[{self.table_name}] Global timeout reached. {len(pending)} symbols hung.")
+                logger.error(f"[{self.table_name}] Per-symbol timeout ({per_symbol_timeout}s) reached. {len(pending)} symbols hung.")
                 self._stats.increment("symbols_failed", len(pending))
                 for f in futures.keys():
                     f.cancel()
