@@ -55,6 +55,9 @@ class DynamoDBHealthCheck:
                 'available': bool,
                 'last_checked': datetime
             }
+
+        Raises:
+            KeyError: If halt_flag field is missing or Item not found
         """
         try:
             import boto3
@@ -65,19 +68,40 @@ class DynamoDBHealthCheck:
             response = table.get_item(Key={"key": "orchestrator_halt"})
             item = response.get("Item")
 
+            # EXPLICIT: Fail fast if Item is None (key doesn't exist)
+            if item is None:
+                raise KeyError(
+                    "orchestrator_halt key not found in DynamoDB. "
+                    "Halt flag state is not initialized. Cannot safely determine halt status."
+                )
+
+            # EXPLICIT: Check if halt_flag field exists before accessing
             if "halt_flag" not in item:
                 raise KeyError(
                     "halt_flag missing from DynamoDB item 'orchestrator_halt'. "
                     "Item structure may have changed. Cannot safely determine halt status."
                 )
-            halt_active = item["halt_flag"] is True
+
+            # EXPLICIT: Validate halt_flag is boolean (or None)
+            halt_flag_value = item["halt_flag"]
+            if halt_flag_value is None:
+                logger.warning("[DynamoDB] halt_flag is None, treating as False")
+                halt_active = False
+            else:
+                halt_active = halt_flag_value is True
+
+            # EXPLICIT: Extract optional fields with explicit None handling
             set_time = item.get("set_at")
             reason = item.get("reason")
             ttl = item.get("TTL")
 
+            # EXPLICIT: Only calculate auto_clear_time if TTL is present and numeric
             auto_clear_time = None
-            if ttl:
-                auto_clear_time = datetime.fromtimestamp(ttl)
+            if ttl is not None:
+                try:
+                    auto_clear_time = datetime.fromtimestamp(ttl)
+                except (ValueError, TypeError, OSError) as e:
+                    logger.warning(f"[DynamoDB] Failed to parse TTL timestamp {ttl}: {e}")
 
             return {
                 "halt_flag_active": halt_active,
@@ -107,6 +131,10 @@ class DynamoDBHealthCheck:
                 'set_time': datetime or None,
                 'available': bool
             }
+
+        Note:
+            If key not found, defaults to False (no degraded mode).
+            If degraded field is missing/None, treats as False (EXPLICIT INTENT).
         """
         try:
             import boto3
@@ -117,7 +145,9 @@ class DynamoDBHealthCheck:
             response = table.get_item(Key={"key": "phase1_degraded_mode"})
             item = response.get("Item")
 
+            # EXPLICIT: If key doesn't exist, return default (no degraded mode)
             if item is None:
+                logger.debug("[DynamoDB] phase1_degraded_mode key not found, defaulting to degraded=False")
                 return {
                     "degraded_mode_active": False,
                     "reason": None,
@@ -125,12 +155,16 @@ class DynamoDBHealthCheck:
                     "available": True,
                 }
 
-            degraded = item.get("degraded")
-            if degraded is None:
+            # EXPLICIT: Extract degraded field; if None, treat as False (not truthy)
+            degraded_value = item.get("degraded")
+            if degraded_value is None:
+                logger.debug("[DynamoDB] degraded field is None, treating as False")
                 degraded = False
             else:
-                degraded = degraded is True
+                # EXPLICIT: Coerce to boolean (is True, not just truthy)
+                degraded = degraded_value is True
 
+            # EXPLICIT: Extract optional fields with explicit None handling
             reason = item.get("reason")
             set_time = item.get("set_at")
 
@@ -160,6 +194,10 @@ class DynamoDBHealthCheck:
                 'expires_at': datetime or None,
                 'available': bool
             }
+
+        Note:
+            If key not found, returns lock_active=False.
+            If lock_owner field missing, treats as not held (lock_active=False).
         """
         try:
             import boto3
@@ -170,14 +208,32 @@ class DynamoDBHealthCheck:
             response = table.get_item(Key={"key": "orchestrator-run-lock"})
             item = response.get("Item")
 
-            lock_active = "lock_owner" in item
+            # EXPLICIT: If Item is None, lock is not held
+            if item is None:
+                logger.debug("[DynamoDB] orchestrator-run-lock key not found, lock is free")
+                return {
+                    "lock_active": False,
+                    "owner_run_id": None,
+                    "acquired_at": None,
+                    "expires_at": None,
+                    "available": True,
+                }
+
+            # EXPLICIT: Check if lock_owner field exists (indicates lock is held)
+            lock_active = "lock_owner" in item and item["lock_owner"] is not None
+
+            # EXPLICIT: Extract optional fields with explicit None handling
             owner = item.get("lock_owner")
             acquired_at = item.get("lock_acquired_at")
             ttl = item.get("TTL")
 
+            # EXPLICIT: Only calculate expires_at if TTL is present and numeric
             expires_at = None
-            if ttl:
-                expires_at = datetime.fromtimestamp(ttl)
+            if ttl is not None:
+                try:
+                    expires_at = datetime.fromtimestamp(ttl)
+                except (ValueError, TypeError, OSError) as e:
+                    logger.warning(f"[DynamoDB] Failed to parse lock TTL timestamp {ttl}: {e}")
 
             return {
                 "lock_active": lock_active,

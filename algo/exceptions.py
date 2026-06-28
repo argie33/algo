@@ -42,13 +42,15 @@ class AlgoError(Exception):
             retry_eligible: Whether automatic retry could resolve this
             recovery_suggestion: Guidance for recovery/handling
             context: Additional context (file, data, field names, etc.)
+                If None, defaults to empty dict (EXPLICIT INTENT: no context available)
         """
         super().__init__(message)
         self.message = message
         self.error_category = error_category
         self.retry_eligible = retry_eligible
         self.recovery_suggestion = recovery_suggestion
-        self.context = context or {}
+        # EXPLICIT: Use empty dict only if context is None (not just falsy)
+        self.context = context if context is not None else {}
 
         # Warn for critical errors raised without diagnostic context
         if not context and error_category in (ErrorCategory.DATA_QUALITY, ErrorCategory.PERMANENT):
@@ -85,6 +87,7 @@ class DataLoadError(AlgoError):
             message: What went wrong
             retry_eligible: Whether retry could help (True for network, False for schema)
             context: Additional data (table, file, date range, etc.)
+                If None, defaults to empty dict (EXPLICIT INTENT: no additional context)
         """
         category = ErrorCategory.TRANSIENT if retry_eligible else ErrorCategory.DATA_QUALITY
         recovery = (
@@ -92,7 +95,8 @@ class DataLoadError(AlgoError):
             if retry_eligible
             else f"Check data schema and {source} format"
         )
-        ctx = {"source": source, **(context or {})}
+        # EXPLICIT: Merge context only if not None; otherwise use empty dict
+        ctx = {"source": source, **(context if context is not None else {})}
         super().__init__(
             message=f"[{source}] Data load failed: {message}",
             error_category=category,
@@ -119,12 +123,14 @@ class ValidationError(AlgoError):
             value: Actual value received
             expected: What was expected
             context: Additional validation context
+                If None, defaults to empty dict (EXPLICIT INTENT: no additional context)
         """
+        # EXPLICIT: Merge context only if not None; otherwise use empty dict
         ctx = {
             "field": field,
             "value": str(value),
             "expected": expected,
-            **(context or {}),
+            **(context if context is not None else {}),
         }
         super().__init__(
             message=f"Validation failed for {field}: got {value!r}, expected {expected}",
@@ -150,8 +156,10 @@ class ConfigError(AlgoError):
             config_key: Configuration key that failed
             message: What went wrong
             context: Additional config context
+                If None, defaults to empty dict (EXPLICIT INTENT: no additional context)
         """
-        ctx = {"config_key": config_key, **(context or {})}
+        # EXPLICIT: Merge context only if not None; otherwise use empty dict
+        ctx = {"config_key": config_key, **(context if context is not None else {})}
         super().__init__(
             message=f"Config error for '{config_key}': {message}",
             error_category=ErrorCategory.PERMANENT,
@@ -178,12 +186,14 @@ class CircuitBreakerError(AlgoError):
             failure_count: Number of consecutive failures
             threshold: Failure threshold that triggered the breaker
             context: Additional context
+                If None, defaults to empty dict (EXPLICIT INTENT: no additional context)
         """
+        # EXPLICIT: Merge context only if not None; otherwise use empty dict
         ctx = {
             "breaker": breaker_name,
             "failures": failure_count,
             "threshold": threshold,
-            **(context or {}),
+            **(context if context is not None else {}),
         }
         super().__init__(
             message=f"Circuit breaker '{breaker_name}' triggered: {failure_count} failures >= {threshold}",
@@ -222,8 +232,16 @@ class PositionError(AlgoError):
         message: str,
         context: dict[str, Any] | None = None,
     ):
-        """Init position error."""
-        ctx = {"symbol": symbol, **(context or {})}
+        """Init position error.
+
+        Args:
+            symbol: Stock symbol for the position
+            message: Error description
+            context: Additional context
+                If None, defaults to empty dict (EXPLICIT INTENT: no additional context)
+        """
+        # EXPLICIT: Merge context only if not None; otherwise use empty dict
+        ctx = {"symbol": symbol, **(context if context is not None else {})}
         super().__init__(
             message=f"[{symbol}] Position error: {message}",
             error_category=ErrorCategory.PERMANENT,
@@ -280,12 +298,15 @@ class DataSourceError(AlgoError):
             sources_attempted: List of sources that were tried
             last_error: Last exception encountered
             context: Additional context
+                If None, defaults to empty dict (EXPLICIT INTENT: no additional context)
         """
+        # EXPLICIT: Convert last_error only if not None; otherwise use None (not empty string)
+        # EXPLICIT: Merge context only if not None; otherwise use empty dict
         ctx = {
             "request": request_desc,
             "sources_attempted": sources_attempted,
-            "last_error": str(last_error) if last_error else None,
-            **(context or {}),
+            "last_error": str(last_error) if last_error is not None else None,
+            **(context if context is not None else {}),
         }
         super().__init__(
             message=f"All data sources failed for {request_desc} (tried: {', '.join(sources_attempted)})",
@@ -311,8 +332,10 @@ class LockAcquisitionError(AlgoError):
             lock_key: Key that couldn't be locked
             reason: Why the lock couldn't be acquired
             context: Additional context
+                If None, defaults to empty dict (EXPLICIT INTENT: no additional context)
         """
-        ctx = {"lock_key": lock_key, "reason": reason, **(context or {})}
+        # EXPLICIT: Merge context only if not None; otherwise use empty dict
+        ctx = {"lock_key": lock_key, "reason": reason, **(context if context is not None else {})}
         super().__init__(
             message=f"Failed to acquire lock for {lock_key}: {reason}",
             error_category=ErrorCategory.TRANSIENT,

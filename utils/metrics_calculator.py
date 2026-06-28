@@ -162,6 +162,8 @@ class MetricsCalculator:
 
         Data Requirements:
             - Minimum 2 values needed (to have a peak and a drop)
+            - All values must be numeric (float/int)
+            - Values are expected to be in the portfolio's currency/unit
 
         Edge Cases:
             - If fewer than 2 values, returns None
@@ -173,14 +175,30 @@ class MetricsCalculator:
                 f"Insufficient data: need 2+ portfolio values, got {len(portfolio_values) if portfolio_values else 0}"
             )
         try:
-            peak = 0.0
+            # CRITICAL: Initialize peak to None, not 0.0, to detect if all values are negative
+            peak: float | None = None
             max_dd = 0.0
             for value in portfolio_values:
-                if value > peak:
+                if not isinstance(value, (int, float)):
+                    raise ValueError(
+                        f"Portfolio value must be numeric, got {type(value).__name__}: {value}"
+                    )
+                # Initialize peak on first iteration
+                if peak is None:
                     peak = value
-                if peak > 0:
+                elif value > peak:
+                    peak = value
+
+                # Only calculate drawdown if peak is set and positive
+                # SAFETY: Prevent silent fallback to zero on negative values
+                if peak is not None and peak > 0:
                     dd = ((peak - value) / peak) * 100
                     max_dd = max(max_dd, dd)
+                elif peak is not None and peak <= 0:
+                    logger.warning(
+                        f"[DATA_QUALITY] Max drawdown calculation: peak value {peak} is <= 0, "
+                        "cannot calculate meaningful drawdown. Returning 0."
+                    )
             return round(max_dd, 2)
         except (ValueError, TypeError, ZeroDivisionError) as e:
             raise ValueError(f"Max drawdown calculation failed: {e}") from e

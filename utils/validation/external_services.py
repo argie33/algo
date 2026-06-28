@@ -51,24 +51,30 @@ class CognitoValidator:
 
         errors = []
 
-        # Validate 'sub' (subject claim - user ID)
-        sub = jwt_claims.get("sub")
+        # Validate 'sub' (subject claim - user ID) - explicit presence check
+        sub = jwt_claims.get("sub") if "sub" in jwt_claims else None
         if not sub or not isinstance(sub, str):
             errors.append(f"Invalid or missing 'sub' claim: {sub}")
 
-        # Validate 'cognito:groups' (group membership)
-        groups = jwt_claims.get("cognito:groups")
-        if groups is not None and not isinstance(groups, list):
-            errors.append(f"'cognito:groups' must be list, got {type(groups).__name__}")
-            groups = []
-        elif groups is None:
-            groups = []
+        # Validate 'cognito:groups' (group membership) - explicit presence check
+        groups = None  # Default to empty list only on explicit absence
+        if "cognito:groups" in jwt_claims:
+            groups = jwt_claims["cognito:groups"]
+            if groups is not None and not isinstance(groups, list):
+                errors.append(f"'cognito:groups' must be list, got {type(groups).__name__}")
+                groups = None  # Mark as invalid, don't silently use empty list
+            elif groups is None:
+                groups = []
+        else:
+            groups = []  # Intentional default when field is completely absent
 
-        # Validate 'email' (optional but should be string if present)
-        email = jwt_claims.get("email")
-        if email is not None and not isinstance(email, str):
-            errors.append(f"'email' claim must be string, got {type(email).__name__}")
-            email = None
+        # Validate 'email' (optional but should be string if present) - explicit presence check
+        email = None  # Default to None when absent
+        if "email" in jwt_claims:
+            email = jwt_claims["email"]
+            if email is not None and not isinstance(email, str):
+                errors.append(f"'email' claim must be string, got {type(email).__name__}")
+                email = None
 
         return {
             "valid": len(errors) == 0 and sub is not None,
@@ -122,12 +128,15 @@ class DynamoDBValidator:
 
         errors = []
 
-        # Check for AWS error response
+        # Check for AWS error response - explicit presence check for error message
         if "Error" in response:
-            errors.append(f"DynamoDB error: {response['Error'].get('Message', 'Unknown')}")
+            error_msg = response["Error"].get("Message") if "Message" in response["Error"] else "Unknown"
+            if error_msg is None:
+                error_msg = "Unknown"  # Explicit fallback only when None
+            errors.append(f"DynamoDB error: {error_msg}")
 
-        # Validate response structure
-        item = response.get("Item")
+        # Validate response structure - explicit presence check
+        item = response.get("Item") if "Item" in response else None
         found = item is not None
 
         if item is not None and not isinstance(item, dict):
@@ -161,16 +170,21 @@ class DynamoDBValidator:
 
         errors = []
 
-        # Check for AWS error response
+        # Check for AWS error response - explicit presence check for error message
         if "Error" in response:
-            errors.append(f"DynamoDB error: {response['Error'].get('Message', 'Unknown')}")
+            error_msg = response["Error"].get("Message") if "Message" in response["Error"] else None
+            if error_msg is None:
+                error_msg = "Unknown"  # Explicit fallback only when None
+            errors.append(f"DynamoDB error: {error_msg}")
 
-        # Check for HTTP status code
-        response_metadata = response.get("ResponseMetadata")
-        status_code = response_metadata.get("HTTPStatusCode") if response_metadata else None
-        if status_code is not None:
-            if status_code not in (200, 201):
-                errors.append(f"DynamoDB returned status code {status_code}")
+        # Check for HTTP status code - explicit presence check
+        status_code = None
+        if "ResponseMetadata" in response:
+            response_metadata = response["ResponseMetadata"]
+            if isinstance(response_metadata, dict) and "HTTPStatusCode" in response_metadata:
+                status_code = response_metadata["HTTPStatusCode"]
+                if status_code is not None and status_code not in (200, 201):
+                    errors.append(f"DynamoDB returned status code {status_code}")
 
         return {
             "valid": len(errors) == 0,
@@ -197,11 +211,15 @@ class DynamoDBValidator:
 
         errors = []
 
-        # Check for AWS error response
+        # Check for AWS error response - explicit presence check for error message
         if "Error" in response:
-            errors.append(f"DynamoDB error: {response['Error'].get('Message', 'Unknown')}")
+            error_msg = response["Error"].get("Message") if "Message" in response["Error"] else None
+            if error_msg is None:
+                error_msg = "Unknown"  # Explicit fallback only when None
+            errors.append(f"DynamoDB error: {error_msg}")
 
-        attributes = response.get("Attributes")
+        # Validate attributes - explicit presence check
+        attributes = response.get("Attributes") if "Attributes" in response else None
         if attributes is not None and not isinstance(attributes, dict):
             errors.append(f"Attributes must be dict, got {type(attributes).__name__}")
             attributes = None
@@ -229,7 +247,7 @@ class DatabaseResultValidator:
         Args:
             row: Database row dict (from DictCursor)
             key: Column name
-            default: Default value if missing or invalid
+            default: Default value if missing or invalid (explicit fallback - log when used)
             strict: If True, raise exception on invalid value
 
         Returns:
@@ -238,55 +256,88 @@ class DatabaseResultValidator:
         if row is None:
             if strict:
                 raise ValueError("Database row is None")
+            # Explicit fallback - log when row is None
+            logger.debug(f"Row is None, using default {default} for {key}")
             return default
 
         try:
-            value = row.get(key)
+            # Explicit key presence check
+            if key not in row:
+                logger.debug(f"Key {key} not in row, using default {default}")
+                return default
+
+            value = row[key]
             if value is None:
+                logger.debug(f"Value for {key} is None, using default {default}")
                 return default
             return float(value)
         except (ValueError, TypeError) as e:
             if strict:
                 raise ValueError(f"Cannot convert {key}={value} to float: {e}") from None
-            logger.warning(f"Failed to convert {key}={row.get(key)} to float, using default")
+            # Explicit fallback on conversion error - log it
+            logger.warning(f"Failed to convert {key}={row.get(key)} to float, using default {default}")
             return default
 
     @staticmethod
     def safe_get_int(row: dict[str, Any] | None, key: str, default: int = 0, strict: bool = False) -> int:
-        """Safely extract and convert int from database row."""
+        """Safely extract and convert int from database row.
+
+        Note: Uses default value when missing/invalid. Log when fallback is used.
+        """
         if row is None:
             if strict:
                 raise ValueError("Database row is None")
+            # Explicit fallback - log when row is None
+            logger.debug(f"Row is None, using default {default} for {key}")
             return default
 
         try:
-            value = row.get(key)
+            # Explicit key presence check
+            if key not in row:
+                logger.debug(f"Key {key} not in row, using default {default}")
+                return default
+
+            value = row[key]
             if value is None:
+                logger.debug(f"Value for {key} is None, using default {default}")
                 return default
             return int(value)
         except (ValueError, TypeError) as e:
             if strict:
                 raise ValueError(f"Cannot convert {key}={value} to int: {e}") from None
-            logger.warning(f"Failed to convert {key}={row.get(key)} to int, using default")
+            # Explicit fallback on conversion error - log it
+            logger.warning(f"Failed to convert {key}={row.get(key)} to int, using default {default}")
             return default
 
     @staticmethod
     def safe_get_str(row: dict[str, Any] | None, key: str, default: str = "", strict: bool = False) -> str:
-        """Safely extract and convert string from database row."""
+        """Safely extract and convert string from database row.
+
+        Note: Uses default value when missing/invalid. Log when fallback is used.
+        """
         if row is None:
             if strict:
                 raise ValueError("Database row is None")
+            # Explicit fallback - log when row is None
+            logger.debug(f"Row is None, using default '{default}' for {key}")
             return default
 
         try:
-            value = row.get(key)
+            # Explicit key presence check
+            if key not in row:
+                logger.debug(f"Key {key} not in row, using default '{default}'")
+                return default
+
+            value = row[key]
             if value is None:
+                logger.debug(f"Value for {key} is None, using default '{default}'")
                 return default
             return str(value)
         except (ValueError, TypeError) as e:
             if strict:
                 raise ValueError(f"Cannot convert {key}={value} to str: {e}") from None
-            logger.warning(f"Failed to convert {key}={row.get(key)} to str, using default")
+            # Explicit fallback on conversion error - log it
+            logger.warning(f"Failed to convert {key}={row.get(key)} to str, using default '{default}'")
             return default
 
     @staticmethod

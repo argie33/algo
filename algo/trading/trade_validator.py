@@ -89,11 +89,16 @@ class TradeValidator:
         shares = Decimal(str(shares))
         stop_loss_price = Decimal(str(stop_loss_price))
 
-        # Default dates if not provided
-        if not signal_date:
+        # Dates MUST be provided or explicitly None for default to current date
+        if signal_date is None:
             signal_date = datetime.now(timezone.utc).date()
-        if not entry_date:
+        elif not isinstance(signal_date, (_date, type(None))):
+            raise ValueError(f"signal_date must be a date or None, got {type(signal_date).__name__}: {signal_date!r}")
+
+        if entry_date is None:
             entry_date = datetime.now(timezone.utc).date()
+        elif not isinstance(entry_date, (_date, type(None))):
+            raise ValueError(f"entry_date must be a date or None, got {type(entry_date).__name__}: {entry_date!r}")
 
         # Validate date ordering
         if entry_date < signal_date:
@@ -300,10 +305,17 @@ class TradeValidator:
         Returns:
             (is_duplicate: bool, error_message: str|None, existing_trade_id: str|None)
         """
+        # CRITICAL: signal_date is required for fingerprint matching — no fallback to default date
+        if signal_date is None:
+            raise ValueError(
+                f"signal_date required for {symbol} duplicate check. "
+                f"Cannot match trades without valid signal date — this is a data integrity requirement."
+            )
+
         cur.execute(
             """
             SELECT trade_id FROM algo_trades
-            WHERE symbol = %s AND COALESCE(signal_date, '1900-01-01') = COALESCE(%s, '1900-01-01')
+            WHERE symbol = %s AND signal_date = %s
               AND status IN (%s, %s)
             LIMIT 1
             """,
@@ -362,8 +374,7 @@ class TradeValidator:
         # Find most recent CLOSED trade in the last 30 days
         cur.execute(
             """
-            SELECT trade_id, exit_date, exit_reason, profit_loss_pct,
-                   COALESCE(reentry_count, 0) AS reentry_count
+            SELECT trade_id, exit_date, exit_reason, profit_loss_pct, reentry_count
             FROM algo_trades
             WHERE symbol = %s AND status = %s
               AND exit_date >= CURRENT_DATE - INTERVAL '30 days'
@@ -376,8 +387,23 @@ class TradeValidator:
         reentry_count = 0
         if prior:
             _prior_trade_id, exit_date, exit_reason, _exit_pnl, prior_reentry = prior
+
+            # CRITICAL: reentry_count MUST be present in database, no fallback to 0
+            if prior_reentry is None:
+                raise ValueError(
+                    f"[REENTRY_COUNT_MISSING] Trade data integrity error for {symbol}: "
+                    f"reentry_count is NULL in database. Cannot safely determine re-entry eligibility."
+                )
+
+            # CRITICAL: exit_reason MUST be present for stop-out detection, no fallback to empty string
+            if exit_reason is None:
+                raise ValueError(
+                    f"[EXIT_REASON_MISSING] Trade data integrity error for {symbol}: "
+                    f"exit_reason is NULL. Cannot determine if prior exit was a stop-out."
+                )
+
             # Only enforce re-entry rules if prior trade was a stop-out
-            if exit_reason and ("STOP" in (exit_reason or "").upper() or "TIME" in (exit_reason or "").upper()):
+            if "STOP" in exit_reason.upper() or "TIME" in exit_reason.upper():
                 prior_reentry_count = int(prior_reentry)
                 if prior_reentry_count >= self.max_reentries_per_name:
                     return (

@@ -43,11 +43,13 @@ class AlpacaResponseValidator:
             }
 
         errors = []
-        order_id = data.get("id")
-        status = data.get("status")
-        filled_avg_price = data.get("filled_avg_price")
-        order_class = data.get("order_class", "simple")
-        legs = data.get("legs")
+        # Explicitly check for each field rather than silent .get() defaults
+        order_id = data.get("id") if "id" in data else None
+        status = data.get("status") if "status" in data else None
+        filled_avg_price = data.get("filled_avg_price") if "filled_avg_price" in data else None
+        # order_class is optional, default to simple only if missing (explicit intent)
+        order_class = data.get("order_class") if "order_class" in data else "simple"
+        legs = data.get("legs") if "legs" in data else None
 
         if not order_id:
             errors.append("Missing or empty order ID")
@@ -82,9 +84,19 @@ class AlpacaResponseValidator:
         if order_class == "bracket":
             if not isinstance(legs, list):
                 errors.append(f"Legs must be list, got {type(legs).__name__}")
-                legs = []
+                # Don't silently fall back to empty list - mark as invalid
+                legs = None
             elif len(legs) < 2:
                 errors.append(f"Bracket order requires 2+ legs, got {len(legs)}")
+
+        # Explicitly extract rejection reason - don't chain or operations
+        rejection_reason = None
+        if "cancel_reason" in data and data["cancel_reason"] is not None:
+            rejection_reason = data["cancel_reason"]
+        elif "failed_reason" in data and data["failed_reason"] is not None:
+            rejection_reason = data["failed_reason"]
+        elif "reason" in data and data["reason"] is not None:
+            rejection_reason = data["reason"]
 
         return {
             "valid": len(errors) == 0,
@@ -94,7 +106,7 @@ class AlpacaResponseValidator:
             "filled_avg_price": filled_avg_price,
             "order_class": order_class,
             "legs": legs,
-            "rejection_reason": data.get("cancel_reason") or data.get("failed_reason") or data.get("reason"),
+            "rejection_reason": rejection_reason,
         }
 
     @staticmethod
@@ -121,10 +133,11 @@ class AlpacaResponseValidator:
             }
 
         errors = []
-        status = data.get("status")
-        filled_qty = data.get("filled_qty")
-        filled_avg_price = data.get("filled_avg_price")
-        qty = data.get("qty")
+        # Explicitly check for each field - avoid silent .get() defaults
+        status = data.get("status") if "status" in data else None
+        filled_qty = data.get("filled_qty") if "filled_qty" in data else None
+        filled_avg_price = data.get("filled_avg_price") if "filled_avg_price" in data else None
+        qty = data.get("qty") if "qty" in data else None
 
         if not status:
             errors.append("Missing or empty status")
@@ -189,13 +202,17 @@ class AlpacaResponseValidator:
         errors = []
 
         # Portfolio value (required) — validate explicitly, don't fall back silently
-        portfolio_value = data.get("portfolio_value")
-        if portfolio_value is None:
-            portfolio_value = data.get("equity")
+        portfolio_value = None
+        if "portfolio_value" in data:
+            portfolio_value = data["portfolio_value"]
+        elif "equity" in data:
+            portfolio_value = data["equity"]
+            # Log that we're using fallback field
+            logger.debug("Using 'equity' field as fallback for missing 'portfolio_value'")
 
         if portfolio_value is None:
             errors.append("Missing portfolio_value and equity fields — cannot determine account balance")
-        elif portfolio_value is not None:
+        else:
             try:
                 portfolio_value = float(portfolio_value)
                 if portfolio_value < 0:
@@ -204,27 +221,31 @@ class AlpacaResponseValidator:
                 errors.append(f"Portfolio value not numeric: {portfolio_value}")
                 portfolio_value = None
 
-        # Cash (optional but important)
-        cash = data.get("cash")
-        if cash is not None:
-            try:
-                cash = float(cash)
-                if cash < 0:
-                    errors.append(f"Cash must be non-negative, got {cash}")
-            except (ValueError, TypeError):
-                errors.append(f"Cash not numeric: {cash}")
-                cash = None
+        # Cash (optional but important) - explicit presence check
+        cash = None
+        if "cash" in data:
+            cash = data["cash"]
+            if cash is not None:
+                try:
+                    cash = float(cash)
+                    if cash < 0:
+                        errors.append(f"Cash must be non-negative, got {cash}")
+                except (ValueError, TypeError):
+                    errors.append(f"Cash not numeric: {cash}")
+                    cash = None
 
-        # Buying power (optional)
-        buying_power = data.get("buying_power")
-        if buying_power is not None:
-            try:
-                buying_power = float(buying_power)
-                if buying_power < 0:
-                    errors.append(f"Buying power must be non-negative, got {buying_power}")
-            except (ValueError, TypeError):
-                errors.append(f"Buying power not numeric: {buying_power}")
-                buying_power = None
+        # Buying power (optional) - explicit presence check
+        buying_power = None
+        if "buying_power" in data:
+            buying_power = data["buying_power"]
+            if buying_power is not None:
+                try:
+                    buying_power = float(buying_power)
+                    if buying_power < 0:
+                        errors.append(f"Buying power must be non-negative, got {buying_power}")
+                except (ValueError, TypeError):
+                    errors.append(f"Buying power not numeric: {buying_power}")
+                    buying_power = None
 
         return {
             "valid": portfolio_value is not None and len(errors) == 0,
@@ -256,9 +277,10 @@ class AlpacaResponseValidator:
             }
 
         errors = []
-        symbol = data.get("symbol")
-        qty = data.get("qty")
-        current_price = data.get("current_price")
+        # Explicitly check for each field - avoid silent .get() defaults
+        symbol = data.get("symbol") if "symbol" in data else None
+        qty = data.get("qty") if "qty" in data else None
+        current_price = data.get("current_price") if "current_price" in data else None
 
         if not symbol:
             errors.append("Missing symbol")

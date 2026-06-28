@@ -44,9 +44,20 @@ def set_query_timeout(cur: Any, timeout_ms: int | None = None, timeout_name: str
         cur: Database cursor
         timeout_ms: Explicit timeout in milliseconds (overrides timeout_name)
         timeout_name: Named timeout from QUERY_TIMEOUTS (default, count, complex_join, etc.)
+
+    Raises:
+        ValueError: If timeout_ms is invalid or timeout_name not found in QUERY_TIMEOUTS
     """
+    # EXPLICIT: Only use named timeout if timeout_ms is None
     if timeout_ms is None:
-        timeout_ms = QUERY_TIMEOUTS.get(timeout_name, QUERY_TIMEOUTS["default"])
+        # SAFETY: Fail fast if timeout_name not found (don't silently use default)
+        if timeout_name not in QUERY_TIMEOUTS:
+            raise ValueError(
+                f"Unknown timeout_name '{timeout_name}'. Must be one of: {', '.join(QUERY_TIMEOUTS.keys())}"
+            )
+        timeout_ms = QUERY_TIMEOUTS[timeout_name]
+        logger.debug(f"[QUERY_TIMEOUT] Using named timeout '{timeout_name}': {timeout_ms}ms")
+
     # Validate timeout_ms is an integer to prevent injection
     if not isinstance(timeout_ms, int) or timeout_ms < 0:
         raise ValueError(f"Invalid timeout_ms: must be non-negative integer, got {timeout_ms}")
@@ -86,7 +97,7 @@ def safe_limit(limit_str: str | None, max_val: int = 5000, default: int | None =
 
     Args:
         limit_str: Limit value (string or None)
-        max_val: Maximum allowed value
+        max_val: Maximum allowed value (default 5000)
         default: Default value if limit_str is None/empty. If None, raises error on missing.
 
     Returns:
@@ -97,14 +108,23 @@ def safe_limit(limit_str: str | None, max_val: int = 5000, default: int | None =
     """
     if not limit_str:
         if default is not None:
+            # EXPLICIT: Validate default is within acceptable range
+            if default < 1 or default > max_val:
+                logger.warning(
+                    f"[SAFE_LIMIT] Provided default {default} out of range [1, {max_val}], clamping"
+                )
             return min(max(default, 1), max_val)
         raise_api_error(400, "BadRequest", "limit parameter is required")
         return max_val  # unreachable
+
     try:
         value = int(limit_str)
         if value <= 0:
             raise_api_error(400, "BadRequest", "limit must be greater than 0")
             return max_val  # unreachable
+        # EXPLICIT: Clamp to max_val and log if clamping occurred
+        if value > max_val:
+            logger.info(f"[SAFE_LIMIT] Requested limit {value} exceeds max {max_val}, clamping")
         return min(value, max_val)
     except (ValueError, TypeError):
         raise_api_error(400, "BadRequest", "limit must be a valid integer")
@@ -132,7 +152,7 @@ def safe_days(days_str: str | None, max_val: int = 365, default: int | None = No
 
     Args:
         days_str: Days value (string or None)
-        max_val: Maximum allowed value
+        max_val: Maximum allowed value (default 365)
         default: Default value if days_str is None/empty. If None, raises error on missing.
 
     Returns:
@@ -143,14 +163,23 @@ def safe_days(days_str: str | None, max_val: int = 365, default: int | None = No
     """
     if not days_str:
         if default is not None:
+            # EXPLICIT: Validate default is within acceptable range
+            if default < 1 or default > max_val:
+                logger.warning(
+                    f"[SAFE_DAYS] Provided default {default} out of range [1, {max_val}], clamping"
+                )
             return min(max(default, 1), max_val)
         raise_api_error(400, "BadRequest", "days parameter is required")
         return max_val  # unreachable
+
     try:
         value = int(days_str)
         if value < 1:
             raise_api_error(400, "BadRequest", "days must be at least 1")
             return max_val  # unreachable
+        # EXPLICIT: Clamp to max_val and log if clamping occurred
+        if value > max_val:
+            logger.info(f"[SAFE_DAYS] Requested days {value} exceeds max {max_val}, clamping")
         return min(value, max_val)
     except (ValueError, TypeError):
         raise_api_error(400, "BadRequest", "days must be a valid integer")
@@ -172,9 +201,13 @@ def safe_page(page_str: str | None, default: int | None = None) -> int:
     """
     if not page_str:
         if default is not None:
+            # EXPLICIT: Validate default is at least 1
+            if default < 1:
+                logger.warning(f"[SAFE_PAGE] Provided default {default} is < 1, using 1")
             return max(default, 1)
         raise_api_error(400, "BadRequest", "page parameter is required")
         return 1  # unreachable
+
     try:
         value = int(page_str)
         if value < 1:
@@ -355,19 +388,34 @@ def extract_param(
         Parameter value (first element from list) or default
 
     Raises:
-        BadRequest: If required parameter is missing
+        BadRequest: If required parameter is missing or empty and required is True
     """
-    if not params or key not in params or not params[key]:
+    # EXPLICIT: Check each condition separately for clarity
+    if params is None:
+        if required:
+            raise_api_error(400, "BadRequest", f"Required parameter missing: {key} (params dict is None)")
+        return default
+
+    if key not in params:
         if required:
             raise_api_error(400, "BadRequest", f"Required parameter missing: {key}")
         return default
 
+    if not params[key]:  # Empty list or None
+        if required:
+            raise_api_error(400, "BadRequest", f"Required parameter missing: {key} (list is empty)")
+        return default
+
+    # Extract value from list or use as-is
     value = params[key][0] if isinstance(params[key], list) else params[key]
-    return (
-        value
-        if value
-        else (default if not required else raise_api_error(400, "BadRequest", f"Required parameter missing: {key}"))
-    )
+
+    # EXPLICIT: Check if value is empty string (different from None)
+    if not value:  # Empty string or None
+        if required:
+            raise_api_error(400, "BadRequest", f"Required parameter is empty: {key}")
+        return default
+
+    return value
 
 
 def raise_api_error(status_code: int, error_type: str, message: str | None) -> NoReturn:
@@ -424,19 +472,29 @@ def list_response(
     Includes pagination metadata for client-side pagination.
     Format: {statusCode: 200, data: {items: [...], total: X, limit?: Y, offset?: Z}, data_freshness?: {...}}
     """
-    sanitized_items = APIResponseValidator.sanitize_response(items if items else [])
+    # EXPLICIT: Sanitize items; if None, use empty list (INTENT: no data, not missing)
+    sanitized_items = APIResponseValidator.sanitize_response(items if items is not None else [])
+
+    # EXPLICIT: If total not provided, use len(items); otherwise trust provided total
+    total_count = total if total is not None else len(sanitized_items)
+
     data = {
         "items": sanitized_items,
-        "total": total if total is not None else len(sanitized_items),
+        "total": total_count,
     }
+
+    # EXPLICIT: Only include pagination fields if explicitly provided
     if limit is not None:
         data["limit"] = limit
     if offset is not None:
         data["offset"] = offset
 
     response = {"statusCode": 200, "data": data}
-    if data_freshness:
+
+    # EXPLICIT: Only include data_freshness if explicitly provided and not empty
+    if data_freshness is not None:
         response["data_freshness"] = data_freshness
+
     return response
 
 
@@ -540,18 +598,34 @@ def check_data_freshness(
     Args:
         cur: Database cursor
         table_name: Table to check
-        date_column: Column containing date/timestamp
+        date_column: Column containing date/timestamp (default "date")
         warning_days: Days beyond which data is considered stale.
                      If None, uses DATA_FRESHNESS_MAX_HOURS from config (converted to days).
 
     Returns:
         Dict with data_age_days, is_stale, max_date, warning
+
+    Raises:
+        ValueError: If warning_days calculation fails or config unavailable
     """
     if warning_days is None:
         from api_utils.config import get_config
 
-        config = get_config()
-        warning_days = max(1, int(config.data_freshness_max_hours / 24))
+        try:
+            config = get_config()
+            if config.data_freshness_max_hours is None:
+                raise ValueError("data_freshness_max_hours is None in config")
+            warning_days = max(1, int(config.data_freshness_max_hours / 24))
+            logger.debug(
+                f"[DATA_FRESHNESS] Using config default: {config.data_freshness_max_hours}h → {warning_days}d"
+            )
+        except (AttributeError, TypeError, ValueError) as e:
+            logger.error(f"[DATA_FRESHNESS] Failed to load warning_days from config: {e}")
+            raise ValueError(f"Cannot determine warning_days threshold: {e}") from e
+    else:
+        # EXPLICIT: Validate provided warning_days
+        if warning_days < 0:
+            raise ValueError(f"warning_days must be non-negative, got {warning_days}")
 
     try:
         import psycopg2.sql
@@ -564,7 +638,20 @@ def check_data_freshness(
         )
         result = cur.fetchone()
 
-        if not result or not result.get("max"):
+        # EXPLICIT: Check if result is None or if max_date is not present/None
+        if result is None:
+            logger.warning(f"[DATA_FRESHNESS] Query returned None for {table_name}.{date_column}")
+            return {
+                "data_age_days": None,
+                "is_stale": True,
+                "warning": f"No data in {table_name}",
+            }
+
+        max_date_value = result.get("max")
+        if max_date_value is None:
+            logger.warning(
+                f"[DATA_FRESHNESS] No rows in {table_name} (max({date_column}) is None)"
+            )
             return {
                 "data_age_days": None,
                 "is_stale": True,
@@ -573,7 +660,7 @@ def check_data_freshness(
 
         from datetime import date
 
-        max_date = result["max"]
+        max_date = max_date_value
 
         # Handle both date and datetime objects
         if hasattr(max_date, "date"):

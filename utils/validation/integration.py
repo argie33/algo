@@ -78,10 +78,15 @@ def initialize_validators() -> None:
 
     # Copy all validators from default registry to global registry
     for validator_name, validator in default_registry._validators.items():
+        # Explicit metadata access - don't silently fall back to empty string
+        metadata = default_registry._metadata.get(validator_name) if validator_name in default_registry._metadata else {}
+        description = metadata.get("description") if isinstance(metadata, dict) and "description" in metadata else ""
+        if not description:
+            logger.debug(f"No description found for validator '{validator_name}', using empty string")
         registry.register(
             validator_name,
             validator,
-            default_registry._metadata[validator_name].get("description", ""),
+            description,
         )
 
     _initialized = True
@@ -114,17 +119,18 @@ def validate_phase_results(phase_results: Any) -> dict[str, Any]:
 
     Returns:
         {
-            'valid': bool,
-            'phases': List[Dict] or None (cleaned data),
-            'errors': List[str] or []
+            'valid': bool (True only if all validations pass),
+            'phases': List[Dict] if valid, None if validation failed,
+            'errors': List[str] with error messages, empty list if valid
         }
     """
     validators = get_validators()
     result = validators.validate("phase_results", phase_results, context="phase_results")
 
+    # Explicit: Only return data when validation passes
     return {
         "valid": result.is_valid,
-        "phases": result.data,
+        "phases": result.data if result.is_valid else None,
         "errors": result.errors,
     }
 
@@ -137,17 +143,18 @@ def validate_alpaca_order(order_data: Any) -> dict[str, Any]:
 
     Returns:
         {
-            'valid': bool,
-            'order': Dict or None (cleaned data),
-            'errors': List[str] or []
+            'valid': bool (True only if all validations pass),
+            'order': Dict if valid, None if validation failed,
+            'errors': List[str] with error messages, empty list if valid
         }
     """
     validators = get_validators()
     result = validators.validate("alpaca_order", order_data, context="alpaca_order")
 
+    # Explicit: Only return data when validation passes
     return {
         "valid": result.is_valid,
-        "order": result.data,
+        "order": result.data if result.is_valid else None,
         "errors": result.errors,
     }
 
@@ -160,17 +167,18 @@ def validate_alpaca_order_status(order_data: Any) -> dict[str, Any]:
 
     Returns:
         {
-            'valid': bool,
-            'order': Dict or None (cleaned data),
-            'errors': List[str] or []
+            'valid': bool (True only if all validations pass),
+            'order': Dict if valid, None if validation failed,
+            'errors': List[str] with error messages, empty list if valid
         }
     """
     validators = get_validators()
     result = validators.validate("alpaca_order_status", order_data, context="alpaca_order_status")
 
+    # Explicit: Only return data when validation passes
     return {
         "valid": result.is_valid,
-        "order": result.data,
+        "order": result.data if result.is_valid else None,
         "errors": result.errors,
     }
 
@@ -183,17 +191,18 @@ def validate_alpaca_account(account_data: Any) -> dict[str, Any]:
 
     Returns:
         {
-            'valid': bool,
-            'account': Dict or None (cleaned data),
-            'errors': List[str] or []
+            'valid': bool (True only if all validations pass),
+            'account': Dict if valid, None if validation failed,
+            'errors': List[str] with error messages, empty list if valid
         }
     """
     validators = get_validators()
     result = validators.validate("alpaca_account", account_data, context="alpaca_account")
 
+    # Explicit: Only return data when validation passes
     return {
         "valid": result.is_valid,
-        "account": result.data,
+        "account": result.data if result.is_valid else None,
         "errors": result.errors,
     }
 
@@ -206,17 +215,18 @@ def validate_alpaca_position(position_data: Any) -> dict[str, Any]:
 
     Returns:
         {
-            'valid': bool,
-            'position': Dict or None (cleaned data),
-            'errors': List[str] or []
+            'valid': bool (True only if all validations pass),
+            'position': Dict if valid, None if validation failed,
+            'errors': List[str] with error messages, empty list if valid
         }
     """
     validators = get_validators()
     result = validators.validate("alpaca_position", position_data, context="alpaca_position")
 
+    # Explicit: Only return data when validation passes
     return {
         "valid": result.is_valid,
-        "position": result.data,
+        "position": result.data if result.is_valid else None,
         "errors": result.errors,
     }
 

@@ -48,12 +48,25 @@ class CircuitBreakerDef:
         self.fail_closed = fail_closed
 
     def is_triggered(self, metrics: dict[str, Any]) -> bool:
-        """Check if this circuit breaker is triggered."""
-        value = metrics.get(self.metric_key)
+        """Check if this circuit breaker is triggered.
+
+        CRITICAL: Fails immediately if metric is missing or None.
+        No fallback — incomplete risk assessment must fail closed.
+        """
+        if self.metric_key not in metrics:
+            msg = (
+                f"[CIRCUIT_BREAKER_CRITICAL] {self.metric_key} missing from metrics dict for {self.name}. "
+                f"Cannot evaluate circuit breaker without required metric. "
+                f"Failing closed to prevent trading without complete risk assessment."
+            )
+            logger.critical(msg)
+            raise ValueError(msg)
+
+        value = metrics[self.metric_key]
         if value is None:
             msg = (
-                f"[CIRCUIT_BREAKER_CRITICAL] {self.metric_key} missing for {self.name}. "
-                f"Cannot evaluate circuit breaker without required metric. "
+                f"[CIRCUIT_BREAKER_CRITICAL] {self.metric_key} is None for {self.name}. "
+                f"Cannot evaluate circuit breaker with null value. "
                 f"Failing closed to prevent trading without complete risk assessment."
             )
             logger.critical(msg)
@@ -75,10 +88,17 @@ CIRCUIT_BREAKERS = [
 
 
 def compute_circuit_breaker_metrics(cur: Any, today: date | None = None) -> dict[str, Any]:
-    """Compute all circuit breaker metrics for today and store in database."""
+    """Compute all circuit breaker metrics for today and store in database.
+
+    Args:
+        cur: Database cursor
+        today: Specific date to compute metrics for (defaults to current ET date if None)
+    """
     if today is None:
         # Use ET date, not UTC (AWS containers run in UTC but trading is ET-based)
         today = dt.now(EASTERN_TZ).date()
+    elif not isinstance(today, date):
+        raise TypeError(f"today must be a date or None, got {type(today).__name__}: {today!r}")
 
     logger.info(f"Computing circuit breaker metrics for {today}")
 
@@ -290,24 +310,26 @@ def _compute_open_risk(cur: Any) -> float:
     No fallback to entry_price (that would show 0% risk when stops are missing).
     Fails fast if any position lacks a stop — this is a data integrity error.
     """
-    # First, validate that all open positions have stop prices set
+    # First, validate that all open positions have stop prices set (NO FALLBACK)
+    # CRITICAL: Each position MUST have p.current_stop_price set. No fallback to trade stop_loss_price.
+    # This ensures risk calculations use the ACTUAL current stop, not historical entry stop.
     cur.execute("""
-        SELECT COUNT(*) as missing_stops
-        FROM algo_positions p
-        JOIN algo_trades t ON t.trade_id = ANY(p.trade_ids_arr)
-        WHERE LOWER(p.status) = 'open'
-        AND (p.current_stop_price IS NULL AND t.stop_loss_price IS NULL)
+        SELECT COUNT(*) as missing_current_stops
+        FROM algo_positions
+        WHERE LOWER(status) = 'open'
+        AND current_stop_price IS NULL
     """)
     check_row = cur.fetchone()
-    if check_row and check_row["missing_stops"] and check_row["missing_stops"] > 0:
+    if check_row and check_row["missing_current_stops"] and check_row["missing_current_stops"] > 0:
         raise ValueError(
-            f"CRITICAL: {check_row['missing_stops']} open position(s) have no stop loss price set. "
-            "Cannot calculate portfolio risk without valid stops. "
-            "All open positions must have current_stop_price or stop_loss_price defined."
+            f"CRITICAL: {check_row['missing_current_stops']} open position(s) have NULL current_stop_price. "
+            "Cannot calculate portfolio risk without valid CURRENT stops. "
+            "All open positions MUST have current_stop_price updated before risk assessment. "
+            "NO FALLBACK to historical entry stop — current risk requires current stops."
         )
 
     cur.execute("""
-        SELECT SUM(GREATEST(0, (t.entry_price - COALESCE(p.current_stop_price, t.stop_loss_price)) * p.quantity))
+        SELECT SUM(GREATEST(0, (t.entry_price - p.current_stop_price) * p.quantity))
                AS total_risk
         FROM algo_positions p
         JOIN algo_trades t ON t.trade_id = ANY(p.trade_ids_arr)

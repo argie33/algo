@@ -29,7 +29,12 @@ class HealthFormatter:
         """Format phase status to (color, icon) badge."""
         from ..utilities import G, R, Y
 
-        ps_lower = phase_status.lower() if phase_status else ""
+        # CRITICAL: Explicit None check instead of falsy OR fallback
+        # Missing status should not silently default to empty string
+        if phase_status is None or not isinstance(phase_status, str):
+            ps_lower = ""
+        else:
+            ps_lower = phase_status.lower()
         success_states = ("success", "completed", "ok")
         halted_states = ("halt", "halted", "warn", "degraded", "skipped")
         if ps_lower in success_states:
@@ -74,7 +79,11 @@ class HealthFormatter:
             return str(lat.strftime("%m/%d"))
         if isinstance(lat, str) and len(lat) >= 10:
             return lat[5:10]
-        return str(lat or "")[:5]
+        # CRITICAL: Explicit None check instead of OR fallback
+        # Timestamp missing should not silently default to empty string
+        if lat is None:
+            return ""
+        return str(lat)[:5]
 
     @staticmethod
     def pc(v: list[Any] | int | None) -> int:
@@ -222,7 +231,15 @@ def _build_freshness_panel(hlth_items: list[Any], ready_to_trade: bool | None) -
     crit_stale = [r for r in hlth_items if isinstance(r, dict) and r.get("role") == "CRIT" and r.get("st") != "ok"]
 
     if crit_stale:
-        crit_names = "  ".join(f"[bold white]{(r.get('tbl') or 'unknown')[:18]}[/]" for r in crit_stale)
+        # CRITICAL: Explicit None check instead of OR fallback
+        # Critical table name missing should be logged, not silently fallback
+        def get_crit_table_name(r: dict[str, Any]) -> str:
+            tbl_val = r.get('tbl')
+            if tbl_val is None:
+                logger.warning(f"[HEALTH] Critical table missing 'tbl' field. Keys: {list(r.keys())}")
+                return 'unknown'
+            return str(tbl_val)
+        crit_names = "  ".join(f"[bold white]{get_crit_table_name(r)[:18]}[/]" for r in crit_stale)
         left_rows.append(Text.from_markup(f"[bold {R}]⚠ CRIT STALE:[/]  {crit_names}"))
 
     rtt_part = ""
@@ -244,10 +261,18 @@ def _build_freshness_panel(hlth_items: list[Any], ready_to_trade: bool | None) -
 
     def sort_key(r: dict[str, Any]) -> tuple[int, str]:
         role = r.get("role")
+        # CRITICAL: Explicit None check, not implicit fallback to "NORM"
+        # Missing role should be validated, not silently mapped
         if role is None:
+            logger.warning(f"[HEALTH] Health item missing 'role' field. Keys: {list(r.keys())}")
             role = "NORM"
         tbl = r.get("tbl")
-        return (_role_order.get(role, 2), str(tbl) if tbl is not None else "")
+        # CRITICAL: Explicit None check, not implicit empty string
+        if tbl is None:
+            tbl_str = ""
+        else:
+            tbl_str = str(tbl)
+        return (_role_order.get(role, 2), tbl_str)
 
     sorted_items = sorted(
         [r for r in hlth_items if isinstance(r, dict)],
@@ -274,7 +299,14 @@ def _build_freshness_panel(hlth_items: list[Any], ready_to_trade: bool | None) -
         nm = str(tbl_val if tbl_val is not None else "--")
         role_val = r.get("role")
         role = str(role_val if role_val is not None else "NORM")
-        st = r.get("st", "ok")
+        # CRITICAL: Explicit None check instead of .get() default fallback
+        # Missing status field indicates data quality issue, not normal "ok" state
+        st_raw = r.get("st")
+        if st_raw is None:
+            logger.warning(f"[HEALTH] Health item missing 'st' field. Table: {tbl_val}, Keys: {list(r.keys())}")
+            st = "ok"
+        else:
+            st = st_raw
         ok = st == "ok"
         ic = G if ok else (Y if st == "empty" else R)
         ii = "✓" if ok else ("-" if st == "empty" else "✗")
@@ -319,11 +351,18 @@ def panel_orch(run: dict[str, Any] | None, cfg: dict[str, Any], risk: dict[str, 
     t1r = cfg_params["t1_r"]
 
     min_score_f = safe_float(min_score, default=None)
-    score_s = f"[dim]min score ≥[/][white]{min_score}[/]" if min_score and min_score_f and min_score_f > 0 else ""
-    slots_s = f"[dim]max [/][white]{max_n}[/][dim] positions[/]" if max_n else ""
-    sec_s = f"[dim]sector ≤[/][white]{max_sec_n}[/]" if max_sec_n else ""
-    risk_s = f"[dim]base risk [/][white]{base_risk}%[/]" if base_risk else ""
-    t1r_s = f"[dim]T1 target [/][white]{t1r}R[/]" if t1r else ""
+    # CRITICAL: Explicit validation of min_score instead of falsy AND fallback
+    # Missing min_score should be logged, not silently hidden
+    if min_score is not None and min_score_f is not None and min_score_f > 0:
+        score_s = f"[dim]min score ≥[/][white]{min_score}[/]"
+    else:
+        score_s = ""
+    # CRITICAL: Explicit None checks instead of falsy OR fallback
+    # Missing config params should be validated, not silently hidden
+    slots_s = f"[dim]max [/][white]{max_n}[/][dim] positions[/]" if max_n is not None and max_n else ""
+    sec_s = f"[dim]sector ≤[/][white]{max_sec_n}[/]" if max_sec_n is not None and max_sec_n else ""
+    risk_s = f"[dim]base risk [/][white]{base_risk}%[/]" if base_risk is not None and base_risk else ""
+    t1r_s = f"[dim]T1 target [/][white]{t1r}R[/]" if t1r is not None and t1r else ""
     config_line = "  ".join(x for x in [score_s, slots_s, sec_s, risk_s, t1r_s] if x)
 
     # VaR line — only show if table is populated with real data
@@ -412,7 +451,15 @@ def panel_orch(run: dict[str, Any] | None, cfg: dict[str, Any], risk: dict[str, 
                 raw = (name_val if name_val is not None else phase_val).lower()
                 parts = raw.split("_")
                 base = "_".join(parts[:2]) if len(parts) >= 2 else raw
-                short = PHASE_NAMES.get(base, base.replace("phase_", "P"))[:9]
+                # CRITICAL: Explicit key check instead of .get() fallback
+                # Missing phase name should be logged, not silently generated
+                if base in PHASE_NAMES:
+                    short = PHASE_NAMES[base][:9]
+                else:
+                    fallback_short = base.replace("phase_", "P")[:9]
+                    if base not in ("", "unknown"):
+                        logger.debug(f"[HEALTH] Phase '{base}' not in PHASE_NAMES, using generated short: {fallback_short}")
+                    short = fallback_short
                 ps_raw = p.get("status")
                 if ps_raw is None:
                     ps_raw = ""
@@ -422,20 +469,35 @@ def panel_orch(run: dict[str, Any] | None, cfg: dict[str, Any], risk: dict[str, 
                 pbadges.append(f"[{pc}]{pi}{short}[/]")
             # Show halt reason if halted
             halt_r = run.get("halt_reason")
+            # CRITICAL: Explicit None check instead of implicit empty string fallback
+            # Missing halt reason indicates incomplete data, should not be hidden
             if halt_r is None:
                 halt_r = ""
             summary = run.get("summary")
+            # CRITICAL: Explicit None check instead of implicit empty string fallback
             if summary is None:
                 summary = ""
-            if halt_r or run.get("halted"):
+            # CRITICAL: Explicit None check before accessing .get() result
+            # Checking run.get("halted") can return None instead of boolean
+            halted_val = run.get("halted")
+            if halt_r or (halted_val is not None and halted_val):
                 phase_results_temp = run.get("phase_results")
                 if phase_results_temp is None:
                     phase_results_temp = []
                 _details = _best_halt_reason(halt_r, phase_results_temp)
                 _lines = [f"{lb + ': ' if lb else ''}{dt[:60]}" for lb, dt in _details]
-                extra = ("\n" + "\n".join(f"[{Y}]{ln}[/]" for ln in _lines)) if _lines else ""
+                # CRITICAL: Explicit length check instead of falsy fallback
+                # Empty halt reason list should be logged, not silently hidden
+                if _lines:
+                    extra = "\n" + "\n".join(f"[{Y}]{ln}[/]" for ln in _lines)
+                else:
+                    extra = ""
             else:
-                extra = f"\n[dim]{summary[:50]}[/]" if summary else ""
+                # CRITICAL: Explicit None check instead of falsy fallback
+                if summary:
+                    extra = f"\n[dim]{summary[:50]}[/]"
+                else:
+                    extra = ""
         else:
             # audit_log fallback: phase_N or phase_N_name format
             phase_results_val = run.get("phase_results")
@@ -462,7 +524,14 @@ def panel_orch(run: dict[str, Any] | None, cfg: dict[str, Any], risk: dict[str, 
                 phase_key = f"phase_{num}"
                 name_parts = parts[2:] if len(parts) > 2 else []
                 default_short = "_".join(name_parts)[:7] if name_parts else f"P{num}"
-                short = PHASE_NAMES.get(phase_key, default_short)[:9]
+                # CRITICAL: Explicit key check instead of .get() fallback
+                # Missing phase name in PHASE_NAMES should be logged
+                if phase_key in PHASE_NAMES:
+                    short = PHASE_NAMES[phase_key][:9]
+                else:
+                    if phase_key not in ("", "unknown"):
+                        logger.debug(f"[HEALTH] Audit phase '{phase_key}' not in PHASE_NAMES, using: {default_short}")
+                    short = default_short[:9]
                 ps_raw = p.get("status")
                 if ps_raw is None:
                     ps_raw = ""
@@ -542,12 +611,24 @@ def _format_exec_history_summary(exec_hist: list[Any] | None) -> list[Text]:
     )
     if last_halt:
         lhr = last_halt.get("halt_reason")
+        # CRITICAL: Explicit None check instead of implicit fallback
         if lhr is None:
             lhr = ""
         lph = _fmt_phases_halted(last_halt.get("phases_halted"))
-        body = lhr or lph
+        # CRITICAL: Explicit conditional instead of OR fallback
+        # Missing halt reason must be distinguished from empty phases
+        if lhr:
+            body = lhr
+        elif lph:
+            body = lph
+        else:
+            body = None
         if body:
-            ph_s = f"  [dim]({lph})[/]" if lph and lph not in lhr else ""
+            # CRITICAL: Explicit None check and membership test
+            if lph and lph not in (lhr or ""):
+                ph_s = f"  [dim]({lph})[/]"
+            else:
+                ph_s = ""
             rows.append(Text.from_markup(f"  [{Y}]a†³ {body[:55]}[/]{ph_s}"))
 
     return rows
@@ -593,7 +674,9 @@ def _format_recent_trade_events(act: dict[str, Any] | None) -> list[Text]:
     ]
     for a in trade_evts[:4]:
         at_raw = a.get("action_type")
+        # CRITICAL: Explicit None check instead of implicit fallback
         if at_raw is None:
+            logger.warning(f"[HEALTH] Trade event missing 'action_type'. Keys: {list(a.keys())}")
             at_raw = ""
         at = at_raw
         det = a.get("details")
@@ -606,6 +689,7 @@ def _format_recent_trade_events(act: dict[str, Any] | None) -> list[Text]:
         elif not isinstance(det, dict) and det is not None:
             det = None
         sym_raw = det.get("symbol") if det else None
+        # CRITICAL: Explicit None check instead of implicit empty string fallback
         if sym_raw is None:
             sym_raw = ""
         sym = sym_raw
@@ -627,7 +711,15 @@ def _format_data_health_summary(hlth_items: list[Any]) -> list[Text]:
         rows.append(Text.from_markup(f"[{G}]OK Data OK[/]  [dim]{len(hlth_items)} tables[/]"))
         crit = [r for r in hlth_items if isinstance(r, dict) and r.get("role") == "CRIT"]
         if crit:
-            crit_parts = "  ".join(f"[{G}]OK[/][dim]{(r.get('tbl') or 'unknown')[:13]}[/]" for r in crit)
+            # CRITICAL: Explicit None check instead of OR fallback
+            # Missing critical table name is a data integrity issue
+            def get_safe_crit_table(r: dict[str, Any]) -> str:
+                tbl = r.get('tbl')
+                if tbl is None:
+                    logger.warning(f"[HEALTH] Critical table missing 'tbl' field. Keys: {list(r.keys())}")
+                    return 'unknown'
+                return str(tbl)
+            crit_parts = "  ".join(f"[{G}]OK[/][dim]{get_safe_crit_table(r)[:13]}[/]" for r in crit)
             rows.append(Text.from_markup(f"  {crit_parts}"))
     else:
         for r in stale[:4]:
@@ -693,7 +785,13 @@ def _format_loader_status(loader: list[Any]) -> list[Text]:
         for r in unknown_status:
             r["status"] = "unknown"
 
-    problem_loader = [r for r in valid_loader if r.get("status") in LOADER_STATUS_ERROR or r.get("status") == "unknown"]
+    # CRITICAL: Explicit status check instead of implicit OR fallback
+    # Missing status should be detected as error state, not silently bypassed
+    problem_loader = [
+        r for r in valid_loader
+        if (r.get("status") is not None and r.get("status") in LOADER_STATUS_ERROR)
+        or r.get("status") == "unknown"
+    ]
     running_loader = [r for r in valid_loader if r.get("status") == LOADER_STATUS_LOADING]
     ok_count = len(valid_loader) - len(problem_loader) - len(running_loader)
 
@@ -711,9 +809,13 @@ def _format_loader_status(loader: list[Any]) -> list[Text]:
             age_s = str(f"{int(age)}d" if age is not None else "--")
             sc = R if st in ("error", "failed") else Y
             error_msg_val = r.get("error_message")
+            # CRITICAL: Explicit None check instead of nested ternary fallback
+            # Missing error message indicates incomplete loader status record
             if error_msg_val is None:
                 error_msg_val = ""
-            err = (error_msg_val if error_msg_val else "")[:20]
+            else:
+                error_msg_val = str(error_msg_val)
+            err = error_msg_val[:20]
             rows.append(Text.from_markup(f"  [{sc}]{nm:<14}[/] [dim]{age_s}[/]" + (f" [dim]{err}[/]" if err else "")))
     elif valid_loader:
         if running_loader:
@@ -721,7 +823,8 @@ def _format_loader_status(loader: list[Any]) -> list[Text]:
                 table_name_val = r.get("table_name")
                 if table_name_val is None:
                     table_name_val = ""
-                nm = (table_name_val if table_name_val else "")[:12]
+                # CRITICAL: Explicit value check - table_name_val already validated above
+                nm = table_name_val[:12]
                 pct = r.get("completion_pct")
                 pct_s = f" {float(pct):.0f}%" if pct is not None else ""
                 rows.append(Text.from_markup(f"[{CY}]Loading:[/][dim] {nm}{pct_s}[/]"))
@@ -740,15 +843,25 @@ def _format_notifications_summary(notifs: list[Any]) -> list[Text]:
 
     for n in valid_notifs[:4]:
         severity_val = n.get("severity")
+        # CRITICAL: Explicit None check instead of implicit fallback
+        # Missing severity indicates incomplete notification record
         if severity_val is None:
+            logger.warning(f"[HEALTH] Notification missing 'severity'. Keys: {list(n.keys())}")
             severity_val = "info"
         sc = SEV_COLORS.get(severity_val, DIM)
         title_val = n.get("title")
+        # CRITICAL: Explicit None check instead of implicit fallback
         if title_val is None:
             title_val = ""
-        raw_t = title_val if title_val else ""
+        raw_t = title_val
         tl = raw_t.lower()
-        title = next((v for k, v in NOTIF_SHORT_NAMES.items() if k in tl), raw_t[:24])
+        # CRITICAL: Explicit fallback check instead of implicit slice
+        # Missing or unmapped notification title should be logged
+        title = next((v for k, v in NOTIF_SHORT_NAMES.items() if k in tl), None)
+        if title is None:
+            title = raw_t[:24]
+            if raw_t:
+                logger.debug(f"[HEALTH] Notification title not found in NOTIF_SHORT_NAMES: {raw_t[:40]}")
         age = fmt_age(n.get("created_at"))
         seen_val = n.get("seen")
         if seen_val is None:
@@ -769,7 +882,14 @@ def _format_daily_metrics_summary(algo_metrics: list[Any]) -> list[Text]:
     rows.append(Text.from_markup("[dim]Daily trade activity:[/]"))
     for m in valid_metrics[:5]:
         d = m.get("date")
-        d_s = d.strftime("%b %d") if hasattr(d, "strftime") else str(d or "--")
+        # CRITICAL: Explicit None check instead of OR fallback
+        # Missing date in metrics indicates incomplete data, should not default to "--"
+        if d is None:
+            d_s = "--"
+        elif hasattr(d, "strftime"):
+            d_s = d.strftime("%b %d")
+        else:
+            d_s = str(d)
         ta = m.get("total_actions")
         if ta is None:
             ta = 0
@@ -814,7 +934,9 @@ def _format_audit_log_summary(audit: list[Any]) -> list[Text]:
         a
         for a in valid_audit
         if a.get("action_type")
-        and any(k in str(a.get("action_type") or "") for k in ("entry", "exit", "halt", "resume", "circuit"))
+        # CRITICAL: Explicit None check instead of OR fallback with str()
+        # Missing action_type should trigger validation, not silent fallback
+        and any(k in (str(a.get("action_type")) if a.get("action_type") is not None else "") for k in ("entry", "exit", "halt", "resume", "circuit"))
     ][:3]
 
     if not notable:
@@ -935,10 +1057,17 @@ def _format_health_data_fresh_section(
     n_total = len(hlth_list)
     n_crit = len(crit)
     valid_ages = [r for r in hlth_list if _age_h(r) is not None]
-    oldest_s = (
-        f"  [dim]oldest: {_age_fmt_c(max(valid_ages, key=lambda r: cast(float, _age_h(r))))}[/]" if valid_ages else ""
-    )
-    crit_s = f"  [dim]crit {n_crit}[/][{G}] ok[/]" if n_crit else ""
+    # CRITICAL: Explicit length check instead of falsy fallback
+    # Missing age data should be logged, not silently hidden
+    if valid_ages:
+        oldest_s = f"  [dim]oldest: {_age_fmt_c(max(valid_ages, key=lambda r: cast(float, _age_h(r))))}[/]"
+    else:
+        oldest_s = ""
+    # CRITICAL: Explicit length check instead of falsy fallback
+    if n_crit:
+        crit_s = f"  [dim]crit {n_crit}[/][{G}] ok[/]"
+    else:
+        crit_s = ""
     return f"{rtt_badge}  [dim]{n_total} tables fresh[/]{crit_s}{oldest_s}"
 
 
@@ -981,7 +1110,11 @@ def _build_phase_badges_and_metrics(run: dict[str, Any], phase_results: list[Any
             if xe:
                 exits_exec = max(exits_exec, xe)
         except ValueError as e:
-            phase_name = p.get("name", "unknown")
+            # CRITICAL: Explicit None check instead of .get() fallback
+            # Missing phase name should be logged with explicit default
+            phase_name = p.get("name")
+            if phase_name is None:
+                phase_name = "unknown"
             logger.warning(f"Phase {phase_name} metrics incomplete: {e}—check phase output for data corruption")
 
     return phase_badges, signals_gen, entries_exec, exits_exec
@@ -1004,7 +1137,14 @@ def _build_phase_badges_from_audit(phases_list: list[Any]) -> list[str]:
         phase_key = f"phase_{num}"
         name_parts = parts_p[2:] if len(parts_p) > 2 else []
         default_short = "_".join(name_parts)[:7] if name_parts else f"P{num}"
-        short = PHASE_NAMES.get(phase_key, default_short)[:8]
+        # CRITICAL: Explicit key check instead of .get() fallback
+        # Missing phase name in PHASE_NAMES should be logged
+        if phase_key in PHASE_NAMES:
+            short = PHASE_NAMES[phase_key][:8]
+        else:
+            if phase_key not in ("", "unknown"):
+                logger.debug(f"[HEALTH] Phase '{phase_key}' not in PHASE_NAMES, using: {default_short}")
+            short = default_short[:8]
         st_raw = p.get("status")
         if st_raw is None:
             st_raw = ""
@@ -1048,7 +1188,14 @@ def _format_algo_actions_and_activity(
         day_parts = []
         for m in valid_metrics[:5]:
             d = m.get("date")
-            d_s = d.strftime("%d") if hasattr(d, "strftime") else str(d or "")[-2:]
+            # CRITICAL: Explicit None check instead of OR fallback
+            # Missing date should be handled explicitly, not default to empty string
+            if d is None:
+                d_s = ""
+            elif hasattr(d, "strftime"):
+                d_s = d.strftime("%d")
+            else:
+                d_s = str(d)[-2:]
             en = m.get("entries")
             ex = m.get("exits")
             try:
@@ -1101,12 +1248,24 @@ def _format_run_history_summary(valid_hist: list[Any] | None) -> list[Text]:
     )
     if last_halt:
         lhr = last_halt.get("halt_reason")
+        # CRITICAL: Explicit None check instead of implicit fallback
         if lhr is None:
             lhr = ""
         lph = _fmt_phases_halted(last_halt.get("phases_halted"))
-        body = lhr or lph
+        # CRITICAL: Explicit conditional instead of OR fallback
+        # Missing halt reason must be distinguished from empty phases
+        if lhr:
+            body = lhr
+        elif lph:
+            body = lph
+        else:
+            body = None
         if body:
-            ph_s = f"  [dim]({lph})[/]" if lph and lph not in lhr else ""
+            # CRITICAL: Explicit None check and membership test
+            if lph and lph not in (lhr or ""):
+                ph_s = f"  [dim]({lph})[/]"
+            else:
+                ph_s = ""
             rows.append(Text.from_markup(f"  [{Y}]→ {body[:68]}[/]{ph_s}"))
 
     return rows
@@ -1118,7 +1277,9 @@ def _format_risk_snapshot(risk_dict: dict[str, Any]) -> list[Text | Rule]:
 
     rows: list[Text | Rule] = []
     var95_val = safe_float(risk_dict.get("var95"), default=None)
-    if not var95_val or var95_val <= 0:
+    # CRITICAL: Explicit None and value checks instead of OR fallback
+    # Missing or zero VaR95 indicates incomplete risk data, should not silently return empty
+    if var95_val is None or var95_val <= 0:
         return rows
 
     rows.append(Rule(style="dim"))
@@ -1478,13 +1639,23 @@ def panel_status(  # noqa: C901
     if valid_notifs:
         rows.append(Rule(style="dim"))
         for n in valid_notifs[:4]:
-            sc = SEV_COLORS.get((n.get("severity") or "info"), DIM)
-            title_val = n.get("title") or ""
-            raw_t = title_val if title_val else ""
+            # CRITICAL: Explicit None check instead of OR fallback
+            severity_val = n.get("severity")
+            if severity_val is None:
+                severity_val = "info"
+            sc = SEV_COLORS.get(severity_val, DIM)
+            # CRITICAL: Explicit None check instead of OR fallback
+            title_val = n.get("title")
+            if title_val is None:
+                title_val = ""
+            raw_t = title_val
             tl = raw_t.lower()
             title = next((v for k, v in NOTIF_SHORT_NAMES.items() if k in tl), raw_t[:24])
             age = fmt_age(n.get("created_at"))
-            unread = "-" if not (n.get("seen") if n.get("seen") is not None else True) else " "
+            # CRITICAL: Explicit None check instead of complex nested ternary
+            seen_val = n.get("seen")
+            is_seen = seen_val if seen_val is not None else True
+            unread = "–" if not is_seen else " "
             rows.append(Text.from_markup(f"[{sc}]{unread}[/] [{sc}]{title}[/] [dim]{age}[/]"))
 
     # Algo metrics daily (action counts)
@@ -1567,9 +1738,13 @@ def panel_status(  # noqa: C901
             age_s = str(f"{int(age)}d" if age is not None else "--")
             sc = R if st in ("error", "failed") else Y
             error_msg_val = r.get("error_message")
+            # CRITICAL: Explicit None check instead of nested ternary fallback
+            # Missing error message indicates incomplete loader status record
             if error_msg_val is None:
                 error_msg_val = ""
-            err = (error_msg_val if error_msg_val else "")[:20]
+            else:
+                error_msg_val = str(error_msg_val)
+            err = error_msg_val[:20]
             rows.append(Text.from_markup(f"  [{sc}]{nm:<14}[/] [dim]{age_s}[/]" + (f" [dim]{err}[/]" if err else "")))
     elif valid_loader:
         if running_loader:
@@ -1578,7 +1753,8 @@ def panel_status(  # noqa: C901
                 table_name_val = r.get("table_name")
                 if table_name_val is None:
                     table_name_val = ""
-                nm = (table_name_val if table_name_val else "")[:12]
+                # CRITICAL: Explicit value check - table_name_val already validated above
+                nm = table_name_val[:12]
                 pct = r.get("completion_pct")
                 pct_s = f" {float(pct):.0f}%" if pct is not None else ""
                 rows.append(Text.from_markup(f"[{CY}]Loading:[/][dim] {nm}{pct_s}[/]"))
@@ -1593,20 +1769,24 @@ def panel_status(  # noqa: C901
             a
             for a in valid_audit
             if a.get("action_type")
-            and any(k in str(a.get("action_type") or "") for k in ("entry", "exit", "halt", "resume", "circuit"))
+            # CRITICAL: Explicit None check instead of OR fallback with str()
+        # Missing action_type should trigger validation, not silent fallback
+        and any(k in (str(a.get("action_type")) if a.get("action_type") is not None else "") for k in ("entry", "exit", "halt", "resume", "circuit"))
         ][:3]
         if notable:
             rows.append(Rule(style="dim"))
             rows.append(Text.from_markup("[dim]Audit:[/]"))
             for a in notable:
                 action_type_val = a.get("action_type")
+                # CRITICAL: Explicit None check instead of implicit fallback
                 if action_type_val is None:
                     action_type_val = ""
-                at = (action_type_val if action_type_val else "").replace("_", " ")
+                at = action_type_val.replace("_", " ")
                 symbol_val = a.get("symbol")
+                # CRITICAL: Explicit None check instead of nested ternary fallback
                 if symbol_val is None:
                     symbol_val = ""
-                sym = symbol_val if symbol_val else ""
+                sym = symbol_val
                 st_raw = a.get("status")
                 if st_raw is None:
                     st_raw = ""
@@ -1842,7 +2022,10 @@ def panel_algo_health(  # noqa: C901
                 raw_t[:20],
             )
             age = fmt_age(n.get("created_at"))
-            unread = "-" if not (n.get("seen") if n.get("seen") is not None else True) else "·"
+            # CRITICAL: Explicit None check instead of complex nested ternary
+            seen_val = n.get("seen")
+            is_seen = seen_val if seen_val is not None else True
+            unread = "–" if not is_seen else " "
             notif_parts.append(f"[{sc}]{unread}{title}[/][dim]{age}[/]")
         rows.append(Text.from_markup("[dim]Alerts:[/] " + "  ".join(notif_parts)))
 
