@@ -55,7 +55,7 @@ SELECT
   ap.symbol,
   ap.quantity,
   ap.avg_entry_price,
-  COALESCE(lp.current_price, ap.current_price) AS current_price,
+  lp.current_price,
   ap.position_value,
   ap.unrealized_pnl,
   ap.unrealized_pnl_pct,
@@ -84,13 +84,13 @@ SELECT
   ls.swing_score,
 
   -- Current R-multiple: (current_price - entry) / initial_risk_per_share
-  -- Positive = profitable, negative = at loss. NULL if no valid stop.
+  -- Positive = profitable, negative = at loss. NULL if no valid stop or missing current price.
   CASE
-    WHEN ap.stop_loss_price IS NULL AND ap.current_stop_price IS NULL OR ap.avg_entry_price = 0
+    WHEN lp.current_price IS NULL OR ap.stop_loss_price IS NULL AND ap.current_stop_price IS NULL OR ap.avg_entry_price = 0
     THEN NULL
     WHEN ap.avg_entry_price - COALESCE(ap.stop_loss_price, ap.current_stop_price) <= 0
     THEN NULL
-    ELSE (COALESCE(lp.current_price, ap.current_price) - ap.avg_entry_price) /
+    ELSE (lp.current_price - ap.avg_entry_price) /
          NULLIF(ap.avg_entry_price - COALESCE(ap.stop_loss_price, ap.current_stop_price), 0)
   END::DECIMAL(8, 4) AS r_multiple,
 
@@ -110,31 +110,31 @@ SELECT
 
   -- Distance from current price to stop (positive = still above stop, negative = breached)
   CASE
-    WHEN COALESCE(lp.current_price, ap.current_price) = 0 OR COALESCE(ap.stop_loss_price, ap.current_stop_price, 0) = 0
+    WHEN lp.current_price IS NULL OR lp.current_price = 0 OR COALESCE(ap.stop_loss_price, ap.current_stop_price) IS NULL
     THEN NULL
-    ELSE (COALESCE(lp.current_price, ap.current_price) - COALESCE(ap.stop_loss_price, ap.current_stop_price, ap.current_price)) / NULLIF(COALESCE(lp.current_price, ap.current_price), 0) * 100
+    ELSE (lp.current_price - COALESCE(ap.stop_loss_price, ap.current_stop_price)) / NULLIF(lp.current_price, 0) * 100
   END::DECIMAL(8, 4) AS distance_to_stop_pct,
 
   CASE
-    WHEN COALESCE(lp.current_price, ap.current_price) = 0 OR lt.target_1_price IS NULL
+    WHEN lp.current_price IS NULL OR lp.current_price = 0 OR lt.target_1_price IS NULL
     THEN NULL
-    ELSE (lt.target_1_price - COALESCE(lp.current_price, ap.current_price)) / NULLIF(COALESCE(lp.current_price, ap.current_price), 0) * 100
+    ELSE (lt.target_1_price - lp.current_price) / NULLIF(lp.current_price, 0) * 100
   END::DECIMAL(8, 4) AS distance_to_t1_pct,
 
   CASE
-    WHEN COALESCE(lp.current_price, ap.current_price) = 0 OR lt.target_2_price IS NULL
+    WHEN lp.current_price IS NULL OR lp.current_price = 0 OR lt.target_2_price IS NULL
     THEN NULL
-    ELSE (lt.target_2_price - COALESCE(lp.current_price, ap.current_price)) / NULLIF(COALESCE(lp.current_price, ap.current_price), 0) * 100
+    ELSE (lt.target_2_price - lp.current_price) / NULLIF(lp.current_price, 0) * 100
   END::DECIMAL(8, 4) AS distance_to_t2_pct,
 
   CASE
-    WHEN COALESCE(lp.current_price, ap.current_price) = 0 OR lt.target_3_price IS NULL
+    WHEN lp.current_price IS NULL OR lp.current_price = 0 OR lt.target_3_price IS NULL
     THEN NULL
-    ELSE (lt.target_3_price - COALESCE(lp.current_price, ap.current_price)) / NULLIF(COALESCE(lp.current_price, ap.current_price), 0) * 100
+    ELSE (lt.target_3_price - lp.current_price) / NULLIF(lp.current_price, 0) * 100
   END::DECIMAL(8, 4) AS distance_to_t3_pct
 
 FROM algo_positions ap
-LEFT JOIN latest_prices lp ON ap.symbol = lp.symbol
+INNER JOIN latest_prices lp ON ap.symbol = lp.symbol
 LEFT JOIN latest_trades lt ON ap.symbol = lt.symbol
 LEFT JOIN latest_technical lt_tech ON ap.symbol = lt_tech.symbol
 LEFT JOIN company_profile cp ON ap.symbol = cp.ticker
