@@ -98,15 +98,28 @@ def get_endpoint_path(fetcher_key: str, params: dict[str, Any] | None = None) ->
 
 
 def is_api_error(response: dict[str, Any]) -> bool:
-    """Check if API response indicates an error."""
+    """Check if API response indicates an error.
+
+    CRITICAL: statusCode is REQUIRED. Never default to 200 (success).
+    If statusCode is missing, we cannot determine validity — treat as unknown error.
+    """
     if "_error" in response:
         return True
-    status = response.get("statusCode", 200)
+    status = response.get("statusCode")
+    if status is None:
+        # CRITICAL: Missing statusCode means we can't validate the response
+        # This could be a schema change, API error, or malformed response
+        logger.warning(
+            "API response missing 'statusCode' field — cannot determine validity. "
+            "Treating as error to prevent silent acceptance of malformed responses."
+        )
+        return True  # Fail-fast: treat missing statusCode as error
     if not isinstance(status, int):
         try:
             status = int(status)
         except (ValueError, TypeError):
-            return False
+            logger.warning(f"API statusCode '{status}' is not numeric — cannot parse. Treating as error.")
+            return True  # Fail-fast: unparseable status is an error
     return status >= 400
 
 

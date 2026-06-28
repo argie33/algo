@@ -217,7 +217,14 @@ def fetch_algo_config(c: None) -> dict[str, Any]:
             record_data_quality_issue("cfg", "validation", "empty_items")
             return FetcherValidator.build_error_response(error_msg)
 
-        cfg = {i["key"]: i.get("value") for i in items if "key" in i}
+        # STRICT: Build config dict allowing None values (will be validated below)
+        # Explicit: only include items that have a 'key' field
+        cfg = {}
+        for i in items:
+            if "key" in i:
+                key = i["key"]
+                # Value can be None (will be caught by required_config validation below)
+                cfg[key] = i.get("value")
 
         # Issue #8: enable_algo is REQUIRED - no default to True (fail-closed)
         required_config = [
@@ -311,9 +318,10 @@ def fetch_health(c: None) -> dict[str, Any]:
             return FetcherValidator.build_error_response(error_msg)
         sources = []
         for s in raw_sources:
-            name = s.get("name", "")
+            # REQUIRED: name field must be present — no fallback to empty string
+            name = s.get("name")
             if not name:
-                error_msg = "Health API source entry missing 'name' field"
+                error_msg = "Health API source entry missing required 'name' field"
                 logger.error(error_msg)
                 record_data_quality_issue("health", "validation", "missing_source_name")
                 return FetcherValidator.build_error_response(error_msg)
