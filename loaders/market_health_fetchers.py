@@ -107,7 +107,12 @@ class PutCallRatioFetcher:
             importance=DataImportance.OPTIONAL,
             fallback_value=None,
         )
-        return result if isinstance(result, (float, type(None))) else None
+        if result is not None and not isinstance(result, float):
+            raise RuntimeError(
+                f"[PUT_CALL_RATIO] Circuit breaker returned unexpected type {type(result).__name__}. "
+                f"Expected float or None, got {result!r}. Circuit breaker logic may be corrupted."
+            )
+        return result
 
     def _fetch_put_call_ratio(self, eval_date: date) -> float | None:
         """Internal put/call fetch implementation."""
@@ -300,5 +305,5 @@ class BreadthFetcher:
                 logger.info(f"[BREADTH_FETCHER] Fetched breadth for {len(result)} dates from trend_template_data")
                 return result
         except Exception as e:
-            logger.warning(f"[BREADTH_FETCHER] Failed to fetch breadth data: {e} — returning empty (optional enrichment)")
+            logger.warning(f"[BREADTH_FETCHER] Failed to fetch breadth data: {e}. Breadth is optional enrichment, skipping.")
             return {}
