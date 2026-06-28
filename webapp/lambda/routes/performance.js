@@ -36,7 +36,7 @@ async function getPerformanceMetrics(req, res) {
         profit_factor,
         total_pnl_dollars as total_pnl,
         CASE WHEN total_trades > 0 THEN ROUND(total_pnl_dollars / total_trades, 2) ELSE 0 END as avg_pnl_per_trade,
-        ROUND(COALESCE(avg_win_pct, 0) / 100, 4) as avg_return_pct,
+        CASE WHEN avg_win_pct IS NOT NULL THEN ROUND(avg_win_pct / 100, 4) ELSE NULL END as avg_return_pct,
         avg_win,
         avg_loss,
         avg_win_pct,

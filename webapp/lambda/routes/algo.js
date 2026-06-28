@@ -59,11 +59,20 @@ function computeStageLabel(stage, score, stageConfig = {}) {
     return "Stage 1 (base)";
   } else if (stage === 2) {
     if (score != null) {
-      if (score >= (stageConfig.stage_2_late_min_score ?? 8))
+      if (stageConfig.stage_2_late_min_score == null) {
+        throw new Error('Missing required config: stage_2_late_min_score');
+      }
+      if (stageConfig.stage_2_mid_min_score == null) {
+        throw new Error('Missing required config: stage_2_mid_min_score');
+      }
+      if (stageConfig.stage_2_early_min_score == null) {
+        throw new Error('Missing required config: stage_2_early_min_score');
+      }
+      if (score >= stageConfig.stage_2_late_min_score)
         return "Late Stage-2";
-      if (score >= (stageConfig.stage_2_mid_min_score ?? 6))
+      if (score >= stageConfig.stage_2_mid_min_score)
         return "Mid Stage-2";
-      if (score >= (stageConfig.stage_2_early_min_score ?? 0))
+      if (score >= stageConfig.stage_2_early_min_score)
         return "Early Stage-2";
       return "Early Stage-2";
     }
@@ -288,14 +297,14 @@ router.get("/evaluate", async (req, res) => {
       )
       SELECT
         s.symbol, s.date,
-        COALESCE(tt.minervini_trend_score, 0)::int as trend_score,
-        COALESCE(tt.percent_from_52w_low, 0)::numeric as pct_from_52w_low,
-        COALESCE(dc.composite_completeness_pct, 0)::numeric as completeness_pct,
-        COALESCE(sq.composite_sqs, 0)::int as sqs
+        tt.minervini_trend_score::int as trend_score,
+        tt.percent_from_52w_low::numeric as pct_from_52w_low,
+        dc.composite_completeness_pct::numeric as completeness_pct,
+        sq.composite_sqs::int as sqs
       FROM latest_signals s
-      LEFT JOIN latest_trend tt ON tt.symbol = s.symbol
-      LEFT JOIN latest_completeness dc ON dc.symbol = s.symbol
-      LEFT JOIN latest_sqs sq ON sq.symbol = s.symbol
+      INNER JOIN latest_trend tt ON tt.symbol = s.symbol
+      INNER JOIN latest_completeness dc ON dc.symbol = s.symbol
+      INNER JOIN latest_sqs sq ON sq.symbol = s.symbol
       ORDER BY s.date DESC, s.symbol
     `);
 
