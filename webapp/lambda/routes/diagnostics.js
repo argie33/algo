@@ -43,8 +43,11 @@ router.get("/", async (req, res) => {
     const dbTest = await query("SELECT COUNT(*) as count FROM stock_symbols");
     validateQueryResult(dbTest, { requireRows: false });
     diagnostics.database_status = "connected";
+    if (dbTest.rows?.[0]?.count == null) {
+      throw new Error('Failed to fetch stock_symbols count');
+    }
     diagnostics.database_tables = {
-      stock_symbols: parseInt(dbTest.rows[0]?.count ?? 0),
+      stock_symbols: parseInt(dbTest.rows[0].count),
     };
   } catch (err) {
     diagnostics.database_status = "error";
@@ -109,11 +112,16 @@ router.get("/", async (req, res) => {
       q = `SELECT $1::text as name, COUNT(*) as count FROM "${table.name}"`;
     }
     return query(q, [table.name])
-      .then((result) => ({
-        name: table.name,
-        count: parseInt(result.rows[0]?.count ?? 0),
-        success: true,
-      }))
+      .then((result) => {
+        if (result.rows?.[0]?.count == null) {
+          throw new Error(`Failed to fetch count for table ${table.name}`);
+        }
+        return {
+          name: table.name,
+          count: parseInt(result.rows[0].count),
+          success: true,
+        };
+      })
       .catch((err) => {
         logger.warn(`Failed to count table ${table.name}:`, {
           error: err.message,
@@ -160,7 +168,10 @@ router.get("/", async (req, res) => {
       SELECT COUNT(*) as index_count FROM pg_indexes WHERE schemaname = 'public'
     `);
     validateQueryResult(indexResult, { requireRows: false });
-    const indexCount = parseInt(indexResult.rows[0]?.index_count ?? 0);
+    if (!indexResult.rows?.[0]?.index_count && indexResult.rows[0].index_count !== 0) {
+      throw new Error('Failed to fetch index count');
+    }
+    const indexCount = parseInt(indexResult.rows[0].index_count);
     diagnostics.database_indexes = {
       count: indexCount,
       status: indexCount > 20 ? "Indexes present" : "Few indexes",

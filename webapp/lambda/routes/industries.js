@@ -125,7 +125,16 @@ async function fetchIndustries(req, res) {
         current_rank: (() => { const v = parseInt(row.current_rank, 10); return !isNaN(v) ? v : idx + 1 + offset; })(),
         rank_12w_ago: (() => { const v = parseInt(row.rank_12w_ago, 10); return !isNaN(v) ? v : null; })(),
         overall_rank: (() => { const v = parseInt(row.current_rank, 10); return !isNaN(v) ? v : idx + 1 + offset; })(),
-        stock_count: (() => { const v = parseInt(row.stock_count ?? 0, 10); return !isNaN(v) ? v : 0; })(),
+        stock_count: (() => {
+          if (row.stock_count == null) {
+            throw new Error(`Missing stock_count for industry ${row.industry_name}`);
+          }
+          const v = parseInt(row.stock_count, 10);
+          if (isNaN(v)) {
+            throw new Error(`Invalid stock_count for industry ${row.industry_name}: ${row.stock_count}`);
+          }
+          return v;
+        })(),
         composite_score: composite,
         momentum_score: sf(row.momentum_score),
         value_score: sf(row.value_score),

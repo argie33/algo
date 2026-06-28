@@ -132,22 +132,33 @@ module.exports = {
   // Paginated list response - UNIFIED FORMAT
   // Returns: { success, statusCode, items: [], pagination: {...}, timestamp }
   sendPaginated: (res, items, pagination, statusCode = 200) => {
+    // Strict validation: pagination fields must be explicitly provided
+    if (!pagination) {
+      throw new Error('sendPaginated requires pagination object with limit, offset, total, page fields');
+    }
+    if (pagination.limit === null || pagination.limit === undefined) {
+      throw new Error('pagination.limit must be explicitly provided (not null/undefined)');
+    }
+    if (pagination.offset === null || pagination.offset === undefined) {
+      throw new Error('pagination.offset must be explicitly provided (not null/undefined)');
+    }
+    if (pagination.total === null || pagination.total === undefined) {
+      throw new Error('pagination.total must be explicitly provided (not null/undefined)');
+    }
+
+    const totalPages = Math.ceil(pagination.total / (pagination.limit || 1));
     return res.status(statusCode).json({
       success: true,
       statusCode: statusCode,
       items: items || [],
       pagination: {
-        limit: pagination?.limit || 100,
-        offset: pagination?.offset || 0,
-        total: pagination?.total || 0,
-        page: pagination?.page || 1,
-        totalPages:
-          pagination?.totalPages ||
-          Math.ceil((pagination?.total || 0) / (pagination?.limit || 1)),
-        hasNext:
-          (pagination?.offset || 0) + (pagination?.limit || 0) <
-          (pagination?.total || 0),
-        hasPrev: (pagination?.offset || 0) > 0,
+        limit: pagination.limit,
+        offset: pagination.offset,
+        total: pagination.total,
+        page: pagination.page || 1,
+        totalPages: pagination.totalPages || totalPages,
+        hasNext: pagination.offset + pagination.limit < pagination.total,
+        hasPrev: pagination.offset > 0,
       },
       timestamp: new Date().toISOString(),
     });

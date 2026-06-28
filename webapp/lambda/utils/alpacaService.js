@@ -672,7 +672,13 @@ class AlpacaService {
         close: parseFloat(bar.ClosePrice),
         volume: parseInt(bar.Volume),
         tradeCount: bar.TradeCount != null ? parseInt(bar.TradeCount) : null,
-        vwap: parseFloat(bar.VWAP) || null,
+        vwap: bar.VWAP != null ? (() => {
+          const parsed = parseFloat(bar.VWAP);
+          if (!isFinite(parsed)) {
+            throw new Error(`Invalid VWAP value: ${bar.VWAP}`);
+          }
+          return parsed;
+        })() : null,
       }));
     } catch (error) {
       const barsError = new Error(`Failed to fetch bars for ${symbol}: ${error.message}`);
