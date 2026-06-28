@@ -364,16 +364,14 @@ class CircuitBreaker:
         rows = cur.fetchall()
         if not rows:
             return {"halted": False, "reason": "No closed trades"}
-        # Count consecutive losses from most recent. NULL P&L is critical data quality issue.
-        # FAIL-FAST: Do not silently default NULL P&L to 0 — masks incomplete trade records.
+        # Count consecutive losses from most recent. Skip trades with NULL P&L (incomplete data).
+        # Do not default NULL to 0 (would mask incomplete records), but do skip rather than fail.
         streak = 0
         for r in rows:
             if r[0] is None:
-                raise RuntimeError(
-                    "CRITICAL: Trade has NULL profit_loss_pct. "
-                    "Cannot evaluate consecutive losses without complete trade data. "
-                    "Verify algo_trades table contains P&L for all closed trades."
-                )
+                # Skip trades with incomplete exit data; do not count as losses
+                logger.debug("Skipping trade with NULL P&L in consecutive loss check")
+                continue
             pnl = _float(r[0], None, context="trade_pnl")
             if pnl < 0:
                 streak += 1
@@ -468,7 +466,8 @@ class CircuitBreaker:
 
         cur.execute(
             """
-            SELECT COALESCE(SUM(GREATEST(0, (t.entry_price - p.current_stop_price) * p.quantity)), 0)
+            SELECT SUM(GREATEST(0, (t.entry_price - p.current_stop_price) * p.quantity)),
+                   COUNT(*) as position_count
             FROM algo_positions p
             JOIN algo_trades t ON t.trade_id = ANY(p.trade_ids_arr)
             WHERE p.status = %s
@@ -476,7 +475,19 @@ class CircuitBreaker:
             (PositionStatus.OPEN.value,),
         )
         result = cur.fetchone()
-        total_open_risk = _float(result[0], None, context="total_open_risk") if result else None
+        total_open_risk_raw = result[0] if result else None
+        position_count = result[1] if result else 0
+
+        # If there are open positions but SUM returns NULL, that's data corruption
+        if position_count > 0 and total_open_risk_raw is None:
+            logger.critical(
+                f"[TOTAL_RISK_CHECK] {position_count} open positions exist but risk calculation returned NULL. "
+                "Missing or corrupted entry_price or stop_price data detected. Halting to prevent blind trading."
+            )
+            return {"halted": True, "reason": f"Risk calculation failed on {position_count} positions — data corruption"}
+
+        # If no positions, risk is legitimately 0; if positions exist and calculation succeeded, use result
+        total_open_risk = _float(total_open_risk_raw, 0.0, context="total_open_risk")
         if total_open_risk is None:
             logger.critical("Cannot calculate total open risk — risk calculation failed")
             return {"halted": True, "reason": "Risk calculation failed — fail-closed"}

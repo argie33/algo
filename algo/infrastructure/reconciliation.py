@@ -447,14 +447,15 @@ class DailyReconciliation:
                 market = cur.fetchone()
                 market_trend = market[0] if market else "unknown"
 
-                # Calculate additional metrics
+                # Calculate additional metrics (no COALESCE — catch missing data explicitly)
                 cur.execute(
                     """
                     SELECT
                         COUNT(*) FILTER (WHERE profit_loss_dollars > 0) as wins,
                         COUNT(*) FILTER (WHERE profit_loss_dollars < 0) as losses,
-                        COALESCE(SUM(profit_loss_dollars) FILTER (WHERE DATE(exit_date) = %s::date), 0) as realized_pnl_today,
-                        COALESCE(SUM(profit_loss_dollars), 0) as cumulative_pnl
+                        SUM(profit_loss_dollars) FILTER (WHERE DATE(exit_date) = %s::date) as realized_pnl_today,
+                        SUM(profit_loss_dollars) as cumulative_pnl,
+                        COUNT(*) FILTER (WHERE profit_loss_dollars IS NULL) as null_pnl_count
                     FROM algo_trades
                     WHERE status = %s
                 """,
@@ -467,8 +468,21 @@ class DailyReconciliation:
                 loss_count = result[1]
                 realized_pnl_today = result[2]
                 cumulative_pnl = result[3]
+                null_pnl_count = result[4]
+
+                # Log but don't fail if some trades have missing PnL
+                # (incomplete test trades or partial exits can have missing P&L calculations)
+                if null_pnl_count and null_pnl_count > 0:
+                    logger.warning(
+                        f"WARN: {null_pnl_count} closed trades have NULL profit_loss_dollars. "
+                        "Using P&L from trades with complete exit data. Check trade execution audit log for details."
+                    )
+
+                # Validate counts (null if no matching rows)
                 if win_count is None or loss_count is None:
                     raise ValueError(f"Trade counts missing from database: wins={win_count}, losses={loss_count}")
+
+                # Validate PnL values (null if no closed trades or all NULL)
                 if realized_pnl_today is None or cumulative_pnl is None:
                     raise ValueError(f"PnL values missing from database: today={realized_pnl_today}, cumulative={cumulative_pnl}")
                 win_count = int(win_count)

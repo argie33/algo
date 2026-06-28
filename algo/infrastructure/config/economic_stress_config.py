@@ -83,11 +83,33 @@ class EconomicStressConfig:
                 "moderate": 25,    # Moderate inversion
                 "flat": 15,        # Flat curve
             }
+
+        Raises:
+            ValueError if any critical config keys are missing (requires explicit configuration)
         """
+        severe = self.get("econ_stress_curve_inverted_severe")
+        moderate = self.get("econ_stress_curve_inverted_moderate")
+        flat = self.get("econ_stress_curve_flat")
+
+        missing = []
+        if severe is None:
+            missing.append("econ_stress_curve_inverted_severe")
+        if moderate is None:
+            missing.append("econ_stress_curve_inverted_moderate")
+        if flat is None:
+            missing.append("econ_stress_curve_flat")
+
+        if missing:
+            raise ValueError(
+                f"Economic stress config missing critical risk thresholds: {missing}. "
+                "Cannot proceed with incomplete risk configuration. "
+                "Ensure all stress_level thresholds are explicitly configured in database."
+            )
+
         return {
-            "severe": cast(int, self.get("econ_stress_curve_inverted_severe", 40)),
-            "moderate": cast(int, self.get("econ_stress_curve_inverted_moderate", 25)),
-            "flat": cast(int, self.get("econ_stress_curve_flat", 15)),
+            "severe": cast(int, severe),
+            "moderate": cast(int, moderate),
+            "flat": cast(int, flat),
         }
 
     def get_hy_spread_stress(self) -> dict[str, int]:
@@ -99,11 +121,32 @@ class EconomicStressConfig:
                 "elevated": 20,    # Elevated spread (400-600 bps)
                 "widening": 10,    # Widening trend
             }
+
+        Raises:
+            ValueError if any critical config keys are missing
         """
+        severe = self.get("econ_stress_hy_spread_severe")
+        elevated = self.get("econ_stress_hy_spread_elevated")
+        widening = self.get("econ_stress_hy_widening")
+
+        missing = []
+        if severe is None:
+            missing.append("econ_stress_hy_spread_severe")
+        if elevated is None:
+            missing.append("econ_stress_hy_spread_elevated")
+        if widening is None:
+            missing.append("econ_stress_hy_widening")
+
+        if missing:
+            raise ValueError(
+                f"High-yield spread stress config incomplete: {missing}. "
+                "Cannot proceed without explicit risk thresholds configured."
+            )
+
         return {
-            "severe": cast(int, self.get("econ_stress_hy_spread_severe", 35)),
-            "elevated": cast(int, self.get("econ_stress_hy_spread_elevated", 20)),
-            "widening": cast(int, self.get("econ_stress_hy_widening", 10)),
+            "severe": cast(int, severe),
+            "elevated": cast(int, elevated),
+            "widening": cast(int, widening),
         }
 
     def get_claims_stress(self) -> dict[str, int]:
@@ -114,10 +157,28 @@ class EconomicStressConfig:
                 "severe": 30,      # Severe spike (>400k initial claims)
                 "elevated": 15,    # Elevated claims (350-400k)
             }
+
+        Raises:
+            ValueError if any critical config keys are missing
         """
+        severe = self.get("econ_stress_claims_severe")
+        elevated = self.get("econ_stress_claims_elevated")
+
+        missing = []
+        if severe is None:
+            missing.append("econ_stress_claims_severe")
+        if elevated is None:
+            missing.append("econ_stress_claims_elevated")
+
+        if missing:
+            raise ValueError(
+                f"Jobless claims stress config incomplete: {missing}. "
+                "Cannot proceed without explicit risk thresholds configured."
+            )
+
         return {
-            "severe": cast(int, self.get("econ_stress_claims_severe", 30)),
-            "elevated": cast(int, self.get("econ_stress_claims_elevated", 15)),
+            "severe": cast(int, severe),
+            "elevated": cast(int, elevated),
         }
 
     def get_financial_stress(self) -> dict[str, int]:
@@ -128,10 +189,28 @@ class EconomicStressConfig:
                 "severe": 40,      # Severe financial stress (>1.5 std dev)
                 "elevated": 20,    # Elevated stress (>0.8 std dev)
             }
+
+        Raises:
+            ValueError if any critical config keys are missing
         """
+        severe = self.get("econ_stress_financial_severe")
+        elevated = self.get("econ_stress_financial_elevated")
+
+        missing = []
+        if severe is None:
+            missing.append("econ_stress_financial_severe")
+        if elevated is None:
+            missing.append("econ_stress_financial_elevated")
+
+        if missing:
+            raise ValueError(
+                f"Financial stress config incomplete: {missing}. "
+                "Cannot proceed without explicit risk thresholds configured."
+            )
+
         return {
-            "severe": cast(int, self.get("econ_stress_financial_severe", 40)),
-            "elevated": cast(int, self.get("econ_stress_financial_elevated", 20)),
+            "severe": cast(int, severe),
+            "elevated": cast(int, elevated),
         }
 
     def get_regime_thresholds(self) -> dict[str, int]:
@@ -142,10 +221,28 @@ class EconomicStressConfig:
                 "moderate_threshold": 30,   # Stress level for moderate penalty (4 pts)
                 "severe_threshold": 60,    # Stress level for severe penalty (7 pts)
             }
+
+        Raises:
+            ValueError if any critical config keys are missing
         """
+        moderate = self.get("econ_stress_moderate_threshold")
+        severe = self.get("econ_stress_severe_threshold")
+
+        missing = []
+        if moderate is None:
+            missing.append("econ_stress_moderate_threshold")
+        if severe is None:
+            missing.append("econ_stress_severe_threshold")
+
+        if missing:
+            raise ValueError(
+                f"Economic regime threshold config incomplete: {missing}. "
+                "Cannot proceed without explicit thresholds configured."
+            )
+
         return {
-            "moderate_threshold": cast(int, self.get("econ_stress_moderate_threshold", 30)),
-            "severe_threshold": cast(int, self.get("econ_stress_severe_threshold", 60)),
+            "moderate_threshold": cast(int, moderate),
+            "severe_threshold": cast(int, severe),
         }
 
     def get_severe_exposure_cap_pct(self) -> float:
