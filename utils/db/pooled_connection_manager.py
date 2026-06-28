@@ -406,6 +406,22 @@ def get_pool_status() -> dict[str, Any]:
     pool = _get_connection_pool()
     idle_status = pool.status() if hasattr(pool, "status") else {}
 
+    # FAIL-FAST: If pool has status() method, validate result has required metrics
+    # (do not silently default missing metrics to 0, which could mask pool health issues)
+    if idle_status:  # Only validate if status() returned non-empty dict
+        if "idle_connections" not in idle_status:
+            raise RuntimeError(
+                f"Pool status missing 'idle_connections' metric. "
+                f"Cannot determine pool health with incomplete data. "
+                f"Pool status keys: {list(idle_status.keys())}"
+            )
+        if "max_idle_sec" not in idle_status:
+            raise RuntimeError(
+                f"Pool status missing 'max_idle_sec' metric. "
+                f"Cannot determine pool configuration with incomplete data. "
+                f"Pool status keys: {list(idle_status.keys())}"
+            )
+
     return {
         "semaphore": _pool_semaphore.status(),
         "idle_connections": idle_status.get("idle_connections", 0),

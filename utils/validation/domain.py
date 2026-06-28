@@ -335,7 +335,18 @@ class DatabaseSchemaValidator(Validator):
 
         table_name = data.get("table_name", self.table_name)
         columns = data.get("columns")
-        row_count = data.get("row_count", 0)
+
+        # FAIL-FAST: Validate row_count is present (do not default to 0)
+        # Missing row_count data indicates incomplete schema validation, not an empty table
+        if "row_count" not in data:
+            all_errors.append(
+                f"{context}: {table_name} missing 'row_count' in schema validation data. "
+                f"Cannot validate table presence without row count metadata. "
+                f"Check schema info source — data may be incomplete."
+            )
+            row_count = None
+        else:
+            row_count = data["row_count"]
 
         if not columns:
             all_errors.append(f"{context}: {table_name} missing columns info")
@@ -356,9 +367,9 @@ class DatabaseSchemaValidator(Validator):
             if type_mismatches:
                 all_errors.append(f"{context}: {table_name} type mismatches: {'; '.join(type_mismatches)}")
 
-        # Check data presence
+        # Check data presence (only if row_count is available)
         if self.severity in ("critical", "important"):
-            if row_count == 0:
+            if row_count is not None and row_count == 0:
                 all_errors.append(f"{context}: {table_name} is empty (no data)")
 
         if len(all_errors) == 0:

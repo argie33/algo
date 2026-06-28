@@ -95,13 +95,23 @@ class ProductionReadinessCheck:
             monitor = RDSPoolMonitor()
             status = monitor.get_connection_pool_status()
 
-            if "error" in status:
-                self.checks_warnings.append(f"RDS pool status check failed: {status['error']}")
+            if "_error" in status:
+                self.checks_warnings.append(f"RDS pool status check failed: {status['_error']}")
                 return False
 
-            # Check available capacity
-            available = status.get("available_connections", 0)
-            utilization = status.get("utilization_percent", 100)
+            # FAIL-FAST: Validate that status dict has all required keys
+            required_keys = ["available_connections", "utilization_percent", "active_connections", "max_connections"]
+            missing = [k for k in required_keys if k not in status]
+            if missing:
+                self.checks_warnings.append(
+                    f"RDS pool monitor returned incomplete data (missing: {missing}). "
+                    f"Cannot determine pool capacity. Status: {status}"
+                )
+                return False
+
+            # Check available capacity (now guaranteed to exist)
+            available = status["available_connections"]
+            utilization = status["utilization_percent"]
 
             if available >= 30 and utilization <= 70:
                 self.checks_passed.append(
