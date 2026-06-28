@@ -109,7 +109,7 @@ class VCPPatternsLoader:
         }
 
     def _process_symbol(self, cur: Any, symbol: str, end_date: date) -> None:
-        """Calculate and store VCP pattern for a symbol.
+        """Calculate and store VCP pattern for a symbol. Fail-fast on data quality issues.
 
         Args:
             cur: Database cursor
@@ -125,7 +125,8 @@ class VCPPatternsLoader:
         )
         rows = cur.fetchall()
         if not rows:
-            return
+            logger.error(f"[VCP] {symbol} {end_date}: No ATR data found for last 30 days")
+            raise RuntimeError(f"VCP pattern calculation failed: no ATR data for {symbol} on {end_date}")
 
         # Current ATR is the most recent value
         current_atr = float(rows[0][1])
@@ -135,7 +136,8 @@ class VCPPatternsLoader:
         atr_30d_avg = sum(atrs) / len(atrs)
 
         if atr_30d_avg == 0:
-            return
+            logger.error(f"[VCP] {symbol} {end_date}: Average ATR is 0 (data corruption?)")
+            raise RuntimeError(f"VCP pattern calculation failed: zero average ATR for {symbol} on {end_date}")
 
         # Calculate ATR compression percentage (how much lower current is vs average)
         atr_compression_pct = max(0, (1.0 - (current_atr / atr_30d_avg)) * 100)
@@ -149,19 +151,18 @@ class VCPPatternsLoader:
         )
         range_rows = cur.fetchall()
 
-        if range_rows:
-            # Fail-fast if price range data is missing (NULL indicates upstream data quality issue)
-            if any(row[1] is None for row in range_rows):
-                logger.warning(f"[VCP] {symbol} {end_date}: Price range data missing (NULL values in price_daily). "
-                              "Cannot compute VCP pattern — skipping this symbol-date.")
-                return
-            ranges = [float(row[1]) for row in range_rows]
-            range_30d_avg = sum(ranges) / len(ranges)
-            range_current = float(range_rows[0][1])
-        else:
-            logger.warning(f"[VCP] {symbol} {end_date}: No price range data found for last 30 days. "
-                          "Cannot compute VCP pattern — skipping this symbol-date.")
-            return
+        if not range_rows:
+            logger.error(f"[VCP] {symbol} {end_date}: No price range data found for last 30 days")
+            raise RuntimeError(f"VCP pattern calculation failed: no price data for {symbol} on {end_date}")
+
+        # Fail-fast if price range data is missing (NULL indicates upstream data quality issue)
+        if any(row[1] is None for row in range_rows):
+            logger.error(f"[VCP] {symbol} {end_date}: Price range data contains NULL values in price_daily")
+            raise RuntimeError(f"VCP pattern calculation failed: NULL price ranges for {symbol} on {end_date}")
+
+        ranges = [float(row[1]) for row in range_rows]
+        range_30d_avg = sum(ranges) / len(ranges)
+        range_current = float(range_rows[0][1])
 
         # Calculate range compression
         range_compression_pct: float = 0.0
@@ -176,19 +177,23 @@ class VCPPatternsLoader:
             (symbol, end_date - timedelta(days=30), end_date),
         )
         vol_rows = cur.fetchall()
-        breakout_volume_ratio = 0.0
-        if vol_rows:
-            # Fail-fast if volume data is missing (NULL indicates upstream data quality issue)
-            if any(row[1] is None for row in vol_rows):
-                logger.warning(f"[VCP] {symbol} {end_date}: Volume data missing (NULL values in price_daily). "
-                              "Cannot compute breakout volume ratio — setting to 0.")
-                breakout_volume_ratio = 0.0
-            else:
-                current_vol = float(vol_rows[0][1])
-                vols = [float(row[1]) for row in vol_rows[1:]]
-                avg_vol = sum(vols) / len(vols) if vols else 0
-                if avg_vol > 0:
-                    breakout_volume_ratio = current_vol / avg_vol
+
+        if not vol_rows:
+            logger.error(f"[VCP] {symbol} {end_date}: No volume data found for last 30 days")
+            raise RuntimeError(f"VCP pattern calculation failed: no volume data for {symbol} on {end_date}")
+
+        # Fail-fast if volume data is missing (NULL indicates upstream data quality issue)
+        if any(row[1] is None for row in vol_rows):
+            logger.error(f"[VCP] {symbol} {end_date}: Volume data contains NULL values in price_daily")
+            raise RuntimeError(f"VCP pattern calculation failed: NULL volume values for {symbol} on {end_date}")
+
+        current_vol = float(vol_rows[0][1])
+        vols = [float(row[1]) for row in vol_rows[1:]]
+        avg_vol = sum(vols) / len(vols) if vols else 0
+        if avg_vol <= 0:
+            logger.error(f"[VCP] {symbol} {end_date}: Average volume is 0 or negative (data corruption?)")
+            raise RuntimeError(f"VCP pattern calculation failed: invalid average volume for {symbol} on {end_date}")
+        breakout_volume_ratio = current_vol / avg_vol
 
         # Calculate VCP strength (0-100 scale)
         # Strong VCP: ATR compression > 30% and range compression > 20%
