@@ -735,9 +735,10 @@ def validate_bearer_token(token: str | None) -> tuple:
 
                 if is_revoked(jti):
                     return (False, None, "Token has been revoked")
-            except (ImportError, AttributeError):
-                # is_revoked module not available — revocation feature disabled, allow token
-                logger.debug("Token revocation unavailable (blocklist module not found)")
+            except (ImportError, AttributeError) as e:
+                # Blocklist module unavailable — FAIL CLOSED: revocation cannot be verified
+                logger.critical(f"[TOKEN_REVOCATION_FAILED] Blocklist module import failed: {e}. Rejecting token to prevent bypass.")
+                return (False, None, "Token revocation verification failed (security check unavailable)")
             except Exception as e:
                 # Blocklist service unreachable or error — fail secure by rejecting token
                 logger.error(f"[TOKEN_REVOCATION_FAILED] Cannot verify token revocation: {e} — rejecting token")

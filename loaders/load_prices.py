@@ -595,8 +595,8 @@ class PriceLoader(OptimalLoader):
                         )
                         metrics.flush()
                     except Exception as metric_err:
-                        logger.debug(
-                            "Could not publish market close success metric: %s",
+                        logger.warning(
+                            "[AUDIT_TRAIL] Could not publish market close success metric: %s. This breaks audit trail.",
                             metric_err,
                         )
                     return True
@@ -918,7 +918,11 @@ class PriceLoader(OptimalLoader):
             )
             metrics.flush()
         except Exception as metric_err:
-            logger.debug("Could not publish rate limit metric: %s", metric_err)
+            logger.warning(
+                "[AUDIT_TRAIL] Could not publish rate limit metric: %s. "
+                "This breaks audit trail.",
+                metric_err,
+            )
 
         batch_size_key = len(symbols)
         if batch_size_key not in self._batch_size_performance:
@@ -1555,7 +1559,11 @@ class PriceLoader(OptimalLoader):
                 )
                 m.flush()
             except Exception as metric_err:
-                logger.debug("Could not publish timeout metric: %s", metric_err)
+                logger.warning(
+                    "[AUDIT_TRAIL] Could not publish timeout metric: %s. "
+                    "This breaks audit trail.",
+                    metric_err,
+                )
 
             if not emergency_mode_enabled:
                 logger.warning(
@@ -1609,7 +1617,11 @@ class PriceLoader(OptimalLoader):
                 )
                 m.flush()
             except (ValueError, ZeroDivisionError, TypeError) as metric_err:
-                logger.debug("Could not publish circuit breaker metric: %s", metric_err)
+                logger.warning(
+                    "[AUDIT_TRAIL] Could not publish circuit breaker metric: %s. "
+                    "This breaks audit trail.",
+                    metric_err,
+                )
 
             logger.warning(
                 f"[CIRCUIT_BREAKER] Returning with {processed}/{total_symbols} symbols loaded. "

@@ -112,8 +112,8 @@ class TradeAuditLogger:
                         final_shares,
                         position_size_pct,
                         cascade,
-                        str(multipliers),
-                        str(reasons),
+                        json.dumps(multipliers),
+                        json.dumps(reasons),
                         datetime.now(timezone.utc),
                     ),
                 )
@@ -186,7 +186,7 @@ class TradeAuditLogger:
                         distance_pct,
                         stop_method,
                         stop_reasoning,
-                        str(candidates),
+                        json.dumps(candidates),
                         datetime.now(timezone.utc),
                     ),
                 )
@@ -380,7 +380,7 @@ class TradeAuditLogger:
                         "POSITION_RECONCILIATION",
                         symbol,
                         "reconciliation",
-                        audit_msg,
+                        json.dumps({"message": audit_msg}),
                     ),
                 )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:

@@ -143,13 +143,19 @@ def fetch_economic_pulse(c: None) -> dict[str, Any]:  # noqa: C901
         # NFCI fallback logic: prefer ANFCI (advanced), fallback to STLFSI4 (traditional) if missing
         # Both are measures of financial stress; document which one is being used
         nfci = None
+        nfci_source = None
         if anfci is not None:
             nfci = anfci
+            nfci_source = "ANFCI"
         else:
             stlfsi = by_series.get("STLFSI4")
             if stlfsi is not None:
-                logger.debug("NFCI: Using STLFSI4 (St. Louis Fed Stress Index) as fallback. ANFCI was missing.")
+                logger.warning(
+                    "[DATA_QUALITY] Using STLFSI4 as fallback financial stress measure. "
+                    "ANFCI was missing. This may affect algo decisions."
+                )
                 nfci = stlfsi
+                nfci_source = "STLFSI4_FALLBACK"
         umcsent = by_series.get("UMCSENT")
         mortgage = by_series.get("MORTGAGE30US")
 
@@ -164,6 +170,7 @@ def fetch_economic_pulse(c: None) -> dict[str, Any]:  # noqa: C901
             "ig": ig,
             "oil": oil,
             "nfci": nfci,
+            "nfci_source": nfci_source,
             "fed_funds": fed_funds,
             "cpi_yoy": cpi_yoy,
             "unrate": unrate,

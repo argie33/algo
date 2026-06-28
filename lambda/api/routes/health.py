@@ -66,25 +66,22 @@ def _handle_basic(cur: cursor) -> Any:
 
     has_critical = False
 
-    # C-4 FIX: Report API route import failures in health check
-    def _safe_int(value, default=0, context=""):
-        if value is None:
-            if context:
-                logger.warning(f"[HEALTH] {context} is None, using default {default}")
-            return default
-        try:
-            return int(value)
-        except (TypeError, ValueError):
-            if context:
-                logger.warning(f"[HEALTH] {context} conversion failed, using default {default}")
-            return default
-    failed_routes = _safe_int(import_status.get("failed_routes"), default=0, context="failed_routes")
+    # C-4 FIX: Report API route import failures in health check (FAIL FAST)
+    if "failed_routes" not in import_status or import_status["failed_routes"] is None:
+        error_msg = (
+            "[HEALTH CRITICAL] API route import status unavailable. "
+            "Cannot report health without knowing route status."
+        )
+        logger.error(error_msg)
+        return error_response(503, "route_import_status_unavailable", error_msg)
+
+    failed_routes = int(import_status["failed_routes"])
     if failed_routes > 0:
         health["api_route_imports"] = {
             "status": "degraded",
             "failed_count": import_status["failed_routes"],
-            "critical_failures": import_status["critical_failures"],
-            "failed_modules": import_status["failed_modules"],
+            "critical_failures": import_status.get("critical_failures", []),
+            "failed_modules": import_status.get("failed_modules", []),
         }
         if import_status.get("critical_failures"):
             has_critical = True
@@ -135,13 +132,28 @@ def _handle_basic(cur: cursor) -> Any:
                             "market_open": market_is_open,
                         }
                 else:
-                    health["freshness"] = {"status": "UNKNOWN"}
+                    # No signal data available — cannot verify freshness
+                    error_msg = (
+                        "[HEALTH CRITICAL] Signal data unavailable. "
+                        "Cannot assess signal freshness for health status."
+                    )
+                    logger.error(error_msg)
+                    has_critical = True
+                    health["freshness"] = {
+                        "status": "NO_DATA",
+                        "error": "Signal table empty or data unavailable",
+                        "market_open": market_is_open,
+                    }
         except Exception as e:
             from utils.error_handlers import sanitize_error_message
 
             sanitized = sanitize_error_message(str(e)[:60])
-            logger.debug(f"Signal freshness check unavailable: {sanitized}")
-            health["freshness"] = {"status": "UNKNOWN"}
+            logger.error(f"[HEALTH CRITICAL] Signal freshness check failed: {sanitized}")
+            has_critical = True
+            health["freshness"] = {
+                "status": "ERROR",
+                "error": f"Cannot verify signal freshness: {sanitized}",
+            }
 
         # Last successful loader timestamp (indexed query, 1 second timeout)
         try:
