@@ -43,11 +43,11 @@ class MarketFactorCalculator:
         return score * weight / 100.0, weight
 
     def _pct_above_ma(self, eval_date: Any, ma_days: int, cur: Any) -> dict[str, Any]:
-        """Calculate % of stocks trading above N-day MA (optional).
+        """Calculate % of stocks trading above N-day MA (critical).
 
         Linear scale: 20% = 0 pts, 50% = 50 pts, 80% = 100 pts
         Uses most recent available date on or before eval_date (technical_data_daily may lag prices).
-        Returns {"score": None} if data unavailable instead of raising.
+        Raises RuntimeError if data unavailable — market breadth is required for position sizing.
         """
         try:
             cur.execute(
@@ -71,11 +71,17 @@ class MarketFactorCalculator:
                 score = (pct - 20) / 0.6
                 score = min(100, max(0, score))
                 return {"value": pct, "score": score}
-            logger.warning(f"Breadth {ma_days}-day data unavailable for {eval_date} — cannot compute factor without data")
-            return {"score": None, "reason": f"breadth_{ma_days}dma data unavailable"}
+            raise RuntimeError(
+                f"[BREADTH CRITICAL] Cannot compute market exposure without {ma_days}-day breadth data. "
+                f"Check: (1) technical_data_daily freshness, (2) SMA calculation in loader"
+            )
+        except RuntimeError:
+            raise
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.warning(f"Breadth {ma_days}-day MA query failed: {e}")
-            return {"score": None, "reason": f"breadth_{ma_days}dma calculation error: {e}"}
+            raise RuntimeError(
+                f"[BREADTH CRITICAL] Breadth {ma_days}-day MA query failed: {e}. "
+                f"Cannot proceed with position sizing without technical breadth data."
+            ) from e
 
     def _vix_score(self, vix: float, rising: bool, term_structure: float | None = None) -> tuple[float, dict[str, Any]]:
         """Score VIX level and term structure.
@@ -142,11 +148,10 @@ class MarketFactorCalculator:
     # ============= Factor Implementations =============
 
     def trend_30wk(self, eval_date: Any, cur: Any) -> dict[str, Any]:
-        """Trend factor: SPY vs 30-week MA (optional).
+        """Trend factor: SPY vs 30-week MA (critical).
 
-        Returns {"score": None} if data unavailable instead of raising.
-        Trend is a 15pt factor and missing weekly price data is handled
-        by returning None score — normalization will exclude this factor.
+        Raises RuntimeError if data unavailable — SPY trend is foundational to veto logic.
+        Trend is a 15pt factor. Missing weekly price data is a data error, not a skip condition.
         """
         try:
             cur.execute(
@@ -169,18 +174,23 @@ class MarketFactorCalculator:
                     raise ValueError(f"SPY trend data not numeric: close={row[0]}, sma={row[1]}")
                 score = 100.0 if spy > sma else 0.0
                 return {"above_30wma": spy > sma, "score": score, "value": "bullish" if spy > sma else "bearish"}
-            logger.warning(f"Trend data unavailable for {eval_date} — cannot compute 30-week MA factor")
-            return {"score": None, "reason": "trend_30wk data unavailable"}
+            raise RuntimeError(
+                "[TREND CRITICAL] SPY 30-week trend data unavailable. "
+                "Check: (1) price_weekly table has recent SPY prices, (2) eval_date is not in future"
+            )
+        except RuntimeError:
+            raise
         except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError) as e:
-            logger.warning(f"Trend calculation failed: {e}")
-            return {"score": None, "reason": f"trend_30wk calculation error: {e}"}
+            raise RuntimeError(
+                f"[TREND CRITICAL] SPY trend calculation failed: {e}. "
+                f"Cannot proceed with position sizing without SPY 30-week trend."
+            ) from e
 
     def spy_momentum(self, eval_date: Any, cur: Any) -> dict[str, Any]:
-        """SPY 12-month momentum (TSMOM, optional).
+        """SPY 12-month momentum (TSMOM, critical).
 
-        Returns {"score": None} if data unavailable instead of raising.
-        Momentum is a 10pt factor and missing historical data is handled
-        by returning None score — normalization will exclude this factor.
+        Raises RuntimeError if data unavailable — momentum is key to trend confirmation.
+        Momentum is a 10pt factor. Missing historical data is a data error, not a skip condition.
         """
         try:
             cur.execute(
@@ -208,18 +218,23 @@ class MarketFactorCalculator:
                 ret = (current - year_ago) / year_ago
                 score = min(100, max(0, ret * 200))
                 return {"return_12m": round(ret * 100, 1), "score": score, "value": round(ret * 100, 1)}
-            logger.warning(f"SPY momentum data unavailable for {eval_date} — missing current or year-ago price")
-            return {"score": None, "reason": "spy_momentum data unavailable"}
+            raise RuntimeError(
+                "[MOMENTUM CRITICAL] SPY 12-month momentum data unavailable. "
+                "Check: (1) price_daily has 365 days of SPY history, (2) eval_date is not in future"
+            )
+        except RuntimeError:
+            raise
         except (ValueError, ZeroDivisionError, TypeError, psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.warning(f"Momentum calculation failed: {e}")
-            return {"score": None, "reason": f"spy_momentum calculation error: {e}"}
+            raise RuntimeError(
+                f"[MOMENTUM CRITICAL] SPY momentum calculation failed: {e}. "
+                f"Cannot proceed with position sizing without momentum confirmation."
+            ) from e
 
     def selling_pressure(self, eval_date: Any, cur: Any) -> dict[str, Any]:
-        """Heavy-volume down days in last 25 sessions (optional).
+        """Heavy-volume down days in last 25 sessions (critical).
 
-        Returns {"score": None} if data unavailable instead of raising.
-        Selling pressure is a 10pt factor and missing volume/price data
-        is handled by returning None score — normalization will exclude this factor.
+        Raises RuntimeError if data unavailable — selling pressure is required for veto 3.
+        Selling pressure is a 10pt factor and missing volume/price data is a data error, not a skip.
         """
         try:
             cur.execute(
@@ -241,18 +256,23 @@ class MarketFactorCalculator:
                 # 0-2 = 100, 3-4 = 60, 5+ = 20
                 score = 100.0 if dist <= 2 else (60.0 if dist <= 4 else 20.0)
                 return {"heavy_down_days": dist, "count": dist, "value": dist, "score": score}
-            logger.warning(f"Selling pressure data unavailable for {eval_date} — insufficient SPY price history")
-            return {"score": None, "reason": "selling_pressure data unavailable"}
+            raise RuntimeError(
+                "[SELLING_PRESSURE CRITICAL] SPY price/volume data unavailable for distribution detection. "
+                "Check: (1) price_daily has at least 25 recent SPY records, (2) volume column is populated"
+            )
+        except RuntimeError:
+            raise
         except (ValueError, ZeroDivisionError, TypeError, psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.warning(f"Selling pressure calculation failed: {e}")
-            return {"score": None, "reason": f"selling_pressure calculation error: {e}"}
+            raise RuntimeError(
+                f"[SELLING_PRESSURE CRITICAL] Selling pressure calculation failed: {e}. "
+                f"Cannot proceed with position sizing without distribution detection."
+            ) from e
 
     def vix_regime(self, eval_date: Any, cur: Any) -> dict[str, Any]:
-        """VIX level + term structure.
+        """VIX level + term structure (critical).
 
-        Returns {"score": None} if data unavailable instead of raising.
-        VIX is a 10pt factor and missing volatility data is handled
-        by returning None score — normalization will exclude this factor.
+        Raises RuntimeError if data unavailable — VIX is foundational to risk assessment.
+        VIX is a 10pt factor. Missing volatility data is a data error, not a skip condition.
         """
         try:
             cur.execute(
@@ -265,18 +285,23 @@ class MarketFactorCalculator:
                 # Simplified: no term structure data
                 score, detail = self._vix_score(vix, vix > 20)
                 return {"value": round(vix, 1), "score": score, **detail}
-            logger.warning("No VIX data available for volatility regime calculation")
-            return {"score": None, "reason": "vix_regime data unavailable"}
+            raise RuntimeError(
+                "[VIX CRITICAL] VIX level unavailable. "
+                "Check: (1) market_health_daily table has recent VIX readings, (2) vix_level column is populated"
+            )
+        except RuntimeError:
+            raise
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.warning(f"VIX regime calculation failed: {e}")
-            return {"score": None, "reason": f"vix_regime calculation error: {e}"}
+            raise RuntimeError(
+                f"[VIX CRITICAL] VIX regime query failed: {e}. "
+                f"Cannot proceed with position sizing without volatility regime data."
+            ) from e
 
     def put_call_ratio(self, eval_date: Any, cur: Any) -> dict[str, Any]:
-        """Put/call ratio (contrarian indicator).
+        """Put/call ratio (contrarian indicator, critical).
 
-        Returns {"score": None} if data unavailable instead of raising.
-        Put/call is an 8pt factor and missing options data is handled
-        by returning None score — normalization will exclude this factor.
+        Raises RuntimeError if data unavailable — sentiment extremes are key to risk management.
+        Put/call is a 5pt factor. Missing options data is a data error, not a skip condition.
         """
         try:
             cur.execute("SAVEPOINT sp_put_call")
@@ -287,33 +312,37 @@ class MarketFactorCalculator:
             row = cur.fetchone()
             cur.execute("RELEASE SAVEPOINT sp_put_call")
             if not row or row[0] is None:
-                logger.warning(f"Put/call ratio unavailable for {eval_date}")
-                return {"score": None, "reason": "put_call_ratio data unavailable"}
+                raise RuntimeError(
+                    "[PUT_CALL CRITICAL] Put/call ratio unavailable. "
+                    "Check: (1) market_health_daily table has recent readings, (2) put_call_ratio column is populated"
+                )
             pcr = float(row[0])
             if pcr <= 0:
-                logger.warning(
-                    f"Put/call ratio invalid for {eval_date}: {pcr}. "
+                raise RuntimeError(
+                    f"[PUT_CALL CRITICAL] Put/call ratio invalid for {eval_date}: {pcr}. "
                     f"Put/call ratio must be > 0 (ratio of puts to calls). "
-                    f"Value of {pcr} is placeholder/corrupted data. Check market_health_daily data quality."
+                    f"Value of {pcr} is corrupted data. Check market_health_daily data quality."
                 )
-                return {"score": None, "reason": f"put_call_ratio invalid: {pcr}"}
             score = max(0, min(100, (pcr - 0.7) * 100))
             return {"value": round(pcr, 2), "score": score}
+        except RuntimeError:
+            raise
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             try:
                 cur.execute("ROLLBACK TO SAVEPOINT sp_put_call")
                 cur.execute("RELEASE SAVEPOINT sp_put_call")
             except Exception as cleanup_err:
                 logger.error(f"Savepoint cleanup failed (put_call_ratio): {cleanup_err}", exc_info=True)
-            logger.warning(f"Put/call ratio query failed: {e}")
-            return {"score": None, "reason": f"put_call_ratio calculation error: {e}"}
+            raise RuntimeError(
+                f"[PUT_CALL CRITICAL] Put/call ratio query failed: {e}. "
+                f"Cannot proceed with position sizing without sentiment data."
+            ) from e
 
     def new_highs_lows(self, eval_date: Any, cur: Any) -> dict[str, Any]:
-        """52-week new highs vs new lows.
+        """52-week new highs vs new lows (critical).
 
-        Returns {"score": None} if data unavailable instead of raising.
-        New highs/lows is a 7pt factor and missing market leadership data
-        is handled by returning None score — normalization will exclude this factor.
+        Raises RuntimeError if data unavailable — market leadership is key to confirm trends.
+        New highs/lows is a 5pt factor. Missing leadership data is a data error, not a skip.
         """
         try:
             cur.execute("SAVEPOINT sp_nhnl")
@@ -339,23 +368,28 @@ class MarketFactorCalculator:
                         "nh_pct": round(nh_pct, 1),
                         "score": score,
                     }
-            logger.warning(f"New highs/lows unavailable for {eval_date}")
-            return {"score": None, "reason": "new_highs_lows data unavailable"}
+            raise RuntimeError(
+                "[NEW_HIGHS_LOWS CRITICAL] Market leadership data unavailable. "
+                "Check: (1) market_health_daily table has recent readings, (2) new_highs_count and new_lows_count columns populated"
+            )
+        except RuntimeError:
+            raise
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             try:
                 cur.execute("ROLLBACK TO SAVEPOINT sp_nhnl")
                 cur.execute("RELEASE SAVEPOINT sp_nhnl")
             except Exception as cleanup_err:
                 logger.error(f"Savepoint cleanup failed (new_highs_lows): {cleanup_err}", exc_info=True)
-            logger.warning(f"New highs/lows query failed: {e}")
-            return {"score": None, "reason": f"new_highs_lows calculation error: {e}"}
+            raise RuntimeError(
+                f"[NEW_HIGHS_LOWS CRITICAL] New highs/lows query failed: {e}. "
+                f"Cannot proceed without leadership confirmation."
+            ) from e
 
     def ad_line(self, eval_date: Any, cur: Any) -> dict[str, Any]:
-        """Advance/decline line vs SPY.
+        """Advance/decline line vs SPY (critical).
 
-        Returns {"score": None} if data unavailable instead of raising.
-        A/D line is a 6pt factor and missing breadth direction data
-        is handled by returning None score — normalization will exclude this factor.
+        Raises RuntimeError if data unavailable — A/D confirmation is key to market health check.
+        A/D line is a 5pt factor. Missing breadth direction data is a data error, not a skip.
         """
         try:
             cur.execute("SAVEPOINT sp_ad_line")
@@ -374,23 +408,28 @@ class MarketFactorCalculator:
                 direction = row[0]
                 score = 100.0 if direction == "up" else 0.0
                 return {"direction": direction, "relation": direction, "value": direction, "score": score}
-            logger.warning(f"A/D line unavailable for {eval_date}")
-            return {"score": None, "reason": "ad_line data unavailable"}
+            raise RuntimeError(
+                "[AD_LINE CRITICAL] Advance/decline line data unavailable. "
+                "Check: (1) ad_line_daily table has recent readings, (2) direction column is populated"
+            )
+        except RuntimeError:
+            raise
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             try:
                 cur.execute("ROLLBACK TO SAVEPOINT sp_ad_line")
                 cur.execute("RELEASE SAVEPOINT sp_ad_line")
             except Exception as cleanup_err:
                 logger.error(f"Savepoint cleanup failed (ad_line): {cleanup_err}", exc_info=True)
-            logger.warning(f"A/D line query failed: {e}")
-            return {"score": None, "reason": f"ad_line calculation error: {e}"}
+            raise RuntimeError(
+                f"[AD_LINE CRITICAL] A/D line query failed: {e}. "
+                f"Cannot proceed without breadth confirmation."
+            ) from e
 
     def credit_spread(self, eval_date: Any, cur: Any) -> dict[str, Any]:
-        """High-yield credit spread (HY OAS).
+        """High-yield credit spread (HY OAS, critical).
 
-        Returns {"score": None} if data unavailable instead of raising.
-        Credit spreads is a 10pt factor and missing credit data is handled
-        by returning None score — normalization will exclude this factor.
+        Raises RuntimeError if data unavailable — credit stress is key systemic risk indicator.
+        Credit spread is a 10pt factor. Missing credit data is a data error, not a skip.
         """
         try:
             cur.execute("SAVEPOINT sp_credit")
@@ -404,23 +443,28 @@ class MarketFactorCalculator:
                 oas = float(row[0])
                 score = max(0, min(100, 100 - (oas - 300) / 2))
                 return {"value": round(oas, 0), "score": score}
-            logger.warning(f"Credit spreads unavailable for {eval_date}")
-            return {"score": None, "reason": "credit_spread data unavailable"}
+            raise RuntimeError(
+                "[CREDIT_SPREAD CRITICAL] High-yield credit spread data unavailable. "
+                "Check: (1) credit_spreads table has recent readings, (2) hy_oas column is populated"
+            )
+        except RuntimeError:
+            raise
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             try:
                 cur.execute("ROLLBACK TO SAVEPOINT sp_credit")
                 cur.execute("RELEASE SAVEPOINT sp_credit")
             except Exception as cleanup_err:
                 logger.error(f"Savepoint cleanup failed (credit_spread): {cleanup_err}", exc_info=True)
-            logger.warning(f"Credit spread query failed: {e}")
-            return {"score": None, "reason": f"credit_spread calculation error: {e}"}
+            raise RuntimeError(
+                f"[CREDIT_SPREAD CRITICAL] Credit spread query failed: {e}. "
+                f"Cannot proceed without systemic stress assessment."
+            ) from e
 
     def aaii(self, eval_date: Any, cur: Any) -> dict[str, Any]:
-        """AAII sentiment (contrarian at extremes only, optional).
+        """AAII sentiment (contrarian at extremes, critical).
 
-        Returns {"score": None} if data unavailable instead of raising.
-        AAII is a 3pt factor and missing sentiment data is handled
-        by returning None score — normalization will exclude this factor.
+        Raises RuntimeError if data unavailable — sentiment extremes are key contrarian signals.
+        AAII is a 3pt factor. Missing sentiment data is a data error, not a skip condition.
         """
         try:
             cur.execute("SAVEPOINT sp_aaii")
@@ -443,23 +487,28 @@ class MarketFactorCalculator:
                     "spread": round(spread, 1),
                     "score": score,
                 }
-            logger.warning(f"AAII sentiment data unavailable for {eval_date} — missing bullish/bearish readings")
-            return {"score": None, "reason": "aaii_sentiment data unavailable"}
+            raise RuntimeError(
+                "[AAII CRITICAL] AAII sentiment data unavailable. "
+                "Check: (1) aaii_sentiment table has recent readings, (2) bullish and bearish columns are populated"
+            )
+        except RuntimeError:
+            raise
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             try:
                 cur.execute("ROLLBACK TO SAVEPOINT sp_aaii")
                 cur.execute("RELEASE SAVEPOINT sp_aaii")
             except Exception as cleanup_err:
                 logger.error(f"Savepoint cleanup failed (aaii): {cleanup_err}", exc_info=True)
-            logger.warning(f"AAII sentiment query failed: {e}")
-            return {"score": None, "reason": f"aaii_sentiment calculation error: {e}"}
+            raise RuntimeError(
+                f"[AAII CRITICAL] AAII sentiment query failed: {e}. "
+                f"Cannot proceed without contrarian sentiment data."
+            ) from e
 
     def naaim(self, eval_date: Any, cur: Any) -> dict[str, Any]:
-        """NAAIM exposure (contrarian positioning, optional). Uses most recent weekly reading.
+        """NAAIM exposure (contrarian positioning, critical). Uses most recent weekly reading.
 
-        Returns {"score": None} if data unavailable instead of raising.
-        NAAIM is a 5pt factor and missing positioning data is handled
-        by returning None score — normalization will exclude this factor.
+        Raises RuntimeError if data unavailable — professional positioning is key contrarian signal.
+        NAAIM is a 3pt factor. Missing positioning data is a data error, not a skip condition.
         """
         try:
             cur.execute("SAVEPOINT sp_naaim")
@@ -473,13 +522,19 @@ class MarketFactorCalculator:
                 exp = float(row[0])
                 score = min(100, max(0, 100 - exp / 2))
                 return {"value": round(exp, 1), "score": score}
-            logger.warning(f"NAAIM data unavailable for {eval_date} — missing exposure reading")
-            return {"score": None, "reason": "naaim data unavailable"}
+            raise RuntimeError(
+                "[NAAIM CRITICAL] NAAIM professional positioning data unavailable. "
+                "Check: (1) naaim table has recent readings, (2) naaim_number_mean column is populated"
+            )
+        except RuntimeError:
+            raise
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             try:
                 cur.execute("ROLLBACK TO SAVEPOINT sp_naaim")
                 cur.execute("RELEASE SAVEPOINT sp_naaim")
             except Exception as cleanup_err:
                 logger.error(f"Savepoint cleanup failed (naaim): {cleanup_err}", exc_info=True)
-            logger.warning(f"NAAIM query failed: {e}")
-            return {"score": None, "reason": f"naaim calculation error: {e}"}
+            raise RuntimeError(
+                f"[NAAIM CRITICAL] NAAIM query failed: {e}. "
+                f"Cannot proceed without professional positioning data."
+            ) from e
