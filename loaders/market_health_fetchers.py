@@ -123,18 +123,24 @@ class PutCallRatioFetcher:
             options_chain = spx_options.option_chain(eval_date.isoformat())
 
             if options_chain.calls.empty or options_chain.puts.empty:
-                return None
+                raise RuntimeError(
+                    f"[PUT_CALL_FETCHER] Options data missing for {eval_date}: "
+                    f"calls={options_chain.calls.empty}, puts={options_chain.puts.empty}"
+                )
 
             total_calls = float(options_chain.calls["openInterest"].sum())
             total_puts = float(options_chain.puts["openInterest"].sum())
 
             if total_calls == 0:
-                return None
+                raise RuntimeError(
+                    f"[PUT_CALL_FETCHER] No call volume for {eval_date}. Cannot calculate ratio."
+                )
 
             return float(total_puts / total_calls)
         except Exception as e:
-            logger.warning(f"Put/call ratio fetch failed for {eval_date}: {e}. Returning None for optional enrichment.")
-            return None
+            raise RuntimeError(
+                f"[PUT_CALL_FETCHER] Fetch failed for {eval_date}: {e}"
+            ) from e
 
 
 class YieldCurveFetcher:

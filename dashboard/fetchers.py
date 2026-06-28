@@ -133,6 +133,9 @@ def _execute_fetcher_batch(
 ) -> dict[str, Any]:
     """Execute a batch of fetchers with thread pool and timeout handling."""
     out = {}
+    critical_fetchers = {
+        "run", "cfg", "mkt", "port", "perf", "pos", "trades", "sig", "health", "cb", "risk", "exp_factors"
+    }
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
         items = {k: v for k, v in FETCHERS.items() if k in fetcher_set}
         futures: dict[Future[tuple[str, Any]], str] = {
@@ -150,10 +153,16 @@ def _execute_fetcher_batch(
                     k = futures[f]
                     error_msg = format_fetcher_error(k, e)
                     logger.error("Thread exception: %s", error_msg)
+                    if k in critical_fetchers:
+                        raise RuntimeError(
+                            f"[DASHBOARD CRITICAL] Critical fetcher '{k}' failed: {error_msg}. "
+                            f"Cannot render dashboard without {k} data."
+                        ) from e
                     out[k] = {"_error": error_msg}
                     pending_futures.discard(f)
         except TimeoutError:
             logger.error(f"load_all {batch_name} timeout after {timeout_sec}s")
+            critical_missing = []
             for f in pending_futures:
                 k_opt = futures.get(f)
                 if k_opt and not f.done():
@@ -164,7 +173,16 @@ def _execute_fetcher_batch(
                     context = f"{endpoint}" + (f": {desc}" if desc else "")
                     timeout_msg = f"Fetcher {k} ({context}) timed out (exceeded {timeout_sec}s)"
                     logger.warning(timeout_msg)
-                    out[k] = {"_error": timeout_msg}
+                    if k in critical_fetchers:
+                        critical_missing.append((k, timeout_msg))
+                    else:
+                        out[k] = {"_error": timeout_msg}
+            if critical_missing:
+                missing_str = "; ".join(f"{k}: {msg}" for k, msg in critical_missing)
+                raise RuntimeError(
+                    f"[DASHBOARD CRITICAL] Critical fetcher(s) timed out: {missing_str}. "
+                    f"Cannot render dashboard without this data."
+                )
 
     return out
 

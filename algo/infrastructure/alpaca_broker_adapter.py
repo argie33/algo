@@ -81,11 +81,17 @@ class AlpacaBrokerAdapter(BrokerAdapter):
                             "Check: Alpaca API documentation, account status."
                         )
                     else:
-                        logger.warning(
-                            "Alpaca /v2/account using 'equity' field instead of 'portfolio_value' for portfolio value. "
-                            "This may indicate API schema change. Consider verifying Alpaca API compatibility."
+                        logger.error(
+                            "CRITICAL: Alpaca /v2/account response missing 'portfolio_value' field. "
+                            "Found 'equity' field instead, but these fields may have different meanings. "
+                            "Cannot silently swap without verifying API compatibility. "
+                            "Response keys: %s", list(data.keys())
                         )
-                        portfolio_value_val = equity_val
+                        raise ValueError(
+                            "Alpaca /v2/account response missing 'portfolio_value' field and only 'equity' available. "
+                            "Cannot determine correct portfolio value - 'equity' and 'portfolio_value' may differ. "
+                            "Check: Alpaca API documentation for field definitions, account status."
+                        )
 
                 buying_power_val = data.get("buying_power")
                 return {

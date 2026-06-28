@@ -236,7 +236,12 @@ class EntryHandler:
                 }
 
             # Handle slippage: recalculate targets if fill price differs from signal
-            if executed_price and executed_price != entry_price:
+            if executed_price is None:
+                raise ValueError(
+                    f"[ENTRY_HANDLER CRITICAL] {symbol}: Order executed but executed_price not captured. "
+                    f"Cannot record position without actual fill price for accurate cost basis."
+                )
+            if executed_price != entry_price:
                 slippage_pct = abs((float(executed_price) - float(entry_price)) / float(entry_price) * 100)
                 if slippage_pct > 5.0:
                     logger.warning(
@@ -279,7 +284,7 @@ class EntryHandler:
             self._notify_entry_phase(
                 symbol,
                 shares,
-                executed_price or entry_price,
+                executed_price,
                 stop_loss_price,
                 tgt_1_price,
                 context.signals.swing_score,
@@ -292,7 +297,7 @@ class EntryHandler:
                 "trade_id": trade_id,
                 "alpaca_order_id": alpaca_order_id,
                 "status": final_order_status,
-                "message": f"{shares} sh {symbol} @ ${(executed_price or entry_price):.2f}",
+                "message": f"{shares} sh {symbol} @ ${executed_price:.2f}",
             }
 
         # Execute entry transaction with locks
@@ -656,9 +661,14 @@ class EntryHandler:
         idempotency_key: str,
     ) -> str:
         """PHASE 3: Insert trade record, position record, record TCA."""
+        if executed_price is None:
+            raise ValueError(
+                f"[ENTRY_HANDLER CRITICAL] {symbol}: Recording entry without executed_price. "
+                f"Cannot calculate position size percentage or record accurate cost basis."
+            )
         # Calculate position size percentage
         pv_for_pct = self.context._get_portfolio_value()
-        position_size_pct = self._calculate_position_size_pct(shares, executed_price or entry_price, pv_for_pct)
+        position_size_pct = self._calculate_position_size_pct(shares, executed_price, pv_for_pct)
 
         entry_reason = self._build_entry_reason(
             context.signals.swing_grade,

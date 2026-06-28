@@ -241,24 +241,29 @@ class MarketHealthDailyLoader(OptimalLoader):
     def _merge_put_call_data(self, health_metrics: list[dict[str, Any]], end: date) -> None:
         """Merge put/call ratio into health metrics.
 
-        Put/call ratio is optional enrichment for market exposure scoring (8pt factor).
-        Market factors gracefully degrade if put/call data is unavailable (return None score).
-
-        If put/call ratio is unavailable, log warning and proceed. The exposure calculation
-        will handle missing data by excluding put/call factor from normalization.
+        Put/call ratio is a critical enrichment for market exposure scoring (8pt factor).
+        Options sentiment (put/call) is essential for assessing market risk appetite.
+        If unavailable, this is a data quality issue that must be logged as ERROR.
         """
         try:
             today_pc = self._put_call_fetcher.fetch(end)
         except Exception as e:
-            logger.warning(f"[MARKET_HEALTH] Put/call ratio fetch failed: {e} (optional, skipping)")
-            return
+            logger.error(f"[MARKET_HEALTH CRITICAL] Put/call ratio fetch failed: {e}. "
+                        f"Cannot assess options sentiment for market exposure calculation.")
+            raise RuntimeError(
+                f"[MARKET_HEALTH] Put/call ratio fetch failed for {end}: {e}. "
+                f"Options market sentiment is critical for exposure risk assessment."
+            ) from e
 
         if today_pc is None:
-            logger.warning(
-                f"[MARKET_HEALTH] Put/call ratio unavailable for {end} "
-                f"(optional enrichment). Exposure will gracefully degrade without this factor."
+            logger.error(
+                f"[MARKET_HEALTH CRITICAL] Put/call ratio unavailable for {end}. "
+                f"Cannot assess options sentiment - market exposure calculation will be incomplete."
             )
-            return
+            raise ValueError(
+                f"[MARKET_HEALTH] Put/call ratio data is None for {end}. "
+                f"Options sentiment is required for accurate market exposure scoring."
+            )
 
         end_str = end.isoformat()
         matched_count = 0

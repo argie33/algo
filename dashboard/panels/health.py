@@ -329,6 +329,84 @@ def _build_freshness_panel(hlth_items: list[Any], ready_to_trade: bool | None) -
     )
 
 
+def _format_orch_config_string(cfg_params: dict[str, Any]) -> str:
+    """Format orchestration config parameters into display line."""
+    from dashboard.data_validation import safe_float
+
+    min_score_f = safe_float(cfg_params.get("min_score"), default=None)
+    score_s = (
+        f"[dim]min score ≥[/][white]{cfg_params['min_score']}[/]"
+        if min_score_f is not None and min_score_f > 0
+        else ""
+    )
+    max_n = cfg_params.get("max_pos_n")
+    slots_s = f"[dim]max [/][white]{max_n}[/][dim] positions[/]" if max_n is not None and max_n else ""
+    max_sec_n = cfg_params.get("max_sec_n")
+    sec_s = f"[dim]sector ≤[/][white]{max_sec_n}[/]" if max_sec_n is not None and max_sec_n else ""
+    base_risk = cfg_params.get("base_risk")
+    risk_s = f"[dim]base risk [/][white]{base_risk}%[/]" if base_risk is not None and base_risk else ""
+    t1r = cfg_params.get("t1_r")
+    t1r_s = f"[dim]T1 target [/][white]{t1r}R[/]" if t1r is not None and t1r else ""
+    return "  ".join(x for x in [score_s, slots_s, sec_s, risk_s, t1r_s] if x)
+
+
+def _extract_orch_risk_metrics_string(risk: dict[str, Any] | None) -> str:
+    """Extract and format risk metrics for orchestration panel."""
+    from dashboard.data_validation import safe_float
+    from ..utilities import R
+
+    if not risk or has_error(risk):
+        return ""
+    risk_dict = safe_get_dict(risk)
+    if not risk_dict:
+        return ""
+    var95_check = risk_dict.get("var95")
+    if var95_check is None:
+        return ""
+    try:
+        var95_check_f = float(var95_check)
+        if var95_check_f <= 0 or not isinstance(risk_dict, dict):
+            return ""
+        risk_metrics = extract_risk_metrics(risk_dict)
+        var95_val = safe_float(risk_metrics.get("var95"), default=None)
+        beta_val = safe_float(risk_metrics.get("beta"), default=None)
+        cvar95_val = safe_float(risk_metrics.get("cvar95"), default=None)
+        conc5_val = safe_float(risk_metrics.get("conc5"), default=None)
+        svar_val = safe_float(risk_metrics.get("svar"), default=None)
+        if None in (var95_val, beta_val, cvar95_val, conc5_val):
+            missing_fields = [
+                name
+                for name, val in [
+                    ("VaR95", var95_val),
+                    ("Beta", beta_val),
+                    ("CVaR95", cvar95_val),
+                    ("Concentration", conc5_val),
+                ]
+                if val is None
+            ]
+            return f"\n[{R}]⚠ Risk metrics incomplete[/] - missing: {', '.join(missing_fields)}"
+        var95_val = cast(float, var95_val)
+        beta_val = cast(float, beta_val)
+        cvar95_val = cast(float, cvar95_val)
+        conc5_val = cast(float, conc5_val)
+        beta_c = R if beta_val >= 1.2 else (Y if beta_val >= 0.8 else G)
+        var_c = _var_color(var95_val)
+        svar_s = (
+            f"\n[dim]Stressed VaR:[/][{R}]{float(svar_val):.2f}%[/]"
+            if svar_val is not None and float(svar_val) > 0
+            else ""
+        )
+        return (
+            f"\n[dim]VaR 95%:[/][{var_c}]{var95_val:.2f}%[/]"
+            f"  [dim]CVaR 95%:[/][{var_c}]{cvar95_val:.2f}%[/]"
+            f"  [dim]Portfolio Beta:[/][{beta_c}]{beta_val:.2f}[/]"
+            f"  [dim]Top-5 Conc:[/][white]{conc5_val:.0f}%[/]" + svar_s
+        )
+    except (KeyError, ValueError, TypeError) as e:
+        logger.warning(f"Risk metrics extraction failed: {e}")
+        return ""
+
+
 def panel_orch(run: dict[str, Any] | None, cfg: dict[str, Any], risk: dict[str, Any] | None = None) -> Panel:  # noqa: C901 - risk metrics validation requires multi-layer safety checks
     error_pnl = _error_panel("config", cfg, "ORCHESTRATION")
     if error_pnl is not None:

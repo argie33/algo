@@ -342,9 +342,11 @@ class MarketExposure:
             score += b50_pts
             b50_val = b50.get("value")
             if b50_val is None:
-                logger.warning(f"Breadth 50-DMA data unavailable for {eval_date}")
-            else:
-                logger.debug(f"  Breadth 50-DMA: {b50_val:.1f}%, {b50_pts:.1f} pts")
+                raise ValueError(
+                    f"[MARKET_EXPOSURE CRITICAL] Breadth 50-DMA 'value' field is None for {eval_date}. "
+                    f"Cannot assess market breadth - trend_template_data may be missing or corrupted."
+                )
+            logger.debug(f"  Breadth 50-DMA: {b50_val:.1f}%, {b50_pts:.1f} pts")
 
             # --- 4. Breadth: % stocks above 200-DMA ---
             b200 = self.calculator._pct_above_ma(eval_date, ma_days=200, cur=cur)
@@ -358,9 +360,11 @@ class MarketExposure:
             score += b200_pts
             b200_val = b200.get("value")
             if b200_val is None:
-                logger.warning(f"Breadth 200-DMA data unavailable for {eval_date}")
-            else:
-                logger.debug(f"  Breadth 200-DMA: {b200_val:.1f}%, {b200_pts:.1f} pts")
+                raise ValueError(
+                    f"[MARKET_EXPOSURE CRITICAL] Breadth 200-DMA 'value' field is None for {eval_date}. "
+                    f"Cannot assess long-term market breadth - trend_template_data may be missing or corrupted."
+                )
+            logger.debug(f"  Breadth 200-DMA: {b200_val:.1f}%, {b200_pts:.1f} pts")
 
             # --- 5. Selling pressure (heavy-volume down days) ---
             # CRITICAL: Selling pressure is required for hard veto checks (Veto 3: 6+ days)
