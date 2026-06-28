@@ -155,20 +155,22 @@ class YieldCurveFetcher:
             dict with yield data keyed by date (may be empty if data unavailable/incomplete).
             Yield curve is OPTIONAL enrichment—returns empty dict rather than raising on data issues.
         """
-        result = self.breaker.execute(
-            fetch_func=lambda: self._fetch_yield_curve_data(start, end),
-            importance=DataImportance.OPTIONAL,
-            fallback_value=None,
-        )
-        if result is None:
-            logger.warning(f"Yield curve data unavailable for {start} to {end} - circuit breaker exhausted. Returning empty dict for optional enrichment.")
-            return {}
-        if not isinstance(result, dict):
-            raise ValueError(
-                f"Yield curve fetch returned invalid type {type(result).__name__}. "
-                f"Expected dict, got {result!r}"
+        try:
+            result = self.breaker.execute(
+                fetch_func=lambda: self._fetch_yield_curve_data(start, end),
+                importance=DataImportance.OPTIONAL,
+                fallback_value=None,
             )
-        return result
+            if result is None:
+                logger.warning(f"Yield curve data unavailable for {start} to {end} - circuit breaker exhausted. Returning empty dict for optional enrichment.")
+                return {}
+            if not isinstance(result, dict):
+                logger.warning(f"Yield curve fetch returned invalid type {type(result).__name__}. Expected dict, got {result!r}. Returning empty dict for optional enrichment.")
+                return {}
+            return result
+        except Exception as e:
+            logger.warning(f"Yield curve fetch failed at circuit breaker level: {e}. Returning empty dict for optional enrichment.")
+            return {}
 
     def _fetch_yield_curve_data(self, start: date, end: date) -> dict[str, Any]:
         """Internal yield curve fetch implementation.
@@ -219,7 +221,8 @@ class YieldCurveFetcher:
                 logger.info(f"[YIELD_CURVE] Fetched {len(result)} dates with complete yield data")
             return result
         except Exception as e:
-            raise RuntimeError(f"Yield curve fetch failed: {e}") from e
+            logger.warning(f"Yield curve fetch failed: {e}. Returning empty dict for optional enrichment.")
+            return {}
 
 
 class BreadthFetcher:

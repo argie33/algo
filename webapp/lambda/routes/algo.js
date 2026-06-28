@@ -3156,7 +3156,12 @@ router.get("/rejection-funnel", async (req, res) => {
   try {
     ensureConnection();
     const pool = getPool();
-    const eval_date = req.query.date || new Date().toISOString().split("T")[0];
+    let eval_date = req.query.date;
+    if (!eval_date) {
+      eval_date = new Date().toISOString().split("T")[0];
+    } else if (!/^\d{4}-\d{2}-\d{2}$/.test(eval_date)) {
+      return sendError(res, "Invalid date format. Expected YYYY-MM-DD", 400);
+    }
 
     const result = await pool.query(
       `
