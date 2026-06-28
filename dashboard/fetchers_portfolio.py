@@ -94,22 +94,29 @@ def fetch_portfolio(c: None) -> dict[str, Any]:
             "position_count",
             "last_run",
         ]
-        # Portfolio data is critical for position sizing. Must be fresh to avoid using stale
-        # portfolio values (outdated after market moves, withdrawals, or deposits).
-        # On trading days: 5-minute threshold ensures we use current portfolio state.
-        # On non-trading days: accept data from last trading day (no market moves expected).
-        valid, error_msg = FetcherValidator.validate_response(
-            response=port,
-            required_fields=required_fields,
-            source_name="fetch_portfolio",
-            max_age_seconds=max_age_seconds,
-            timestamp_field="last_run",
-        )
+        # Check for API error first
+        is_error, error_msg = FetcherValidator.check_api_error(port)
+        if is_error:
+            logger.error(error_msg)
+            record_data_quality_issue("portfolio", "api_call", "api_error", error_msg)
+            return FetcherValidator.build_error_response(error_msg)
+
+        # Validate required fields exist
+        valid, error_msg = FetcherValidator.require_fields(port, required_fields, "fetch_portfolio")
         if not valid:
             logger.error(error_msg)
             for field in required_fields:
                 if field not in port or port[field] is None:
                     record_data_quality_issue("portfolio", field, "missing_required_field")
+            return FetcherValidator.build_error_response(error_msg)
+
+        # Use the API-calculated data_age_seconds field for freshness check
+        # (avoids date parsing issues and trusts the API's calculation)
+        data_age = port.get("data_age_seconds")
+        if data_age is not None and data_age > max_age_seconds:
+            error_msg = f"Data is stale ({data_age}s old, max {max_age_seconds}s)"
+            logger.error(error_msg)
+            record_data_quality_issue("portfolio", "freshness", "stale_data", error_msg)
             return FetcherValidator.build_error_response(error_msg)
 
         # Data is already validated at boundary; direct conversion
