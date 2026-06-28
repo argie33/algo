@@ -412,22 +412,17 @@ router.get("/last-run", async (req, res) => {
     ensureConnection();
     const pool = getPool();
 
+    // FIXED: run_id is stored in details JSON, not as direct column
     const result = await pool.query(`
-      SELECT
-        run_id, run_at, success, halted, error_message,
-        COALESCE(
-          json_agg(
-            json_build_object(
-              'action_type', phase_name,
-              'status', status
-            ) ORDER BY created_at
-          ) FILTER (WHERE phase_name IS NOT NULL),
-          '[]'::json
-        ) as phases
+      SELECT DISTINCT
+        details->>'run_id' as run_id,
+        MAX(action_date)::timestamp as run_at,
+        MAX(error_message) as error_message,
+        array_agg(DISTINCT action_type ORDER BY action_type) as phase_actions
       FROM algo_audit_log
       WHERE action_type LIKE 'phase_%'
-      GROUP BY run_id, run_at, success, halted, error_message
-      ORDER BY run_at DESC
+      GROUP BY details->>'run_id'
+      ORDER BY MAX(action_date) DESC
       LIMIT 1
     `);
 
@@ -443,17 +438,17 @@ router.get("/last-run", async (req, res) => {
     }
 
     const run = result.rows[0];
-    // Extract halt_reason: if halted, use error_message as reason, else null
-    const halt_reason = run.halted && run.error_message ? run.error_message : null;
+    // Determine success/halted from error_message presence and phase actions
+    const halted = run.error_message && run.error_message.toLowerCase().includes('halt');
+    const success = !halted && run.phase_actions && run.phase_actions.length > 0;
 
     return sendSuccess(res, {
       run_id: run.run_id,
       run_at: run.run_at,
-      success: run.success,
-      halted: run.halted,
+      success: success,
+      halted: halted,
       error_message: run.error_message,
-      halt_reason: halt_reason,
-      phases: run.phases || [],
+      phases: run.phase_actions ? run.phase_actions.map(pt => ({ action_type: pt, status: 'complete' })) : [],
     });
   } catch (error) {
     logger.error("Error in /algo/last-run:", {
@@ -623,14 +618,30 @@ router.get("/positions", async (req, res) => {
 
     // Compute sector allocation from positions
     const sectorMap = {};
-    const totalValue =
-      items.reduce((sum, p) => sum + (p.position_value || 0), 0) || 1;
+    let totalValue = 0;
+    for (const p of items) {
+      const posValue = p.position_value;
+      if (posValue != null) {
+        totalValue += posValue;
+      }
+    }
+    if (totalValue <= 0) {
+      return sendSuccess(res, {
+        items,
+        sector_allocation: [],
+        error: "insufficient_position_data",
+        message: "Cannot compute sector allocation: total position value is zero or missing",
+      }, 503);
+    }
     for (const p of items) {
       const sec = p.sector || "Unknown";
       if (!sectorMap[sec])
         sectorMap[sec] = { position_count: 0, total_value_dollars: 0 };
       sectorMap[sec].position_count += 1;
-      sectorMap[sec].total_value_dollars += p.position_value || 0;
+      const posValue = p.position_value;
+      if (posValue != null) {
+        sectorMap[sec].total_value_dollars += posValue;
+      }
     }
     const sector_allocation = Object.entries(sectorMap)
       .map(([sector, d]) => ({
@@ -2247,7 +2258,7 @@ router.get("/performance", async (req, res) => {
         avg_hold_days: 0,
         portfolio_snapshots: 0,
         open_positions: openStats.open_count,
-        unrealized_pnl: openStats.total_unrealized_pnl || 0,
+        unrealized_pnl: openStats.total_unrealized_pnl !== null && openStats.total_unrealized_pnl !== undefined ? openStats.total_unrealized_pnl : null,
       });
     }
 
