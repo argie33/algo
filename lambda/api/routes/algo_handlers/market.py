@@ -316,6 +316,7 @@ def _get_data_status(cur: cursor) -> Any:
         ready_to_trade = len(critical_stale) == 0 and ok_count > 0
 
         response = list_response(sources, total=len(sources), limit=None, offset=None)
+        response["data"]["sources"] = sources
         response["data"]["ready_to_trade"] = ready_to_trade
         response["data"]["summary"] = summary
         response["data"]["critical_stale"] = critical_stale

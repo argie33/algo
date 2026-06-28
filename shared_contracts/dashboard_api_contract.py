@@ -285,11 +285,12 @@ DASHBOARD_ENDPOINTS = {
         "description": "Data loader health status",
         "response_schema": ResponseSchema(
             required_fields=[],
-            optional_fields=["ready_to_trade", "summary", "items", "total", "critical_stale", "expected_date", "as_of"],
+            optional_fields=["ready_to_trade", "summary", "items", "sources", "total", "critical_stale", "expected_date", "as_of"],
             field_types={
                 "ready_to_trade": bool,
                 "summary": dict,
                 "items": list,
+                "sources": list,
                 "total": int,
                 "critical_stale": list,
                 "expected_date": str,
