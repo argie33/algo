@@ -58,8 +58,11 @@ class AnalystRatingsLoader(OptimalLoader):
             raise TransientAPIError(f"Connection error fetching ticker for {symbol}") from e
 
         if not ticker:
-            logger.info(f"[ANALYST] Ticker not found for {symbol} — no upgrade/downgrade data")
-            return []
+            raise RuntimeError(
+                f"[ANALYST_RATINGS] Ticker not found for {symbol}. "
+                "yfinance returned None for ticker symbol. Cannot fetch analyst upgrade/downgrade data. "
+                "Check symbol validity and yfinance API connectivity."
+            )
 
         try:
             upgrades_downgrades = ticker.upgrades_downgrades
@@ -70,8 +73,14 @@ class AnalystRatingsLoader(OptimalLoader):
             logger.warning(f"[ANALYST_RATINGS] Connection error for {symbol} (transient, will retry): {e}")
             raise TransientAPIError(f"Connection error fetching upgrades/downgrades for {symbol}") from e
 
-        if upgrades_downgrades is None or upgrades_downgrades.empty:
-            logger.info(f"[ANALYST_RATINGS] No upgrade/downgrade history for {symbol} — no data available")
+        if upgrades_downgrades is None:
+            raise RuntimeError(
+                f"[ANALYST_RATINGS] yfinance returned None for upgrades_downgrades on {symbol}. "
+                "API call succeeded but returned invalid data structure. "
+                "API format may have changed or ticker data is corrupted."
+            )
+        if upgrades_downgrades.empty:
+            logger.info(f"[ANALYST_RATINGS] No upgrade/downgrade history for {symbol} — optional enrichment unavailable")
             return []
 
         results = []

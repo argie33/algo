@@ -287,8 +287,12 @@ class SignalsDailyLoader(OptimalLoader):
                 tech_count = row[0]
 
                 if tech_count == 0:
-                    logger.debug(f"[BUY_SELL_DAILY] {symbol}: No technical data for {end} - skipping")
-                    return []
+                    raise RuntimeError(
+                        f"[BUY_SELL_DAILY] {symbol}: No technical data for {end}. "
+                        "Technical data is CRITICAL for buy/sell signal generation. "
+                        "Coverage validation passed (≥70% overall), but this symbol has no data. "
+                        "Indicates incomplete upstream loader or data corruption. Cannot proceed."
+                    )
 
                 # Validate upstream loader completeness before generating signals.
                 # buy_sell_daily depends on price_daily and technical_data_daily.
@@ -354,10 +358,12 @@ class SignalsDailyLoader(OptimalLoader):
         # Fetch required data for signal generation
         rows = self._fetch_signal_data(symbol, start, end)
         if not rows:
-            logger.debug(
-                f"[BUY_SELL_DAILY] No technical data for {symbol} - skipping signal generation"
+            raise RuntimeError(
+                f"[BUY_SELL_DAILY] {symbol}: _fetch_signal_data returned no rows for {start} to {end}. "
+                "Technical and price data are CRITICAL for buy/sell signal generation. "
+                "Upstream loaders (technical_data_daily, price_daily) may be incomplete or corrupted. "
+                "Cannot generate signals without complete data coverage."
             )
-            return []
 
         # Generate signals
         signals = self._generate_signals(symbol, rows)
