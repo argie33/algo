@@ -97,13 +97,13 @@ class StockScoresLoader(OptimalLoader):
             # Cap at 99.99 to fit in NUMERIC(4,2) database column
             data_completeness = min(99.99, round((data_count / 6.0) * 100, 2))
 
-            # SKIP stocks without sufficient real data
+            # CRITICAL FIX: Allow single-metric scores to fill data gaps
             # Key insight: Value (99.4%) and Stability (98.7%) cover ~all stocks.
-            # Growth (6%) and Positioning (18%) are scarce but not critical for scoring.
-            # Require 2+ real metrics to avoid single-metric bias (e.g., declining stocks with only momentum data
-            # would score 0.0 due to heavy decline, creating false "no data" entries). Minimum 2 metrics
-            # ensures composite scores reflect diverse factor opinions, not one signal's weakness.
-            min_required_metrics = 2
+            # Better to show a value/stability-only score than show nothing (--).
+            # Single-metric bias is real but less severe than missing data entirely.
+            # Dashboard can still rank/filter on available scores - incomplete data
+            # is better than gaps that break user experience.
+            min_required_metrics = 1
 
             if data_count < min_required_metrics:
                 logger.error(
