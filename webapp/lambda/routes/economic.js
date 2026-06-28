@@ -10,6 +10,14 @@ const { validateQueryResult } = require("../utils/responseValidation");
 const logger = require("../utils/logger");
 const router = express.Router();
 
+// Validate economic score calculations don't produce NaN/Infinity
+function validateStrengthScore(value, indicatorName) {
+  if (typeof value !== 'number' || !isFinite(value)) {
+    throw new Error(`Invalid strength score for ${indicatorName}: ${value} (NaN or Infinity detected)`);
+  }
+  return value;
+}
+
 // GET /api/economic - Root endpoint
 router.get("/", async (req, res) => {
   try {
@@ -213,7 +221,16 @@ router.get("/leading-indicators", async (req, res) => {
     if (historicalData["CPIAUCSL"] && historicalData["CPIAUCSL"].length >= 13) {
       const currentCPI = historicalData["CPIAUCSL"][0].value;
       const yearAgoCPI = historicalData["CPIAUCSL"][12].value; // 12 months ago
+      if (typeof currentCPI !== 'number' || typeof yearAgoCPI !== 'number' || !isFinite(currentCPI) || !isFinite(yearAgoCPI)) {
+        throw new Error('Invalid CPI historical data: non-numeric or infinite values detected');
+      }
+      if (yearAgoCPI === 0) {
+        throw new Error('Invalid CPI data: year-ago value is zero, cannot calculate YoY change');
+      }
       cpiYoY = ((currentCPI - yearAgoCPI) / yearAgoCPI) * 100;
+      if (!isFinite(cpiYoY)) {
+        throw new Error(`Invalid CPI calculation result: ${cpiYoY}`);
+      }
     }
 
     // WARN if required series missing, but continue with available data (soft-fail)
@@ -278,9 +295,12 @@ router.get("/leading-indicators", async (req, res) => {
           : null,
         description: "Percentage of labor force actively seeking employment",
         strength: indicators["UNRATE"]
-          ? Math.min(
-              100,
-              Math.max(0, 100 - (indicators["UNRATE"].value - 3) * 10)
+          ? validateStrengthScore(
+              Math.min(
+                100,
+                Math.max(0, 100 - (indicators["UNRATE"].value - 3) * 10)
+              ),
+              "UNRATE"
             )
           : null,
         importance: "high",
@@ -312,7 +332,10 @@ router.get("/leading-indicators", async (req, res) => {
         description: "Consumer Price Index year-over-year inflation rate",
         strength:
           cpiYoY != null
-            ? Math.min(100, Math.max(0, 100 - Math.abs(cpiYoY - 2) * 15))
+            ? validateStrengthScore(
+                Math.min(100, Math.max(0, 100 - Math.abs(cpiYoY - 2) * 15)),
+                "CPIAUCSL"
+              )
             : null,
         importance: "high",
         date: indicators["CPIAUCSL"] ? indicators["CPIAUCSL"].date : null,
@@ -338,7 +361,10 @@ router.get("/leading-indicators", async (req, res) => {
           : null,
         description: "Federal Reserve target interest rate",
         strength: indicators["FEDFUNDS"]
-          ? Math.min(100, Math.max(0, 100 - indicators["FEDFUNDS"].value * 15))
+          ? validateStrengthScore(
+              Math.min(100, Math.max(0, 100 - indicators["FEDFUNDS"].value * 15)),
+              "FEDFUNDS"
+            )
           : null,
         importance: "high",
         date: indicators["FEDFUNDS"] ? indicators["FEDFUNDS"].date : null,

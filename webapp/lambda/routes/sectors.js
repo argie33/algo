@@ -13,8 +13,11 @@ const router = express.Router();
 router.get("/", async (req, res) => {
   try {
     const { limit = 500, page = 1 } = req.query;
-    const limitNum = Math.min(parseInt(limit) || 500, 5000);
-    const pageNum = Math.max(parseInt(page) || 1, 1);
+    // Explicit NaN checks for parseInt results
+    const limitVal = parseInt(limit, 10);
+    const pageVal = parseInt(page, 10);
+    const limitNum = Math.min(!isNaN(limitVal) ? limitVal : 500, 5000);
+    const pageNum = Math.max(!isNaN(pageVal) ? pageVal : 1, 1);
     const offset = (pageNum - 1) * limitNum;
 
     // Parallelize data and count queries
@@ -97,7 +100,9 @@ router.get("/", async (req, res) => {
     validateQueryResult(countResult, { requireRows: false });
 
     const countVal = countResult?.rows[0]?.count;
-    const total = countVal != null ? parseInt(countVal) : 0;
+    // Explicit NaN check for total count
+    const parsedCount = parseInt(countVal, 10);
+    const total = countVal != null && !isNaN(parsedCount) ? parsedCount : 0;
 
     const sf = (v) => (v !== null && v !== undefined ? parseFloat(v) : null);
 
@@ -119,11 +124,13 @@ router.get("/", async (req, res) => {
               : "Sideways"
           : "Sideways";
 
+      const parsedCurrentRank = parseInt(row.current_rank);
+      const parsedRank12wAgo = parseInt(row.rank_12w_ago);
       return {
         sector_name: row.sector_name,
-        current_rank: parseInt(row.current_rank) || idx + 1 + offset,
-        rank_12w_ago: parseInt(row.rank_12w_ago) ?? null,
-        overall_rank: parseInt(row.current_rank) || idx + 1 + offset,
+        current_rank: !isNaN(parsedCurrentRank) ? parsedCurrentRank : idx + 1 + offset,
+        rank_12w_ago: !isNaN(parsedRank12wAgo) ? parsedRank12wAgo : null,
+        overall_rank: !isNaN(parsedCurrentRank) ? parsedCurrentRank : idx + 1 + offset,
         stock_count: row.stock_count != null ? parseInt(row.stock_count) : 0,
         composite_score: composite,
         momentum_score: sf(row.momentum_score),
@@ -180,7 +187,8 @@ router.get("/trends-batch", async (req, res) => {
       .split(",")
       .map((s) => s.trim())
       .filter((s) => s.length > 0);
-    const daysNum = Math.min(parseInt(days) || 90, 365);
+    const parsedDays = parseInt(days);
+    const daysNum = Math.min(!isNaN(parsedDays) ? parsedDays : 90, 365);
 
     if (sectors.length === 0) {
       return sendSuccess(res, {});
@@ -245,7 +253,8 @@ router.get("/trends-batch", async (req, res) => {
 router.get("/:sector/trend", async (req, res) => {
   try {
     const { sector } = req.params;
-    const days = Math.min(parseInt(req.query.days) || 90, 365);
+    const parsedDays = parseInt(req.query.days);
+    const days = Math.min(!isNaN(parsedDays) ? parsedDays : 90, 365);
 
     // Query daily average price for the sector
     const resultObj = await query(

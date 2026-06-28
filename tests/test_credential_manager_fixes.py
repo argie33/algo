@@ -118,7 +118,7 @@ def test_alpaca_secrets_validate_all_required_fields():
         mock_sm.exceptions.ResourceNotFoundException = ResourceNotFoundError
 
         call_count = 0
-        def mock_get_secret_value(secret_id):
+        def mock_get_secret_value(**kwargs):
             nonlocal call_count
             call_count += 1
             # First call (user-specific) returns incomplete data

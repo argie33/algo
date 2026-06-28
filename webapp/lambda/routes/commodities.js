@@ -325,7 +325,8 @@ router.get("/prices", async (req, res) => {
     }
 
     sql += ` ORDER BY cp.updated_at DESC LIMIT $${params.length + 1}`;
-    params.push(parseInt(limit) || 50);
+    const parsedLimit = parseInt(limit);
+    params.push(!isNaN(parsedLimit) ? parsedLimit : 50);
 
     const result = await query(sql, params);
     validateQueryResult(result, { requireRows: false });

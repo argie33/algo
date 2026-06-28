@@ -14,20 +14,32 @@ class PortfolioAutoInit {
   static async ensurePortfolioData(userId) {
     try {
       // Check what data we have
-      const holdings = await query(
+      const holdingsRes = await query(
         `SELECT COUNT(*) as count FROM portfolio_holdings WHERE user_id = $1 AND quantity > 0`,
         [userId]
-      ).then((r) => r.rows[0]?.count || 0);
+      );
+      if (!holdingsRes?.rows?.[0]?.count && holdingsRes.rows[0].count !== 0) {
+        throw new Error('Failed to fetch portfolio holdings count');
+      }
+      const holdings = holdingsRes.rows[0].count;
 
-      const perfRecords = await query(
+      const perfRes = await query(
         `SELECT COUNT(*) as count FROM portfolio_performance WHERE user_id = $1`,
         [userId]
-      ).then((r) => r.rows[0]?.count || 0);
+      );
+      if (!perfRes?.rows?.[0] && perfRes.rows[0].count === null) {
+        throw new Error('Failed to fetch portfolio performance count');
+      }
+      const perfRecords = perfRes.rows[0].count;
 
-      const withSectors = await query(
+      const withSectorsRes = await query(
         `SELECT COUNT(*) as count FROM portfolio_holdings WHERE user_id = $1 AND sector IS NOT NULL`,
         [userId]
-      ).then((r) => r.rows[0]?.count || 0);
+      );
+      if (!withSectorsRes?.rows?.[0] || withSectorsRes.rows[0].count === null) {
+        throw new Error('Failed to fetch portfolio sectors count');
+      }
+      const withSectors = withSectorsRes.rows[0].count;
 
       // Step 1: If we have holdings but no performance history, generate it
       if (holdings > 0 && perfRecords < 252) {
@@ -66,7 +78,10 @@ class PortfolioAutoInit {
         [userId]
       );
 
-      const recordCount = parseInt(result.rows[0]?.count || 0);
+      if (!result?.rows?.[0] || result.rows[0].count === null) {
+        throw new Error('Failed to fetch portfolio performance count');
+      }
+      const recordCount = parseInt(result.rows[0].count);
 
       if (recordCount === 0) {
         console.warn(

@@ -329,7 +329,8 @@ const ensureDatabase = async () => {
         throw err;
       }),
       new Promise((_, reject) => {
-        const timeoutMs = parseInt(process.env.DB_INIT_TIMEOUT) || 30000; // Default 30 seconds, configurable via env
+        const parsedTimeout = parseInt(process.env.DB_INIT_TIMEOUT);
+        const timeoutMs = !isNaN(parsedTimeout) ? parsedTimeout : 30000; // Default 30 seconds, configurable via env
         setTimeout(
           () =>
             reject(
@@ -507,8 +508,10 @@ app.get("/api/signals/search", authenticateToken, cacheMiddleware(60), async (re
       sort_order = 'DESC'
     } = req.query;
 
-    const safeLimit = Math.min(parseInt(limit) || 100, 50000);
-    const safePage = Math.max(1, parseInt(page) || 1);
+    const parsedLimit = parseInt(limit);
+    const safeLimit = Math.min(!isNaN(parsedLimit) ? parsedLimit : 100, 50000);
+    const parsedPage = parseInt(page);
+    const safePage = Math.max(1, !isNaN(parsedPage) ? parsedPage : 1);
     const offset = (safePage - 1) * safeLimit;
 
     // Validate dataType
@@ -541,7 +544,8 @@ app.get("/api/signals/search", authenticateToken, cacheMiddleware(60), async (re
     let paramIndex = 1;
 
     // Date filter
-    const dayRange = parseInt(days) || 3650;
+    const parsedDays = parseInt(days);
+    const dayRange = !isNaN(parsedDays) ? parsedDays : 3650;
     if (dayRange > 0) {
       whereConditions.push(`date >= CURRENT_DATE - MAKE_INTERVAL(days => $${paramIndex})`);
       params.push(dayRange);
@@ -672,7 +676,8 @@ app.get("/api/signals/search", authenticateToken, cacheMiddleware(60), async (re
       const statsQuery = `SELECT n_live_tup::bigint as approx_total FROM pg_stat_user_tables WHERE relname = $1`;
       try {
         const statsResult = await query(statsQuery, [tableName]);
-        total = parseInt(statsResult.rows[0]?.approx_total || 0);
+        const approxTotal = statsResult.rows[0]?.approx_total;
+        total = approxTotal !== null && approxTotal !== undefined ? parseInt(approxTotal) : 0;
       } catch (e) {
         total = offset + items.length + (hasMore ? 1 : 0);
       }

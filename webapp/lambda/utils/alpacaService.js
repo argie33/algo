@@ -671,7 +671,7 @@ class AlpacaService {
         low: parseFloat(bar.LowPrice),
         close: parseFloat(bar.ClosePrice),
         volume: parseInt(bar.Volume),
-        tradeCount: parseInt(bar.TradeCount) || 0,
+        tradeCount: bar.TradeCount != null ? parseInt(bar.TradeCount) : null,
         vwap: parseFloat(bar.VWAP) || null,
       }));
     } catch (error) {

@@ -275,11 +275,18 @@ class BreadthFetcher:
                 result = {}
                 for row in rows:
                     d = row[0].isoformat() if hasattr(row[0], "isoformat") else str(row[0])
-                    advances = int(row[1]) if row[1] is not None else 0
-                    declines = int(row[2]) if row[2] is not None else 0
+                    if row[1] is None:
+                        raise ValueError(f"Missing advances data for date {d}")
+                    if row[2] is None:
+                        raise ValueError(f"Missing declines data for date {d}")
 
-                    # Advance/decline ratio: advances / declines (neutral at 1.0)
-                    ad_ratio = (advances / declines) if declines > 0 else 1.0
+                    advances = int(row[1])
+                    declines = int(row[2])
+
+                    if declines <= 0:
+                        raise ValueError(f"Invalid declines count ({declines}) for date {d} - cannot calculate breadth ratio")
+
+                    ad_ratio = advances / declines
 
                     result[d] = {
                         "advance_decline_ratio": round(ad_ratio, 3),

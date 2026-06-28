@@ -122,7 +122,8 @@ router.get("/", async (req, res) => {
  */
 router.get("/deep-value", async (req, res) => {
   try {
-    const limit = Math.min(parseInt(req.query.limit) || 600, 1000);
+    const parsedLimit = parseInt(req.query.limit);
+    const limit = Math.min(!isNaN(parsedLimit) ? parsedLimit : 600, 1000);
     const pool = getPool();
 
     const result = await pool.query(

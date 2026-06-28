@@ -768,18 +768,16 @@ router.get("/portfolio", async (req, res) => {
     } : null;
 
     return sendSuccess(res, {
-      data: {
-        snapshot_date: snapshot.snapshot_date,
-        total_portfolio_value: snapshot.total_portfolio_value,
-        total_cash: snapshot.total_cash,
-        position_count: snapshot.position_count,
-        daily_return_pct: snapshot.daily_return_pct,
-        unrealized_pnl_pct: snapshot.unrealized_pnl_pct,
-        cumulative_return_pct: snapshot.cumulative_return_pct,
-        max_drawdown_pct: snapshot.max_drawdown_pct,
-        largest_position_pct: snapshot.largest_position_pct,
-        data_age_seconds: data_age_seconds,
-      },
+      snapshot_date: snapshot.snapshot_date,
+      total_portfolio_value: snapshot.total_portfolio_value,
+      total_cash: snapshot.total_cash,
+      position_count: snapshot.position_count,
+      daily_return_pct: snapshot.daily_return_pct,
+      unrealized_pnl_pct: snapshot.unrealized_pnl_pct,
+      cumulative_return_pct: snapshot.cumulative_return_pct,
+      max_drawdown_pct: snapshot.max_drawdown_pct,
+      largest_position_pct: snapshot.largest_position_pct,
+      data_age_seconds: data_age_seconds,
       data_freshness: data_freshness,
     });
   } catch (error) {
@@ -1432,7 +1430,7 @@ router.get("/markets", async (req, res) => {
           raw_score: scoreValidation,
           regime: latest.regime,
           distribution_days: latest.distribution_days,
-          factors: latest.factors || {},
+          factors: latest.factors !== null && latest.factors !== undefined ? latest.factors : null,
           halt_reasons: parsedHaltReasons,
         };
       }
@@ -1667,7 +1665,8 @@ router.get("/swing-scores-history", async (req, res) => {
   try {
     ensureConnection();
     const pool = getPool();
-    const days = Math.min(parseInt(req.query.days) || 30, 180);
+    const parsedDays = parseInt(req.query.days);
+    const days = Math.min(!isNaN(parsedDays) ? parsedDays : 30, 180);
 
     const result = await pool.query(
       `SELECT DATE(date) as eval_date,
@@ -1802,22 +1801,39 @@ router.get("/data-status", async (req, res) => {
     // Only mark ready_to_trade true if we actually have data rows to check
     const ready_to_trade = validated.length > 0 && criticalStale.length === 0;
 
-    return sendSuccess(res, {
+    const sources_data = validated.map((r) => ({
+      name: r.table_name,
+      frequency: r.frequency,
+      role: r.role,
+      latest_date: r.latest_date,
+      age_hours: r.age_days ? r.age_days * 24 : null,
+      row_count: r.row_count,
+      status: r.status,
+      last_audit: null,
+      error: null,
+    }));
+
+    const response_data = {
+      items: sources_data,
+      total: sources_data.length,
       summary: counts,
       critical_stale: criticalStale.map((r) => r.table_name),
       ready_to_trade,
-      sources: validated.map((r) => ({
-        name: r.table_name,
-        frequency: r.frequency,
-        role: r.role,
-        latest_date: r.latest_date,
-        age_hours: r.age_days ? r.age_days * 24 : null,
-        row_count: r.row_count,
-        status: r.status,
-        last_audit: null,
-        error: null,
-      })),
-    });
+      sources: sources_data,
+      expected_date: new Date().toISOString().split('T')[0],
+      as_of: new Date().toISOString(),
+      pagination: {
+        limit: sources_data.length,
+        offset: 0,
+        total: sources_data.length,
+        page: 1,
+        totalPages: 1,
+        hasNext: false,
+        hasPrev: false,
+      },
+    };
+
+    return sendSuccess(res, response_data);
   } catch (error) {
     logger.error("Error in /algo/data-status:", {
       error: error.message,
@@ -2199,14 +2215,14 @@ router.get("/performance", async (req, res) => {
         win_rate_pct,
         COALESCE(avg_win_pct, best_trade_pct) as avg_win_pct,
         COALESCE(avg_loss_pct, worst_trade_pct) as avg_loss_pct,
-        0.0 as avg_win_r, 0.0 as avg_loss_r,
-        0.0 as expectancy_r, profit_factor,
-        total_pnl_dollars, 0.0 as gross_win_dollars, 0.0 as gross_loss_dollars, total_pnl_pct as total_return_pct,
+        NULL as avg_win_r, NULL as avg_loss_r,
+        NULL as expectancy_r, profit_factor,
+        total_pnl_dollars, NULL as gross_win_dollars, NULL as gross_loss_dollars, total_pnl_pct as total_return_pct,
         sharpe_ratio as sharpe_annualized,
         sortino_ratio as sortino_annualized,
         calmar_ratio, max_drawdown_pct,
-        0 as current_win_streak, best_win_streak, worst_loss_streak,
-        avg_holding_days as avg_hold_days, 0 as portfolio_snapshots_count
+        NULL as current_win_streak, best_win_streak, worst_loss_streak,
+        avg_holding_days as avg_hold_days, NULL as portfolio_snapshots_count
       FROM algo_performance_metrics
       ORDER BY metric_date DESC LIMIT 1
     `);
@@ -2928,17 +2944,17 @@ router.get("/sector-rotation", async (req, res) => {
     validateQueryResult(result, { requireRows: false });
 
     const parseDetailsJSON = (details) => {
-      if (!details) return {};
+      if (!details) return null;
       if (typeof details === "object") return details;
-      if (typeof details !== "string") return {};
+      if (typeof details !== "string") {
+        throw new Error(`Invalid details type: expected string or object, got ${typeof details}`);
+      }
       try {
         return JSON.parse(details);
       } catch (e) {
-        logger.warn(
-          `Failed to parse sector_rotation_signal details: ${details.substring(0, 100)}`,
-          { error: e.message }
+        throw new Error(
+          `Failed to parse sector_rotation_signal details: ${details.substring(0, 100)}. ${e.message}`
         );
-        return {};
       }
     };
 
@@ -3035,10 +3051,6 @@ router.get("/sector-position-warnings", async (req, res) => {
     return sendSuccess(res, {
       warnings: warnings,
       at_cap: at_cap,
-      data: {
-        warnings: warnings,
-        at_cap: at_cap,
-      },
     });
   } catch (error) {
     logger.error("Error in /algo/sector-position-warnings:", {
@@ -3300,7 +3312,7 @@ router.get("/orders/pending", authenticateToken, async (req, res) => {
 
     return sendSuccess(res, {
       pending_orders,
-      total_pending_value: totals.total_buy_value || 0,
+      total_pending_value: totals.total_buy_value !== null && totals.total_buy_value !== undefined ? totals.total_buy_value : null,
       approval_required: totals.order_count > 0,
     });
   } catch (error) {
@@ -3324,7 +3336,8 @@ router.get("/execution-quality", authenticateToken, async (req, res) => {
   try {
     ensureConnection();
     const pool = getPool();
-    const days = Math.min(Math.max(parseInt(req.query.days) || 30, 1), 365); // Clamp to [1, 365]
+    const parsedDays = parseInt(req.query.days);
+    const days = Math.min(Math.max(!isNaN(parsedDays) ? parsedDays : 30, 1), 365); // Clamp to [1, 365]
 
     const result = await pool.query(
       `
@@ -3665,7 +3678,6 @@ router.get("/stage-distribution", authenticateToken, async (req, res) => {
       }
     }
 
-    const counts = {};
     const order = [
       "Early Stage-2",
       "Mid Stage-2",
@@ -3675,6 +3687,9 @@ router.get("/stage-distribution", authenticateToken, async (req, res) => {
       "Stage 4 (down)",
       "Unknown",
     ];
+
+    // Initialize counts with explicit 0 values to avoid || 0 antipattern
+    const counts = Object.fromEntries(order.map(label => [label, 0]));
 
     for (const row of posResult.rows) {
       const stage = row.weinstein_stage;
@@ -3700,7 +3715,8 @@ router.get("/stage-distribution", authenticateToken, async (req, res) => {
         label = "Stage 4 (down)";
       }
 
-      counts[label] = (counts[label] || 0) + 1;
+      // Explicit increment without || antipattern
+      counts[label] = counts[label] !== undefined ? counts[label] + 1 : 1;
     }
 
     const distribution = order
@@ -3743,8 +3759,8 @@ router.get("/metrics", async (req, res) => {
     ]);
 
     return sendSuccess(res, {
-      circuit_breakers: circuitResult.rows[0] || {},
-      performance: perfResult.rows[0] || {},
+      circuit_breakers: circuitResult.rows[0] !== null && circuitResult.rows[0] !== undefined ? circuitResult.rows[0] : null,
+      performance: perfResult.rows[0] !== null && perfResult.rows[0] !== undefined ? perfResult.rows[0] : null,
     });
   } catch (error) {
     logger.error("Error in /algo/metrics:", { error: error.message });
@@ -3919,8 +3935,10 @@ router.get("/execution/recent", authenticateToken, async (req, res) => {
   try {
     ensureConnection();
     const pool = getPool();
-    const days = Math.min(parseInt(req.query.days) || 7, 90);
-    const limit = Math.min(parseInt(req.query.limit) || 50, 1000);
+    const parsedDays = parseInt(req.query.days);
+    const days = Math.min(!isNaN(parsedDays) ? parsedDays : 7, 90);
+    const parsedLimit = parseInt(req.query.limit);
+    const limit = Math.min(!isNaN(parsedLimit) ? parsedLimit : 50, 1000);
 
     const result = await pool.query(
       `SELECT run_id, run_date, started_at, completed_at, overall_status, summary,
@@ -3933,8 +3951,8 @@ router.get("/execution/recent", authenticateToken, async (req, res) => {
     );
 
     return sendSuccess(res, {
-      items: result.rows || [],
-      total: result.rows.length || 0,
+      items: result.rows !== null && result.rows !== undefined ? result.rows : [],
+      total: result.rows !== null && result.rows !== undefined ? result.rows.length : 0,
     });
   } catch (error) {
     logger.error("Error in /algo/execution/recent:", { error: error.message });
@@ -3950,7 +3968,8 @@ router.get("/execution/stats", async (req, res) => {
   try {
     ensureConnection();
     const pool = getPool();
-    const days = Math.min(parseInt(req.query.days) || 7, 90);
+    const parsedDays = parseInt(req.query.days);
+    const days = Math.min(!isNaN(parsedDays) ? parsedDays : 7, 90);
 
     const result = await pool.query(
       `SELECT overall_status, COUNT(*) as count
@@ -3966,9 +3985,9 @@ router.get("/execution/stats", async (req, res) => {
       byStatus[row.overall_status] = parseInt(row.count);
       total += parseInt(row.count);
     }
-    const successCount = byStatus.success || 0;
-    const haltCount = byStatus.halted || 0;
-    const errorCount = byStatus.error || 0;
+    const successCount = byStatus.success !== undefined ? byStatus.success : 0;
+    const haltCount = byStatus.halted !== undefined ? byStatus.halted : 0;
+    const errorCount = byStatus.error !== undefined ? byStatus.error : 0;
 
     return sendSuccess(res, {
       total_runs: total,
@@ -4027,3 +4046,5 @@ router.get("/signals/stocks", async (req, res) => {
 });
 
 module.exports = router;
+
+

@@ -119,12 +119,15 @@ router.get("/stockscores", async (req, res) => {
       sortOrder = "DESC",
     } = req.query;
 
-    const limitNum = Math.min(parseInt(limit) || 50, 5000);
+    const parsedLimit = parseInt(limit);
+    const limitNum = Math.min(!isNaN(parsedLimit) ? parsedLimit : 50, 5000);
+    const parsedOffset = parseInt(offset);
+    const parsedPage = parseInt(page);
     const pageNum = offset
-      ? Math.max(parseInt(offset) / limitNum + 1, 1)
-      : Math.max(parseInt(page) || 1, 1);
+      ? Math.max((!isNaN(parsedOffset) ? parsedOffset : 0) / limitNum + 1, 1)
+      : Math.max(!isNaN(parsedPage) ? parsedPage : 1, 1);
     const offsetNum = offset
-      ? Math.max(parseInt(offset), 0)
+      ? Math.max(!isNaN(parsedOffset) ? parsedOffset : 0, 0)
       : (pageNum - 1) * limitNum;
 
     // Build WHERE clause - only show stocks with good data coverage, exclude ETFs
