@@ -226,16 +226,62 @@ class YieldCurveFetcher:
 
 
 class BreadthFetcher:
-    """Fetches market breadth data (advance/decline) from database.
+    """Fetches market breadth data (advance/decline, new highs/lows) from database.
 
-    Computes from trend_template_data to get advance/decline counts and new highs/lows.
+    Computes from trend_template_data for advance/decline counts.
+    Computes from price_daily for new 52-week highs/lows.
     """
 
     def __init__(self) -> None:
         pass
 
+    def _compute_new_highs_lows(self, cur: Any, start: date, end: date) -> dict[str, tuple[int, int]]:
+        """Compute new 52-week highs and lows for each date.
+
+        Returns: dict[date_str] -> (new_highs_count, new_lows_count)
+
+        For each symbol in price_daily, checks if close is highest/lowest in past 252 trading days.
+        Uses window function to efficiently compute 52-week highs/lows across all symbols.
+        """
+        cur.execute(
+            """
+            WITH price_window AS (
+                SELECT
+                    date,
+                    symbol,
+                    close,
+                    MAX(close) OVER (
+                        PARTITION BY symbol
+                        ORDER BY date
+                        ROWS BETWEEN 251 PRECEDING AND CURRENT ROW
+                    ) AS high_252,
+                    MIN(close) OVER (
+                        PARTITION BY symbol
+                        ORDER BY date
+                        ROWS BETWEEN 251 PRECEDING AND CURRENT ROW
+                    ) AS low_252
+                FROM price_daily
+                WHERE date >= %s AND date <= %s
+            )
+            SELECT
+                date,
+                COUNT(*) FILTER (WHERE close = high_252 AND high_252 IS NOT NULL) AS new_highs,
+                COUNT(*) FILTER (WHERE close = low_252 AND low_252 IS NOT NULL) AS new_lows
+            FROM price_window
+            WHERE close IS NOT NULL AND high_252 IS NOT NULL AND low_252 IS NOT NULL
+            GROUP BY date
+            ORDER BY date ASC
+            """,
+            (start, end),
+        )
+        result = {}
+        for row in cur.fetchall():
+            d = row[0].isoformat() if hasattr(row[0], "isoformat") else str(row[0])
+            result[d] = (int(row[1]) if row[1] is not None else 0, int(row[2]) if row[2] is not None else 0)
+        return result
+
     def fetch(self, start: date, end: date) -> dict[str, Any]:
-        """Fetch market breadth data from trend_template_data.
+        """Fetch market breadth data from trend_template_data and price_daily.
 
         Returns: dict[date_str] -> {advance_decline_ratio, new_highs_count, new_lows_count}
 
@@ -264,6 +310,13 @@ class BreadthFetcher:
                     logger.debug(f"[BREADTH_FETCHER] No breadth data available for {start} to {end}. Returning empty dict for optional enrichment.")
                     return {}
 
+                # Compute new highs/lows from price_daily
+                try:
+                    new_highs_lows = self._compute_new_highs_lows(cur, start, end)
+                except Exception as e:
+                    logger.warning(f"[BREADTH_FETCHER] New highs/lows computation failed: {e}. Proceeding without these values.")
+                    new_highs_lows = {}
+
                 result = {}
                 for row in rows:
                     d = row[0].isoformat() if hasattr(row[0], "isoformat") else str(row[0])
@@ -280,13 +333,16 @@ class BreadthFetcher:
 
                     ad_ratio = advances / declines
 
+                    # Get new highs/lows if available
+                    nh, nl = new_highs_lows.get(d, (None, None))
+
                     result[d] = {
                         "advance_decline_ratio": round(ad_ratio, 3),
-                        "new_highs_count": None,  # Computed from price_daily separately if needed
-                        "new_lows_count": None,   # Computed from price_daily separately if needed
+                        "new_highs_count": nh,
+                        "new_lows_count": nl,
                     }
 
-                logger.info(f"[BREADTH_FETCHER] Fetched breadth for {len(result)} dates from trend_template_data")
+                logger.info(f"[BREADTH_FETCHER] Fetched breadth for {len(result)} dates (advances/declines + new highs/lows)")
                 return result
         except Exception as e:
             logger.warning(f"[BREADTH_FETCHER] Failed to fetch breadth data: {e}. Returning empty dict for optional enrichment.")
