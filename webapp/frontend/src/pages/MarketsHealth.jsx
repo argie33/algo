@@ -211,12 +211,28 @@ function MarketsHealthPage() {
       )
     : [];
 
+  // Check for data availability issues
+  const hasDataUnavailability = marketsData?.data_error || !m?.market_health;
+  const dataUnavailabilityMessage = marketsData?.message || "Market health data unavailable";
+
   if (isPrimaryLoading && !m) {
     return (
       <div className="main-content">
         <div className="empty">
           <Inbox />
           <div className="empty-title">Loading market data…</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (hasDataUnavailability && !marketsLoading) {
+    return (
+      <div className="main-content">
+        <div className="alert alert-danger" style={{ margin: "var(--space-4)" }}>
+          <AlertTriangle size={16} style={{ marginRight: 8 }} />
+          <strong>Market Health Data Unavailable</strong>
+          <p style={{ marginTop: 8, marginBottom: 0 }}>{dataUnavailabilityMessage}</p>
         </div>
       </div>
     );

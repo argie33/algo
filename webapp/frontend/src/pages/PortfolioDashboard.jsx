@@ -404,6 +404,11 @@ function PortfolioDashboardPage() {
   const equityDataError = hasError(equityItems) ? equityItems._error : null;
   const statusDataError = hasError(status) ? status._error : null;
 
+  // Check for stale portfolio data
+  const portfolioDataFreshness = status?.data_freshness;
+  const isPortfolioStale = portfolioDataFreshness?.is_stale === true;
+  const portfolioAgeHours = portfolioDataFreshness?.age_seconds ? Math.round(portfolioDataFreshness.age_seconds / 3600) : null;
+
   // Show error banner for individual errors, but don't block entire dashboard (graceful degradation)
   // Only show errors that don't have cached fallback data
   const criticalErrors = [
@@ -473,10 +478,20 @@ function PortfolioDashboardPage() {
   if (hasCachedPerf && perfError) staleSections.push("Performance metrics");
   if (hasCachedTrades && tradesError) staleSections.push("Recent trades");
   if (hasCachedEquity && equityError) staleSections.push("Equity curve");
+  if (isPortfolioStale) staleSections.push("Portfolio data");
 
   return (
     <div className="main-content">
       <AddGlobalStyles />
+      {isPortfolioStale && (
+        <div
+          className="alert alert-warn"
+          style={{ marginBottom: "var(--space-4)" }}
+        >
+          <AlertTriangle size={16} style={{ marginRight: 8 }} />
+          <strong>Stale Portfolio Data:</strong> Last updated {portfolioAgeHours} hours ago. Run data loaders to refresh.
+        </div>
+      )}
       <div className="page-head">
         <div>
           <div className="page-head-title">Portfolio</div>
@@ -911,6 +926,7 @@ function PortfolioDashboardPage() {
             positions={safePositionsList}
             totalValue={totalValue}
             loading={isPrimaryLoading}
+            error={posError || posDataError}
             onSelect={(s) => navigate(`/app/stock/${encodeURIComponent(s)}`)}
           />
         </ErrorBoundary>
@@ -918,6 +934,7 @@ function PortfolioDashboardPage() {
           <SectorConcentration
             sector_allocation={sectorAllocation}
             loading={isPrimaryLoading}
+            error={posError || posDataError}
           />
         </ErrorBoundary>
         <ErrorBoundary>
@@ -2206,7 +2223,7 @@ function RChip({ r }) {
 }
 
 // ─── Risk allocation pie ───────────────────────────────────────────────────
-function RiskAllocationPie({ positions, _totalValue, loading, onSelect }) {
+function RiskAllocationPie({ positions, _totalValue, loading, error, onSelect }) {
   const posArray = Array.isArray(positions)
     ? positions
     : positions?.items || [];
@@ -2240,7 +2257,9 @@ function RiskAllocationPie({ positions, _totalValue, loading, onSelect }) {
         </div>
       </div>
       <div className="card-body">
-        {loading ? (
+        {error ? (
+          <Empty title="Risk data error" desc={typeof error === "string" ? error : "Failed to load positions."} />
+        ) : loading ? (
           <SkeletonChartContent />
         ) : data.length === 0 ? (
           <Empty title="No risk data" desc="Positions need stop levels." />
@@ -2291,7 +2310,7 @@ function RiskAllocationPie({ positions, _totalValue, loading, onSelect }) {
 }
 
 // ─── Sector concentration bar chart ────────────────────────────────────────
-function SectorConcentration({ sector_allocation, loading }) {
+function SectorConcentration({ sector_allocation, loading, error }) {
   const data = Array.isArray(sector_allocation) ? sector_allocation : [];
   const overweight =
     data.length > 0 ? data.find((d) => d && d.allocation_pct > 30) : undefined;
@@ -2309,7 +2328,9 @@ function SectorConcentration({ sector_allocation, loading }) {
         </div>
       </div>
       <div className="card-body">
-        {loading ? (
+        {error ? (
+          <Empty title="Sector data error" desc="Failed to load sector allocation." />
+        ) : loading ? (
           <SkeletonChartContent />
         ) : data.length === 0 ? (
           <Empty title="No sector data" />
@@ -2734,13 +2755,14 @@ RiskAllocationPie.propTypes = {
   positions: PropTypes.arrayOf(PropTypes.object).isRequired,
   totalValue: PropTypes.number.isRequired,
   loading: PropTypes.bool.isRequired,
+  error: PropTypes.any,
   onSelect: PropTypes.func,
 };
 
 SectorConcentration.propTypes = {
-  positions: PropTypes.arrayOf(PropTypes.object).isRequired,
-  totalValue: PropTypes.number.isRequired,
+  sector_allocation: PropTypes.arrayOf(PropTypes.object).isRequired,
   loading: PropTypes.bool.isRequired,
+  error: PropTypes.any,
 };
 
 StagePhaseDonut.propTypes = {

@@ -688,58 +688,63 @@ router.get("/portfolio", async (req, res) => {
 
     validateQueryResult(result, { requireRows: false });
 
-    const snapshot =
-      result.rows.length > 0
-        ? validateAndCoerceRow(result.rows[0], {
-            snapshot_date: { type: "date", required: false },
-            total_portfolio_value: {
-              type: "float",
-              required: false,
-              defaultValue: 0,
-            },
-            total_cash: { type: "float", required: false, defaultValue: 0 },
-            position_count: { type: "int", required: false, defaultValue: 0 },
-            daily_return_pct: {
-              type: "float",
-              required: false,
-              defaultValue: 0,
-            },
-            unrealized_pnl_pct: {
-              type: "float",
-              required: false,
-              defaultValue: 0,
-            },
-            cumulative_return_pct: {
-              type: "float",
-              required: false,
-              defaultValue: null,
-            },
-            max_drawdown_pct: {
-              type: "float",
-              required: false,
-              defaultValue: null,
-            },
-            largest_position_pct: {
-              type: "float",
-              required: false,
-              defaultValue: null,
-            },
-          })
-        : {
-            snapshot_date: null,
-            total_portfolio_value: 0,
-            total_cash: 0,
-            position_count: 0,
-            daily_return_pct: 0,
-            unrealized_pnl_pct: 0,
-            cumulative_return_pct: null,
-            max_drawdown_pct: null,
-            largest_position_pct: null,
-          };
+    // CRITICAL: Fail-fast if no portfolio data. Do not return zeros (masks data quality issue).
+    if (result.rows.length === 0) {
+      return sendSuccess(res, {
+        data: null,
+        error: "no_data",
+        message: "Portfolio snapshot data not yet available. Run data loaders to populate initial snapshot.",
+        data_age_seconds: null,
+      }, 503);
+    }
+
+    const snapshot = validateAndCoerceRow(result.rows[0], {
+      snapshot_date: { type: "date", required: false },
+      total_portfolio_value: {
+        type: "float",
+        required: false,
+        defaultValue: null,
+      },
+      total_cash: { type: "float", required: false, defaultValue: null },
+      position_count: { type: "int", required: false, defaultValue: null },
+      daily_return_pct: {
+        type: "float",
+        required: false,
+        defaultValue: null,
+      },
+      unrealized_pnl_pct: {
+        type: "float",
+        required: false,
+        defaultValue: null,
+      },
+      cumulative_return_pct: {
+        type: "float",
+        required: false,
+        defaultValue: null,
+      },
+      max_drawdown_pct: {
+        type: "float",
+        required: false,
+        defaultValue: null,
+      },
+      largest_position_pct: {
+        type: "float",
+        required: false,
+        defaultValue: null,
+      },
+    });
 
     const data_age_seconds = snapshot.snapshot_date
       ? Math.floor((Date.now() - new Date(snapshot.snapshot_date).getTime()) / 1000)
       : null;
+
+    // CRITICAL: Return data quality flags so dashboard can alert on stale data
+    const is_stale = data_age_seconds && data_age_seconds > 86400; // > 1 day
+    const data_freshness = data_age_seconds ? {
+      age_seconds: data_age_seconds,
+      is_stale: is_stale,
+      last_update: snapshot.snapshot_date,
+    } : null;
 
     return sendSuccess(res, {
       data: {
@@ -752,8 +757,8 @@ router.get("/portfolio", async (req, res) => {
         cumulative_return_pct: snapshot.cumulative_return_pct,
         max_drawdown_pct: snapshot.max_drawdown_pct,
         largest_position_pct: snapshot.largest_position_pct,
-        data_age_seconds: data_age_seconds,
       },
+      data_freshness: data_freshness,
     });
   } catch (error) {
     logger.error("Error in /algo/portfolio:", {
@@ -1456,34 +1461,67 @@ router.get("/markets", async (req, res) => {
     // Collect all errors from all sections
     const allErrors = [...currentErrors, ...historyErrors];
 
-    // If critical current snapshot failed, return error response
+    // CRITICAL: Fail-fast if essential market health data is completely unavailable
+    if (!health || health === null) {
+      return sendSuccess(res, {
+        current: currentSnapshot,
+        active_tier: policy,
+        history: validHistory,
+        market_health: null,
+        data_error: "market_health_unavailable",
+        message: "Market health data not yet available. Run data loaders to populate market_health_daily.",
+      }, 503);
+    }
+
+    // If critical current snapshot failed, return error response with available data
     if (currentErrors.length > 0 && !currentSnapshot) {
-      return sendSuccess(res, createErrorResponse(allErrors));
+      return sendSuccess(res, {
+        current: null,
+        active_tier: null,
+        history: validHistory,
+        market_health: {
+          date: health.date,
+          market_trend: health.market_trend,
+          market_stage: health.market_stage,
+          distribution_days_4w: health.distribution_days_4w,
+          vix_level: health.vix_level,
+          advance_decline_ratio: health.advance_decline_ratio,
+          new_highs_count: health.new_highs_count,
+          new_lows_count: health.new_lows_count,
+          put_call_ratio: health.put_call_ratio,
+          breadth_momentum_10d: health.breadth_momentum_10d,
+          yield_curve_slope: health.yield_curve_slope,
+          fed_rate_environment: health.fed_rate_environment,
+          up_volume_percent: health.up_volume_percent,
+          spy_close: spyClose,
+          spy_change_pct: spyChangePct,
+        },
+        data_errors: allErrors,
+        message: "Market exposure data unavailable, but market health data available",
+      }, 503);
     }
 
     return sendSuccess(res, {
       current: currentSnapshot,
       active_tier: policy,
       history: validHistory,
-      market_health: health
-        ? {
-            date: health.date,
-            market_trend: health.market_trend,
-            market_stage: health.market_stage,
-            distribution_days_4w: health.distribution_days_4w,
-            vix_level: health.vix_level,
-            advance_decline_ratio: health.advance_decline_ratio,
-            new_highs_count: health.new_highs_count,
-            new_lows_count: health.new_lows_count,
-            put_call_ratio: health.put_call_ratio,
-            breadth_momentum_10d: health.breadth_momentum_10d,
-            yield_curve_slope: health.yield_curve_slope,
-            fed_rate_environment: health.fed_rate_environment,
-            up_volume_percent: health.up_volume_percent,
-            spy_close: spyClose,
-            spy_change_pct: spyChangePct,
-          }
-        : null,
+      market_health: {
+        date: health.date,
+        market_trend: health.market_trend,
+        market_stage: health.market_stage,
+        distribution_days_4w: health.distribution_days_4w,
+        vix_level: health.vix_level,
+        advance_decline_ratio: health.advance_decline_ratio,
+        new_highs_count: health.new_highs_count,
+        new_lows_count: health.new_lows_count,
+        put_call_ratio: health.put_call_ratio,
+        breadth_momentum_10d: health.breadth_momentum_10d,
+        yield_curve_slope: health.yield_curve_slope,
+        fed_rate_environment: health.fed_rate_environment,
+        up_volume_percent: health.up_volume_percent,
+        spy_close: spyClose,
+        spy_change_pct: spyChangePct,
+      },
       sectors: sectorsRows.map((r) => ({
         name: r.sector_name,
         rank: r.current_rank,
