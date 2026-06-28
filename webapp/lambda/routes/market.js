@@ -2619,7 +2619,10 @@ async function getMarketDataHandler(req, res) {
           FROM price_daily
           WHERE date >= CURRENT_DATE - INTERVAL '60 days'
         `);
-        return result.rows[0] || {};
+        if (!result.rows || result.rows.length === 0) {
+          throw new Error("Market volatility data unavailable");
+        }
+        return result.rows[0];
       })(),
 
       // 7. AAII Sentiment
@@ -3501,9 +3504,27 @@ router.get("/technicals-fresh", async (req, res) => {
       throw new Error(`CRITICAL: McClellan oscillator data fetch failed: ${mcclellanData.reason.message}`);
     }
     const mcclellan = mcclellanData.value || [];
+
+    if (distributionDaysData.status === 'rejected') {
+      throw new Error(`CRITICAL: Distribution days data fetch failed: ${distributionDaysData.reason.message}`);
+    }
     const distributionDays = distributionDaysData.value || {};
-    const volatility = volatilityData.value || {};
-    const internals = internalsData.value || {};
+
+    if (volatilityData.status === 'rejected') {
+      throw new Error(`CRITICAL: Volatility data fetch failed: ${volatilityData.reason.message}`);
+    }
+    if (!volatilityData.value) {
+      throw new Error("CRITICAL: Volatility data unavailable");
+    }
+    const volatility = volatilityData.value;
+
+    if (internalsData.status === 'rejected') {
+      throw new Error(`CRITICAL: Market internals data fetch failed: ${internalsData.reason.message}`);
+    }
+    if (!internalsData.value) {
+      throw new Error("CRITICAL: Market internals data unavailable");
+    }
+    const internals = internalsData.value;
 
     // Format breadth data
     const advance_decline_ratio =
