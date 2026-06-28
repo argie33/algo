@@ -83,9 +83,11 @@ def fetch_portfolio(c: None) -> dict[str, Any]:
 
         # Determine appropriate max_age_seconds based on market status
         # On trading days: data must be fresh (5 min) since Phase 9 runs daily
-        # On non-trading days: accept data from last trading day (up to 48 hours)
+        # On non-trading days: accept data from last trading day
+        # - Weekend/single-day gap: 48 hours (2 days)
+        # - Extended gap (Monday morning before market opens): 72 hours (3 days for Friday→Monday)
         is_trading_day = MarketCalendar.is_trading_day()
-        max_age_seconds = 300 if is_trading_day else 172800  # 48 hours for non-trading days
+        max_age_seconds = 300 if is_trading_day else 259200  # 72 hours for non-trading days
 
         # Comprehensive validation using FetcherValidator
         required_fields = [
