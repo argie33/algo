@@ -63,6 +63,12 @@ class NAAIMExposureLoader(OptimalLoader):
                 )
 
             df = tables[0]
+
+            # Skip header row if first row contains 'Date' column name
+            if len(df) > 0 and 'Date' in df.iloc[0].values:
+                logger.info("Skipping header row from HTML table parsing")
+                df = df.iloc[1:].reset_index(drop=True)
+
             if len(df.columns) < 3:
                 raise RuntimeError(
                     f"NAAIM table format unexpected: got {len(df.columns)} columns, need ≥3. "

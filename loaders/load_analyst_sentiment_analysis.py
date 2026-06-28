@@ -35,6 +35,7 @@ Run:
 """
 
 import logging
+import socket
 import sys
 from datetime import date
 from typing import Any
@@ -64,6 +65,9 @@ class AnalystSentimentLoader(OptimalLoader):
 
         Analyst sentiment is optional enrichment; its absence does not prevent trading.
         """
+        # Set short timeout to fail fast if yfinance is slow
+        socket.setdefaulttimeout(10.0)
+
         try:
             from utils.external.yfinance import get_ticker
         except ImportError as e:
@@ -72,7 +76,7 @@ class AnalystSentimentLoader(OptimalLoader):
 
         try:
             ticker = get_ticker(symbol)
-        except requests.Timeout as e:
+        except (requests.Timeout, socket.timeout) as e:
             logger.warning(f"[ANALYST_SENTIMENT] Timeout fetching ticker for {symbol} (transient, will retry): {e}")
             raise TransientAPIError(f"Timeout fetching ticker for {symbol}") from e
         except requests.ConnectionError as e:
@@ -85,7 +89,7 @@ class AnalystSentimentLoader(OptimalLoader):
 
         try:
             recs = ticker.recommendations
-        except requests.Timeout as e:
+        except (requests.Timeout, socket.timeout) as e:
             logger.warning(f"[ANALYST_SENTIMENT] Timeout fetching recommendations for {symbol} (transient, will retry): {e}")
             raise TransientAPIError(f"Timeout fetching recommendations for {symbol}") from e
         except requests.ConnectionError as e:

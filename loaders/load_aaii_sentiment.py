@@ -36,7 +36,7 @@ class AAIISentimentLoader(OptimalLoader):
         security and correctness. Cannot be factored without losing failure context.
         """
         # Set socket-level timeout to catch hanging connections early
-        socket.setdefaulttimeout(60.0)
+        socket.setdefaulttimeout(20.0)
 
         aaii_url = get_aaii_sentiment_url()
         logger.info(f"Downloading AAII sentiment data from: {aaii_url}")
@@ -56,10 +56,10 @@ class AAIISentimentLoader(OptimalLoader):
             "Accept-Language": "en-US,en;q=0.9",
         }
 
-        for attempt in range(1, 6):  # 5 retries
+        for attempt in range(1, 4):  # 3 retries (faster failure)
             try:
-                logger.info(f"Download attempt {attempt}/5")
-                response = requests.get(aaii_url, headers=headers, allow_redirects=True, timeout=60)
+                logger.info(f"Download attempt {attempt}/3")
+                response = requests.get(aaii_url, headers=headers, allow_redirects=True, timeout=15)
                 response.raise_for_status()
 
                 # SECURITY FIX S-05: Validate redirect target to prevent SSRF via redirects
@@ -171,52 +171,52 @@ class AAIISentimentLoader(OptimalLoader):
                 requests.exceptions.ConnectionError,
             ) as e:
                 logger.warning(f"Download attempt {attempt} network error: {e}")
-                if attempt < 5:
+                if attempt < 3:
                     import time
 
-                    wait_time = 3 * (2 ** (attempt - 1))
+                    wait_time = 2 * (2 ** (attempt - 1))
                     logger.info(f"Retrying in {wait_time}s...")
                     time.sleep(wait_time)
                 else:
-                    raise RuntimeError(f"[AAII] Failed after 5 attempts: Cannot reach AAII server. {e}") from e
+                    raise RuntimeError(f"[AAII] Failed after 3 attempts: Cannot reach AAII server. {e}") from e
             except (json.JSONDecodeError, zipfile.BadZipFile) as e:
                 logger.warning(f"Download attempt {attempt} data format error: {e}")
-                if attempt < 5:
+                if attempt < 3:
                     import time
 
-                    wait_time = 3 * (2 ** (attempt - 1))
+                    wait_time = 2 * (2 ** (attempt - 1))
                     logger.info(f"Retrying in {wait_time}s...")
                     time.sleep(wait_time)
                 else:
-                    raise RuntimeError(f"[AAII] Failed after 5 attempts: Invalid Excel data format. {e}") from e
+                    raise RuntimeError(f"[AAII] Failed after 3 attempts: Invalid Excel data format. {e}") from e
             except ValueError as e:
                 logger.warning(f"Download attempt {attempt} data format error: {e}")
-                if attempt < 5:
+                if attempt < 3:
                     import time
 
-                    wait_time = 3 * (2 ** (attempt - 1))
+                    wait_time = 2 * (2 ** (attempt - 1))
                     logger.info(f"Retrying in {wait_time}s...")
                     time.sleep(wait_time)
                 else:
-                    raise RuntimeError(f"[AAII] Failed after 5 attempts: Invalid Excel data format. {e}") from e
+                    raise RuntimeError(f"[AAII] Failed after 3 attempts: Invalid Excel data format. {e}") from e
             except (KeyError, AttributeError, TypeError) as e:
                 raise RuntimeError(
                     f"[AAII] Data format error parsing Excel: {e}. AAII file structure may have changed."
                 ) from e
             except (OSError, requests.RequestException) as e:
                 logger.error(f"Download attempt {attempt} unexpected error: {e}")
-                if attempt < 5:
+                if attempt < 3:
                     import time
 
-                    wait_time = 3 * (2 ** (attempt - 1))
+                    wait_time = 2 * (2 ** (attempt - 1))
                     logger.info(f"Retrying in {wait_time}s...")
                     time.sleep(wait_time)
                 else:
-                    raise RuntimeError(f"[AAII] Unexpected error after 5 attempts: {e}") from e
+                    raise RuntimeError(f"[AAII] Unexpected error after 3 attempts: {e}") from e
 
         raise RuntimeError(
             "[AAII_SENTIMENT] Failed to fetch AAII sentiment data after exhausting all retries. "
-            "Cannot proceed without market-wide investor sentiment."
+            "AAII server is unreachable. Data is optional; trading will proceed without AAII sentiment."
         )
 
 
