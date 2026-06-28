@@ -359,6 +359,8 @@ def _compute_open_risk(cur: Any) -> float:
                 f"but {pos_count} open position(s) exist. Risk calculation failed. "
                 f"Cannot proceed without accurate risk assessment."
             )
+    else:
+        total_risk = float(total_risk_val)
 
     cur.execute("""
         SELECT total_portfolio_value FROM algo_portfolio_snapshots
@@ -482,8 +484,8 @@ def _insert_circuit_breaker_status(cur: Any, today: date, metrics: dict[str, Any
                 check_date, portfolio_drawdown_pct, daily_loss_pct, weekly_loss_pct,
                 consecutive_losses, open_risk_pct, vix_level, market_stage,
                 spy_prior_day_change_pct, win_rate_last_30_pct,
-                triggered_count, any_triggered, computed_at, updated_at
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
+                triggered_count, any_triggered
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (check_date) DO UPDATE SET
                 portfolio_drawdown_pct = EXCLUDED.portfolio_drawdown_pct,
                 daily_loss_pct = EXCLUDED.daily_loss_pct,
@@ -495,8 +497,7 @@ def _insert_circuit_breaker_status(cur: Any, today: date, metrics: dict[str, Any
                 spy_prior_day_change_pct = EXCLUDED.spy_prior_day_change_pct,
                 win_rate_last_30_pct = EXCLUDED.win_rate_last_30_pct,
                 triggered_count = EXCLUDED.triggered_count,
-                any_triggered = EXCLUDED.any_triggered,
-                updated_at = NOW()
+                any_triggered = EXCLUDED.any_triggered
         """,
             (
                 today,
