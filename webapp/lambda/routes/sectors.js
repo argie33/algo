@@ -96,11 +96,12 @@ router.get("/", async (req, res) => {
     validateQueryResult(dataResult, { requireRows: false });
     validateQueryResult(countResult, { requireRows: false });
 
-    const total = parseInt(countResult?.rows[0]?.count || 0);
+    const countVal = countResult?.rows[0]?.count;
+    const total = countVal != null ? parseInt(countVal) : 0;
 
     const sf = (v) => (v !== null && v !== undefined ? parseFloat(v) : null);
 
-    const sectors = (dataResult?.rows || []).map((row, idx) => {
+    const sectors = (dataResult?.rows ?? []).map((row, idx) => {
       const composite = sf(row.composite_score);
       const perf20d = sf(row.perf_20d);
       const momentumLabel =
@@ -123,7 +124,7 @@ router.get("/", async (req, res) => {
         current_rank: parseInt(row.current_rank) || idx + 1 + offset,
         rank_12w_ago: parseInt(row.rank_12w_ago) || null,
         overall_rank: parseInt(row.current_rank) || idx + 1 + offset,
-        stock_count: parseInt(row.stock_count || 0),
+        stock_count: row.stock_count != null ? parseInt(row.stock_count) : 0,
         composite_score: composite,
         momentum_score: sf(row.momentum_score),
         value_score: sf(row.value_score),
@@ -202,7 +203,7 @@ router.get("/trends-batch", async (req, res) => {
     );
     validateQueryResult(resultObj, { requireRows: false });
 
-    const result = Array.isArray(resultObj) ? resultObj : resultObj?.rows || [];
+    const result = Array.isArray(resultObj) ? resultObj : resultObj?.rows ?? [];
 
     // Group by sector and compute cumulative index
     const grouped = {};
@@ -220,7 +221,8 @@ router.get("/trends-batch", async (req, res) => {
     Object.keys(grouped).forEach((sector) => {
       let index = 100;
       grouped[sector] = grouped[sector].map((point) => {
-        index = index * (1 + (point.return_pct || 0) / 100);
+        const returnPct = point.return_pct ?? 0;
+        index = index * (1 + returnPct / 100);
         return {
           date: point.date,
           avgPrice: parseFloat(index.toFixed(2)),
@@ -264,7 +266,7 @@ router.get("/:sector/trend", async (req, res) => {
     );
     validateQueryResult(resultObj, { requireRows: false });
 
-    const result = Array.isArray(resultObj) ? resultObj : resultObj?.rows || [];
+    const result = Array.isArray(resultObj) ? resultObj : resultObj?.rows ?? [];
 
     if (result.length === 0) {
       return sendError(res, `No price data for sector: ${sector}`, 404);
@@ -375,7 +377,7 @@ router.get("/:sector", async (req, res) => {
     const row = result.rows[0];
     const sectorData = {
       sector_name: row.sector_name,
-      stock_count: parseInt(row.stock_count || 0),
+      stock_count: row.stock_count != null ? parseInt(row.stock_count) : 0,
       composite_score: row.composite_score
         ? parseFloat(row.composite_score)
         : null,

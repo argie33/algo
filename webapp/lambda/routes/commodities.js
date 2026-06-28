@@ -673,7 +673,8 @@ router.get("/correlations", async (req, res) => {
   if (dbError) return dbError;
 
   const { minCorrelation = 0.5, timeframe = "90d" } = req.query;
-  const minCorrValue = Math.abs(parseFloat(minCorrelation) || 0.5);
+  const parsedCorr = parseFloat(minCorrelation);
+  const minCorrValue = !isNaN(parsedCorr) ? Math.abs(parsedCorr) : 0.5;
 
   try {
     let correlationField = "correlation_90d"; // Default
