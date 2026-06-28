@@ -3,6 +3,7 @@
 
 from utils.db import DatabaseContext
 
+
 def main():
     """Check metrics tables."""
     tables = [
@@ -40,13 +41,13 @@ def main():
                         # Show latest data
                         cur.execute(f"SELECT * FROM {table_name} ORDER BY 1 DESC LIMIT 1")
                         row = cur.fetchone()
-                        print(f"\n  Latest row:")
+                        print("\n  Latest row:")
                         if row:
                             cols = [c[0] for c in cur.description]
-                            for col, val in zip(cols[:5], row[:5]):
+                            for col, val in zip(cols[:5], row[:5], strict=False):
                                 print(f"    {col}: {val}")
                 else:
-                    print(f"  [Table not found]")
+                    print("  [Table not found]")
 
             except Exception as e:
                 print(f"  ERROR: {e}")

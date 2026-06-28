@@ -3,6 +3,7 @@
 
 from utils.db import DatabaseContext
 
+
 def main():
     """List all relevant tables."""
     with DatabaseContext("read") as cur:

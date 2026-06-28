@@ -2,7 +2,9 @@
 """Test all dashboard API endpoints with correct queries."""
 
 import sys
+
 from utils.db import DatabaseContext
+
 
 def safe_test_endpoint(endpoint_name: str, test_func) -> dict:
     """Safely test an endpoint and return result."""
