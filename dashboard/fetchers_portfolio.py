@@ -10,6 +10,7 @@ from utils.safe_data_conversion import safe_float
 
 from .api_data_layer import api_call
 from .fetcher_validator import FetcherValidator
+from .fetchers_common import format_fetcher_error, get_endpoint_path
 from .panels.data_extractors import safe_get_dict, safe_get_list
 
 ET = ZoneInfo("America/New_York")
@@ -20,36 +21,14 @@ def record_data_quality_issue(*args: object, **kwargs: object) -> None:
     """Placeholder for data quality issue recording."""
 
 
-def _format_fetcher_error(fetcher_name: str, error: Exception) -> str:
-    """Format fetcher error with endpoint context for better troubleshooting.
-
-    Returns error string like: "Fetcher run (/api/algo/last-run: Last algo run status) timed out"
-    """
-    from .fetchers_common import FETCHER_METADATA
-
-    meta = FETCHER_METADATA.get(fetcher_name)
-    endpoint = meta.get("endpoint", "unknown endpoint") if meta else "unknown endpoint"
-    desc = meta.get("desc", "") if meta else ""
-
-    error_type = type(error).__name__
-    error_msg = str(error)
-
-    context = f"{endpoint}"
-    if desc:
-        context += f": {desc}"
-
-    if error_msg:
-        return f"Fetcher {fetcher_name} ({context}) - {error_type}: {error_msg}"
-    else:
-        return f"Fetcher {fetcher_name} ({context}) - {error_type}"
 
 
-def _get_endpoint_path(fetcher_key: str, params: dict[str, Any] | None = None) -> str:
+def get_endpoint_path(fetcher_key: str, params: dict[str, Any] | None = None) -> str:
     """Map fetcher key to full endpoint path with optional query parameters.
 
     Examples:
-      _get_endpoint_path('pos') → '/api/algo/positions'
-      _get_endpoint_path('trades', params={'limit': 10}) → '/api/algo/trades' (params passed to api_call)
+      get_endpoint_path('pos') → '/api/algo/positions'
+      get_endpoint_path('trades', params={'limit': 10}) → '/api/algo/trades' (params passed to api_call)
     """
     from .fetchers_common import FETCHER_METADATA
 
@@ -132,47 +111,31 @@ def fetch_portfolio(c: None) -> dict[str, Any]:
             val = unrealized_pnl_dict.get("total_pct")
             unrealized_pnl_pct = float(val) if val is not None else None
 
-        # STRICT: Optional analytics fields must be explicitly documented
-        # These are enrichments computed daily. If missing on trading day, log for investigation.
-        optional_metrics = {
-            "daily_return_pct": port.get("daily_return_pct"),
-            "cumulative_return_pct": port.get("cumulative_return_pct"),
-            "max_drawdown_pct": port.get("max_drawdown_pct"),
-            "largest_position_pct": port.get("largest_position_pct"),
-        }
-        missing_optional = [k for k, v in optional_metrics.items() if v is None]
-        if missing_optional and MarketCalendar.is_trading_day():
-            logger.warning(f"Portfolio enrichment incomplete on trading day. Missing: {missing_optional}")
-
         return {
             "snapshot_date": port.get("last_run"),
             "total_portfolio_value": tpv,
             "total_cash": tc,
             "position_count": pc,
-            "daily_return_pct": optional_metrics["daily_return_pct"],
+            "daily_return_pct": port.get("daily_return_pct"),
             "unrealized_pnl_pct": unrealized_pnl_pct,
-            "cumulative_return_pct": optional_metrics["cumulative_return_pct"],
-            "max_drawdown_pct": optional_metrics["max_drawdown_pct"],
-            "largest_position_pct": optional_metrics["largest_position_pct"],
+            "cumulative_return_pct": port.get("cumulative_return_pct"),
+            "max_drawdown_pct": port.get("max_drawdown_pct"),
+            "largest_position_pct": port.get("largest_position_pct"),
             "data_age_seconds": port.get("data_age_seconds"),
         }
     except Exception as e:
-        error_msg = _format_fetcher_error("port", e)
+        error_msg = format_fetcher_error("port", e)
         logger.error(error_msg)
         record_data_quality_issue("portfolio", "exception", type(e).__name__, str(e))
         return FetcherValidator.build_error_response(error_msg)
 
 
 def fetch_positions(c: None) -> dict[str, Any]:
-    """Fetch positions via AWS API only (fail-fast: error if unavailable).
-
-    STRICT MODE: All open positions MUST have critical fields for dashboard display.
-    Missing fields indicate API schema mismatch or data corruption.
-    """
+    """Fetch positions via AWS API only (fail-fast: error if unavailable)."""
     from dashboard.fetcher_validator import FetcherValidator
 
     try:
-        data = api_call(_get_endpoint_path("pos"))
+        data = api_call(get_endpoint_path("pos"))
 
         # Check for API error
         is_error, error_msg = FetcherValidator.check_api_error(data)
@@ -195,31 +158,9 @@ def fetch_positions(c: None) -> dict[str, Any]:
             logger.error(error_msg)
             record_data_quality_issue("pos", "validation", "invalid_response_type")
             return FetcherValidator.build_error_response(error_msg)
-
-        # STRICT: Validate each position has critical fields
-        critical_fields = [
-            "symbol",
-            "avg_entry_price",
-            "current_price",
-            "position_value",
-            "stop_loss_price",
-            "unrealized_pnl_pct",
-        ]
-        for idx, pos in enumerate(items):
-            if not isinstance(pos, dict):
-                continue
-            missing = [f for f in critical_fields if pos.get(f) is None]
-            if missing:
-                logger.warning(
-                    f"Position {idx} ({pos.get('symbol', 'unknown')}): "
-                    f"missing critical fields: {missing}. "
-                    f"Position data may be incomplete. Available: {list(pos.keys())}"
-                )
-                record_data_quality_issue("pos", f"position_{idx}", "missing_critical_fields", str(missing))
-
         return {"items": items, "timestamp": datetime.now(ET)}
     except Exception as e:
-        error_msg = _format_fetcher_error("pos", e)
+        error_msg = format_fetcher_error("pos", e)
         logger.error(error_msg)
         record_data_quality_issue("pos", "exception", type(e).__name__, str(e))
         return FetcherValidator.build_error_response(error_msg)
@@ -235,7 +176,7 @@ def fetch_recent_trades(c: None) -> dict[str, Any]:
 
     try:
         data = api_call(
-            _get_endpoint_path("trades"),
+            get_endpoint_path("trades"),
             params={"limit": 30, "status": "closed"},
         )
 
@@ -262,7 +203,7 @@ def fetch_recent_trades(c: None) -> dict[str, Any]:
             return FetcherValidator.build_error_response(error_msg)
         return {"items": trades, "timestamp": datetime.now(ET)}
     except Exception as e:
-        error_msg = _format_fetcher_error("trades", e)
+        error_msg = format_fetcher_error("trades", e)
         logger.error(error_msg)
         record_data_quality_issue("trades", "exception", type(e).__name__, str(e))
         return FetcherValidator.build_error_response(error_msg)
@@ -373,7 +314,7 @@ def fetch_perf(c: None) -> dict[str, Any]:
             "recent_rets": recent_rets,
         }
     except Exception as e:
-        error_msg = _format_fetcher_error("perf", e)
+        error_msg = format_fetcher_error("perf", e)
         logger.error(error_msg)
         record_data_quality_issue("per", "exception", type(e).__name__, str(e))
         return {"_error": error_msg}
@@ -389,7 +330,7 @@ def fetch_perf_analytics(c: None) -> dict[str, Any]:
     from dashboard.fetcher_validator import FetcherValidator
 
     try:
-        data = api_call(_get_endpoint_path("perf_anl"))
+        data = api_call(get_endpoint_path("perf_anl"))
 
         # Check for API error
         is_error, error_msg = FetcherValidator.check_api_error(data)
@@ -430,7 +371,7 @@ def fetch_perf_analytics(c: None) -> dict[str, Any]:
             "maxdd": safe_float(d.get("max_drawdown_pct"), strict=True, field_name="maxdd"),
         }
     except Exception as e:
-        error_msg = _format_fetcher_error("perf_anl", e)
+        error_msg = format_fetcher_error("perf_anl", e)
         logger.error(error_msg)
         record_data_quality_issue("perf_anl", "exception", type(e).__name__, str(e))
         return FetcherValidator.build_error_response(error_msg)

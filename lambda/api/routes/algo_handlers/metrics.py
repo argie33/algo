@@ -701,14 +701,14 @@ def _get_holding_period_distribution(cur: cursor) -> Any:
 
 @db_route_handler("get performance analytics")
 def _get_performance_analytics(cur: cursor) -> Any:
-    """Get performance analytics data. Fail-fast if unavailable."""
+    """Get performance analytics data from algo_performance_metrics. Fail-fast if unavailable."""
     try:
         cur.execute("SAVEPOINT perf_analytics")
         cur.execute("""
-            SELECT rolling_sharpe_252d, rolling_sortino_252d, calmar_ratio,
-                   win_rate_50t, avg_win_r_50t, avg_loss_r_50t, expectancy, max_drawdown_pct
-            FROM algo_performance_daily
-            ORDER BY report_date DESC
+            SELECT metric_date, sharpe_ratio, sortino_ratio, calmar_ratio,
+                   win_rate_pct, max_drawdown_pct
+            FROM algo_performance_metrics
+            ORDER BY metric_date DESC
             LIMIT 1
         """)
         row = cur.fetchone()
@@ -716,7 +716,7 @@ def _get_performance_analytics(cur: cursor) -> Any:
         # FAIL-FAST: Return error if no performance analytics available
         if row is None:
             logger.warning(
-                "Performance analytics unavailable: algo_performance_daily table empty. "
+                "Performance analytics unavailable: algo_performance_metrics table empty. "
                 "Check data loader health - should be populated daily."
             )
             return error_response(
@@ -725,22 +725,52 @@ def _get_performance_analytics(cur: cursor) -> Any:
                 "Performance analytics not available. Check data loader health.",
             )
         data = safe_dict_convert(row)
-        sharpe: Any = data.get("rolling_sharpe_252d")
-        sortino: Any = data.get("rolling_sortino_252d")
+        sharpe: Any = data.get("sharpe_ratio")
+        sortino: Any = data.get("sortino_ratio")
         calmar: Any = data.get("calmar_ratio")
-        wr_50t: Any = data.get("win_rate_50t")
-        avg_wr: Any = data.get("avg_win_r_50t")
-        avg_lr: Any = data.get("avg_loss_r_50t")
-        expectancy_val: Any = data.get("expectancy")
+        wr_pct: Any = data.get("win_rate_pct")
         max_dd: Any = data.get("max_drawdown_pct")
+
+        # Compute average R-multiples from recent closed trades for expectancy calculation
+        avg_win_r = None
+        avg_loss_r = None
+        expectancy_val = None
+        try:
+            cur.execute("""
+                SELECT
+                    AVG(CASE WHEN exit_r_multiple > 0 THEN exit_r_multiple END) as avg_win_r,
+                    AVG(CASE WHEN exit_r_multiple < 0 THEN exit_r_multiple END) as avg_loss_r
+                FROM algo_trades
+                WHERE status = 'closed' AND exit_date IS NOT NULL AND exit_r_multiple IS NOT NULL
+                ORDER BY exit_date DESC
+                LIMIT 50
+            """)
+            r_row = cur.fetchone()
+            if r_row:
+                r_data = safe_dict_convert(r_row)
+                avg_win_r = r_data.get("avg_win_r")
+                avg_loss_r = r_data.get("avg_loss_r")
+
+                # Compute expectancy if we have win rate and R-multiples
+                if wr_pct is not None and avg_win_r is not None and avg_loss_r is not None:
+                    try:
+                        wr_frac = float(wr_pct) / 100.0
+                        avg_w = float(avg_win_r)
+                        avg_l = abs(float(avg_loss_r))
+                        expectancy_val = round(wr_frac * avg_w - (1 - wr_frac) * avg_l, 4)
+                    except (ValueError, TypeError, ZeroDivisionError):
+                        pass
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            logger.warning(f"Could not compute R-multiple stats for expectancy: {e}")
+
         response_dict = {
             "rolling_sharpe_252d": float(sharpe) if sharpe is not None else None,
             "rolling_sortino_252d": float(sortino) if sortino is not None else None,
             "calmar_ratio": float(calmar) if calmar is not None else None,
-            "win_rate_50t": float(wr_50t) if wr_50t is not None else None,
-            "avg_win_r_50t": float(avg_wr) if avg_wr is not None else None,
-            "avg_loss_r_50t": float(avg_lr) if avg_lr is not None else None,
-            "expectancy": (float(expectancy_val) if expectancy_val is not None else None),
+            "win_rate_50t": float(wr_pct) if wr_pct is not None else None,
+            "avg_win_r_50t": float(avg_win_r) if avg_win_r is not None else None,
+            "avg_loss_r_50t": float(avg_loss_r) if avg_loss_r is not None else None,
+            "expectancy": expectancy_val,
             "max_drawdown_pct": float(max_dd) if max_dd is not None else None,
         }
         response_dict["sharpe252"] = response_dict["rolling_sharpe_252d"]

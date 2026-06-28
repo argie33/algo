@@ -7,6 +7,7 @@ from typing import Any, cast
 from utils.safe_data_conversion import safe_bool
 
 from .api_data_layer import api_call
+from .fetchers_common import format_fetcher_error, get_endpoint_path
 
 logger = logging.getLogger(__name__)
 
@@ -28,47 +29,8 @@ def clear_data_status_cache() -> None:
         _data_status_cache.clear()
 
 
-def _format_fetcher_error(fetcher_name: str, error: Exception) -> str:
-    """Format fetcher error with endpoint context for better troubleshooting.
-
-    Returns error string like: "Fetcher run (/api/algo/last-run: Last algo run status) timed out"
-    """
-    from .fetchers_common import FETCHER_METADATA
-
-    meta = FETCHER_METADATA.get(fetcher_name)
-    endpoint = meta.get("endpoint", "unknown endpoint") if meta else "unknown endpoint"
-    desc = meta.get("desc", "") if meta else ""
-
-    error_type = type(error).__name__
-    error_msg = str(error)
-
-    context = f"{endpoint}"
-    if desc:
-        context += f": {desc}"
-
-    if error_msg:
-        return f"Fetcher {fetcher_name} ({context}) - {error_type}: {error_msg}"
-    else:
-        return f"Fetcher {fetcher_name} ({context}) - {error_type}"
 
 
-def _get_endpoint_path(fetcher_key: str, params: dict[str, Any] | None = None) -> str:
-    """Map fetcher key to full endpoint path with optional query parameters.
-
-    Examples:
-      _get_endpoint_path('pos') → '/api/algo/positions'
-      _get_endpoint_path('trades', params={'limit': 10}) → '/api/algo/trades' (params passed to api_call)
-    """
-    from .fetchers_common import FETCHER_METADATA
-
-    meta = FETCHER_METADATA.get(fetcher_key)
-    if not meta:
-        # For endpoints with direct paths (like '/api/algo/last-run')
-        return fetcher_key
-    endpoint = meta.get("endpoint", "")
-    if not endpoint:
-        return fetcher_key
-    return endpoint
 
 
 def _get_data_status_cached() -> dict[str, Any]:
@@ -101,7 +63,7 @@ def _get_data_status_cached() -> dict[str, Any]:
             return cast(dict[str, Any], _data_status_cache["result"])
 
         try:
-            data = api_call(_get_endpoint_path("health"))
+            data = api_call(get_endpoint_path("health"))
             _data_status_cache["result"] = data
             _data_status_cache["_time"] = now
             return data
@@ -169,7 +131,7 @@ def fetch_run(c: None) -> dict[str, Any]:
             "phase_results": phases,
         }
     except Exception as e:
-        error_msg = _format_fetcher_error("run", e)
+        error_msg = format_fetcher_error("run", e)
         logger.error(error_msg)
         record_data_quality_issue("run", "exception", type(e).__name__, str(e))
         return FetcherValidator.build_error_response(error_msg)
@@ -267,7 +229,7 @@ def fetch_algo_config(c: None) -> dict[str, Any]:
             "t1_r": float(cfg["t1_target_r_multiple"]),
         }
     except Exception as e:
-        error_msg = _format_fetcher_error("cfg", e)
+        error_msg = format_fetcher_error("cfg", e)
         logger.error(error_msg)
         record_data_quality_issue("cfg", "exception", type(e).__name__, str(e))
         return FetcherValidator.build_error_response(error_msg)
@@ -386,7 +348,7 @@ def fetch_health(c: None) -> dict[str, Any]:
             "critical_stale": critical_stale,
         }
     except Exception as e:
-        error_msg = _format_fetcher_error("health", e)
+        error_msg = format_fetcher_error("health", e)
         logger.error(error_msg)
         record_data_quality_issue("health", "exception", type(e).__name__, str(e))
         return FetcherValidator.build_error_response(error_msg)
@@ -506,7 +468,7 @@ def fetch_circuit(c: None) -> dict[str, Any]:
             "n": triggered_count,
         }
     except Exception as e:
-        error_msg = _format_fetcher_error("cb", e)
+        error_msg = format_fetcher_error("cb", e)
         logger.error(error_msg)
         record_data_quality_issue("cb", "exception", type(e).__name__, str(e))
         return FetcherValidator.build_error_response(error_msg)
@@ -519,7 +481,7 @@ def fetch_algo_metrics(c: None) -> dict[str, Any] | list[Any]:
     from dashboard.fetcher_validator import FetcherValidator
 
     try:
-        data = api_call(_get_endpoint_path("algo_metrics"))
+        data = api_call(get_endpoint_path("algo_metrics"))
 
         is_error, error_msg = FetcherValidator.check_api_error(data)
         if is_error:
@@ -538,7 +500,7 @@ def fetch_algo_metrics(c: None) -> dict[str, Any] | list[Any]:
         record_data_quality_issue("algo_metrics", "validation", "invalid_response_type")
         return FetcherValidator.build_error_response(error_msg)
     except Exception as e:
-        error_msg = _format_fetcher_error("algo_metrics", e)
+        error_msg = format_fetcher_error("algo_metrics", e)
         logger.error(error_msg)
         record_data_quality_issue("algo_metrics", "exception", type(e).__name__, str(e))
         return FetcherValidator.build_error_response(error_msg)

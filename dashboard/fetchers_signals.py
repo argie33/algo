@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 from utils.safe_data_conversion import safe_float, safe_int
 
 from .api_data_layer import api_call
+from .fetchers_common import format_fetcher_error, get_endpoint_path
 
 ET = ZoneInfo("America/New_York")
 logger = logging.getLogger(__name__)
@@ -17,36 +18,14 @@ def record_data_quality_issue(*args: object, **kwargs: object) -> None:
     """Placeholder for data quality issue recording."""
 
 
-def _format_fetcher_error(fetcher_name: str, error: Exception) -> str:
-    """Format fetcher error with endpoint context for better troubleshooting.
-
-    Returns error string like: "Fetcher run (/api/algo/last-run: Last algo run status) timed out"
-    """
-    from .fetchers_common import FETCHER_METADATA
-
-    meta = FETCHER_METADATA.get(fetcher_name)
-    endpoint = meta.get("endpoint", "unknown endpoint") if meta else "unknown endpoint"
-    desc = meta.get("desc", "") if meta else ""
-
-    error_type = type(error).__name__
-    error_msg = str(error)
-
-    context = f"{endpoint}"
-    if desc:
-        context += f": {desc}"
-
-    if error_msg:
-        return f"Fetcher {fetcher_name} ({context}) - {error_type}: {error_msg}"
-    else:
-        return f"Fetcher {fetcher_name} ({context}) - {error_type}"
 
 
-def _get_endpoint_path(fetcher_key: str, params: dict[str, Any] | None = None) -> str:
+def get_endpoint_path(fetcher_key: str, params: dict[str, Any] | None = None) -> str:
     """Map fetcher key to full endpoint path with optional query parameters.
 
     Examples:
-      _get_endpoint_path('pos') → '/api/algo/positions'
-      _get_endpoint_path('trades', params={'limit': 10}) → '/api/algo/trades' (params passed to api_call)
+      get_endpoint_path('pos') → '/api/algo/positions'
+      get_endpoint_path('trades', params={'limit': 10}) → '/api/algo/trades' (params passed to api_call)
     """
     from .fetchers_common import FETCHER_METADATA
 
@@ -65,7 +44,7 @@ def fetch_signals(c: None) -> dict[str, Any]:
     from dashboard.fetcher_validator import FetcherValidator
 
     try:
-        data = api_call(_get_endpoint_path("sig"))
+        data = api_call(get_endpoint_path("sig"))
 
         # Check for API error
         is_error, error_msg = FetcherValidator.check_api_error(data)
@@ -152,7 +131,7 @@ def fetch_signals(c: None) -> dict[str, Any]:
             "timestamp": datetime.now(ET),
         }
     except Exception as e:
-        error_msg = _format_fetcher_error("sig", e)
+        error_msg = format_fetcher_error("sig", e)
         logger.error(error_msg)
         record_data_quality_issue("sig", "exception", type(e).__name__, str(e))
         return FetcherValidator.build_error_response(error_msg)
@@ -163,7 +142,7 @@ def fetch_signal_eval(c: None) -> dict[str, Any]:
     from dashboard.fetcher_validator import FetcherValidator
 
     try:
-        data = api_call(_get_endpoint_path("sig_eval"))
+        data = api_call(get_endpoint_path("sig_eval"))
 
         # Check for API error
         is_error, error_msg = FetcherValidator.check_api_error(data)
@@ -184,7 +163,7 @@ def fetch_signal_eval(c: None) -> dict[str, Any]:
             "rejected": result.get("rejected"),
         }
     except Exception as e:
-        error_msg = _format_fetcher_error("sig_eval", e)
+        error_msg = format_fetcher_error("sig_eval", e)
         logger.error(error_msg)
         record_data_quality_issue("sig_eval", "exception", type(e).__name__, str(e))
         return FetcherValidator.build_error_response(error_msg)
@@ -225,7 +204,7 @@ def fetch_scores(c: None) -> dict[str, Any]:
 
         return {"top": items}
     except Exception as e:
-        error_msg = _format_fetcher_error("scores", e)
+        error_msg = format_fetcher_error("scores", e)
         logger.error(error_msg)
         record_data_quality_issue("scores", "exception", type(e).__name__, str(e))
         return FetcherValidator.build_error_response(error_msg)

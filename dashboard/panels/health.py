@@ -8,91 +8,87 @@ from typing import TYPE_CHECKING, Any, cast
 logger = logging.getLogger(__name__)
 
 
-class HealthFormatter:
-    """Centralized formatting logic for health dashboard panels."""
+def _var_color(var95: float | None) -> str:
+    """Choose color for VaR 95% value: red if ≥4%, yellow if ≥2%, white otherwise."""
+    from ..utilities import R, Y
 
-    @staticmethod
-    def var_color(var95: float | None) -> str:
-        """Choose color for VaR 95% value: red if ≥4%, yellow if ≥2%, white otherwise."""
-        from ..utilities import R, Y
+    if var95 is None:
+        return "dim"
+    if var95 >= 4:
+        return R
+    if var95 >= 2:
+        return Y
+    return "white"
 
-        if var95 is None:
-            return "dim"
-        if var95 >= 4:
-            return R
-        if var95 >= 2:
-            return Y
-        return "white"
 
-    @staticmethod
-    def format_phase_badge(phase_status: str) -> tuple[str, str]:
-        """Format phase status to (color, icon) badge."""
-        from ..utilities import G, R, Y
+def _format_phase_badge(phase_status: str) -> tuple[str, str]:
+    """Format phase status to (color, icon) badge."""
+    from ..utilities import G, R, Y
 
-        # CRITICAL: Explicit None check instead of falsy OR fallback
-        # Missing status should not silently default to empty string
-        if phase_status is None or not isinstance(phase_status, str):
-            ps_lower = ""
-        else:
-            ps_lower = phase_status.lower()
-        success_states = ("success", "completed", "ok")
-        halted_states = ("halt", "halted", "warn", "degraded", "skipped")
-        if ps_lower in success_states:
-            return G, "✓"
-        elif ps_lower in halted_states:
-            return Y, "~"
-        else:
-            return R, "✗"
+    # CRITICAL: Explicit None check instead of falsy OR fallback
+    # Missing status should not silently default to empty string
+    if phase_status is None or not isinstance(phase_status, str):
+        ps_lower = ""
+    else:
+        ps_lower = phase_status.lower()
+    success_states = ("success", "completed", "ok")
+    halted_states = ("halt", "halted", "warn", "degraded", "skipped")
+    if ps_lower in success_states:
+        return G, "✓"
+    elif ps_lower in halted_states:
+        return Y, "~"
+    else:
+        return R, "✗"
 
-    @staticmethod
-    def fmt_age(r: dict[str, Any]) -> str:
-        """Format age from health item dict."""
-        from dashboard.data_validation import StrictValidationError, safe_float
 
-        ah = r.get("age_hours")
-        ad = r.get("age")
-        if ah is not None:
-            try:
-                ah_f = safe_float(ah, 0.0, strict=True, field_name="age_hours")
-                return (
-                    f"{ah_f:.0f}h"
-                    if ah_f is not None and ah_f < 24
-                    else (f"{ah_f / 24:.1f}d" if ah_f is not None else "?")
-                )
-            except (StrictValidationError, ValueError, TypeError):
-                return "?"
-        elif ad is not None:
-            try:
-                ad_f = safe_float(ad, None, strict=True, field_name="age")
-                return f"{ad_f:.1f}d"
-            except (StrictValidationError, ValueError, TypeError):
-                return "?"
-        return "?"
+def _fmt_age(r: dict[str, Any]) -> str:
+    """Format age from health item dict."""
+    from dashboard.data_validation import StrictValidationError, safe_float
 
-    @staticmethod
-    def fmt_updated(r: dict[str, Any]) -> str:
-        """Format last_updated/latest timestamp from health item dict."""
-        lat = r.get("last_updated")
-        if lat is None:
-            lat = r.get("latest")
-        if lat is not None and hasattr(lat, "strftime"):
-            return str(lat.strftime("%m/%d"))
-        if isinstance(lat, str) and len(lat) >= 10:
-            return lat[5:10]
-        # CRITICAL: Explicit None check instead of OR fallback
-        # Timestamp missing should not silently default to empty string
-        if lat is None:
-            return ""
-        return str(lat)[:5]
+    ah = r.get("age_hours")
+    ad = r.get("age")
+    if ah is not None:
+        try:
+            ah_f = safe_float(ah, 0.0, strict=True, field_name="age_hours")
+            return (
+                f"{ah_f:.0f}h"
+                if ah_f is not None and ah_f < 24
+                else (f"{ah_f / 24:.1f}d" if ah_f is not None else "?")
+            )
+        except (StrictValidationError, ValueError, TypeError):
+            return "?"
+    elif ad is not None:
+        try:
+            ad_f = safe_float(ad, None, strict=True, field_name="age")
+            return f"{ad_f:.1f}d"
+        except (StrictValidationError, ValueError, TypeError):
+            return "?"
+    return "?"
 
-    @staticmethod
-    def pc(v: list[Any] | int | None) -> int:
-        """Count phases: convert list or int to count."""
-        if isinstance(v, list):
-            return len(v)
-        if isinstance(v, int):
-            return v
-        return 0
+
+def _fmt_updated(r: dict[str, Any]) -> str:
+    """Format last_updated/latest timestamp from health item dict."""
+    lat = r.get("last_updated")
+    if lat is None:
+        lat = r.get("latest")
+    if lat is not None and hasattr(lat, "strftime"):
+        return str(lat.strftime("%m/%d"))
+    if isinstance(lat, str) and len(lat) >= 10:
+        return lat[5:10]
+    # CRITICAL: Explicit None check instead of OR fallback
+    # Timestamp missing should not silently default to empty string
+    if lat is None:
+        return ""
+    return str(lat)[:5]
+
+
+def _pc(v: list[Any] | int | None) -> int:
+    """Count phases: convert list or int to count."""
+    if isinstance(v, list):
+        return len(v)
+    if isinstance(v, int):
+        return v
+    return 0
 
 
 if TYPE_CHECKING:
@@ -170,7 +166,7 @@ def _format_phase_badge(phase_status: str | None) -> tuple[str, str]:
     # Ensure phase_status is a string (handle malformed data)
     if not isinstance(phase_status, str):
         phase_status = ""
-    return HealthFormatter.format_phase_badge(phase_status)
+    return _format_phase_badge(phase_status)
 
 
 # Severity to color mapping
@@ -317,8 +313,8 @@ def _build_freshness_panel(hlth_items: list[Any], ready_to_trade: bool | None) -
         all_tbl.add_row(
             Text(role, style=rc),
             Text.from_markup(f"[{ic}]{ii}[/] [{rc}]{nm}[/]"),
-            Text(HealthFormatter.fmt_age(r), style=DIM if ok else Y),
-            Text(HealthFormatter.fmt_updated(r), style="dim"),
+            Text(_fmt_age(r), style=DIM if ok else Y),
+            Text(_fmt_updated(r), style="dim"),
             Text(rc_s, style="dim"),
             Text(st_label, style=G if ok else (Y if st == "empty" else R)),
         )
@@ -399,7 +395,7 @@ def panel_orch(run: dict[str, Any] | None, cfg: dict[str, Any], risk: dict[str, 
                     cvar95_val = cast(float, cvar95_val)
                     conc5_val = cast(float, conc5_val)
                     beta_c = R if beta_val >= 1.2 else (Y if beta_val >= 0.8 else G)
-                    var_c = HealthFormatter.var_color(var95_val)
+                    var_c = _var_color(var95_val)
                     svar_s = f"\n[dim]Stressed VaR:[/][{R}]{float(svar_val):.2f}%[/]" if svar_val is not None and float(svar_val) > 0 else ""
                     var_line = (
                         f"\n[dim]VaR 95%:[/][{var_c}]{var95_val:.2f}%[/]"
@@ -1095,7 +1091,7 @@ def _build_phase_badges_and_metrics(run: dict[str, Any], phase_results: list[Any
         if ps_raw is None:
             ps_raw = ""
         ps = ps_raw
-        sc, si = HealthFormatter.format_phase_badge(ps)
+        sc, si = _format_phase_badge(ps)
         phase_badges.append(f"[{sc}]{si}[dim]{short}[/][/]")
 
         # Extract metrics from phase data
@@ -1149,7 +1145,7 @@ def _build_phase_badges_from_audit(phases_list: list[Any]) -> list[str]:
         if st_raw is None:
             st_raw = ""
         st = st_raw
-        sc, si = HealthFormatter.format_phase_badge(st)
+        sc, si = _format_phase_badge(st)
         phase_badges.append(f"[{sc}]{si}[dim]{short}[/][/]")
     return phase_badges
 
@@ -1296,7 +1292,7 @@ def _format_risk_snapshot(risk_dict: dict[str, Any]) -> list[Text | Rule]:
         if (conc5_val is not None and conc5_val >= 35)
         else (Y if (conc5_val is not None and conc5_val >= 25) else "white")
     )
-    var_c = HealthFormatter.var_color(var95_val)
+    var_c = _var_color(var95_val)
 
     if None in (var95_val, beta_val, cvar95_val, conc5_val):
         rows.append(
@@ -1467,9 +1463,9 @@ def panel_status(  # noqa: C901
 
         # Show phases_completed/halted/errored counts from the run object
         if run_valid and isinstance(run, dict):
-            n_done = HealthFormatter.pc(run.get("phases_completed"))
-            n_hlt = HealthFormatter.pc(run.get("phases_halted"))
-            n_err = HealthFormatter.pc(run.get("phases_errored"))
+            n_done = _pc(run.get("phases_completed"))
+            n_hlt = _pc(run.get("phases_halted"))
+            n_err = _pc(run.get("phases_errored"))
             if n_done + n_hlt + n_err > 0:
                 done_s = f"[{G}]{n_done} phases OK[/]"
                 hlt_s = f"  [{Y}]{n_hlt} halted[/]" if n_hlt else ""
@@ -1577,9 +1573,9 @@ def panel_status(  # noqa: C901
             rows.append(Text.from_markup("  ".join(phase_badges)))
 
         if run_valid and isinstance(run, dict):
-            n_ok = HealthFormatter.pc(run.get("phases_completed"))
-            n_hlt = HealthFormatter.pc(run.get("phases_halted"))
-            n_err = HealthFormatter.pc(run.get("phases_errored"))
+            n_ok = _pc(run.get("phases_completed"))
+            n_hlt = _pc(run.get("phases_halted"))
+            n_err = _pc(run.get("phases_errored"))
         else:
             n_ok = n_hlt = n_err = 0
         if n_ok + n_hlt + n_err > 0:
@@ -1619,7 +1615,7 @@ def panel_status(  # noqa: C901
             if st_raw is None:
                 st_raw = ""
             st = st_raw
-            sc, si = HealthFormatter.format_phase_badge(st)
+            sc, si = _format_phase_badge(st)
             phase_badges.append(f"[{sc}]{si}[dim]{short}[/][/]")
         if phase_badges:
             rows.append(Text.from_markup("  ".join(phase_badges)))
@@ -2003,7 +1999,7 @@ def panel_algo_health(  # noqa: C901
                 if conc5_val is not None and conc5_val >= 35
                 else (Y if conc5_val is not None and conc5_val >= 25 else "white")
             )
-            var_c = HealthFormatter.var_color(var95_val)
+            var_c = _var_color(var95_val)
             risk_parts = [
                 f"[dim]VaR 95%:[/][{var_c}]{var95_val:.2f}%[/]",
                 f"[dim]CVaR 95%:[/][{var_c}]{cvar95_val:.2f}%[/]",
@@ -2131,7 +2127,7 @@ def _build_results_panel(  # noqa: C901
                             if ps_raw is None:
                                 ps_raw = ""
                             ps = ps_raw
-                            sc, si = HealthFormatter.format_phase_badge(ps)
+                            sc, si = _format_phase_badge(ps)
                             phase_badges_e.append(f"[{sc}]{si}[dim]{short}[/][/]")
                 except (ValueError, TypeError) as e:
                     logger.warning(f"Phase results data error: {e}")
