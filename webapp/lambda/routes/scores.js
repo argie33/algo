@@ -74,7 +74,7 @@ router.get("/", async (req, res) => {
     );
     validateQueryResult(resultObj, { requireRows: false });
 
-    const scores = resultObj?.rows || [];
+    const scores = resultObj?.rows ?? [];
     const total = scores.length > 0 ? parseInt(scores[0].total_count) : 0;
     const totalPages = Math.ceil(total / limitNum);
 
@@ -205,7 +205,7 @@ router.get("/stockscores", async (req, res) => {
     );
     validateQueryResult(resultObj, { requireRows: false });
 
-    const scores = (resultObj?.rows || []).map((row) => {
+    const scores = (resultObj?.rows ?? []).map((row) => {
       // Validate composite score - used for grading and sorting, cannot default to 0
       const compositeValidation = requireNumericField(
         row.composite_score,

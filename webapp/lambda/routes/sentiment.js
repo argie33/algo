@@ -100,7 +100,7 @@ router.get("/data", async (req, res) => {
       return sendPlaceholder(res, "No sentiment data available", 200, "items");
     }
 
-    return sendPaginated(res, result.rows || [], {
+    return sendPaginated(res, result.rows ?? [], {
       limit: limitNum,
       offset,
       total,
@@ -144,15 +144,15 @@ router.get("/summary", async (req, res) => {
 
     const fearGreed =
       fearGreedRes.status === "fulfilled"
-        ? fearGreedRes.value.rows[0] || null
+        ? fearGreedRes.value.rows[0] ?? null
         : null;
     const naaim =
-      naaImRes.status === "fulfilled" ? naaImRes.value.rows[0] || null : null;
+      naaImRes.status === "fulfilled" ? naaImRes.value.rows[0] ?? null : null;
     const aaii =
-      aaiiRes.status === "fulfilled" ? aaiiRes.value.rows[0] || null : null;
+      aaiiRes.status === "fulfilled" ? aaiiRes.value.rows[0] ?? null : null;
     const analyst =
       analystRes.status === "fulfilled"
-        ? analystRes.value.rows[0] || null
+        ? analystRes.value.rows[0] ?? null
         : null;
 
     if (fearGreedRes.status === "rejected")
@@ -245,7 +245,7 @@ router.get("/analyst", async (req, res) => {
       );
     }
 
-    return sendPaginated(res, result.rows || [], {
+    return sendPaginated(res, result.rows ?? [], {
       page: pageNum,
       limit: limitNum,
       total: total2,
@@ -332,12 +332,12 @@ router.get("/current", async (req, res) => {
 
     const fearGreed =
       fearGreedRes.status === "fulfilled"
-        ? fearGreedRes.value.rows[0] || null
+        ? fearGreedRes.value.rows[0] ?? null
         : null;
     const naaim =
-      naaImRes.status === "fulfilled" ? naaImRes.value.rows[0] || null : null;
+      naaImRes.status === "fulfilled" ? naaImRes.value.rows[0] ?? null : null;
     const aaii =
-      aaiiRes.status === "fulfilled" ? aaiiRes.value.rows[0] || null : null;
+      aaiiRes.status === "fulfilled" ? aaiiRes.value.rows[0] ?? null : null;
 
     if (fearGreedRes.status === "rejected")
       console.warn(
@@ -433,7 +433,7 @@ router.get("/aaii", async (req, res) => {
       const aaiiResult = await query(
         `SELECT bullish, neutral, bearish, date FROM aaii_sentiment ORDER BY date DESC LIMIT 1`
       );
-      aaii = aaiiResult.rows[0] || null;
+      aaii = aaiiResult.rows[0] ?? null;
     } catch (e) {
       console.warn("aaii_sentiment table not available:", e.message);
     }
@@ -490,14 +490,14 @@ router.get("/analyst/insights/:symbol", async (req, res) => {
     validateQueryResult(upgradeResult, { requireRows: false });
     validateQueryResult(momentumResult, { requireRows: false });
 
-    const row = sentimentResult.rows[0] || null;
+    const row = sentimentResult.rows[0] ?? null;
     const total = row ? (row.analyst_count !== null && row.analyst_count !== undefined ? parseInt(row.analyst_count) : null) : null;
     const bullish = row ? (row.bullish_count !== null && row.bullish_count !== undefined ? parseInt(row.bullish_count) : null) : null;
     const bearish = row ? (row.bearish_count !== null && row.bearish_count !== undefined ? parseInt(row.bearish_count) : null) : null;
     const neutral = row ? (row.neutral_count !== null && row.neutral_count !== undefined ? parseInt(row.neutral_count) : null) : null;
     const pct = (n) => (total !== null && total > 0 ? Math.round((n / total) * 100) : null);
 
-    const momentumRow = momentumResult.rows[0] || {};
+    const momentumRow = momentumResult.rows[0] ?? {};
 
     return sendSuccess(res, {
       metrics: row && total !== null && bullish !== null && bearish !== null && neutral !== null
@@ -519,7 +519,7 @@ router.get("/analyst/insights/:symbol", async (req, res) => {
       },
       priceTargets: [],
       coverage: null,
-      recentUpgrades: upgradeResult.rows || [],
+      recentUpgrades: upgradeResult.rows ?? [],
     });
   } catch (error) {
     console.error("Analyst insights error:", error);

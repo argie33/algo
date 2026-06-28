@@ -998,10 +998,10 @@ router.get("/indicators", async (req, res) => {
     const result = results[0].status === "fulfilled" ? results[0].value : null;
     const breadthResult =
       results[1].status === "fulfilled" ? results[1].value : null;
-    const breadth = breadthResult?.rows?.[0] || {};
+    const breadth = breadthResult?.rows?.[0] ?? {};
     const sentiment =
       results[2].status === "fulfilled"
-        ? results[2].value.rows[0] || null
+        ? results[2].value.rows[0] ?? null
         : null;
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
@@ -1934,7 +1934,7 @@ router.get("/indices", async (req, res) => {
       "^RUT": "Russell 2000",
     };
 
-    const items = (indicesResult.rows || []).map((row) => ({
+    const items = (indicesResult.rows ?? []).map((row) => ({
       symbol: row.symbol,
       name: indexMap[row.symbol] || row.symbol,
       price: safeFloat(row.price),
@@ -2133,19 +2133,19 @@ router.get("/internals", async (req, res) => {
     ]);
 
     const breadth =
-      (breadthResult && breadthResult.rows && breadthResult.rows[0]) || {};
+      (breadthResult && breadthResult.rows && breadthResult.rows[0]) ?? {};
     const maAnalysis =
-      (maAnalysisResult && maAnalysisResult.rows && maAnalysisResult.rows[0]) ||
+      (maAnalysisResult && maAnalysisResult.rows && maAnalysisResult.rows[0]) ??
       {};
     const historicalBreadth =
       (historicalBreadthResult &&
         historicalBreadthResult.rows &&
-        historicalBreadthResult.rows[0]) ||
+        historicalBreadthResult.rows[0]) ??
       {};
     const positioning =
       (positioningResult &&
         positioningResult.rows &&
-        positioningResult.rows[0]) ||
+        positioningResult.rows[0]) ??
       {};
 
     // Calculate overextension signals - only if real data exists
@@ -2389,7 +2389,7 @@ router.get("/aaii", async (req, res) => {
       [days, 1000]
     );
 
-    const data = (result?.rows || []).map((row) => {
+    const data = (result?.rows ?? []).map((row) => {
       const bullishValidation = requireNumericField(row.bullish, 'bullish', { min: 0, max: 100 });
       const neutralValidation = requireNumericField(row.neutral, 'neutral', { min: 0, max: 100 });
       const bearishValidation = requireNumericField(row.bearish, 'bearish', { min: 0, max: 100 });
@@ -2543,9 +2543,9 @@ async function getMarketDataHandler(req, res) {
             ),
           ]);
         return {
-          quality_counts: marketCapResult.rows[0] || {},
-          top_stocks: topStocksResult.rows || [],
-          breadth_summary: breadthResult.rows || [],
+          quality_counts: marketCapResult.rows[0] ?? {},
+          top_stocks: topStocksResult.rows ?? [],
+          breadth_summary: breadthResult.rows ?? [],
         };
       })(),
 
@@ -2563,7 +2563,7 @@ async function getMarketDataHandler(req, res) {
         `,
           [latestDate]
         );
-        return result.rows[0] || {};
+        return result.rows[0] ?? {};
       })(),
 
       // 3. McClellan Oscillator
