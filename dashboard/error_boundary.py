@@ -4,11 +4,10 @@ Ensures all panels gracefully handle missing or error data, preventing silent fa
 and making error state visible to operators.
 """
 
-from typing import Any, cast
+from typing import Any
 
 from rich.markup import escape
 from rich.panel import Panel
-from rich.text import Text
 
 # Color constants for dashboard rendering
 G = "bright_green"
@@ -69,11 +68,11 @@ def get_error_message(data: Any) -> str | None:
 def safe_get(data: Any, key: str) -> Any:
     """Safely get nested value, raising on error or missing key.
 
-    Returns error dict if data has error, raises ValueError on missing key or wrong type.
+    Raises ValueError if data has error marker, on missing key, or wrong type.
     This ensures response structure issues are surfaced rather than hidden.
     """
     if has_error(data):
-        return data
+        raise ValueError(f"Data contains error: {data.get('_error', 'unknown error')}")
     if not isinstance(data, dict):
         raise ValueError(f"Expected dict, got {type(data).__name__}")
     if key not in data:
@@ -82,26 +81,26 @@ def safe_get(data: Any, key: str) -> Any:
 
 
 def safe_list(data: Any) -> list[Any]:
-    """Safely extract list from data, propagating errors instead of hiding them.
+    """Safely extract list from data, raising on errors instead of hiding them.
 
-    Returns error dict on error, items list otherwise.
-    Fail-fast: Returns error if data structure is malformed.
+    Raises ValueError if data has error marker or malformed structure.
+    Fail-fast: Raises on any data structure issue.
     """
     if has_error(data):
-        return cast(list[Any], data)
+        raise ValueError(f"Data contains error: {data.get('_error', 'unknown error')}")
     if isinstance(data, dict):
         if "items" in data:
             items = data["items"]
             if isinstance(items, list):
                 return items
             # Malformed: items exists but is not a list
-            return cast(list[Any], {"_error": f"'items' is not a list: {type(items).__name__}"})
+            raise ValueError(f"'items' field is not a list: {type(items).__name__}")
         elif "data" in data and isinstance(data["data"], list):
             return data["data"]
-    # Fallback: return error or empty list
+    # Fallback: raise on invalid type
     if isinstance(data, list):
         return data
-    return cast(list[Any], {"_error": f"Cannot extract list from {type(data).__name__}"})
+    raise ValueError(f"Cannot extract list from {type(data).__name__}: expected dict, list, or dict with 'items'/'data' field")
 
 
 def error_summary_panel(errors: dict[str, Any]) -> Panel:
@@ -112,9 +111,9 @@ def error_summary_panel(errors: dict[str, Any]) -> Panel:
     text_lines = []
     for endpoint, error_info in errors.items():
         if isinstance(error_info, dict):
-            msg = error_info.get("_error", "Unknown error")
+            msg = error_info.get("_error") or "API error (no details available)"
         else:
-            msg = str(error_info)
+            msg = str(error_info) or "API error (no details available)"
         text_lines.append(f"[red]{endpoint}[/]: {escape(msg[:100])}")
 
     return Panel(
@@ -130,7 +129,7 @@ def error_summary_panel_expanded(data: dict[str, Any]) -> Panel | None:
     errors = {}
     for key, value in data.items():
         if isinstance(value, dict) and "_error" in value:
-            errors[key] = value.get("_error", "Unknown error")
+            errors[key] = value.get("_error") or "API error (no details available)"
 
     if not errors:
         return None
