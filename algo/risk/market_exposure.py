@@ -1241,28 +1241,29 @@ class MarketExposure:
 
             if first_spy <= 0:
                 logger.warning(f"Invalid first SPY price {first_spy} on {eval_date}")
-                return {"score_factor": None, "reason": "Invalid SPY price"}
+                return {"score": None, "reason": "Invalid SPY price"}
 
             spy_change_pct = (last_spy - first_spy) / first_spy * 100.0
             # Confirmation: both same direction. Divergence: opposite.
             if (ad_change > 0 and spy_change_pct > 0) or (ad_change < 0 and spy_change_pct < 0):
-                sf = 1.0
+                score = 100.0
                 relation = "confirming"
             elif ad_change > 0 and spy_change_pct < 0:
-                sf = 0.6  # hidden bullish
+                score = 60.0  # hidden bullish
                 relation = "bullish_divergence"
             else:
-                sf = 0.3  # bearish divergence
+                score = 30.0  # bearish divergence
                 relation = "bearish_divergence"
             return {
-                "score_factor": sf,
+                "score": score,
                 "ad_change_20d": round(ad_change, 4),
                 "spy_change_pct_20d": round(spy_change_pct, 2),
                 "relation": relation,
+                "direction": "up" if ad_change > 0 else "down",
             }
         except Exception as e:
             logger.warning(f"A/D line calculation failed for {eval_date}: {e}")
-            return {"score_factor": None, "reason": f"A/D calculation error: {e}"}
+            return {"score": None, "reason": f"A/D calculation error: {e}"}
 
     def _aaii(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """AAII investor sentiment - contrarian at extremes only.
@@ -1407,22 +1408,22 @@ class MarketExposure:
                 logger.debug(f"Limited credit spread history for {eval_date}: {len(rows)} rows")
 
             if hy < 3.5:
-                sf = 1.0
+                score = 100.0
             elif hy < 4.5:
-                sf = 0.85
+                score = 85.0
             elif hy < 5.5:
-                sf = 0.65
+                score = 65.0
             elif hy < 7.0:
-                sf = 0.35
+                score = 35.0
             else:
-                sf = 0.10
+                score = 10.0
 
             # Rapid widening haircut: stress is accelerating
             if widening_1pp and hy > 4.0:
-                sf *= 0.80
+                score *= 0.80
 
             result = {
-                "score_factor": round(sf, 3),
+                "score": round(score, 1),
                 "value": round(hy, 3),
                 "widening_rapidly": widening_1pp,
             }
@@ -1431,7 +1432,7 @@ class MarketExposure:
             return result
         except Exception as e:
             logger.warning(f"Credit spread calculation failed for {eval_date}: {e}")
-            return {"score_factor": None, "reason": f"Credit spread calculation error: {e}"}
+            return {"score": None, "reason": f"Credit spread calculation error: {e}"}
 
     def _economic_regime_overlay(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """Post-score macro stress penalty from yield curve, credit trend, jobless claims.

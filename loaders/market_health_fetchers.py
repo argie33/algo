@@ -373,13 +373,12 @@ class BreadthFetcher:
                 for row in rows:
                     d = row[0].isoformat() if hasattr(row[0], "isoformat") else str(row[0])
                     if row[1] is None or row[2] is None:
-                        msg = (
+                        logger.debug(
                             f"[BREADTH_FETCHER] Data quality issue: advances/declines NULL for {d}. "
-                            f"Cannot compute breadth metrics with gaps. Market breadth requires complete daily data."
+                            f"Skipping this date (optional enrichment continues)."
                         )
-                        logger.error(msg)
-                        # Return explicit error marker
-                        return {"_data_unavailable": True, "_reason": f"missing_data_for_{d}"}
+                        # Skip this date and continue - breadth is optional enrichment
+                        continue
 
                     advances = int(row[1])
                     declines = int(row[2])

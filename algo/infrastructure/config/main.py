@@ -79,13 +79,29 @@ class AlgoConfig:
             "Portfolio drawdown % to halt trading (CB1)",
             "Drawdown Defense",
         ),
-        "risk_reduction_at_minus_5": ("0.75", "float", "Risk % at -5% drawdown"),
-        "risk_reduction_at_minus_10": ("0.5", "float", "Risk % at -10% drawdown"),
-        "risk_reduction_at_minus_15": ("0.25", "float", "Risk % at -15% drawdown"),
+        "risk_reduction_at_minus_5": (
+            "0.75",
+            "float",
+            "Risk % at -5% drawdown",
+            "Drawdown Defense",
+        ),
+        "risk_reduction_at_minus_10": (
+            "0.5",
+            "float",
+            "Risk % at -10% drawdown",
+            "Drawdown Defense",
+        ),
+        "risk_reduction_at_minus_15": (
+            "0.25",
+            "float",
+            "Risk % at -15% drawdown",
+            "Drawdown Defense",
+        ),
         "risk_reduction_at_minus_20": (
             "0.0",
             "float",
             "Risk % at -20% drawdown (halt)",
+            "Drawdown Defense",
         ),
         # Filter Thresholds
         "min_completeness_score": (
@@ -93,20 +109,28 @@ class AlgoConfig:
             "int",
             "Minimum data completeness % (Minervini standard)",
         ),
-        "min_stock_price": ("5.0", "float", "Minimum stock price $"),
+        "min_stock_price": ("5.0", "float", "Minimum stock price $",
+            "Filter Thresholds"
+        ),
         "min_signal_quality_score": (
             "60",
             "int",
             "Minimum SQS 0-100 (signal quality gate)",
         ),
-        "min_volume_ma_50d": ("300000", "int", "Minimum 50-day avg volume"),
+        "min_volume_ma_50d": ("300000", "int", "Minimum 50-day avg volume",
+            "Filter Thresholds"
+        ),
         "min_avg_daily_dollar_volume": (
             "500000",
             "float",
             "Minimum daily dollar volume for liquidity gate",
         ),
-        "require_stock_stage_2": ("true", "bool", "Require Stage 2 trend template"),
-        "max_stop_distance_pct": ("12.0", "float", "Max stop distance % from entry"),
+        "require_stock_stage_2": ("true", "bool", "Require Stage 2 trend template",
+            "Filter Thresholds"
+        ),
+        "max_stop_distance_pct": ("12.0", "float", "Max stop distance % from entry",
+            "Filter Thresholds"
+        ),
         "max_positions_per_sector": (
             "10",
             "int",
@@ -152,7 +176,7 @@ class AlgoConfig:
             "Risk multiplier when VIX > caution threshold",
             "Market Conditions",
         ),
-        # Market Exposure Engine  -” Veto Thresholds (H12)
+        # Market Exposure Engine  - Veto Thresholds (H12)
         "market_exposure_veto1_breadth_pct": (
             "30",
             "int",
@@ -366,7 +390,9 @@ class AlgoConfig:
             "Volume must be N x 50-day average",
         ),
         "require_weekly_stage_2": ("false", "bool", "Require weekly chart Stage 2"),
-        "min_rs_line_slope_days": ("10", "int", "Days for RS line slope check"),
+        "min_rs_line_slope_days": ("10", "int", "Days for RS line slope check",
+            "Signal Quality Thresholds"
+        ),
         "max_rs_pct_from_60d_high": (
             "15.0",
             "float",
@@ -389,8 +415,12 @@ class AlgoConfig:
             "Require 2%+ pullback before partial profit exits at T1/T2 (false = exit immediately at target)",
         ),
         "t1_target_r_multiple": ("1.5", "float", "Tier 1 profit target R-mult"),
-        "t2_target_r_multiple": ("3.0", "float", "Tier 2 profit target R-mult"),
-        "t3_target_r_multiple": ("4.0", "float", "Tier 3 profit target R-mult"),
+        "t2_target_r_multiple": ("3.0", "float", "Tier 2 profit target R-mult",
+            "Signal Quality Thresholds"
+        ),
+        "t3_target_r_multiple": ("4.0", "float", "Tier 3 profit target R-mult",
+            "Signal Quality Thresholds"
+        ),
         # Imported Position Defaults (when ATR calculation fails)
         "imported_position_default_stop_loss_pct": (
             "5.0",
@@ -413,8 +443,12 @@ class AlgoConfig:
             "Default target 3 % for imported positions",
         ),
         "min_hold_days": ("1", "int", "Minimum days to hold"),
-        "max_hold_days": ("20", "int", "Max days to hold position"),
-        "exit_on_distribution_day": ("true", "bool", "Exit on market distribution"),
+        "max_hold_days": ("20", "int", "Max days to hold position",
+            "Exit Strategy"
+        ),
+        "exit_on_distribution_day": ("true", "bool", "Exit on market distribution",
+            "Exit Strategy"
+        ),
         "exit_on_rs_line_break_50dma": (
             "true",
             "bool",
@@ -437,8 +471,12 @@ class AlgoConfig:
             "ONeill 8-week hold threshold %",
         ),
         "eight_week_rule_window_days": ("21", "int", "Days to check for 20%+ gain"),
-        "chandelier_atr_mult": ("3.0", "float", "ATR multiplier for chandelier stop"),
-        "move_be_at_r": ("1.0", "float", "R-multiple to trigger breakeven stop raise"),
+        "chandelier_atr_mult": ("3.0", "float", "ATR multiplier for chandelier stop",
+            "Exit Strategy"
+        ),
+        "move_be_at_r": ("1.0", "float", "R-multiple to trigger breakeven stop raise",
+            "Exit Strategy"
+        ),
         # Drawdown Re-engagement (Sprint 3)
         "re_engage_recovery_pct": (
             "8.0",
@@ -453,17 +491,27 @@ class AlgoConfig:
         ),
         # Circuit Breaker Thresholds (CB)
         "max_daily_loss_pct": ("2.0", "float", "Max daily loss % before halt"),
-        "max_consecutive_losses": ("3", "int", "Max consecutive losing trades"),
-        "min_win_rate_pct": ("40.0", "float", "Min win rate % to trade"),
-        "max_total_risk_pct": ("4.0", "float", "Max total open risk %"),
+        "max_consecutive_losses": ("3", "int", "Max consecutive losing trades",
+            "Risk Limits"
+        ),
+        "min_win_rate_pct": ("40.0", "float", "Min win rate % to trade",
+            "Risk Limits"
+        ),
+        "max_total_risk_pct": ("4.0", "float", "Max total open risk %",
+            "Risk Limits"
+        ),
         "min_risk_pct_floor": (
             "0.10",
             "float",
             "Minimum risk % floor when safety multipliers reduce position size",
         ),
         "max_weekly_loss_pct": ("5.0", "float", "Max weekly loss % before halt"),
-        "max_data_staleness_days": ("3", "int", "Max data age in days"),
-        "daily_profit_cap_pct": ("2.0", "float", "Daily profit cap %"),
+        "max_data_staleness_days": ("3", "int", "Max data age in days",
+            "Data Quality"
+        ),
+        "daily_profit_cap_pct": ("2.0", "float", "Daily profit cap %",
+            "Position Sizing"
+        ),
         "sector_drawdown_halt_pct": (
             "-12.0",
             "float",
@@ -472,7 +520,9 @@ class AlgoConfig:
         ),
         # Position Monitoring & Re-entry
         "position_halt_flag_count": ("2", "int", "Flags to propose early exit"),
-        "max_reentries_per_name": ("2", "int", "Max times to re-enter same symbol"),
+        "max_reentries_per_name": ("2", "int", "Max times to re-enter same symbol",
+            "Position Sizing"
+        ),
         "min_days_before_reentry_same_symbol": (
             "5",
             "int",
@@ -502,13 +552,21 @@ class AlgoConfig:
         "min_price_history_days": (
             "200",
             "int",
-            "Min trading days of price history (IPO age gate  -” Minervini avoids stocks <1yr post-IPO)",
+            "Min trading days of price history (IPO age gate - Minervini avoids stocks <1yr post-IPO)",
         ),
         "min_daily_volume_shares": ("500000", "int", "Minimum daily volume shares"),
-        "max_spread_pct": ("0.5", "float", "Maximum bid-ask spread %"),
-        "min_market_cap_millions": ("300.0", "float", "Minimum market cap $M"),
-        "min_float_millions": ("50.0", "float", "Minimum float shares $M"),
-        "max_short_interest_pct": ("30.0", "float", "Maximum short interest %"),
+        "max_spread_pct": ("0.5", "float", "Maximum bid-ask spread %",
+            "Liquidity Requirements"
+        ),
+        "min_market_cap_millions": ("300.0", "float", "Minimum market cap $M",
+            "Liquidity Requirements"
+        ),
+        "min_float_millions": ("50.0", "float", "Minimum float shares $M",
+            "Liquidity Requirements"
+        ),
+        "max_short_interest_pct": ("30.0", "float", "Maximum short interest %",
+            "Liquidity Requirements"
+        ),
         # Advanced Filters
         "block_days_before_earnings": (
             "5",
@@ -529,9 +587,15 @@ class AlgoConfig:
             "Require market sector to be strong before entering",
         ),
         "min_adv_shares": ("50000", "int", "Minimum average daily volume (shares)"),
-        "min_adv_dollars": ("500000", "float", "Minimum average daily dollar volume"),
-        "min_order_size_dollars": ("100.0", "float", "Minimum order size in dollars"),
-        "phase1_min_coverage_pct": ("75", "int", "Phase 1: Minimum data coverage %"),
+        "min_adv_dollars": ("500000", "float", "Minimum average daily dollar volume",
+            "Liquidity Requirements"
+        ),
+        "min_order_size_dollars": ("100.0", "float", "Minimum order size in dollars",
+            "Liquidity Requirements"
+        ),
+        "phase1_min_coverage_pct": ("75", "int", "Phase 1: Minimum data coverage %",
+            "Liquidity Requirements"
+        ),
         "phase1_min_symbol_count": (
             "5000",
             "int",
@@ -546,9 +610,15 @@ class AlgoConfig:
         ),
         # Swing Trader Score Weights (Minervini Research-Weighted Composite)
         "swing_weight_setup": ("25", "int", "Swing score: Setup quality weight %"),
-        "swing_weight_trend": ("20", "int", "Swing score: Trend quality weight %"),
-        "swing_weight_momentum": ("20", "int", "Swing score: Momentum/RS weight %"),
-        "swing_weight_volume": ("12", "int", "Swing score: Volume weight %"),
+        "swing_weight_trend": ("20", "int", "Swing score: Trend quality weight %",
+            "Scoring Weights"
+        ),
+        "swing_weight_momentum": ("20", "int", "Swing score: Momentum/RS weight %",
+            "Scoring Weights"
+        ),
+        "swing_weight_volume": ("12", "int", "Swing score: Volume weight %",
+            "Scoring Weights"
+        ),
         "swing_weight_fundamentals": (
             "10",
             "int",
@@ -691,8 +761,12 @@ class AlgoConfig:
         ),
         # Execution Mode
         "execution_mode": ("auto", "string", "paper|dry|review|auto"),
-        "alpaca_paper_trading": ("false", "bool", "Use Alpaca paper account"),
-        "max_trades_per_day": ("5", "int", "Max new trades per day"),
+        "alpaca_paper_trading": ("false", "bool", "Use Alpaca paper account",
+            "Execution Mode"
+        ),
+        "max_trades_per_day": ("5", "int", "Max new trades per day",
+            "Execution Mode"
+        ),
         "default_portfolio_value": (
             "100000.0",
             "float",
@@ -700,8 +774,12 @@ class AlgoConfig:
         ),
         # Feature Flags
         "enable_algo": ("true", "bool", "Enable algo trading"),
-        "enable_backtesting": ("false", "bool", "Enable backtest mode"),
-        "verbose_logging": ("true", "bool", "Detailed logging"),
+        "enable_backtesting": ("false", "bool", "Enable backtest mode",
+            "Feature Flags"
+        ),
+        "verbose_logging": ("true", "bool", "Detailed logging",
+            "Feature Flags"
+        ),
         # Network Configuration
         "api_request_timeout_seconds": (
             "5",
@@ -711,7 +789,7 @@ class AlgoConfig:
         "db_connection_timeout_seconds": (
             "15",
             "int",
-            "Database connection timeout (seconds)  -” RDS Proxy adds latency",
+            "Database connection timeout (seconds)  - RDS Proxy adds latency",
         ),
         # Failsafe Configuration
         "failsafe_ecs_timeout_sec": (
@@ -796,7 +874,9 @@ class AlgoConfig:
         ),
         # Data Patrol Staleness Thresholds (days; see data_patrol_config.py for usage)
         "patrol_staleness_price": ("7", "int", "Days before price_daily considered stale"),
-        "patrol_staleness_technical_data": ("7", "int", "Days before technical_data_daily considered stale"),
+        "patrol_staleness_technical_data": ("7", "int", "Days before technical_data_daily considered stale",
+            "Data Patrol Configuration"
+        ),
         "patrol_staleness_fundamentals": ("60", "int", "Days before fundamentals (quarterly data) considered stale"),
         "patrol_staleness_growth_metrics": ("30", "int", "Days before growth_metrics considered stale"),
         "patrol_staleness_stock_scores": ("7", "int", "Days before stock_scores considered stale"),
@@ -1105,7 +1185,7 @@ class AlgoConfig:
                                     f"Admin must fix database value: {e}"
                                 )
                             else:
-                                logger.warning(f"Warning: Invalid config {key}={value}: {e}  -” using default")
+                                logger.warning(f"Warning: Invalid config {key}={value}: {e}  - using default")
                                 self._sources[key] = "default_fallback"
 
                 if invalid_critical_values:
@@ -1213,7 +1293,7 @@ class AlgoConfig:
         """
         # Use validation schema if available; otherwise fall back to basic checks
         if key not in self.VALIDATION_SCHEMA:
-            logger.warning(f"[CONFIG VALIDATE] Key {key!r} not in validation schema  -” using basic checks")
+            logger.warning(f"[CONFIG VALIDATE] Key {key!r} not in validation schema  - using basic checks")
             return True
 
         schema_type, min_val, max_val, is_critical, fail_closed = self.VALIDATION_SCHEMA[key]
@@ -1265,7 +1345,7 @@ class AlgoConfig:
                 raise ValueError(
                     f"CRITICAL: R-multiple config missing. Required: t1_target_r_multiple, t2_target_r_multiple, t3_target_r_multiple. "
                     f"Found: t1={t1_val}, t2={t2_val}, t3={t3_val}. "
-                    f"Cannot apply silent defaults (1.5, 3.0, 4.0) — must be explicitly configured."
+                    f"Cannot apply silent defaults (1.5, 3.0, 4.0) - must be explicitly configured."
                 )
 
             t1 = float(t1_val)
@@ -1568,7 +1648,7 @@ class AlgoConfig:
         Ensures the default matches DEFAULTS to detect misalignment in code.
         """
         if default is not None and key in self.DEFAULTS:
-            default_value, _, _ = self.DEFAULTS[key]
+            default_value, _, _ = self.DEFAULTS[key][:3]
             parsed_default = self._parse_value(default_value, self.DEFAULTS[key][1])
             if parsed_default != default:
                 logger.warning(
@@ -1577,7 +1657,7 @@ class AlgoConfig:
 
         value = self._config.get(key)
         if value is None:
-            # Check if this is a critical parameter — fail-fast if missing
+            # Check if this is a critical parameter - fail-fast if missing
             if key in self.VALIDATION_SCHEMA:
                 is_critical = self.VALIDATION_SCHEMA[key][3]
                 if is_critical:
@@ -1606,7 +1686,7 @@ class AlgoConfig:
                 # Return fail-closed value for critical thresholds
                 if is_critical and fail_closed_value is not None:
                     logger.warning(
-                        f"[CONFIG TYPE ERROR] {key!r} is critical  -” returning fail-closed value {fail_closed_value!r}"
+                        f"[CONFIG TYPE ERROR] {key!r} is critical  - returning fail-closed value {fail_closed_value!r}"
                     )
                     return fail_closed_value
                 else:
@@ -1659,7 +1739,7 @@ class AlgoConfig:
         Used for command-line args and event-level test overrides that should not persist.
         """
         if key not in self.DEFAULTS:
-            logger.warning(f"[CONFIG OVERRIDE] Unknown key {key!r}  -” ignored")
+            logger.warning(f"[CONFIG OVERRIDE] Unknown key {key!r}  - ignored")
             return
         _, dtype, _ = self.DEFAULTS[key]
         try:
@@ -1668,7 +1748,7 @@ class AlgoConfig:
             self._sources[key] = "override"
             logger.info(f"[CONFIG OVERRIDE] {key} = {value} ({dtype})")
         except ValueError as e:
-            logger.error(f"[CONFIG OVERRIDE] Invalid value for {key}: {e}  -” ignored")
+            logger.error(f"[CONFIG OVERRIDE] Invalid value for {key}: {e}  - ignored")
 
     def set(self, key: str, value: Any, value_type: str, description: str = "", changed_by: str = "system") -> bool:
         """Set configuration value in database, memory, and audit log.
@@ -1835,7 +1915,7 @@ def get_config() -> AlgoConfig:
 
 
 def reset_config() -> None:
-    """Reset singleton  -” call at Lambda invocation start so config is fresh each run.
+    """Reset singleton  - call at Lambda invocation start so config is fresh each run.
 
     This ensures warm Lambda invocations reload config from the DB, picking up
     any changes made between invocations (e.g., lowering a risk threshold).
@@ -1844,7 +1924,7 @@ def reset_config() -> None:
     global _instance
     with _instance_lock:
         _instance = None
-    logger.info("[AlgoConfig] Singleton reset  -” will reload from DB on next get_config() call")
+    logger.info("[AlgoConfig] Singleton reset  - will reload from DB on next get_config() call")
 
 
 def get_api_timeout() -> int:

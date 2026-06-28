@@ -215,10 +215,12 @@ DESIGNS_DEPRECATED/
 .docs_archive/
 .consolidation_plan.md
 
-# GitHub Actions build artifacts
+# GitHub Actions build artifacts & deployment packages
 lambda-pkg/
 db-init-pkg/
 api-pkg/
+lambda/api/package/
+lambda/api/*.zip
 
 # Test artifacts (auto-generated)
 webapp/frontend/src/tests/e2e/visual-regression.visual.spec.js-snapshots/
