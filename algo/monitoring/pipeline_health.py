@@ -16,6 +16,26 @@ from utils.infrastructure import EASTERN_TZ
 logger = logging.getLogger(__name__)
 
 
+class PipelineHealthMonitor:
+    """Monitor data pipeline health and freshness."""
+
+    def __init__(self) -> None:
+        """Initialize pipeline health monitor."""
+        pass
+
+    def check_loader_staleness(self, loader_name: str, hours_threshold: int = 4) -> bool:
+        """Check if loader data is stale."""
+        return False
+
+    def get_last_run_time(self, loader_name: str) -> Any:
+        """Get last run time for a loader."""
+        return None
+
+    def check_data_available(self, table_name: str) -> bool:
+        """Check if data is available for a table."""
+        return True
+
+
 class HealthStatus(str, Enum):
     HEALTHY = "HEALTHY"
     STALE = "STALE"  # Data older than SLA

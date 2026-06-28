@@ -19,13 +19,13 @@ class PositionAggregator:
         "time_decay": 0.8,
     }
 
-    def __init__(self, config: Any) -> None:
+    def __init__(self, config: Any = None) -> None:
         """Initialize aggregator with config.
 
         Args:
             config: Algorithm configuration with halt_flag_count, etc.
         """
-        self.config = config
+        self.config = config or {}
 
     def aggregate_flags(self, health_scores: dict[str, Any]) -> dict[str, Any]:
         """Convert health scores into flags with severity.

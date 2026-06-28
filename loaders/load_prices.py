@@ -1432,6 +1432,7 @@ class PriceLoader(OptimalLoader):
         emergency_mode_enabled = False
 
         processed = 0
+        failed_batches = []
         batch_times = []
 
         max_concurrent = min(parallelism, 5)
@@ -1448,6 +1449,7 @@ class PriceLoader(OptimalLoader):
                         f"Batch {len(batch) if batch else 0} symbols failed: {type(e).__name__}: {str(e)[:200]}\n  Symbols: {symbols_str}\n  Operation: Fetch prices via yfinance\n  Endpoint: Data pipeline",
                         exc_info=True,
                     )
+                    failed_batches.append((batch, str(e)[:100]))
 
                 batch_elapsed = time.time() - batch_start
                 batch_times.append(batch_elapsed)
@@ -1468,6 +1470,20 @@ class PriceLoader(OptimalLoader):
                 )
                 if result is not None:
                     return result
+
+        if failed_batches:
+            failed_count = sum(len(batch) for batch, _ in failed_batches)
+            batch_summary = "; ".join(
+                f"Batch {i+1}: {len(b)} symbols, error={err}" for i, (b, err) in enumerate(failed_batches[:5])
+            )
+            if len(failed_batches) > 5:
+                batch_summary += f"; ... and {len(failed_batches) - 5} more batches failed"
+            msg = (
+                f"[LOAD_PRICES CRITICAL] Price fetch failed for {failed_count} symbols across {len(failed_batches)} batches. "
+                f"Cannot load market prices without complete data. {batch_summary}"
+            )
+            logger.critical(msg)
+            raise RuntimeError(msg)
 
         return None
 

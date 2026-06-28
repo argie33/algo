@@ -666,21 +666,17 @@ class MarketExposure:
             return result
 
     # ====== Factor implementations ======
-
-    @staticmethod
-    def _wt_pts(factor: dict[str, Any], weight: int) -> tuple[float, float]:
-        """Return (pts, avail_weight) for a scoring factor.
-
-        When score_factor is None (data missing), returns (0.0, 0.0) so the
-        factor is excluded from both the score and the available-max denominator.
-        The caller normalizes the final score against avail_max so missing factors
-        don't silently skew the result toward neutral.
-        """
-        sf = factor.get("score_factor")
-        return (float(weight) * sf, float(weight)) if sf is not None else (0.0, 0.0)
+    # NOTE: All factor calculations are delegated to MarketFactorCalculator.
+    # Private methods like _spy_momentum, _ad_line, etc. were duplicates and have been removed.
+    # See MarketFactorCalculator for the canonical implementations.
+    #
+    # Removed dead methods (lines 673-1392 in prior version):
+    # - _spy_momentum, _selling_pressure_factor, _distribution_days, _has_market_confirmation,
+    #   _trend_30wk, _pct_above_ma, _vix_regime, _vix_score, _put_call_ratio, _new_highs_lows,
+    #   _ad_line, _aaii, _naaim, _credit_spread, and duplicate _wt_pts
+    # These were dead code (never called) that shadowed MarketFactorCalculator methods.
 
     def _spy_momentum(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
-        """SPY 12-month price momentum — trailing return over ~252 trading days.
 
         Time-series momentum (TSMOM) is the most replicated signal in quantitative
         finance. Source: Moskowitz, Ooi & Pedersen (JFE, 2012); AQR Century of

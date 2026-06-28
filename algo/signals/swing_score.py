@@ -226,15 +226,6 @@ class SwingTraderScore:
                 self._persist(symbol, eval_date, result)
                 logger.debug(f"Swing score {symbol}: {total:.1f} ({grade})")
                 return result
-            except Exception as e:
-                logger.error(f"Swing score calculation failed for {symbol}: {e}", exc_info=True)
-                return {
-                    "symbol": symbol,
-                    "eval_date": str(eval_date),
-                    "pass": False,
-                    "reason": f"calculation error: {str(e)[:60]}",
-                    "swing_score": 0.0,
-                }
 
     # ============= HARD GATES =============
 

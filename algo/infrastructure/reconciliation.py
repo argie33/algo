@@ -750,11 +750,14 @@ class DailyReconciliation:
                     )
                     pnl_dollars = float(((filled_dec - entry_dec) * qty_dec).quantize(Decimal("0.01"), ROUND_HALF_UP))
                     risk = entry_price - stop_loss_price
-                    exit_r_multiple = (
-                        float(((filled_dec - entry_dec) / Decimal(str(risk))).quantize(Decimal("0.01"), ROUND_HALF_UP))
-                        if risk > 0
-                        else 0.0
-                    )
+                    if risk <= 0:
+                        cur.execute("RELEASE SAVEPOINT reconcile_fill")
+                        raise ValueError(
+                            f"[RECONCILIATION CRITICAL] Trade {trade_id} ({symbol}) has invalid risk={risk}: "
+                            f"stop_loss_price ({stop_loss_price}) >= entry_price ({entry_price}). "
+                            f"Cannot compute R-multiple with invalid stop price."
+                        )
+                    exit_r_multiple = float(((filled_dec - entry_dec) / Decimal(str(risk))).quantize(Decimal("0.01"), ROUND_HALF_UP))
 
                     # Check if this trade had an estimated exit price (Phase 4 pre-market exit)
                     cur.execute(

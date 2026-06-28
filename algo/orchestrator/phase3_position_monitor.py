@@ -155,4 +155,8 @@ def run(
         )
         log_phase_error(3, error, log_phase_result_fn)
         traceback.print_exc()
-        return PhaseResult(3, "position_monitor", "degraded", {"recommendations": []}, False, str(e))
+        logger.critical(
+            f"[PHASE 3 HALT] Position monitor crashed unexpectedly: {type(e).__name__}: {e}. "
+            f"Cannot safely monitor open positions. Halting trading to prevent unmonitored position risks."
+        )
+        return PhaseResult(3, "position_monitor", "degraded", {"recommendations": []}, True, str(e))

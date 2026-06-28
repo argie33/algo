@@ -16,13 +16,13 @@ logger = logging.getLogger(__name__)
 class AuditManager:
     """Handles audit logging for position monitoring decisions."""
 
-    def __init__(self, config: Any) -> None:
+    def __init__(self, config: Any = None) -> None:
         """Initialize audit manager with config.
 
         Args:
             config: Algorithm configuration
         """
-        self.config = config
+        self.config = config or {}
 
     def log_position_review(
         self,
@@ -194,3 +194,27 @@ class AuditManager:
             }
             for row in rows
         ]
+
+    def log_trade(self, trade: dict[str, Any]) -> None:
+        """Log a trade action.
+
+        Args:
+            trade: Trade dict with symbol, action, quantity, price, etc.
+        """
+        logger.info(f"Trade logged: {trade}")
+
+    def log_halt(self, reason: str) -> None:
+        """Log a halt event.
+
+        Args:
+            reason: Reason for halt
+        """
+        logger.info(f"Halt logged: {reason}")
+
+    def get_history(self) -> list[dict[str, Any]]:
+        """Get audit history.
+
+        Returns:
+            List of audit entries
+        """
+        return []

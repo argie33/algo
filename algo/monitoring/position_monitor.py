@@ -1079,13 +1079,26 @@ class PositionMonitor:
                 raise ValueError(
                     f"Invalid quantity {rec['quantity']} for position {rec['position_id']}: {e}"
                 ) from e
+
+            # CRITICAL: avg_entry_price must be positive for PnL calculation
+            try:
+                avg_entry = float(rec.get("avg_entry_price", 0))
+            except (ValueError, TypeError):
+                avg_entry = 0
+
+            if avg_entry <= 0:
+                raise ValueError(
+                    f"[POSITION MONITOR CRITICAL] Position {rec['position_id']} has invalid avg_entry_price={avg_entry}. "
+                    f"Cannot compute unrealized P&L with corrupted entry data."
+                )
+
             cur.execute(
                 """
                 UPDATE algo_positions
                 SET current_price = %s,
                     position_value = %s * %s,
                     unrealized_pnl = (%s - avg_entry_price) * %s,
-                    unrealized_pnl_pct = CASE WHEN avg_entry_price > 0 THEN ((%s - avg_entry_price) / avg_entry_price) * 100 ELSE 0 END,
+                    unrealized_pnl_pct = CASE WHEN avg_entry_price > 0 THEN ((%s - avg_entry_price) / avg_entry_price) * 100 ELSE NULL END,
                     days_since_entry = %s,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE position_id = %s

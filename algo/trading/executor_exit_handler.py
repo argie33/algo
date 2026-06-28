@@ -374,18 +374,16 @@ class ExitHandler:
 
         # Calculate P&L metrics
         risk_per_share = Decimal(str(entry_price)) - Decimal(str(stop_loss_price))
-        r_multiple = (
-            float((Decimal(str(final_exit_price)) - Decimal(str(entry_price))) / risk_per_share)
-            if risk_per_share > 0
-            else 0.0
-        )
+        if risk_per_share <= 0:
+            raise ValueError(
+                f"[R_MULTIPLE CRITICAL] Invalid risk_per_share={risk_per_share} for {symbol}: "
+                f"stop_loss_price ({stop_loss_price}) >= entry_price ({entry_price}). "
+                f"Cannot compute R-multiple with invalid stop price. This indicates corrupted position data."
+            )
+        r_multiple = float((Decimal(str(final_exit_price)) - Decimal(str(entry_price))) / risk_per_share)
         pnl_per_share = Decimal(str(final_exit_price)) - Decimal(str(entry_price))
         pnl_dollars = float((pnl_per_share * Decimal(str(shares_to_exit))).quantize(Decimal("0.01"), ROUND_HALF_UP))
-        pnl_pct = (
-            float((pnl_per_share / Decimal(str(entry_price)) * Decimal(100)).quantize(Decimal("0.01"), ROUND_HALF_UP))
-            if entry_price > 0
-            else 0.0
-        )
+        pnl_pct = float((pnl_per_share / Decimal(str(entry_price)) * Decimal(100)).quantize(Decimal("0.01"), ROUND_HALF_UP))
 
         # Validate P&L calculations for NaN and invalid types
         if not isinstance(pnl_dollars, (int, float)):

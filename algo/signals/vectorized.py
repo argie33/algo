@@ -216,15 +216,6 @@ class VectorizedSignalGenerator:
                     "pct_from_52w_high": pct_from_high,
                     "pct_from_52w_low": pct_from_low,
                 }
-            except Exception as e:
-                logger.warning(f"[VECTORIZED] {symbol}: Minervini computation failed: {e}")
-                results[symbol] = {
-                    "score": 0,
-                    "pass": False,
-                    "criteria": {},
-                    "reason": str(e)[:50],
-                    "failed": True,
-                }
 
         return results
 

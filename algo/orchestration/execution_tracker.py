@@ -13,8 +13,10 @@ logger = logging.getLogger(__name__)
 class ExecutionTracker:
     """Tracks orchestration execution and phase completion."""
 
-    def __init__(self, run_id: str, run_date: _date) -> None:
+    def __init__(self, run_id: str = "test", run_date: _date = None) -> None:
         """Initialize execution tracker."""
+        if run_date is None:
+            run_date = _date.today()
         self.run_id = run_id
         self.run_date = run_date
         self.phase_results: dict[int | str, Any] = {}

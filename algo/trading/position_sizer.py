@@ -617,11 +617,13 @@ class PositionSizer:
             risk_dollars = portfolio_value * adjusted_risk_pct
 
         risk_per_share = Decimal(str(entry_price)) - Decimal(str(stop_loss_price))
-        shares = (
-            int((risk_dollars / risk_per_share).quantize(Decimal(1), rounding=ROUND_HALF_UP))
-            if risk_per_share > 0
-            else 0
-        )
+        if risk_per_share <= 0:
+            raise ValueError(
+                f"[POSITION SIZER CRITICAL] Invalid risk_per_share={risk_per_share}: "
+                f"stop_loss_price ({stop_loss_price}) >= entry_price ({entry_price}). "
+                f"Cannot size position with invalid stop price. This indicates corrupted position data."
+            )
+        shares = int((risk_dollars / risk_per_share).quantize(Decimal(1), rounding=ROUND_HALF_UP))
 
         if shares < 1:
             return {

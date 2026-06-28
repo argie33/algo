@@ -170,8 +170,8 @@ class SignalTradePerformancePopulator:
                                 float(pnl_dollars),
                                 float(pnl_dollars) / float(entry_price * entry_qty),
                                 int(holding_days),
-                                float(swing_score) if swing_score is not None else 0.0,
-                                float(trend_score) if trend_score is not None else 0.0,
+                                float(swing_score) if swing_score is not None else None,
+                                float(trend_score) if trend_score is not None else None,
                                 float(exit_r_multiple) if exit_r_multiple is not None else None,
                                 (bool(exit_r_multiple is not None and exit_r_multiple > 0)),
                             ),
@@ -262,7 +262,7 @@ class SignalTradePerformancePopulator:
                 return [
                     {
                         "date": str(row[0]),
-                        "ic": round(float(row[1]), 4) if row[1] is not None else 0,
+                        "ic": round(float(row[1]), 4) if row[1] is not None else None,
                         "sample_size": int(row[2]),
                     }
                     for row in rows
