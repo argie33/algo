@@ -79,11 +79,11 @@ async function getSwingGrades() {
  */
 function getGradeForScore(score, grades) {
   if (!grades || grades.length === 0) {
-    return {
-      letter: "D",
-      pass_gates: false,
-      fail_reason: "Grade configuration unavailable",
-    };
+    throw new Error(
+      "CRITICAL: Grade configuration unavailable. " +
+      "Cannot determine signal grades without grade tier definitions. " +
+      "Verify signal_grade_tiers table is loaded and contains active grade definitions."
+    );
   }
 
   // CRITICAL: Score is required for grading. 0 is a valid value, but missing is an error.
@@ -112,15 +112,15 @@ function getGradeForScore(score, grades) {
   );
 
   if (!gradeInfo) {
-    // Fallback: return lowest grade if score is out of range
-    const lowestGrade = grades.reduce((lowest, g) =>
-      g.min_score < lowest.min_score ? g : lowest
+    const gradeRanges = grades
+      .map(g => `${g.letter}=[${g.min_score},${g.max_score})`)
+      .join(", ");
+    throw new Error(
+      `CRITICAL: Score ${scoreVal} falls outside all defined grade ranges. ` +
+      `Valid ranges: ${gradeRanges}. ` +
+      `Score is out of bounds and cannot be safely graded. ` +
+      `Verify signal_quality_scores data integrity and grade tier definitions.`
     );
-    return {
-      letter: lowestGrade.letter,
-      pass_gates: lowestGrade.pass_gates,
-      fail_reason: lowestGrade.fail_reason,
-    };
   }
 
   return {

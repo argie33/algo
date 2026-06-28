@@ -325,34 +325,62 @@ router.get("/evaluate", async (req, res) => {
 
     validateQueryResult(filterConfigResult, { requireRows: false });
 
-    let filterConfig = {
-      completeness_pct_min: 45, // Fallback defaults (same as hardcoded values)
-      trend_score_min: 8,
-      sqs_min: 40,
-      require_all_tiers: true,
-      max_qualified_signals: 12,
-      sort_by: "sqs",
-      sort_order: "DESC",
-    };
-
-    if (filterConfigResult.rows && filterConfigResult.rows.length > 0) {
-      const cfg = filterConfigResult.rows[0];
-      // Explicit NaN checks instead of fallback operators (|| defaults)
-      const completenessVal = parseFloat(cfg.completeness_pct_min);
-      const trendVal = parseInt(cfg.trend_score_min, 10);
-      const sqsVal = parseInt(cfg.sqs_min, 10);
-      const maxSignalsVal = parseInt(cfg.max_qualified_signals, 10);
-
-      filterConfig = {
-        completeness_pct_min: !isNaN(completenessVal) ? completenessVal : 45,
-        trend_score_min: !isNaN(trendVal) ? trendVal : 8,
-        sqs_min: !isNaN(sqsVal) ? sqsVal : 40,
-        require_all_tiers: cfg.require_all_tiers !== false,
-        max_qualified_signals: !isNaN(maxSignalsVal) ? maxSignalsVal : 12,
-        sort_by: cfg.sort_by !== null && cfg.sort_by !== undefined && typeof cfg.sort_by === 'string' ? cfg.sort_by : "sqs",
-        sort_order: (cfg.sort_order !== null && cfg.sort_order !== undefined && typeof cfg.sort_order === 'string' ? cfg.sort_order : "DESC").toUpperCase(),
-      };
+    // CRITICAL: Signal filter thresholds must come from database. Hardcoded defaults would
+    // mask configuration issues and allow trading with unvalidated filter rules.
+    if (!filterConfigResult.rows || filterConfigResult.rows.length === 0) {
+      return sendError(
+        res,
+        503,
+        "CRITICAL: Signal filter configuration unavailable. " +
+          "Cannot evaluate signals without configured completeness/trend/quality thresholds. " +
+          "Check signal_filter_tiers table for active configuration."
+      );
     }
+
+    const cfg = filterConfigResult.rows[0];
+    // Validate all required fields exist with non-null values
+    if (
+      cfg.completeness_pct_min === null || cfg.completeness_pct_min === undefined ||
+      cfg.trend_score_min === null || cfg.trend_score_min === undefined ||
+      cfg.sqs_min === null || cfg.sqs_min === undefined ||
+      cfg.max_qualified_signals === null || cfg.max_qualified_signals === undefined ||
+      cfg.sort_by === null || cfg.sort_by === undefined ||
+      cfg.sort_order === null || cfg.sort_order === undefined
+    ) {
+      return sendError(
+        res,
+        503,
+        "CRITICAL: Signal filter configuration incomplete. " +
+          "Missing required threshold fields in signal_filter_tiers. " +
+          "All fields (completeness_pct_min, trend_score_min, sqs_min, max_qualified_signals, sort_by, sort_order) must be configured."
+      );
+    }
+
+    // Parse and validate numeric values
+    const completenessVal = parseFloat(cfg.completeness_pct_min);
+    const trendVal = parseInt(cfg.trend_score_min, 10);
+    const sqsVal = parseInt(cfg.sqs_min, 10);
+    const maxSignalsVal = parseInt(cfg.max_qualified_signals, 10);
+
+    if (isNaN(completenessVal) || isNaN(trendVal) || isNaN(sqsVal) || isNaN(maxSignalsVal)) {
+      return sendError(
+        res,
+        503,
+        "CRITICAL: Signal filter configuration has invalid data types. " +
+          "Completeness, trend, SQS, and max_signals must be numeric values. " +
+          "Check signal_filter_tiers for corrupted data."
+      );
+    }
+
+    const filterConfig = {
+      completeness_pct_min: completenessVal,
+      trend_score_min: trendVal,
+      sqs_min: sqsVal,
+      require_all_tiers: cfg.require_all_tiers !== false,
+      max_qualified_signals: maxSignalsVal,
+      sort_by: String(cfg.sort_by).toLowerCase(),
+      sort_order: String(cfg.sort_order).toUpperCase(),
+    };
 
     // Transform into evaluation objects with database-driven thresholds
     // NOTE: Removed defaultValue: 0 for signal quality metrics - missing data must be visible
@@ -387,10 +415,32 @@ router.get("/evaluate", async (req, res) => {
     });
 
     // Filter to qualified and sort by configured field/direction
+    // CRITICAL: Fail-fast on null/undefined sort metrics — defaulting to 0 masks missing data quality issues
     const sortComparator = (a, b) => {
-      const aVal = a[filterConfig.sort_by] !== null && a[filterConfig.sort_by] !== undefined ? a[filterConfig.sort_by] : 0;
-      const bVal = b[filterConfig.sort_by] !== null && b[filterConfig.sort_by] !== undefined ? b[filterConfig.sort_by] : 0;
-      const diff = parseFloat(bVal) - parseFloat(aVal);
+      if (a[filterConfig.sort_by] === null || a[filterConfig.sort_by] === undefined) {
+        throw new Error(
+          `CRITICAL: Symbol ${a.symbol} missing sort field '${filterConfig.sort_by}'. ` +
+          `Cannot rank signals without complete data. ` +
+          `Check signal completeness_pct and signal_quality_scores data.`
+        );
+      }
+      if (b[filterConfig.sort_by] === null || b[filterConfig.sort_by] === undefined) {
+        throw new Error(
+          `CRITICAL: Symbol ${b.symbol} missing sort field '${filterConfig.sort_by}'. ` +
+          `Cannot rank signals without complete data. ` +
+          `Check signal completeness_pct and signal_quality_scores data.`
+        );
+      }
+      const aVal = parseFloat(a[filterConfig.sort_by]);
+      const bVal = parseFloat(b[filterConfig.sort_by]);
+      if (isNaN(aVal) || isNaN(bVal)) {
+        throw new Error(
+          `CRITICAL: Invalid numeric value in sort field '${filterConfig.sort_by}'. ` +
+          `Symbol ${isNaN(aVal) ? a.symbol : b.symbol} has non-numeric value. ` +
+          `Check data quality in signal_quality_scores table.`
+        );
+      }
+      const diff = bVal - aVal;
       return filterConfig.sort_order === "ASC" ? -diff : diff;
     };
 
@@ -524,17 +574,35 @@ router.get("/positions", async (req, res) => {
     validateQueryResult(posResult, { requireRows: false });
     validateQueryResult(configResult, { requireRows: false });
 
-    // Parse stage threshold config (with sensible defaults)
+    // CRITICAL: Stage thresholds must come from database. Hardcoded defaults would
+    // allow trading with incorrect entry rules for different stages.
     const stageConfig = {
-      stage_2_early_min_score: 0,
-      stage_2_mid_min_score: 6,
-      stage_2_late_min_score: 8,
+      stage_2_early_min_score: null,
+      stage_2_mid_min_score: null,
+      stage_2_late_min_score: null,
     };
-    for (const row of configResult.rows) {
-      const val = parseFloat(row.value);
-      if (!isNaN(val)) {
-        stageConfig[row.key] = val;
+    if (configResult.rows && configResult.rows.length > 0) {
+      for (const row of configResult.rows) {
+        const val = parseFloat(row.value);
+        if (!isNaN(val)) {
+          stageConfig[row.key] = val;
+        }
       }
+    }
+
+    // Validate all required stage thresholds are configured
+    if (
+      stageConfig.stage_2_early_min_score === null ||
+      stageConfig.stage_2_mid_min_score === null ||
+      stageConfig.stage_2_late_min_score === null
+    ) {
+      return sendError(
+        res,
+        503,
+        "CRITICAL: Stage threshold configuration incomplete. " +
+          "Cannot compute position stage labels without configured thresholds. " +
+          "Check algo_config for stage_2_early_min_score, stage_2_mid_min_score, stage_2_late_min_score."
+      );
     }
 
     const sf = (v) => (v == null ? null : parseFloat(v));
@@ -632,21 +700,33 @@ router.get("/positions", async (req, res) => {
     }));
 
     // Compute sector allocation from positions
+    // CRITICAL: All positions must have valid position values. Zero total position value indicates
+    // data quality issue (missing price data, position data, or calculation error).
     const sectorMap = {};
     let totalValue = 0;
     for (const p of items) {
       const posValue = p.position_value;
+      if (posValue === null || posValue === undefined) {
+        return sendError(
+          res,
+          503,
+          "CRITICAL: Position value missing for symbol " + p.symbol + ". " +
+          "Cannot compute portfolio allocation without complete position data. " +
+          "Check algo_positions table for complete position records and price data availability."
+        );
+      }
       if (posValue != null) {
         totalValue += posValue;
       }
     }
     if (totalValue <= 0) {
-      return sendSuccess(res, {
-        items,
-        sector_allocation: [],
-        error: "insufficient_position_data",
-        message: "Cannot compute sector allocation: total position value is zero or missing",
-      }, 503);
+      return sendError(
+        res,
+        503,
+        "CRITICAL: Total position value is zero or negative. " +
+        "Cannot compute allocation with zero portfolio value. " +
+        "Verify position data and current prices in database."
+      );
     }
     for (const p of items) {
       const sec = p.sector || "Unknown";
@@ -3685,16 +3765,34 @@ router.get("/stage-distribution", authenticateToken, async (req, res) => {
     validateQueryResult(configResult, { requireRows: false });
     validateQueryResult(posResult, { requireRows: false });
 
+    // CRITICAL: Stage thresholds must come from database. Hardcoded defaults would
+    // allow incorrect stage distribution reporting across positions.
     const stageConfig = {
-      stage_2_early_min_score: 0,
-      stage_2_mid_min_score: 6,
-      stage_2_late_min_score: 8,
+      stage_2_early_min_score: null,
+      stage_2_mid_min_score: null,
+      stage_2_late_min_score: null,
     };
-    for (const row of configResult.rows) {
-      const val = parseFloat(row.value);
-      if (!isNaN(val)) {
-        stageConfig[row.key] = val;
+    if (configResult.rows && configResult.rows.length > 0) {
+      for (const row of configResult.rows) {
+        const val = parseFloat(row.value);
+        if (!isNaN(val)) {
+          stageConfig[row.key] = val;
+        }
       }
+    }
+
+    // Validate all required stage thresholds are configured
+    if (
+      stageConfig.stage_2_early_min_score === null ||
+      stageConfig.stage_2_mid_min_score === null ||
+      stageConfig.stage_2_late_min_score === null
+    ) {
+      return sendSuccess(res, {
+        buckets: [],
+        total_positions: 0,
+        _error: "Stage configuration incomplete - cannot compute stage distribution",
+        _is_placeholder: true,
+      }, 503);
     }
 
     const order = [

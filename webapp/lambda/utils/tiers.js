@@ -123,7 +123,19 @@ function getActiveTier(exposurePct, tiers) {
     return exposure >= minVal && exposure <= maxVal;
   });
 
-  return activeTier || tiers[0];
+  if (!activeTier) {
+    const tierRanges = tiers
+      .map(t => `${t.name || t.tier}=[${t.min_pct || t.min}-${t.max_pct || t.max}%]`)
+      .join(", ");
+    throw new Error(
+      `CRITICAL: Exposure ${exposure}% falls outside all defined tier ranges. ` +
+      `Valid ranges: ${tierRanges}. ` +
+      `Cannot determine trading tier with out-of-bounds exposure value. ` +
+      `Verify market_exposure_daily data and signal_filter_tiers definitions.`
+    );
+  }
+
+  return activeTier;
 }
 
 /**

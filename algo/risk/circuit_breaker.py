@@ -364,13 +364,17 @@ class CircuitBreaker:
         rows = cur.fetchall()
         if not rows:
             return {"halted": False, "reason": "No closed trades"}
-        # Count consecutive losses from most recent, skipping trades with NULL P&L
+        # Count consecutive losses from most recent. NULL P&L is critical data quality issue.
+        # FAIL-FAST: Do not silently default NULL P&L to 0 — masks incomplete trade records.
         streak = 0
         for r in rows:
-            pnl = _float(r[0], 0.0, context="trade_pnl")
             if r[0] is None:
-                logger.warning("Trade has NULL P&L — skipping to next trade (not breaking count)")
-                continue
+                raise RuntimeError(
+                    "CRITICAL: Trade has NULL profit_loss_pct. "
+                    "Cannot evaluate consecutive losses without complete trade data. "
+                    "Verify algo_trades table contains P&L for all closed trades."
+                )
+            pnl = _float(r[0], None, context="trade_pnl")
             if pnl < 0:
                 streak += 1
             else:
