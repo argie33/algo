@@ -31,8 +31,11 @@ const router = express.Router();
 router.get("/history/:symbol", async (req, res) => {
   try {
     const { symbol } = req.params;
-    const limit = Math.min(parseInt(req.query.limit) || 252, 5000);
-    const offset = parseInt(req.query.offset) ?? 0;
+    // Explicit NaN checks for pagination parameters
+    const limitVal = parseInt(req.query.limit, 10);
+    const offsetVal = parseInt(req.query.offset, 10);
+    const limit = Math.min(!isNaN(limitVal) ? limitVal : 252, 5000);
+    const offset = !isNaN(offsetVal) ? offsetVal : 0;
     const timeframe = req.query.timeframe || "daily";
 
     if (!symbol) {
@@ -135,8 +138,11 @@ router.get("/history/:symbol", async (req, res) => {
 router.get("/batch-history", async (req, res) => {
   try {
     const { symbols } = req.query;
-    const limit = Math.min(parseInt(req.query.limit) || 30, 5000);
-    const offset = parseInt(req.query.offset) ?? 0;
+    // Explicit NaN checks for pagination parameters
+    const limitVal = parseInt(req.query.limit, 10);
+    const offsetVal = parseInt(req.query.offset, 10);
+    const limit = Math.min(!isNaN(limitVal) ? limitVal : 30, 5000);
+    const offset = !isNaN(offsetVal) ? offsetVal : 0;
     const timeframe = req.query.timeframe || "daily";
 
     if (!symbols) {

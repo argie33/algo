@@ -165,13 +165,25 @@ const MarketExposure = ({ marketData, breadthData, distributionDaysData }) => {
     let distributionScore = 0;
     const distributionDaysData_obj = distributionDaysData || {};
     // Get S&P 500 distribution days count (or fall back to first available index)
-    const recentDistribution =
-      parseInt(
-        distributionDaysData_obj["^GSPC"]?.count ||
-          distributionDaysData_obj["^IXIC"]?.count ||
-          distributionDaysData_obj["^DJI"]?.count ||
-          0
-      ) || 0;
+    const rawDistribution =
+      distributionDaysData_obj["^GSPC"]?.count !== null && distributionDaysData_obj["^GSPC"]?.count !== undefined
+        ? distributionDaysData_obj["^GSPC"]?.count
+        : distributionDaysData_obj["^IXIC"]?.count !== null && distributionDaysData_obj["^IXIC"]?.count !== undefined
+          ? distributionDaysData_obj["^IXIC"]?.count
+          : distributionDaysData_obj["^DJI"]?.count !== null && distributionDaysData_obj["^DJI"]?.count !== undefined
+            ? distributionDaysData_obj["^DJI"]?.count
+            : null;
+
+    if (rawDistribution === null || rawDistribution === undefined) {
+      return {
+        score: null,
+        level: "No Data",
+        signals: [],
+        breakdown: {},
+        error: "Missing distribution days data",
+      };
+    }
+    const recentDistribution = parseInt(rawDistribution);
 
     if (recentDistribution >= 6) {
       distributionScore = -30; // Maximum penalty

@@ -1987,7 +1987,10 @@ function SeasonalityCard({ data, loading, error }) {
               className={`stile-value ${currentMonthData?.avg_return != null && currentMonthData.avg_return >= 0 ? "up" : currentMonthData?.avg_return != null ? "down" : ""}`}
             >
               {currentMonthData?.avg_return != null
-                ? `${currentMonthData.avg_return >= 0 ? "+" : ""}<SafeMetricValue value={currentMonthData.avg_return} formatter="decimal2" fallback="—" format={(v) => `${v}%`} />`
+                ? <>
+                    {currentMonthData.avg_return >= 0 ? "+" : ""}
+                    <SafeMetricValue value={currentMonthData.avg_return} formatter="decimal2" fallback="—" format={(v) => `${v}%`} />
+                  </>
                 : "—"}
             </div>
             <div className="stile-sub">
@@ -2447,7 +2450,7 @@ function SectorRotationSignalCard() {
         <div>
           <div className="card-title">Sector Rotation Signal</div>
           <div className="card-sub">
-            Defensive vs Cyclical leadership · {latest?.weeks_persistent || 0}{" "}
+            Defensive vs Cyclical leadership · {latest?.weeks_persistent !== null && latest?.weeks_persistent !== undefined ? latest.weeks_persistent : "—"}{" "}
             weeks persistent
           </div>
         </div>
@@ -2464,13 +2467,17 @@ function SectorRotationSignalCard() {
         <div className="chart-container" style={{ height: 200 }}>
           <ResponsiveContainer width="100%" height="100%">
             <LineChart
-              data={items.map((d) => ({
-                date: fmtDate(d.date),
-                fullDate: d.date,
-                defensive: parseFloat(d.defensive_lead_score || 0),
-                cyclical: parseFloat(d.cyclical_weak_score || 0),
-                signal: d.signal,
-              }))}
+              data={items.map((d) => {
+                const defScore = d.defensive_lead_score !== null && d.defensive_lead_score !== undefined ? parseFloat(d.defensive_lead_score) : null;
+                const cycScore = d.cyclical_weak_score !== null && d.cyclical_weak_score !== undefined ? parseFloat(d.cyclical_weak_score) : null;
+                return {
+                  date: fmtDate(d.date),
+                  fullDate: d.date,
+                  defensive: defScore,
+                  cyclical: cycScore,
+                  signal: d.signal,
+                };
+              })}
               margin={{ top: 8, right: 16, bottom: 20, left: 0 }}
             >
               <CartesianGrid stroke={C.border} strokeDasharray="2 4" />

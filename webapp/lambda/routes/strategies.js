@@ -38,8 +38,11 @@ router.get("/", (req, res) => {
 // Get covered call opportunities
 router.get("/covered-calls", async (req, res) => {
   const { limit = 100, page = 1 } = req.query;
-  const pageNum = Math.max(1, parseInt(page) || 1);
-  const limitNum = Math.min(200, Math.max(1, parseInt(limit) || 100));
+  // Explicit NaN checks for pagination parameters
+  const pageVal = parseInt(page, 10);
+  const limitVal = parseInt(limit, 10);
+  const pageNum = Math.max(1, !isNaN(pageVal) ? pageVal : 1);
+  const limitNum = Math.min(200, Math.max(1, !isNaN(limitVal) ? limitVal : 100));
   try {
     const offset = (pageNum - 1) * limitNum;
 

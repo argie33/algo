@@ -66,7 +66,7 @@ const McClellanOscillatorChart = ({ data, isLoading = false }) => {
     );
   }
 
-  const rawCurrentValue = data.current_value || 0;
+  const rawCurrentValue = data.current_value !== null && data.current_value !== undefined ? data.current_value : null;
   const currentValue =
     typeof rawCurrentValue === "number"
       ? rawCurrentValue

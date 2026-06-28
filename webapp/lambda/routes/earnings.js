@@ -29,7 +29,9 @@ const router = express.Router();
 router.get("/", async (req, res) => {
   try {
     const symbol = req.query.symbol;
-    const limit = Math.min(parseInt(req.query.limit) || 1000, 10000);
+    // Explicit NaN check for limit parameter
+    const limitVal = parseInt(req.query.limit, 10);
+    const limit = Math.min(!isNaN(limitVal) ? limitVal : 1000, 10000);
 
     const pool = getPool();
     let whereClause =

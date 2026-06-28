@@ -17,8 +17,11 @@ const router = express.Router();
 async function fetchIndustries(req, res) {
   try {
     const { limit = 500, page = 1 } = req.query;
-    const limitNum = Math.min(Math.max(parseInt(limit) || 500, 1), 5000);
-    const pageNum = Math.max(parseInt(page) || 1, 1);
+    // Explicit NaN checks for pagination parameters
+    const limitVal = parseInt(limit, 10);
+    const pageVal = parseInt(page, 10);
+    const limitNum = Math.min(Math.max(!isNaN(limitVal) ? limitVal : 500, 1), 5000);
+    const pageNum = Math.max(!isNaN(pageVal) ? pageVal : 1, 1);
     const offset = (pageNum - 1) * limitNum;
 
     // Parallelize data and count queries
@@ -119,10 +122,10 @@ async function fetchIndustries(req, res) {
       return {
         industry: row.industry,
         sector: row.sector,
-        current_rank: parseInt(row.current_rank) || idx + 1 + offset,
-        rank_12w_ago: parseInt(row.rank_12w_ago) ?? null,
-        overall_rank: parseInt(row.current_rank) || idx + 1 + offset,
-        stock_count: parseInt(row.stock_count ?? 0),
+        current_rank: (() => { const v = parseInt(row.current_rank, 10); return !isNaN(v) ? v : idx + 1 + offset; })(),
+        rank_12w_ago: (() => { const v = parseInt(row.rank_12w_ago, 10); return !isNaN(v) ? v : null; })(),
+        overall_rank: (() => { const v = parseInt(row.current_rank, 10); return !isNaN(v) ? v : idx + 1 + offset; })(),
+        stock_count: (() => { const v = parseInt(row.stock_count ?? 0, 10); return !isNaN(v) ? v : 0; })(),
         composite_score: composite,
         momentum_score: sf(row.momentum_score),
         value_score: sf(row.value_score),
@@ -183,7 +186,9 @@ router.get("/trends-batch", async (req, res) => {
       .split(",")
       .map((i) => i.trim())
       .filter((i) => i.length > 0);
-    const daysNum = Math.min(parseInt(days) || 90, 365);
+    // Explicit NaN check for days parameter
+    const daysVal = parseInt(days, 10);
+    const daysNum = Math.min(!isNaN(daysVal) ? daysVal : 90, 365);
 
     if (industries.length === 0) {
       return sendSuccess(res, {});
@@ -221,16 +226,20 @@ router.get("/trends-batch", async (req, res) => {
       if (!grouped[row.industry]) {
         grouped[row.industry] = [];
       }
-      const avgPrice = row.avg_price ? parseFloat(row.avg_price) : null;
-      const strengthScore = row.daily_strength_score ? parseFloat(row.daily_strength_score) : null;
+      // Explicit NaN checks for price and strength score
+      const avgPriceVal = row.avg_price !== null && row.avg_price !== undefined ? parseFloat(row.avg_price) : null;
+      const strengthScoreVal = row.daily_strength_score !== null && row.daily_strength_score !== undefined ? parseFloat(row.daily_strength_score) : null;
+      const avgPrice = avgPriceVal !== null && !isNaN(avgPriceVal) ? avgPriceVal : null;
+      const strengthScore = strengthScoreVal !== null && !isNaN(strengthScoreVal) ? strengthScoreVal : null;
       if (avgPrice === null || strengthScore === null) {
         logger.warn(`Industry trend data incomplete for ${row.industry}: avgPrice=${avgPrice}, strengthScore=${strengthScore}`);
         return;
       }
+      const stockCountVal = parseInt(row.stock_count, 10);
       grouped[row.industry].push({
         date: row.date,
         avgPrice: avgPrice,
-        stockCount: row.stock_count !== null && row.stock_count !== undefined ? parseInt(row.stock_count) : null,
+        stockCount: row.stock_count !== null && row.stock_count !== undefined && !isNaN(stockCountVal) ? stockCountVal : null,
         dailyStrengthScore: strengthScore,
       });
     });
@@ -280,21 +289,24 @@ router.get("/:industry", async (req, res) => {
     }
 
     const row = result.rows[0];
+    // Explicit NaN checks for numeric fields
+    const stockCountVal = parseInt(row.stock_count, 10);
+    const compositeVal = parseFloat(row.composite_score);
+    const momentumVal = parseFloat(row.momentum_score);
+    const valueVal = parseFloat(row.value_score);
+    const qualityVal = parseFloat(row.quality_score);
+    const growthVal = parseFloat(row.growth_score);
+    const stabilityVal = parseFloat(row.stability_score);
+
     const industryData = {
       industry_name: row.industry_name,
-      stock_count: row.stock_count !== null && row.stock_count !== undefined ? parseInt(row.stock_count) : null,
-      composite_score: row.composite_score
-        ? parseFloat(row.composite_score)
-        : null,
-      momentum_score: row.momentum_score
-        ? parseFloat(row.momentum_score)
-        : null,
-      value_score: row.value_score ? parseFloat(row.value_score) : null,
-      quality_score: row.quality_score ? parseFloat(row.quality_score) : null,
-      growth_score: row.growth_score ? parseFloat(row.growth_score) : null,
-      stability_score: row.stability_score
-        ? parseFloat(row.stability_score)
-        : null,
+      stock_count: row.stock_count !== null && row.stock_count !== undefined && !isNaN(stockCountVal) ? stockCountVal : null,
+      composite_score: row.composite_score !== null && row.composite_score !== undefined && !isNaN(compositeVal) ? compositeVal : null,
+      momentum_score: row.momentum_score !== null && row.momentum_score !== undefined && !isNaN(momentumVal) ? momentumVal : null,
+      value_score: row.value_score !== null && row.value_score !== undefined && !isNaN(valueVal) ? valueVal : null,
+      quality_score: row.quality_score !== null && row.quality_score !== undefined && !isNaN(qualityVal) ? qualityVal : null,
+      growth_score: row.growth_score !== null && row.growth_score !== undefined && !isNaN(growthVal) ? growthVal : null,
+      stability_score: row.stability_score !== null && row.stability_score !== undefined && !isNaN(stabilityVal) ? stabilityVal : null,
     };
 
     return sendSuccess(res, industryData);
@@ -313,7 +325,9 @@ router.get("/:industry/trend", async (req, res) => {
   try {
     const { industry } = req.params;
     const { days = 90 } = req.query;
-    const daysNum = Math.min(parseInt(days) || 90, 365);
+    // Explicit NaN check for days parameter
+    const daysVal = parseInt(days, 10);
+    const daysNum = Math.min(!isNaN(daysVal) ? daysVal : 90, 365);
 
     const result = await query(
       `
@@ -349,16 +363,20 @@ router.get("/:industry/trend", async (req, res) => {
 
     const validTrendData = result.rows
       .map((row) => {
-        const avgPrice = row.avg_price ? parseFloat(row.avg_price) : null;
-        const strengthScore = row.daily_strength_score ? parseFloat(row.daily_strength_score) : null;
+        // Explicit NaN checks for price and strength score
+        const avgPriceVal = row.avg_price !== null && row.avg_price !== undefined ? parseFloat(row.avg_price) : null;
+        const strengthScoreVal = row.daily_strength_score !== null && row.daily_strength_score !== undefined ? parseFloat(row.daily_strength_score) : null;
+        const avgPrice = avgPriceVal !== null && !isNaN(avgPriceVal) ? avgPriceVal : null;
+        const strengthScore = strengthScoreVal !== null && !isNaN(strengthScoreVal) ? strengthScoreVal : null;
         if (avgPrice === null || strengthScore === null) {
           logger.warn(`Industry trend data incomplete for ${industry}: avgPrice=${avgPrice}, strengthScore=${strengthScore}`);
           return null;
         }
+        const stockCountVal = parseInt(row.stock_count, 10);
         return {
           date: row.date,
           avgPrice: avgPrice,
-          stockCount: row.stock_count !== null && row.stock_count !== undefined ? parseInt(row.stock_count) : null,
+          stockCount: row.stock_count !== null && row.stock_count !== undefined && !isNaN(stockCountVal) ? stockCountVal : null,
           dailyStrengthScore: strengthScore,
         };
       })
@@ -383,7 +401,9 @@ router.get("/trend/industry/:industryName", async (req, res) => {
   try {
     const { industryName } = req.params;
     const { days = 90 } = req.query;
-    const daysNum = Math.min(parseInt(days) || 90, 365);
+    // Explicit NaN check for days parameter
+    const daysVal = parseInt(days, 10);
+    const daysNum = Math.min(!isNaN(daysVal) ? daysVal : 90, 365);
 
     const result = await query(
       `
@@ -418,16 +438,20 @@ router.get("/trend/industry/:industryName", async (req, res) => {
 
     const validTrendData = result.rows
       .map((row) => {
-        const avgPrice = row.avg_price ? parseFloat(row.avg_price) : null;
-        const strengthScore = row.daily_strength_score ? parseFloat(row.daily_strength_score) : null;
+        // Explicit NaN checks for price and strength score
+        const avgPriceVal = row.avg_price !== null && row.avg_price !== undefined ? parseFloat(row.avg_price) : null;
+        const strengthScoreVal = row.daily_strength_score !== null && row.daily_strength_score !== undefined ? parseFloat(row.daily_strength_score) : null;
+        const avgPrice = avgPriceVal !== null && !isNaN(avgPriceVal) ? avgPriceVal : null;
+        const strengthScore = strengthScoreVal !== null && !isNaN(strengthScoreVal) ? strengthScoreVal : null;
         if (avgPrice === null || strengthScore === null) {
           logger.warn(`Industry trend data incomplete for ${industryName}: avgPrice=${avgPrice}, strengthScore=${strengthScore}`);
           return null;
         }
+        const stockCountVal = parseInt(row.stock_count, 10);
         return {
           date: row.date,
           avgPrice: avgPrice,
-          stockCount: row.stock_count !== null && row.stock_count !== undefined ? parseInt(row.stock_count) : null,
+          stockCount: row.stock_count !== null && row.stock_count !== undefined && !isNaN(stockCountVal) ? stockCountVal : null,
           dailyStrengthScore: strengthScore,
         };
       })

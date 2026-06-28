@@ -62,7 +62,14 @@ const SectorSeasonalityTable = ({ data }) => {
   };
 
   const getMonthColor = (returnValue) => {
-    const value = returnValue || 0;
+    const value = returnValue !== null && returnValue !== undefined ? returnValue : null;
+    if (value === null) {
+      return {
+        bg: alpha(theme.palette.grey[500], 0.05),
+        text: theme.palette.text.secondary,
+        border: theme.palette.divider,
+      };
+    }
     if (value > 0.5) {
       return {
         bg: alpha(theme.palette.success.main, 0.2),
@@ -272,7 +279,7 @@ const SectorSeasonalityTable = ({ data }) => {
                         }}
                       />
                       <Typography variant="caption" sx={{ fontWeight: 500 }}>
-                        {sector.bestMonths?.length || 0} best
+                        {sector.bestMonths && Array.isArray(sector.bestMonths) ? sector.bestMonths.length : "—"} best
                       </Typography>
                     </Box>
                     <Box
@@ -285,7 +292,7 @@ const SectorSeasonalityTable = ({ data }) => {
                         }}
                       />
                       <Typography variant="caption" sx={{ fontWeight: 500 }}>
-                        {sector.worstMonths?.length || 0} worst
+                        {sector.worstMonths && Array.isArray(sector.worstMonths) ? sector.worstMonths.length : "—"} worst
                       </Typography>
                     </Box>
                   </Box>

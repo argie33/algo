@@ -20,8 +20,11 @@ router.get("/", async (req, res) => {
       sort = "composite_score",
       sort_order = "DESC",
     } = req.query;
-    const limitNum = Math.min(parseInt(limit) || 50, 1000);
-    const pageNum = Math.max(parseInt(page) || 1, 1);
+    // Explicit NaN checks for pagination parameters
+    const limitVal = parseInt(limit, 10);
+    const pageVal = parseInt(page, 10);
+    const limitNum = Math.min(!isNaN(limitVal) ? limitVal : 50, 1000);
+    const pageNum = Math.max(!isNaN(pageVal) ? pageVal : 1, 1);
     const offset = (pageNum - 1) * limitNum;
 
     // Build WHERE clause - exclude ETFs using stock_symbols table

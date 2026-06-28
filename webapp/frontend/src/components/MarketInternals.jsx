@@ -314,10 +314,10 @@ const MarketInternals = ({ data, isLoading, error }) => {
                       <TableRow key={row.name} hover>
                         <TableCell>{row.name}</TableCell>
                         <TableCell align="right">
-                          {row.data.count || 0}
+                          {row.data.count !== null && row.data.count !== undefined ? row.data.count : "—"}
                         </TableCell>
                         <TableCell align="right">
-                          {row.data.total || 0}
+                          {row.data.total !== null && row.data.total !== undefined ? row.data.total : "—"}
                         </TableCell>
                         <TableCell align="right">
                           {row.data.percent !== null &&

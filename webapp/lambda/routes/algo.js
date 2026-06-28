@@ -328,14 +328,20 @@ router.get("/evaluate", async (req, res) => {
 
     if (filterConfigResult.rows && filterConfigResult.rows.length > 0) {
       const cfg = filterConfigResult.rows[0];
+      // Explicit NaN checks instead of fallback operators (|| defaults)
+      const completenessVal = parseFloat(cfg.completeness_pct_min);
+      const trendVal = parseInt(cfg.trend_score_min, 10);
+      const sqsVal = parseInt(cfg.sqs_min, 10);
+      const maxSignalsVal = parseInt(cfg.max_qualified_signals, 10);
+
       filterConfig = {
-        completeness_pct_min: parseFloat(cfg.completeness_pct_min) || 45,
-        trend_score_min: parseInt(cfg.trend_score_min) || 8,
-        sqs_min: parseInt(cfg.sqs_min) || 40,
+        completeness_pct_min: !isNaN(completenessVal) ? completenessVal : 45,
+        trend_score_min: !isNaN(trendVal) ? trendVal : 8,
+        sqs_min: !isNaN(sqsVal) ? sqsVal : 40,
         require_all_tiers: cfg.require_all_tiers !== false,
-        max_qualified_signals: parseInt(cfg.max_qualified_signals) || 12,
-        sort_by: cfg.sort_by || "sqs",
-        sort_order: (cfg.sort_order || "DESC").toUpperCase(),
+        max_qualified_signals: !isNaN(maxSignalsVal) ? maxSignalsVal : 12,
+        sort_by: cfg.sort_by !== null && cfg.sort_by !== undefined && typeof cfg.sort_by === 'string' ? cfg.sort_by : "sqs",
+        sort_order: (cfg.sort_order !== null && cfg.sort_order !== undefined && typeof cfg.sort_order === 'string' ? cfg.sort_order : "DESC").toUpperCase(),
       };
     }
 
