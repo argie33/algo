@@ -218,6 +218,7 @@ DESIGNS_DEPRECATED/
 # GitHub Actions build artifacts
 lambda-pkg/
 db-init-pkg/
+api-pkg/
 
 # Test artifacts (auto-generated)
 webapp/frontend/src/tests/e2e/visual-regression.visual.spec.js-snapshots/
