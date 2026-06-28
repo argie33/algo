@@ -41,10 +41,11 @@ from dashboard.panels import (
     panel_signals_expanded,
     panel_trades_expanded,
 )
-from dashboard.utilities import MASCOT_W, ET, logger, mkt_hours_str
-from dashboard.formatters import mkt_hours_str
 from datetime import datetime
 import time
+
+from dashboard.formatters import mkt_hours_str
+from dashboard.utilities import ET, MASCOT_W, logger
 
 
 def render_error_panel(e: Exception, recovery_status: str | None = None) -> Panel:
@@ -115,7 +116,7 @@ def render_header_components(
             border_style="red",
         )
     else:
-        hdr_panel = panel_header_market(
+        hdr_panel = panel_header_market(  # type: ignore[no-any-return]
             ctx.mkt,
             ctx.sentiment,
             ts,
@@ -139,7 +140,7 @@ def render_dashboard_body(outer: Layout, ctx: DashboardContext, compact: bool) -
 
     def safe_render(panel_fn: Any, *args: Any, **kwargs: Any) -> Panel:
         try:
-            return panel_fn(*args, **kwargs)
+            return panel_fn(*args, **kwargs)  # type: ignore[no-any-return]
         except Exception as e:
             return Panel(
                 Text.from_markup(f"[red]Panel rendering failed[/]: {type(e).__name__}\n[dim]{str(e)[:80]}[/]"),
@@ -258,7 +259,9 @@ def render_expanded_view(view_mode: str, ctx: DashboardContext, hdr_panel: Panel
             if has_error(ctx.sig) or has_error(ctx.scores):
                 return _expanded_layout(*_exp_top, Panel("[red]Signals data unavailable[/]", border_style="red"))
             sig_panel = panel_signals_expanded(ctx.sig, ctx.sig_eval, scores=ctx.scores)
-            return _expanded_layout(*_exp_top, sig_panel) if sig_panel else _expanded_layout(*_exp_top, Panel("[red]Signals panel unavailable[/]", border_style="red"))
+            if sig_panel is None:
+                return _expanded_layout(*_exp_top, Panel("[red]Signals panel unavailable[/]", border_style="red"))
+            return _expanded_layout(*_exp_top, sig_panel)
         case "health":
             if has_error(ctx.run) or has_error(ctx.health):
                 return _expanded_layout(*_exp_top, Panel("[red]Health data unavailable[/]", border_style="red"))

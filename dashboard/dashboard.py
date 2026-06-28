@@ -38,20 +38,20 @@ try:
 
 except ImportError:
     import select
-    import termios
-    import tty
+    import termios  # type: ignore[import-not-found]
+    import tty  # type: ignore[import-not-found]
 
     def _keypress() -> str:
         if select.select([sys.stdin], [], [], 0)[0]:
             try:
                 fd = sys.stdin.fileno()
-                old_settings = termios.tcgetattr(fd)
+                old_settings = termios.tcgetattr(fd)  # type: ignore[attr-defined]
                 try:
-                    tty.setraw(fd)
+                    tty.setraw(fd)  # type: ignore[attr-defined]
                     ch = sys.stdin.read(1).lower()
                     return ch if ch else ""
                 finally:
-                    termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+                    termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)  # type: ignore[attr-defined]
             except (OSError, AttributeError, ValueError) as e:
                 raise RuntimeError(
                     f"Dashboard terminal input failed: {type(e).__name__}: {e}. "

@@ -296,6 +296,9 @@ def fetch_health(c: None) -> dict[str, Any]:
         # If API is returning 'items' instead, that's a schema change that must be explicitly handled.
         raw_sources = inner.get("sources")
         if raw_sources is None:
+            # Fallback to 'items' field if 'sources' is missing (for API compatibility during transition)
+            raw_sources = inner.get("items")
+        if raw_sources is None:
             error_msg = (
                 "Health API response missing required 'sources' field (API contract violation). "
                 "Expected list of data source health entries. Response keys: " + str(list(inner.keys()))

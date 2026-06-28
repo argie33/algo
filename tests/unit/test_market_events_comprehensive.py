@@ -578,7 +578,7 @@ class TestCheckAfterHoursWindow:
 class TestHandleSingleStockHalt:
     """Test handle_single_stock_halt() method."""
 
-    @patch("algo.infrastructure.market_events.DatabaseContext")
+    @patch("utils.db.DatabaseContext")
     @patch("algo.infrastructure.market_events.get_credential_manager")
     @patch("algo.infrastructure.market_events.get_alpaca_base_url")
     def test_handle_halt_cancels_pending_orders(self, mock_base_url, mock_cred_manager, mock_db):
@@ -590,6 +590,7 @@ class TestHandleSingleStockHalt:
 
         mock_cursor = MagicMock()
         mock_db.return_value.__enter__.return_value = mock_cursor
+        mock_db.return_value.__exit__.return_value = None
 
         handler = MarketEventHandler({})
         result = handler.handle_single_stock_halt("AAPL")
@@ -683,29 +684,20 @@ class TestCheckDelisting:
 class TestRunPreMarketChecks:
     """Test run_pre_market_checks() concurrent execution."""
 
-    @patch("algo.infrastructure.market_events.DatabaseContext")
-    @patch("algo.infrastructure.market_events.ThreadPoolExecutor")
     @patch("algo.infrastructure.market_events.get_credential_manager")
     @patch("algo.infrastructure.market_events.get_alpaca_base_url")
-    def test_pre_market_checks_all_pass(self, mock_base_url, mock_cred_manager, mock_executor_class, mock_db):
+    def test_pre_market_checks_all_pass(self, mock_base_url, mock_cred_manager):
         """Test all pre-market checks passing."""
         mock_base_url.return_value = "https://api.alpaca.markets"
         mock_cm = MagicMock()
         mock_cm.get_alpaca_credentials.return_value = {"key": "key", "secret": "secret"}
         mock_cred_manager.return_value = mock_cm
 
-        mock_cursor = MagicMock()
-        mock_cursor.fetchone.return_value = (False,)  # Not early close
-        mock_db.return_value.__enter__.return_value = mock_cursor
-
         handler = MarketEventHandler({})
 
-        # Mock the actual methods since we can't easily mock ThreadPoolExecutor's
-        # context manager with futures
+        # Mock the actual methods since ThreadPoolExecutor is hard to mock
         with patch.object(handler, "check_early_close", return_value=False), \
-             patch.object(
-                 handler, "check_market_circuit_breaker", return_value=None
-             ), \
+             patch.object(handler, "check_market_circuit_breaker", return_value=None), \
              patch.object(handler, "check_after_hours_window", return_value=False):
             result = handler.run_pre_market_checks()
 
@@ -715,3 +707,34 @@ class TestRunPreMarketChecks:
         assert result["checks"]["early_close"] is False
         assert result["checks"]["circuit_breaker"] is None
         assert result["checks"]["after_hours_window"] is False
+
+    @patch("algo.infrastructure.market_events.get_credential_manager")
+    @patch("algo.infrastructure.market_events.get_alpaca_base_url")
+    def test_pre_market_checks_with_circuit_breaker_alert(self, mock_base_url, mock_cred_manager):
+        """Test pre-market checks with circuit breaker triggered."""
+        mock_base_url.return_value = "https://api.alpaca.markets"
+        mock_cm = MagicMock()
+        mock_cm.get_alpaca_credentials.return_value = {"key": "key", "secret": "secret"}
+        mock_cred_manager.return_value = mock_cm
+
+        handler = MarketEventHandler({})
+        cb_result = {
+            "level": 1,
+            "description": "7%+ down - 15-minute halt",
+            "pct_down": 7.5,
+            "action": "PAUSE_NEW_ENTRIES_15MIN",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+        # Mock the actual methods
+        with patch.object(handler, "check_early_close", return_value=False), \
+             patch.object(handler, "check_market_circuit_breaker", return_value=cb_result), \
+             patch.object(handler, "check_after_hours_window", return_value=False):
+            result = handler.run_pre_market_checks()
+
+        assert "timestamp" in result
+        assert "checks" in result
+        assert "alerts" in result
+        assert result["checks"]["circuit_breaker"] == cb_result
+        # Should have alert about circuit breaker
+        assert any("CIRCUIT BREAKER LEVEL 1" in str(alert) for alert in result["alerts"])
