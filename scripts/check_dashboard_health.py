@@ -9,7 +9,9 @@ Usage:
 """
 
 import argparse
+import io
 import json
+import os
 import sys
 from datetime import date, timedelta
 from typing import Any
@@ -18,6 +20,11 @@ import psycopg2
 
 from algo.infrastructure import MarketCalendar
 from utils.db import DatabaseContext
+
+# Fix Windows encoding issue with emoji
+if sys.platform == "win32":
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
+    os.environ["PYTHONIOENCODING"] = "utf-8"
 
 
 def check_table_freshness() -> dict[str, Any]:
