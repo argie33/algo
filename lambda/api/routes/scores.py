@@ -249,64 +249,6 @@ def _get_stock_scores(
                 prices_missing_count += 1
                 continue
 
-            # Compute 12-3 momentum: 12-month return minus 3-month (skip short-term reversal)
-            roc252 = _f(d.get("tdd_roc_252d"))
-            roc60 = _f(d.get("tdd_roc_60d"))
-            momentum_12_3 = round(roc252 - roc60, 4) if (roc252 is not None and roc60 is not None) else roc252
-
-            d["quality_inputs"] = {
-                "return_on_equity_pct": _f(d.get("roe_pct")),
-                "return_on_assets_pct": _f(d.get("roa_val")),
-                "operating_margin_pct": _f(d.get("operating_margin_val")),
-                "profit_margin_pct": _f(d.get("net_margin_val")),
-                "debt_to_equity": _f(d.get("debt_to_equity")),
-                "current_ratio": _f(d.get("current_ratio_val")),
-                "quick_ratio": _f(d.get("quick_ratio_val")),
-                "interest_coverage": _f(d.get("interest_coverage_val")),
-            }
-            d["value_inputs"] = {
-                "stock_pe": _f(d.get("trailing_pe")),
-                "stock_pb": _f(d.get("price_to_book")),
-                "stock_ps": _f(d.get("ps_ratio_val")),
-                "peg_ratio": _f(d.get("peg_ratio_val")),
-                "stock_dividend_yield": _f(d.get("dividend_yield")),
-                "fcf_yield": _f(d.get("fcf_yield_val")),
-            }
-            d["growth_inputs"] = {
-                "revenue_growth_1y_pct": _f(d.get("rev_growth_1y_val")),
-                "eps_growth_1y_pct": _f(d.get("eps_growth_1y_val")),
-                "revenue_growth_3y_cagr": _f(d.get("rev_growth_3y_val")),
-                "eps_growth_3y_cagr": _f(d.get("eps_growth_3y_val")),
-                "revenue_growth_5y_cagr": _f(d.get("rev_growth_5y_val")),
-                "eps_growth_5y_cagr": _f(d.get("eps_growth_5y_val")),
-            }
-            d["stability_inputs"] = {
-                "volatility_12m": _f(d.get("volatility_12m_val")),
-                "volatility_60d": _f(d.get("volatility_60d_val")),
-                "volatility_30d": _f(d.get("volatility_30d_val")),
-                "beta": _f(d.get("beta_val")),
-                "debt_to_assets": _f(d.get("debt_to_assets_val")),
-            }
-            d["positioning_inputs"] = {
-                "institutional_ownership_pct": _f(d.get("inst_own_val")),
-                "top_10_institutions_pct": _f(d.get("vm_held_institutions")),
-                "insider_ownership_pct": _f(d.get("insider_own_val")),
-                "short_percent_of_float": _f(d.get("short_pct_val")),
-                "short_interest_pct": _f(d.get("short_pct_val")),
-                "shares_short_prior_month": d.get("shares_short_prior_month_val"),
-                "short_interest_trend": d.get("short_interest_trend_val"),
-            }
-            d["momentum_inputs"] = {
-                "current_price": _f(d.get("current_price")),
-                "price_vs_sma_50": _f(d.get("price_vs_sma_50")),
-                "price_vs_sma_200": _f(d.get("price_vs_sma_200")),
-                "price_vs_52w_high": _f(d.get("price_vs_52w_high_val")),
-                "momentum_3m": _f(d.get("tdd_roc_60d")),
-                "momentum_6m": _f(d.get("tdd_roc_120d")),
-                "momentum_12_3": momentum_12_3,
-                "rsi": _f(d.get("tdd_rsi")),
-                "macd": _f(d.get("tdd_macd")),
-            }
             items.append(d)
 
         # FAIL-FAST: If no valid scores are available (all had missing prices), return error
