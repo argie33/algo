@@ -1741,7 +1741,7 @@ class AlgoConfig:
         if key not in self.DEFAULTS:
             logger.warning(f"[CONFIG OVERRIDE] Unknown key {key!r}  - ignored")
             return
-        _, dtype, _ = self.DEFAULTS[key]
+        _, dtype, _ = self.DEFAULTS[key][:3]
         try:
             self._validate_value(key, str(value), dtype)
             self._config[key] = self._parse_value(str(value), dtype)
