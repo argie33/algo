@@ -264,13 +264,11 @@ class PositionTracker:
                 cur.execute(
                     """
                     INSERT INTO algo_audit_log (
-                        operation_type, entity_type, entity_id, actor,
-                        operation_details, created_at
-                    ) VALUES (%s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+                        action_type, symbol, actor, details
+                    ) VALUES (%s, %s, %s, %s)
                     """,
                     (
                         "PARTIAL_FILL_CORRECTION",
-                        "trade",
                         symbol,
                         "system:position_validation",
                         f"Partial fill detected and corrected: requested {db_qty} shares, Alpaca filled {alpaca_qty} shares. "
