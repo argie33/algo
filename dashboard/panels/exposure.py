@@ -281,15 +281,19 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
         return rows
     raw = exp_f.get("raw_score")
     epct = exp_f.get("exposure_pct")
+    # raw_score and exposure_pct should be present for valid exposure data
+    # If missing, don't silently convert to sentinel values — fail-fast with error
+    if raw is None or epct is None:
+        raise ValueError(f"Exposure data missing raw_score or exposure_pct. Available: {list(exp_f.keys())}")
     regime = exp_f.get("regime", "")
-    factors = exp_f["factors"]
+    factors = exp_f.get("factors", [])
     tier = _tier_formatter.format(epct)
     tc = TIER_COLOR.get(tier, "dim")
 
     # Header summary
-    raw_bar = mini_bar(raw if raw is not None else 0, 100, w=12)
-    raw_s = f"{raw:.0f}" if raw is not None else "--"
-    epct_s = f"{epct:.0f}" if epct is not None else "--"
+    raw_bar = mini_bar(raw, 100, w=12)
+    raw_s = f"{raw:.0f}"
+    epct_s = f"{epct:.0f}"
     rows.append(
         Text.from_markup(
             f"[dim]Raw Score:[/] [white]{raw_s}[/][dim]/100[/] {raw_bar}  "

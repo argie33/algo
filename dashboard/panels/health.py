@@ -1978,7 +1978,13 @@ def panel_algo_health(  # noqa: C901
             rows.append(Text.from_markup(health_text))
 
     # ── E: Risk snapshot (VaR / CVaR / Beta / Concentration) ────────────────────
-    risk_dict = safe_get_dict(risk) if not has_error(risk) else {}
+    # CRITICAL: Do NOT silently fallback to empty dict when risk data is error or missing.
+    # Risk metrics are critical financial data. Missing/error data must be visible in error panel,
+    # not hidden by silent {} default.
+    if risk and not has_error(risk):
+        risk_dict = safe_get_dict(risk)
+    else:
+        risk_dict = None
     if risk_dict:
         var95_val = safe_float(risk_dict.get("var95"), default=None)
         if var95_val is not None and var95_val > 0:

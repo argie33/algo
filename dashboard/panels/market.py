@@ -146,8 +146,9 @@ def panel_market_full(mkt: Any, sentiment: Any = None) -> Panel:
             padding=(0, 1),
         )
 
-    dist = mkt.get("dist", "N/A")
-    stage = mkt.get("stage", "N/A")
+    # Optional fields: dist/stage may not always be available from API
+    dist = mkt.get("dist", "--")
+    stage = mkt.get("stage", "--")
     spy_chg = safe_float(mkt.get("spy_chg"), strict=False)
     trend = mkt.get("trend", "")
     try:
@@ -169,8 +170,11 @@ def panel_market_full(mkt: Any, sentiment: Any = None) -> Panel:
     fed = mkt.get("fed")
 
     # Derived values from extracted fields (critical fields guaranteed non-None)
-    exp_s = f"{float(exp):.0f}%" if exp is not None else "N/A"
-    bar = exp_bar(exp, w=10) if exp is not None else "[dim]N/A[/]"
+    # CRITICAL: exp must be present — fail-fast if missing, don't default to "N/A"
+    if exp is None:
+        raise ValueError("Market data missing required exposure value")
+    exp_s = f"{float(exp):.0f}%"
+    bar = exp_bar(exp, w=10)
     vix_s = f"{vix:.1f}"
     vc = R if vix >= 30 else (Y if vix >= 20 else G)
     trend_s = trend.upper()

@@ -123,35 +123,16 @@ def fetch_run(c: None) -> dict[str, Any]:
         completed_phases = [p for p in phases if p.get("status") == "success"]
         halt_reason = halted_phases[0].get("summary") if halted_phases else None
 
-        # Timestamps are required - fail if all are missing (Issue #6)
-        # Explicit priority: prefer run_at, then completed_at, then started_at
-        run_at = None
-
-        if inner.get("run_at") is not None:
-            run_at = inner.get("run_at")
-        elif inner.get("completed_at") is not None:
-            run_at = inner.get("completed_at")
-            logger.debug(
-                "Last-run API using fallback field 'completed_at' for timestamp. "
-                "Consider verifying API schema: expected 'run_at' field."
-            )
-        elif inner.get("started_at") is not None:
-            run_at = inner.get("started_at")
-            logger.warning(
-                "Last-run API using fallback field 'started_at' for timestamp (run_at and completed_at missing). "
-                "This may indicate API schema issue or incomplete run data."
-            )
-
-        # No runs yet (algo hasn't executed) - fail-fast: return error instead of placeholder
-        if not run_at and not inner.get("run_id") and not inner["success"] and not inner["halted"]:
-            error_msg = "No algo runs available yet (algo has not executed)"
-            logger.warning(error_msg)
-            record_data_quality_issue("run", "initialization", "no_runs_yet")
-            return FetcherValidator.build_error_response(error_msg)
+        # CRITICAL: run_at is REQUIRED. No fallback to alternative timestamp fields.
+        # Missing run_at indicates API schema mismatch or incomplete data.
+        run_at = inner.get("run_at")
         if not run_at:
-            error_msg = "Last-run API response missing all timestamp fields (run_at, completed_at, started_at)"
+            error_msg = (
+                "Last-run API response missing required 'run_at' field. "
+                "Available keys: " + str(list(inner.keys()))
+            )
             logger.error(error_msg)
-            record_data_quality_issue("run", "critical_field", "missing_timestamp")
+            record_data_quality_issue("run", "critical_field", "missing_run_at")
             return FetcherValidator.build_error_response(error_msg)
 
         # errored: use API field if present, otherwise derive from phase data
@@ -429,67 +410,51 @@ def fetch_circuit(c: None) -> dict[str, Any]:
                 record_data_quality_issue("cb", "validation", "breaker_missing_label")
                 return FetcherValidator.build_error_response(error_msg)
 
-            # Map API field names to fetcher expectations with explicit source tracking.
-            # Primary fields: current_value, threshold_value, is_active
-            # Fallback fields (for compatibility): current, threshold, triggered
-            # FAIL-FAST: Validate which field is present and log source for schema traceability
+            # CRITICAL: Require exact field names — no fallback field substitution.
+            # If API changed field names, that must be fixed in the API, not hidden here.
 
-            # Current value field (required)
-            if "current_value" in r:
-                cur_val = r["current_value"]
-            elif "current" in r:
-                cur_val = r["current"]
-                logger.debug(f"[CB] {label}: using fallback field 'current' instead of 'current_value'")
-            else:
+            # Current value field (REQUIRED: current_value)
+            if "current_value" not in r:
                 error_msg = (
-                    f"Circuit breaker {label}: missing required fields 'current_value' and 'current'. "
-                    f"API response schema incomplete. Available: {list(r.keys())}"
+                    f"Circuit breaker {label}: missing required field 'current_value'. "
+                    f"Available: {list(r.keys())}"
                 )
                 logger.error(error_msg)
-                record_data_quality_issue("cb", "validation", "missing_current_field", label)
+                record_data_quality_issue("cb", "validation", "missing_current_value", label)
                 return FetcherValidator.build_error_response(error_msg)
-
+            cur_val = r["current_value"]
             if cur_val is None:
-                error_msg = f"Circuit breaker {label}: current value is None"
+                error_msg = f"Circuit breaker {label}: current_value is None"
                 logger.error(error_msg)
                 record_data_quality_issue("cb", "validation", "null_current_value", label)
                 return FetcherValidator.build_error_response(error_msg)
 
-            # Threshold value field (required)
-            if "threshold_value" in r:
-                thr_val = r["threshold_value"]
-            elif "threshold" in r:
-                thr_val = r["threshold"]
-                logger.debug(f"[CB] {label}: using fallback field 'threshold' instead of 'threshold_value'")
-            else:
+            # Threshold value field (REQUIRED: threshold_value)
+            if "threshold_value" not in r:
                 error_msg = (
-                    f"Circuit breaker {label}: missing required fields 'threshold_value' and 'threshold'. "
-                    f"API response schema incomplete. Available: {list(r.keys())}"
+                    f"Circuit breaker {label}: missing required field 'threshold_value'. "
+                    f"Available: {list(r.keys())}"
                 )
                 logger.error(error_msg)
-                record_data_quality_issue("cb", "validation", "missing_threshold_field", label)
+                record_data_quality_issue("cb", "validation", "missing_threshold_value", label)
                 return FetcherValidator.build_error_response(error_msg)
-
+            thr_val = r["threshold_value"]
             if thr_val is None:
-                error_msg = f"Circuit breaker {label}: threshold value is None"
+                error_msg = f"Circuit breaker {label}: threshold_value is None"
                 logger.error(error_msg)
                 record_data_quality_issue("cb", "validation", "null_threshold_value", label)
                 return FetcherValidator.build_error_response(error_msg)
 
-            # Is active/triggered field (required)
-            if "is_active" in r:
-                is_triggered = r["is_active"]
-            elif "triggered" in r:
-                is_triggered = r["triggered"]
-                logger.debug(f"[CB] {label}: using fallback field 'triggered' instead of 'is_active'")
-            else:
+            # Is active field (REQUIRED: is_active)
+            if "is_active" not in r:
                 error_msg = (
-                    f"Circuit breaker {label}: missing required fields 'is_active' and 'triggered'. "
-                    f"API response schema incomplete. Available: {list(r.keys())}"
+                    f"Circuit breaker {label}: missing required field 'is_active'. "
+                    f"Available: {list(r.keys())}"
                 )
                 logger.error(error_msg)
-                record_data_quality_issue("cb", "validation", "missing_triggered_field", label)
+                record_data_quality_issue("cb", "validation", "missing_is_active", label)
                 return FetcherValidator.build_error_response(error_msg)
+            is_triggered = r["is_active"]
 
             formatted_bs.append(
                 {
