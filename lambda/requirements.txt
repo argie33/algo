@@ -23,7 +23,7 @@ slack-sdk==3.26.1
 
 # AWS (pre-installed in Lambda, but include for local development)
 boto3==1.28.85
-botocore==1.31.85
+botocore==1.43.36
 
 # Utilities
 click==8.1.7
