@@ -130,7 +130,7 @@ def test_admin_rate_limit_with_malformed_user_id():
 
     # Test with int
     try:
-        allowed, msg = check_admin_rate_limit(12345, endpoint, 3, 1)
+        allowed, _ = check_admin_rate_limit(12345, endpoint, 3, 1)
         assert isinstance(allowed, bool)
     except (TypeError, ValueError):
         pass
@@ -171,7 +171,7 @@ def test_admin_rate_limit_with_negative_values():
 
     # Test with negative max_requests
     try:
-        allowed, msg = check_admin_rate_limit(user_id, endpoint, -5, 1)
+        allowed, _ = check_admin_rate_limit(user_id, endpoint, -5, 1)
         assert isinstance(allowed, bool)
     except (ValueError, AssertionError):
         pass
