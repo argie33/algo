@@ -281,7 +281,7 @@ class MarketFactorCalculator:
         try:
             cur.execute("SAVEPOINT sp_put_call")
             cur.execute(
-                "SELECT put_call_ratio FROM market_health_daily WHERE date = %s ORDER BY date DESC LIMIT 1",
+                "SELECT put_call_ratio FROM market_health_daily WHERE date <= %s ORDER BY date DESC LIMIT 1",
                 (eval_date,),
             )
             row = cur.fetchone()
@@ -320,7 +320,7 @@ class MarketFactorCalculator:
             cur.execute(
                 """
                 SELECT new_highs_count, new_lows_count FROM market_health_daily
-                WHERE date = %s ORDER BY date DESC LIMIT 1
+                WHERE date <= %s ORDER BY date DESC LIMIT 1
                 """,
                 (eval_date,),
             )
