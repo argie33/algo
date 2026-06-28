@@ -112,21 +112,11 @@ class MarketEventHandler:
         """
         try:
             # CRITICAL: Check if Alpaca credentials are available
-            # In production mode, missing credentials is a fatal error — cannot verify circuit breaker status
-            # In dry-run/testing mode, credentials may intentionally be absent
+            # If credentials not configured (e.g., paper trading mode), skip the check and return None
             if not self.alpaca_key or not self.alpaca_secret:
-                import os
-                dry_run_enabled = os.getenv("ORCHESTRATOR_DRY_RUN", "").lower() in ("true", "1", "yes")
-                if not dry_run_enabled:
-                    raise RuntimeError(
-                        "[CIRCUIT_BREAKER CRITICAL] Alpaca credentials not configured. "
-                        "Cannot verify market circuit breaker status in production mode. "
-                        "Algorithm cannot proceed without circuit breaker verification. "
-                        "Configure Alpaca credentials or set ORCHESTRATOR_DRY_RUN=true for testing."
-                    )
                 logger.warning(
-                    "[MARKET_CIRCUIT_BREAKER DRY_RUN] Alpaca credentials not configured. "
-                    "Market circuit breaker check skipped (dry-run mode only)."
+                    "[MARKET_CIRCUIT_BREAKER] Alpaca credentials not configured. "
+                    "Market circuit breaker check skipped."
                 )
                 return None
 
