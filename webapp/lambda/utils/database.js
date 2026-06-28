@@ -29,6 +29,26 @@ let indexesCreated = false; // guard: only run background index creation once pe
 // Database configuration cache
 let dbConfig = null;
 
+/**
+ * Safely parse an integer from an environment variable
+ * Replaces: parseInt(process.env.VAR) || defaultValue
+ * With: explicit NaN check and default handling
+ *
+ * @param {string} envVar - The environment variable value to parse
+ * @param {number} defaultValue - The default value if envVar is missing or invalid
+ * @returns {number} The parsed integer or the default value
+ */
+function parseIntSafe(envVar, defaultValue) {
+  if (envVar === null || envVar === undefined || envVar === '') {
+    return defaultValue;
+  }
+  const parsed = parseInt(envVar, 10);
+  if (isNaN(parsed)) {
+    return defaultValue;
+  }
+  return parsed;
+}
+
 // SSL Configuration Fix Applied - v2.2.0
 // Fixed SSL configuration to match working ECS patterns with DB_SSL environment variable support
 
@@ -99,22 +119,18 @@ async function getDbConfig() {
 
         dbConfig = {
           host: secret.host || process.env.DB_ENDPOINT,
-          port: secret.port ? parseInt(secret.port) : undefined,
+          port: secret.port ? parseInt(secret.port, 10) : undefined,
           user: secret.username,
           password: secret.password,
           database: secret.dbname,
-          max: parseInt(process.env.DB_POOL_MAX) || 10, // Increased for reserved concurrency
-          min: parseInt(process.env.DB_POOL_MIN) || 2,
-          idleTimeoutMillis:
-            parseInt(process.env.DB_POOL_IDLE_TIMEOUT) || 10000,
-          connectionTimeoutMillis:
-            parseInt(process.env.DB_CONNECT_TIMEOUT) || 3000,
-          acquireTimeoutMillis:
-            parseInt(process.env.DB_ACQUIRE_TIMEOUT) || 3000,
-          createTimeoutMillis: parseInt(process.env.DB_CREATE_TIMEOUT) || 3000,
-          statement_timeout:
-            parseInt(process.env.DB_STATEMENT_TIMEOUT) || 30000,
-          query_timeout: parseInt(process.env.DB_QUERY_TIMEOUT) || 25000,
+          max: parseIntSafe(process.env.DB_POOL_MAX, 10), // Increased for reserved concurrency
+          min: parseIntSafe(process.env.DB_POOL_MIN, 2),
+          idleTimeoutMillis: parseIntSafe(process.env.DB_POOL_IDLE_TIMEOUT, 10000),
+          connectionTimeoutMillis: parseIntSafe(process.env.DB_CONNECT_TIMEOUT, 3000),
+          acquireTimeoutMillis: parseIntSafe(process.env.DB_ACQUIRE_TIMEOUT, 3000),
+          createTimeoutMillis: parseIntSafe(process.env.DB_CREATE_TIMEOUT, 3000),
+          statement_timeout: parseIntSafe(process.env.DB_STATEMENT_TIMEOUT, 30000),
+          query_timeout: parseIntSafe(process.env.DB_QUERY_TIMEOUT, 25000),
           ssl:
             process.env.DB_SSL === "false"
               ? false
@@ -161,23 +177,21 @@ async function getDbConfig() {
 
       dbConfig = {
         host,
-        port: process.env.DB_PORT ? parseInt(process.env.DB_PORT) : undefined,
+        port: process.env.DB_PORT ? parseInt(process.env.DB_PORT, 10) : undefined,
         user,
         password,
         database,
         // AWS Lambda optimized connection pool settings
-        max: parseInt(process.env.DB_POOL_MAX) || 10, // Increased for reserved concurrency
-        min: parseInt(process.env.DB_POOL_MIN) || 2, // Keep minimal connections
-        idleTimeoutMillis: parseInt(process.env.DB_POOL_IDLE_TIMEOUT) || 10000, // Shorter idle timeout
-        connectionTimeoutMillis:
-          parseInt(process.env.DB_CONNECT_TIMEOUT) || 3000, // Fast timeout for Lambda
-        acquireTimeoutMillis: parseInt(process.env.DB_ACQUIRE_TIMEOUT) || 3000, // Quick acquire
-        createTimeoutMillis: parseInt(process.env.DB_CREATE_TIMEOUT) || 3000, // Fast creation
-        reapIntervalMillis: parseInt(process.env.DB_REAP_INTERVAL) || 1000, // Pool maintenance
-        createRetryIntervalMillis:
-          parseInt(process.env.DB_RETRY_INTERVAL) || 100, // Fast retries
-        statement_timeout: parseInt(process.env.DB_STATEMENT_TIMEOUT) || 30000, // 30s max query time
-        query_timeout: parseInt(process.env.DB_QUERY_TIMEOUT) || 25000, // 25s max per query
+        max: parseIntSafe(process.env.DB_POOL_MAX, 10), // Increased for reserved concurrency
+        min: parseIntSafe(process.env.DB_POOL_MIN, 2), // Keep minimal connections
+        idleTimeoutMillis: parseIntSafe(process.env.DB_POOL_IDLE_TIMEOUT, 10000), // Shorter idle timeout
+        connectionTimeoutMillis: parseIntSafe(process.env.DB_CONNECT_TIMEOUT, 3000), // Fast timeout for Lambda
+        acquireTimeoutMillis: parseIntSafe(process.env.DB_ACQUIRE_TIMEOUT, 3000), // Quick acquire
+        createTimeoutMillis: parseIntSafe(process.env.DB_CREATE_TIMEOUT, 3000), // Fast creation
+        reapIntervalMillis: parseIntSafe(process.env.DB_REAP_INTERVAL, 1000), // Pool maintenance
+        createRetryIntervalMillis: parseIntSafe(process.env.DB_RETRY_INTERVAL, 100), // Fast retries
+        statement_timeout: parseIntSafe(process.env.DB_STATEMENT_TIMEOUT, 30000), // 30s max query time
+        query_timeout: parseIntSafe(process.env.DB_QUERY_TIMEOUT, 25000), // 25s max per query
         ssl:
           process.env.DB_SSL === "false"
             ? false
@@ -671,7 +685,7 @@ async function query(text, params = []) {
     let queryDuration = 0; // Initialize query duration - will be updated after query completes
 
     // Add query timeout protection for AWS Lambda
-    const queryTimeout = parseInt(process.env.DB_QUERY_TIMEOUT) || 25000; // 25 seconds
+    const queryTimeout = parseIntSafe(process.env.DB_QUERY_TIMEOUT, 25000); // 25 seconds
     const timeoutPromise = new Promise((_, reject) => {
       setTimeout(() => {
         reject(
