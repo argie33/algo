@@ -43,6 +43,11 @@ class WatermarkManager:
         Raises:
             DatabaseError if DB query fails (distinguish from "never fetched")
         """
+        # CRITICAL: If watermark_field is empty, loader uses full refresh (no incremental tracking)
+        # Return None to indicate no watermark (always fetch full data for symbol)
+        if not self.watermark_field:
+            return None
+
         try:
             with DatabaseContext("read") as cur:
                 cur.execute(

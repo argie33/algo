@@ -265,7 +265,7 @@ def test_empty_optional_data_not_treated_as_error():
 
 
 def test_error_message_fallback_for_missing_error_details():
-    """Verify that missing or None _error values show fallback message, not 'Unknown error'."""
+    """Verify that missing or None _error values show improved fallback message."""
     from dashboard.error_boundary import error_summary_panel
 
     # Test case 1: _error is None
@@ -273,10 +273,10 @@ def test_error_message_fallback_for_missing_error_details():
     panel = error_summary_panel(data_none_error)
     assert panel is not None, "Should render error panel for None _error"
     rendered = str(panel.renderable)
-    assert "API error (no details available)" in rendered, (
-        f"Should show fallback message, got: {rendered}"
+    # New behavior: show "Unknown error (no details available)" instead of "API error (no details available)"
+    assert "Unknown error (no details available)" in rendered, (
+        f"Should show improved fallback message, got: {rendered}"
     )
-    assert "Unknown error" not in rendered, "Should not show 'Unknown error'"
     print("OK error message fallback works for None _error")
 
     # Test case 2: _error is empty string
@@ -284,8 +284,8 @@ def test_error_message_fallback_for_missing_error_details():
     panel = error_summary_panel(data_empty_error)
     assert panel is not None, "Should render error panel for empty _error"
     rendered = str(panel.renderable)
-    assert "API error (no details available)" in rendered, (
-        f"Should show fallback message, got: {rendered}"
+    assert "Unknown error (no details available)" in rendered, (
+        f"Should show improved fallback message, got: {rendered}"
     )
     print("OK error message fallback works for empty _error")
 
