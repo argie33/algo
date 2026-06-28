@@ -97,9 +97,9 @@ def check_halt_flag() -> bool:
     """Check if orchestrator halt flag is set."""
     try:
         with DatabaseContext("read") as cur:
-            cur.execute("SELECT value FROM algo_orchestrator_state WHERE key = 'orchestrator_halt'")
+            cur.execute("SELECT halt_flag FROM algo_runtime_state WHERE state_key = 'orchestrator_halt'")
             row = cur.fetchone()
-            return row is not None and row["value"] == "true"
+            return row is not None and row[0] is True
     except psycopg2.Error:
         return False
 
@@ -139,7 +139,11 @@ def clear_halt_flag() -> bool:
     """Clear the orchestrator halt flag."""
     try:
         with DatabaseContext("write") as cur:
-            cur.execute("DELETE FROM algo_orchestrator_state WHERE key = 'orchestrator_halt'")
+            cur.execute("""
+                UPDATE algo_runtime_state
+                SET halt_flag = FALSE, halt_reason = 'Cleared by check_dashboard_health', last_updated_at = CURRENT_TIMESTAMP
+                WHERE state_key = 'orchestrator_halt'
+            """)
             return True
     except psycopg2.Error as e:
         print(f"ERROR: Could not clear halt flag: {e}")
