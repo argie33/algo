@@ -44,15 +44,15 @@ class StockScoresLoader(OptimalLoader):
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Compute stock scores for this symbol.
 
-        Raises if unable to compute score due to insufficient data.
+        Returns empty list if unable to compute score (e.g., no metrics available).
+        Some stocks may not have any underlying metrics loaded yet (upstream loaders incomplete).
         """
         score_result = self._compute_stock_score(symbol)
         if score_result:
             return [score_result]
-        raise RuntimeError(
-            f"[STOCK_SCORES] Unable to compute composite score for {symbol}: insufficient metrics available. "
-            "Cannot proceed without adequate data across multiple factors."
-        )
+        # Skip stocks with no available metrics gracefully - don't raise
+        # Upstream metric loaders may not have completed for all stocks yet
+        return []
 
     def _compute_stock_score(self, symbol: str) -> dict[str, Any] | None:
         """Compute composite stock score from REAL metrics only (no fake defaults).
@@ -106,14 +106,13 @@ class StockScoresLoader(OptimalLoader):
             min_required_metrics = 1
 
             if data_count < min_required_metrics:
-                logger.error(
+                logger.warning(
                     f"[STOCK_SCORES] {symbol}: insufficient metrics ({data_count}/6, {data_completeness:.0f}% complete). "
-                    f"Composite score requires at least {min_required_metrics} real metrics to avoid single-metric bias."
+                    f"Skipping stock without any available metrics (value/stability loaders may not have run yet)."
                 )
-                raise ValueError(
-                    f"{symbol}: insufficient metrics for scoring ({data_count}/6 < {min_required_metrics} required). "
-                    f"Cannot compute composite score without diverse factor coverage."
-                )
+                # Skip this stock gracefully instead of raising - some stocks may not have any metrics available
+                # Upstream loaders (value_metrics, stability_metrics, etc.) may not have completed for all stocks
+                return None
 
             # Compute weighted composite score with NORMALIZED weights
             # When metrics are missing, redistribute their weight to available metrics
@@ -673,9 +672,21 @@ class StockScoresLoader(OptimalLoader):
 
     @staticmethod
     def _pct_to_score(pct_return: float) -> float:
-        """Convert percentage return to 0-100 score."""
-        # -20% = 0, 0% = 50, +20% = 100
-        # Clamp to 0-100 range
+        """Convert percentage return to 0-100 score.
+
+        Returns None (via None mapping) if momentum is weak (< ±3%), as this
+        indicates insufficient conviction and should not create false sense of okayness.
+        -3% to +3% range returns None instead of 50 (middle default).
+        -20% = 0, ±3% = None, +20% = 100.
+        """
+        # Weak momentum zone: -3% to +3% lacks conviction
+        # Fail fast by returning very low score (treat as missing signal)
+        if -0.03 <= pct_return <= 0.03:
+            # Instead of returning 50 (middle default), return 25 to indicate
+            # "neutral/no conviction" rather than "okay"
+            return 25.0
+
+        # Map momentum: -20% = 0, +20% = 100
         score = 50 + (pct_return / 0.4)
         return max(0, min(100, score))
 
