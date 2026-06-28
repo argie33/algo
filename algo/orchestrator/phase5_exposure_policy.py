@@ -83,6 +83,7 @@ def run(
                 None,
             )
 
+        valid_actions = {"tighten_stop", "partial_exit", "force_exit"}
         counts = {"tighten_stop": 0, "partial_exit": 0, "force_exit": 0}
         for action in actions:
             if "action" not in action or "symbol" not in action or "reason" not in action:
@@ -91,7 +92,14 @@ def run(
                     "Cannot process exposure policy without all identifiers. "
                     "Verify ExposurePolicy.review_existing_positions() returns valid action data."
                 )
-            counts[action["action"]] = counts.get(action["action"], 0) + 1
+            action_type = action["action"]
+            if action_type not in valid_actions:
+                raise RuntimeError(
+                    f"[PHASE 5] Unknown exposure action type '{action_type}'. "
+                    f"Must be one of: {', '.join(valid_actions)}. "
+                    "Verify ExposurePolicy.review_existing_positions() returns valid action types."
+                )
+            counts[action_type] += 1
 
         logger.info(f"\n  {len(actions)} exposure-policy actions:")
         for a in actions:

@@ -110,7 +110,12 @@ class PositionAnalyzer:
         if logger_obj is None:
             logger_obj = logger
 
-        details = analysis.get("position_details", [])
+        if "position_details" not in analysis:
+            raise ValueError(
+                "Position analysis missing required 'position_details' key. "
+                "Verify PositionAnalyzer.analyze_positions() returned valid analysis result."
+            )
+        details = analysis["position_details"]
         logger_obj.info(f"\n2. Database Positions: {len(details)} open")
 
         for pos in details:
