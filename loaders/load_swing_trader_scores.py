@@ -207,7 +207,7 @@ class VectorizedSwingScoresLoader:
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"[SECTOR RANKING FETCH FAILED] Cannot load sector ranking data: {e}") from e
 
-    def _compute_all_scores_vectorized(
+    def _compute_all_scores_vectorized(  # noqa: C901
         self,
         symbols: list[str],
         signal_scores: pd.DataFrame,
@@ -375,13 +375,35 @@ class VectorizedSwingScoresLoader:
         return pd.DataFrame(results) if results else pd.DataFrame()
 
     def _calculate_momentum_score(self, rsi: float) -> float:
-        """Convert RSI to momentum score (40-70 RSI = 100 score)."""
-        if rsi < 40:
-            return (rsi / 40) * 50
-        elif rsi > 70:
-            return 100 - ((rsi - 70) / 30) * 50
+        """Convert RSI to momentum score (40-70 RSI range).
+
+        Penalizes neutral RSI (45-55) to avoid false sense of "okay" momentum.
+        Only gives high scores to strong signals: RSI < 35 (oversold) or > 75 (overbought).
+        Fails fast on weak momentum by returning lower baseline scores.
+        """
+        if rsi < 30:
+            # Strong oversold: 0 = 5, 30 = 40
+            return (rsi / 30) * 40
+        elif rsi < 40:
+            # Weak oversold: 30-40 → 40-50 (low momentum)
+            return 40 + ((rsi - 30) / 10) * 10
+        elif rsi < 45:
+            # Neutral-low: 40-45 → 45-50
+            return 45 + ((rsi - 40) / 5) * 5
+        elif rsi < 55:
+            # NEUTRAL ZONE (45-55): No conviction, return weak baseline
+            # Don't return 50 (middle default suggesting "okay").
+            # Return 35 to indicate "lack of momentum signal"
+            return 35.0
+        elif rsi < 60:
+            # Neutral-high: 55-60 → 50-55
+            return 50 + ((rsi - 55) / 5) * 5
+        elif rsi < 70:
+            # Weak overbought: 60-70 → 50-60
+            return 50 + ((rsi - 60) / 10) * 10
         else:
-            return 50 + ((rsi - 40) / 30) * 50
+            # Strong overbought: 70 = 60, 100 = 100
+            return 60 + ((min(rsi, 100) - 70) / 30) * 40
 
     def _bulk_insert(self, df: pd.DataFrame) -> int:
         """Bulk insert all scores at once using COPY (fast batch insert)."""

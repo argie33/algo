@@ -327,69 +327,67 @@ class BreadthFetcher:
 
         Returns: dict[date_str] -> {advance_decline_ratio, new_highs_count, new_lows_count}
 
-        Breadth data is optional enrichment. If unavailable or incomplete, returns empty dict.
+        CRITICAL: Breadth data (new highs/lows, advance/decline ratios) is essential
+        for market health assessment. Fail-fast if data unavailable or computation fails.
         """
-        try:
-            from utils.db import DatabaseContext
+        from utils.db import DatabaseContext
 
-            with DatabaseContext("read") as cur:
-                # Compute daily advance/decline counts from trend_template_data
-                cur.execute(
-                    """
-                    SELECT
-                        date,
-                        COUNT(*) FILTER (WHERE price_above_sma50 = true) AS advances,
-                        COUNT(*) FILTER (WHERE price_above_sma50 = false) AS declines
-                    FROM trend_template_data
-                    WHERE date >= %s AND date <= %s
-                    GROUP BY date
-                    ORDER BY date ASC
-                    """,
-                    (start, end),
+        with DatabaseContext("read") as cur:
+            # Compute daily advance/decline counts from trend_template_data
+            cur.execute(
+                """
+                SELECT
+                    date,
+                    COUNT(*) FILTER (WHERE price_above_sma50 = true) AS advances,
+                    COUNT(*) FILTER (WHERE price_above_sma50 = false) AS declines
+                FROM trend_template_data
+                WHERE date >= %s AND date <= %s
+                GROUP BY date
+                ORDER BY date ASC
+                """,
+                (start, end),
+            )
+            rows = cur.fetchall()
+            if not rows:
+                raise RuntimeError(
+                    f"[BREADTH_FETCHER] No advance/decline data available for {start} to {end}. "
+                    "Breadth data is critical for market health assessment. "
+                    "Check trend_template_data table for complete data."
                 )
-                rows = cur.fetchall()
-                if not rows:
-                    logger.debug(f"[BREADTH_FETCHER] No breadth data available for {start} to {end}. Returning empty dict for optional enrichment.")
-                    return {}
 
-                # Compute new highs/lows from price_daily
-                try:
-                    new_highs_lows = self._compute_new_highs_lows(cur, start, end)
-                except Exception as e:
-                    logger.warning(f"[BREADTH_FETCHER] New highs/lows computation failed: {e}. Proceeding without these values.")
-                    new_highs_lows = {}
+            # Compute new highs/lows from price_daily
+            # CRITICAL: New highs/lows are essential for market analysis
+            # Fail-fast if computation fails; don't silently skip
+            new_highs_lows = self._compute_new_highs_lows(cur, start, end)
 
-                result = {}
-                for row in rows:
-                    d = row[0].isoformat() if hasattr(row[0], "isoformat") else str(row[0])
-                    if row[1] is None or row[2] is None:
-                        logger.debug(
-                            f"[BREADTH_FETCHER] Data quality issue: advances/declines NULL for {d}. "
-                            f"Skipping this date (optional enrichment continues)."
-                        )
-                        # Skip this date and continue - breadth is optional enrichment
-                        continue
+            result = {}
+            for row in rows:
+                d = row[0].isoformat() if hasattr(row[0], "isoformat") else str(row[0])
+                if row[1] is None or row[2] is None:
+                    logger.debug(
+                        f"[BREADTH_FETCHER] Data quality issue: advances/declines NULL for {d}. "
+                        f"Skipping this date (optional enrichment continues)."
+                    )
+                    # Skip this date and continue - breadth is optional enrichment
+                    continue
 
-                    advances = int(row[1])
-                    declines = int(row[2])
+                advances = int(row[1])
+                declines = int(row[2])
 
-                    if declines <= 0:
-                        logger.debug(f"[BREADTH_FETCHER] Skipping date {d} - invalid declines count ({declines}). Optional enrichment continues.")
-                        continue
+                if declines <= 0:
+                    logger.debug(f"[BREADTH_FETCHER] Skipping date {d} - invalid declines count ({declines}). Optional enrichment continues.")
+                    continue
 
-                    ad_ratio = advances / declines
+                ad_ratio = advances / declines
 
-                    # Get new highs/lows if available
-                    nh, nl = new_highs_lows.get(d, (None, None))
+                # Get new highs/lows if available
+                nh, nl = new_highs_lows.get(d, (None, None))
 
-                    result[d] = {
-                        "advance_decline_ratio": round(ad_ratio, 3),
-                        "new_highs_count": nh,
-                        "new_lows_count": nl,
-                    }
+                result[d] = {
+                    "advance_decline_ratio": round(ad_ratio, 3),
+                    "new_highs_count": nh,
+                    "new_lows_count": nl,
+                }
 
-                logger.info(f"[BREADTH_FETCHER] Fetched breadth for {len(result)} dates (advances/declines + new highs/lows)")
-                return result
-        except Exception as e:
-            logger.warning(f"[BREADTH_FETCHER] Failed to fetch breadth data: {e}. Returning empty dict for optional enrichment.")
-            return {}
+            logger.info(f"[BREADTH_FETCHER] Fetched breadth for {len(result)} dates (advances/declines + new highs/lows)")
+            return result
