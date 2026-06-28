@@ -248,27 +248,34 @@ function EconomicDashboardPage() {
     const claims = ind("Jobless Claims") || ind("Initial Claims");
     if (claims?.history?.length >= 26) {
       const cur = +claims.rawValue;
-      const past = +(claims.history.at(-27)?.value ?? 0);
-      if (!isNaN(cur) && past > 0) {
-        const chg = ((cur - past) / past) * 100;
-        tiles.push({
-          label: "Jobless Claims 6m Δ",
-          value: `${chg >= 0 ? "+" : ""}${chg.toFixed(1)}%`,
-          threshold: `> +${thresholds.claims_warning}% warning`,
-          desc: "6-month change in initial unemployment claims",
-          status:
-            chg > thresholds.claims_critical
-              ? "red"
-              : chg > thresholds.claims_warning
-                ? "amber"
-                : "green",
-          weight:
-            chg > thresholds.claims_critical
-              ? 100
-              : chg > thresholds.claims_warning
-                ? 60
-                : Math.max(0, chg * 2),
-        });
+      const pastEntry = claims.history.at(-27);
+      // FAIL-FAST: Validate historical baseline exists (do not silently default to 0 for calculations)
+      if (!pastEntry || pastEntry.value == null) {
+        console.warn("[EconomicDashboard] Missing 27-period historical baseline for jobless claims - skipping YoY calculation");
+        // Calculation skipped - will not create tile
+      } else {
+        const past = +pastEntry.value;
+        if (!isNaN(cur) && past > 0) {
+          const chg = ((cur - past) / past) * 100;
+          tiles.push({
+            label: "Jobless Claims 6m Δ",
+            value: `${chg >= 0 ? "+" : ""}${chg.toFixed(1)}%`,
+            threshold: `> +${thresholds.claims_warning}% warning`,
+            desc: "6-month change in initial unemployment claims",
+            status:
+              chg > thresholds.claims_critical
+                ? "red"
+                : chg > thresholds.claims_warning
+                  ? "amber"
+                  : "green",
+            weight:
+              chg > thresholds.claims_critical
+                ? 100
+                : chg > thresholds.claims_warning
+                  ? 60
+                  : Math.max(0, chg * 2),
+          });
+        }
       }
     }
     const vixHist = yieldData?.credit?.history?.["VIXCLS"] || [];

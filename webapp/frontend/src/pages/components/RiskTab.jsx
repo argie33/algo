@@ -39,10 +39,19 @@ function RiskTab({ circuitBreakers, _markets, positions = [] }) {
 
   const sectorExposure = React.useMemo(() => {
     const totals = {};
+    const missingValuePositions = [];
     posArray.forEach((p) => {
       const s = p.sector || "Unknown";
-      totals[s] = (totals[s] || 0) + (p.position_value || 0);
+      // FAIL-FAST: Validate position_value exists (do not silently default to 0)
+      if (p.position_value == null) {
+        missingValuePositions.push(p.symbol || 'unknown');
+        return; // Skip positions with missing value instead of using 0
+      }
+      totals[s] = (totals[s] || 0) + p.position_value;
     });
+    if (missingValuePositions.length > 0) {
+      console.warn(`[RiskTab] ${missingValuePositions.length} positions missing position_value: ${missingValuePositions.join(', ')}`);
+    }
     const total = Object.values(totals).reduce((a, b) => a + b, 0);
     return Object.entries(totals)
       .map(([sector, value]) => ({
@@ -244,7 +253,9 @@ function RiskTab({ circuitBreakers, _markets, positions = [] }) {
                       <tr key={p.symbol}>
                         <td className="strong mono">{p.symbol}</td>
                         <td className="num mono tnum">
-                          ${Math.round(p.position_value || 0).toLocaleString()}
+                          {p.position_value != null
+                            ? `$${Math.round(p.position_value).toLocaleString()}`
+                            : "—"}
                         </td>
                         <td
                           className={`num mono tnum ${p.distance_to_stop_pct < 3 ? "down" : p.distance_to_stop_pct < 5 ? "muted" : ""}`}
@@ -254,10 +265,9 @@ function RiskTab({ circuitBreakers, _markets, positions = [] }) {
                             : "—"}
                         </td>
                         <td className="num mono tnum down">
-                          $
-                          {Math.round(
-                            p.open_risk_dollars || 0
-                          ).toLocaleString()}
+                          {p.open_risk_dollars != null
+                            ? `$${Math.round(p.open_risk_dollars).toLocaleString()}`
+                            : "—"}
                         </td>
                         <td className="t-xs muted">{p.sector || "—"}</td>
                       </tr>
