@@ -249,39 +249,77 @@ export const safeDistancePercentage = (currentPrice, targetPrice) => {
 
 /**
  * Safe position risk calculation
+ * CRITICAL: Returns null (not 0) when required data is missing
+ * This prevents traders from misinterpreting missing data as zero risk
  */
 export const safePositionRisk = (position) => {
-  if (!position || typeof position !== "object") return SAFE_DEFAULTS.ZERO;
+  if (!position || typeof position !== "object") {
+    console.error("[POSITION_RISK] Invalid position object:", position);
+    return null;
+  }
 
   const quantity = toSafeNumber(safeGet(position, "quantity"), null);
   const stopLoss = toSafeNumber(safeGet(position, "stop_loss_price"), null);
   const entryPrice = toSafeNumber(safeGet(position, "avg_entry_price"), null);
 
+  // CRITICAL: Return null (not 0) when required fields are missing
+  // Distinguish between "position has zero risk" vs "cannot calculate risk"
   if (quantity === null || stopLoss === null || entryPrice === null) {
-    return SAFE_DEFAULTS.ZERO;
+    console.warn("[POSITION_RISK] Missing required fields for risk calculation", {
+      symbol: safeGet(position, "symbol", "UNKNOWN"),
+      hasMissingData: {
+        quantity: quantity === null,
+        stopLoss: stopLoss === null,
+        entryPrice: entryPrice === null,
+      },
+    });
+    return null;
   }
 
-  if (stopLoss >= entryPrice) return SAFE_DEFAULTS.ZERO;
+  if (stopLoss >= entryPrice) {
+    // Stop loss >= entry price is invalid (stop is above entry for long positions)
+    console.warn("[POSITION_RISK] Invalid stop loss configuration", {
+      symbol: safeGet(position, "symbol", "UNKNOWN"),
+      entryPrice,
+      stopLoss,
+    });
+    return null;
+  }
 
   const riskPerShare = entryPrice - stopLoss;
   const totalRisk = riskPerShare * quantity;
 
-  return isNaN(totalRisk) ? SAFE_DEFAULTS.ZERO : totalRisk;
+  return isNaN(totalRisk) ? null : totalRisk;
 };
 
 /**
  * Safe portfolio composition calculation
+ * CRITICAL: Returns null (not 0) when required data is missing
+ * Distinguishes between "position is 0%" vs "cannot calculate composition"
  */
 export const safeCompositionPct = (itemValue, totalValue) => {
   const item = toSafeNumber(itemValue, null);
   const total = toSafeNumber(totalValue, null);
 
-  if (item === null || total === null || total === 0) {
-    return SAFE_DEFAULTS.ZERO;
+  // CRITICAL: Return null (not 0) when data is missing
+  if (item === null || total === null) {
+    if (item === null || total === null) {
+      console.warn("[COMPOSITION] Missing value for portfolio composition calculation", {
+        hasItemValue: item !== null,
+        hasTotalValue: total !== null,
+      });
+    }
+    return null;
+  }
+
+  if (total === 0) {
+    // Zero total is ambiguous - could mean no portfolio or incomplete data
+    console.warn("[COMPOSITION] Zero total value for composition calculation");
+    return null;
   }
 
   const pct = (item / total) * 100;
-  return isNaN(pct) ? SAFE_DEFAULTS.ZERO : pct;
+  return isNaN(pct) ? null : pct;
 };
 
 /**

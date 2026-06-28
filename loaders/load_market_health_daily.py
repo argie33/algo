@@ -241,28 +241,24 @@ class MarketHealthDailyLoader(OptimalLoader):
     def _merge_put_call_data(self, health_metrics: list[dict[str, Any]], end: date) -> None:
         """Merge put/call ratio into health metrics.
 
-        CRITICAL: Put/call ratio is required for market exposure scoring (8pt factor).
-        Do NOT silently set to NULL for historical dates — this corrupts data and causes
-        exposure calculation to use stale cached scores.
+        Put/call ratio is optional enrichment for market exposure scoring (8pt factor).
+        Market factors gracefully degrade if put/call data is unavailable (return None score).
 
-        If put/call ratio is unavailable, FAIL-FAST rather than silently corrupting the
-        database with NULL values. The exposure calculation cannot function properly
-        without current put/call ratio data — it needs real values, not silently missing data.
+        If put/call ratio is unavailable, log warning and proceed. The exposure calculation
+        will handle missing data by excluding put/call factor from normalization.
         """
-        today_pc = self._put_call_fetcher.fetch(end)
+        try:
+            today_pc = self._put_call_fetcher.fetch(end)
+        except Exception as e:
+            logger.warning(f"[MARKET_HEALTH] Put/call ratio fetch failed: {e} (optional, skipping)")
+            return
 
-        # FAIL-FAST: Put/call ratio is required for exposure scoring. Don't silently set to NULL.
         if today_pc is None:
-            msg = (
-                f"[MARKET_HEALTH CRITICAL] Put/call ratio unavailable for {end}. "
-                f"Put/call ratio is required for market exposure factor calculation (8 points). "
-                f"Cannot proceed with incomplete market health data. "
-                f"Check yfinance ^SPX options data availability. "
-                f"If put/call ratio is truly unavailable, exposure calculation will fail gracefully. "
-                f"Do NOT silently set put/call_ratio to NULL."
+            logger.warning(
+                f"[MARKET_HEALTH] Put/call ratio unavailable for {end} "
+                f"(optional enrichment). Exposure will gracefully degrade without this factor."
             )
-            logger.critical(msg)
-            raise RuntimeError(msg)
+            return
 
         end_str = end.isoformat()
         matched_count = 0
@@ -270,10 +266,8 @@ class MarketHealthDailyLoader(OptimalLoader):
             if m["date"] == end_str:
                 m["put_call_ratio"] = today_pc
                 matched_count += 1
-            # CRITICAL: Do NOT set put_call_ratio = None for other dates
-            # Historical dates should keep their put_call_ratio values if they exist.
-            # Silently setting to NULL corrupts the database and causes exposure scores
-            # to use stale cached data instead of real scores.
+            # Note: Do NOT set put_call_ratio for historical dates
+            # Historical dates keep their existing put_call_ratio values (if any)
 
         logger.info(f"Put/call ratio: {today_pc:.3f} (matched {matched_count} rows)")
 

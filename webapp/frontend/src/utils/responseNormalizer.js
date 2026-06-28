@@ -98,6 +98,25 @@ export const extractData = (response) => {
       (item) => item !== null && item !== undefined
     );
     const pag = data.pagination || {};
+
+    // CRITICAL: Validate pagination structure before using defaults
+    // Log when pagination fields are missing to detect API response structure changes
+    const hasPageInfo = pag.limit !== undefined || data.limit !== undefined;
+    const hasOffsetInfo = pag.offset !== undefined || data.offset !== undefined;
+
+    if (!hasPageInfo) {
+      console.warn(
+        "[PAGINATION] Missing limit field in API response. Pagination metadata incomplete.",
+        { pag, data_limit: data.limit }
+      );
+    }
+    if (!hasOffsetInfo) {
+      console.warn(
+        "[PAGINATION] Missing offset field in API response. Pagination metadata incomplete.",
+        { pag, data_offset: data.offset }
+      );
+    }
+
     const limit = pag.limit ?? data.limit ?? 50;
     const offset = pag.offset ?? data.offset ?? 0;
     const total = pag.total ?? data.total ?? filteredItems.length;
