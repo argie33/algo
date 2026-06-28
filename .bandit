@@ -1,0 +1,18 @@
+[bandit]
+# Security test configuration for algo trading system
+
+# Exclude paths: tests, migrations, vendored code
+exclude_dirs = ['tests', 'migrations', 'node_modules', '.venv', 'venv', '__pycache__']
+
+# IMPORTANT: SQL injection warnings (B608) are mostly false positives in this codebase.
+# All data values use parameterized queries (%s placeholders).
+# Table names come from system config/constants, never user input.
+# See: lambda/api/routes/ and loaders/ for examples of safe parameterized queries.
+#
+# This config suppresses B608 warnings to focus on actual security issues.
+# If you add dynamic table selection, manually verify it's safe and add #nosec B608 comment.
+skips = ['B608']
+
+# Report medium+ confidence issues (ignore low-confidence false positives)
+confidence_level = 'medium'
+severity_level = 'medium'

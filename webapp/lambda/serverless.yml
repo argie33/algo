@@ -1,0 +1,140 @@
+service: stocks-algo-api
+
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  region: us-east-1
+  environment:
+    # AWS Secrets Manager (preferred for production)
+    DB_SECRET_ARN: ${env:DB_SECRET_ARN, ''}
+    # Local environment variables (fallback for development)
+    DB_HOST: ${env:DB_HOST, 'localhost'}
+    DB_PORT: ${env:DB_PORT, '5432'}
+    DB_USER: ${env:DB_USER, 'stocks'}
+    DB_PASSWORD: ${env:DB_PASSWORD}
+    DB_NAME: ${env:DB_NAME, 'stocks'}
+    NODE_ENV: ${env:NODE_ENV, 'production'}
+    # Email Configuration
+    CONTACT_NOTIFICATION_EMAIL: ${env:CONTACT_NOTIFICATION_EMAIL, 'edgebrookecapital@gmail.com'}
+    EMAIL_FROM: ${env:EMAIL_FROM, 'noreply@bullseyefinancial.com'}
+    AWS_REGION: ${self:provider.region}
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+          Resource: arn:aws:logs:${self:provider.region}:${aws:accountId}:log-group:/aws/lambda/*
+        - Effect: Allow
+          Action:
+            - ec2:CreateNetworkInterface
+            - ec2:DescribeNetworkInterfaces
+            - ec2:DeleteNetworkInterface
+          Resource: '*'
+        - Effect: Allow
+          Action:
+            - secretsmanager:GetSecretValue
+          Resource:
+            - 'arn:aws:secretsmanager:${self:provider.region}:${aws:accountId}:secret:algo/*'
+            - 'arn:aws:secretsmanager:${self:provider.region}:${aws:accountId}:secret:algo-*'
+        - Effect: Allow
+          Action:
+            - ses:SendEmail
+            - ses:SendRawEmail
+          Resource: '*'
+
+functions:
+  api:
+    handler: index.handler
+    timeout: 60
+    memorySize: 1024
+    description: Stock Analysis API - Financial Dashboard
+    events:
+      - httpApi:
+          path: /{proxy+}
+          method: ANY
+      - httpApi:
+          path: /
+          method: ANY
+    vpc:
+      securityGroupIds:
+        - ${env:AWS_SECURITY_GROUP_ID, 'sg-xxxxxx'}  # Update with your security group ID
+      subnetIds:
+        - ${env:AWS_SUBNET_ID_1, 'subnet-xxxxxx'}  # Update with your private subnet 1
+        - ${env:AWS_SUBNET_ID_2, 'subnet-xxxxxx'}  # Update with your private subnet 2
+
+plugins: []
+
+custom:
+  serverless-offline:
+    httpPort: 3001
+    stage: ${opt:stage, 'dev'}
+
+# Create HTTP API (not REST API for better performance)
+resources:
+  Resources:
+    HttpApi:
+      Type: AWS::ApiGatewayV2::Api
+      Properties:
+        Name: stocks-algo-api
+        ProtocolType: HTTP
+        CorsConfiguration:
+          AllowOrigins:
+            # Set CLOUDFRONT_URL=https://<distribution>.cloudfront.net at deploy time.
+            # Never hardcode the distribution URL here — it leaks the CloudFront ID
+            # and breaks silently if the distribution is replaced.
+            - ${env:CLOUDFRONT_URL, ''}
+            - 'http://localhost:5173'  # Local frontend port
+            - 'http://localhost:5174'  # Admin site port
+            - 'http://127.0.0.1:5173'
+            - 'http://127.0.0.1:5174'
+            - ${env:CORS_ORIGIN, ''}  # Additional custom origins from env
+          AllowMethods:
+            - GET
+            - POST
+            - PUT
+            - DELETE
+            - PATCH
+            - OPTIONS
+            - HEAD
+          AllowHeaders:
+            - Content-Type
+            - Authorization
+            - X-Requested-With
+            - X-Api-Key
+            - X-Amz-Date
+            - X-Amz-Security-Token
+            - X-Request-ID
+            - Accept
+            - Accept-Language
+            - Cache-Control
+            - Origin
+          AllowCredentials: true
+          MaxAge: 86400
+
+package:
+  patterns:
+    - '!node_modules/puppeteer/**'
+    - '!node_modules/@puppeteer/**'
+    - '!.git/**'
+    - '!.env*'
+    - '!*.log'
+    - '!tests/**'
+    - '!coverage/**'
+    - '!dist/**'
+    - '!*.zip'
+    - '!*.tar.gz'
+    - '!.serverless/**'
+    - '!*.md'
+    - '!.vscode/**'
+    - '!.idea/**'
+
+outputs:
+  ApiEndpoint:
+    Description: HTTP API endpoint URL
+    Value:
+      Fn::Sub: https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com

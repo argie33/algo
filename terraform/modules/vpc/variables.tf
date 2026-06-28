@@ -1,0 +1,97 @@
+# ============================================================
+# VPC Module - Input Variables
+# ============================================================
+
+variable "project_name" {
+  description = "Project name for naming convention"
+  type        = string
+}
+
+variable "dev_machine_cidr" {
+  description = "CIDR block for development machine (local dev_server access to RDS). Leave empty to disable."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.dev_machine_cidr == "" || can(cidrhost(var.dev_machine_cidr, 0))
+    error_message = "dev_machine_cidr must be a valid IPv4 CIDR block (e.g., 75.250.183.199/32) or empty string to disable"
+  }
+}
+
+variable "environment" {
+  description = "Environment name (dev, staging, prod)"
+  type        = string
+}
+
+variable "aws_region" {
+  description = "AWS region"
+  type        = string
+}
+
+variable "aws_account_id" {
+  description = "AWS account ID"
+  type        = string
+}
+
+# ============================================================
+# Network Configuration
+# ============================================================
+
+variable "vpc_cidr" {
+  description = "CIDR block for VPC"
+  type        = string
+  default     = "10.0.0.0/16"
+
+  validation {
+    condition     = can(cidrhost(var.vpc_cidr, 0))
+    error_message = "VPC CIDR must be a valid IPv4 CIDR block"
+  }
+}
+
+variable "public_subnet_cidrs" {
+  description = "CIDR blocks for public subnets (one per AZ)"
+  type        = list(string)
+  default     = ["10.0.1.0/24", "10.0.2.0/24"]
+
+  validation {
+    condition     = length(var.public_subnet_cidrs) >= 2
+    error_message = "Must provide at least 2 public subnet CIDR blocks (one per AZ)"
+  }
+}
+
+variable "private_subnet_cidrs" {
+  description = "CIDR blocks for private subnets (one per AZ)"
+  type        = list(string)
+  default     = ["10.0.10.0/24", "10.0.11.0/24"]
+
+  validation {
+    condition     = length(var.private_subnet_cidrs) >= 2
+    error_message = "Must provide at least 2 private subnet CIDR blocks (one per AZ)"
+  }
+}
+
+variable "availability_zones" {
+  description = "List of availability zones in region"
+  type        = list(string)
+}
+
+# ============================================================
+# Security & Access Configuration
+# ============================================================
+
+variable "bastion_sg_enabled" {
+  description = "Whether to create bastion security group"
+  type        = bool
+  default     = true
+}
+
+variable "enable_vpc_endpoints" {
+  description = "Enable VPC endpoints (S3, Secrets Manager, ECR, CloudWatch Logs, SNS, DynamoDB)"
+  type        = bool
+  default     = true
+}
+
+variable "common_tags" {
+  description = "Common tags applied to all resources"
+  type        = map(string)
+}

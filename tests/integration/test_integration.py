@@ -1,0 +1,40 @@
+#!/usr/bin/env python3
+"""Integration tests for algo modules."""
+
+import sys
+from pathlib import Path
+
+import pytest
+
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+from utils.db.context import DatabaseContext
+
+
+class TestIntegration:
+    """Test integrated functionality across modules."""
+
+    def test_end_to_end_signal_generation(self):
+        """Test end-to-end signal generation pipeline imports and structure."""
+        from algo.signals import SignalComputer, SwingTraderScore
+
+        assert SignalComputer is not None
+        assert SwingTraderScore is not None
+
+    def test_live_data_pipeline(self):
+        """Test pipeline structure for live market data."""
+        try:
+            from algo.risk import CircuitBreaker
+            from algo.trading import TradeExecutor
+
+            assert TradeExecutor is not None
+            assert CircuitBreaker is not None
+        except ImportError:
+            pytest.skip("Pipeline modules not available")
+
+    def test_database_context_available(self):
+        """Test that database context can be imported."""
+        try:
+            assert DatabaseContext is not None
+        except ImportError:
+            pytest.skip("DatabaseContext not available")

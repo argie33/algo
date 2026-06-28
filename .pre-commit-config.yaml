@@ -1,0 +1,128 @@
+repos:
+  # Code formatting with Ruff (single tool for format + lint)
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.18
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+        name: Ruff lint and auto-fix
+      - id: ruff-format
+        name: Ruff format code
+
+  # Type checking — run on full directories for accurate cross-module analysis
+  - repo: local
+    hooks:
+      - id: mypy-core
+        name: MyPy — algo loaders utils config dashboard monitoring lambda-standalone
+        entry: mypy algo/ loaders/ utils/ config/ dashboard/ monitoring/ lambda/base_handler.py lambda/algo_orchestrator/lambda_function.py lambda/monitoring/health_monitor.py lambda/monitoring/loader_failure_handler.py lambda/monitoring/loader_timeout_guardian.py --show-error-codes
+        language: system
+        pass_filenames: false
+        types: [python]
+      - id: mypy-lambda-api
+        name: MyPy — lambda/api
+        entry: bash -c 'cd lambda/api && mypy . --ignore-missing-imports --show-error-codes --explicit-package-bases'
+        language: system
+        pass_filenames: false
+        types: [python]
+      - id: pylint-core
+        name: Pylint — type safety checks (comparison, operations)
+        entry: pylint algo/ loaders/ utils/ config/ dashboard/ monitoring/ --disable=all --enable=comparison-with-callable,unsupported-binary-operation
+        language: system
+        pass_filenames: false
+        types: [python]
+        stages: [commit]
+
+  # Enforce type safety rules (prevent disabling critical checks)
+  - repo: local
+    hooks:
+      - id: enforce-type-safety-rules
+        name: Enforce type safety (no disabling Pylint critical checks)
+        entry: bash -c 'if grep -rn "# pylint: disable=comparison-with-callable\|# pylint: disable=unsupported-binary-operation" --include="*.py" --exclude-dir=migrations --exclude-dir=tests 2>/dev/null; then echo "❌ BLOCKED: Cannot disable comparison-with-callable or unsupported-binary-operation"; exit 1; fi; exit 0'
+        language: system
+        pass_filenames: false
+        types: [python]
+        stages: [commit]
+
+      - id: catch-unsafe-get-comparisons
+        name: Catch unsafe .get() comparisons without safe_float/safe_int
+        entry: bash -c 'python scripts/check_unsafe_comparisons.py'
+        language: system
+        pass_filenames: false
+        types: [python]
+        stages: [commit]
+
+  # Comprehensive CI validation (ruff + basic syntax checks)
+  - repo: local
+    hooks:
+      - id: ci-validation
+        name: CI validation (syntax + imports)
+        entry: python -m py_compile
+        language: system
+        types: [python]
+        exclude: ^(tests/|migrations/|\.github/|scripts/.*)
+        stages: [commit]
+
+  # JavaScript linting and formatting for webapp/lambda
+  - repo: local
+    hooks:
+      - id: eslint-webapp-lambda
+        name: ESLint — webapp/lambda JS
+        entry: bash -c 'cd webapp/lambda && npm run lint'
+        language: system
+        pass_filenames: false
+        files: ^webapp/lambda/.*\.js$
+        exclude: ^webapp/lambda/node_modules/
+        stages: [commit]
+      - id: prettier-webapp-lambda
+        name: Prettier — webapp/lambda format check
+        entry: bash -c 'cd webapp/lambda && npm run format:check'
+        language: system
+        pass_filenames: false
+        files: ^webapp/lambda/.*\.(js|json|md)$
+        exclude: ^webapp/lambda/node_modules/
+        stages: [commit]
+      - id: npm-audit-webapp-lambda
+        name: npm audit — webapp/lambda high-severity CVEs
+        entry: bash -c 'cd webapp/lambda && npm audit --audit-level=high'
+        language: system
+        pass_filenames: false
+        files: ^webapp/lambda/package(-lock)?\.json$
+        stages: [commit]
+
+  # Security scanning moved to CI (too slow for pre-commit)
+  # Bandit runs async in GitHub Actions instead
+
+  # Secret detection
+  - repo: https://github.com/trufflesecurity/trufflehog
+    rev: v3.63.0
+    hooks:
+      - id: trufflehog
+        args: [--no-update, --only-verified]
+        name: TruffleHog secret scan
+        stages: [commit]
+
+  # General file checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+        name: Trim trailing whitespace
+      - id: end-of-file-fixer
+        name: Fix end of file
+      - id: check-yaml
+        name: Check YAML syntax
+      - id: check-json
+        name: Check JSON syntax
+      - id: check-merge-conflict
+        name: Check for merge conflicts
+      - id: check-added-large-files
+        args: [--maxkb=1000]
+        name: Check for large files (>1MB)
+      - id: check-case-conflict
+        name: Check for case conflicts in filenames
+
+default_language_version:
+  python: python3.11
+
+# To skip hooks when needed: SKIP=bandit,mypy git commit
+# To run all hooks manually: pre-commit run --all-files

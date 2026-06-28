@@ -1,0 +1,40 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash",
+      "PowerShell",
+      "Bash(aws *)",
+      "PowerShell(aws *)",
+      "Bash(git *)",
+      "PowerShell(git *)",
+      "Bash(npm *)",
+      "Bash(python *)",
+      "PowerShell(python *)",
+      "Bash(node *)",
+      "Read",
+      "Glob",
+      "Grep",
+      "Edit",
+      "Write"
+    ]
+  },
+  "todoFeatureEnabled": true,
+  "env": {
+    "DEV_BYPASS_AUTH": "true"
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -Command \"& 'C:\\\\Program Files\\\\PostgreSQL\\\\18\\\\bin\\\\postgres.exe' -D 'C:\\\\Program Files\\\\PostgreSQL\\\\18\\\\data' > nul 2>&1 &; Start-Sleep -Seconds 3; Write-Host 'PostgreSQL 18 started'\"",
+            "statusMessage": "Starting PostgreSQL 18...",
+            "shell": "powershell"
+          }
+        ]
+      }
+    ]
+  }
+}

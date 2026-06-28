@@ -1,0 +1,299 @@
+# Dependencies
+node_modules/
+**/node_modules/
+package-lock.json
+# EXCEPTION: Production package-lock.json files must be tracked for deployments
+!webapp/lambda/package-lock.json
+!webapp/frontend/package-lock.json
+
+# Build outputs
+dist/
+**/dist/
+build/
+**/build/
+.next/
+out/
+
+# Build artifacts
+*.zip
+*.tar.gz
+*.tgz
+function.zip
+lambda-package.zip
+lambda-deployment.tar.gz
+# EXCEPT: Lambda layer ZIPs tracked in git (api-deps only; shared-deps built by workflow)
+!lambda/api-deps-layer.zip
+# shared-deps-layer.zip (61MB numpy/scipy) is built by build-lambda-layer.yml workflow,
+# not tracked in git to avoid push timeouts. Deploy via: gh workflow run build-lambda-layer.yml
+lambda/shared-deps-layer.zip
+
+# Database
+*.db
+*.sqlite
+*.sql
+!init_db.sql
+!terraform/modules/database/init.sql
+!lambda/db-init/schema.sql
+!migrations/*.sql
+!migrations/versions/*.sql
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment — NEVER commit these files
+# Root level env files
+.env
+.env.local
+.env.development
+.env.production
+.env.staging
+.env.test
+.env.*.local
+.env.vault
+# Subdirectory env files
+**/.env
+**/.env.local
+**/.env.development
+**/.env.production
+**/.env.staging
+**/.env.test
+**/.env.*.local
+**/.env.vault
+# But DO commit template/example files
+!.env.example
+!.env.*.example
+!.env.local.example
+!.env.vault.template
+!**/.env.example
+!**/.env.*.example
+!**/.env.local.example
+
+# Frontend runtime config — NEVER commit with hardcoded URLs
+# Each environment (local/staging/production) generates its own config.js at build time
+webapp/frontend/public/config.js
+!webapp/frontend/public/config.example.js
+
+# Testing
+coverage/
+.nyc_output/
+test-results/
+playwright-report/
+*_test_results.json
+test_results.json
+aws_test_results.json
+
+# Type checking caches
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.ruff_cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary
+*.tmp
+*.temp
+__pycache__/
+venv*/
+*.py[cod]
+
+# Screenshots (local dev / review only — not source code)
+screenshots/
+*.screenshot.png
+*.screenshot.jpg
+*.screenshot.webp
+webapp/frontend/screenshots/*.png
+webapp/frontend/screenshots/*.jpg
+webapp/frontend/screenshots/*.webp
+webapp/frontend/screenshot-*.png
+webapp/frontend/screenshot-*.jpg
+webapp/frontend/screenshot-*.webp
+
+# Runtime artifacts (local-only)
+.algo_orchestrator.lock
+*_orchestrator.lock
+paper_mode_reports/
+.loader-progress.json
+.claude/*.lock
+.claude/scheduled_tasks.lock
+.claude/worktrees/
+
+# Windows path-expansion artifacts (scripts that use ~ literally instead of $HOME on Windows)
+~
+~/
+~*/
+.aws-tmp/
+**/.aws-tmp/
+
+# SAM build outputs
+.aws-sam/
+**/lambda-build/
+.sam-tests/
+
+# Terraform (IaC)
+**/.terraform/
+**/.terraform.lock.hcl
+*.tfstate
+*.tfstate.backup
+*.tfstate.*.backup
+**/.terraform.local/
+terraform.tfvars.local
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+tfplan
+*.tfplan
+terraform/plan_output.txt
+terraform/errored.tfstate
+terraform/lambda_api.zip
+
+# Serverless Framework
+.serverless/
+**/serverless-state.json
+
+# Large binary files
+*.msi
+*.exe
+*.dmg
+*.pkg
+*.deb
+*.rpm
+
+# AWS artifacts
+AWSCLIV2.*
+aws-cli-*.zip
+
+# Sensitive (local development only)
+!.env.local.example  # Template is tracked, actual .env.local is not
+
+# Generated files
+DEPLOYMENT_IN_PROGRESS.md
+.watermarks/
+
+# Documentation sprawl prevention — ENFORCED
+# Session-specific docs NEVER belong in root. Use memory/ instead.
+SESSION_SUMMARY_*.md
+FINAL_*.md
+VERIFICATION_COMPLETE_*.md
+*_2026_*.md
+AWS_TROUBLESHOOTING_*.md
+AWS_LOADER_*.md
+EXECUTION_*.md
+BLOCKERS_*.md
+RUN_LOADERS_*.md
+LOADER_EXECUTION_*.md
+LOADER_TESTING_*.md
+*_SUMMARY.md
+!DATA_AUDIT_SUMMARY.md
+!DATA_DISPLAY_AUDIT_ISSUES.md
+*_REPORT.md
+*_PLAN.md
+CURRENT_SESSION_*.md
+ALL_ISSUES_*.md
+COMPLETE_ISSUE_*.md
+FINAL_STATUS_*.md
+FIXES_APPLIED_*.md
+ISSUE_HUNT_*.md
+SCHEMA_ISSUES.md
+ARCHIVE_SNAPSHOTS/
+SESSIONS_COMPLETED/
+DECISIONS_RATIONALE/
+DESIGNS_DEPRECATED/
+.docs_archive/
+.consolidation_plan.md
+
+# GitHub Actions build artifacts & deployment packages
+lambda-pkg/
+db-init-pkg/
+api-pkg/
+lambda/api/package/
+lambda/api/*.zip
+
+# Test artifacts (auto-generated)
+webapp/frontend/src/tests/e2e/visual-regression.visual.spec.js-snapshots/
+webapp/frontend/src/tests/screenshots/
+webapp/frontend/app-screenshot.png
+webapp/frontend/public/images/image1.png
+
+.pytest_cache/
+
+*.pyc
+
+*.pyo
+
+# Configuration bloat prevention
+# Only keep canonical configs - duplicates are wasteful
+webapp/frontend/playwright.*.config.js
+!webapp/frontend/playwright.config.js
+webapp/lambda/jest.*.config.js
+!webapp/lambda/jest.config.js
+
+# One-time setup/debug/experimental scripts — NEVER commit
+*.bat
+*.ps1
+!scripts/**/*.bat
+!scripts/**/*.ps1
+setup*.sh
+# EXCEPT: Infrastructure setup scripts that teams regularly use
+!scripts/setup-staging-infrastructure.sh
+!scripts/setup-github-secrets.sh
+!scripts/setup-ses-production.sh
+verify*.sh
+check*.sh
+debug*.sh
+fix*.sh
+bootstrap*.sh
+test-*.js
+test-*.py
+*-test.js
+*-test.py
+check_*.js
+debug_*.js
+
+# One-time utility scripts (belong in scripts/, not root)
+*trigger*.sh
+*load*.sh
+*sync*.sh
+*verify*.sh
+*diagnose*.sh
+
+# Schema/mapping files (generated, not source)
+schema*.json
+*mapping*.json
+
+# Experimental/demo content
+demo*.js
+demo*.py
+example*.js
+example*.py
+*draft*.js
+*draft*.py
+*wip*.js
+*wip*.py
+
+# Ensure no quick test files commit
+quick*.py
+quick*.js
+temp*.py
+temp*.js
+
+# Session-specific audit and analysis reports (per CLAUDE.md)
+ISSUE_REPORT_*.md
+DETAILED_ISSUES_WITH_FIXES.md
+FIXES_APPLIED_*.md
+*_STATUS.md
+EXECUTION_*.md
+# Dashboard configured for AWS data sources

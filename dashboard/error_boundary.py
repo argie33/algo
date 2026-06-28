@@ -103,18 +103,22 @@ def safe_list(data: Any) -> list[Any]:
     raise ValueError(f"Cannot extract list from {type(data).__name__}: expected dict, list, or dict with 'items'/'data' field")
 
 
-def error_summary_panel(errors: dict[str, Any]) -> Panel:
-    """Render error summary panel for dashboard."""
+def error_summary_panel(data: dict[str, Any]) -> Panel | None:
+    """Render error summary panel for dashboard.
+
+    Returns None if no errors found, otherwise returns error panel.
+    """
+    errors = {}
+    for key, value in data.items():
+        if isinstance(value, dict) and "_error" in value:
+            errors[key] = value.get("_error") or "API error (no details available)"
+
     if not errors:
-        return Panel("No errors", style="green")
+        return None
 
     text_lines = []
-    for endpoint, error_info in errors.items():
-        if isinstance(error_info, dict):
-            msg = error_info.get("_error") or "API error (no details available)"
-        else:
-            msg = str(error_info) or "API error (no details available)"
-        text_lines.append(f"[red]{endpoint}[/]: {escape(msg[:100])}")
+    for endpoint, msg in sorted(errors.items()):
+        text_lines.append(f"[red]{escape(str(endpoint))}[/]: {escape(str(msg)[:100])}")
 
     return Panel(
         "\n".join(text_lines),

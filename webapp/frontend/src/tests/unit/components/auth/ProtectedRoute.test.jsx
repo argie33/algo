@@ -1,0 +1,350 @@
+import { render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
+import { vi } from "vitest";
+import ProtectedRoute from "../../../../components/auth/ProtectedRoute";
+import { AuthProvider } from "../../../../contexts/AuthContext";
+
+// Mock API service with standardized pattern
+vi.mock("../../../../services/api.js", () => ({
+  default: {
+    get: vi.fn().mockResolvedValue({ data: {} }),
+    post: vi.fn().mockResolvedValue({ data: {} }),
+    login: vi
+      .fn()
+      .mockResolvedValue({ success: true, data: { token: "mock-token" } }),
+    register: vi.fn().mockResolvedValue({ success: true, data: {} }),
+    logout: vi.fn().mockResolvedValue({ success: true }),
+    resetPassword: vi.fn().mockResolvedValue({ success: true }),
+    verifyEmail: vi.fn().mockResolvedValue({ success: true }),
+    getTradingSignalsDaily: vi
+      .fn()
+      .mockResolvedValue({ success: true, data: [] }),
+    getPortfolioAnalytics: vi
+      .fn()
+      .mockResolvedValue({ success: true, data: {} }),
+    getStockMetrics: vi.fn().mockResolvedValue({ success: true, data: {} }),
+  },
+  getApiConfig: vi.fn(() => ({
+    apiUrl: "http://localhost:3001",
+    environment: "test",
+  })),
+}));
+
+// Mock AWS Amplify
+vi.mock("aws-amplify/auth", () => ({
+  fetchAuthSession: vi.fn().mockResolvedValue({ tokens: null }),
+  signIn: vi.fn().mockResolvedValue({ isSignedIn: false }),
+  signUp: vi.fn().mockResolvedValue({}),
+  confirmSignUp: vi.fn().mockResolvedValue({}),
+  resendSignUpCode: vi.fn().mockResolvedValue({}),
+  signOut: vi.fn().mockResolvedValue({}),
+  resetPassword: vi.fn().mockResolvedValue({ nextStep: {} }),
+  confirmResetPassword: vi.fn().mockResolvedValue({}),
+  getCurrentUser: vi.fn().mockResolvedValue(null),
+}));
+
+// Mock tokenManager
+vi.mock("../../../../services/tokenManager", () => ({
+  tokenManager: {
+    getTokens: vi.fn().mockReturnValue({ access: null, id: null }),
+    setTokens: vi.fn(),
+    clearTokens: vi.fn(),
+  },
+}));
+
+// Mock sessionManager
+vi.mock("../../../../services/sessionManager", () => ({
+  default: {
+    initialize: vi.fn(),
+    setCallbacks: vi.fn(),
+    startSession: vi.fn(),
+    endSession: vi.fn(),
+    startTokenRefreshTimer: vi.fn(),
+    extendSession: vi.fn(),
+    clearAllTimers: vi.fn(),
+  },
+}));
+
+// Mock amplify config
+vi.mock("../../../../config/amplify", () => ({
+  isCognitoConfigured: vi.fn().mockReturnValue(false),
+}));
+
+// Mock AuthContext to return isLoading: false immediately.
+// The real AuthProvider starts with isLoading: true (pending async auth check),
+// which causes ProtectedRoute to render a loading spinner instead of children.
+vi.mock("../../../../contexts/AuthContext", () => ({
+  useAuth: vi.fn(() => ({
+    isAuthenticated: false,
+    isLoading: false,
+    user: null,
+  })),
+  AuthProvider: ({ children }) => children,
+}));
+
+describe("ProtectedRoute", () => {
+  describe("Basic Functionality", () => {
+    test("renders children without authentication", () => {
+      render(
+        <MemoryRouter>
+          <AuthProvider>
+            <ProtectedRoute>
+              <div data-testid="protected-content">Protected Content</div>
+            </ProtectedRoute>
+          </AuthProvider>
+        </MemoryRouter>
+      );
+
+      expect(screen.getByTestId("protected-content")).toBeInTheDocument();
+      expect(screen.getByText("Protected Content")).toBeInTheDocument();
+    });
+
+    test("renders children with requireAuth prop", () => {
+      render(
+        <MemoryRouter>
+          <AuthProvider>
+            <ProtectedRoute requireAuth={true}>
+              <div data-testid="protected-content">Protected Content</div>
+            </ProtectedRoute>
+          </AuthProvider>
+        </MemoryRouter>
+      );
+
+      expect(screen.getByTestId("protected-content")).toBeInTheDocument();
+      expect(screen.getByText("Protected Content")).toBeInTheDocument();
+    });
+
+    test("renders children with fallback prop", () => {
+      const fallback = <div data-testid="fallback">Loading...</div>;
+
+      render(
+        <MemoryRouter>
+          <AuthProvider>
+            <ProtectedRoute fallback={fallback}>
+              <div data-testid="protected-content">Protected Content</div>
+            </ProtectedRoute>
+          </AuthProvider>
+        </MemoryRouter>
+      );
+
+      expect(screen.getByTestId("protected-content")).toBeInTheDocument();
+      expect(screen.getByText("Protected Content")).toBeInTheDocument();
+      expect(screen.queryByTestId("fallback")).not.toBeInTheDocument();
+    });
+
+    test("renders complex child components", () => {
+      const ComplexChild = () => (
+        <div>
+          <h1>Complex Component</h1>
+          <p>With multiple elements</p>
+          <button>Action Button</button>
+        </div>
+      );
+
+      render(
+        <MemoryRouter>
+          <AuthProvider>
+            <ProtectedRoute>
+              <ComplexChild />
+            </ProtectedRoute>
+          </AuthProvider>
+        </MemoryRouter>
+      );
+
+      expect(screen.getByText("Complex Component")).toBeInTheDocument();
+      expect(screen.getByText("With multiple elements")).toBeInTheDocument();
+      expect(screen.getByText("Action Button")).toBeInTheDocument();
+    });
+
+    test("renders multiple children", () => {
+      render(
+        <MemoryRouter>
+          <AuthProvider>
+            <ProtectedRoute>
+              <div data-testid="child-1">First Child</div>
+              <div data-testid="child-2">Second Child</div>
+            </ProtectedRoute>
+          </AuthProvider>
+        </MemoryRouter>
+      );
+
+      expect(screen.getByTestId("child-1")).toBeInTheDocument();
+      expect(screen.getByTestId("child-2")).toBeInTheDocument();
+    });
+
+    test("renders null children gracefully", () => {
+      render(
+        <MemoryRouter>
+          <AuthProvider>
+            <ProtectedRoute>{null}</ProtectedRoute>
+          </AuthProvider>
+        </MemoryRouter>
+      );
+
+      // Should not throw error and render empty
+      expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
+    });
+
+    test("renders undefined children gracefully", () => {
+      render(
+        <MemoryRouter>
+          <AuthProvider>
+            <ProtectedRoute>{undefined}</ProtectedRoute>
+          </AuthProvider>
+        </MemoryRouter>
+      );
+
+      // Should not throw error and render empty
+      expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("Props Handling", () => {
+    test("ignores requireAuth parameter (legacy support)", () => {
+      render(
+        <MemoryRouter>
+          <AuthProvider>
+            <ProtectedRoute requireAuth={false}>
+              <div data-testid="content">Always Visible</div>
+            </ProtectedRoute>
+          </AuthProvider>
+        </MemoryRouter>
+      );
+
+      expect(screen.getByTestId("content")).toBeInTheDocument();
+    });
+
+    test("ignores fallback parameter (legacy support)", () => {
+      const fallback = <div data-testid="fallback">Should not show</div>;
+
+      render(
+        <MemoryRouter>
+          <AuthProvider>
+            <ProtectedRoute fallback={fallback}>
+              <div data-testid="content">Main Content</div>
+            </ProtectedRoute>
+          </AuthProvider>
+        </MemoryRouter>
+      );
+
+      expect(screen.getByTestId("content")).toBeInTheDocument();
+      expect(screen.queryByTestId("fallback")).not.toBeInTheDocument();
+    });
+
+    test("works with all combinations of legacy props", () => {
+      const fallback = <div>Loading...</div>;
+
+      render(
+        <MemoryRouter>
+          <AuthProvider>
+            <ProtectedRoute requireAuth={true} fallback={fallback}>
+              <div data-testid="content">Content</div>
+            </ProtectedRoute>
+          </AuthProvider>
+        </MemoryRouter>
+      );
+
+      expect(screen.getByTestId("content")).toBeInTheDocument();
+    });
+  });
+
+  describe("Component Behavior", () => {
+    test("maintains component structure", () => {
+      const { container } = render(
+        <AuthProvider>
+          <ProtectedRoute>
+            <div className="test-class" id="test-id">
+              Content
+            </div>
+          </ProtectedRoute>
+        </AuthProvider>
+      );
+
+      const childElement = container.querySelector("#test-id");
+      expect(childElement).toBeInTheDocument();
+      expect(childElement).toHaveClass("test-class");
+    });
+
+    test("preserves child component props and attributes", () => {
+      render(
+        <MemoryRouter>
+          <AuthProvider>
+            <ProtectedRoute>
+              <button
+                data-testid="action-button"
+                className="btn-primary"
+                disabled={false}
+                onClick={() => console.log("clicked")}
+              >
+                Click Me
+              </button>
+            </ProtectedRoute>
+          </AuthProvider>
+        </MemoryRouter>
+      );
+
+      const button = screen.getByTestId("action-button");
+      expect(button).toBeInTheDocument();
+      expect(button).toHaveClass("btn-primary");
+      expect(button).not.toBeDisabled();
+    });
+
+    test("preserves React fragments", () => {
+      render(
+        <MemoryRouter>
+          <AuthProvider>
+            <ProtectedRoute>
+              <>
+                <div data-testid="fragment-child-1">First</div>
+                <div data-testid="fragment-child-2">Second</div>
+              </>
+            </ProtectedRoute>
+          </AuthProvider>
+        </MemoryRouter>
+      );
+
+      expect(screen.getByTestId("fragment-child-1")).toBeInTheDocument();
+      expect(screen.getByTestId("fragment-child-2")).toBeInTheDocument();
+    });
+  });
+
+  describe("Development Mode Compatibility", () => {
+    test("works in development mode", () => {
+      const originalEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = "development";
+
+      render(
+        <MemoryRouter>
+          <AuthProvider>
+            <ProtectedRoute>
+              <div data-testid="dev-content">Development Content</div>
+            </ProtectedRoute>
+          </AuthProvider>
+        </MemoryRouter>
+      );
+
+      expect(screen.getByTestId("dev-content")).toBeInTheDocument();
+
+      process.env.NODE_ENV = originalEnv;
+    });
+
+    test("works in production mode", () => {
+      const originalEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = "production";
+
+      render(
+        <MemoryRouter>
+          <AuthProvider>
+            <ProtectedRoute>
+              <div data-testid="prod-content">Production Content</div>
+            </ProtectedRoute>
+          </AuthProvider>
+        </MemoryRouter>
+      );
+
+      expect(screen.getByTestId("prod-content")).toBeInTheDocument();
+
+      process.env.NODE_ENV = originalEnv;
+    });
+  });
+});

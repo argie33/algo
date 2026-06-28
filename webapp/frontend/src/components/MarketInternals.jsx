@@ -1,0 +1,452 @@
+import { useState } from "react";
+import {
+  Box,
+  Card,
+  CardContent,
+  Grid,
+  LinearProgress,
+  Typography,
+  Alert,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+} from "@mui/material";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Cell,
+} from "recharts";
+import { WarningAmber, CheckCircle } from "@mui/icons-material";
+import { getChartContainerStyle } from "../utils/chartContainer";
+
+const MarketInternals = ({ data, isLoading, error }) => {
+  const [_expandedSection, _setExpandedSection] = useState(null);
+
+  if (isLoading) {
+    return <LinearProgress />;
+  }
+
+  if (error || !data) {
+    return (
+      <Alert severity="error">
+        Unable to load market internals data. {error?.message}
+      </Alert>
+    );
+  }
+
+  const {
+    market_breadth,
+    moving_average_analysis,
+    market_extremes,
+    _overextension_indicator,
+    _positioning_metrics,
+  } = data;
+
+  // Color helpers
+  const getSignalColor = (signal) => {
+    if (signal === "Extreme") return "#dc2626";
+    if (signal === "Strong") return "#f97316";
+    if (signal === "Extreme Down") return "#0ea5e9";
+    if (signal === "Strong Down") return "#3b82f6";
+    return "#10b981";
+  };
+
+  const _getSignalIcon = (level) => {
+    if (level && (level.includes("Extreme") || level.includes("Strong"))) {
+      return <WarningAmber sx={{ color: getSignalColor(level) }} />;
+    }
+    return <CheckCircle sx={{ color: "#10b981" }} />;
+  };
+
+  // Breadth chart data
+  const breadthChartData = [
+    { name: "Advancing", value: market_breadth.advancing, fill: "#10b981" },
+    { name: "Declining", value: market_breadth.declining, fill: "#ef4444" },
+    { name: "Unchanged", value: market_breadth.unchanged, fill: "#6b7280" },
+  ];
+
+  // MA analysis data
+  const maChartData = [
+    {
+      name: "SMA 20",
+      value: moving_average_analysis.above_sma20.percent !== null && moving_average_analysis.above_sma20.percent !== undefined ? parseFloat(moving_average_analysis.above_sma20.percent) : null,
+    },
+    {
+      name: "SMA 50",
+      value: moving_average_analysis.above_sma50.percent !== null && moving_average_analysis.above_sma50.percent !== undefined ? parseFloat(moving_average_analysis.above_sma50.percent) : null,
+    },
+    {
+      name: "SMA 200",
+      value: moving_average_analysis.above_sma200.percent !== null && moving_average_analysis.above_sma200.percent !== undefined ? parseFloat(moving_average_analysis.above_sma200.percent) : null,
+    },
+  ];
+
+  return (
+    <Box>
+      <Grid container spacing={3}>
+        {/* Market Breadth Section */}
+        <Grid item xs={12} md={6}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                Market Breadth
+              </Typography>
+
+              {/* Stats Grid */}
+              <Grid container spacing={1} sx={{ mb: 3 }}>
+                <Grid item xs={6} sm={3}>
+                  <Box
+                    sx={{
+                      p: 1.5,
+                      bgcolor: "success.light",
+                      borderRadius: 1,
+                      textAlign: "center",
+                    }}
+                  >
+                    <Typography variant="body2" color="success.contrastText">
+                      Advancing
+                    </Typography>
+                    <Typography
+                      variant="h6"
+                      color="success.contrastText"
+                      sx={{ fontWeight: 600 }}
+                    >
+                      {market_breadth.advancing}
+                    </Typography>
+                  </Box>
+                </Grid>
+                <Grid item xs={6} sm={3}>
+                  <Box
+                    sx={{
+                      p: 1.5,
+                      bgcolor: "error.light",
+                      borderRadius: 1,
+                      textAlign: "center",
+                    }}
+                  >
+                    <Typography variant="body2" color="error.contrastText">
+                      Declining
+                    </Typography>
+                    <Typography
+                      variant="h6"
+                      color="error.contrastText"
+                      sx={{ fontWeight: 600 }}
+                    >
+                      {market_breadth.declining}
+                    </Typography>
+                  </Box>
+                </Grid>
+                <Grid item xs={6} sm={3}>
+                  <Box
+                    sx={{
+                      p: 1.5,
+                      bgcolor: "warning.light",
+                      borderRadius: 1,
+                      textAlign: "center",
+                    }}
+                  >
+                    <Typography variant="body2" color="warning.contrastText">
+                      Unchanged
+                    </Typography>
+                    <Typography
+                      variant="h6"
+                      color="warning.contrastText"
+                      sx={{ fontWeight: 600 }}
+                    >
+                      {market_breadth.unchanged}
+                    </Typography>
+                  </Box>
+                </Grid>
+                <Grid item xs={6} sm={3}>
+                  <Box
+                    sx={{
+                      p: 1.5,
+                      bgcolor: "info.light",
+                      borderRadius: 1,
+                      textAlign: "center",
+                    }}
+                  >
+                    <Typography variant="body2" color="info.contrastText">
+                      Total
+                    </Typography>
+                    <Typography
+                      variant="h6"
+                      color="info.contrastText"
+                      sx={{ fontWeight: 600 }}
+                    >
+                      {market_breadth.total_stocks}
+                    </Typography>
+                  </Box>
+                </Grid>
+              </Grid>
+
+              {/* Breadth Chart */}
+              <div style={getChartContainerStyle("default")}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={breadthChartData}
+                    margin={{ top: 8, right: 16, left: 0, bottom: 20 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" height={40} tick={{ fontSize: 12 }} />
+                    <YAxis />
+                    <Tooltip />
+                    <Bar dataKey="value" fill="#8884d8">
+                      {breadthChartData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.fill} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Breadth Details */}
+              <Box sx={{ mt: 2, pt: 2, borderTop: 1, borderColor: "divider" }}>
+                <Grid container spacing={1}>
+                  <Grid item xs={6}>
+                    <Typography variant="caption" color="text.secondary">
+                      Advancing %
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      {market_breadth.advancing_percent}%
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="caption" color="text.secondary">
+                      A/D Ratio
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      {market_breadth.decline_advance_ratio || "N/A"}
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="caption" color="text.secondary">
+                      Avg Daily Change
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      {market_breadth.avg_daily_change}%
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="caption" color="text.secondary">
+                      Total Volume
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      {market_breadth.total_volume?.toLocaleString()}
+                    </Typography>
+                  </Grid>
+                </Grid>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Moving Average Analysis */}
+        <Grid item xs={12} md={6}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                Moving Average Analysis
+              </Typography>
+
+              <Box sx={{ height: 300, width: "100%", mb: 2, minWidth: 0 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={maChartData}
+                    margin={{ top: 8, right: 16, left: 0, bottom: 20 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" height={40} tick={{ fontSize: 12 }} />
+                    <YAxis domain={[0, 100]} />
+                    <Tooltip
+                      formatter={(value) =>
+                        value != null ? `${Number(value).toFixed(1)}%` : "N/A"
+                      }
+                    />
+                    <Bar dataKey="value" fill="#3b82f6" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </Box>
+
+              <TableContainer component={Paper} elevation={0}>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow sx={{ backgroundColor: "grey.50" }}>
+                      <TableCell sx={{ fontWeight: 600 }}>Period</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 600 }}>
+                        Count
+                      </TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 600 }}>
+                        Total
+                      </TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 600 }}>
+                        Percent
+                      </TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 600 }}>
+                        Avg Distance
+                      </TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {[
+                      {
+                        name: "SMA 20",
+                        data: moving_average_analysis.above_sma20,
+                      },
+                      {
+                        name: "SMA 50",
+                        data: moving_average_analysis.above_sma50,
+                      },
+                      {
+                        name: "SMA 200",
+                        data: moving_average_analysis.above_sma200,
+                      },
+                    ].map((row) => (
+                      <TableRow key={row.name} hover>
+                        <TableCell>{row.name}</TableCell>
+                        <TableCell align="right">
+                          {row.data.count !== null && row.data.count !== undefined ? row.data.count : "—"}
+                        </TableCell>
+                        <TableCell align="right">
+                          {row.data.total !== null && row.data.total !== undefined ? row.data.total : "—"}
+                        </TableCell>
+                        <TableCell align="right">
+                          {row.data.percent !== null &&
+                          row.data.percent !== undefined
+                            ? `${row.data.percent}%`
+                            : "—"}
+                        </TableCell>
+                        <TableCell align="right">
+                          {row.data.avg_distance_pct !== null &&
+                          row.data.avg_distance_pct !== undefined
+                            ? `${row.data.avg_distance_pct}%`
+                            : "—"}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Market Extremes / Percentiles */}
+        <Grid item xs={12} md={6}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                Market Extremes (90-Day)
+              </Typography>
+
+              <Grid container spacing={2}>
+                <Grid item xs={6} sm={4}>
+                  <Box
+                    sx={{
+                      p: 1.5,
+                      bgcolor: "primary.light",
+                      borderRadius: 1,
+                      textAlign: "center",
+                    }}
+                  >
+                    <Typography variant="caption" color="primary.contrastText">
+                      Current
+                    </Typography>
+                    <Typography
+                      variant="h6"
+                      color="primary.contrastText"
+                      sx={{ fontWeight: 600 }}
+                    >
+                      {market_extremes.current_breadth_percentile}%
+                    </Typography>
+                  </Box>
+                </Grid>
+                <Grid item xs={6} sm={4}>
+                  <Box
+                    sx={{
+                      p: 1.5,
+                      bgcolor: "success.light",
+                      borderRadius: 1,
+                      textAlign: "center",
+                    }}
+                  >
+                    <Typography variant="caption" color="success.contrastText">
+                      50th %ile
+                    </Typography>
+                    <Typography
+                      variant="h6"
+                      color="success.contrastText"
+                      sx={{ fontWeight: 600 }}
+                    >
+                      {market_extremes.percentile_50}%
+                    </Typography>
+                  </Box>
+                </Grid>
+                <Grid item xs={6} sm={4}>
+                  <Box
+                    sx={{
+                      p: 1.5,
+                      bgcolor: "info.light",
+                      borderRadius: 1,
+                      textAlign: "center",
+                    }}
+                  >
+                    <Typography variant="caption" color="info.contrastText">
+                      90th %ile
+                    </Typography>
+                    <Typography
+                      variant="h6"
+                      color="info.contrastText"
+                      sx={{ fontWeight: 600 }}
+                    >
+                      {market_extremes.percentile_90}%
+                    </Typography>
+                  </Box>
+                </Grid>
+              </Grid>
+
+              <Box sx={{ mt: 2 }}>
+                <Typography variant="body2" sx={{ mb: 1 }}>
+                  <strong>25th Percentile:</strong>{" "}
+                  {market_extremes.percentile_25}%
+                </Typography>
+                <Typography variant="body2" sx={{ mb: 1 }}>
+                  <strong>75th Percentile:</strong>{" "}
+                  {market_extremes.percentile_75}%
+                </Typography>
+                <Typography variant="body2" sx={{ mb: 1 }}>
+                  <strong>Average (30d):</strong>{" "}
+                  {market_extremes.avg_breadth_30d}%
+                </Typography>
+                <Typography variant="body2" sx={{ mb: 1 }}>
+                  <strong>Std Dev:</strong> {market_extremes.stddev_breadth_30d}
+                </Typography>
+                <Typography variant="body2" sx={{ mb: 1 }}>
+                  <strong>Std Devs from Mean:</strong>{" "}
+                  {market_extremes.stddev_from_mean}σ
+                </Typography>
+                <Typography variant="body2">
+                  <strong>Breadth Rank:</strong>{" "}
+                  {market_extremes.breadth_rank !== null
+                    ? `${market_extremes.breadth_rank}%`
+                    : "N/A"}
+                </Typography>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+    </Box>
+  );
+};
+
+export default MarketInternals;

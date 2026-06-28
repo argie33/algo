@@ -459,7 +459,8 @@ class SpecializedChecker(BaseCheck):
                     count, max_updated = cur.fetchone()
 
                     if count > 0 and max_updated:
-                        updated_age = (datetime.now(timezone.utc) - max_updated).total_seconds() / 3600
+                        now = datetime.now(timezone.utc) if max_updated.tzinfo else datetime.now()
+                        updated_age = (now - max_updated).total_seconds() / 3600
                         self.log(
                             "trade_recorder_watermark",
                             INFO,

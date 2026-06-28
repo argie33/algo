@@ -1,0 +1,138 @@
+name: Manual Invoke Orchestrator
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (no actual trades)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+      run_identifier:
+        description: 'Run identifier (morning/evening/manual)'
+        required: false
+        default: 'manual'
+        type: choice
+        options:
+          - manual
+          - morning
+          - evening
+          - preclose
+      run_date:
+        description: 'Run date (YYYY-MM-DD, leave blank for today)'
+        required: false
+        default: ''
+      execution_mode:
+        description: 'Execution mode'
+        required: false
+        default: 'auto'
+        type: choice
+        options:
+          - auto
+          - paper
+          - live
+
+jobs:
+  invoke-orchestrator:
+    name: Invoke Algo Orchestrator
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a  # v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-github-actions-dev
+          aws-region: us-east-1
+
+      - name: Build payload
+        id: payload
+        run: |
+          DRY_RUN="${{ github.event.inputs.dry_run }}"
+          RUN_DATE="${{ github.event.inputs.run_date }}"
+          EXEC_MODE="${{ github.event.inputs.execution_mode }}"
+
+          RUN_ID="${{ github.event.inputs.run_identifier }}"
+          RUN_ID="${RUN_ID:-manual}"
+
+          # Build JSON payload (compact -c to keep it single-line for GITHUB_OUTPUT)
+          if [ -z "$RUN_DATE" ]; then
+            PAYLOAD=$(jq -cn \
+              --argjson dry_run "$( [ "$DRY_RUN" = "true" ] && echo true || echo false )" \
+              --arg execution_mode "$EXEC_MODE" \
+              --arg run_identifier "$RUN_ID" \
+              --arg source "github-manual-dispatch" \
+              '{source: $source, dry_run: $dry_run, execution_mode: $execution_mode, run_identifier: $run_identifier, run_date: "now"}')
+          else
+            PAYLOAD=$(jq -cn \
+              --argjson dry_run "$( [ "$DRY_RUN" = "true" ] && echo true || echo false )" \
+              --arg execution_mode "$EXEC_MODE" \
+              --arg run_identifier "$RUN_ID" \
+              --arg run_date "$RUN_DATE" \
+              --arg source "github-manual-dispatch" \
+              '{source: $source, dry_run: $dry_run, execution_mode: $execution_mode, run_identifier: $run_identifier, run_date: $run_date}')
+          fi
+
+          echo "Payload: $PAYLOAD"
+          echo "payload=$PAYLOAD" >> "$GITHUB_OUTPUT"
+
+      - name: Invoke Lambda
+        run: |
+          LAMBDA_NAME="algo-algo-dev"
+          PAYLOAD='${{ steps.payload.outputs.payload }}'
+
+          echo "Invoking Lambda: $LAMBDA_NAME"
+          echo "Payload: $PAYLOAD"
+          echo ""
+
+          # Write payload to file; use raw-in-base64-out so CLI reads file as raw JSON (not base64)
+          echo "$PAYLOAD" > /tmp/lambda_payload.json
+          AWS_INVOKE_EXIT=0
+          RESULT=$(aws lambda invoke \
+            --function-name "$LAMBDA_NAME" \
+            --cli-binary-format raw-in-base64-out \
+            --payload file:///tmp/lambda_payload.json \
+            --log-type Tail \
+            --region us-east-1 \
+            /tmp/response.json 2>/tmp/invoke_stderr.txt) || AWS_INVOKE_EXIT=$?
+
+          echo "=== Invocation Status (AWS CLI exit: $AWS_INVOKE_EXIT) ==="
+          if [ -f /tmp/invoke_stderr.txt ] && [ -s /tmp/invoke_stderr.txt ]; then
+            echo "--- CLI stderr ---"
+            cat /tmp/invoke_stderr.txt
+          fi
+          cat /tmp/response.json | jq . 2>/dev/null || cat /tmp/response.json
+          echo ""
+
+          STATUS=$(cat /tmp/response.json | jq -r '.statusCode // "unknown"' 2>/dev/null || echo "unknown")
+          BODY=$(cat /tmp/response.json | jq -r '.body // ""' 2>/dev/null || echo "")
+
+          echo "=== Result ==="
+          echo "Status: $STATUS"
+
+          if [ -n "$BODY" ]; then
+            echo "$BODY" | jq . 2>/dev/null || echo "$BODY"
+          fi
+
+          # Extract tail logs (base64 encoded by Lambda)
+          LOG_RESULT=$(echo "$RESULT" | jq -r '.LogResult // ""' 2>/dev/null || echo "")
+          if [ -n "$LOG_RESULT" ]; then
+            echo ""
+            echo "=== Lambda Tail Logs ==="
+            echo "$LOG_RESULT" | base64 -d 2>/dev/null || true
+          fi
+
+          # Fail the workflow if orchestrator returned error or AWS CLI error
+          if [ "$AWS_INVOKE_EXIT" -ne 0 ]; then
+            echo "AWS Lambda invoke failed (exit $AWS_INVOKE_EXIT) — check stderr above"
+            exit "$AWS_INVOKE_EXIT"
+          fi
+          if [ "$STATUS" = "500" ]; then
+            echo "Orchestrator returned error status 500"
+            exit 1
+          fi

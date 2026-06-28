@@ -1,0 +1,7 @@
+# Data Integrity - Real Data Only Functions
+# Do not auto-format these functions - real data queries must be preserved exactly
+utils/tradingModeHelper.js
+
+# Syntax Error Fixes (Session 88)
+# Temporarily ignore while fixing orphaned debug code
+index.js

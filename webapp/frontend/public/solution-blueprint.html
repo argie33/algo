@@ -1,0 +1,1610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Algo Trading System — Solution Blueprint</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg2: #161b22;
+    --bg3: #21262d;
+    --border: #30363d;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --green: #3fb950;
+    --blue: #58a6ff;
+    --yellow: #d29922;
+    --red: #f85149;
+    --purple: #bc8cff;
+    --orange: #ffa657;
+    --teal: #39d353;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  .container { max-width: 1400px; margin: 0 auto; padding: 24px 32px; }
+
+  /* ── Header ── */
+  .hero {
+    background: linear-gradient(135deg, #0d1117 0%, #1a2236 50%, #0d1117 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 48px 32px 40px;
+    text-align: center;
+  }
+  .hero h1 { font-size: 2.4rem; font-weight: 700; color: var(--blue); letter-spacing: -0.5px; }
+  .hero .subtitle { color: var(--muted); font-size: 1rem; margin-top: 8px; }
+  .badge-row { display: flex; justify-content: center; gap: 8px; margin-top: 18px; flex-wrap: wrap; }
+  .badge {
+    background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 20px; padding: 4px 12px; font-size: 12px; color: var(--muted);
+  }
+  .badge.green { border-color: var(--green); color: var(--green); }
+  .badge.blue { border-color: var(--blue); color: var(--blue); }
+  .badge.purple { border-color: var(--purple); color: var(--purple); }
+
+  /* ── TOC ── */
+  .toc {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 20px 24px; margin: 32px 0;
+  }
+  .toc h3 { color: var(--blue); font-size: 0.85rem; text-transform: uppercase;
+    letter-spacing: 1px; margin-bottom: 12px; }
+  .toc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 4px; }
+  .toc a { color: var(--muted); text-decoration: none; padding: 2px 0;
+    display: block; font-size: 13px; }
+  .toc a:hover { color: var(--blue); }
+  .toc a::before { content: "§ "; opacity: 0.4; }
+
+  /* ── Section headers ── */
+  h2 {
+    font-size: 1.4rem; color: var(--text); border-bottom: 1px solid var(--border);
+    padding-bottom: 10px; margin: 48px 0 24px;
+  }
+  h2 .num { color: var(--blue); font-size: 1rem; margin-right: 8px; }
+  h3 { font-size: 1rem; color: var(--blue); margin: 24px 0 10px; }
+  h4 { font-size: 0.9rem; color: var(--yellow); margin: 16px 0 8px; }
+
+  /* ── Cards / panels ── */
+  .card {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 20px 24px; margin: 16px 0;
+  }
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; margin: 16px 0; }
+  .stat-card {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 16px 20px;
+  }
+  .stat-card .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+  .stat-card .value { font-size: 2rem; font-weight: 700; color: var(--blue); margin: 4px 0; }
+  .stat-card .desc { font-size: 12px; color: var(--muted); }
+
+  /* ── Diagrams (pre/code) ── */
+  pre {
+    background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 6px; padding: 16px 20px; overflow-x: auto;
+    font-family: 'Cascadia Code', 'Consolas', monospace; font-size: 12px;
+    line-height: 1.5; color: var(--text); margin: 12px 0;
+  }
+  code {
+    background: var(--bg3); padding: 2px 6px; border-radius: 4px;
+    font-family: 'Cascadia Code', 'Consolas', monospace; font-size: 12px;
+    color: var(--orange);
+  }
+  pre code { background: none; padding: 0; color: var(--text); }
+
+  /* ── Tables ── */
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13px; }
+  th {
+    background: var(--bg3); text-align: left; padding: 10px 14px;
+    color: var(--muted); font-weight: 600; font-size: 11px;
+    text-transform: uppercase; letter-spacing: 0.5px;
+    border-bottom: 1px solid var(--border);
+  }
+  td { padding: 9px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--bg3); }
+  .table-wrap { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin: 16px 0; }
+
+  /* ── Color utilities ── */
+  .green { color: var(--green); }
+  .blue { color: var(--blue); }
+  .yellow { color: var(--yellow); }
+  .red { color: var(--red); }
+  .purple { color: var(--purple); }
+  .orange { color: var(--orange); }
+  .muted { color: var(--muted); }
+
+  /* ── Phase blocks ── */
+  .phase {
+    border-left: 3px solid var(--blue); background: var(--bg2);
+    padding: 14px 18px; margin: 10px 0; border-radius: 0 6px 6px 0;
+  }
+  .phase .phase-num { color: var(--blue); font-weight: 700; font-size: 0.85rem; }
+  .phase .phase-title { font-weight: 600; margin: 2px 0; }
+  .phase .phase-desc { color: var(--muted); font-size: 13px; margin-top: 4px; }
+  .phase.fail-closed { border-color: var(--red); }
+  .phase.fail-open { border-color: var(--green); }
+  .phase .tag {
+    display: inline-block; font-size: 10px; padding: 1px 6px; border-radius: 10px;
+    margin-left: 6px; vertical-align: middle;
+  }
+  .tag.red { background: rgba(248,81,73,0.2); color: var(--red); }
+  .tag.green { background: rgba(63,185,80,0.2); color: var(--green); }
+
+  /* ── Weight bars ── */
+  .weight-row { display: flex; align-items: center; gap: 12px; margin: 6px 0; }
+  .weight-label { width: 160px; font-size: 13px; flex-shrink: 0; }
+  .weight-bar-bg { flex: 1; background: var(--bg3); border-radius: 4px; height: 18px; overflow: hidden; }
+  .weight-bar { height: 100%; border-radius: 4px; display: flex; align-items: center;
+    padding-left: 8px; font-size: 11px; font-weight: 700; color: var(--bg); }
+  .weight-pts { width: 40px; text-align: right; color: var(--muted); font-size: 12px; }
+
+  /* ── CB grid ── */
+  .cb-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; margin: 12px 0; }
+  .cb-item {
+    background: var(--bg3); border: 1px solid var(--border); border-radius: 6px;
+    padding: 12px 16px; display: flex; gap: 10px; align-items: flex-start;
+  }
+  .cb-num { color: var(--red); font-weight: 700; font-size: 13px; flex-shrink: 0; min-width: 28px; }
+  .cb-content .cb-name { font-weight: 600; font-size: 13px; }
+  .cb-content .cb-detail { color: var(--muted); font-size: 12px; margin-top: 2px; }
+
+  /* ── Tier blocks ── */
+  .tier-list { display: flex; flex-direction: column; gap: 2px; }
+  .tier-row {
+    display: flex; align-items: stretch; gap: 0;
+    border: 1px solid var(--border); border-radius: 6px; overflow: hidden;
+  }
+  .tier-label {
+    width: 70px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+    background: var(--bg3); font-weight: 700; font-size: 13px; padding: 12px;
+  }
+  .tier-body { flex: 1; padding: 12px 16px; background: var(--bg2); }
+  .tier-body .tier-name { font-weight: 600; margin-bottom: 4px; }
+  .tier-body .tier-checks { color: var(--muted); font-size: 12px; }
+
+  /* ── Exit hierarchy ── */
+  .exit-list { display: flex; flex-direction: column; gap: 6px; }
+  .exit-item {
+    display: flex; align-items: flex-start; gap: 12px;
+    background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 6px; padding: 10px 14px;
+  }
+  .exit-rank { color: var(--purple); font-weight: 700; font-size: 0.85rem;
+    min-width: 26px; flex-shrink: 0; margin-top: 1px; }
+  .exit-content .exit-name { font-weight: 600; font-size: 13px; }
+  .exit-content .exit-detail { color: var(--muted); font-size: 12px; margin-top: 2px; }
+
+  /* ── Loader groups ── */
+  .loader-group { margin: 8px 0; }
+  .loader-group-title {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 1px;
+    color: var(--muted); margin-bottom: 6px; font-weight: 600;
+  }
+  .loader-pills { display: flex; flex-wrap: wrap; gap: 6px; }
+  .pill {
+    background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 20px; padding: 3px 10px; font-size: 12px; color: var(--text);
+  }
+  .pill.core { border-color: var(--blue); color: var(--blue); }
+  .pill.financial { border-color: var(--yellow); color: var(--yellow); }
+  .pill.market { border-color: var(--green); color: var(--green); }
+  .pill.econ { border-color: var(--purple); color: var(--purple); }
+
+  /* ── Footer ── */
+  .footer {
+    margin-top: 64px; padding: 24px; text-align: center;
+    border-top: 1px solid var(--border); color: var(--muted); font-size: 12px;
+  }
+
+  /* ── Responsive ── */
+  @media (max-width: 768px) {
+    .hero h1 { font-size: 1.6rem; }
+    .card-grid { grid-template-columns: 1fr; }
+    .cb-grid { grid-template-columns: 1fr; }
+  }
+
+  /* ── Anchor targets ── */
+  section[id] { scroll-margin-top: 20px; }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════
+     HERO
+══════════════════════════════════════════ -->
+<div class="hero">
+  <h1>Algo Trading System</h1>
+  <div class="subtitle">Complete Solution Blueprint · Minervini + O'Neil Trend-Following + Quantitative Risk Management</div>
+  <div class="badge-row">
+    <span class="badge green">Paper Trading Active</span>
+    <span class="badge blue">7-Phase Orchestrator</span>
+    <span class="badge blue">33 Data Loaders</span>
+    <span class="badge">12 Max Positions</span>
+    <span class="badge">13 Circuit Breakers</span>
+    <span class="badge purple">AWS Lambda + ECS Fargate</span>
+    <span class="badge">PostgreSQL + RDS Proxy</span>
+  </div>
+</div>
+
+<div class="container">
+
+<!-- ══════════════════════════════════════════
+     TABLE OF CONTENTS
+══════════════════════════════════════════ -->
+<div class="toc">
+  <h3>Contents</h3>
+  <div class="toc-grid">
+    <a href="#overview">1. System Overview</a>
+    <a href="#architecture">2. Architecture Map</a>
+    <a href="#lifecycle">3. Trading Lifecycle</a>
+    <a href="#orchestrator">4. Orchestrator Phases</a>
+    <a href="#signals">5. Signal Generation</a>
+    <a href="#scoring">6. Swing Trader Score</a>
+    <a href="#filter">7. Filter Pipeline</a>
+    <a href="#exposure">8. Market Exposure Engine</a>
+    <a href="#circuit">9. Circuit Breakers</a>
+    <a href="#sizing">10. Position Sizing</a>
+    <a href="#exits">11. Exit Engine</a>
+    <a href="#loaders">12. Data Loaders</a>
+    <a href="#schedule">13. Daily Schedule</a>
+    <a href="#deploy">14. Deployment Architecture</a>
+    <a href="#nplus1">15. N / N+1 / N+2 Paradigm</a>
+    <a href="#config">16. Key Configuration</a>
+    <a href="#debug">17. Debugging Guide</a>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════
+     1. OVERVIEW
+══════════════════════════════════════════ -->
+<section id="overview">
+<h2><span class="num">1</span>System Overview</h2>
+
+<p style="color:var(--muted); margin-bottom:20px;">
+  A fully-automated swing trading system targeting 1–8 week holds, combining
+  <strong>Minervini's trend template</strong> (growth stock stage analysis),
+  <strong>O'Neil's CAN SLIM methodology</strong> (institutional accumulation signatures),
+  and <strong>quantitative market exposure management</strong> (11-factor regime scoring).
+  Up to 12 concurrent positions, risk-scaled per position to ≤0.75% of portfolio.
+</p>
+
+<div class="card-grid">
+  <div class="stat-card">
+    <div class="label">Max Concurrent Positions</div>
+    <div class="value">12</div>
+    <div class="desc">Config: max_positions. Sector-concentrated ≤3.</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">Base Risk Per Trade</div>
+    <div class="value">0.75%</div>
+    <div class="desc">Portfolio risk. Scaled by 6 multipliers.</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">Target Hold Period</div>
+    <div class="value">5–20d</div>
+    <div class="desc">8-week rule override for 20%+ early winners.</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">Min Swing Score</div>
+    <div class="value">55</div>
+    <div class="desc">Out of 100. Regime-adjusted threshold.</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">Min Trend Template Score</div>
+    <div class="value">7 / 8</div>
+    <div class="desc">Minervini 8-point criteria. Pre-filter.</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">Max Daily Drawdown</div>
+    <div class="value">−2%</div>
+    <div class="desc">Circuit Breaker halts new entries.</div>
+  </div>
+</div>
+
+</section>
+
+
+<!-- ══════════════════════════════════════════
+     2. ARCHITECTURE MAP
+══════════════════════════════════════════ -->
+<section id="architecture">
+<h2><span class="num">2</span>Architecture Map</h2>
+
+<pre>
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         ALGO TRADING SYSTEM                                 │
+│                    AWS us-east-1  ·  Paper Trading Mode                     │
+└───────────────────────────────────┬─────────────────────────────────────────┘
+                                    │
+            ┌───────────────────────┼───────────────────────┐
+            │                       │                       │
+    ┌───────▼────────┐    ┌─────────▼───────┐    ┌─────────▼────────┐
+    │  EventBridge   │    │  Step Functions │    │   API Gateway    │
+    │  Schedules     │    │  EOD Pipeline   │    │   HTTP API       │
+    │  (26+ rules)   │    │  (9 loaders)    │    │   (/api/*)       │
+    └───────┬────────┘    └─────────┬───────┘    └─────────┬────────┘
+            │                       │                       │
+    ┌───────▼────────────────────────▼──────────────────┐  │
+    │                  ECS Fargate Cluster               │  │
+    │              "algo-cluster"                        │  │
+    │  33 loader tasks · OptimalLoader pattern           │  │
+    │  watermarks · dedup · bulk COPY · parallelism      │  │
+    └───────────────────────┬────────────────────────────┘  │
+                            │                               │
+                    ┌───────▼────────────────────────────────────┐
+                    │           RDS PostgreSQL                    │
+                    │     (via RDS Proxy — algo-proxy)            │
+                    │  Connection pooling · Query multiplexing    │
+                    │  ~50+ tables · schema.sql (3031 lines)      │
+                    └────────────────┬───────────────────────────┘
+                                     │
+                    ┌────────────────▼───────────────────────────┐
+                    │         Lambda: algo-algo-dev               │
+                    │    7-Phase Orchestrator (≈160s runtime)     │
+                    │    DynamoDB lock · EventBridge 4×/day       │
+                    └────────────────┬───────────────────────────┘
+                                     │
+                    ┌────────────────▼───────────────────────────┐
+                    │      Alpaca Paper Broker API               │
+                    │  paper-api.alpaca.markets                  │
+                    │  Bracket orders · position sync            │
+                    └────────────────────────────────────────────┘
+
+Frontend:   S3 + CloudFront → React SPA
+API Lambda: algo-api-dev → Lambda (algo-api-dev)
+Secrets:    AWS Secrets Manager (algo/database, algo/alpaca, algo/fred)
+CI/CD:      GitHub Actions + OIDC (no static AWS keys anywhere)
+</pre>
+
+<div class="table-wrap">
+<table>
+  <tr><th>Component</th><th>Code</th><th>Runtime</th><th>Trigger</th></tr>
+  <tr><td><strong>Orchestrator</strong></td><td><code>algo/algo_orchestrator.py</code></td><td>Lambda (algo-algo-dev)</td><td>EventBridge 4×/day + DynamoDB lock</td></tr>
+  <tr><td><strong>33 Loaders</strong></td><td><code>loaders/load_*.py</code></td><td>ECS Fargate tasks</td><td>EventBridge schedules + Step Functions</td></tr>
+  <tr><td><strong>REST API</strong></td><td><code>lambda/api/lambda_function.py</code></td><td>Lambda (algo-api-dev)</td><td>API Gateway HTTP requests</td></tr>
+  <tr><td><strong>Frontend</strong></td><td><code>webapp/frontend/src/</code></td><td>S3 + CloudFront</td><td>React SPA — npm run build</td></tr>
+  <tr><td><strong>Database</strong></td><td><code>lambda/db-init/schema.sql</code></td><td>RDS PostgreSQL (algo-db)</td><td>Always-on, via RDS Proxy</td></tr>
+  <tr><td><strong>Distributed Lock</strong></td><td>DynamoDB table</td><td>DynamoDB</td><td>Prevents concurrent orchestrator runs</td></tr>
+</table>
+</div>
+
+</section>
+
+
+<!-- ══════════════════════════════════════════
+     3. TRADING LIFECYCLE
+══════════════════════════════════════════ -->
+<section id="lifecycle">
+<h2><span class="num">3</span>Trading Lifecycle</h2>
+
+<pre>
+  3:25 AM ET                           4:30 PM ET                      5:30 PM ET
+  ────────────────────────────────────────────────────────────────────────────────
+  [Loaders] Symbols → Prices → Technicals → Market Health → Trend → Signals → Scores
+                                    │
+                               [EOD Pipeline]
+                                    │
+                          ┌─────────▼──────────┐
+                          │  9:30 AM ET OPEN    │
+                          │  Orchestrator run 1 │
+                          └─────────┬──────────┘
+                   ┌────────────────▼────────────────┐
+                   │  Phase 1: Data Freshness Check  │◄──── Halt if stale
+                   └────────────────┬────────────────┘
+                   ┌────────────────▼────────────────┐
+                   │  Phase 2: Circuit Breakers (13) │◄──── Halt if triggered
+                   └────────────────┬────────────────┘
+                   ┌────────────────▼────────────────┐
+                   │  Phase 3: Monitor Positions     │  HOLD / RAISE_STOP / EARLY_EXIT
+                   └────────────────┬────────────────┘
+                   ┌────────────────▼────────────────┐
+                   │  Phase 3b: Market Exposure      │  11-factor score → tier → multiplier
+                   └────────────────┬────────────────┘
+                   ┌────────────────▼────────────────┐
+                   │  Phase 4: Exit Execution        │  Stop / Target / Trail / Time
+                   └────────────────┬────────────────┘
+                   ┌────────────────▼────────────────┐
+                   │  Phase 4b: Pyramid Adds         │  Add to winners at extensions
+                   └────────────────┬────────────────┘
+                   ┌────────────────▼────────────────┐
+                   │  Phase 5: Signal Generation     │  5-tier filter → ranked candidates
+                   └────────────────┬────────────────┘
+                   ┌────────────────▼────────────────┐
+                   │  Phase 6: Entry Execution       │  Size → Alpaca bracket order
+                   └────────────────┬────────────────┘
+                   ┌────────────────▼────────────────┐
+                   │  Phase 7: Reconciliation        │  Sync Alpaca, IC attribution,
+                   └────────────────┬────────────────┘  CloudWatch metrics
+                                    │
+                          ┌─────────▼──────────┐
+                          │   Repeat at 1PM,   │
+                          │   3PM, 5:30PM ET   │
+                          └────────────────────┘
+</pre>
+
+</section>
+
+
+<!-- ══════════════════════════════════════════
+     4. ORCHESTRATOR PHASES
+══════════════════════════════════════════ -->
+<section id="orchestrator">
+<h2><span class="num">4</span>Orchestrator Phases (Detail)</h2>
+
+<div class="phase fail-closed">
+  <div class="phase-num">PHASE 1 <span class="tag red">FAIL-CLOSED</span></div>
+  <div class="phase-title">Data Freshness</div>
+  <div class="phase-desc">
+    Validates SPY price, <code>market_health_daily</code>, and <code>trend_template_data</code>
+    are from the last trading day (using <code>MarketCalendar</code> to skip weekends/holidays).
+    <code>buy_sell_daily</code> and <code>signal_quality_scores</code> are observe-only — logged but
+    never halt (loaded by EOD pipeline after Lambda fires). Halt = no trading today.
+  </div>
+</div>
+
+<div class="phase fail-closed">
+  <div class="phase-num">PHASE 2 <span class="tag red">FAIL-CLOSED</span></div>
+  <div class="phase-title">Circuit Breakers (13 checks)</div>
+  <div class="phase-desc">
+    Portfolio-level risk gates. If any trigger: skip Phases 4b, 5, 6 (no new entries),
+    but still execute Phase 3/4 exits and Phase 7 reconciliation. Fail-closed on crashes
+    (protective), fail-open on transient DB errors. See §9 for full list.
+  </div>
+</div>
+
+<div class="phase fail-open">
+  <div class="phase-num">PHASE 3 <span class="tag green">FAIL-OPEN</span></div>
+  <div class="phase-title">Position Monitor</div>
+  <div class="phase-desc">
+    For each open position: fetch price, compute P&amp;L, evaluate exit conditions,
+    score health. Proposes: <strong>HOLD</strong>, <strong>RAISE_STOP</strong>,
+    or <strong>EARLY_EXIT</strong>. No trades executed here — decisions queued for Phase 4.
+  </div>
+</div>
+
+<div class="phase fail-open">
+  <div class="phase-num">PHASE 3b <span class="tag green">FAIL-OPEN</span></div>
+  <div class="phase-title">Market Exposure Policy</div>
+  <div class="phase-desc">
+    11-factor composite score (0–100) → 4 tiers:
+    <span class="red">Correction</span> (≤25%),
+    <span class="yellow">Caution</span> (26–50%),
+    <span class="orange">Pressure</span> (51–75%),
+    <span class="green">Uptrend</span> (76–100%).
+    Tier determines: risk multiplier, max new positions, minimum grade required.
+    Fail-open with 0.7× default. Timeout (t4g.micro under load) is non-blocking.
+  </div>
+</div>
+
+<div class="phase fail-open">
+  <div class="phase-num">PHASE 4 <span class="tag green">FAIL-OPEN</span></div>
+  <div class="phase-title">Exit Execution</div>
+  <div class="phase-desc">
+    Routes all exit decisions through <code>TradeExecutor.exit_trade()</code>:
+    atomic DB update + Alpaca order. Handles partial exits (fraction=0.5 for T1/T2),
+    stop-raise-only (fraction=0), and full exits. Audit-logs every action.
+  </div>
+</div>
+
+<div class="phase fail-open">
+  <div class="phase-num">PHASE 4b <span class="tag green">FAIL-OPEN</span></div>
+  <div class="phase-title">Pyramid Adds</div>
+  <div class="phase-desc">
+    Adds to winning positions at defined extension points (+1R, +2R). Only triggered
+    when market exposure ≥ Caution tier, position is profitable, and sector not crowded.
+    Skipped if circuit breakers fired.
+  </div>
+</div>
+
+<div class="phase fail-open">
+  <div class="phase-num">PHASE 5 <span class="tag green">FAIL-OPEN</span></div>
+  <div class="phase-title">Signal Generation</div>
+  <div class="phase-desc">
+    Runs BUY signal candidates through the 5-tier filter pipeline. Resolves eval_date
+    (most recent date with full signal + market health + trend data). Ranks survivors
+    by <code>swing_score</code> descending. Returns candidate list for Phase 6.
+  </div>
+</div>
+
+<div class="phase fail-open">
+  <div class="phase-num">PHASE 6 <span class="tag green">FAIL-OPEN</span></div>
+  <div class="phase-title">Entry Execution</div>
+  <div class="phase-desc">
+    Final checks (close ≥ 60% of day's range, volume ≥ 1.25× 50d avg, sector limit ≤3,
+    portfolio capacity). Sizes position using 6-multiplier formula. Places bracket order
+    on Alpaca: entry + stop-loss + take-profit (OCO). Skipped if circuit breakers fired.
+  </div>
+</div>
+
+<div class="phase fail-open">
+  <div class="phase-num">PHASE 7 <span class="tag green">FAIL-OPEN</span></div>
+  <div class="phase-title">Reconciliation</div>
+  <div class="phase-desc">
+    Pulls live Alpaca account state. Syncs positions table (fills, partial fills).
+    Computes information coefficient (IC) and signal attribution. Runs weight optimizer.
+    Publishes CloudWatch metrics. Generates daily performance report.
+    30-second timeout on all Alpaca API calls.
+  </div>
+</div>
+
+</section>
+
+
+<!-- ══════════════════════════════════════════
+     5. SIGNAL GENERATION
+══════════════════════════════════════════ -->
+<section id="signals">
+<h2><span class="num">5</span>Signal Generation</h2>
+
+<p style="color:var(--muted); margin-bottom:16px;">
+  Signals originate from <code>loaders/load_buy_sell_daily.py</code> which computes BUY/SELL signals
+  nightly for 5000+ symbols and writes to <code>buy_sell_daily</code>. The orchestrator reads
+  these precomputed signals and enriches them through the filter pipeline.
+</p>
+
+<h3>Signal Computer Components (<code>algo/algo_signals.py</code>)</h3>
+<p style="color:var(--muted); margin-bottom:12px;">
+  <code>SignalComputer</code> is composed from 4 mixins, each adding analysis methods:
+</p>
+<div class="table-wrap">
+<table>
+  <tr><th>Mixin</th><th>Purpose</th><th>Key Methods</th></tr>
+  <tr>
+    <td><code>SignalBase</code></td>
+    <td>Core data access utilities</td>
+    <td><code>_rs_percentile_vs_spy()</code>, <code>_period_return()</code>, <code>_fetch_technicals()</code></td>
+  </tr>
+  <tr>
+    <td><code>SignalTrendMixin</code></td>
+    <td>Trend template evaluation</td>
+    <td><code>minervini_score()</code>, <code>weinstein_stage()</code>, <code>above_all_mas()</code></td>
+  </tr>
+  <tr>
+    <td><code>SignalPatternsMixin</code></td>
+    <td>Chart pattern detection</td>
+    <td><code>vcp_pattern()</code>, <code>flat_base()</code>, <code>cup_handle()</code>, <code>td_sequential()</code></td>
+  </tr>
+  <tr>
+    <td><code>SignalMomentumMixin</code></td>
+    <td>Momentum indicators</td>
+    <td><code>rsi_momentum()</code>, <code>roc_momentum()</code>, <code>volume_surge()</code></td>
+  </tr>
+  <tr>
+    <td><code>SignalOptionsMixin</code></td>
+    <td>Options market data</td>
+    <td>Put/call ratio, unusual options flow (when available)</td>
+  </tr>
+</table>
+</div>
+
+<h3>Minervini 8-Point Trend Template</h3>
+<p style="color:var(--muted); margin-bottom:10px;">
+  All 8 criteria must pass for a stock to be considered in a Stage 2 uptrend. Score = points met (0–8).
+</p>
+<div class="table-wrap">
+<table>
+  <tr><th>#</th><th>Criteria</th><th>Rationale</th></tr>
+  <tr><td class="blue">1</td><td>Price &gt; 150-day MA</td><td>Medium-term trend confirmation</td></tr>
+  <tr><td class="blue">2</td><td>Price &gt; 200-day MA</td><td>Long-term trend confirmation</td></tr>
+  <tr><td class="blue">3</td><td>150-day MA &gt; 200-day MA</td><td>Slope confirmation: rising long-term trend</td></tr>
+  <tr><td class="blue">4</td><td>200-day MA trending up ≥ 1 month</td><td>Sustained institutional accumulation</td></tr>
+  <tr><td class="blue">5</td><td>50-day MA &gt; 150-day MA AND 200-day MA</td><td>Short-term momentum above long-term</td></tr>
+  <tr><td class="blue">6</td><td>Price &gt; 50-day MA</td><td>Short-term trend confirmation</td></tr>
+  <tr><td class="blue">7</td><td>Price ≥ 30% above 52-week low</td><td>Accumulated base and breakout strength</td></tr>
+  <tr><td class="blue">8</td><td>Price within 25% of 52-week high</td><td>Stock near the top (strength, not reversal)</td></tr>
+</table>
+</div>
+
+<h3>Weinstein Stage Analysis</h3>
+<div class="table-wrap">
+<table>
+  <tr><th>Stage</th><th>Name</th><th>30-week MA</th><th>Action</th></tr>
+  <tr><td class="yellow">1</td><td>Basing/Consolidation</td><td>Flat</td><td>Watch — accumulation building</td></tr>
+  <tr><td class="green">2</td><td>Advancing / Uptrend</td><td>Rising</td><td><strong>BUY</strong> — only stage where entries allowed</td></tr>
+  <tr><td class="orange">3</td><td>Topping/Distribution</td><td>Flattening</td><td>SELL — institutional distribution</td></tr>
+  <tr><td class="red">4</td><td>Declining / Downtrend</td><td>Falling</td><td>AVOID — Circuit Breaker CB6 halts all new entries when market in Stage 4</td></tr>
+</table>
+</div>
+
+</section>
+
+
+<!-- ══════════════════════════════════════════
+     6. SWING TRADER SCORE
+══════════════════════════════════════════ -->
+<section id="scoring">
+<h2><span class="num">6</span>Swing Trader Score (7-Component Composite)</h2>
+
+<p style="color:var(--muted); margin-bottom:16px;">
+  The <strong>SwingTraderScore</strong> (0–100) is the primary ranking signal. Computed nightly
+  by <code>loaders/load_swing_trader_scores.py</code> and stored in <code>swing_trader_scores</code>
+  for fast lookup by the orchestrator filter pipeline.
+</p>
+
+<h3>Component Weights</h3>
+
+<div class="card">
+  <div class="weight-row">
+    <div class="weight-label">Setup Quality</div>
+    <div class="weight-bar-bg"><div class="weight-bar" style="width:25%;background:#58a6ff;">25%</div></div>
+    <div class="weight-pts">25 pts</div>
+  </div>
+  <div style="color:var(--muted);font-size:12px;margin:-4px 0 12px 172px;">
+    Minervini 8-point template completeness. minervini_score / 8 × 100 → 0–100 scale.
+  </div>
+
+  <div class="weight-row">
+    <div class="weight-label">Trend Quality</div>
+    <div class="weight-bar-bg"><div class="weight-bar" style="width:20%;background:#3fb950;">20%</div></div>
+    <div class="weight-pts">20 pts</div>
+  </div>
+  <div style="color:var(--muted);font-size:12px;margin:-4px 0 12px 172px;">
+    Weinstein stage quality. Stage 2 = 100, Stage 1 = 50, Stage 3 = 25, other = 0.
+  </div>
+
+  <div class="weight-row">
+    <div class="weight-label">Momentum / RS</div>
+    <div class="weight-bar-bg"><div class="weight-bar" style="width:20%;background:#3fb950;">20%</div></div>
+    <div class="weight-pts">20 pts</div>
+  </div>
+  <div style="color:var(--muted);font-size:12px;margin:-4px 0 12px 172px;">
+    RSI sweet-spot scoring (40–70 RSI → 0–100). Mansfield RS percentile vs SPY blended in
+    for richer version via <code>SwingTraderScore.compute()</code>.
+  </div>
+
+  <div class="weight-row">
+    <div class="weight-label">Volume</div>
+    <div class="weight-bar-bg"><div class="weight-bar" style="width:12%;background:#d29922;">12%</div></div>
+    <div class="weight-pts">12 pts</div>
+  </div>
+  <div style="color:var(--muted);font-size:12px;margin:-4px 0 12px 172px;">
+    20-day price ROC as proxy for institutional participation. 50 + ROC × 2.5, clamped 0–100.
+  </div>
+
+  <div class="weight-row">
+    <div class="weight-label">Fundamentals</div>
+    <div class="weight-bar-bg"><div class="weight-bar" style="width:10%;background:#bc8cff;">10%</div></div>
+    <div class="weight-pts">10 pts</div>
+  </div>
+  <div style="color:var(--muted);font-size:12px;margin:-4px 0 12px 172px;">
+    composite_sqs from <code>signal_quality_scores</code> (historical signal win-rate/profit-factor composite).
+  </div>
+
+  <div class="weight-row">
+    <div class="weight-label">Sector / Industry</div>
+    <div class="weight-bar-bg"><div class="weight-bar" style="width:8%;background:#ffa657;">8%</div></div>
+    <div class="weight-pts">8 pts</div>
+  </div>
+  <div style="color:var(--muted);font-size:12px;margin:-4px 0 12px 172px;">
+    Mansfield RS score vs SPY (50 + rs × 5, clamped 0–100). Falls back to composite_sqs.
+  </div>
+
+  <div class="weight-row">
+    <div class="weight-label">Multi-Timeframe</div>
+    <div class="weight-bar-bg"><div class="weight-bar" style="width:5%;background:#f85149;">5%</div></div>
+    <div class="weight-pts">5 pts</div>
+  </div>
+  <div style="color:var(--muted);font-size:12px;margin:-4px 0 4px 172px;">
+    Trend × 0.6 + Momentum × 0.4. Confirms trend on multiple timeframes.
+  </div>
+</div>
+
+<h3>Grade Thresholds</h3>
+<div class="table-wrap">
+<table>
+  <tr><th>Score</th><th>Grade</th><th>Interpretation</th></tr>
+  <tr><td class="green">≥ 85</td><td class="green"><strong>A+</strong></td><td>Elite setup — all components aligned, high conviction</td></tr>
+  <tr><td class="green">≥ 75</td><td class="green"><strong>A</strong></td><td>Strong setup — institutional-grade quality</td></tr>
+  <tr><td class="blue">≥ 65</td><td class="blue"><strong>B</strong></td><td>Good setup — above average, proceed with confidence</td></tr>
+  <tr><td class="yellow">≥ 55</td><td class="yellow"><strong>C</strong></td><td>Average — minimum bar for entry (default min_swing_score=55)</td></tr>
+  <tr><td class="orange">≥ 45</td><td class="orange"><strong>D</strong></td><td>Below average — avoid unless regime-adjusted higher</td></tr>
+  <tr><td class="red">&lt; 45</td><td class="red"><strong>F</strong></td><td>Fail — reject</td></tr>
+</table>
+</div>
+
+<h3>Signal Quality Score (SQS) — Feeding Fundamentals Component</h3>
+<p style="color:var(--muted)">
+  The SQS is computed by <code>loaders/load_signal_quality_scores.py</code> — it measures how well
+  a stock's historical BUY signals have performed:
+  <strong>win rate × profit factor × expectancy</strong> normalized 0–100.
+  Higher SQS = historically reliable signal source for this ticker.
+</p>
+
+</section>
+
+
+<!-- ══════════════════════════════════════════
+     7. FILTER PIPELINE
+══════════════════════════════════════════ -->
+<section id="filter">
+<h2><span class="num">7</span>Signal Filter Pipeline (5-Tier Waterfall)</h2>
+
+<p style="color:var(--muted); margin-bottom:16px;">
+  All BUY candidates flow through this pipeline in <code>algo/algo_filter_pipeline.py</code>.
+  Each tier eliminates candidates before passing survivors to the next tier.
+  Candidates exiting all 5 tiers are ranked by swing_score and passed to Phase 6.
+</p>
+
+<pre>
+  BUY signals from buy_sell_daily
+          │
+          ▼
+  Pre-Tier Checks (always active, no config override):
+  ├─ Earnings blackout (≤5 days to next earnings → reject)
+  ├─ Signal age (signal date ≤ 3 days from eval_date → reject if stale)
+  ├─ Per-stock Weinstein Stage 2 (trend_template_data.weinstein_stage = 2)
+  ├─ Close quality (close ≥ 60% of day's high-low range — institutional buying)
+  └─ Volume ratio (volume ≥ 1.25× 50-day avg — confirming accumulation)
+          │
+          ▼
+  ┌────────────────────────────────────────────────────────────┐
+  │  TIER 1: Data Quality                                      │
+  │  • Price data exists and is recent                         │
+  │  • Technical indicators computed                           │
+  │  • Signal quality scores available                         │
+  └────────────────────────────────┬───────────────────────────┘
+                                   │
+  ┌────────────────────────────────▼───────────────────────────┐
+  │  TIER 2: Market Health Gate                                │
+  │  • VIX ≤ vix_max_threshold (35 default)                   │
+  │  • Distribution days ≤ max_distribution_days (4 default)  │
+  │  NOTE: require_stage_2_market = false (CB6 handles Stage 4)│
+  └────────────────────────────────┬───────────────────────────┘
+                                   │
+  ┌────────────────────────────────▼───────────────────────────┐
+  │  TIER 3: Trend Template Gate                               │
+  │  • minervini_trend_score ≥ min_trend_template_score (7/8) │
+  │  • Weinstein stage confirmed (trend_template_data check)   │
+  └────────────────────────────────┬───────────────────────────┘
+                                   │
+  ┌────────────────────────────────▼───────────────────────────┐
+  │  TIER 4: Signal Quality Gate                               │
+  │  • composite_sqs ≥ min_sqs threshold (from AlgoConfig)    │
+  │  • Fundamentals quality filter (win-rate history check)    │
+  └────────────────────────────────┬───────────────────────────┘
+                                   │
+  ┌────────────────────────────────▼───────────────────────────┐
+  │  TIER 5: Portfolio Health Gate                             │
+  │  • Total positions < max_positions (12)                    │
+  │  • Sector concentration ≤ 3 same sector                   │
+  │  • Swing score ≥ min_swing_score (regime-adjusted)        │
+  └────────────────────────────────┬───────────────────────────┘
+                                   │
+  ┌────────────────────────────────▼───────────────────────────┐
+  │  Advanced Filters                                          │
+  │  • Swing score lookup from swing_trader_scores table       │
+  │  • Regime-aware min_swing_score adjustment                 │
+  │  • R-multiple target price calculation (T1/T2/T3)         │
+  └────────────────────────────────┬───────────────────────────┘
+                                   │
+                           Ranked by swing_score ↓
+                           → Phase 6 Entry Execution
+</pre>
+
+</section>
+
+
+<!-- ══════════════════════════════════════════
+     8. MARKET EXPOSURE ENGINE
+══════════════════════════════════════════ -->
+<section id="exposure">
+<h2><span class="num">8</span>Market Exposure Engine (11-Factor Composite)</h2>
+
+<p style="color:var(--muted); margin-bottom:16px;">
+  <code>algo/algo_market_exposure.py</code> — replaces binary Stage 2 yes/no with a
+  continuous 0–100 score that dynamically scales risk allocation.
+</p>
+
+<div class="card">
+  <h4>Factor Weights (total = 100 pts)</h4>
+  <div class="weight-row">
+    <div class="weight-label">IBD Market State</div>
+    <div class="weight-bar-bg"><div class="weight-bar" style="width:18%;background:#f85149;">18%</div></div>
+    <div class="weight-pts">18 pts</div>
+  </div>
+  <div class="weight-row">
+    <div class="weight-label">Trend 30-Week MA</div>
+    <div class="weight-bar-bg"><div class="weight-bar" style="width:15%;background:#ffa657;">15%</div></div>
+    <div class="weight-pts">15 pts</div>
+  </div>
+  <div class="weight-row">
+    <div class="weight-label">Breadth % &gt; 50-DMA</div>
+    <div class="weight-bar-bg"><div class="weight-bar" style="width:14%;background:#d29922;">14%</div></div>
+    <div class="weight-pts">14 pts</div>
+  </div>
+  <div class="weight-row">
+    <div class="weight-label">Breadth % &gt; 200-DMA</div>
+    <div class="weight-bar-bg"><div class="weight-bar" style="width:10%;background:#58a6ff;">10%</div></div>
+    <div class="weight-pts">10 pts</div>
+  </div>
+  <div class="weight-row">
+    <div class="weight-label">McClellan Oscillator</div>
+    <div class="weight-bar-bg"><div class="weight-bar" style="width:9%;background:#3fb950;">9%</div></div>
+    <div class="weight-pts">9 pts</div>
+  </div>
+  <div class="weight-row">
+    <div class="weight-label">VIX Regime</div>
+    <div class="weight-bar-bg"><div class="weight-bar" style="width:8%;background:#bc8cff;">8%</div></div>
+    <div class="weight-pts">8 pts</div>
+  </div>
+  <div class="weight-row">
+    <div class="weight-label">New Highs – Lows</div>
+    <div class="weight-bar-bg"><div class="weight-bar" style="width:7%;background:#58a6ff;">7%</div></div>
+    <div class="weight-pts">7 pts</div>
+  </div>
+  <div class="weight-row">
+    <div class="weight-label">Credit Spreads (HY OAS)</div>
+    <div class="weight-bar-bg"><div class="weight-bar" style="width:7%;background:#ffa657;">7%</div></div>
+    <div class="weight-pts">7 pts</div>
+  </div>
+  <div class="weight-row">
+    <div class="weight-label">Advance-Decline Line</div>
+    <div class="weight-bar-bg"><div class="weight-bar" style="width:5%;background:#3fb950;">5%</div></div>
+    <div class="weight-pts">5 pts</div>
+  </div>
+  <div class="weight-row">
+    <div class="weight-label">AAII Sentiment (contrarian)</div>
+    <div class="weight-bar-bg"><div class="weight-bar" style="width:4%;background:#d29922;">4%</div></div>
+    <div class="weight-pts">4 pts</div>
+  </div>
+  <div class="weight-row">
+    <div class="weight-label">NAAIM Exposure (contrarian)</div>
+    <div class="weight-bar-bg"><div class="weight-bar" style="width:3%;background:#8b949e;">3%</div></div>
+    <div class="weight-pts">3 pts</div>
+  </div>
+</div>
+
+<h3>Hard Vetoes (cap exposure at 25–35%)</h3>
+<div class="card" style="border-color:var(--red)">
+  <ul style="color:var(--muted); padding-left:18px; line-height:2">
+    <li>SPY &lt; rising 30-week MA <strong>AND</strong> breadth_50 &lt; 30%</li>
+    <li>VIX &gt; 40 with rising trend</li>
+    <li>6+ distribution days in last 25 sessions</li>
+    <li>No follow-through day after correction</li>
+    <li>HY credit spread &gt; 8.5% (systemic stress)</li>
+  </ul>
+</div>
+
+<h3>Economic Regime Overlay (penalty)</h3>
+<p style="color:var(--muted)">
+  Computed from T10Y2Y yield curve inversion, HY spread trend, and jobless claims trend.
+  Macro stress 40–60: −4 pts. Macro stress &gt; 60: −7 pts, cap at 40%.
+</p>
+
+<h3>Tier Mapping → Risk Multiplier</h3>
+<div class="table-wrap">
+<table>
+  <tr><th>Score</th><th>Tier</th><th>Risk Mult</th><th>Max New Positions</th><th>Min Grade</th></tr>
+  <tr><td class="red">0–25</td><td class="red">Correction</td><td class="red">0.25×</td><td>0</td><td>—</td></tr>
+  <tr><td class="yellow">26–50</td><td class="yellow">Caution</td><td class="yellow">0.5×</td><td>2</td><td>B</td></tr>
+  <tr><td class="orange">51–75</td><td class="orange">Pressure</td><td class="orange">0.75×</td><td>4</td><td>C</td></tr>
+  <tr><td class="green">76–100</td><td class="green">Confirmed Uptrend</td><td class="green">1.0×</td><td>12</td><td>C</td></tr>
+</table>
+</div>
+
+</section>
+
+
+<!-- ══════════════════════════════════════════
+     9. CIRCUIT BREAKERS
+══════════════════════════════════════════ -->
+<section id="circuit">
+<h2><span class="num">9</span>Circuit Breakers (13 Checks)</h2>
+
+<p style="color:var(--muted); margin-bottom:16px;">
+  All 13 checks run in Phase 2. Any triggered = no new entries (Phases 4b, 5, 6 skip).
+  Exits and reconciliation still proceed. Fail-closed on code crashes (protective).
+  Fail-open on transient DB/network errors (non-blocking).
+</p>
+
+<div class="cb-grid">
+  <div class="cb-item">
+    <div class="cb-num">CB1</div>
+    <div class="cb-content">
+      <div class="cb-name">Daily Loss</div>
+      <div class="cb-detail">Today's P&amp;L &lt; −2% of portfolio NAV. Stops all new trades for the day.</div>
+    </div>
+  </div>
+  <div class="cb-item">
+    <div class="cb-num">CB2</div>
+    <div class="cb-content">
+      <div class="cb-name">Max Drawdown</div>
+      <div class="cb-detail">Peak-to-current drawdown &gt; 20% (config: halt_drawdown_pct). Full halt until recovery.</div>
+    </div>
+  </div>
+  <div class="cb-item">
+    <div class="cb-num">CB3</div>
+    <div class="cb-content">
+      <div class="cb-name">Drawdown Re-engagement</div>
+      <div class="cb-detail">After drawdown halt: requires recovery to 50% of drawdown before resuming.</div>
+    </div>
+  </div>
+  <div class="cb-item">
+    <div class="cb-num">CB4</div>
+    <div class="cb-content">
+      <div class="cb-name">Consecutive Losses</div>
+      <div class="cb-detail">≥ 3 consecutive losing trades (config: max_consecutive_losses). Cooldown period.</div>
+    </div>
+  </div>
+  <div class="cb-item">
+    <div class="cb-num">CB5</div>
+    <div class="cb-content">
+      <div class="cb-name">Total Risk Exposure</div>
+      <div class="cb-detail">Aggregate portfolio risk (all open positions) exceeds configured max total risk.</div>
+    </div>
+  </div>
+  <div class="cb-item">
+    <div class="cb-num red">CB6</div>
+    <div class="cb-content">
+      <div class="cb-name red">Market Stage 4</div>
+      <div class="cb-detail">Market in confirmed downtrend (Weinstein Stage 4). All new entries halted market-wide.</div>
+    </div>
+  </div>
+  <div class="cb-item">
+    <div class="cb-num">CB7</div>
+    <div class="cb-content">
+      <div class="cb-name">VIX Spike</div>
+      <div class="cb-detail">VIX &gt; vix_max_threshold (35 default). Extreme fear spike triggers halt.</div>
+    </div>
+  </div>
+  <div class="cb-item">
+    <div class="cb-num">CB8</div>
+    <div class="cb-content">
+      <div class="cb-name">Weekly Loss</div>
+      <div class="cb-detail">Current week P&amp;L &lt; −3% of NAV. Reset Monday open.</div>
+    </div>
+  </div>
+  <div class="cb-item">
+    <div class="cb-num">CB9</div>
+    <div class="cb-content">
+      <div class="cb-name">Sector Concentration</div>
+      <div class="cb-detail">Any single sector already at ≥ 3 positions blocks additional same-sector entries.</div>
+    </div>
+  </div>
+  <div class="cb-item">
+    <div class="cb-num">CB10</div>
+    <div class="cb-content">
+      <div class="cb-name">Intraday Market Health</div>
+      <div class="cb-detail">SPY closed down &gt; 2% yesterday. Short-term market stress indicator.</div>
+    </div>
+  </div>
+  <div class="cb-item">
+    <div class="cb-num">CB11</div>
+    <div class="cb-content">
+      <div class="cb-name">Win Rate Floor</div>
+      <div class="cb-detail">Rolling 30-trade win rate &lt; 40% (config: min_win_rate_pct). System quality degraded.</div>
+    </div>
+  </div>
+  <div class="cb-item">
+    <div class="cb-num">CB12</div>
+    <div class="cb-content">
+      <div class="cb-name">Daily Profit Cap</div>
+      <div class="cb-detail">Today's gain &gt; 3% of NAV. Lock in gains, no new positions needed today.</div>
+    </div>
+  </div>
+  <div class="cb-item">
+    <div class="cb-num">CB13</div>
+    <div class="cb-content">
+      <div class="cb-name">Data Freshness</div>
+      <div class="cb-detail">Critical tables stale beyond tolerance (duplicates Phase 1 for fail-safety in Phase 2).</div>
+    </div>
+  </div>
+</div>
+
+</section>
+
+
+<!-- ══════════════════════════════════════════
+     10. POSITION SIZING
+══════════════════════════════════════════ -->
+<section id="sizing">
+<h2><span class="num">10</span>Position Sizing Formula</h2>
+
+<p style="color:var(--muted); margin-bottom:16px;">
+  Every position starts with a fixed risk per trade, then 6 multipliers scale it based on
+  current market conditions. This implements Curtis Faith's R-unit framework with dynamic
+  regime awareness.
+</p>
+
+<pre>
+  CORE FORMULA
+  ─────────────────────────────────────────────────────────────────────────────
+
+  risk_dollars = NAV × base_risk_pct × dd_adj × exposure_mult × phase_mult × VIX_mult × regime_mult
+
+  shares = risk_dollars / (entry_price − stop_loss_price)
+
+  max_position_value = NAV × 0.08   ← 8% single position cap
+  max_total_invested = NAV × 0.95   ← never fully invested
+
+  ─────────────────────────────────────────────────────────────────────────────
+
+  Multiplier         Formula                         Range
+  ─────────────────────────────────────────────────────────────────────────────
+  base_risk_pct      AlgoConfig (default 0.75%)      Fixed
+  dd_adj             1.0 − (drawdown_pct / max_dd)   0.25–1.0
+  exposure_mult      Market exposure tier             0.25–1.0 (Correction–Uptrend)
+  phase_mult         Orchestrator run timing          0.8–1.0 (pre-close = 0.8)
+  VIX_mult           1.0 − (VIX − 20)/100            0.5–1.0
+  regime_mult        IBD regime: uptrend/pressure     0.5–1.0
+</pre>
+
+<h3>Example Sizing Calculation</h3>
+<div class="card">
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
+    <div>
+      <p><strong>Inputs:</strong></p>
+      <table style="margin:8px 0">
+        <tr><td style="color:var(--muted)">Portfolio NAV</td><td>$100,000</td></tr>
+        <tr><td style="color:var(--muted)">base_risk_pct</td><td>0.75%</td></tr>
+        <tr><td style="color:var(--muted)">Current drawdown</td><td>3%</td></tr>
+        <tr><td style="color:var(--muted)">Market exposure tier</td><td>Pressure (0.75×)</td></tr>
+        <tr><td style="color:var(--muted)">VIX</td><td>22</td></tr>
+        <tr><td style="color:var(--muted)">Entry price</td><td>$150</td></tr>
+        <tr><td style="color:var(--muted)">Stop-loss</td><td>$143 (−4.7%)</td></tr>
+      </table>
+    </div>
+    <div>
+      <p><strong>Calculation:</strong></p>
+      <pre style="margin:8px 0">
+base_risk = $100,000 × 0.0075 = $750
+dd_adj    = 1.0 − (3/10) = 0.70
+exp_mult  = 0.75
+VIX_mult  = 1.0 − (22−20)/100 = 0.98
+regime    = 0.9 (pressure)
+
+risk_dollars = $750 × 0.70 × 0.75 × 0.98 × 0.9
+             = $347
+
+shares = $347 / ($150 − $143)
+       = $347 / $7 = 49 shares
+position = 49 × $150 = $7,350 (7.35%)
+      </pre>
+    </div>
+  </div>
+</div>
+
+</section>
+
+
+<!-- ══════════════════════════════════════════
+     11. EXIT ENGINE
+══════════════════════════════════════════ -->
+<section id="exits">
+<h2><span class="num">11</span>Exit Engine (Priority Hierarchy)</h2>
+
+<p style="color:var(--muted); margin-bottom:16px;">
+  <code>algo/algo_exit_engine.py</code> — checks are evaluated in order; first match wins.
+  Target exits (T1/T2) are configurable to require a pullback or trigger immediately
+  via <code>require_target_pullback</code> config key.
+</p>
+
+<div class="exit-list">
+  <div class="exit-item">
+    <div class="exit-rank">1</div>
+    <div class="exit-content">
+      <div class="exit-name red">Hard Stop</div>
+      <div class="exit-detail">Price ≤ active_stop (initial or trailed). Full exit (100%). Capital preservation always wins.</div>
+    </div>
+  </div>
+  <div class="exit-item">
+    <div class="exit-rank">2</div>
+    <div class="exit-content">
+      <div class="exit-name red">Minervini Trend Break</div>
+      <div class="exit-detail">Close &lt; 50-DMA (clean break), OR close &lt; EMA(21) on volume &gt; 50d avg × 1.15. Full exit.</div>
+    </div>
+  </div>
+  <div class="exit-item">
+    <div class="exit-rank">3</div>
+    <div class="exit-content">
+      <div class="exit-name red">RS Line Break</div>
+      <div class="exit-detail">Stock/SPY ratio falls below its own 50-day MA (config: exit_on_rs_line_break_50dma). Full exit.</div>
+    </div>
+  </div>
+  <div class="exit-item">
+    <div class="exit-rank">4</div>
+    <div class="exit-content">
+      <div class="exit-name yellow">Time Exit</div>
+      <div class="exit-detail">Held ≥ max_hold_days (default 20). Override: O'Neil 8-week rule — if +20% in first 3 weeks, hold through 8 weeks.</div>
+    </div>
+  </div>
+  <div class="exit-item">
+    <div class="exit-rank">5</div>
+    <div class="exit-content">
+      <div class="exit-name blue">Breakeven Stop Raise</div>
+      <div class="exit-detail">At +1R gain: raise stop to entry price (fraction=0, no exit). Locks in break-even protection.</div>
+    </div>
+  </div>
+  <div class="exit-item">
+    <div class="exit-rank">6</div>
+    <div class="exit-content">
+      <div class="exit-name green">T1 Target (1.5R)</div>
+      <div class="exit-detail">Exit 50%. Stop raised to entry. Requires pullback only if require_target_pullback=true (default false).</div>
+    </div>
+  </div>
+  <div class="exit-item">
+    <div class="exit-rank">7</div>
+    <div class="exit-content">
+      <div class="exit-name green">T2 Target (3R)</div>
+      <div class="exit-detail">Exit 50% of remaining. Stop raised to T1. Requires T1 already hit. Pullback gate same as T1.</div>
+    </div>
+  </div>
+  <div class="exit-item">
+    <div class="exit-rank">8</div>
+    <div class="exit-content">
+      <div class="exit-name green">T3 Target (4R)</div>
+      <div class="exit-detail">Final exit (100% of remaining). Requires T1 and T2 already hit. No pullback required at T3.</div>
+    </div>
+  </div>
+  <div class="exit-item">
+    <div class="exit-rank">9</div>
+    <div class="exit-content">
+      <div class="exit-name blue">Chandelier / EMA Trail</div>
+      <div class="exit-detail">At +1R: 3×ATR from highest high. After 10 days: 21-EMA trail (config: chandelier_atr_mult, switch_to_21ema_after_days).</div>
+    </div>
+  </div>
+  <div class="exit-item">
+    <div class="exit-rank">10</div>
+    <div class="exit-content">
+      <div class="exit-name purple">TD Sequential</div>
+      <div class="exit-detail">9-count sell setup → exit 50%. 13-count combo → full exit. Requires target_hits ≥ 1 and R ≥ 0.5.</div>
+    </div>
+  </div>
+  <div class="exit-item">
+    <div class="exit-rank">11</div>
+    <div class="exit-content">
+      <div class="exit-name orange">First Red Day</div>
+      <div class="exit-detail">After +2.5R gain: first big down day (−1.5%) on heavy volume (1.5× avg). Exit 50%.</div>
+    </div>
+  </div>
+  <div class="exit-item">
+    <div class="exit-rank">12</div>
+    <div class="exit-content">
+      <div class="exit-name orange">Climax Exhaustion</div>
+      <div class="exit-detail">30+ days held, +5R gain, +20% in last 10 days → parabolic climax distribution. Exit 50%.</div>
+    </div>
+  </div>
+  <div class="exit-item">
+    <div class="exit-rank">13</div>
+    <div class="exit-content">
+      <div class="exit-name yellow">Distribution Days</div>
+      <div class="exit-detail">Market distribution days &gt; max_distribution_days (4 default). Full exit (config: exit_on_distribution_day).</div>
+    </div>
+  </div>
+</div>
+
+<h3>Tiered Exit Stop Progression</h3>
+<pre>
+  Entry: $100       Stop: $93      (7% risk = 1R)
+
+  At +1.5R ($110.50):  T1 → exit 50%   → raise stop to $100 (breakeven)
+  At +3.0R ($121.00):  T2 → exit 50%   → raise stop to $110.50 (T1 level)
+  At +4.0R ($128.00):  T3 → exit 100%  → locked in 4R on remainder
+
+  Result: worst case after T1 = breakeven on remaining 50%
+          worst case after T2 = +1.5R on remaining 25%
+          best case at T3     = full position at +4R
+</pre>
+
+</section>
+
+
+<!-- ══════════════════════════════════════════
+     12. DATA LOADERS
+══════════════════════════════════════════ -->
+<section id="loaders">
+<h2><span class="num">12</span>Data Loaders (33 Total)</h2>
+
+<p style="color:var(--muted); margin-bottom:16px;">
+  All loaders inherit from <code>OptimalLoader</code> (watermarks, dedup, parallelism, bulk COPY).
+  Run on ECS Fargate tasks via <code>loaders/load_*.py</code>.
+</p>
+
+<div class="loader-group">
+  <div class="loader-group-title">Core EOD Pipeline (Step Functions — sequential dependencies)</div>
+  <div class="loader-pills">
+    <span class="pill core">stock_symbols</span>
+    <span class="pill core">stock_prices_daily</span>
+    <span class="pill core">technical_data_daily</span>
+    <span class="pill core">market_health_daily</span>
+    <span class="pill core">trend_template_data</span>
+    <span class="pill core">buy_sell_daily</span>
+    <span class="pill core">signal_quality_scores</span>
+    <span class="pill core">algo_metrics_daily</span>
+    <span class="pill core">swing_trader_scores</span>
+  </div>
+</div>
+
+<div class="loader-group" style="margin-top:16px">
+  <div class="loader-group-title">Financial Statements (EventBridge — 8 loaders)</div>
+  <div class="loader-pills">
+    <span class="pill financial">financials_annual_income</span>
+    <span class="pill financial">financials_annual_balance</span>
+    <span class="pill financial">financials_annual_cashflow</span>
+    <span class="pill financial">financials_quarterly_income</span>
+    <span class="pill financial">financials_quarterly_balance</span>
+    <span class="pill financial">financials_quarterly_cashflow</span>
+    <span class="pill financial">financials_ttm_income</span>
+    <span class="pill financial">financials_ttm_cashflow</span>
+  </div>
+</div>
+
+<div class="loader-group" style="margin-top:16px">
+  <div class="loader-group-title">Computed Scores (EventBridge — 6 loaders)</div>
+  <div class="loader-pills">
+    <span class="pill financial">growth_metrics</span>
+    <span class="pill financial">quality_metrics</span>
+    <span class="pill financial">value_metrics</span>
+    <span class="pill financial">positioning_metrics</span>
+    <span class="pill financial">stability_metrics</span>
+    <span class="pill financial">stock_scores</span>
+  </div>
+</div>
+
+<div class="loader-group" style="margin-top:16px">
+  <div class="loader-group-title">Market Data (EventBridge)</div>
+  <div class="loader-pills">
+    <span class="pill market">feargreed</span>
+    <span class="pill market">aaiidata</span>
+    <span class="pill market">naaim_data</span>
+    <span class="pill market">sentiment</span>
+    <span class="pill market">sp500_constituents</span>
+    <span class="pill market">russell2000_constituents</span>
+    <span class="pill market">industry_ranking</span>
+    <span class="pill market">sector_ranking</span>
+    <span class="pill market">sector_performance</span>
+    <span class="pill market">seasonality</span>
+    <span class="pill market">signal_themes</span>
+  </div>
+</div>
+
+<div class="loader-group" style="margin-top:16px">
+  <div class="loader-group-title">Economic Data (EventBridge + GitHub Actions cron)</div>
+  <div class="loader-pills">
+    <span class="pill econ">fred_economic_data</span>
+    <span class="pill econ">economic_calendar</span>
+  </div>
+</div>
+
+<div class="loader-group" style="margin-top:16px">
+  <div class="loader-group-title">Company / Analyst (EventBridge)</div>
+  <div class="loader-pills">
+    <span class="pill">company_profile</span>
+    <span class="pill">analyst_sentiment</span>
+    <span class="pill">analyst_upgrades_downgrades</span>
+    <span class="pill">earnings_history</span>
+    <span class="pill">earnings_calendar</span>
+  </div>
+</div>
+
+<h3>OptimalLoader Pattern</h3>
+<pre>
+  class MyLoader(OptimalLoader):
+      table_name   = "my_table"
+      primary_key  = ("symbol", "date")
+      watermark_field = "date"
+
+      def fetch_incremental(self, symbol, since):
+          # Return list of dicts or None
+          ...
+
+      def transform(self, rows):
+          # Optional transform before upsert
+          return rows
+
+  # Runtime: watermark → fetch only new data → dedup → bulk COPY
+  # Parallelism: configurable workers (default 8)
+  # On conflict: upsert (UPDATE on duplicate primary key)
+</pre>
+
+</section>
+
+
+<!-- ══════════════════════════════════════════
+     13. DAILY SCHEDULE
+══════════════════════════════════════════ -->
+<section id="schedule">
+<h2><span class="num">13</span>Daily Schedule (Eastern Time, Mon–Fri)</h2>
+
+<pre>
+  TIME ET    EVENT
+  ─────────────────────────────────────────────────────────────────────────────
+  3:25 AM    stock_symbols loader (EventBridge)
+  3:30 AM    sp500_constituents loader
+  3:35 AM    russell2000_constituents loader
+  4:00 AM    stock_prices_daily loader (EventBridge)
+  4:30 AM    ┌── Step Functions EOD Pipeline starts ──
+             │ stock_symbols → stock_prices_daily
+             │ → technical_data_daily + market_health_daily (parallel)
+             │ → trend_template_data
+             │ → buy_sell_daily + signal_quality_scores
+             │ → algo_metrics_daily + swing_trader_scores
+             └── → Orchestrator Lambda invoked (9:30 AM run)
+  9:30 AM    ✅ ORCHESTRATOR RUN 1 (Primary Entry)
+             Full 7-phase cycle. Primary trading window.
+  1:00 PM    ✅ ORCHESTRATOR RUN 2 (Rebalance)
+             Afternoon position refresh + profit-taking opportunities.
+  3:00 PM    ✅ ORCHESTRATOR RUN 3 (Pre-Close)
+             Final trades before 4 PM market close.
+             Phase mult = 0.8× (smaller size — less time to manage).
+  5:30 PM    ✅ ORCHESTRATOR RUN 4 (Signal Prep / EOD)
+             Compute next day signals. No new entries. Reconcile.
+  4:30 PM    fred_economic_data loader (EventBridge)
+  6:00 PM    Earnings, analyst, sentiment loaders (EventBridge)
+  1:10 AM+1  industry_ranking, sector_ranking, sector_performance (next day)
+  ─────────────────────────────────────────────────────────────────────────────
+  WEEKLY:    seasonality loader (Sunday 10:00 AM UTC)
+  QUARTERLY: Credential rotation (first Monday Q1/Q2/Q3/Q4)
+</pre>
+
+</section>
+
+
+<!-- ══════════════════════════════════════════
+     14. DEPLOYMENT ARCHITECTURE
+══════════════════════════════════════════ -->
+<section id="deploy">
+<h2><span class="num">14</span>Deployment Architecture</h2>
+
+<pre>
+  Developer Laptop
+       │
+       │ git push main
+       ▼
+  GitHub Repository
+       │
+       │ Triggers automatically
+       ▼
+  GitHub Actions (OIDC — zero static keys)
+  ├── deploy-all-infrastructure.yml  → terraform apply + Lambda layer rebuild + ECS
+  └── deploy-code.yml               → tests + lint + security scan
+       │
+       │ GitHub token ←→ AWS OIDC Provider (temporary credentials)
+       ▼
+  AWS IAM Role: algo-svc-github-actions-dev
+  (arn:aws:iam::<ACCOUNT_ID>:role/algo-svc-github-actions-dev)
+       │
+       ├── Terraform apply → RDS, Lambda, ECS, EventBridge, Step Functions,
+       │                     DynamoDB, Secrets Manager, CloudFront, S3
+       │
+       ├── Lambda zip deploy → algo-algo-dev, algo-api-dev
+       │
+       └── ECS task definitions → 33 loader task defs (per-loader containers)
+
+
+  CREDENTIAL FLOW (all from Secrets Manager):
+  ┌──────────────────────────────────────────────────────────┐
+  │  AWS Secrets Manager (single source of truth)            │
+  │  ├── algo/database  → RDS password                       │
+  │  ├── algo/alpaca    → Alpaca API keys (paper + live)     │
+  │  ├── algo/fred      → FRED API key                       │
+  │  └── algo/developer-credentials → local dev IAM key      │
+  └──────────────────────────────────────────────────────────┘
+       │            │            │            │
+       ▼            ▼            ▼            ▼
+  Lambda        ECS Fargate   GitHub      Local Dev
+  (env vars)    (env vars)    Actions     (credential_process)
+</pre>
+
+<h3>Security Baseline</h3>
+<div class="table-wrap">
+<table>
+  <tr><th>Rule</th><th>Detail</th></tr>
+  <tr><td class="red">❌ NO .env files. Ever.</td><td>Pre-commit hook blocks commits containing .env files</td></tr>
+  <tr><td class="green">✅ Local dev</td><td>PowerShell profile env vars, auto-fetched via credential_process</td></tr>
+  <tr><td class="green">✅ CI</td><td>GitHub Secrets (deploy tokens only — no static AWS keys)</td></tr>
+  <tr><td class="green">✅ Production</td><td>AWS Secrets Manager, fetched at runtime by Lambda/ECS IAM role</td></tr>
+  <tr><td class="green">✅ Rotation</td><td>Quarterly automatic (first Monday Q1/Q2/Q3/Q4 at 02:00 UTC)</td></tr>
+  <tr><td class="yellow">⚠️ If leaked</td><td>Rotate immediately — delete IAM key, regenerate, update Secrets Manager</td></tr>
+</table>
+</div>
+
+</section>
+
+
+<!-- ══════════════════════════════════════════
+     15. N / N+1 / N+2 PARADIGM
+══════════════════════════════════════════ -->
+<section id="nplus1">
+<h2><span class="num">15</span>N / N+1 / N+2 Development Paradigm</h2>
+
+<p style="color:var(--muted); margin-bottom:16px;">
+  Running paper trading while continuing development requires environment isolation.
+  The paradigm: <strong>N</strong> = current paper algo, <strong>N+1</strong> = in-development next version,
+  <strong>N+2</strong> = future live trading.
+</p>
+
+<pre>
+  ┌──────────────────────────────────────────────────────────────────────────┐
+  │  N   — Current Production Paper (running, stable)                        │
+  │        Branch: main                                                       │
+  │        Env: algo-algo-dev Lambda (existing deployment)                   │
+  │        Database: algo-db (production RDS)                                │
+  │        Alpaca: Paper account (ALPACA_PAPER_TRADING=true)                 │
+  │        EventBridge: 4 daily runs (real schedule)                         │
+  └──────────────────────────────────────────────────────────────────────────┘
+                              │  (running independently)
+  ┌──────────────────────────────────────────────────────────────────────────┐
+  │  N+1 — Development / Next Version (in progress)                          │
+  │        Branch: develop or feature/xxx                                    │
+  │        Env: algo-algo-dev2 Lambda (separate deployment via tfvars)       │
+  │        Database: algo-db-dev RDS instance (separate schema)              │
+  │        Alpaca: Separate paper account or same paper with prefix          │
+  │        EventBridge: Manual invocations or separate rule suffix "-dev2"   │
+  │        Deploy: manual-invoke-loaders.yml with --function-name override   │
+  └──────────────────────────────────────────────────────────────────────────┘
+                              │  (backtest validates before promoting)
+  ┌──────────────────────────────────────────────────────────────────────────┐
+  │  N+2 — Future Live Trading                                               │
+  │        Branch: main (after promotion from N+1)                           │
+  │        Env: algo-algo-prod Lambda (new deployment)                       │
+  │        Database: algo-db-prod (production RDS — separate from paper)     │
+  │        Alpaca: Live account (ALPACA_PAPER_TRADING=false)                 │
+  │        Deploy: Requires explicit terraform.tfvars change + review        │
+  └──────────────────────────────────────────────────────────────────────────┘
+
+
+  PROMOTION GATE (N+1 → N):
+  1. Backtest N+1 on ≥ 6 months of historical data
+  2. Run N+1 paper alongside N for ≥ 2 weeks
+  3. Compare: win rate, expectancy, max drawdown, Sharpe
+  4. If N+1 metrics ≥ N on all axes: promote to main, redeploy
+  5. Keep N deployed in standby for 1 week before decomm
+
+  ISOLATION RULES:
+  • N and N+1 share the same RDS database (read-only for N+1 historical queries)
+    but N+1 writes to separate tables (prefix: _dev or separate schema)
+  • AlgoConfig env var: ALGO_ENV=paper|dev|prod distinguishes instances
+  • DynamoDB lock key includes env: "algo-lock-{env}" prevents cross-env conflicts
+</pre>
+
+<h3>Practical Steps to Set Up N+1</h3>
+<div class="table-wrap">
+<table>
+  <tr><th>Step</th><th>Action</th></tr>
+  <tr><td>1</td><td>Create <code>terraform/terraform-dev2.tfvars</code> with different Lambda name, separate DynamoDB lock table, separate S3 prefix</td></tr>
+  <tr><td>2</td><td>Set <code>ALGO_ENV=dev</code> in dev2 Lambda environment variables</td></tr>
+  <tr><td>3</td><td>Use GitHub Actions <code>manual-invoke-loaders.yml</code> to backfill dev2 data tables</td></tr>
+  <tr><td>4</td><td>Run dev2 orchestrator manually (test-orchestrator.yml with function name override)</td></tr>
+  <tr><td>5</td><td>Compare paper results weekly — promote when ready</td></tr>
+</table>
+</div>
+
+</section>
+
+
+<!-- ══════════════════════════════════════════
+     16. KEY CONFIGURATION
+══════════════════════════════════════════ -->
+<section id="config">
+<h2><span class="num">16</span>Key Configuration Reference</h2>
+
+<p style="color:var(--muted); margin-bottom:12px;">
+  All config lives in <code>algo/algo_config.py</code> DEFAULTS dict.
+  In Lambda, the DB config table is skipped — only Python defaults apply.
+  Change defaults to change Lambda behavior (requires code deploy).
+</p>
+
+<div class="table-wrap">
+<table>
+  <tr><th>Key</th><th>Default</th><th>Description</th></tr>
+  <tr><td><code>base_risk_pct</code></td><td class="green">0.75</td><td>% of NAV at risk per trade</td></tr>
+  <tr><td><code>max_positions</code></td><td class="green">12</td><td>Max concurrent open positions</td></tr>
+  <tr><td><code>max_hold_days</code></td><td>20</td><td>Max days to hold before time exit</td></tr>
+  <tr><td><code>min_hold_days</code></td><td>1</td><td>Minimum hold period (no same-day exits)</td></tr>
+  <tr><td><code>min_swing_score</code></td><td>55</td><td>Minimum swing_trader_scores.score to enter</td></tr>
+  <tr><td><code>min_trend_template_score</code></td><td>7</td><td>Minervini 8-point criteria minimum (out of 8)</td></tr>
+  <tr><td><code>vix_max_threshold</code></td><td>35</td><td>VIX circuit breaker threshold</td></tr>
+  <tr><td><code>max_distribution_days</code></td><td>4</td><td>Max distribution days before Tier 2 gate fires</td></tr>
+  <tr><td><code>halt_drawdown_pct</code></td><td class="red">20.0</td><td>Portfolio peak-to-trough drawdown % that halts all new entries (CB2)</td></tr>
+  <tr><td><code>min_win_rate_pct</code></td><td>40.0</td><td>Circuit Breaker CB11: rolling 30-trade win rate floor (%)</td></tr>
+  <tr><td><code>max_total_risk_pct</code></td><td>4.0</td><td>Circuit Breaker CB5: max aggregate open-position risk as % of NAV</td></tr>
+  <tr><td><code>max_consecutive_losses</code></td><td>3</td><td>Circuit Breaker CB4: consecutive losing trades before halt</td></tr>
+  <tr><td><code>require_stage_2_market</code></td><td class="red">false</td><td>Market-wide Stage 2 gate in Tier 2 (CB6 handles Stage 4)</td></tr>
+  <tr><td><code>require_target_pullback</code></td><td class="green">false</td><td>Require 2%+ pullback at T1/T2. false = immediate partial exit at target.</td></tr>
+  <tr><td><code>exit_on_rs_line_break_50dma</code></td><td>true</td><td>Exit on RS line break below its 50-DMA</td></tr>
+  <tr><td><code>exit_on_td_sequential</code></td><td>true</td><td>Use TD Sequential 9/13-count exhaustion exits</td></tr>
+  <tr><td><code>exit_on_distribution_day</code></td><td>true</td><td>Exit on excess distribution days</td></tr>
+  <tr><td><code>use_chandelier_trail</code></td><td>true</td><td>Use chandelier/EMA trailing stop</td></tr>
+  <tr><td><code>chandelier_atr_mult</code></td><td>3.0</td><td>ATR multiple for chandelier stop</td></tr>
+  <tr><td><code>switch_to_21ema_after_days</code></td><td>10</td><td>Days before switching chandelier to 21-EMA trail</td></tr>
+  <tr><td><code>move_be_at_r</code></td><td>1.0</td><td>R-multiple at which to raise stop to breakeven</td></tr>
+  <tr><td><code>eight_week_rule_threshold_pct</code></td><td>20.0</td><td>% gain in first 3 weeks to trigger 8-week hold rule</td></tr>
+</table>
+</div>
+
+</section>
+
+
+<!-- ══════════════════════════════════════════
+     17. DEBUGGING GUIDE
+══════════════════════════════════════════ -->
+<section id="debug">
+<h2><span class="num">17</span>Debugging Guide</h2>
+
+<h3>Common Issues & Resolutions</h3>
+<div class="table-wrap">
+<table>
+  <tr><th>Symptom</th><th>Root Cause</th><th>Fix</th></tr>
+  <tr>
+    <td>Phase 1 halts every day</td>
+    <td>market_health_daily loader ran before prices loaded</td>
+    <td>Check Step Functions execution order. market_health reads price_daily — must run after prices.</td>
+  </tr>
+  <tr>
+    <td>All signals rejected (0 candidates)</td>
+    <td>Tier 2 gate, circuit breaker, or stale data</td>
+    <td>Check CB log in algo_audit_log. Verify market_health_daily.distribution_days_4w and VIX values.</td>
+  </tr>
+  <tr>
+    <td>Orchestrator hangs at Phase 3b</td>
+    <td>RDS DiskQueueDepth high → I/O contention</td>
+    <td>Enable RDS Proxy (enable_rds_proxy=true in terraform.tfvars). Proxy adds connection pooling.</td>
+  </tr>
+  <tr>
+    <td>Lambda 500 on first request</td>
+    <td>VPC cold-start: ENI provisioning takes 15–40s</td>
+    <td>Reserved concurrency=1 in Terraform keeps instance warm. Retry works on warm instance.</td>
+  </tr>
+  <tr>
+    <td>Alpaca auth 401</td>
+    <td>Wrong API keys or wrong base URL</td>
+    <td>Verify ALPACA_PAPER_TRADING, APCA_API_BASE_URL in env. Paper=paper-api.alpaca.markets.</td>
+  </tr>
+  <tr>
+    <td>AWS credential error locally</td>
+    <td>Token expired</td>
+    <td>Run: <code>scripts/refresh-aws-credentials.ps1</code></td>
+  </tr>
+  <tr>
+    <td>T1/T2 exits never trigger</td>
+    <td>Stocks blow past targets without pulling back</td>
+    <td>Set <code>require_target_pullback=false</code> (default). Removes pullback requirement for immediate partial exits.</td>
+  </tr>
+  <tr>
+    <td>Swing scores all showing SQS composite</td>
+    <td>Old loader stored raw SQS not weighted score</td>
+    <td>Re-run <code>load_swing_trader_scores.py</code> — loader now computes proper 7-component weighted score.</td>
+  </tr>
+  <tr>
+    <td>Terraform plan fails (Invalid index)</td>
+    <td>Stale state references to deleted loaders</td>
+    <td>Run: <code>terraform state rm "module.loaders.aws_ecs_task_definition.loader[\"&lt;name&gt;\"]"</code></td>
+  </tr>
+</table>
+</div>
+
+<h3>Key Log Locations</h3>
+<div class="table-wrap">
+<table>
+  <tr><th>What to Check</th><th>Where</th></tr>
+  <tr><td>Orchestrator decisions</td><td><code>algo_audit_log</code> table · CloudWatch /aws/lambda/algo-algo-dev</td></tr>
+  <tr><td>Loader execution history</td><td><code>data_loader_status</code> table</td></tr>
+  <tr><td>Data quality alerts</td><td><code>data_patrol_log</code> table</td></tr>
+  <tr><td>Trade history</td><td><code>algo_trades</code> and <code>algo_positions</code> tables</td></tr>
+  <tr><td>Market exposure factors</td><td><code>market_exposure_daily</code> table</td></tr>
+  <tr><td>Circuit breaker state</td><td><code>algo_audit_log</code> with phase=2</td></tr>
+  <tr><td>GitHub Actions CI logs</td><td>github.com → Actions → deploy-code.yml / deploy-all-infrastructure.yml</td></tr>
+</table>
+</div>
+
+</section>
+
+<div class="footer">
+  Algo Trading System Solution Blueprint · Built with Minervini + O'Neil Methodology · AWS Lambda + ECS Fargate + PostgreSQL
+</div>
+
+</div><!-- /container -->
+</body>
+</html>

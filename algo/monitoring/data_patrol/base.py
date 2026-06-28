@@ -78,8 +78,90 @@ class DataPatrol:
 
     def __init__(self, config: "PatrolConfig | None" = None) -> None:
         """Initialize data patrol."""
-        self.config: "PatrolConfig" = config or {}
-        self.issues: list[CheckResult] = []
+        from .config import PatrolConfig
+
+        self.config: "PatrolConfig" = config or PatrolConfig()
+        self.results: list[CheckResult] = []
+        self.run_id = ""
+
+    def run(self, quick: bool = False, validate_alpaca: bool = False) -> dict[str, Any]:
+        """Run all data patrol checks and return summary.
+
+        Args:
+            quick: Run only critical checks if True
+            validate_alpaca: Cross-validate against Alpaca if True
+
+        Returns:
+            dict with keys: ready (bool), findings (list), errors (int), warnings (int)
+        """
+        from psycopg2.extras import DictCursor
+
+        from utils.db.connection import get_db_connection
+        from .checks import (
+            AlignmentChecker,
+            CoverageChecker,
+            PriceSanityChecker,
+            QualityChecker,
+            SpecializedChecker,
+            StalenessChecker,
+        )
+        from .config import CRIT, ERROR
+
+        conn = None
+        try:
+            conn = get_db_connection(max_retries=2, timeout=30)
+            cur = conn.cursor(cursor_factory=DictCursor)
+
+            # Run all checks
+            checkers: list[BaseCheck] = [
+                StalenessChecker(self.config),
+                CoverageChecker(self.config),
+                QualityChecker(self.config),
+                PriceSanityChecker(self.config),
+                AlignmentChecker(self.config),
+                SpecializedChecker(self.config),
+            ]
+
+            for checker in checkers:
+                try:
+                    results = checker.run(cur)
+                    self.results.extend(results)
+                except Exception as e:
+                    logger.error(f"Checker {checker.__class__.__name__} failed: {e}", exc_info=True)
+                    self.results.append(CheckResult(
+                        check_name="checker_execution",
+                        severity=ERROR,
+                        target_table="patrol",
+                        message=f"{checker.__class__.__name__} failed: {e}",
+                    ))
+
+            cur.close()
+        except Exception as e:
+            logger.error(f"Data patrol execution failed: {e}", exc_info=True)
+            self.results.append(CheckResult(
+                check_name="patrol_execution",
+                severity=ERROR,
+                target_table="patrol",
+                message=f"Patrol execution failed: {e}",
+            ))
+        finally:
+            if conn:
+                conn.close()
+
+        # Aggregate findings by severity
+        errors = sum(1 for r in self.results if r.severity == ERROR or r.severity == CRIT)
+        warnings = sum(1 for r in self.results if r.severity == "warn")
+
+        # Ready if no critical errors (ERROR or CRIT)
+        ready = errors == 0
+
+        return {
+            "ready": ready,
+            "findings": [r.to_dict() for r in self.results],
+            "errors": errors,
+            "warnings": warnings,
+            "total_checks": len(self.results),
+        }
 
     def run_checks(self) -> None:
         """Run all data patrol checks."""
@@ -87,4 +169,4 @@ class DataPatrol:
 
     def get_issues(self) -> list[CheckResult]:
         """Get all issues found by patrol."""
-        return self.issues
+        return self.results

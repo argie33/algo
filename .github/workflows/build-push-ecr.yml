@@ -1,0 +1,100 @@
+name: Build & Push Loader Image to ECR
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '*.py'
+      - 'loaders/**'
+      - 'utils/**'
+      - 'config/**'
+      - 'algo/**'
+      - 'monitoring/**'
+      - 'migrations/**'
+      - 'requirements.txt'
+      - 'Dockerfile'
+  workflow_dispatch:
+  workflow_call:
+    outputs:
+      image_tag:
+        description: "Short git SHA image tag (dev-<sha>)"
+        value: ${{ jobs.build.outputs.image_tag }}
+      ecr_url:
+        description: "ECR repository URL"
+        value: ${{ jobs.build.outputs.ecr_url }}
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  build:
+    name: Build & Push Image
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.meta.outputs.image_tag }}
+      ecr_url: ${{ steps.ecr.outputs.ecr_url }}
+
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a  # v4
+        with:
+          role-to-assume: ${{ secrets.GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/{1}', secrets.AWS_ACCOUNT_ID, secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev') }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Get ECR repository URL
+        id: ecr
+        run: |
+          # ECR repo is named algo-registry by Terraform convention
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+
+          # Try to find the actual repo; fall back to constructed name
+          ECR_URL=$(aws ecr describe-repositories --region $AWS_REGION --output json 2>/dev/null | jq -r '.repositories[] | select(.repositoryName | startswith("algo")) | .repositoryUri' | head -1 || echo "")
+
+          if [ -z "$ECR_URL" ] || [ "$ECR_URL" = "None" ]; then
+            ECR_URL="${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/algo-registry"
+          fi
+
+          echo "ecr_url=${ECR_URL}" >> $GITHUB_OUTPUT
+          echo "ECR URL: ${ECR_URL}"
+
+      - name: Set image tag
+        id: meta
+        run: |
+          SHA="${GITHUB_SHA::8}"
+          echo "image_tag=dev-${SHA}" >> $GITHUB_OUTPUT
+          echo "sha_short=${SHA}" >> $GITHUB_OUTPUT
+
+      - name: Login to ECR
+        run: |
+          aws ecr get-login-password --region $AWS_REGION | \
+            docker login --username AWS --password-stdin "${{ steps.ecr.outputs.ecr_url }}"
+
+      - name: Build Docker image
+        run: |
+          ECR_URL="${{ steps.ecr.outputs.ecr_url }}"
+          SHA="${{ steps.meta.outputs.sha_short }}"
+          docker build \
+            --build-arg BUILD_SHA="${GITHUB_SHA}" \
+            -t "${ECR_URL}:dev-${SHA}" \
+            -t "${ECR_URL}:dev-latest" \
+            .
+
+      - name: Push Docker image
+        run: |
+          ECR_URL="${{ steps.ecr.outputs.ecr_url }}"
+          SHA="${{ steps.meta.outputs.sha_short }}"
+          docker push "${ECR_URL}:dev-${SHA}"
+          docker push "${ECR_URL}:dev-latest"
+
+      - name: Summary
+        run: |
+          echo "### Docker Image Pushed" >> $GITHUB_STEP_SUMMARY
+          echo "- \`${{ steps.ecr.outputs.ecr_url }}:dev-${{ steps.meta.outputs.sha_short }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`${{ steps.ecr.outputs.ecr_url }}:dev-latest\`" >> $GITHUB_STEP_SUMMARY

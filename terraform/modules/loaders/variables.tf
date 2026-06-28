@@ -1,0 +1,172 @@
+variable "project_name" {
+  description = "Project name for resource naming"
+  type        = string
+}
+
+variable "environment" {
+  description = "Environment (dev, staging, prod)"
+  type        = string
+}
+
+variable "aws_account_id" {
+  description = "AWS account ID"
+  type        = string
+  sensitive   = true
+}
+
+variable "aws_region" {
+  description = "AWS region"
+  type        = string
+}
+
+variable "ecr_repository_uri" {
+  description = "ECR repository URI for loader container images"
+  type        = string
+}
+
+variable "vpc_id" {
+  description = "VPC ID for loader resources"
+  type        = string
+}
+
+variable "private_subnet_ids" {
+  description = "List of private subnet IDs for ECS task placement (requires 2+ for Fargate)"
+  type        = list(string)
+
+  validation {
+    condition     = length(var.private_subnet_ids) >= 2
+    error_message = "Must provide at least 2 private subnets for Fargate HA."
+  }
+}
+
+variable "ecs_cluster_name" {
+  description = "ECS cluster name where loaders will run"
+  type        = string
+}
+
+variable "ecs_cluster_arn" {
+  description = "ECS cluster ARN"
+  type        = string
+}
+
+variable "db_secret_arn" {
+  description = "ARN of Secrets Manager secret containing DB credentials (username:password)"
+  type        = string
+  sensitive   = true
+}
+
+variable "db_host" {
+  description = "RDS database host address"
+  type        = string
+}
+
+variable "db_port" {
+  description = "RDS database port"
+  type        = number
+  default     = 5432
+}
+
+variable "db_name" {
+  description = "RDS database name"
+  type        = string
+}
+
+variable "db_user" {
+  description = "RDS database username"
+  type        = string
+  default     = "stocks"
+}
+
+variable "ecs_tasks_sg_id" {
+  description = "Security group ID for ECS tasks (must allow egress to RDS + internet)"
+  type        = string
+}
+
+variable "task_execution_role_arn" {
+  description = "IAM role ARN for ECS task execution (ECR pull, CloudWatch logs)"
+  type        = string
+}
+
+variable "task_role_arn" {
+  description = "IAM role ARN for ECS task (S3, Secrets Manager access for loaders)"
+  type        = string
+}
+
+variable "common_tags" {
+  description = "Common tags to apply to all resources"
+  type        = map(string)
+}
+
+variable "sns_alert_topic_arn" {
+  description = "SNS topic ARN for CloudWatch alarm notifications"
+  type        = string
+  default     = ""
+}
+
+variable "fred_api_key" {
+  description = "FRED API key for economic data (free at fred.stlouisfed.org) - DEPRECATED: use algo_secrets_arn instead"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "algo_secrets_arn" {
+  description = "ARN of algo runtime secrets (Alpaca, FRED, JWT) in Secrets Manager"
+  type        = string
+}
+
+variable "alpaca_paper_trading" {
+  description = "Enable Alpaca paper trading mode (true for testing, false for live)"
+  type        = bool
+  default     = true
+}
+
+variable "alpaca_api_base_url" {
+  description = "Alpaca API base URL (https://paper-api.alpaca.markets for paper, https://api.alpaca.markets for live)"
+  type        = string
+  default     = "https://paper-api.alpaca.markets"
+}
+
+variable "execution_mode" {
+  description = "Orchestrator execution mode (auto, manual, dry-run)"
+  type        = string
+  default     = "auto"
+}
+
+variable "orchestrator_dry_run" {
+  description = "Enable dry-run mode for orchestrator (no actual trades)"
+  type        = bool
+  default     = false
+}
+
+variable "orchestrator_log_level" {
+  description = "Logging level for orchestrator (debug, info, warning, error)"
+  type        = string
+  default     = "info"
+}
+
+variable "backfill_days" {
+  description = "Number of days to backfill on first loader run"
+  type        = number
+  default     = 365
+}
+
+variable "disable_provenance_tracking" {
+  description = "Disable provenance tracking in loaders"
+  type        = bool
+  default     = true
+}
+
+variable "alert_email_to" {
+  description = "Email recipients for direct SMTP alerts (comma-separated). Requires alert_smtp_* variables for SMTP setup."
+  type        = string
+  default     = ""
+}
+
+variable "alert_webhook_url" {
+  description = "Webhook URL for Slack, Teams, or custom integrations. Alerts sent here when loaders/orchestrator have critical issues."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+

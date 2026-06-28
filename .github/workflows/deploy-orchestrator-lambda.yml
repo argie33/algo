@@ -1,0 +1,73 @@
+name: Deploy Orchestrator Lambda
+
+# Deploys only the orchestrator Lambda handler code (lambda/algo_orchestrator/).
+# Use when you need to push a handler change without a full Terraform apply.
+# Does NOT rebuild the layer — only updates the function code package.
+# The layer (config/, algo/, utils/, monitoring/ + pip deps) stays as-is.
+
+on:
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  deploy:
+    name: Package & Deploy Orchestrator Lambda
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a  # v4
+        with:
+          role-to-assume: ${{ secrets.GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/{1}', secrets.AWS_ACCOUNT_ID, secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev') }}
+          aws-region: us-east-1
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: '3.12'
+
+      - name: Package orchestrator Lambda
+        run: |
+          set -e
+          # Mirror deploy-all-infrastructure.yml: bundle handler + algo/config/utils + pip deps
+          PKG_DIR=/tmp/algo-lambda-pkg
+          mkdir -p $PKG_DIR
+
+          cp lambda/algo_orchestrator/lambda_function.py $PKG_DIR/
+          cp -r algo $PKG_DIR/
+          cp -r config $PKG_DIR/
+          cp -r utils $PKG_DIR/
+          cp -r monitoring $PKG_DIR/
+
+          find $PKG_DIR -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+          find $PKG_DIR -type f -name "*.pyc" -delete
+
+          python3.12 -m pip install -r lambda/algo_orchestrator/requirements.txt \
+            -t $PKG_DIR/ --no-cache-dir --quiet
+
+          cd $PKG_DIR
+          zip -r $GITHUB_WORKSPACE/orchestrator_lambda.zip . -q \
+            -x "*.pyc" "__pycache__/*" "*/tests/*" "*/test/*"
+          cd $GITHUB_WORKSPACE
+
+          if [ ! -f orchestrator_lambda.zip ]; then
+            echo "ERROR: Failed to create orchestrator_lambda.zip!"
+            exit 1
+          fi
+          echo "[OK] Orchestrator Lambda ZIP: $(du -sh orchestrator_lambda.zip | cut -f1)"
+
+      - name: Deploy to Lambda
+        run: |
+          aws lambda update-function-code \
+            --function-name algo-algo-dev \
+            --zip-file fileb://orchestrator_lambda.zip \
+            --region us-east-1 \
+            --query '{FunctionName:FunctionName,LastModified:LastModified,CodeSize:CodeSize}' \
+            --output json
