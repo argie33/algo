@@ -169,12 +169,14 @@ def panel_market_full(mkt: Any, sentiment: Any = None) -> Panel:
     bmom = safe_float(mkt.get("bmom"), strict=False)
     fed = mkt.get("fed")
 
-    # Derived values from extracted fields (critical fields guaranteed non-None)
-    # CRITICAL: exp must be present — fail-fast if missing, don't default to "N/A"
+    # Derived values from extracted fields
+    # If exp is missing, show N/A instead of crashing — exposure data may not be available in all cases
     if exp is None:
-        raise ValueError("Market data missing required exposure value")
-    exp_s = f"{float(exp):.0f}%"
-    bar = exp_bar(exp, w=10)
+        exp_s = "N/A"
+        bar = "[dim]N/A[/]"
+    else:
+        exp_s = f"{float(exp):.0f}%"
+        bar = exp_bar(exp, w=10)
     vix_s = f"{vix:.1f}"
     vc = R if vix >= 30 else (Y if vix >= 20 else G)
     trend_s = trend.upper()

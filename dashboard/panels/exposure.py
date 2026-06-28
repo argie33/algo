@@ -281,12 +281,17 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
         return rows
     raw = exp_f.get("raw_score")
     epct = exp_f.get("exposure_pct")
-    # raw_score and exposure_pct should be present for valid exposure data
-    # If missing, don't silently convert to sentinel values — fail-fast with error
+    # If raw_score or exposure_pct are missing, show data unavailable instead of crashing
     if raw is None or epct is None:
-        raise ValueError(f"Exposure data missing raw_score or exposure_pct. Available: {list(exp_f.keys())}")
+        return Text.from_markup(
+            f"[yellow]⚠ Exposure data incomplete[/]\n"
+            f"[dim]Available fields: {', '.join(list(exp_f.keys()))}\n"
+            f"Missing: {('raw_score' if raw is None else '') + (', exposure_pct' if epct is None else '')}[/]"
+        )
     regime = exp_f.get("regime", "")
-    factors = exp_f.get("factors", [])
+    factors = exp_f.get("factors", {})
+    if not isinstance(factors, dict):
+        factors = {}
     tier = _tier_formatter.format(epct)
     tc = TIER_COLOR.get(tier, "dim")
 
