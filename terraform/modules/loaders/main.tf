@@ -645,14 +645,16 @@ locals {
     # Previous: parallelism=8, but when multiple loaders run concurrently (9 loaders × 8 parallelism = 72 connections) exhausted RDS Proxy
     # New: parallelism=2-3 reduces peak connections to 27-54 range while maintaining parallelism benefits
     # FIXED 2026-06-21: Reduced timeouts from 7200→1800s (2h→30m) and 21600→1800s (6h→30m) to fail fast instead of masking failures
-    "growth_metrics"      = { cpu = 2048, memory = 4096, timeout = 1800, parallelism = 2 }
-    "quality_metrics"     = { cpu = 2048, memory = 4096, timeout = 1800, parallelism = 2 }
-    "value_metrics"       = { cpu = 2048, memory = 4096, timeout = 1800, parallelism = 2 }
+    # OPTIMIZED 2026-06-28: Reduced memory from 4096→2048MB (vectorized pandas operations use <2GB heap)
+    "growth_metrics"      = { cpu = 2048, memory = 2048, timeout = 1800, parallelism = 2 }
+    "quality_metrics"     = { cpu = 2048, memory = 2048, timeout = 1800, parallelism = 2 }
+    "value_metrics"       = { cpu = 2048, memory = 2048, timeout = 1800, parallelism = 2 }
     # positioning_metrics: yfinance-based, was hanging for 1700+ minutes
     # FIXED 2026-06-26: Increased timeout from 1200→3600s (20m→1h) to handle rate-limited yfinance fetches
     "positioning_metrics" = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 2 }
     "stability_metrics"   = { cpu = 1024, memory = 2048, timeout = 1800, parallelism = 2 }
-    "stock_scores"        = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 3 }
+    # OPTIMIZED 2026-06-28: Reduced memory from 4096→2048MB + parallelism from 3→2 (eliminates thread pool overhead)
+    "stock_scores"        = { cpu = 2048, memory = 2048, timeout = 3600, parallelism = 2 }
 
     # Earnings data — uses yfinance with 2-second rate limit per symbol
     # With 10,574 symbols: 10574 × 2s = 21,148s = 5.87 hours for full load (but incremental after first load)
@@ -668,7 +670,8 @@ locals {
     "company_profile"             = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 3 }
     "analyst_sentiment"           = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 3 }
     "analyst_upgrades_downgrades" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 3 }
-    "industry_ranking"            = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
+    # OPTIMIZED 2026-06-28: Reduced parallelism from 4→2 (eliminates thread pool overhead, reduces RDS contention)
+    "industry_ranking"            = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 2 }
 
     # Market sentiment data — small API calls (minimal DB load)
     # OPTIMIZED 2026-06-21: Increased parallelism from 1→2 (light DB usage, no connection pool contention)
@@ -680,21 +683,23 @@ locals {
     # DELETED: sentiment_social = placeholder implementation removed
 
     # Signal processing — compute signal themes
-    "signal_themes" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
+    # OPTIMIZED 2026-06-28: Reduced parallelism from 4→2 (vectorized operations, no thread pool benefit)
+    "signal_themes" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 2 }
     # signal_quality_scores: reduced from parallelism=4 to 2 to prevent statement timeouts during concurrent loader runs
     # FIXED 2026-06-21: Reduced timeout from 5400→1800s (1.5h→30m) to fail fast instead of masking failures
     "signal_quality_scores" = { cpu = 1024, memory = 2048, timeout = 1800, parallelism = 2 }
 
     # BUY/SELL signals — compute trade signals for all 5000+ symbols
-    # Reduced from parallelism=4 to 3 to allow headroom for concurrent analytics loaders
+    # OPTIMIZED 2026-06-28: Reduced memory from 4096→2048MB + parallelism from 3→2 (vectorized ops, lower RDS contention)
     # FIXED 2026-06-21: Reduced timeout from 21600→1800s (6h→30m) to fail fast instead of masking failures
-    "buy_sell_daily" = { cpu = 2048, memory = 4096, timeout = 1800, parallelism = 3 }
+    "buy_sell_daily" = { cpu = 2048, memory = 2048, timeout = 1800, parallelism = 2 }
 
     # Technical indicators (vectorized) — 4-6x faster via bulk query + vectorized pandas operations
     # FIXED Issue #???: Vectorized approach: 1 bulk query → vectorized pandas → single bulk insert
     # Full load (300-day lookback): 15-25 min vs old 60-90 min
     # Intraday mode (today only): 3-8 min vs old 60-90 min
-    "technical_data_daily" = { cpu = 2048, memory = 4096, timeout = 1800, parallelism = 1 } # Vectorized: bulk fetch + pandas ops for 5000+ symbols
+    # OPTIMIZED 2026-06-28: Reduced memory from 4096→2048MB (vectorized pandas uses <2GB heap)
+    "technical_data_daily" = { cpu = 2048, memory = 2048, timeout = 1800, parallelism = 1 } # Vectorized: bulk fetch + pandas ops for 5000+ symbols
 
     # Market health — reads price_daily, processes 5000+ symbols
     "market_health_daily" = { cpu = 256, memory = 512, timeout = 1200, parallelism = 1 }
@@ -711,7 +716,8 @@ locals {
 
     # Swing trader scores — bulk query + vectorized pandas operations
     # Full load (30-day lookback): 10-20 min, Intraday (--today flag): 5-15 min
-    "swing_trader_scores" = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 1 } # Vectorized: bulk processing for 5000+ symbols
+    # OPTIMIZED 2026-06-28: Reduced memory from 4096→2048MB (vectorized pandas uses <2GB heap)
+    "swing_trader_scores" = { cpu = 2048, memory = 2048, timeout = 1200, parallelism = 1 } # Vectorized: bulk processing for 5000+ symbols
 
     # Sector ranking — compute sector composite scores and rankings
     "sector_ranking" = { cpu = 512, memory = 1024, timeout = 900, parallelism = 1 }
@@ -726,7 +732,8 @@ locals {
     "economic_metrics_daily" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
 
     # Trend template — compute-heavy scoring
-    "trend_template_data" = { cpu = 2048, memory = 4096, timeout = 5400, parallelism = 4 }
+    # OPTIMIZED 2026-06-28: Reduced memory from 4096→2048MB + parallelism from 4→2 (vectorized, lower overhead)
+    "trend_template_data" = { cpu = 2048, memory = 2048, timeout = 5400, parallelism = 2 }
     # Pre-computed metrics for API endpoints � pure SQL aggregation, no external APIs
     # Lightweight: reads portfolio snapshots, trades, and market health (all cached locally)
     # Runs after Phase 7 reconciliation to capture latest position/trade state
