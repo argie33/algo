@@ -202,6 +202,7 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
         border = "red"
         title_str = f"[bold red]POSITIONS ⚠ DATA ERROR ({invalid_count} invalid)[/]"
     else:
+        border = "cyan"
         title_str = f"[bold cyan]POSITIONS ({len(pos_items)})[/]"
     return Panel(
         content,

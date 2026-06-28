@@ -140,16 +140,16 @@ def fetch_run(c: None) -> dict[str, Any]:
         completed_phases = [p for p in phases if p.get("status") == "success"]
         halt_reason = halted_phases[0].get("summary") if halted_phases else None
 
-        # CRITICAL: run_at is REQUIRED. No fallback to alternative timestamp fields.
-        # Missing run_at indicates API schema mismatch or incomplete data.
-        run_at = inner.get("run_at")
-        if not run_at:
+        # CRITICAL: started_at is REQUIRED. No fallback to alternative timestamp fields.
+        # Contract specifies 'started_at', not 'run_at'.
+        started_at = inner.get("started_at")
+        if not started_at:
             error_msg = (
-                "Last-run API response missing required 'run_at' field. "
+                "Last-run API response missing required 'started_at' field. "
                 "Available keys: " + str(list(inner.keys()))
             )
             logger.error(error_msg)
-            record_data_quality_issue("run", "critical_field", "missing_run_at")
+            record_data_quality_issue("run", "critical_field", "missing_started_at")
             return FetcherValidator.build_error_response(error_msg)
 
         # errored: use API field if present, otherwise derive from phase data
@@ -157,7 +157,7 @@ def fetch_run(c: None) -> dict[str, Any]:
         derived_errored = bool(errored_phases) or (not inner["success"] and not inner["halted"] and bool(phases))
         return {
             "run_id": inner.get("run_id"),
-            "run_at": run_at,
+            "run_at": started_at,
             "success": inner["success"],
             "halted": inner["halted"],
             "errored": api_errored if api_errored is not None else derived_errored,
@@ -430,48 +430,48 @@ def fetch_circuit(c: None) -> dict[str, Any]:
             # CRITICAL: Require exact field names — no fallback field substitution.
             # If API changed field names, that must be fixed in the API, not hidden here.
 
-            # Current value field (REQUIRED: current_value)
-            if "current_value" not in r:
+            # Current value field (REQUIRED: current)
+            if "current" not in r:
                 error_msg = (
-                    f"Circuit breaker {label}: missing required field 'current_value'. "
+                    f"Circuit breaker {label}: missing required field 'current'. "
                     f"Available: {list(r.keys())}"
                 )
                 logger.error(error_msg)
-                record_data_quality_issue("cb", "validation", "missing_current_value", label)
+                record_data_quality_issue("cb", "validation", "missing_current", label)
                 return FetcherValidator.build_error_response(error_msg)
-            cur_val = r["current_value"]
+            cur_val = r["current"]
             if cur_val is None:
-                error_msg = f"Circuit breaker {label}: current_value is None"
+                error_msg = f"Circuit breaker {label}: current is None"
                 logger.error(error_msg)
-                record_data_quality_issue("cb", "validation", "null_current_value", label)
+                record_data_quality_issue("cb", "validation", "null_current", label)
                 return FetcherValidator.build_error_response(error_msg)
 
-            # Threshold value field (REQUIRED: threshold_value)
-            if "threshold_value" not in r:
+            # Threshold field (REQUIRED: threshold)
+            if "threshold" not in r:
                 error_msg = (
-                    f"Circuit breaker {label}: missing required field 'threshold_value'. "
+                    f"Circuit breaker {label}: missing required field 'threshold'. "
                     f"Available: {list(r.keys())}"
                 )
                 logger.error(error_msg)
-                record_data_quality_issue("cb", "validation", "missing_threshold_value", label)
+                record_data_quality_issue("cb", "validation", "missing_threshold", label)
                 return FetcherValidator.build_error_response(error_msg)
-            thr_val = r["threshold_value"]
+            thr_val = r["threshold"]
             if thr_val is None:
-                error_msg = f"Circuit breaker {label}: threshold_value is None"
+                error_msg = f"Circuit breaker {label}: threshold is None"
                 logger.error(error_msg)
-                record_data_quality_issue("cb", "validation", "null_threshold_value", label)
+                record_data_quality_issue("cb", "validation", "null_threshold", label)
                 return FetcherValidator.build_error_response(error_msg)
 
-            # Is active field (REQUIRED: is_active)
-            if "is_active" not in r:
+            # Triggered field (REQUIRED: triggered)
+            if "triggered" not in r:
                 error_msg = (
-                    f"Circuit breaker {label}: missing required field 'is_active'. "
+                    f"Circuit breaker {label}: missing required field 'triggered'. "
                     f"Available: {list(r.keys())}"
                 )
                 logger.error(error_msg)
-                record_data_quality_issue("cb", "validation", "missing_is_active", label)
+                record_data_quality_issue("cb", "validation", "missing_triggered", label)
                 return FetcherValidator.build_error_response(error_msg)
-            is_triggered = r["is_active"]
+            is_triggered = r["triggered"]
 
             formatted_bs.append(
                 {
