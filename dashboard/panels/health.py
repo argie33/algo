@@ -11,6 +11,22 @@ logger = logging.getLogger(__name__)
 PHASE_SUCCESS_STATES = ("success", "completed", "ok")
 PHASE_HALTED_STATES = ("halt", "halted", "warn", "degraded", "skipped")
 
+# Phase status determination strategy (replaces long if/elif chains)
+def _get_phase_status_badge(run: dict[str, Any] | None) -> str:
+    """Determine run status badge from run object. Eliminates if/elif chains (OO abuser pattern)."""
+    if not run or not isinstance(run, dict):
+        return ""
+    success = run.get("success")
+    halted = run.get("halted")
+    errored = run.get("errored")
+    if success and not halted:
+        return "[bold bright_green]✓ COMPLETED[/]"
+    if halted:
+        return "[bold yellow]~ HALTED[/]"
+    if errored:
+        return "[bold bright_red]✗ ERROR[/]"
+    return "[dim]RUN[/]"
+
 
 def _var_color(var95: float | None) -> str:
     """Choose color for VaR 95% value: red if ≥4%, yellow if ≥2%, white otherwise."""
@@ -439,11 +455,7 @@ def panel_orch(run: dict[str, Any] | None, cfg: dict[str, Any], risk: dict[str, 
         )
     else:
         age = fmt_age(run.get("run_at"))
-        sts = (
-            "[bold bright_green]✓ COMPLETED[/]"
-            if run.get("success") and not run.get("halted")
-            else ("[bold yellow]~ HALTED[/]" if run.get("halted") else "[bold bright_red]✗ ERROR[/]")
-        )
+        sts = _get_phase_status_badge(run)
 
         pbadges: list[str] = []
         # exec_log source: structured per-phase objects with names + statuses
