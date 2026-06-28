@@ -216,6 +216,14 @@ class VectorizedSignalGenerator:
                     "pct_from_52w_high": pct_from_high,
                     "pct_from_52w_low": pct_from_low,
                 }
+            except (ValueError, TypeError, IndexError) as e:
+                logger.warning(f"Minervini score computation failed for {symbol}: {e}")
+                results[symbol] = {
+                    "score": 0,
+                    "pass": False,
+                    "criteria": {},
+                    "reason": f"Computation error: {str(e)[:50]}",
+                }
 
         return results
 

@@ -226,6 +226,15 @@ class SwingTraderScore:
                 self._persist(symbol, eval_date, result)
                 logger.debug(f"Swing score {symbol}: {total:.1f} ({grade})")
                 return result
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+                logger.error(f"Swing score computation failed for {symbol}: {e}", exc_info=True)
+                return {
+                    "symbol": symbol,
+                    "eval_date": str(eval_date),
+                    "pass": False,
+                    "reason": f"Database error during computation: {str(e)[:100]}",
+                    "swing_score": 0.0,
+                }
 
     # ============= HARD GATES =============
 
