@@ -87,7 +87,8 @@ def _get_algo_audit_log(cur: cursor, limit: int = 100, offset: int = 0, action_t
 def _get_last_run(cur: cursor) -> Any:
     """Get the most recent orchestrator run with halt reason."""
     cur.execute("""
-        SELECT run_id, run_date, overall_status, halt_reason, started_at, completed_at, phases_completed
+        SELECT run_id, run_date, overall_status, halt_reason, started_at, completed_at,
+               phases_completed, phase_results
         FROM orchestrator_execution_log
         ORDER BY created_at DESC
         LIMIT 1
@@ -104,6 +105,7 @@ def _get_last_run(cur: cursor) -> Any:
     started_at = latest_dict.get("started_at")
     completed_at = latest_dict.get("completed_at")
     phases_completed = latest_dict.get("phases_completed", 0)
+    phase_results = latest_dict.get("phase_results")
 
     if not run_id:
         return error_response(503, "invalid_data", "Run ID missing from orchestrator execution log")
@@ -112,6 +114,19 @@ def _get_last_run(cur: cursor) -> Any:
     success = overall_status == "success"
     halted = overall_status in ("halted", "halt")
     errored = overall_status == "error"
+
+    # Parse phase_results from JSONB (array of phase execution objects)
+    phases = []
+    if phase_results:
+        try:
+            if isinstance(phase_results, str):
+                import json
+                phase_results = json.loads(phase_results)
+            if isinstance(phase_results, list):
+                phases = phase_results
+        except (ValueError, TypeError) as e:
+            logger.warning(f"Failed to parse phase_results for run {run_id}: {e}")
+            phases = []
 
     response_data = {
         "run_id": run_id,
@@ -123,6 +138,8 @@ def _get_last_run(cur: cursor) -> Any:
         "summary": halt_reason if (halted or errored) else f"Completed successfully ({phases_completed} phases)",
         "halt_reason": halt_reason if (halted or errored) else None,
         "phases_completed": phases_completed,
+        "phases": phases,
+        "phase_results": phases,
     }
 
     # Validate response matches contract schema
