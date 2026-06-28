@@ -32,8 +32,11 @@ const router = express.Router();
  */
 router.get("/", async (req, res) => {
   try {
-    const limit = Math.min(parseInt(req.query.limit) || 500, 50000);
-    const offset = parseInt(req.query.offset) ?? 0;
+    const limitVal = parseInt(req.query.limit, 10);
+    const limit = !isNaN(limitVal) ? Math.min(Math.max(limitVal, 1), 50000) : 500;
+
+    const offsetVal = parseInt(req.query.offset, 10);
+    const offset = !isNaN(offsetVal) ? Math.max(offsetVal, 0) : 0;
     const search = req.query.search;
     const sector = req.query.sector;
 
@@ -132,35 +135,35 @@ router.get("/deep-value", async (req, res) => {
         km.market_cap,
         vm.pe_ratio as trailing_pe,
         vm.pb_ratio as price_to_book,
-        0 as price_to_sales,
-        0 as roe_pct,
-        0 as op_margin_pct,
-        0 as gross_margin_pct,
-        0 as net_margin_pct,
-        0 as roa_pct,
-        0 as ev_to_ebitda,
-        0 as peg_ratio,
-        0 as dividend_yield,
-        0 as debt_to_equity,
-        0 as current_ratio,
+        NULL as price_to_sales,
+        NULL as roe_pct,
+        NULL as op_margin_pct,
+        NULL as gross_margin_pct,
+        NULL as net_margin_pct,
+        NULL as roa_pct,
+        NULL as ev_to_ebitda,
+        NULL as peg_ratio,
+        NULL as dividend_yield,
+        NULL as debt_to_equity,
+        NULL as current_ratio,
         vm.pe_ratio as sector_median_pe,
         vm.pe_ratio as market_median_pe,
-        0 as discount_vs_sector_pe_pct,
-        0 as discount_vs_market_pe_pct,
-        0 as high_52w,
-        0 as high_3y,
-        0 as low_52w,
-        0 as drop_from_52w_high_pct,
-        0 as drop_from_3y_high_pct,
-        0 as intrinsic_value_per_share,
-        0 as revenue_growth_3y_pct,
-        0 as eps_growth_3y_pct,
-        0 as revenue_growth_yoy_pct,
-        0 as fcf_growth_yoy_pct,
-        0 as sustainable_growth_pct,
-        0 as op_margin_trend_pp,
-        0 as gross_margin_trend_pp,
-        0 as roe_trend_pp,
+        NULL as discount_vs_sector_pe_pct,
+        NULL as discount_vs_market_pe_pct,
+        NULL as high_52w,
+        NULL as high_3y,
+        NULL as low_52w,
+        NULL as drop_from_52w_high_pct,
+        NULL as drop_from_3y_high_pct,
+        NULL as intrinsic_value_per_share,
+        NULL as revenue_growth_3y_pct,
+        NULL as eps_growth_3y_pct,
+        NULL as revenue_growth_yoy_pct,
+        NULL as fcf_growth_yoy_pct,
+        NULL as sustainable_growth_pct,
+        NULL as op_margin_trend_pp,
+        NULL as gross_margin_trend_pp,
+        NULL as roe_trend_pp,
         pd.close as current_price,
         CAST(vm.pe_ratio as DECIMAL(10,2)) as generational_score
       FROM stock_symbols ss

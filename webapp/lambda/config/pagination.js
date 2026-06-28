@@ -35,12 +35,14 @@ module.exports = {
   sanitize(limit, offset, type = "default") {
     const config = this.LIMITS[type] || this.LIMITS.default;
 
-    // Parse and validate limit
-    let limitNum = parseInt(limit) || config.default;
+    // Parse and validate limit - explicit NaN handling
+    const limitVal = parseInt(limit, 10);
+    let limitNum = !isNaN(limitVal) ? limitVal : config.default;
     limitNum = Math.max(1, Math.min(limitNum, config.max));
 
-    // Parse and validate offset
-    let offsetNum = Math.max(0, parseInt(offset) || 0);
+    // Parse and validate offset - explicit NaN handling
+    const offsetVal = parseInt(offset, 10);
+    let offsetNum = !isNaN(offsetVal) ? Math.max(offsetVal, 0) : 0;
 
     return { limit: limitNum, offset: offsetNum };
   },
