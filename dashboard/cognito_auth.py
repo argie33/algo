@@ -177,7 +177,7 @@ class CognitoAuth:
             # Validate payload is valid base64 and contains required claims
             try:
                 payload_json = json.loads(base64.urlsafe_b64decode(parts[1] + "=="))
-            except (binascii.Error, json.JSONDecodeError) as e:
+            except (binascii.Error, json.JSONDecodeError, UnicodeDecodeError, ValueError) as e:
                 raise RuntimeError(f"JWT payload is not valid base64 or JSON: {e}") from e
 
             if "exp" not in payload_json or "sub" not in payload_json:

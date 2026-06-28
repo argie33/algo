@@ -107,25 +107,30 @@ def test_alpaca_secrets_validate_all_required_fields():
     # Secret with only api_key, missing api_secret - should fail validation
     incomplete_response = {"SecretString": json.dumps({"api_key": "test-key"})}
 
-    call_count = 0
-
-    def mock_get_secret_value(secret_id):
-        nonlocal call_count
-        call_count += 1
-        # First call (user-specific) returns incomplete data
-        if call_count == 1:
-            return incomplete_response
-        # All other calls raise ResourceNotFound
-        raise Exception("ResourceNotFoundException")
-
     with patch.object(mgr, "_get_secrets_client") as mock_client:
         mock_sm = MagicMock()
         mock_client.return_value = mock_sm
+
+        # Create a custom ResourceNotFoundError class
+        class ResourceNotFoundError(Exception):
+            pass
+
+        mock_sm.exceptions.ResourceNotFoundException = ResourceNotFoundError
+
+        call_count = 0
+        def mock_get_secret_value(secret_id):
+            nonlocal call_count
+            call_count += 1
+            # First call (user-specific) returns incomplete data
+            if call_count == 1:
+                return incomplete_response
+            # All other calls raise ResourceNotFound
+            raise ResourceNotFoundError("Secret not found")
+
         mock_sm.get_secret_value.side_effect = mock_get_secret_value
-        mock_sm.exceptions.ResourceNotFoundException = Exception
 
         # With all sources failing, should get final error about no credentials
-        with pytest.raises(RuntimeError):
+        with pytest.raises(ValueError):
             mgr.get_alpaca_credentials(user_id="test-user")
 
 

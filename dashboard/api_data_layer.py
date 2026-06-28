@@ -348,7 +348,11 @@ def api_call(endpoint: str, params: dict[str, Any] | None = None, method: str = 
                     error_result["_is_transient_503"] = True
                 return error_result
 
-            data = resp.json()
+            try:
+                data = resp.json()
+            except ValueError as e:
+                logger.warning(f"API {endpoint}: failed to parse JSON response: {e}")
+                return {"_error": f"API {endpoint}: invalid JSON response"}
             if isinstance(data, dict):
                 status_code = data.get("statusCode")
                 if status_code is None:

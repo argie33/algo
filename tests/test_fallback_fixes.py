@@ -5,9 +5,10 @@ This suite verifies that critical financial code paths now fail fast
 on missing or invalid data instead of silently falling back to defaults.
 """
 
-import pytest
-from unittest.mock import Mock, patch
 from datetime import date
+from unittest.mock import Mock, patch
+
+import pytest
 
 
 class TestTradesExtractItems:
@@ -107,47 +108,54 @@ class TestMarketHalts:
 class TestYieldCurveFetcher:
     """Test YieldCurveFetcher.fetch() in loaders/market_health_fetchers.py"""
 
-    def test_yield_curve_raises_on_circuit_breaker_open(self):
-        """Circuit breaker failure should raise."""
+    def test_yield_curve_gracefully_degrades_on_circuit_breaker(self):
+        """Circuit breaker exhaustion should gracefully return empty dict (optional data)."""
         from loaders.market_health_fetchers import YieldCurveFetcher
 
         fetcher = YieldCurveFetcher()
         fetcher.breaker.execute = Mock(return_value=None)
 
-        with pytest.raises(RuntimeError, match="unavailable"):
-            fetcher.fetch(date(2024, 1, 1), date(2024, 12, 31))
+        result = fetcher.fetch(date(2024, 1, 1), date(2024, 12, 31))
+        assert result == {}, "Optional enrichment should return empty dict on circuit breaker"
 
-    def test_yield_curve_raises_on_invalid_response_type(self):
-        """Invalid response type should raise."""
+    def test_yield_curve_gracefully_degrades_on_invalid_response(self):
+        """Invalid response type should gracefully return empty dict (optional data)."""
         from loaders.market_health_fetchers import YieldCurveFetcher
 
         fetcher = YieldCurveFetcher()
         fetcher.breaker.execute = Mock(return_value="invalid string")
 
-        with pytest.raises(RuntimeError, match="invalid type"):
-            fetcher.fetch(date(2024, 1, 1), date(2024, 12, 31))
+        result = fetcher.fetch(date(2024, 1, 1), date(2024, 12, 31))
+        assert result == {}, "Optional enrichment should return empty dict on invalid type"
 
-    def test_yield_curve_raises_on_internal_error(self):
-        """Internal fetch errors should be re-raised."""
+    def test_yield_curve_gracefully_degrades_on_error(self):
+        """Internal fetch errors should gracefully return empty dict (optional data)."""
         from loaders.market_health_fetchers import YieldCurveFetcher
 
         fetcher = YieldCurveFetcher()
         fetcher.breaker.execute = Mock(side_effect=Exception("API timeout"))
 
-        with pytest.raises(RuntimeError, match="failed"):
-            fetcher.fetch(date(2024, 1, 1), date(2024, 12, 31))
+        result = fetcher.fetch(date(2024, 1, 1), date(2024, 12, 31))
+        assert result == {}, "Optional enrichment should return empty dict on error"
 
 
 class TestBreadthFetcher:
-    """Test BreadthFetcher raises properly"""
+    """Test BreadthFetcher gracefully degrades"""
 
-    def test_breadth_fetcher_raises(self):
-        """Breadth fetcher should raise RuntimeError."""
+    def test_breadth_fetcher_returns_empty_on_unavailable_data(self):
+        """Breadth fetcher should return empty dict when no data (optional enrichment)."""
+        from unittest.mock import MagicMock
+
         from loaders.market_health_fetchers import BreadthFetcher
 
         fetcher = BreadthFetcher()
-        with pytest.raises(RuntimeError, match="not yet implemented"):
-            fetcher.fetch(date(2024, 1, 1), date(2024, 12, 31))
+        with patch("utils.db.DatabaseContext") as mock_db:
+            mock_cursor = MagicMock()
+            mock_cursor.fetchall.return_value = []
+            mock_db.return_value.__enter__.return_value = mock_cursor
+
+            result = fetcher.fetch(date(2024, 1, 1), date(2024, 12, 31))
+            assert result == {}, "Breadth fetcher should return empty dict when no data available"
 
 
 class TestSummary:
