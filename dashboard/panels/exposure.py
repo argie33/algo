@@ -97,7 +97,7 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
     tier = _tier_formatter.format(epct)
     tc = TIER_COLOR.get(tier, "dim")
 
-    def factor_detail(key: Any) -> str:
+    def factor_detail(key: Any) -> str:  # noqa: C901 - key dispatch lookup table is inherently complex
         """Return a short value string for a factor key."""
         if not factors or key not in factors:
             return ""

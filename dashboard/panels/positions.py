@@ -52,7 +52,6 @@ else:
 
 
 from rich import box
-from rich.console import Group
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
@@ -106,6 +105,13 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
         )
 
     is_placeholder = isinstance(pos, dict) and pos.get("_data_unavailable", False)
+    if is_placeholder:
+        return Panel(
+            Text.from_markup("[red]✗ POSITIONS DATA UNAVAILABLE[/]\nCannot display real position data — API or data layer error. Check logs."),
+            title="[bold red]POSITIONS (DATA ERROR)[/]",
+            border_style="red",
+            padding=(0, 1),
+        )
 
     t = Table(
         box=box.SIMPLE_HEAD,
@@ -189,21 +195,12 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
             ]
         t.add_row(*row)
 
-    # Build content (placeholder warning only if flagged — pending trades removed, see RECENT TRADES panel)
-    content_items: list[Text | Table] = []
-    if is_placeholder:
-        content_items.append(Text.from_markup("[bold red]📊 PLACEHOLDER DATA - Positions may not be accurate[/]"))
-    content_items.append(t)
-    content = Group(*content_items) if len(content_items) > 1 else (content_items[0] if content_items else t)
-
-    border = "red" if is_placeholder else "cyan"
+    content = t
     age_s = f"  [dim]{fmt_age(pos_timestamp)}[/]" if pos_timestamp is not None else ""
     if invalid_count > 0:
         logger.error(f"panel_positions: encountered {invalid_count} invalid position(s); display may be incomplete")
         border = "red"
         title_str = f"[bold red]POSITIONS ⚠ DATA ERROR ({invalid_count} invalid)[/]"
-    elif is_placeholder:
-        title_str = "[bold red]POSITIONS ⚠ PLACEHOLDER DATA[/]"
     else:
         title_str = f"[bold cyan]POSITIONS ({len(pos_items)})[/]"
     return Panel(

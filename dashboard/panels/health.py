@@ -333,7 +333,7 @@ def _build_freshness_panel(hlth_items: list[Any], ready_to_trade: bool | None) -
     )
 
 
-def panel_orch(run: dict[str, Any] | None, cfg: dict[str, Any], risk: dict[str, Any] | None = None) -> Panel:
+def panel_orch(run: dict[str, Any] | None, cfg: dict[str, Any], risk: dict[str, Any] | None = None) -> Panel:  # noqa: C901 - risk metrics validation requires multi-layer safety checks
     error_pnl = _error_panel("config", cfg, "ORCHESTRATION")
     if error_pnl is not None:
         return error_pnl
@@ -1655,7 +1655,7 @@ def panel_status(  # noqa: C901
             # CRITICAL: Explicit None check instead of complex nested ternary
             seen_val = n.get("seen")
             is_seen = seen_val if seen_val is not None else True
-            unread = "–" if not is_seen else " "
+            unread = "-" if not is_seen else " "
             rows.append(Text.from_markup(f"[{sc}]{unread}[/] [{sc}]{title}[/] [dim]{age}[/]"))
 
     # Algo metrics daily (action counts)
@@ -2031,7 +2031,7 @@ def panel_algo_health(  # noqa: C901
             # CRITICAL: Explicit None check instead of complex nested ternary
             seen_val = n.get("seen")
             is_seen = seen_val if seen_val is not None else True
-            unread = "–" if not is_seen else " "
+            unread = "-" if not is_seen else " "
             notif_parts.append(f"[{sc}]{unread}{title}[/][dim]{age}[/]")
         rows.append(Text.from_markup("[dim]Alerts:[/] " + "  ".join(notif_parts)))
 

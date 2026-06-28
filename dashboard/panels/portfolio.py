@@ -111,7 +111,7 @@ def _calculate_adjusted_win_rate(perf: dict[str, Any] | None, pos: dict[str, Any
 
     total_trades = closed_wins + closed_losses + losing_open
     if total_trades == 0:
-        return 0.0, closed_wins, closed_losses + losing_open
+        return None, closed_wins, closed_losses + losing_open
 
     adjusted_wr = (closed_wins / total_trades) * 100
     return adjusted_wr, closed_wins, closed_losses + losing_open
