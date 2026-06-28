@@ -353,6 +353,7 @@ def _format_orch_config_string(cfg_params: dict[str, Any]) -> str:
 def _extract_orch_risk_metrics_string(risk: dict[str, Any] | None) -> str:
     """Extract and format risk metrics for orchestration panel."""
     from dashboard.data_validation import safe_float
+
     from ..utilities import R
 
     if not risk or has_error(risk):
@@ -418,71 +419,9 @@ def panel_orch(run: dict[str, Any] | None, cfg: dict[str, Any], risk: dict[str, 
     mc2 = G if "LIVE" in mode else Y
     en = "ENABLED" if cfg_params["enabled"] else "DISABLED"
     ec = G if cfg_params["enabled"] else R
-    max_n = cfg_params["max_pos_n"]
-    max_sec_n = cfg_params["max_sec_n"]
-    min_score = cfg_params["min_score"]
-    base_risk = cfg_params["base_risk"]
-    t1r = cfg_params["t1_r"]
 
-    min_score_f = safe_float(min_score, default=None)
-    # CRITICAL: Explicit validation of min_score instead of falsy AND fallback
-    # Missing min_score should be logged, not silently hidden
-    if min_score is not None and min_score_f is not None and min_score_f > 0:
-        score_s = f"[dim]min score ≥[/][white]{min_score}[/]"
-    else:
-        score_s = ""
-    # CRITICAL: Explicit None checks instead of falsy OR fallback
-    # Missing config params should be validated, not silently hidden
-    slots_s = f"[dim]max [/][white]{max_n}[/][dim] positions[/]" if max_n is not None and max_n else ""
-    sec_s = f"[dim]sector ≤[/][white]{max_sec_n}[/]" if max_sec_n is not None and max_sec_n else ""
-    risk_s = f"[dim]base risk [/][white]{base_risk}%[/]" if base_risk is not None and base_risk else ""
-    t1r_s = f"[dim]T1 target [/][white]{t1r}R[/]" if t1r is not None and t1r else ""
-    config_line = "  ".join(x for x in [score_s, slots_s, sec_s, risk_s, t1r_s] if x)
-
-    # VaR line — only show if table is populated with real data
-    var_line = ""
-    # CRITICAL: Do NOT silently fallback to empty dict when risk data is missing/error.
-    # This masks data quality issues and displays false "all clear" when risk metrics unavailable.
-    risk_dict = safe_get_dict(risk) if (risk and not has_error(risk)) else None
-    var95_check = risk_dict.get("var95") if risk_dict else None
-    if var95_check is not None:
-        try:
-            var95_check_f = float(var95_check)
-            if var95_check_f > 0 and isinstance(risk_dict, dict):
-                risk_metrics = extract_risk_metrics(risk_dict)
-                var95_val = safe_float(risk_metrics["var95"], default=None)
-                beta_val = safe_float(risk_metrics["beta"], default=None)
-                cvar95_val = safe_float(risk_metrics["cvar95"], default=None)
-                conc5_val = safe_float(risk_metrics["conc5"], default=None)
-                svar_val = safe_float(risk_metrics["svar"], default=None)
-                if None in (var95_val, beta_val, cvar95_val, conc5_val):
-                    missing_fields = [
-                        name
-                        for name, val in [
-                            ("VaR95", var95_val),
-                            ("Beta", beta_val),
-                            ("CVaR95", cvar95_val),
-                            ("Concentration", conc5_val),
-                        ]
-                        if val is None
-                    ]
-                    var_line = f"\n[{R}]⚠ Risk metrics incomplete[/] - missing: {', '.join(missing_fields)}"
-                else:
-                    var95_val = cast(float, var95_val)
-                    beta_val = cast(float, beta_val)
-                    cvar95_val = cast(float, cvar95_val)
-                    conc5_val = cast(float, conc5_val)
-                    beta_c = R if beta_val >= 1.2 else (Y if beta_val >= 0.8 else G)
-                    var_c = _var_color(var95_val)
-                    svar_s = f"\n[dim]Stressed VaR:[/][{R}]{float(svar_val):.2f}%[/]" if svar_val is not None and float(svar_val) > 0 else ""
-                    var_line = (
-                        f"\n[dim]VaR 95%:[/][{var_c}]{var95_val:.2f}%[/]"
-                        f"  [dim]CVaR 95%:[/][{var_c}]{cvar95_val:.2f}%[/]"
-                        f"  [dim]Portfolio Beta:[/][{beta_c}]{beta_val:.2f}[/]"
-                        f"  [dim]Top-5 Conc:[/][white]{conc5_val:.0f}%[/]" + svar_s
-                    )
-        except (KeyError, ValueError, TypeError) as e:
-            logger.warning(f"Risk metrics extraction failed: {e}")
+    config_line = _format_orch_config_string(cfg_params)
+    var_line = _extract_orch_risk_metrics_string(risk)
 
     if not run or has_error(run):
         error_msg = (
