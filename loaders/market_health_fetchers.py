@@ -199,9 +199,12 @@ class YieldCurveFetcher:
     def fetch(self, start: date, end: date) -> dict[str, Any]:
         """Fetch yield curve data with circuit breaker protection.
 
+        IMPORTANT: This is OPTIONAL enrichment (not critical for trading).
+        Gracefully degrade to empty dict on failures instead of error markers.
+        Dashboard and algorithms must handle empty dicts gracefully.
+
         Returns:
-            dict with yield data keyed by date, or explicit unavailability marker.
-            Always includes "_data_unavailable" marker when data cannot be fetched.
+            dict with yield data keyed by date, or empty dict if data unavailable.
         """
         try:
             result = self.breaker.execute(
@@ -210,15 +213,16 @@ class YieldCurveFetcher:
                 fallback_value=None,
             )
             if result is None:
-                return {"_data_unavailable": True, "_reason": "circuit_breaker_exhausted"}
+                # Circuit breaker exhausted - gracefully return empty for optional data
+                return {}
             if not isinstance(result, dict):
-                return {"_data_unavailable": True, "_reason": f"invalid_type_{type(result).__name__}"}
-            # Check if result is empty dict without any data
-            if len(result) == 0:
-                return {"_data_unavailable": True, "_reason": "api_returned_empty_result"}
+                # Invalid response type - gracefully return empty for optional data
+                return {}
+            # Check if result is empty dict without any data - acceptable for optional enrichment
             return result
-        except Exception as e:
-            return {"_data_unavailable": True, "_reason": f"exception_{type(e).__name__}"}
+        except Exception:
+            # Exceptions in optional enrichment - gracefully return empty dict
+            return {}
 
     def _fetch_yield_curve_data(self, start: date, end: date) -> dict[str, Any]:
         """Internal yield curve fetch implementation.
