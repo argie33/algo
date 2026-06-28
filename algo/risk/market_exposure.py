@@ -62,7 +62,7 @@ import json
 import logging
 from collections.abc import Callable
 from datetime import date as _date
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 from typing import Any, TypeVar
 
 import psycopg2
@@ -107,7 +107,7 @@ class MarketExposure:
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def try_load_cached(self, eval_date: _date | None = None) -> dict[str, Any] | None:
+    def try_load_cached(self, eval_date: _date | None = None) -> dict[str, Any] | None:  # noqa: C901
         """Load cached market exposure for today. Returns dict or None if not cached/stale.
 
         CRITICAL: Validates cache freshness both by date AND by TTL. Never silently uses stale cache.
@@ -118,7 +118,7 @@ class MarketExposure:
         if not eval_date:
             eval_date = _date.today()
 
-        def fetch_cached(cur: PsycopgCursor[Any]) -> dict[str, Any] | None:
+        def fetch_cached(cur: PsycopgCursor[Any]) -> dict[str, Any] | None:  # noqa: C901
             cur.execute(
                 """
                 SELECT raw_score, exposure_pct, regime, halt_reasons, distribution_days, factors, date, updated_at
@@ -158,7 +158,6 @@ class MarketExposure:
             # CRITICAL: Also validate TTL — data computed > 10 hours ago uses stale market close prices
             # Position sizing must use fresh-enough data (ideally computed within 1 hour of market close)
             if updated_at:
-                from datetime import datetime, timedelta
                 from utils.infrastructure.timezone import EASTERN_TZ
 
                 now = datetime.now(EASTERN_TZ)
@@ -374,8 +373,8 @@ class MarketExposure:
                     )
                 if "count" not in sp or sp["count"] is None:
                     raise RuntimeError(
-                        f"Selling pressure calculation incomplete: missing 'count' field. "
-                        f"Cannot determine distribution day veto without day count."
+                        "Selling pressure calculation incomplete: missing 'count' field. "
+                        "Cannot determine distribution day veto without day count."
                     )
             except Exception as e:
                 msg = (
@@ -629,9 +628,9 @@ class MarketExposure:
             # Never default to 0 — missing data must be detected as error, not assumed "clean market"
             if sp_count is None:
                 msg = (
-                    f"[EXPOSURE CRITICAL] Distribution days calculation failed (sp_count is None). "
-                    f"Cannot persist exposure score without distribution day count for veto checks. "
-                    f"Check: (1) selling_pressure() implementation, (2) distribution data freshness"
+                    "[EXPOSURE CRITICAL] Distribution days calculation failed (sp_count is None). "
+                    "Cannot persist exposure score without distribution day count for veto checks. "
+                    "Check: (1) selling_pressure() implementation, (2) distribution data freshness"
                 )
                 logger.critical(msg)
                 raise RuntimeError(msg)

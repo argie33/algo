@@ -147,7 +147,7 @@ def _get_data_quality(cur: cursor) -> Any:
 
 
 @db_route_handler("fetch data status")
-def _get_data_status(cur: cursor) -> Any:
+def _get_data_status(cur: cursor) -> Any:  # noqa: C901
     """Get data freshness status with summary for ServiceHealth/AlgoTradingDashboard.
 
     Uses same trading-day-aware freshness logic as Phase 1 orchestrator to avoid
@@ -359,7 +359,7 @@ def _normalize_market_health(mh: dict) -> Any:
         if vix_level is not None and vix_level <= 0:
             raise ValueError(f"VIX level must be > 0, got {vix_level}")
     except (TypeError, ValueError) as e:
-        raise ValueError(f"VIX level validation failed: {e} (got {type(vix_raw).__name__}: {vix_raw})")
+        raise ValueError(f"VIX level validation failed: {e} (got {type(vix_raw).__name__}: {vix_raw})") from e
 
     return {
         "market_trend": mh.get("market_trend"),
@@ -395,7 +395,7 @@ def _normalize_exposure(exp: dict) -> Any:
         if exposure_pct < 0 or exposure_pct > 100:
             raise ValueError(f"exposure_pct {exposure_pct} outside valid range [0,100]")
     except (TypeError, ValueError) as e:
-        raise ValueError(f"exposure_pct type/range validation failed: {e} (got {type(exposure_pct_raw).__name__}: {exposure_pct_raw})")
+        raise ValueError(f"exposure_pct type/range validation failed: {e} (got {type(exposure_pct_raw).__name__}: {exposure_pct_raw})") from e
 
     # Validate regime is not "unknown" or empty string
     regime = exp.get("regime")
@@ -607,7 +607,7 @@ def _get_market_sentiment(cur: cursor) -> Any:
 
 
 @db_route_handler("get markets")
-def _get_markets(cur: cursor) -> Any:
+def _get_markets(cur: cursor) -> Any:  # noqa: C901
     """Get market regime, exposure, and 12-factor data for the Markets Health dashboard."""
     try:
         # Latest exposure row
