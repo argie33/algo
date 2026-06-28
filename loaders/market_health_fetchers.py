@@ -115,16 +115,56 @@ class PutCallRatioFetcher:
         return result
 
     def _fetch_put_call_ratio(self, eval_date: date) -> float | None:
-        """Internal put/call fetch implementation."""
+        """Internal put/call fetch implementation.
+
+        Finds nearest options expiration date to eval_date (yfinance requires actual expiration dates,
+        not arbitrary trading dates). Uses closest expiration <= eval_date, or if none exists, next available.
+        """
         try:
             import yfinance
 
             spx_options = yfinance.Ticker("^SPX")
-            options_chain = spx_options.option_chain(eval_date.isoformat())
+
+            # Get available expiration dates
+            if not hasattr(spx_options, 'options') or not spx_options.options:
+                raise RuntimeError(f"[PUT_CALL_FETCHER] No options expirations available for ^SPX on {eval_date}")
+
+            expirations = spx_options.options
+            if not expirations:
+                raise RuntimeError(f"[PUT_CALL_FETCHER] Empty expirations list for ^SPX on {eval_date}")
+
+            # Convert expirations to dates
+            from datetime import datetime
+            exp_dates = []
+            for exp_str in expirations:
+                try:
+                    exp_date = datetime.strptime(exp_str, "%Y-%m-%d").date()
+                    exp_dates.append(exp_date)
+                except ValueError:
+                    continue
+
+            if not exp_dates:
+                raise RuntimeError(f"[PUT_CALL_FETCHER] Could not parse any expiration dates from {expirations}")
+
+            # Find nearest expiration: prefer <= eval_date, otherwise next available
+            closest_exp = None
+            for exp_date in sorted(exp_dates):
+                if exp_date <= eval_date:
+                    closest_exp = exp_date
+                elif closest_exp is None:
+                    closest_exp = exp_date
+                    break
+
+            if closest_exp is None:
+                closest_exp = min(exp_dates)  # Fallback to earliest
+
+            logger.debug(f"[PUT_CALL_FETCHER] Using expiration {closest_exp} for eval_date {eval_date}")
+
+            options_chain = spx_options.option_chain(closest_exp.isoformat())
 
             if options_chain.calls.empty or options_chain.puts.empty:
                 raise RuntimeError(
-                    f"[PUT_CALL_FETCHER] Options data missing for {eval_date}: "
+                    f"[PUT_CALL_FETCHER] Options data missing for {closest_exp}: "
                     f"calls={options_chain.calls.empty}, puts={options_chain.puts.empty}"
                 )
 
@@ -133,10 +173,12 @@ class PutCallRatioFetcher:
 
             if total_calls == 0:
                 raise RuntimeError(
-                    f"[PUT_CALL_FETCHER] No call volume for {eval_date}. Cannot calculate ratio."
+                    f"[PUT_CALL_FETCHER] No call volume for {closest_exp}. Cannot calculate ratio."
                 )
 
-            return float(total_puts / total_calls)
+            ratio = float(total_puts / total_calls)
+            logger.debug(f"[PUT_CALL_FETCHER] Put/call ratio for {eval_date} (using {closest_exp}): {ratio:.3f}")
+            return ratio
         except Exception as e:
             raise RuntimeError(
                 f"[PUT_CALL_FETCHER] Fetch failed for {eval_date}: {e}"

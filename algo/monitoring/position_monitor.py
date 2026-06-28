@@ -908,8 +908,14 @@ class PositionMonitor:
         )
         old_row = cur.fetchone()
         if not old_row or old_row[0] is None:
-            logger.warning(f"[POSITION_MONITOR] Historical sector ranking data missing for {sector} ({four_weeks_ago}). Cannot assess trend.")
-            return "stable"
+            msg = (
+                f"[POSITION_MONITOR CRITICAL] Cannot assess sector trend without 4-week historical baseline. "
+                f"sector={sector}, date={four_weeks_ago}. "
+                f"Check sector_rotation_signal table for data gaps. "
+                f"Position monitoring requires complete sector history."
+            )
+            logger.error(msg)
+            raise ValueError(msg)
         old_rank = int(old_row[0])
         if cur_rank > old_rank + 3:  # got worse by 3+ ranks
             return "weakening"

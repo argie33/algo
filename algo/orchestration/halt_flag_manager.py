@@ -112,8 +112,14 @@ class HaltFlagManager:
                         hours_halted = (now_utc - trigger_dt).total_seconds() / 3600
                         reason = item.get("reason")
                         if not reason:
-                            logger.warning("[HALT_FLAG] Halt flag set but missing 'reason' field")
-                            reason = "Unknown"
+                            msg = (
+                                "[HALT_FLAG CRITICAL] Orchestrator halt flag is set but "
+                                "'reason' field is missing or NULL. "
+                                "Cannot determine why trading halted. "
+                                "Check orchestrator_halt_flag.reason in database."
+                            )
+                            logger.critical(msg)
+                            raise ValueError(msg)
                         logger.critical(
                             f"[HALT_FLAG_ACTIVE] HALT FLAG DETECTED on {now_date_et}. "
                             f"Triggered {hours_halted:.1f}h ago at {trigger_et.strftime('%H:%M ET')}. "
@@ -132,8 +138,14 @@ class HaltFlagManager:
 
                 reason = item.get("reason")
                 if not reason:
-                    logger.warning("[HALT_FLAG] Halt flag set but missing 'reason' field")
-                    reason = "Unknown"
+                    msg = (
+                        "[HALT_FLAG CRITICAL] Orchestrator halt flag is set but "
+                        "'reason' field is missing or NULL. "
+                        "Cannot determine why trading halted. "
+                        "Check orchestrator_halt_flag.reason in database."
+                    )
+                    logger.critical(msg)
+                    raise ValueError(msg)
                 logger.critical(
                     f"[HALT_FLAG_ACTIVE] HALT FLAG DETECTED (could not parse timestamp). Reason: {reason[:150]}"
                 )

@@ -224,5 +224,74 @@ class TestErrorBoundary:
             safe_get("not_a_dict", "key")
 
 
+class TestPositionMonitorSectorTrendFailFast:
+    """Position monitor must fail-fast when sector trend data missing."""
+
+    def test_sector_trend_missing_historical_data_raises(self):
+        """Missing 4-week historical sector ranking should raise, not default to 'stable'."""
+        from algo.monitoring.position_monitor import PositionMonitor
+
+        config = {
+            "stale_order_alert_minutes": "60",
+            "stale_order_auto_cancel_minutes": "120",
+        }
+        monitor = PositionMonitor(config)
+
+        # Mock database cursor for sector health check
+        with patch("algo.monitoring.position_monitor.DatabaseContext") as mock_db_context:
+            mock_cursor = MagicMock()
+            # First call: fetch current sector data (success)
+            # Second call: fetch 4-week ago sector data (missing)
+            mock_cursor.fetchone.side_effect = [
+                ("Technology",),  # company_profile sector lookup
+                (1, date(2026, 6, 28)),  # current_rank lookup (succeeds)
+                None,  # old_rank lookup (fails - returns None)
+            ]
+            mock_cursor.__enter__ = MagicMock(return_value=mock_cursor)
+            mock_cursor.__exit__ = MagicMock(return_value=None)
+            mock_db_context.return_value = mock_cursor
+
+            # Should raise ValueError, not return "stable"
+            with pytest.raises(ValueError, match=r"Cannot assess sector trend.*4-week historical baseline"):
+                monitor._check_sector_health("AAPL", date(2026, 6, 28), mock_cursor)
+
+
+class TestHaltFlagManagerFailFast:
+    """Halt flag manager must fail-fast when halt reason missing."""
+
+    def test_halt_flag_missing_reason_raises(self):
+        """Missing halt reason should raise, not default to 'Unknown'."""
+        from algo.orchestration.halt_flag_manager import HaltFlagManager
+
+        mock_alerts = Mock()
+        mock_log_phase_result = Mock()
+        manager = HaltFlagManager(mock_alerts, mock_log_phase_result)
+
+        # Mock DynamoDB returning halt flag without reason
+        with patch("boto3.resource") as mock_boto_resource:
+            mock_table = MagicMock()
+            mock_boto_resource.return_value.Table.return_value = mock_table
+            mock_table.get_item.return_value = {
+                "Item": {
+                    "key": manager.HALT_FLAG_DYNAMODB_KEY,
+                    "halt_flag": True,
+                    "reason": None,  # Missing reason should cause error
+                    "triggered_at": "2026-06-28T14:30:00+00:00",
+                }
+            }
+
+            # Should fail-closed: raise ValueError with CRITICAL message (not use default "Unknown")
+            # The exception is caught and logged, fail-safe returns halt_flag=True
+            with patch("algo.orchestration.halt_flag_manager.logger") as mock_logger:
+                result = manager.check_halt_flag()
+                # When missing reason, should fail-closed by returning True (halt=active)
+                assert result is True
+                # Verify CRITICAL error was logged (not silent fallback)
+                assert any(
+                    "CRITICAL" in str(call)
+                    for call in mock_logger.critical.call_args_list
+                )
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
