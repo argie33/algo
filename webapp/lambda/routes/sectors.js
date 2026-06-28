@@ -229,7 +229,10 @@ router.get("/trends-batch", async (req, res) => {
     Object.keys(grouped).forEach((sector) => {
       let index = 100;
       grouped[sector] = grouped[sector].map((point) => {
-        const returnPct = point.return_pct ?? 0;
+        if (point.return_pct == null) {
+          throw new Error(`Missing return_pct for sector ${sector} on date ${point.date}`);
+        }
+        const returnPct = point.return_pct;
         index = index * (1 + returnPct / 100);
         return {
           date: point.date,
