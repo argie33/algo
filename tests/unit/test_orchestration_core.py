@@ -16,8 +16,8 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-from algo.orchestration.halt_flag_manager import HaltFlagManager
 from algo.orchestration.execution_tracker import ExecutionTracker
+from algo.orchestration.halt_flag_manager import HaltFlagManager
 
 
 class TestHaltFlagManager:
@@ -171,8 +171,9 @@ class TestOrchestrationPhaseContract:
 
     def test_phase_result_data_serializable(self):
         """Test that phase result data is JSON-serializable."""
-        from algo.orchestrator.phase_result import PhaseResult
         import json
+
+        from algo.orchestrator.phase_result import PhaseResult
 
         result = PhaseResult(
             phase_number=3,
@@ -282,7 +283,7 @@ class TestOrchestrationStateTransitions:
         )
 
         # All subsequent phases (4-9) should not execute
-        for phase_num in range(4, 10):
+        for _phase_num in range(4, 10):
             should_execute = not halt_phase.is_error
             assert should_execute is False
 

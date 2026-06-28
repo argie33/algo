@@ -41,9 +41,9 @@ class CompanyProfileLoader(OptimalLoader):
                 market_cap = info.get("market_cap")
 
             # Company name is REQUIRED - fail fast if missing
-            if "longName" in info and info["longName"]:
+            if info.get("longName"):
                 company_name = info["longName"]
-            elif "shortName" in info and info["shortName"]:
+            elif info.get("shortName"):
                 company_name = info["shortName"]
                 logger.debug(f"{symbol}: Using shortName instead of longName for company name")
             else:

@@ -287,9 +287,11 @@ class TestSentimentLoaders:
 
     def test_aaii_sentiment_returns_none_on_unavailable_data(self):
         """AAII sentiment should return None when data unavailable (optional enrichment)."""
-        from loaders.load_aaii_sentiment import AAIISentimentLoader
         from unittest.mock import patch
+
         import requests
+
+        from loaders.load_aaii_sentiment import AAIISentimentLoader
 
         loader = AAIISentimentLoader()
 

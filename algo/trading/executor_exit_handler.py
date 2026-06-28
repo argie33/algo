@@ -149,7 +149,7 @@ class ExitHandler:
             if not existing_stop or existing_stop[0] is None:
                 return {
                     "success": False,
-                    "message": f"Cannot raise stop: position has no existing stop price (position state incomplete). "
+                    "message": "Cannot raise stop: position has no existing stop price (position state incomplete). "
                     "Initialize stop price explicitly before raising.",
                 }
             if new_stop_price <= existing_stop[0]:

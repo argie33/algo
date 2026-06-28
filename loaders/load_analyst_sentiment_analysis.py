@@ -76,7 +76,7 @@ class AnalystSentimentLoader(OptimalLoader):
 
         try:
             ticker = get_ticker(symbol)
-        except (requests.Timeout, socket.timeout) as e:
+        except (TimeoutError, requests.Timeout) as e:
             logger.warning(f"[ANALYST_SENTIMENT] Timeout fetching ticker for {symbol} (transient, will retry): {e}")
             raise TransientAPIError(f"Timeout fetching ticker for {symbol}") from e
         except requests.ConnectionError as e:
@@ -89,7 +89,7 @@ class AnalystSentimentLoader(OptimalLoader):
 
         try:
             recs = ticker.recommendations
-        except (requests.Timeout, socket.timeout) as e:
+        except (TimeoutError, requests.Timeout) as e:
             logger.warning(f"[ANALYST_SENTIMENT] Timeout fetching recommendations for {symbol} (transient, will retry): {e}")
             raise TransientAPIError(f"Timeout fetching recommendations for {symbol}") from e
         except requests.ConnectionError as e:

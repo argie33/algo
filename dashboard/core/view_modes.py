@@ -1,7 +1,6 @@
 """Dashboard view modes and state management."""
 
 from enum import Enum
-from typing import Any
 
 
 class ViewMode(str, Enum):

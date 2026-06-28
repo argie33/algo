@@ -356,8 +356,8 @@ class PriceTransformer:
                     f"This indicates data structure corruption or logic error."
                 )
                 raise RuntimeError(
-                    f"Data quality metric calculation failed with invalid input count. "
-                    f"Cannot validate transformation quality."
+                    "Data quality metric calculation failed with invalid input count. "
+                    "Cannot validate transformation quality."
                 )
             filtered_pct = (non_trading_filtered + parse_errors) / total_input * 100
             if rows:

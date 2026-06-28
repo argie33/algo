@@ -45,7 +45,7 @@ class BaseCheck(ABC):
     """
 
     def __init__(self, config: "PatrolConfig | None" = None):
-        self.config: "PatrolConfig" = config or {}
+        self.config: PatrolConfig = config or {}
         self.results: list[CheckResult] = []
 
     @abstractmethod
@@ -80,7 +80,7 @@ class DataPatrol:
         """Initialize data patrol."""
         from .config import PatrolConfig
 
-        self.config: "PatrolConfig" = config or PatrolConfig()
+        self.config: PatrolConfig = config or PatrolConfig()
         self.results: list[CheckResult] = []
         self.run_id = ""
 
@@ -97,6 +97,7 @@ class DataPatrol:
         from psycopg2.extras import DictCursor
 
         from utils.db.connection import get_db_connection
+
         from .checks import (
             AlignmentChecker,
             CoverageChecker,
@@ -165,7 +166,6 @@ class DataPatrol:
 
     def run_checks(self) -> None:
         """Run all data patrol checks."""
-        pass
 
     def get_issues(self) -> list[CheckResult]:
         """Get all issues found by patrol."""

@@ -13,10 +13,9 @@ This module is kept for backwards compatibility only. All new code should use:
 import logging
 from typing import Any, cast
 
-logger = logging.getLogger(__name__)
-
-# Re-export from new unified validator for backwards compatibility
 from utils.data.age_validator import check_freshness
+
+logger = logging.getLogger(__name__)
 
 
 def get_staleness_threshold_days() -> int:

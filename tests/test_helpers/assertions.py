@@ -7,8 +7,9 @@ Provides utilities to write tests that verify correctness, not just "doesn't cra
 - Type coercion helpers
 """
 
-from rich.console import Console
 from typing import Any
+
+from rich.console import Console
 
 
 def render_panel_to_text(panel: Any) -> str:

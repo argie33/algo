@@ -21,7 +21,6 @@ class PipelineHealthMonitor:
 
     def __init__(self) -> None:
         """Initialize pipeline health monitor."""
-        pass
 
     def check_loader_staleness(self, loader_name: str, hours_threshold: int = 4) -> bool:
         """Check if loader data is stale."""

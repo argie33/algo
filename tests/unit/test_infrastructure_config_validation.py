@@ -65,7 +65,7 @@ class TestAlgoConfigDefaults:
 
     def test_all_defaults_have_metadata(self):
         """Test that all defaults include type, description, category."""
-        for key, default_tuple in AlgoConfig.DEFAULTS.items():
+        for _key, default_tuple in AlgoConfig.DEFAULTS.items():
             assert isinstance(default_tuple, tuple)
             assert len(default_tuple) >= 4  # value, type, description, category
             value, dtype, desc, category = default_tuple[:4]
@@ -286,7 +286,7 @@ class TestConfigCategories:
 
     def test_all_configs_have_category(self):
         """Test that all configs are categorized."""
-        for key, default_tuple in AlgoConfig.DEFAULTS.items():
+        for _key, default_tuple in AlgoConfig.DEFAULTS.items():
             category = default_tuple[3]
             assert category and len(category) > 0
 
@@ -368,7 +368,7 @@ class TestConfigIntegration:
         defaults = AlgoConfig.DEFAULTS
 
         for key, default_tuple in defaults.items():
-            value_str, dtype, desc, category = default_tuple[:4]
+            value_str, dtype, _desc, _category = default_tuple[:4]
 
             # Test that dtype matches actual conversion
             try:
@@ -377,7 +377,7 @@ class TestConfigIntegration:
                 elif dtype == "int":
                     int(value_str)
                 elif dtype == "bool":
-                    str(value_str).lower() in ("true", "false")
+                    assert str(value_str).lower() in ("true", "false")
                 elif dtype == "str":
                     str(value_str)
                 else:

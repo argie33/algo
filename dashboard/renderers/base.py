@@ -2,7 +2,6 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any
 
 from rich.layout import Layout
 
@@ -28,7 +27,6 @@ class Renderer(ABC):
     @abstractmethod
     def render(self, ctx: DashboardContext, render_ctx: RenderContext) -> Layout:
         """Render dashboard layout."""
-        pass
 
 
 class NormalRenderer(Renderer):

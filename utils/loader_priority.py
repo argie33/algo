@@ -11,7 +11,6 @@ Strategy:
 """
 
 from enum import Enum
-from utils.data_tiers import CRITICAL_DATA, AUXILIARY_DATA
 
 
 class LoaderPriority(Enum):

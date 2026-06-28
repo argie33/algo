@@ -317,6 +317,7 @@ def run(
 
     try:
         from datetime import timedelta as td
+
         from infrastructure.market_calendar import MarketCalendar
 
         with DatabaseContext("read") as cur:

@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Check AWS health status after deployment."""
 import os
+from datetime import date, timedelta
+
 import psycopg2
 import psycopg2.extras
-from datetime import date, timedelta
 
 try:
     conn = psycopg2.connect(
@@ -45,7 +46,7 @@ try:
             fresh_tables.append(table_name)
 
     print(f"\n{'='*60}")
-    print(f"AWS DASHBOARD HEALTH STATUS")
+    print("AWS DASHBOARD HEALTH STATUS")
     print(f"{'='*60}")
     print(f"Freshness: {ok}/{ok+stale} fresh  {stale} stale")
     print(f"Status: {'[OK] READY' if ok == len(rows) else '[WARN] NOT READY'}")

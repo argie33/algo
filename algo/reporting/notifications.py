@@ -52,9 +52,9 @@ class TradeNotificationService:
         """Format trade entry notification."""
         try:
             details = json.loads(event["details"]) if isinstance(event["details"], str) else event["details"]
-            if "symbol" in event and event["symbol"]:
+            if event.get("symbol"):
                 symbol = event["symbol"]
-            elif "symbol" in details and details["symbol"]:
+            elif details.get("symbol"):
                 symbol = details["symbol"]
                 logger.debug(f"Event {event.get('id')}: Using symbol from details instead of event")
             else:
@@ -83,9 +83,9 @@ Time:         {event["created_at"].strftime("%H:%M:%S")}
         """Format trade exit notification."""
         try:
             details = json.loads(event["details"]) if isinstance(event["details"], str) else event["details"]
-            if "symbol" in event and event["symbol"]:
+            if event.get("symbol"):
                 symbol = event["symbol"]
-            elif "symbol" in details and details["symbol"]:
+            elif details.get("symbol"):
                 symbol = details["symbol"]
                 logger.debug(f"Event {event.get('id')}: Using symbol from details instead of event")
             else:

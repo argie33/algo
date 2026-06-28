@@ -19,7 +19,6 @@ class ConnectionMonitor:
 
     def __init__(self) -> None:
         """Initialize connection monitor."""
-        pass
 
     def check_database(self) -> bool:
         """Check database connectivity."""

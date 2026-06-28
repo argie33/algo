@@ -1,6 +1,5 @@
 """Mode-specific rendering orchestration."""
 
-from typing import Any
 
 from rich.layout import Layout
 

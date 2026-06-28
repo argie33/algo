@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Edge case tests for VCP Patterns Loader - fail-fast behavior validation."""
 
-import pytest
 from datetime import date, timedelta
 from unittest.mock import MagicMock
+
+import pytest
+
 from loaders.load_vcp_patterns import VCPPatternsLoader
 
 

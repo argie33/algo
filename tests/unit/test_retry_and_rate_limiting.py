@@ -154,7 +154,6 @@ class TestRetryDecorator:
     def test_retry_applies_jitter(self, mock_sleep):
         """Test that jitter adds randomness to sleep time."""
         call_count = 0
-        jitter_applied = False
 
         @retry(max_attempts=3, base_delay=10.0, jitter=True, exceptions=(ValueError,))
         def fn():
@@ -262,12 +261,10 @@ class TestRateLimiter:
 
         threads = [threading.Thread(target=call_wait, args=(i,)) for i in range(5)]
 
-        start = time.monotonic()
         for t in threads:
             t.start()
         for t in threads:
             t.join()
-        total_time = time.monotonic() - start
 
         # With 5 threads and 60 CPM (1 call per second):
         # Sequential execution would take ~5 seconds

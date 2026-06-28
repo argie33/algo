@@ -133,4 +133,3 @@ class HealthPanel:
 
     def run_checks(self) -> None:
         """Run all health checks."""
-        pass
