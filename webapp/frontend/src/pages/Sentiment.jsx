@@ -1553,13 +1553,15 @@ function SocialInsights({ symbol, onClose }) {
             <Stile
               label="Search Volume"
               value={metrics.search?.volume_index ?? "—"}
-              sub={`7d ${metrics.search?.trend_7d_direction ?? ""}${Math.abs(
-                parseFloat(metrics.search?.trend_7d_percent || 0)
-              ).toFixed(
-                1
-              )}% · 30d ${metrics.search?.trend_30d_direction ?? ""}${Math.abs(
-                parseFloat(metrics.search?.trend_30d_percent || 0)
-              ).toFixed(1)}%`}
+              sub={`7d ${metrics.search?.trend_7d_direction ?? ""}${
+                metrics.search?.trend_7d_percent !== null && metrics.search?.trend_7d_percent !== undefined
+                  ? Math.abs(parseFloat(metrics.search.trend_7d_percent)).toFixed(1) + "%"
+                  : "N/A"
+              } · 30d ${metrics.search?.trend_30d_direction ?? ""}${
+                metrics.search?.trend_30d_percent !== null && metrics.search?.trend_30d_percent !== undefined
+                  ? Math.abs(parseFloat(metrics.search.trend_30d_percent)).toFixed(1) + "%"
+                  : "N/A"
+              }`}
             />
             <Stile
               label="Social Volume"
