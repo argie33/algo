@@ -127,7 +127,7 @@ class SignalQualityScoresLoader(OptimalLoader):
                 "Cannot proceed without end_date and signal availability verification."
             ) from e
 
-    def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]] | None:  # noqa: C901
+    def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]] | None:
         """Compute signal quality scores from buy/sell signals and technical confirmation."""
         from datetime import datetime, timezone
 
@@ -516,7 +516,7 @@ class SignalQualityScoresLoader(OptimalLoader):
             "Upstream loader (load_positioning_metrics.py) must provide data first."
         )
 
-    def _compute_quality_scores(  # noqa: C901
+    def _compute_quality_scores(
         self,
         symbol: str,
         buy_sell_rows: list[dict[str, Any]],
