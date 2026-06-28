@@ -81,7 +81,20 @@ router.get("/data", async (req, res) => {
     ]);
     validateQueryResult(countResult, { requireRows: false });
     validateQueryResult(result, { requireRows: false });
-    const total = parseInt(countResult.rows[0]?.total || 0);
+    // FAIL-FAST: Require explicit total count; don't default to 0 (masks missing data)
+    const rawTotal = countResult.rows[0]?.total;
+    const total = rawTotal != null ? parseInt(rawTotal) : null;
+    if (total == null) {
+      return sendPaginated(res, [], {
+        limit: limitNum,
+        offset,
+        total: 0,
+        page: pageNum,
+        totalPages: 0,
+        error: "missing_count_data",
+        message: "Count query returned no data; sentiment total is unavailable",
+      }, 503);
+    }
 
     if (!result.rows || result.rows.length === 0) {
       return sendPlaceholder(res, "No sentiment data available", 200, "items");
@@ -204,8 +217,21 @@ router.get("/analyst", async (req, res) => {
 
     const countResult = await query(countQueryStr, countParams);
     validateQueryResult(countResult, { requireRows: false });
-    const total = parseInt(countResult.rows[0]?.total || 0);
-    const totalPages = Math.ceil(total / limitNum);
+    // FAIL-FAST: Require explicit total count; don't default to 0 (masks missing data)
+    const rawTotal2 = countResult.rows[0]?.total;
+    const total2 = rawTotal2 != null ? parseInt(rawTotal2) : null;
+    if (total2 == null) {
+      return sendPaginated(res, [], {
+        limit: limitNum,
+        offset,
+        total: 0,
+        page: pageNum,
+        totalPages: 0,
+        error: "missing_count_data",
+        message: "Count query returned no data; analyst sentiment total is unavailable",
+      }, 503);
+    }
+    const totalPages = Math.ceil(total2 / limitNum);
 
     const result = await query(queryStr, params);
     validateQueryResult(result, { requireRows: false });
@@ -222,7 +248,7 @@ router.get("/analyst", async (req, res) => {
     return sendPaginated(res, result.rows || [], {
       page: pageNum,
       limit: limitNum,
-      total,
+      total: total2,
       totalPages,
       offset: offset,
     });

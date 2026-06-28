@@ -2292,17 +2292,19 @@ router.get("/performance", async (req, res) => {
     });
 
     // E10 FIX: Recalculate win_rate to include open positions
-    const closedWins = perf.winning_trades || 0;
-    const closedLosses = perf.losing_trades || 0;
-    const openWins = openStats.open_wins || 0;
-    const openLosses = openStats.open_losses || 0;
+    // FAIL-FAST: Require explicit trade counts; don't default to 0
+    const closedWins = perf.winning_trades !== null && perf.winning_trades !== undefined ? perf.winning_trades : null;
+    const closedLosses = perf.losing_trades !== null && perf.losing_trades !== undefined ? perf.losing_trades : null;
+    const openWins = openStats.open_wins !== null && openStats.open_wins !== undefined ? openStats.open_wins : null;
+    const openLosses = openStats.open_losses !== null && openStats.open_losses !== undefined ? openStats.open_losses : null;
 
-    const totalTrades = closedWins + closedLosses + openWins + openLosses;
-    const totalWins = closedWins + openWins;
-    const winRateIncludingOpen =
-      totalTrades > 0
+    // FAIL-FAST: Require all trade counts to calculate win rate; don't default to 0
+    const hasCompleteTradeData = closedWins != null && closedLosses != null && openWins != null && openLosses != null;
+    const totalTrades = hasCompleteTradeData ? closedWins + closedLosses + openWins + openLosses : null;
+    const totalWins = hasCompleteTradeData ? closedWins + openWins : null;
+    const winRateIncludingOpen = hasCompleteTradeData && totalTrades > 0
         ? parseFloat(((totalWins / totalTrades) * 100).toFixed(2))
-        : 0;
+        : (hasCompleteTradeData ? 0 : null);
 
     // CRITICAL: Validate essential risk metrics are present
     const criticalPerfMetrics = [
@@ -2322,7 +2324,7 @@ router.get("/performance", async (req, res) => {
       // Trade counts (closed + open)
       total_trades: totalTrades,
       winning_trades: totalWins,
-      losing_trades: closedLosses + openLosses,
+      losing_trades: hasCompleteTradeData ? closedLosses + openLosses : null,
       closed_trades: perf.total_trades !== null && perf.total_trades !== undefined ? perf.total_trades : null,
       open_positions: openStats.open_count !== null && openStats.open_count !== undefined ? openStats.open_count : null,
 
@@ -3185,37 +3187,37 @@ router.get("/rejection-funnel", async (req, res) => {
 
     return sendSuccess(res, {
       date: eval_date,
-      total_signals: row.total || 0,
+      total_signals: row.total !== null && row.total !== undefined ? row.total : null,
       tiers: [
         {
           tier: 1,
           name: "Data Quality",
-          pass: row.t1_pass || 0,
-          reject: row.t1_reject || 0,
+          pass: row.t1_pass !== null && row.t1_pass !== undefined ? row.t1_pass : null,
+          reject: row.t1_reject !== null && row.t1_reject !== undefined ? row.t1_reject : null,
         },
         {
           tier: 2,
           name: "Market Health",
-          pass: row.t2_pass || 0,
-          reject: row.t2_reject || 0,
+          pass: row.t2_pass !== null && row.t2_pass !== undefined ? row.t2_pass : null,
+          reject: row.t2_reject !== null && row.t2_reject !== undefined ? row.t2_reject : null,
         },
         {
           tier: 3,
           name: "Trend Confirmation",
-          pass: row.t3_pass || 0,
-          reject: row.t3_reject || 0,
+          pass: row.t3_pass !== null && row.t3_pass !== undefined ? row.t3_pass : null,
+          reject: row.t3_reject !== null && row.t3_reject !== undefined ? row.t3_reject : null,
         },
         {
           tier: 4,
           name: "Signal Quality",
-          pass: row.t4_pass || 0,
-          reject: row.t4_reject || 0,
+          pass: row.t4_pass !== null && row.t4_pass !== undefined ? row.t4_pass : null,
+          reject: row.t4_reject !== null && row.t4_reject !== undefined ? row.t4_reject : null,
         },
         {
           tier: 5,
           name: "Portfolio Health",
-          pass: row.t5_pass || 0,
-          reject: row.t5_reject || 0,
+          pass: row.t5_pass !== null && row.t5_pass !== undefined ? row.t5_pass : null,
+          reject: row.t5_reject !== null && row.t5_reject !== undefined ? row.t5_reject : null,
         },
       ],
     });
