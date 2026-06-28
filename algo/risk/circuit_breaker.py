@@ -455,8 +455,20 @@ class CircuitBreaker:
     def _check_total_risk(self, current_date: Any, cur: Any) -> dict[str, Any]:
         """Sum of (entry - stop) * qty across open positions vs portfolio value."""
         cur.execute(
+            "SELECT COUNT(*) FROM algo_positions WHERE status = %s AND current_stop_price IS NULL",
+            (PositionStatus.OPEN.value,),
+        )
+        missing_stops_count = cur.fetchone()[0]
+        if missing_stops_count > 0:
+            logger.critical(
+                f"[TOTAL_RISK_CHECK] {missing_stops_count} open positions have NULL current_stop_price. "
+                "Cannot calculate risk with missing current stops. Halting to prevent blind risk-taking."
+            )
+            return {"halted": True, "reason": f"{missing_stops_count} positions missing current stops — fail-closed halt"}
+
+        cur.execute(
             """
-            SELECT COALESCE(SUM(GREATEST(0, (t.entry_price - COALESCE(p.current_stop_price, t.stop_loss_price)) * p.quantity)), 0)
+            SELECT COALESCE(SUM(GREATEST(0, (t.entry_price - p.current_stop_price) * p.quantity)), 0)
             FROM algo_positions p
             JOIN algo_trades t ON t.trade_id = ANY(p.trade_ids_arr)
             WHERE p.status = %s

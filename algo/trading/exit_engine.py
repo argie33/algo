@@ -1073,7 +1073,14 @@ class ExitEngine:
 
         cur_close = Decimal(str(rows[0][0]))
 
-        recent_high = max(Decimal(str(r[1])) if r[1] is not None else Decimal(str(r[0])) for r in rows[:5])
+        valid_highs = [Decimal(str(r[1])) for r in rows[:5] if r[1] is not None]
+        if not valid_highs:
+            raise RuntimeError(
+                "Pullback detection failed: no valid high prices in recent 5 days. "
+                "Cannot assess pullback with missing market data. Verify price_daily has complete high prices."
+            )
+
+        recent_high = max(valid_highs)
 
         if recent_high <= 0:
             raise RuntimeError(
