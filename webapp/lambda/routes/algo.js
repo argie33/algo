@@ -1799,8 +1799,13 @@ router.get("/data-status", async (req, res) => {
 
     const counts = { ok: 0, stale: 0, empty: 0, error: 0 };
     validated.forEach((r) => {
-      const status = r.status || "error";
-      counts[status] = (counts[status] ?? 0) + 1;
+      if (!r.status) {
+        throw new Error(`Missing status for table ${r.table_name} - data quality issue`);
+      }
+      if (!counts.hasOwnProperty(r.status)) {
+        throw new Error(`Unknown status "${r.status}" for table ${r.table_name}`);
+      }
+      counts[r.status]++;
     });
 
     const criticalStale = validated.filter(
