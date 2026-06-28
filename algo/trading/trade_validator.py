@@ -67,7 +67,7 @@ class TradeValidator:
             raise ValueError("CRITICAL: min_days_before_reentry_same_symbol config missing or None.")
         self.min_days_before_reentry_same_symbol = int(config["min_days_before_reentry_same_symbol"])
 
-    def validate_entry_preconditions(
+    def validate_entry_preconditions(  # noqa: C901 - validation of all trade parameters requires multiple checks
         self,
         symbol: str,
         entry_price: Decimal | float,
@@ -100,8 +100,8 @@ class TradeValidator:
         elif not isinstance(entry_date, (_date, type(None))):
             raise ValueError(f"entry_date must be a date or None, got {type(entry_date).__name__}: {entry_date!r}")
 
-        # Validate date ordering
-        if entry_date < signal_date:
+        # Validate date ordering (signal_date guaranteed to be a date by this point)
+        if entry_date is not None and signal_date is not None and entry_date < signal_date:
             return (
                 False,
                 f"Invalid: entry_date {entry_date} must be >= signal_date {signal_date}",

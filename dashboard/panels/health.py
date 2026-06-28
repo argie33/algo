@@ -584,7 +584,7 @@ def _format_exec_history_summary(exec_hist: list[Any] | None) -> list[Text]:
         wr_h = None
     else:
         wr_h = n_ok / total_h * 100
-    wc_h = G if wr_h >= 80 else (Y if wr_h >= 50 else R)
+    wc_h = G if wr_h is not None and wr_h >= 80 else (Y if wr_h is not None and wr_h >= 50 else R)
 
     badges = []
     for r in valid_hist[:7]:

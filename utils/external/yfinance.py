@@ -24,7 +24,7 @@ from utils.external.yfinance_circuit_breaker import get_circuit_breaker
 logger = logging.getLogger(__name__)
 
 
-class TimeoutHTTPAdapter(HTTPAdapter):
+class TimeoutHTTPAdapter(HTTPAdapter):  # type: ignore - HTTPAdapter has incomplete type stubs in requests library
     """HTTP adapter that enforces timeout on all requests.
 
     Prevents yfinance.Ticker.info from hanging indefinitely on certain symbols.

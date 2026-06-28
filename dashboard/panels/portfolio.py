@@ -76,7 +76,7 @@ from ..utilities import (
 from ._helpers import _error_panel
 
 
-def _calculate_adjusted_win_rate(perf: dict[str, Any] | None, pos: dict[str, Any] | None) -> tuple[float, int, int]:
+def _calculate_adjusted_win_rate(perf: dict[str, Any] | None, pos: dict[str, Any] | None) -> tuple[float | None, int, int]:
     """E10 Fix: Include losing open positions in win rate calculation.
 
     Win rate should reflect all active positions (closed + open losses), not just closed trades.
@@ -290,7 +290,7 @@ def panel_performance_spark(  # noqa: C901
     avg_loss_v = perf.get("avg_loss")
     avg_win_s = f"{avg_win_v:.1f}%" if avg_win_v is not None else "--"
     avg_loss_s = f"{avg_loss_v:.1f}%" if avg_loss_v is not None else "--"
-    wrc = G if wr_v >= 45 else (Y if wr_v >= 40 else R)
+    wrc = G if wr_v is not None and wr_v >= 45 else (Y if wr_v is not None and wr_v >= 40 else R)
     open_l_s = f" [dim](+{losing_open} open L)[/]" if losing_open > 0 else ""
 
     # Header line: trade summary
@@ -559,7 +559,7 @@ def panel_portfolio_perf_expanded(  # noqa: C901
             raise
         wr_label = "Win Rate (adj.):" if losing_open > 0 else "Win Rate:"
 
-        wrc = G if wr_v >= 45 else (Y if wr_v >= 40 else R)
+        wrc = G if wr_v is not None and wr_v >= 45 else (Y if wr_v is not None and wr_v >= 40 else R)
         pf_c = G if pf is not None and pf >= 1.5 else (Y if pf is not None and pf >= 1.0 else R)
         exp_c = G if (exp is None or exp >= 0) else R
         str_c = G if streak >= 0 else R
