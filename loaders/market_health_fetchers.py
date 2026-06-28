@@ -155,28 +155,19 @@ class YieldCurveFetcher:
             dict with yield data keyed by date (may be empty if data unavailable/incomplete).
             Yield curve is OPTIONAL enrichment—returns empty dict rather than raising on data issues.
         """
-        try:
-            result = self.breaker.execute(
-                fetch_func=lambda: self._fetch_yield_curve_data(start, end),
-                importance=DataImportance.OPTIONAL,
-                fallback_value=None,
+        result = self.breaker.execute(
+            fetch_func=lambda: self._fetch_yield_curve_data(start, end),
+            importance=DataImportance.OPTIONAL,
+            fallback_value=None,
+        )
+        if result is None:
+            raise RuntimeError(f"Yield curve data unavailable for {start} to {end} - circuit breaker exhausted")
+        if not isinstance(result, dict):
+            raise ValueError(
+                f"Yield curve fetch returned invalid type {type(result).__name__}. "
+                f"Expected dict, got {result!r}"
             )
-            if result is None:
-                logger.debug(f"Yield curve data unavailable for {start} to {end} - circuit breaker exhausted")
-                return {}
-            if not isinstance(result, dict):
-                logger.warning(
-                    f"Yield curve fetch returned invalid type {type(result).__name__}. "
-                    f"Expected dict, got {result!r}. Returning empty dict for optional enrichment."
-                )
-                return {}
-            return result
-        except RuntimeError as e:
-            logger.warning(f"Yield curve fetch failed (optional enrichment): {e}")
-            return {}
-        except Exception as e:
-            logger.warning(f"Yield curve fetch error (optional enrichment): {e}")
-            return {}
+        return result
 
     def _fetch_yield_curve_data(self, start: date, end: date) -> dict[str, Any]:
         """Internal yield curve fetch implementation.
@@ -190,8 +181,7 @@ class YieldCurveFetcher:
 
             fred_api_key = __import__("os").getenv("FRED_API_KEY")
             if not fred_api_key:
-                logger.debug("FRED_API_KEY not configured — yield curve unavailable (optional enrichment)")
-                return {}
+                raise RuntimeError("FRED_API_KEY not configured — cannot fetch yield curve")
 
             url = "https://www.alphavantage.co/query"
             params = {
@@ -203,8 +193,7 @@ class YieldCurveFetcher:
             data = response.json()
 
             if "data" not in data:
-                logger.debug("[YIELD_CURVE] No data field in API response — yield curve unavailable")
-                return {}
+                raise ValueError(f"[YIELD_CURVE] No data field in API response: {data}")
 
             result = {}
             incomplete_dates = []
@@ -229,8 +218,7 @@ class YieldCurveFetcher:
                 logger.info(f"[YIELD_CURVE] Fetched {len(result)} dates with complete yield data")
             return result
         except Exception as e:
-            logger.debug(f"Yield curve fetch failed (optional enrichment): {e}")
-            return {}
+            raise RuntimeError(f"Yield curve fetch failed: {e}") from e
 
 
 class BreadthFetcher:
@@ -269,8 +257,7 @@ class BreadthFetcher:
                 )
                 rows = cur.fetchall()
                 if not rows:
-                    logger.debug("[BREADTH_FETCHER] No breadth data available in trend_template_data")
-                    return {}
+                    raise ValueError(f"[BREADTH_FETCHER] No breadth data available for {start} to {end}")
 
                 result = {}
                 for row in rows:
@@ -297,5 +284,4 @@ class BreadthFetcher:
                 logger.info(f"[BREADTH_FETCHER] Fetched breadth for {len(result)} dates from trend_template_data")
                 return result
         except Exception as e:
-            logger.warning(f"[BREADTH_FETCHER] Failed to fetch breadth data: {e}. Breadth is optional enrichment, skipping.")
-            return {}
+            raise RuntimeError(f"[BREADTH_FETCHER] Failed to fetch breadth data: {e}") from e
