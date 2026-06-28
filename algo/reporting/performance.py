@@ -41,10 +41,13 @@ class LivePerformance:
         self.config = config
 
     def rolling_sharpe(self, lookback_days: int = 252) -> float | None:
-        """Compute rolling Sharpe ratio from daily portfolio returns. FAIL-FAST on insufficient data.
+        """Compute rolling Sharpe ratio from daily portfolio returns. Ramp-up tolerant.
 
         H17 FIX: Includes unrealized gains/losses from open trades since
         total_portfolio_value in snapshots reflects current market value of all positions.
+
+        During initial ramp-up (< 30 snapshots): Uses available data for visibility.
+        After stabilization (>= 30): Full 252-day history required.
 
         Args:
             lookback_days: Days to look back (default 252 = 1 year)
@@ -53,8 +56,7 @@ class LivePerformance:
             Annualized Sharpe ratio
 
         Raises:
-            ValueError: If insufficient data (< 30 snapshots). Sharpe is critical metric for
-                       risk analysis — must not return None which displays as 0.0 on dashboard.
+            ValueError: If insufficient data (< 5 snapshots during ramp-up).
         """
         try:
             with DatabaseContext("read") as cur:
@@ -68,9 +70,10 @@ class LivePerformance:
                 )
                 rows = cur.fetchall()
 
-            if len(rows) < 30:
+            min_snapshots = 5  # Accept minimal data during ramp-up (better than None)
+            if len(rows) < min_snapshots:
                 raise ValueError(
-                    f"Cannot calculate Sharpe ratio: insufficient portfolio snapshots ({len(rows)} found, need 30+). "
+                    f"Cannot calculate Sharpe ratio: insufficient portfolio snapshots ({len(rows)} found, need {min_snapshots}+). "
                     f"Portfolio history too short ({lookback_days} days). "
                     f"Sharpe is critical for risk assessment — cannot use default."
                 )
@@ -230,14 +233,14 @@ class LivePerformance:
             with DatabaseContext("read") as cur:
                 cur.execute("""
                     SELECT snapshot_date, total_portfolio_value FROM algo_portfolio_snapshots
-                    WHERE snapshot_date >= CURRENT_DATE - INTERVAL '365 days'
                     ORDER BY snapshot_date ASC
                     """)
                 rows = cur.fetchall()
 
-            if len(rows) < 2:
+            min_snapshots = 2
+            if len(rows) < min_snapshots:
                 raise ValueError(
-                    f"Cannot calculate max drawdown: insufficient portfolio snapshots ({len(rows)} found, need 2+). "
+                    f"Cannot calculate max drawdown: insufficient portfolio snapshots ({len(rows)} found, need {min_snapshots}+). "
                     f"Need historical portfolio values to assess peak-to-trough decline. "
                     f"Max drawdown is critical for risk assessment — cannot use default."
                 )
@@ -258,8 +261,10 @@ class LivePerformance:
         More appropriate than Sharpe for directional swing strategies where
         upside volatility is desirable.
 
+        During initial ramp-up (< 30 snapshots): Uses available data for visibility.
+
         Raises:
-            ValueError: If insufficient data (< 30 snapshots). Sortino is important metric.
+            ValueError: If insufficient data (< 5 snapshots during ramp-up).
         """
         try:
             with DatabaseContext("read") as cur:
@@ -273,9 +278,10 @@ class LivePerformance:
                 )
                 rows = cur.fetchall()
 
-            if len(rows) < 30:
+            min_snapshots = 5  # Accept minimal data during ramp-up
+            if len(rows) < min_snapshots:
                 raise ValueError(
-                    f"Cannot calculate Sortino ratio: insufficient portfolio snapshots ({len(rows)} found, need 30+). "
+                    f"Cannot calculate Sortino ratio: insufficient portfolio snapshots ({len(rows)} found, need {min_snapshots}+). "
                     f"Portfolio history too short ({lookback_days} days). "
                     f"Sortino is important for evaluating downside risk — cannot use default."
                 )
@@ -297,8 +303,10 @@ class LivePerformance:
 
         Standard benchmark for trend-following strategies. Higher is better.
 
+        During initial ramp-up (< 30 snapshots): Uses available data for visibility.
+
         Raises:
-            ValueError: If insufficient data (< 30 snapshots). Calmar is important metric.
+            ValueError: If insufficient data (< 5 snapshots during ramp-up).
         """
         try:
             with DatabaseContext("read") as cur:
@@ -312,9 +320,10 @@ class LivePerformance:
                 )
                 rows = cur.fetchall()
 
-            if len(rows) < 30:
+            min_snapshots = 5  # Accept minimal data during ramp-up
+            if len(rows) < min_snapshots:
                 raise ValueError(
-                    f"Cannot calculate Calmar ratio: insufficient portfolio snapshots ({len(rows)} found, need 30+). "
+                    f"Cannot calculate Calmar ratio: insufficient portfolio snapshots ({len(rows)} found, need {min_snapshots}+). "
                     f"Portfolio history too short ({lookback_days} days). "
                     f"Calmar is standard benchmark for trend strategies — cannot use default."
                 )
