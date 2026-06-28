@@ -227,50 +227,40 @@ class YieldCurveFetcher:
     def _fetch_yield_curve_data(self, start: date, end: date) -> dict[str, Any]:
         """Internal yield curve fetch implementation.
 
+        Fetches from database economic_data table (T10Y2Y series).
         OPTIONAL enrichment: Skip dates with missing yield data (common for weekends/holidays/recent dates).
         Return available data only; incomplete dates are silently skipped (not an error for optional data).
         """
         try:
-            import pandas as pd
-            import requests
-
-            fred_api_key = __import__("os").getenv("FRED_API_KEY")
-            if not fred_api_key:
-                raise RuntimeError("FRED_API_KEY not configured — cannot fetch yield curve")
-
-            url = "https://www.alphavantage.co/query"
-            params = {
-                "function": "TREASURY_YIELD",
-                "interval": "daily",
-                "apikey": fred_api_key,
-            }
-            response = requests.get(url, params=params, timeout=10)
-            data = response.json()
-
-            if "data" not in data:
-                raise ValueError(f"[YIELD_CURVE] No data field in API response: {data}")
+            from utils.db import DatabaseContext
 
             result = {}
-            incomplete_dates = []
-            for item in data["data"]:
-                if start <= pd.to_datetime(item["date"]).date() <= end:
-                    yield_2y = item.get("2Y")
-                    yield_10y = item.get("10Y")
+            with DatabaseContext("read") as cur:
+                # Fetch 10-year minus 2-year yield spread from economic_data table
+                # T10Y2Y is the most reliable source (computed from Treasury yields)
+                cur.execute(
+                    """
+                    SELECT date, value::float as yield_spread
+                    FROM economic_data
+                    WHERE series_id = 'T10Y2Y'
+                      AND date >= %s
+                      AND date <= %s
+                    ORDER BY date
+                    """,
+                    (start, end),
+                )
 
-                    if yield_2y is None or yield_10y is None:
-                        incomplete_dates.append(item["date"])
-                        continue
+                for row in cur.fetchall():
+                    d = row[0].isoformat() if hasattr(row[0], "isoformat") else str(row[0])
+                    if row[1] is not None:
+                        result[d] = {
+                            "yield_2y": None,  # Not available separately in this source
+                            "yield_10y": None,  # Not available separately in this source
+                            "yield_spread": float(row[1]),  # This is the 10Y - 2Y spread
+                        }
 
-                    result[item["date"]] = {
-                        "yield_2y": float(yield_2y),
-                        "yield_10y": float(yield_10y),
-                        "yield_spread": float(yield_10y) - float(yield_2y),
-                    }
-
-            if incomplete_dates:
-                logger.debug(f"[YIELD_CURVE] Skipped {len(incomplete_dates)} dates with incomplete data (optional enrichment)")
             if result:
-                logger.info(f"[YIELD_CURVE] Fetched {len(result)} dates with complete yield data")
+                logger.info(f"[YIELD_CURVE] Fetched {len(result)} dates with yield spread from T10Y2Y series")
             return result
         except Exception as e:
             logger.warning(f"Yield curve fetch failed: {e}. Returning empty dict for optional enrichment.")
