@@ -112,13 +112,21 @@ class MarketEventHandler:
         """
         try:
             # CRITICAL: Check if Alpaca credentials are available
-            # If credentials are empty/None (e.g., paper trading, local testing),
-            # skip the API call and return None (no circuit breaker triggered)
+            # In production mode, missing credentials is a fatal error — cannot verify circuit breaker status
+            # In dry-run/testing mode, credentials may intentionally be absent
             if not self.alpaca_key or not self.alpaca_secret:
+                import os
+                dry_run_enabled = os.getenv("ORCHESTRATOR_DRY_RUN", "").lower() in ("true", "1", "yes")
+                if not dry_run_enabled:
+                    raise RuntimeError(
+                        "[CIRCUIT_BREAKER CRITICAL] Alpaca credentials not configured. "
+                        "Cannot verify market circuit breaker status in production mode. "
+                        "Algorithm cannot proceed without circuit breaker verification. "
+                        "Configure Alpaca credentials or set ORCHESTRATOR_DRY_RUN=true for testing."
+                    )
                 logger.warning(
-                    "[MARKET_CIRCUIT_BREAKER] Alpaca credentials not configured. "
-                    "Market circuit breaker check skipped (assuming no breaker active). "
-                    "For production use, configure Alpaca API credentials."
+                    "[MARKET_CIRCUIT_BREAKER DRY_RUN] Alpaca credentials not configured. "
+                    "Market circuit breaker check skipped (dry-run mode only)."
                 )
                 return None
 
@@ -405,13 +413,29 @@ class MarketEventHandler:
             }
             resp = requests.get(url, headers=headers, timeout=get_api_timeout())
             if resp.status_code != 200:
-                return None
+                # CRITICAL: Cannot determine delisting status — must fail fast
+                raise RuntimeError(
+                    f"[DELISTING CHECK CRITICAL] Cannot verify delisting status for {symbol}: "
+                    f"API returned {resp.status_code}. Cannot trade without delisting verification. "
+                    f"Check Alpaca API availability and retry."
+                )
 
-            data = resp.json()
+            try:
+                data = resp.json()
+            except (json.JSONDecodeError, ValueError) as e:
+                raise RuntimeError(
+                    f"[DELISTING CHECK CRITICAL] Cannot parse delisting status for {symbol}: "
+                    f"Invalid JSON from API: {e}. Cannot verify symbol status."
+                ) from e
+
             status = data.get("status")
             if not status:
-                logger.warning(f"[MARKET_EVENTS] API response missing 'status' field for {symbol}")
-                return None
+                # CRITICAL: API contract violation — cannot determine delisting status
+                raise RuntimeError(
+                    f"[DELISTING CHECK CRITICAL] API response missing 'status' field for {symbol}. "
+                    f"Cannot verify delisting status. API contract violated or symbol data incomplete. "
+                    f"Cannot trade without delisting verification."
+                )
             status = status.upper()
 
             if status in ("INACTIVE", "DELISTED"):

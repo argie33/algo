@@ -72,10 +72,11 @@ class SignalsDailyLoader(OptimalLoader):
                         "This is expected on first run; subsequent runs will have quality validation."
                     )
                 elif sqs_status[0] not in ("COMPLETED", "success", "OK"):
-                    logger.critical(
-                        f"signal_quality_scores loader status is '{sqs_status[0]}' (not COMPLETED). "
-                        f"Proceeding with NULL quality scores represents degraded signal validation. "
-                        f"AUDIT: Trading on unvalidated signals. Trader awareness required."
+                    raise RuntimeError(
+                        f"signal_quality_scores loader failed with status '{sqs_status[0]}' (not COMPLETED). "
+                        "Cannot generate buy/sell signals without quality validation. "
+                        "Signal validation is CRITICAL for trading decisions. "
+                        "Upstream loader must complete successfully before signal generation can proceed."
                     )
 
             now_utc = datetime.now(timezone.utc)

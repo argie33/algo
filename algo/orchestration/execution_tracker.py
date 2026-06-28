@@ -37,7 +37,12 @@ class ExecutionTracker:
             hub = get_event_hub()
             hub.publish(PhaseStartedEvent(phase_num, name))
         except Exception as e:
-            logger.warning(f"Could not publish phase_started event: {e}")
+            # CRITICAL: Phase event publishing failure disables monitoring/dashboard tracking
+            raise RuntimeError(
+                f"[EXECUTION_TRACKER CRITICAL] Failed to publish phase_started event for phase {phase_num}: {e}. "
+                f"Dashboard and monitoring systems cannot track phase execution. "
+                f"Orchestration event hub required for operational visibility. Check event hub service."
+            ) from e
 
     def log_phase_result(self, phase_num: int | str, name: str, status: str = "OK", summary: str = "") -> None:
         """Log phase result. Publishes phase_completed event."""
@@ -72,7 +77,12 @@ class ExecutionTracker:
             )
             hub.publish(PhaseCompletedEvent(phase_num, name, phase_status, summary))
         except Exception as e:
-            logger.warning(f"Could not publish phase_completed event: {e}")
+            # CRITICAL: Phase event publishing failure disables monitoring/dashboard tracking
+            raise RuntimeError(
+                f"[EXECUTION_TRACKER CRITICAL] Failed to publish phase_completed event for phase {phase_num}: {e}. "
+                f"Dashboard and monitoring systems cannot track phase completion. "
+                f"Orchestration event hub required for operational visibility. Check event hub service."
+            ) from e
 
     def get_phase_results(self) -> dict[int | str, Any]:
         """Get phase results."""

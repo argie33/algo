@@ -130,7 +130,12 @@ class StalenessChecker(BaseCheck):
             try:
                 cur.execute(f"SAVEPOINT {sp}")
             except Exception as e:
-                logger.warning(f"Failed to create SAVEPOINT {sp}: {e} — staleness check will run without transaction protection")
+                # CRITICAL: Cannot create SAVEPOINT — transaction protection required for data patrol integrity
+                raise RuntimeError(
+                    f"[DATA_PATROL CRITICAL] Cannot create SAVEPOINT {sp} for staleness check: {e}. "
+                    f"Database transaction safety is required. Data patrol checks must run with rollback "
+                    f"capability to prevent partial state corruption. Check database connection and retry."
+                ) from e
             try:
                 max_days = cast(int, self.config.get(config_key, 7))
                 tbl_safe = assert_safe_table(tbl)
@@ -160,14 +165,24 @@ class StalenessChecker(BaseCheck):
                         latest = None
 
                 if not latest:
+                    # CRITICAL: Cannot parse timestamp — data freshness cannot be verified
+                    # Staleness check failure is fatal for critical signal tables
+                    severity_on_parse_fail = CRIT if tbl in critical_signal_tables else ERROR
+                    error_msg = (
+                        f"[DATA_PATROL CRITICAL] {tbl}: Cannot parse timestamp ({latest_str}). "
+                        f"Data freshness cannot be verified. Staleness check must fail for "
+                        f"incomplete/corrupted timestamp data. Cannot assume data is fresh without validation."
+                    )
                     self.log(
                         "staleness",
-                        WARN,
+                        severity_on_parse_fail,
                         tbl,
-                        f"{tbl} timestamp parse failed: {latest_str}",
+                        error_msg,
                         {"latest": latest_str},
                     )
-                    continue
+                    # For critical tables, raise immediately to halt algo
+                    if tbl in critical_signal_tables:
+                        raise RuntimeError(error_msg)
 
                 age = (today - latest).days
                 if age > max_days:

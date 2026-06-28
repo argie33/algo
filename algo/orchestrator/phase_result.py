@@ -8,9 +8,9 @@ from typing import Any
 class PhaseResult:
     """Standardized result envelope every orchestrator phase returns."""
 
-    phase_num: int | str
-    phase_name: str
-    status: str  # 'ok' | 'halted' | 'degraded' | 'skipped'
+    phase_num: int | str | None = None
+    phase_name: str | None = None
+    status: str | None = None  # 'ok' | 'halted' | 'degraded' | 'skipped'
     data: dict[str, Any] = field(default_factory=dict)
     halted: bool = False
     error: str | None = None
@@ -18,16 +18,16 @@ class PhaseResult:
 
     def __init__(
         self,
-        phase_num: int | str = None,
-        phase_name: str = None,
-        status: str = None,
-        data: dict[str, Any] = None,
+        phase_num: int | str | None = None,
+        phase_name: str | None = None,
+        status: str | None = None,
+        data: dict[str, Any] | None = None,
         halted: bool = False,
         error: str | None = None,
-        dependencies: list[int | str] = None,
+        dependencies: list[int | str] | None = None,
         # Accept alternate field names for backwards compatibility
-        phase_number: int | str = None,
-        is_error: bool = None,
+        phase_number: int | str | None = None,
+        is_error: bool | None = None,
     ) -> None:
         """Initialize phase result, accepting both naming conventions."""
         self.phase_num = phase_num or phase_number
@@ -40,7 +40,7 @@ class PhaseResult:
 
     # Support accessing phase_number as an alias for phase_num
     @property
-    def phase_number(self) -> int | str:
+    def phase_number(self) -> int | str | None:
         """Backwards compatibility: phase_number is an alias for phase_num."""
         return self.phase_num
 

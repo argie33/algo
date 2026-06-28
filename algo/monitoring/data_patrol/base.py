@@ -44,8 +44,8 @@ class BaseCheck(ABC):
     Subclasses implement specific data quality/integrity checks.
     """
 
-    def __init__(self, config: "PatrolConfig" = None):
-        self.config = config or {}
+    def __init__(self, config: "PatrolConfig | None" = None):
+        self.config: "PatrolConfig" = config or {}
         self.results: list[CheckResult] = []
 
     @abstractmethod
@@ -76,9 +76,9 @@ class BaseCheck(ABC):
 class DataPatrol:
     """Data patrol orchestrator - runs all data quality checks."""
 
-    def __init__(self, config: "PatrolConfig" = None) -> None:
+    def __init__(self, config: "PatrolConfig | None" = None) -> None:
         """Initialize data patrol."""
-        self.config = config or {}
+        self.config: "PatrolConfig" = config or {}
         self.issues: list[CheckResult] = []
 
     def run_checks(self) -> None:
