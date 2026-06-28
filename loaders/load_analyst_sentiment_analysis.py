@@ -84,8 +84,12 @@ class AnalystSentimentLoader(OptimalLoader):
             raise TransientAPIError(f"Connection error fetching ticker for {symbol}") from e
 
         if not ticker:
-            logger.debug(f"[ANALYST_SENTIMENT] Ticker not found for {symbol} (skipping)")
-            return None
+            logger.debug(f"[ANALYST_SENTIMENT] No ticker available for {symbol} — likely no analyst coverage")
+            return {
+                "data_unavailable": True,
+                "reason": "no_ticker_found",
+                "symbol": symbol
+            }
 
         try:
             recs = ticker.recommendations
@@ -97,8 +101,12 @@ class AnalystSentimentLoader(OptimalLoader):
             raise TransientAPIError(f"Connection error fetching recommendations for {symbol}") from e
 
         if recs is None or recs.empty:
-            logger.debug(f"[ANALYST_SENTIMENT] No analyst recommendations for {symbol} (skipping)")
-            return None
+            logger.debug(f"[ANALYST_SENTIMENT] No analyst recommendations for {symbol} — no coverage available")
+            return {
+                "data_unavailable": True,
+                "reason": "no_recommendations_available",
+                "symbol": symbol
+            }
 
         # Group by date and aggregate sentiment counts
         sentiment_by_date: dict[Any, dict[str, int]] = {}
@@ -160,8 +168,12 @@ class AnalystSentimentLoader(OptimalLoader):
             )
 
         if not results:
-            logger.debug(f"[ANALYST_SENTIMENT] No sentiment data aggregated for {symbol} (skipping)")
-            return None
+            logger.debug(f"[ANALYST_SENTIMENT] No sentiment data aggregated for {symbol}")
+            return {
+                "data_unavailable": True,
+                "reason": "no_aggregated_sentiment_data",
+                "symbol": symbol
+            }
 
         return results
 

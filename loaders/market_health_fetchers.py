@@ -200,8 +200,8 @@ class YieldCurveFetcher:
         """Fetch yield curve data with circuit breaker protection.
 
         Returns:
-            dict with yield data keyed by date (may be empty if data unavailable/incomplete).
-            Yield curve is OPTIONAL enrichment—returns empty dict rather than raising on data issues.
+            dict with yield data keyed by date, or explicit unavailability marker.
+            Always includes "_data_unavailable" marker when data cannot be fetched.
         """
         try:
             result = self.breaker.execute(
@@ -210,15 +210,15 @@ class YieldCurveFetcher:
                 fallback_value=None,
             )
             if result is None:
-                logger.warning(f"Yield curve data unavailable for {start} to {end} - circuit breaker exhausted. Returning empty dict for optional enrichment.")
-                return {}
+                return {"_data_unavailable": True, "_reason": "circuit_breaker_exhausted"}
             if not isinstance(result, dict):
-                logger.warning(f"Yield curve fetch returned invalid type {type(result).__name__}. Expected dict, got {result!r}. Returning empty dict for optional enrichment.")
-                return {}
+                return {"_data_unavailable": True, "_reason": f"invalid_type_{type(result).__name__}"}
+            # Check if result is empty dict without any data
+            if len(result) == 0:
+                return {"_data_unavailable": True, "_reason": "api_returned_empty_result"}
             return result
         except Exception as e:
-            logger.warning(f"Yield curve fetch failed at circuit breaker level: {e}. Returning empty dict for optional enrichment.")
-            return {}
+            return {"_data_unavailable": True, "_reason": f"exception_{type(e).__name__}"}
 
     def _fetch_yield_curve_data(self, start: date, end: date) -> dict[str, Any]:
         """Internal yield curve fetch implementation.
@@ -369,8 +369,13 @@ class BreadthFetcher:
                 for row in rows:
                     d = row[0].isoformat() if hasattr(row[0], "isoformat") else str(row[0])
                     if row[1] is None or row[2] is None:
-                        logger.debug(f"[BREADTH_FETCHER] Skipping date {d} - missing advances or declines data (optional enrichment)")
-                        continue
+                        msg = (
+                            f"[BREADTH_FETCHER] Data quality issue: advances/declines NULL for {d}. "
+                            f"Cannot compute breadth metrics with gaps. Market breadth requires complete daily data."
+                        )
+                        logger.error(msg)
+                        # Return explicit error marker
+                        return {"_data_unavailable": True, "_reason": f"missing_data_for_{d}"}
 
                     advances = int(row[1])
                     declines = int(row[2])
