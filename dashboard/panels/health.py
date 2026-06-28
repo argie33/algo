@@ -7,6 +7,10 @@ from typing import TYPE_CHECKING, Any, cast
 
 logger = logging.getLogger(__name__)
 
+# Phase status constants to prevent shotgun surgery changes
+PHASE_SUCCESS_STATES = ("success", "completed", "ok")
+PHASE_HALTED_STATES = ("halt", "halted", "warn", "degraded", "skipped")
+
 
 def _var_color(var95: float | None) -> str:
     """Choose color for VaR 95% value: red if ≥4%, yellow if ≥2%, white otherwise."""
@@ -31,11 +35,9 @@ def _format_phase_badge(phase_status: str) -> tuple[str, str]:
         ps_lower = ""
     else:
         ps_lower = phase_status.lower()
-    success_states = ("success", "completed", "ok")
-    halted_states = ("halt", "halted", "warn", "degraded", "skipped")
-    if ps_lower in success_states:
+    if ps_lower in PHASE_SUCCESS_STATES:
         return G, "✓"
-    elif ps_lower in halted_states:
+    elif ps_lower in PHASE_HALTED_STATES:
         return Y, "~"
     else:
         return R, "✗"
@@ -477,8 +479,8 @@ def panel_orch(run: dict[str, Any] | None, cfg: dict[str, Any], risk: dict[str, 
                 if ps_raw is None:
                     ps_raw = ""
                 ps = ps_raw.lower()
-                pc = G if ps in ("success", "completed") else (Y if ps in ("halt", "halted", "warn") else R)
-                pi = "✓" if ps in ("success", "completed") else ("~" if ps in ("halt", "halted", "warn") else "✗")
+                pc = G if ps in PHASE_SUCCESS_STATES else (Y if ps in PHASE_HALTED_STATES else R)
+                pi = "✓" if ps in PHASE_SUCCESS_STATES else ("~" if ps in PHASE_HALTED_STATES else "✗")
                 pbadges.append(f"[{pc}]{pi}{short}[/]")
             # Show halt reason if halted
             halt_r = run.get("halt_reason")
@@ -585,7 +587,7 @@ def _format_exec_history_summary(exec_hist: list[Any] | None) -> list[Text]:
     if not valid_hist:
         return rows
 
-    n_ok = sum(1 for r in valid_hist if _get_status_safe(r) in ("success", "completed"))
+    n_ok = sum(1 for r in valid_hist if _get_status_safe(r) in PHASE_SUCCESS_STATES)
     n_hlt = sum(1 for r in valid_hist if _get_status_safe(r) == "halted")
     n_err = sum(1 for r in valid_hist if _get_status_safe(r) in ("error", "failed"))
     total_h = len(valid_hist)
@@ -602,7 +604,7 @@ def _format_exec_history_summary(exec_hist: list[Any] | None) -> list[Text]:
     badges = []
     for r in valid_hist[:7]:
         s = _get_status_safe(r)
-        if s in ("success", "completed"):
+        if s in PHASE_SUCCESS_STATES:
             badges.append(f"[{G}]OK[/]")
         elif s == "halted":
             badges.append(f"[{Y}]~[/]")
@@ -1233,7 +1235,7 @@ def _format_run_history_summary(valid_hist: list[Any] | None) -> list[Text]:
     if not valid_hist:
         return rows
 
-    n_ok = sum(1 for r in valid_hist if _get_status_safe(r) in ("success", "completed"))
+    n_ok = sum(1 for r in valid_hist if _get_status_safe(r) in PHASE_SUCCESS_STATES)
     n_hlt = sum(1 for r in valid_hist if _get_status_safe(r) == "halted")
     n_err = sum(1 for r in valid_hist if _get_status_safe(r) in ("error", "failed"))
     total_h = len(valid_hist)
@@ -1242,7 +1244,7 @@ def _format_run_history_summary(valid_hist: list[Any] | None) -> list[Text]:
     for r in valid_hist[:7]:
         s = _get_status_safe(r)
         badges.append(
-            f"[{G}]OK[/]" if s in ("success", "completed") else (f"[{Y}]~[/]" if s == "halted" else f"[{R}]X[/]")
+            f"[{G}]OK[/]" if s in PHASE_SUCCESS_STATES else (f"[{Y}]~[/]" if s == "halted" else f"[{R}]X[/]")
         )
 
     wc = G if n_ok == total_h else (Y if n_ok > 0 else R)
@@ -1532,12 +1534,12 @@ def panel_status(  # noqa: C901
             ps = ps_raw.lower()
             sc = (
                 G
-                if ps in ("success", "completed", "ok")
+                if ps in PHASE_SUCCESS_STATES
                 else (Y if ps in ("halt", "halted", "warn", "degraded", "skipped") else R)
             )
             si = (
                 "✓"
-                if ps in ("success", "completed", "ok")
+                if ps in PHASE_SUCCESS_STATES
                 else ("~" if ps in ("halt", "halted", "warn", "degraded", "skipped") else "✗")
             )
             phase_badges.append(f"[{sc}]{si}[dim]{short}[/][/]")
@@ -1556,7 +1558,7 @@ def panel_status(  # noqa: C901
                     pdata = None
             elif not isinstance(pdata, dict) and pdata is not None:
                 pdata = None
-            if err and ps not in ("success", "completed", "ok"):
+            if err and ps not in PHASE_SUCCESS_STATES:
                 rows.append(Text.from_markup(f"  [{sc}]a†³ {err[:62]}[/]"))
             elif ps in ("halt", "halted") and pdata:
                 halt_reason_val = pdata.get("halt_reason")
@@ -1568,7 +1570,7 @@ def panel_status(  # noqa: C901
                 reason = (halt_reason_val if halt_reason_val else (reason_val if reason_val else ""))[:55]
                 if reason:
                     rows.append(Text.from_markup(f"  [{Y}]a†³ {reason}[/]"))
-            elif ps in ("success", "completed", "ok") and pdata:
+            elif ps in PHASE_SUCCESS_STATES and pdata:
                 # Surface a key metric per phase if available
                 for key in (
                     "signals_generated",
@@ -2228,7 +2230,7 @@ def _build_results_panel(  # noqa: C901
 
     valid_hist_e = exec_hist if (exec_hist and not (isinstance(exec_hist, dict) and has_error(exec_hist))) else []
     if valid_hist_e:
-        n_ok = sum(1 for r in valid_hist_e if _get_status_safe(r) in ("success", "completed"))
+        n_ok = sum(1 for r in valid_hist_e if _get_status_safe(r) in PHASE_SUCCESS_STATES)
         wc = G if n_ok == len(valid_hist_e) else (Y if n_ok > 0 else R)
         right_rows.append(
             Text.from_markup(f"[dim]Run history ({len(valid_hist_e)}):[/]  [{wc}]{n_ok}/{len(valid_hist_e)} success[/]")
@@ -2237,8 +2239,8 @@ def _build_results_panel(  # noqa: C901
             s = _get_status_safe(r)
             dt = r.get("started_at")
             dt_s = dt.strftime("%b %d  %I:%M %p") if hasattr(dt, "strftime") else str(dt or "")[:16]
-            ic = G if s in ("success", "completed") else (Y if s == "halted" else R)
-            ii = "v" if s in ("success", "completed") else ("~" if s == "halted" else "x")
+            ic = G if s in PHASE_SUCCESS_STATES else (Y if s == "halted" else R)
+            ii = "v" if s in PHASE_SUCCESS_STATES else ("~" if s == "halted" else "x")
             hr = r.get("halt_reason")
             if hr is None:
                 hr = ""
