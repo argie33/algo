@@ -802,11 +802,11 @@ router.get("/yield-curve-full", async (req, res) => {
       T10Y2Y:
         dataBySeriesAndDate["T10Y2Y"]?.[
           dataBySeriesAndDate["T10Y2Y"].length - 1
-        ]?.value || null,
+        ]?.value ?? null,
       T10Y3M:
         dataBySeriesAndDate["T10Y3M"]?.[
           dataBySeriesAndDate["T10Y3M"].length - 1
-        ]?.value || null,
+        ]?.value ?? null,
     };
 
     // Calculate if curve is inverted

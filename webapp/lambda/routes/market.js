@@ -1754,7 +1754,7 @@ router.get("/correlation", async (req, res) => {
 
       // Build correlation map: (symbol1, symbol2) -> correlation
       const correlationMap = new Map();
-      for (const row of correlationResult.rows || []) {
+      for (const row of correlationResult.rows ?? []) {
         const key = `${row.symbol1}|${row.symbol2}`;
         correlationMap.set(key, row.correlation);
       }
@@ -1785,7 +1785,7 @@ router.get("/correlation", async (req, res) => {
 
             // Look up correlation in both directions
             const key1 = `${symbol1 < symbol2 ? symbol1 : symbol2}|${symbol1 < symbol2 ? symbol2 : symbol1}`;
-            correlation = correlationMap.get(key1) || null;
+            correlation = correlationMap.get(key1) ?? null;
           }
 
           row.push(correlation);
