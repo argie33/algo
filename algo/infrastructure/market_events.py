@@ -190,7 +190,7 @@ class MarketEventHandler:
             if pct_down >= 20.0:
                 return {
                     "level": 3,
-                    "description": "20%+ down  -” market halted for rest of day",
+                    "description": "20%+ down - market halted for rest of day",
                     "pct_down": round(pct_down, 2),
                     "action": "HALT_ALL_ENTRIES",
                     "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -198,7 +198,7 @@ class MarketEventHandler:
             elif pct_down >= 13.0:
                 return {
                     "level": 2,
-                    "description": "13%+ down  -” 15-minute halt",
+                    "description": "13%+ down - 15-minute halt",
                     "pct_down": round(pct_down, 2),
                     "action": "PAUSE_NEW_ENTRIES_15MIN",
                     "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -206,7 +206,7 @@ class MarketEventHandler:
             elif pct_down >= 7.0:
                 return {
                     "level": 1,
-                    "description": "7%+ down  -” 15-minute halt",
+                    "description": "7%+ down - 15-minute halt",
                     "pct_down": round(pct_down, 2),
                     "action": "PAUSE_NEW_ENTRIES_15MIN",
                     "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -323,7 +323,7 @@ class MarketEventHandler:
                     (
                         "SINGLE_STOCK_HALT",
                         datetime.now(timezone.utc),
-                        f"Symbol {symbol} halted  -” pending orders cancelled",
+                        f"Symbol {symbol} halted - pending orders cancelled",
                         "WARN",
                     ),
                 )
@@ -353,14 +353,14 @@ class MarketEventHandler:
                 # L3: Full halt, no new orders, close positions
                 action = "HALT_ALL_ENTRIES"
                 message = (
-                    "Market circuit breaker L3 (20%+ down)  -” halting all new entries and preparing for forced exit"
+                    "Market circuit breaker L3 (20%+ down) - halting all new entries and preparing for forced exit"
                 )
                 severity = "CRITICAL"
                 action_type = "CIRCUIT_BREAKER_L3"
             elif level in (1, 2):
                 # L1/L2: Pause new entries for 15 minutes, tighten stops
                 action = "PAUSE_ENTRIES_15MIN"
-                message = f"Market circuit breaker L{level} ({'7' if level == 1 else '13'}%+ down)  -” pausing new entries for 15 minutes"
+                message = f"Market circuit breaker L{level} ({'7' if level == 1 else '13'}%+ down) - pausing new entries for 15 minutes"
                 severity = "ERROR"
                 action_type = f"CIRCUIT_BREAKER_L{level}"
             else:
