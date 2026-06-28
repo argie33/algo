@@ -1552,7 +1552,8 @@ router.get("/swing-scores", async (req, res) => {
     ensureConnection();
     const pool = getPool();
     const { limit } = paginationConfig.sanitize(req.query.limit, 0, "signals");
-    const minScore = parseFloat(req.query.min_score) || 0;
+    const minScoreRaw = parseFloat(req.query.min_score);
+    const minScore = !isNaN(minScoreRaw) ? minScoreRaw : 0; // Query param default to 0 is acceptable
     const symbol = req.query.symbol ? req.query.symbol.toUpperCase() : null;
 
     let whereClauses = [
@@ -1698,8 +1699,8 @@ router.get("/swing-scores-history", async (req, res) => {
         pass_count: r.pass_count !== null && r.pass_count !== undefined ? r.pass_count : null,
         low_scores: r.score_low !== null && r.score_low !== undefined ? r.score_low : null,
         high_scores: r.score_high !== null && r.score_high !== undefined ? r.score_high : null,
-        medium_scores: r.score_medium || 0,
-        avg_score: r.avg_score || 0,
+        medium_scores: r.score_medium !== null && r.score_medium !== undefined ? r.score_medium : null,
+        avg_score: r.avg_score !== null && r.avg_score !== undefined ? r.avg_score : null,
       })),
     });
   } catch (error) {
@@ -1784,7 +1785,8 @@ router.get("/data-status", async (req, res) => {
 
     const counts = { ok: 0, stale: 0, empty: 0, error: 0 };
     validated.forEach((r) => {
-      counts[r.status] = (counts[r.status] || 0) + 1;
+      const status = r.status || "error";
+      counts[status] = (counts[status] ?? 0) + 1;
     });
 
     const criticalStale = validated.filter(
@@ -3005,7 +3007,7 @@ router.get("/sector-position-warnings", async (req, res) => {
 
     for (const row of sector_counts) {
       const sector = row.sector || "Unknown";
-      const count = row.position_count || 0;
+      const count = row.position_count !== null && row.position_count !== undefined ? row.position_count : 0;
 
       if (count >= max_per_sector) {
         at_cap.push({
