@@ -671,11 +671,19 @@ def run(
         # Step 4: Generate institutional daily report
         _generate_daily_report(run_date, log_phase_result_fn)
 
-        # Step 5: Compute and log live performance metrics
-        _compute_performance_metrics(config, run_date, log_phase_result_fn)
+        # Step 5: Compute and log live performance metrics (always run, even on non-trading days)
+        try:
+            _compute_performance_metrics(config, run_date, log_phase_result_fn)
+        except Exception as e:
+            logger.warning(f"[PHASE 9] Performance metrics computation failed: {e}")
+            log_phase_result_fn(9, "performance", "warn", f"computation error: {str(e)[:60]}")
 
-        # Step 6: Compute and log risk metrics
-        _compute_risk_metrics(config, run_date, log_phase_result_fn)
+        # Step 6: Compute and log risk metrics (always run, even on non-trading days)
+        try:
+            _compute_risk_metrics(config, run_date, log_phase_result_fn)
+        except Exception as e:
+            logger.warning(f"[PHASE 9] Risk metrics computation failed: {e}")
+            log_phase_result_fn(9, "risk_metrics", "warn", f"computation error: {str(e)[:60]}")
 
         # Step 7: Update algo_metrics_daily with actual trade results from this run
         _update_daily_metrics(run_date, log_phase_result_fn)

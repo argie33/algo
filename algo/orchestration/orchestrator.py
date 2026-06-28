@@ -1008,6 +1008,12 @@ class Orchestrator:
             logger.info("\n[LOADER CHECK] Verifying critical loaders have run recently...")
             self._check_loader_health()
 
+            # On non-trading days, skip broker reconciliation and all trading phases, but run metrics
+            skip_phases = None
+            if not is_trading_day:
+                logger.info("Non-trading day: skipping broker sync (phase 4) and trading phases (5-8), will run data checks (1-3) + metrics (9)")
+                skip_phases = [4, 5, 6, 7, 8]  # Skip broker reconciliation, position adjustments, signal gen, entry/exit execution
+
             logger.info("\n[PROACTIVE WAIT] Waiting for critical loaders to complete before Phase 1...")
             loaders_ready = self._wait_for_critical_loaders_proactive(max_wait_seconds=300)
             if loaders_ready:
@@ -1015,7 +1021,7 @@ class Orchestrator:
             else:
                 logger.warning("[WARNING] Critical loaders did not complete within timeout. Phase 1 will check data freshness.")
 
-            self.executor = self._setup_executor()
+            self.executor = self._setup_executor(skip_phases=skip_phases)
             with TimeBlock("orchestrator_executor"):
                 executor_result = self.executor.run()
 
