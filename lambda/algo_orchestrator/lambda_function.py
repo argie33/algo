@@ -349,14 +349,9 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
 
             run_id = result["run_id"]
 
-            if "skipped" not in result:
-                raise ValueError(
-                    f"Orchestrator result missing 'skipped' field. "
-                    f"Available keys: {list(result.keys())}. "
-                    f"Cannot determine if orchestrator was skipped."
-                )
-
-            skipped = result["skipped"]
+            # Note: orchestrator may not return 'skipped' field if it ran but halted
+            # Default to False (not skipped) if field is missing
+            skipped = result.get("skipped", False)
 
             reason = result.get("reason")
             if reason is None:
