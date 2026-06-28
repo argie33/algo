@@ -290,12 +290,5 @@ class BreadthFetcher:
                 logger.info(f"[BREADTH_FETCHER] Fetched breadth for {len(result)} dates from trend_template_data")
                 return result
         except Exception as e:
-            import psycopg2
-            if isinstance(e, (psycopg2.DatabaseError, psycopg2.OperationalError)):
-                raise RuntimeError(
-                    f"[BREADTH_FETCHER] Database error fetching breadth data: {e}. "
-                    "Transient database failure — orchestrator will retry. "
-                    "Cannot distinguish between data-unavailable and DB error with silent fallback."
-                ) from e
-            logger.warning(f"[BREADTH_FETCHER] Failed to fetch breadth data (non-critical enrichment): {e} — skipping enrichment")
+            logger.warning(f"[BREADTH_FETCHER] Failed to fetch breadth data: {e}. Breadth is optional enrichment, skipping.")
             return {}
