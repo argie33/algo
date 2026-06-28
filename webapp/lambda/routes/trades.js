@@ -89,7 +89,7 @@ router.get("/", async (req, res) => {
         if (apiKey && secretKey) {
           const alpaca = new AlpacaService(apiKey, secretKey, isPaper);
           const orders =
-            (await alpaca.getOrders({ status: "closed", limit: 500 })) || [];
+            (await alpaca.getOrders({ status: "closed", limit: 500 })) ?? [];
 
           if (orders && Array.isArray(orders)) {
             orders.forEach((order) => {
@@ -159,7 +159,7 @@ router.get("/", async (req, res) => {
 
       // SECURITY: Filter trades by current user to prevent IDOR (Insecure Direct Object Reference)
       // Get user_id from authenticated token context
-      const userId = req.user?.sub || req.user?.id || null;
+      const userId = req.user?.sub ?? req.user?.id ?? null;
       if (!userId) {
         return sendError(res, "Authentication required", 401);
       }
@@ -259,7 +259,7 @@ router.get("/summary", async (req, res) => {
         if (apiKey && secretKey) {
           const alpaca = new AlpacaService(apiKey, secretKey, isPaper);
           const orders =
-            (await alpaca.getOrders({ status: "closed", limit: 500 })) || [];
+            (await alpaca.getOrders({ status: "closed", limit: 500 })) ?? [];
 
           if (orders && Array.isArray(orders)) {
             orders.forEach((order) => {
@@ -298,7 +298,7 @@ router.get("/summary", async (req, res) => {
     // 2. Get database trades (from trades table)
     try {
       // Get user_id from authenticated token context
-      const userId = req.user?.sub || req.user?.id || null;
+      const userId = req.user?.sub ?? req.user?.id ?? null;
       if (!userId) {
         return sendError(res, "Authentication required", 401);
       }

@@ -54,7 +54,7 @@ router.get("/detailed", async (req, res) => {
     }
 
     // FIXED: Do not expose detailed schema information in production
-    const isProduction = (process.env.NODE_ENV || "").includes("prod");
+    const isProduction = (process.env.NODE_ENV ?? "").includes("prod");
     const response = {
       status: "healthy",
       healthy: true,

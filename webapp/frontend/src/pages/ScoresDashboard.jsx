@@ -36,6 +36,7 @@ import {
 import { formatNumber } from "../utils/formatters";
 import ErrorBoundary from "../components/ErrorBoundary";
 import StockScoreAccordion from "../components/StockScoreAccordion";
+import { SafeMetricValue } from "../components/SafeMetric";
 
 const scoreClass = (v) => {
   if (v == null || isNaN(Number(v))) return "badge";
@@ -353,7 +354,7 @@ function ScoresDashboardPage() {
         <Kpi
           label="Top Decile"
           value={
-            filtered.length > 0 ? num(filtered[0].composite_score, 1) : "—"
+            filtered.length > 0 ? <SafeMetricValue value={filtered[0].composite_score} formatter="decimal1" fallback="—" /> : "—"
           }
           sub={filtered.length > 0 ? filtered[0].symbol : "—"}
           tone={filtered.length > 0 ? "up" : ""}
@@ -675,37 +676,37 @@ function RankingsTab({
                       className="num mono tnum t-xs"
                       style={{ color: scoreColor(s.quality_score) }}
                     >
-                      {num(s.quality_score, 0)}
+                      <SafeMetricValue value={s.quality_score} formatter="number" fallback="—" />
                     </td>
                     <td
                       className="num mono tnum t-xs"
                       style={{ color: scoreColor(s.momentum_score) }}
                     >
-                      {num(s.momentum_score, 0)}
+                      <SafeMetricValue value={s.momentum_score} formatter="number" fallback="—" />
                     </td>
                     <td
                       className="num mono tnum t-xs"
                       style={{ color: scoreColor(s.value_score) }}
                     >
-                      {num(s.value_score, 0)}
+                      <SafeMetricValue value={s.value_score} formatter="number" fallback="—" />
                     </td>
                     <td
                       className="num mono tnum t-xs"
                       style={{ color: scoreColor(s.growth_score) }}
                     >
-                      {num(s.growth_score, 0)}
+                      <SafeMetricValue value={s.growth_score} formatter="number" fallback="—" />
                     </td>
                     <td
                       className="num mono tnum t-xs"
                       style={{ color: scoreColor(s.positioning_score) }}
                     >
-                      {num(s.positioning_score, 0)}
+                      <SafeMetricValue value={s.positioning_score} formatter="number" fallback="—" />
                     </td>
                     <td
                       className="num mono tnum t-xs"
                       style={{ color: scoreColor(s.stability_score) }}
                     >
-                      {num(s.stability_score, 0)}
+                      <SafeMetricValue value={s.stability_score} formatter="number" fallback="—" />
                     </td>
                     <td className="num mono tnum t-xs">
                       {s.price != null ? `$${num(s.price, 2)}` : "—"}
@@ -1505,37 +1506,37 @@ function LeaderboardTab({ items, sectorFilter, onClick }) {
                       className="num mono tnum t-xs"
                       style={{ color: scoreColor(s.quality_score) }}
                     >
-                      {num(s.quality_score, 0)}
+                      <SafeMetricValue value={s.quality_score} formatter="number" fallback="—" />
                     </td>
                     <td
                       className="num mono tnum t-xs"
                       style={{ color: scoreColor(s.momentum_score) }}
                     >
-                      {num(s.momentum_score, 0)}
+                      <SafeMetricValue value={s.momentum_score} formatter="number" fallback="—" />
                     </td>
                     <td
                       className="num mono tnum t-xs"
                       style={{ color: scoreColor(s.value_score) }}
                     >
-                      {num(s.value_score, 0)}
+                      <SafeMetricValue value={s.value_score} formatter="number" fallback="—" />
                     </td>
                     <td
                       className="num mono tnum t-xs"
                       style={{ color: scoreColor(s.growth_score) }}
                     >
-                      {num(s.growth_score, 0)}
+                      <SafeMetricValue value={s.growth_score} formatter="number" fallback="—" />
                     </td>
                     <td
                       className="num mono tnum t-xs"
                       style={{ color: scoreColor(s.positioning_score) }}
                     >
-                      {num(s.positioning_score, 0)}
+                      <SafeMetricValue value={s.positioning_score} formatter="number" fallback="—" />
                     </td>
                     <td
                       className="num mono tnum t-xs"
                       style={{ color: scoreColor(s.stability_score) }}
                     >
-                      {num(s.stability_score, 0)}
+                      <SafeMetricValue value={s.stability_score} formatter="number" fallback="—" />
                     </td>
                   </tr>
                 ))}

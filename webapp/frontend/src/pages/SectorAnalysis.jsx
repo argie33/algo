@@ -52,6 +52,7 @@ import {
   fmtPct,
 } from "../components/dashboard/shared/utils/dashboardFormatters";
 import ErrorBoundary from "../components/ErrorBoundary";
+import { SafeMetricValue } from "../components/SafeMetric";
 
 const TT_STYLE = {
   background: "var(--surface)",
@@ -910,15 +911,15 @@ function RankingTrendChart({ name, type, range }) {
       <div className="grid grid-3">
         <div className="stile">
           <div className="stile-label">Current</div>
-          <div className="stile-value">#{cur ?? "—"}</div>
+          <div className="stile-value">#<SafeMetricValue value={cur} fallback="—" /></div>
         </div>
         <div className="stile">
           <div className="stile-label">Best</div>
-          <div className="stile-value up">#{minR ?? "—"}</div>
+          <div className="stile-value up">#<SafeMetricValue value={minR} fallback="—" /></div>
         </div>
         <div className="stile">
           <div className="stile-label">Worst</div>
-          <div className="stile-value down">#{maxR ?? "—"}</div>
+          <div className="stile-value down">#<SafeMetricValue value={maxR} fallback="—" /></div>
         </div>
       </div>
 
@@ -1173,7 +1174,7 @@ function SectorDetail({ sector, industries }) {
       <div className="grid grid-4">
         <Stile
           label="Rank"
-          value={`#${sector.current_rank || sector.overall_rank || "—"}`}
+          value={`#${sector.current_rank !== null && sector.current_rank !== undefined ? sector.current_rank : sector.overall_rank || "—"}`}
         />
         <Stile
           label="Momentum"
@@ -1262,7 +1263,7 @@ function SectorDetail({ sector, industries }) {
                   <tr key={ind.industry}>
                     <td className="num">
                       <span className="badge badge-brand mono tnum">
-                        #{ind.current_rank ?? "—"}
+                        #<SafeMetricValue value={ind.current_rank} fallback="—" />
                       </span>
                     </td>
                     <td>
@@ -1295,7 +1296,7 @@ function SectorDetail({ sector, industries }) {
                       </span>
                     </td>
                     <td className="num mono tnum muted">
-                      {ind.stock_count || 0}
+                      <SafeMetricValue value={ind.stock_count} formatter="number" fallback="—" />
                     </td>
                   </tr>
                 ))}
@@ -1321,7 +1322,7 @@ function IndustryDetail({ industry }) {
     >
       <div className="grid grid-4">
         <Stile label="Sector" value={industry.sector || "—"} />
-        <Stile label="Stocks" value={industry.stock_count || 0} />
+        <Stile label="Stocks" value={<SafeMetricValue value={industry.stock_count} formatter="number" fallback="—" />} />
         <Stile label="Momentum" value={industry.current_momentum || "—"} />
         <Stile label="Trend" value={industry.current_trend || "—"} />
       </div>
@@ -1700,7 +1701,7 @@ function SectorsView({ sectors, industries, isLoading, error }) {
                             </td>
                             <td className="num">
                               <span className="badge badge-brand mono tnum">
-                                #{s.current_rank ?? s.overall_rank ?? "—"}
+                                #<SafeMetricValue value={s.current_rank || s.overall_rank} fallback="—" />
                               </span>
                             </td>
                             <td className="num mono tnum muted">
@@ -1716,7 +1717,7 @@ function SectorsView({ sectors, industries, isLoading, error }) {
                               <span
                                 className={`badge ${momentumBadge(s.current_momentum || s.momentum)}`}
                               >
-                                {s.current_momentum || s.momentum || "—"}
+                                {<SafeMetricValue value={s.current_momentum || s.momentum} fallback="—" />}
                               </span>
                             </td>
                             <td>
@@ -1853,7 +1854,7 @@ function IndustriesView({ industries, isLoading, error }) {
                         </td>
                         <td className="num">
                           <span className="badge badge-brand mono tnum">
-                            #{ind.current_rank ?? "—"}
+                            #<SafeMetricValue value={ind.current_rank} fallback="—" />
                           </span>
                         </td>
                         <td>
@@ -1878,7 +1879,7 @@ function IndustriesView({ industries, isLoading, error }) {
                           <span
                             className={`badge ${momentumBadge(ind.current_momentum)}`}
                           >
-                            {ind.current_momentum || "—"}
+                            {<SafeMetricValue value={ind.current_momentum} fallback="—" />}
                           </span>
                         </td>
                         <td>
@@ -1906,7 +1907,7 @@ function IndustriesView({ industries, isLoading, error }) {
                           </span>
                         </td>
                         <td className="num mono tnum muted">
-                          {ind.stock_count || 0}
+                          <SafeMetricValue value={ind.stock_count} formatter="number" fallback="—" />
                         </td>
                         <td>
                           <SparklineTrend name={ind.industry} type="industry" />

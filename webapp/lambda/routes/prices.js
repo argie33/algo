@@ -32,7 +32,7 @@ router.get("/history/:symbol", async (req, res) => {
   try {
     const { symbol } = req.params;
     const limit = Math.min(parseInt(req.query.limit) || 252, 5000);
-    const offset = parseInt(req.query.offset) || 0;
+    const offset = parseInt(req.query.offset) ?? 0;
     const timeframe = req.query.timeframe || "daily";
 
     if (!symbol) {
@@ -136,7 +136,7 @@ router.get("/batch-history", async (req, res) => {
   try {
     const { symbols } = req.query;
     const limit = Math.min(parseInt(req.query.limit) || 30, 5000);
-    const offset = parseInt(req.query.offset) || 0;
+    const offset = parseInt(req.query.offset) ?? 0;
     const timeframe = req.query.timeframe || "daily";
 
     if (!symbols) {
@@ -216,7 +216,7 @@ router.get("/batch-history", async (req, res) => {
     // Apply limit and offset to each symbol's data
     const symbolData = {};
     symbolList.forEach((symbol) => {
-      const allData = dataBySymbol[symbol] || [];
+      const allData = dataBySymbol[symbol] ?? [];
       const data = allData.slice(offset, offset + limit).reverse(); // Return oldest first
       symbolData[symbol] = data;
     });

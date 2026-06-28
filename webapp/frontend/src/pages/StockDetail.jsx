@@ -1599,8 +1599,8 @@ function AnalystsTab({ data, last, error }) {
   const rows = Array.isArray(data) ? data : data?.items || [];
   const metrics = rows[0] || data?.metrics || null;
 
-  const totalAnalysts = SafeMetricValue({ value: metrics?.totalAnalysts ?? metrics?.analyst_count, fallback: 0 });
-  if (!metrics || totalAnalysts === 0) {
+  const totalAnalystsValue = metrics?.totalAnalysts ?? metrics?.analyst_count;
+  if (!metrics || totalAnalystsValue == null) {
     return (
       <Empty
         wrap
@@ -1634,7 +1634,7 @@ function AnalystsTab({ data, last, error }) {
         <div className="card-head">
           <div>
             <div className="card-title">Analyst Coverage</div>
-            <div className="card-sub">Consensus Â· {totalAnalysts} analysts</div>
+            <div className="card-sub">Consensus Â· <SafeMetricValue value={totalAnalystsValue} formatter="number" fallback="0" /> analysts</div>
           </div>
           <div className="card-actions">
             <span
@@ -1677,9 +1677,9 @@ function AnalystsTab({ data, last, error }) {
               label="Bullish"
               value={
                 <span className="mono tnum up">
-                  {bullish} (
+                  <SafeMetricValue value={bullishCount} formatter="number" fallback="—" /> (
                   {num(
-                    SafeMetricValue({ value: metrics?.bullishPercent ?? metrics?.bullish_percent, fallback: 0 }),
+                    metrics?.bullishPercent ?? metrics?.bullish_percent ?? 0,
                     0
                   )}
                   %)
@@ -1690,9 +1690,9 @@ function AnalystsTab({ data, last, error }) {
               label="Neutral"
               value={
                 <span className="mono tnum">
-                  {neutral} (
+                  <SafeMetricValue value={neutralCount} formatter="number" fallback="—" /> (
                   {num(
-                    SafeMetricValue({ value: metrics?.neutralPercent ?? metrics?.neutral_percent, fallback: 0 }),
+                    metrics?.neutralPercent ?? metrics?.neutral_percent ?? 0,
                     0
                   )}
                   %)
@@ -1703,9 +1703,9 @@ function AnalystsTab({ data, last, error }) {
               label="Bearish"
               value={
                 <span className="mono tnum down">
-                  {bearish} (
+                  <SafeMetricValue value={bearishCount} formatter="number" fallback="—" /> (
                   {num(
-                    SafeMetricValue({ value: metrics?.bearishPercent ?? metrics?.bearish_percent, fallback: 0 }),
+                    metrics?.bearishPercent ?? metrics?.bearish_percent ?? 0,
                     0
                   )}
                   %)
@@ -1740,7 +1740,7 @@ function AnalystsTab({ data, last, error }) {
             />
             <Stile
               label="Coverage"
-              value={`${totalAnalysts} analysts`}
+              value={<span><SafeMetricValue value={totalAnalystsValue} formatter="number" fallback="0" /> analysts</span>}
               sub={
                 metrics?.date
                   ? `as of ${String(metrics.date).slice(0, 10)}`

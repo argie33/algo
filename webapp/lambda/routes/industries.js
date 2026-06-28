@@ -98,7 +98,7 @@ async function fetchIndustries(req, res) {
 
     const sf = (v) => (v !== null && v !== undefined ? parseFloat(v) : null);
 
-    const industries = (result?.rows || []).map((row, idx) => {
+    const industries = (result?.rows ?? []).map((row, idx) => {
       const composite = sf(row.composite_score);
       const perf20d = sf(row.perf_20d);
       const momentumLabel =
@@ -120,9 +120,9 @@ async function fetchIndustries(req, res) {
         industry: row.industry,
         sector: row.sector,
         current_rank: parseInt(row.current_rank) || idx + 1 + offset,
-        rank_12w_ago: parseInt(row.rank_12w_ago) || null,
+        rank_12w_ago: parseInt(row.rank_12w_ago) ?? null,
         overall_rank: parseInt(row.current_rank) || idx + 1 + offset,
-        stock_count: parseInt(row.stock_count || 0),
+        stock_count: parseInt(row.stock_count ?? 0),
         composite_score: composite,
         momentum_score: sf(row.momentum_score),
         value_score: sf(row.value_score),
@@ -217,7 +217,7 @@ router.get("/trends-batch", async (req, res) => {
     validateQueryResult(result, { requireRows: false });
 
     const grouped = {};
-    (result?.rows || []).forEach((row) => {
+    (result?.rows ?? []).forEach((row) => {
       if (!grouped[row.industry]) {
         grouped[row.industry] = [];
       }

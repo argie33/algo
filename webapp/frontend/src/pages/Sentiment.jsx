@@ -36,6 +36,7 @@ import {
   money,
 } from "../components/dashboard/shared/utils/dashboardFormatters";
 import ErrorBoundary from "../components/ErrorBoundary";
+import { SafeMetric, SafeMetricValue, SafeMetricInline } from "../components/SafeMetric";
 
 const TT_STYLE = {
   background: "var(--surface)",
@@ -695,16 +696,16 @@ function OverviewTab({
                           </span>
                         </td>
                         <td className="num mono tnum">
-                          {a.analyst_count ?? 0}
+                          <SafeMetricValue value={a.analyst_count} formatter="number" fallback="—" />
                         </td>
                         <td className="num mono tnum up">
-                          {a.bullish_count ?? 0}
+                          <SafeMetricValue value={a.bullish_count} formatter="number" fallback="—" />
                         </td>
                         <td className="num mono tnum muted">
-                          {a.neutral_count ?? 0}
+                          <SafeMetricValue value={a.neutral_count} formatter="number" fallback="—" />
                         </td>
                         <td className="num mono tnum down">
-                          {a.bearish_count ?? 0}
+                          <SafeMetricValue value={a.bearish_count} formatter="number" fallback="—" />
                         </td>
                         <td className="num mono tnum">
                           {money(a.target_price)}
@@ -885,23 +886,35 @@ function StockDetail({ stock, onClose }) {
               <div className="stile">
                 <div className="stile-label">Bullish</div>
                 <div className="stile-value up">
-                  {((bull / total) * 100).toFixed(1)}%
+                  <SafeMetricValue
+                    value={hasCompleteData ? ((bull / total) * 100) : null}
+                    formatter="decimal2"
+                    fallback="—"
+                  />%
                 </div>
-                <div className="stile-sub">{bull} analysts</div>
+                <div className="stile-sub"><SafeMetricValue value={bull} formatter="number" fallback="—" /> analysts</div>
               </div>
               <div className="stile">
                 <div className="stile-label">Neutral</div>
                 <div className="stile-value">
-                  {((neut / total) * 100).toFixed(1)}%
+                  <SafeMetricValue
+                    value={hasCompleteData ? ((neut / total) * 100) : null}
+                    formatter="decimal2"
+                    fallback="—"
+                  />%
                 </div>
-                <div className="stile-sub">{neut} analysts</div>
+                <div className="stile-sub"><SafeMetricValue value={neut} formatter="number" fallback="—" /> analysts</div>
               </div>
               <div className="stile">
                 <div className="stile-label">Bearish</div>
                 <div className="stile-value down">
-                  {((bear / total) * 100).toFixed(1)}%
+                  <SafeMetricValue
+                    value={hasCompleteData ? ((bear / total) * 100) : null}
+                    formatter="decimal2"
+                    fallback="—"
+                  />%
                 </div>
-                <div className="stile-sub">{bear} analysts</div>
+                <div className="stile-sub"><SafeMetricValue value={bear} formatter="number" fallback="—" /> analysts</div>
               </div>
             </div>
           </div>
@@ -918,20 +931,20 @@ function StockDetail({ stock, onClose }) {
             <div className="grid grid-3">
               <div className="stile">
                 <div className="stile-label">Target</div>
-                <div className="stile-value">{money(a.target_price)}</div>
+                <div className="stile-value"><SafeMetricValue value={a.target_price} formatter="money" fallback="—" /></div>
                 <div className="stile-sub">consensus</div>
               </div>
               <div className="stile">
                 <div className="stile-label">Current</div>
-                <div className="stile-value">{money(a.current_price)}</div>
+                <div className="stile-value"><SafeMetricValue value={a.current_price} formatter="money" fallback="—" /></div>
                 <div className="stile-sub">market</div>
               </div>
               <div className="stile">
                 <div className="stile-label">Upside</div>
                 <div
-                  className={`stile-value ${upside > 0 ? "up" : upside < 0 ? "down" : ""}`}
+                  className={`stile-value ${isNaN(upside) || upside === null ? "" : upside > 0 ? "up" : upside < 0 ? "down" : ""}`}
                 >
-                  {isNaN(upside) ? "—" : pct(upside)}
+                  <SafeMetricValue value={isNaN(upside) ? null : upside} formatter="decimal2" fallback="—" format={(v) => `${v > 0 ? "+" : ""}${v}%`} />
                 </div>
                 <div className="stile-sub">vs current</div>
               </div>
@@ -976,16 +989,16 @@ function StockDetail({ stock, onClose }) {
                       </span>
                     </td>
                     <td className="num mono tnum up">
-                      {row.bullish_count ?? row.positive_mentions ?? "—"}
+                      <SafeMetricValue value={row.bullish_count ?? row.positive_mentions} formatter="number" fallback="—" />
                     </td>
                     <td className="num mono tnum muted">
-                      {row.neutral_count ?? row.neutral_mentions ?? "—"}
+                      <SafeMetricValue value={row.neutral_count ?? row.neutral_mentions} formatter="number" fallback="—" />
                     </td>
                     <td className="num mono tnum down">
-                      {row.bearish_count ?? row.negative_mentions ?? "—"}
+                      <SafeMetricValue value={row.bearish_count ?? row.negative_mentions} formatter="number" fallback="—" />
                     </td>
                     <td className="num mono tnum">
-                      {row.analyst_count ?? row.total_mentions ?? "—"}
+                      <SafeMetricValue value={row.analyst_count ?? row.total_mentions} formatter="number" fallback="—" />
                     </td>
                   </tr>
                 ))}
@@ -1047,7 +1060,7 @@ function AnalystTab({ stocks, isLoading, selectedSymbol, setSelectedSymbol }) {
                             : "—"}
                         </td>
                         <td className="num mono tnum">
-                          {s.latestAnalyst?.analyst_count ?? 0}
+                          <SafeMetricValue value={s.latestAnalyst?.analyst_count} formatter="number" fallback="—" />
                         </td>
                       </tr>
                     );
@@ -1133,22 +1146,22 @@ function AnalystInsights({ symbol, onClose }) {
             >
               <Stile
                 label="Bullish"
-                value={<span className="up">{metrics.bullishPercent}%</span>}
+                value={<span className="up"><SafeMetricValue value={metrics.bullishPercent} formatter="decimal2" fallback="—" />%</span>}
                 sub={`${metrics.bullish} analysts`}
               />
               <Stile
                 label="Neutral"
-                value={<span>{metrics.neutralPercent}%</span>}
+                value={<span><SafeMetricValue value={metrics.neutralPercent} formatter="decimal2" fallback="—" />%</span>}
                 sub={`${metrics.neutral} analysts`}
               />
               <Stile
                 label="Bearish"
-                value={<span className="down">{metrics.bearishPercent}%</span>}
+                value={<span className="down"><SafeMetricValue value={metrics.bearishPercent} formatter="decimal2" fallback="—" />%</span>}
                 sub={`${metrics.bearish} analysts`}
               />
               <Stile
                 label="Coverage"
-                value={metrics.totalAnalysts}
+                value={<SafeMetricValue value={metrics.totalAnalysts} formatter="number" fallback="—" />}
                 sub="analysts covering"
               />
             </div>
@@ -1161,11 +1174,7 @@ function AnalystInsights({ symbol, onClose }) {
             >
               <Stile
                 label="Avg Target"
-                value={`$${
-                  typeof metrics.avgPriceTarget === "number"
-                    ? metrics.avgPriceTarget.toFixed(2)
-                    : parseFloat(metrics.avgPriceTarget).toFixed(2)
-                }`}
+                value={<SafeMetricValue value={metrics.avgPriceTarget} formatter="money" fallback="—" />}
                 sub="consensus"
               />
               {metrics.priceTargetVsCurrent != null && (
@@ -1174,14 +1183,10 @@ function AnalystInsights({ symbol, onClose }) {
                   value={
                     <span
                       className={
-                        metrics.priceTargetVsCurrent > 0 ? "up" : "down"
+                        metrics.priceTargetVsCurrent > 0 ? "up" : metrics.priceTargetVsCurrent < 0 ? "down" : ""
                       }
                     >
-                      {metrics.priceTargetVsCurrent > 0 ? "+" : ""}
-                      {typeof metrics.priceTargetVsCurrent === "number"
-                        ? metrics.priceTargetVsCurrent.toFixed(1)
-                        : parseFloat(metrics.priceTargetVsCurrent).toFixed(1)}
-                      %
+                      <SafeMetricValue value={metrics.priceTargetVsCurrent} formatter="decimal2" fallback="—" format={(v) => `${v > 0 ? "+" : ""}${v}%`} />
                     </span>
                   }
                   sub="vs current price"
@@ -1190,7 +1195,7 @@ function AnalystInsights({ symbol, onClose }) {
               {coverage && (
                 <Stile
                   label="Firms"
-                  value={coverage.totalFirms || 0}
+                  value={<SafeMetricValue value={coverage.totalFirms} formatter="number" fallback="—" />}
                   sub="firms covering"
                 />
               )}
@@ -1210,35 +1215,38 @@ function AnalystInsights({ symbol, onClose }) {
                   <Stile
                     label="Upgrades"
                     value={
-                      <span className="up">{momentum.upgrades30d ?? 0}</span>
+                      <span className="up"><SafeMetricValue value={momentum.upgrades30d} formatter="number" fallback="—" /></span>
                     }
                   />
                   <Stile
                     label="Downgrades"
                     value={
                       <span className="down">
-                        {momentum.downgrades30d ?? 0}
+                        <SafeMetricValue value={momentum.downgrades30d} formatter="number" fallback="—" />
                       </span>
                     }
                   />
                   <Stile
                     label="Net Momentum"
                     value={
-                      <span
-                        className={
-                          momentum.upgrades30d - momentum.downgrades30d > 0
-                            ? "up"
-                            : momentum.upgrades30d - momentum.downgrades30d < 0
-                              ? "down"
-                              : ""
-                        }
-                      >
-                        {momentum.upgrades30d - momentum.downgrades30d > 0
-                          ? "+"
-                          : ""}
-                        {(momentum.upgrades30d ?? 0) -
-                          (momentum.downgrades30d ?? 0)}
-                      </span>
+                      (() => {
+                        const upgrades = momentum.upgrades30d ?? 0;
+                        const downgrades = momentum.downgrades30d ?? 0;
+                        const netMomentum = upgrades - downgrades;
+                        return (
+                          <span
+                            className={
+                              netMomentum > 0
+                                ? "up"
+                                : netMomentum < 0
+                                  ? "down"
+                                  : ""
+                            }
+                          >
+                            {netMomentum > 0 ? "+" : ""}{netMomentum}
+                          </span>
+                        );
+                      })()
                     }
                   />
                 </div>
@@ -1274,8 +1282,8 @@ function AnalystInsights({ symbol, onClose }) {
                       return (
                         <tr key={`${t.analyst_firm}-${i}`}>
                           <td>{t.analyst_firm}</td>
-                          <td className="num mono tnum">{money(cur)}</td>
-                          <td className="num mono tnum muted">{money(prev)}</td>
+                          <td className="num mono tnum"><SafeMetricValue value={cur} formatter="money" fallback="—" /></td>
+                          <td className="num mono tnum muted"><SafeMetricValue value={prev} formatter="money" fallback="—" /></td>
                           <td className="num">
                             {diff == null ? (
                               <span className="muted">—</span>
@@ -1284,7 +1292,7 @@ function AnalystInsights({ symbol, onClose }) {
                                 className={`badge ${diff > 0 ? "badge-success" : "badge-danger"}`}
                               >
                                 {diff > 0 ? "+" : ""}
-                                {diff.toFixed(2)}
+                                <SafeMetricValue value={diff} formatter="decimal2" fallback="—" />
                               </span>
                             )}
                           </td>
@@ -1535,24 +1543,30 @@ function SocialInsights({ symbol, onClose }) {
             <Stile
               label="Reddit Sentiment"
               value={
-                metrics.reddit?.sentiment_score
-                  ? `${parseFloat(metrics.reddit.sentiment_score) > 0 ? "+" : ""}${parseFloat(metrics.reddit.sentiment_score).toFixed(3)}`
-                  : "—"
+                <SafeMetricValue
+                  value={metrics.reddit?.sentiment_score}
+                  formatter="decimal2"
+                  fallback="—"
+                  format={(v) => `${v > 0 ? "+" : ""}${v}`}
+                />
               }
               sub={`${metrics.reddit?.mention_count ?? 0} mentions`}
             />
             <Stile
               label="News Sentiment"
               value={
-                metrics.news?.sentiment_score
-                  ? `${parseFloat(metrics.news.sentiment_score) > 0 ? "+" : ""}${parseFloat(metrics.news.sentiment_score).toFixed(3)}`
-                  : "—"
+                <SafeMetricValue
+                  value={metrics.news?.sentiment_score}
+                  formatter="decimal2"
+                  fallback="—"
+                  format={(v) => `${v > 0 ? "+" : ""}${v}`}
+                />
               }
               sub={`${metrics.news?.article_count ?? 0} articles`}
             />
             <Stile
               label="Search Volume"
-              value={metrics.search?.volume_index ?? "—"}
+              value={<SafeMetricValue value={metrics.search?.volume_index} formatter="number" fallback="—" />}
               sub={`7d ${metrics.search?.trend_7d_direction ?? ""}${
                 metrics.search?.trend_7d_percent !== null && metrics.search?.trend_7d_percent !== undefined
                   ? Math.abs(parseFloat(metrics.search.trend_7d_percent)).toFixed(1) + "%"
@@ -1567,9 +1581,11 @@ function SocialInsights({ symbol, onClose }) {
               label="Social Volume"
               value={`${metrics.social?.volume ?? 0} posts`}
               sub={`Viral ${
-                metrics.social?.viral_score
-                  ? parseFloat(metrics.social.viral_score).toFixed(2)
-                  : "—"
+                <SafeMetricValue
+                  value={metrics.social?.viral_score}
+                  formatter="decimal2"
+                  fallback="—"
+                />
               }`}
             />
           </div>
@@ -1641,22 +1657,16 @@ function SocialInsights({ symbol, onClose }) {
                         <tr key={`hist-${row.date}-${i}`}>
                           <td className="t-xs muted">{fmtDate(row.date)}</td>
                           <td className="num mono tnum">
-                            {row.reddit_sentiment != null
-                              ? parseFloat(row.reddit_sentiment).toFixed(2)
-                              : "—"}
+                            <SafeMetricValue value={row.reddit_sentiment} formatter="decimal2" fallback="—" />
                           </td>
                           <td className="num mono tnum">
-                            {row.news_sentiment != null
-                              ? parseFloat(row.news_sentiment).toFixed(2)
-                              : "—"}
+                            <SafeMetricValue value={row.news_sentiment} formatter="decimal2" fallback="—" />
                           </td>
                           <td className="num mono tnum">
-                            {row.search_volume ?? "—"}
+                            <SafeMetricValue value={row.search_volume} formatter="number" fallback="—" />
                           </td>
                           <td className="num mono tnum">
-                            {row.viral_score != null
-                              ? parseFloat(row.viral_score).toFixed(2)
-                              : "—"}
+                            <SafeMetricValue value={row.viral_score} formatter="decimal2" fallback="—" />
                           </td>
                         </tr>
                       ))}

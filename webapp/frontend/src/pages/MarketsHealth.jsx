@@ -558,7 +558,7 @@ function RegimeBanner({ markets }) {
                 lineHeight: 1,
               }}
             >
-              {exposure ?? "—"}
+              <SafeMetricValue value={exposure} formatter="decimal2" fallback="—" />
               <span
                 style={{
                   fontSize: "var(--t-lg)",
@@ -600,7 +600,7 @@ function RegimeBanner({ markets }) {
               marginTop: 4,
             }}
           >
-            {tier?.risk_mult ?? "—"}
+            <SafeMetricValue value={tier?.risk_mult} formatter="decimal2" fallback="—" />
           </div>
         </div>
 
@@ -614,7 +614,7 @@ function RegimeBanner({ markets }) {
               marginTop: 4,
             }}
           >
-            {tier?.max_new ?? "—"}
+            <SafeMetricValue value={tier?.max_new} formatter="number" fallback="—" />
           </div>
         </div>
 
@@ -864,7 +864,7 @@ function ExposureFactors({ markets }) {
                 >
                   <span className="eyebrow">{label}</span>
                   <span className="mono tnum t-xs strong">
-                    {num(f.pts || 0, 1)} / {f.max || max}
+                    <SafeMetricValue value={f.pts} formatter="decimal2" fallback="0" /> / {f.max || max}
                   </span>
                 </div>
                 <div className="bar">
@@ -1208,12 +1208,12 @@ function BreadthCard({ markets }) {
   const data = [
     {
       name: "> 50-DMA",
-      value: b50?.value ?? 0,
+      value: b50?.value ?? null,
       count: `${b50?.above ?? 0}/${b50?.total ?? 0}`,
     },
     {
       name: "> 200-DMA",
-      value: b200?.value ?? 0,
+      value: b200?.value ?? null,
       count: `${b200?.above ?? 0}/${b200?.total ?? 0}`,
     },
   ];
@@ -1281,16 +1281,16 @@ function BreadthCard({ markets }) {
         <div className="grid grid-3" style={{ marginTop: "var(--space-3)" }}>
           <div className="stile">
             <div className="stile-label">&gt; 50-DMA</div>
-            <div className="stile-value">{num(b50.value, 1)}%</div>
+            <div className="stile-value"><SafeMetricValue value={b50.value} formatter="decimal2" fallback="—" />%</div>
             <div className="stile-sub">
-              {b50.above || 0} of {b50.total || 0}
+              <SafeMetricValue value={b50.above} formatter="number" fallback="—" /> of <SafeMetricValue value={b50.total} formatter="number" fallback="—" />
             </div>
           </div>
           <div className="stile">
             <div className="stile-label">&gt; 200-DMA</div>
-            <div className="stile-value">{num(b200.value, 1)}%</div>
+            <div className="stile-value"><SafeMetricValue value={b200.value} formatter="decimal2" fallback="—" />%</div>
             <div className="stile-sub">
-              {b200.above || 0} of {b200.total || 0}
+              <SafeMetricValue value={b200.above} formatter="number" fallback="—" /> of <SafeMetricValue value={b200.total} formatter="number" fallback="—" />
             </div>
           </div>
           <div className="stile">
@@ -1317,10 +1317,10 @@ function NewHighsLowsCard({ markets }) {
   const factors = safeCurrent ? safeGetFactors(safeCurrent) : {};
   const nhnl = factors.new_highs_lows || {};
   const data = [
-    { name: "New Highs", value: nhnl?.new_highs ?? 0, fill: C.success },
-    { name: "New Lows", value: -(nhnl?.new_lows ?? 0), fill: C.danger },
+    { name: "New Highs", value: nhnl?.new_highs ?? null, fill: C.success },
+    { name: "New Lows", value: nhnl?.new_lows != null ? -(nhnl.new_lows) : null, fill: C.danger },
   ];
-  const net = nhnl?.net ?? 0;
+  const net = nhnl?.net ?? null;
   return (
     <div className="card">
       <div className="card-head">
@@ -1365,16 +1365,16 @@ function NewHighsLowsCard({ markets }) {
         <div className="grid grid-3" style={{ marginTop: "var(--space-3)" }}>
           <div className="stile">
             <div className="stile-label">Highs</div>
-            <div className="stile-value up">{nhnl.new_highs || 0}</div>
+            <div className="stile-value up"><SafeMetricValue value={nhnl.new_highs} formatter="number" fallback="—" /></div>
           </div>
           <div className="stile">
             <div className="stile-label">Lows</div>
-            <div className="stile-value down">{nhnl.new_lows || 0}</div>
+            <div className="stile-value down"><SafeMetricValue value={nhnl.new_lows} formatter="number" fallback="—" /></div>
           </div>
           <div className="stile">
             <div className="stile-label">Net</div>
-            <div className={`stile-value ${net >= 0 ? "up" : "down"}`}>
-              {net}
+            <div className={`stile-value ${net != null && net >= 0 ? "up" : net != null && net < 0 ? "down" : ""}`}>
+              <SafeMetricValue value={net} formatter="number" fallback="—" />
             </div>
           </div>
         </div>
@@ -1562,7 +1562,7 @@ function VixCard({ markets }) {
   const safeCurrent = safeGetMarketCurrent(markets);
   const factors = safeCurrent ? safeGetFactors(safeCurrent) : {};
   const vix = factors.vix_regime || {};
-  const level = vix.value || 0;
+  const level = vix.value != null ? vix.value : 0;
   const regime =
     level < 15
       ? "Calm"
@@ -1908,7 +1908,7 @@ function TopMoversCard({ data, loading, error }) {
   );
 }
 function Mover({ symbol, chg, dir }) {
-  const chgVal = chg ?? 0;
+  const chgVal = chg != null ? chg : null;
   return (
     <div
       className="flex items-center justify-between"
@@ -1921,8 +1921,8 @@ function Mover({ symbol, chg, dir }) {
         className={`mono tnum ${dir}`}
         style={{ fontWeight: "var(--w-semibold)" }}
       >
-        {chgVal >= 0 ? "+" : ""}
-        {num(chgVal, 2)}%
+        {chgVal != null && chgVal >= 0 ? "+" : ""}
+        <SafeMetricValue value={chgVal} formatter="decimal2" fallback="—" format={(v) => `${v}%`} />
       </span>
     </div>
   );
@@ -1984,33 +1984,33 @@ function SeasonalityCard({ data, loading, error }) {
           <div className="stile">
             <div className="stile-label">This Month Hist. Avg</div>
             <div
-              className={`stile-value ${(currentMonthData?.avg_return || 0) >= 0 ? "up" : "down"}`}
+              className={`stile-value ${currentMonthData?.avg_return != null && currentMonthData.avg_return >= 0 ? "up" : currentMonthData?.avg_return != null ? "down" : ""}`}
             >
-              {currentMonthData
-                ? `${currentMonthData.avg_return >= 0 ? "+" : ""}${num(currentMonthData.avg_return, 2)}%`
+              {currentMonthData?.avg_return != null
+                ? `${currentMonthData.avg_return >= 0 ? "+" : ""}<SafeMetricValue value={currentMonthData.avg_return} formatter="decimal2" fallback="—" format={(v) => `${v}%`} />`
                 : "—"}
             </div>
             <div className="stile-sub">
-              {currentMonthData?.month_name || "—"}
+              <SafeMetricValue value={currentMonthData?.month_name} fallback="—" />
             </div>
           </div>
           <div className="stile">
             <div className="stile-label">Best Month</div>
-            <div className="stile-value up">{bestMonth?.name || "—"}</div>
+            <div className="stile-value up"><SafeMetricValue value={bestMonth?.name} fallback="—" /></div>
             <div className="stile-sub">
-              {bestMonth ? `+${num(bestMonth.avg_return_pct, 2)}% avg` : "—"}
+              {bestMonth?.avg_return_pct != null ? `+${num(bestMonth.avg_return_pct, 2)}% avg` : "—"}
             </div>
           </div>
           <div className="stile">
             <div className="stile-label">Worst Month</div>
-            <div className="stile-value down">{worstMonth?.name || "—"}</div>
+            <div className="stile-value down"><SafeMetricValue value={worstMonth?.name} fallback="—" /></div>
             <div className="stile-sub">
-              {worstMonth ? `${num(worstMonth.avg_return_pct, 2)}% avg` : "—"}
+              {worstMonth?.avg_return_pct != null ? `${num(worstMonth.avg_return_pct, 2)}% avg` : "—"}
             </div>
           </div>
           <div className="stile">
             <div className="stile-label">Best Day of Week</div>
-            <div className="stile-value up">{bestDay?.name || "—"}</div>
+            <div className="stile-value up"><SafeMetricValue value={bestDay?.name} fallback="—" /></div>
             <div className="stile-sub">
               {worstDay ? `Worst: ${worstDay.name}` : "—"}
             </div>

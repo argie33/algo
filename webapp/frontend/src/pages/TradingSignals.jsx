@@ -1716,8 +1716,10 @@ function PriceSparkline({ symbol }) {
   if (series.length < 2)
     return <div className="muted t-xs">Insufficient data points.</div>;
 
-  const first = series[0]?.close ?? 0;
-  const last = series[series.length - 1]?.close ?? 0;
+  const firstVal = series[0]?.close;
+  const lastVal = series[series.length - 1]?.close;
+  const first = firstVal != null ? firstVal : 0;
+  const last = lastVal != null ? lastVal : 0;
   const change = first > 0 ? ((last - first) / first) * 100 : 0;
   const tone = change >= 0 ? "var(--success)" : "var(--danger)";
 
@@ -1730,7 +1732,7 @@ function PriceSparkline({ symbol }) {
         <span className="eyebrow">{symbol} · last 60 days</span>
         <span className={`mono tnum t-xs ${change >= 0 ? "up" : "down"}`}>
           {change >= 0 ? "+" : ""}
-          {change.toFixed(2)}%
+          <SafeMetricValue value={change} formatter="decimal2" fallback="—" />%
         </span>
       </div>
       <div style={{ width: "100%", height: 90 }}>

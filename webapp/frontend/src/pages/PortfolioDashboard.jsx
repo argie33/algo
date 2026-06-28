@@ -76,6 +76,7 @@ import {
   safeGet,
   safeGetArray,
 } from "../utils/safeCalculations";
+import { SafeMetricValue } from "../components/SafeMetric";
 
 const Pnl = ({ value, suffix = "" }) => {
   const v = toSafeNumber(value, null);
@@ -707,7 +708,7 @@ function PortfolioDashboardPage() {
                 {(market?.trend || "—").toString().toUpperCase()}
               </span>
             }
-            sub={`Stage ${market?.stage ?? "—"} · DD ${safeNumericValue(market, ["distribution_days"], 0)}`}
+            sub={`Stage <SafeMetricValue value={market?.stage} fallback="—" /> · DD ${safeNumericValue(market, ["distribution_days"], 0)}`}
             icon={Shield}
           />
         </div>
@@ -824,8 +825,8 @@ function PortfolioDashboardPage() {
             sub={
               perf?.win_rate_pct_adjusted !== undefined &&
               perf.win_rate_pct_adjusted !== perf.win_rate_pct
-                ? `${perf?.win_rate_pct ?? 0}% (closed) · ${perf?.win_rate_pct_adjusted ?? 0}% true`
-                : `${perf?.win_rate_pct ?? 0}% win rate`
+                ? `${perf?.win_rate_pct || 0}% (closed) · ${perf?.win_rate_pct_adjusted || 0}% true`
+                : `${perf?.win_rate_pct || 0}% win rate`
             }
             icon={Zap}
             tone={
@@ -1040,7 +1041,7 @@ function PortfolioDashboardPage() {
                   label="Best Streak"
                   value={
                     <span className="mono tnum up">
-                      {perf?.best_win_streak ?? 0}W
+                      <SafeMetricValue value={perf?.best_win_streak} formatter="number" fallback="0" />W
                     </span>
                   }
                 />
@@ -1048,7 +1049,7 @@ function PortfolioDashboardPage() {
                   label="Worst Streak"
                   value={
                     <span className="mono tnum down">
-                      {perf?.worst_loss_streak ?? 0}L
+                      <SafeMetricValue value={perf?.worst_loss_streak} formatter="number" fallback="0" />L
                     </span>
                   }
                 />
@@ -1117,7 +1118,7 @@ function PortfolioDashboardPage() {
                             className="mono tnum"
                             style={{ color: "var(--amber)" }}
                           >
-                            {perf?.win_rate_pct_adjusted ?? 0}%
+                            <SafeMetricValue value={perf?.win_rate_pct_adjusted} formatter="number" fallback="0" />%
                           </span>
                         }
                       />
@@ -1125,7 +1126,7 @@ function PortfolioDashboardPage() {
                         label="Open Losses"
                         value={
                           <span className="mono tnum down">
-                            {perf?.open_losses_count ?? 0}
+                            <SafeMetricValue value={perf?.open_losses_count} formatter="number" fallback="0" />
                           </span>
                         }
                       />
@@ -1261,7 +1262,7 @@ function PortfolioDashboardPage() {
                           <Pnl value={t.exit_r_multiple} suffix="R" />
                         </td>
                         <td className="num mono tnum muted">
-                          {t.trade_duration_days ?? "—"}
+                          <SafeMetricValue value={t.trade_duration_days} fallback="—" />
                         </td>
                       </tr>
                     ))}
@@ -2496,7 +2497,7 @@ function PositionHealthTable({ positions, loading, onSelect }) {
       <div className="card-head">
         <div>
           <div className="card-title">
-            Position Health ({posArray.length || 0})
+            Position Health (<SafeMetricValue value={posArray.length} formatter="number" fallback="0" />)
           </div>
           <div className="card-sub">
             Days held · R · stop/target distance · trend posture · sector

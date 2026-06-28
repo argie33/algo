@@ -96,9 +96,9 @@ router.get("/analysis", async (req, res) => {
               ((parseFloat(r.composite_score) / totalScore) * 100).toFixed(1)
             )
           : equalWeight,
-      composite_score: parseFloat(r.composite_score) || null,
-      momentum_score: parseFloat(r.momentum_score) || null,
-      quality_score: parseFloat(r.quality_score) || null,
+      composite_score: parseFloat(r.composite_score) ?? null,
+      momentum_score: parseFloat(r.momentum_score) ?? null,
+      quality_score: parseFloat(r.quality_score) ?? null,
       beta: r.beta != null ? parseFloat(r.beta) : null,
       return_12m: r.return_12m != null ? parseFloat(r.return_12m) : null,
       dividend_yield:

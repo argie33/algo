@@ -44,7 +44,7 @@ router.get("/", async (req, res) => {
     validateQueryResult(dbTest, { requireRows: false });
     diagnostics.database_status = "connected";
     diagnostics.database_tables = {
-      stock_symbols: parseInt(dbTest.rows[0]?.count || 0),
+      stock_symbols: parseInt(dbTest.rows[0]?.count ?? 0),
     };
   } catch (err) {
     diagnostics.database_status = "error";
@@ -111,7 +111,7 @@ router.get("/", async (req, res) => {
     return query(q, [table.name])
       .then((result) => ({
         name: table.name,
-        count: parseInt(result.rows[0]?.count || 0),
+        count: parseInt(result.rows[0]?.count ?? 0),
         success: true,
       }))
       .catch((err) => {
@@ -160,7 +160,7 @@ router.get("/", async (req, res) => {
       SELECT COUNT(*) as index_count FROM pg_indexes WHERE schemaname = 'public'
     `);
     validateQueryResult(indexResult, { requireRows: false });
-    const indexCount = parseInt(indexResult.rows[0]?.index_count || 0);
+    const indexCount = parseInt(indexResult.rows[0]?.index_count ?? 0);
     diagnostics.database_indexes = {
       count: indexCount,
       status: indexCount > 20 ? "Indexes present" : "Few indexes",
@@ -203,7 +203,7 @@ router.get("/slow-queries", async (req, res) => {
     validateQueryResult(result, { requireRows: false });
 
     return sendSuccess(res, {
-      slow_queries: result.rows || [],
+      slow_queries: result.rows ?? [],
       message: "Queries taking >100ms. Run EXPLAIN ANALYZE on slow queries.",
     });
   } catch (err) {
@@ -255,7 +255,7 @@ router.get("/database-size", async (req, res) => {
 
     return sendSuccess(res, {
       database_size: dbSize.rows[0],
-      largest_tables: tableSize.rows || [],
+      largest_tables: tableSize.rows ?? [],
     });
   } catch (err) {
     return sendError(res, err.message, 500);

@@ -33,7 +33,7 @@ const router = express.Router();
 router.get("/", async (req, res) => {
   try {
     const limit = Math.min(parseInt(req.query.limit) || 500, 50000);
-    const offset = parseInt(req.query.offset) || 0;
+    const offset = parseInt(req.query.offset) ?? 0;
     const search = req.query.search;
     const sector = req.query.sector;
 

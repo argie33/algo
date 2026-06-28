@@ -122,7 +122,7 @@ router.get("/", async (req, res) => {
       return {
         sector_name: row.sector_name,
         current_rank: parseInt(row.current_rank) || idx + 1 + offset,
-        rank_12w_ago: parseInt(row.rank_12w_ago) || null,
+        rank_12w_ago: parseInt(row.rank_12w_ago) ?? null,
         overall_rank: parseInt(row.current_rank) || idx + 1 + offset,
         stock_count: row.stock_count != null ? parseInt(row.stock_count) : 0,
         composite_score: composite,
