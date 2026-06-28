@@ -342,18 +342,29 @@ def _get_data_status(cur: cursor) -> Any:
 
 
 def _normalize_market_health(mh: dict) -> Any:
-    """Validate and normalize market_health dict. Fails fast if critical fields missing.
+    """Validate and normalize market_health dict. Fails fast if critical fields missing or invalid.
 
     Critical fields (halt circuit breaker): vix_level, market_stage, market_trend
+    CRITICAL: vix_level must be numeric > 0 (VIX is never negative or zero)
     """
     critical_fields = {"vix_level", "market_stage", "market_trend"}
     missing = critical_fields - {k for k in mh.keys() if mh[k] is not None}
     if missing:
         raise ValueError(f"Market health missing critical fields: {missing}")
+
+    # Validate VIX level is > 0 (invalid data would be <= 0)
+    vix_raw = mh.get("vix_level")
+    try:
+        vix_level = float(vix_raw) if vix_raw is not None else None
+        if vix_level is not None and vix_level <= 0:
+            raise ValueError(f"VIX level must be > 0, got {vix_level}")
+    except (TypeError, ValueError) as e:
+        raise ValueError(f"VIX level validation failed: {e} (got {type(vix_raw).__name__}: {vix_raw})")
+
     return {
         "market_trend": mh.get("market_trend"),
         "market_stage": mh.get("market_stage"),
-        "vix_level": mh.get("vix_level"),
+        "vix_level": vix_level,
         "up_volume_percent": mh.get("up_volume_percent"),
         "advance_decline_ratio": mh.get("advance_decline_ratio"),
         "new_highs_count": mh.get("new_highs_count"),
@@ -367,18 +378,39 @@ def _normalize_market_health(mh: dict) -> Any:
 
 
 def _normalize_exposure(exp: dict) -> Any:
-    """Validate and normalize exposure dict. Fails fast if critical fields missing.
+    """Validate and normalize exposure dict. Fails fast if critical fields missing or invalid type.
 
     Critical fields (position sizing, trading halts): exposure_pct, regime
+    CRITICAL: exposure_pct must be numeric 0-100, regime must be string (not "unknown" or "")
     """
     critical_fields = {"exposure_pct", "regime"}
     missing = critical_fields - {k for k in exp.keys() if exp[k] is not None}
     if missing:
         raise ValueError(f"Market exposure missing critical fields: {missing}")
+
+    # Type and range validation for exposure_pct (AWS position sizing depends on this)
+    exposure_pct_raw = exp.get("exposure_pct")
+    try:
+        exposure_pct = float(exposure_pct_raw)
+        if exposure_pct < 0 or exposure_pct > 100:
+            raise ValueError(f"exposure_pct {exposure_pct} outside valid range [0,100]")
+    except (TypeError, ValueError) as e:
+        raise ValueError(f"exposure_pct type/range validation failed: {e} (got {type(exposure_pct_raw).__name__}: {exposure_pct_raw})")
+
+    # Validate regime is not "unknown" or empty string
+    regime = exp.get("regime")
+    if not regime or regime == "unknown" or regime == "":
+        raise ValueError(
+            f"Market exposure regime is invalid: '{regime}'. "
+            f"Must be one of: confirmed_uptrend, uptrend_under_pressure, caution, correction"
+        )
+    if regime not in ("confirmed_uptrend", "uptrend_under_pressure", "caution", "correction"):
+        raise ValueError(f"Market exposure regime '{regime}' not recognized")
+
     halt_reasons = exp.get("halt_reasons")
     return {
-        "exposure_pct": exp.get("exposure_pct"),
-        "regime": exp.get("regime"),
+        "exposure_pct": exposure_pct,
+        "regime": regime,
         "halt_reasons": halt_reasons if halt_reasons is not None else [],
         "distribution_days": exp.get("distribution_days"),
     }
@@ -737,6 +769,12 @@ def _get_markets(cur: cursor) -> Any:
             if not spy_row or spy_row["close"] is None:
                 return error_response(503, "data_unavailable", "SPY price data not available")
             spy_close = float(spy_row["close"])
+            # CRITICAL: Validate SPY price is reasonable (> 0)
+            if spy_close <= 0:
+                logger.error(
+                    f"[MARKETS API] Invalid SPY close: {spy_close} <= 0. Data quality issue in price_daily table."
+                )
+                return error_response(503, "data_unavailable", f"Invalid SPY price data: {spy_close}")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as spy_e:
             logger.error(f"CRITICAL: Failed to fetch SPY price: {spy_e}")
             return error_response(

@@ -41,7 +41,6 @@ const MarketExposure = ({ marketData, breadthData, distributionDaysData }) => {
 
   // Calculate exposure score based on market conditions
   const exposureScore = useMemo(() => {
-    let score = 50; // Neutral baseline (50%)
     let signals = [];
 
     // CRITICAL: Return null/error if essential data is missing (no fake defaults)
@@ -54,6 +53,9 @@ const MarketExposure = ({ marketData, breadthData, distributionDaysData }) => {
         error: "Missing required market data",
       };
     }
+
+    // Start with null — will be set from actual data only
+    let score = null;
 
     const breakdown = {};
 
@@ -215,7 +217,10 @@ const MarketExposure = ({ marketData, breadthData, distributionDaysData }) => {
       });
     }
     breakdown.distribution = distributionScore;
-    score += distributionScore;
+
+    // Calculate final score: base (50) + breadth + sentiment + distribution
+    // Only if all required data is available
+    score = 50 + breakdown.breadth + breakdown.sentiment + breakdown.distribution;
 
     // Clamp score between 0 and 100
     score = Math.max(0, Math.min(100, score));

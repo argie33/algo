@@ -110,8 +110,9 @@ class MarketExposure:
     def try_load_cached(self, eval_date: _date | None = None) -> dict[str, Any] | None:
         """Load cached market exposure for today. Returns dict or None if not cached/stale.
 
-        CRITICAL: Validates cache freshness. Never silently uses stale cache — if cached value
-        is from a different date, returns None to force recomputation instead of using stale data.
+        CRITICAL: Validates cache freshness both by date AND by TTL. Never silently uses stale cache.
+        - If cached_date != eval_date, reject (different day entirely)
+        - If cached_date == eval_date but > 10 hours old, reject (computed too early, using stale market data)
         Stale cache causes incorrect risk allocation and must be detected + logged, not silently accepted.
         """
         if not eval_date:
@@ -120,7 +121,7 @@ class MarketExposure:
         def fetch_cached(cur: PsycopgCursor[Any]) -> dict[str, Any] | None:
             cur.execute(
                 """
-                SELECT raw_score, exposure_pct, regime, halt_reasons, distribution_days, factors, date
+                SELECT raw_score, exposure_pct, regime, halt_reasons, distribution_days, factors, date, updated_at
                 FROM market_exposure_daily
                 WHERE date = %s
                 LIMIT 1
@@ -140,6 +141,7 @@ class MarketExposure:
                 dist_days,
                 factors_obj,
                 cached_date,
+                updated_at,
             ) = row
 
             # Validate cache freshness: must be today's data (cached_date == eval_date)
@@ -152,6 +154,25 @@ class MarketExposure:
                 )
                 logger.critical(msg)
                 raise RuntimeError(msg)
+
+            # CRITICAL: Also validate TTL — data computed > 10 hours ago uses stale market close prices
+            # Position sizing must use fresh-enough data (ideally computed within 1 hour of market close)
+            if updated_at:
+                from datetime import datetime, timedelta
+                from utils.infrastructure.timezone import EASTERN_TZ
+
+                now = datetime.now(EASTERN_TZ)
+                age = now - updated_at.replace(tzinfo=EASTERN_TZ) if not updated_at.tzinfo else now - updated_at
+                max_age = timedelta(hours=10)
+                if age > max_age:
+                    msg = (
+                        f"CRITICAL: Cached market exposure is too old — computed {age.total_seconds()/3600:.1f}h ago, "
+                        f"exceeds {max_age.total_seconds()/3600:.0f}h limit. "
+                        f"Using such old data for position sizing violates risk management. "
+                        f"Forcing recomputation with fresher market data."
+                    )
+                    logger.critical(msg)
+                    return None
 
             if halt_reasons_str:
                 try:
@@ -343,13 +364,28 @@ class MarketExposure:
                 logger.debug(f"  Breadth 200-DMA: {b200_val:.1f}%, {b200_pts:.1f} pts")
 
             # --- 5. Selling pressure (heavy-volume down days) ---
-            sp = self.calculator.selling_pressure(eval_date, cur)
-            if sp is None or not isinstance(sp, dict):
-                logger.warning(
-                    f"Selling pressure calculation failed (returned {type(sp).__name__}). "
-                    f"Excluding from exposure calculation."
+            # CRITICAL: Selling pressure is required for hard veto checks (Veto 3: 6+ days)
+            # Never silently exclude or default to None — must fail-fast on calculation error
+            try:
+                sp = self.calculator.selling_pressure(eval_date, cur)
+                if sp is None or not isinstance(sp, dict):
+                    raise RuntimeError(
+                        f"Selling pressure calculation failed: returned {type(sp).__name__} instead of dict"
+                    )
+                if "count" not in sp or sp["count"] is None:
+                    raise RuntimeError(
+                        f"Selling pressure calculation incomplete: missing 'count' field. "
+                        f"Cannot determine distribution day veto without day count."
+                    )
+            except Exception as e:
+                msg = (
+                    f"[SELLING PRESSURE CRITICAL] Distribution days calculation failed: {type(e).__name__}: {e} "
+                    f"Cannot compute exposure score without selling pressure data. "
+                    f"Check: (1) price_daily table freshness, (2) volume data availability"
                 )
-                sp = {"score": None, "count": None}
+                logger.critical(msg)
+                raise RuntimeError(msg) from e
+
             sp_pts, sp_avail = self.calculator._wt_pts(sp, self.W_SELLING_PRESSURE)
             avail_max += sp_avail
             factors["distribution_days"] = {  # key preserved for frontend/API compatibility
@@ -358,10 +394,7 @@ class MarketExposure:
                 "max": self.W_SELLING_PRESSURE,
             }
             score += sp_pts
-            if sp.get("count") is not None:
-                logger.debug(f"  Selling pressure: {sp['count']} days, {sp_pts:.1f} pts")
-            else:
-                logger.warning("Selling pressure data unavailable")
+            logger.debug(f"  Selling pressure: {sp['count']} days, {sp_pts:.1f} pts")
 
             # --- 6. VIX regime (level + VIX3M term structure) ---
             # _vix_regime() raises RuntimeError if VIX data is unavailable (critical dependency).
@@ -518,12 +551,15 @@ class MarketExposure:
                     score = max(0.0, min(100.0, score - eco_penalty))
                 factors["economic_overlay"] = {**eco, "pts": -eco_penalty, "max": 0}
             except Exception as e:
-                # CRITICAL: Economic regime overlay failed — use conservative cap, not no-cap default.
-                # When macro assessment fails, default to caution (40% cap) not risk-on (100% cap).
-                msg = f"Economic regime overlay computation failed: {type(e).__name__}: {e}"
+                # CRITICAL: Economic regime overlay failed — RAISE ERROR, don't silently default to conservative cap
+                # Using a default cap masks the underlying data quality issue and prevents alerts
+                msg = (
+                    f"[ECONOMIC OVERLAY CRITICAL] Macro economic assessment failed: {type(e).__name__}: {e} "
+                    f"Cannot compute exposure score without valid economic regime analysis. "
+                    f"Check: (1) economic_data table freshness, (2) FRED API connection, (3) series_id configuration"
+                )
                 logger.critical(msg)
-                factors["economic_overlay"] = {"error": str(e)[:60], "pts": 0, "max": 0}
-                eco_cap = 40.0  # Conservative fail-closed: assume macro stress until proven otherwise
+                raise RuntimeError(msg) from e
 
             # --- HARD VETOES ---
             halt_reasons = []
@@ -589,6 +625,17 @@ class MarketExposure:
 
             logger.info(f"  Final score: {final}% ({regime})")
 
+            # CRITICAL: distribution_days is required for position sizing hard vetoes
+            # Never default to 0 — missing data must be detected as error, not assumed "clean market"
+            if sp_count is None:
+                msg = (
+                    f"[EXPOSURE CRITICAL] Distribution days calculation failed (sp_count is None). "
+                    f"Cannot persist exposure score without distribution day count for veto checks. "
+                    f"Check: (1) selling_pressure() implementation, (2) distribution data freshness"
+                )
+                logger.critical(msg)
+                raise RuntimeError(msg)
+
             result = {
                 "eval_date": str(eval_date),
                 "raw_score": round(score, 1),
@@ -597,7 +644,7 @@ class MarketExposure:
                 "exposure_pct": round(final, 1),
                 "regime": regime,
                 "halt_reasons": halt_reasons,
-                "distribution_days": sp_count if sp_count is not None else 0,
+                "distribution_days": int(sp_count),
                 "factors": factors,
             }
             self._persist(eval_date, result)
@@ -1517,8 +1564,20 @@ class MarketExposure:
             # Can enter if no halt reasons (now safe because validated above)
             is_entry_allowed = len(result["halt_reasons"]) == 0
 
-            # Map exposure score to long/short allocations
+            # CRITICAL: Validate exposure_pct range before persisting
+            # Position sizing tier assignments depend on values in 0-100 range
             exposure_pct = result["exposure_pct"]
+            if exposure_pct < 0 or exposure_pct > 100:
+                msg = (
+                    f"[EXPOSURE VALIDATION CRITICAL] exposure_pct={exposure_pct} outside valid range [0,100]. "
+                    f"Calculation error — cannot persist invalid value. "
+                    f"Check: (1) factor scoring logic (should be 0-100), (2) cap calculations, "
+                    f"(3) hard veto logic applying excessive caps"
+                )
+                logger.critical(msg)
+                raise ValueError(msg)
+
+            # Map exposure score to long/short allocations
             if exposure_pct >= 0:
                 long_exp = exposure_pct
                 short_exp = 0
@@ -1643,6 +1702,21 @@ def read_market_regime(eval_date: _date) -> dict[str, Any]:
                     f"Cannot proceed until database is repaired."
                 )
 
+            # CRITICAL: Regime and exposure_tier are REQUIRED fields
+            # Never allow fallback to "unknown" — position sizing requires valid tier names
+            if not regime or regime == "":
+                raise MarketDataUnavailableError(
+                    f"[MARKET REGIME] market_exposure_daily for {eval_date} has NULL/empty regime. "
+                    f"Cannot apply position sizing policy without valid regime. "
+                    f"Phase 4 (market exposure calculation) must run successfully to produce valid regime."
+                )
+            if not exposure_tier or exposure_tier == "":
+                raise MarketDataUnavailableError(
+                    f"[MARKET REGIME] market_exposure_daily for {eval_date} has NULL/empty exposure_tier. "
+                    f"Cannot apply position sizing policy without valid tier. "
+                    f"Phase 4 (market exposure calculation) must run successfully to produce valid tier."
+                )
+
             # Deserialize halt_reasons JSON with consistent error handling
             halt_reasons = []
             if halt_reasons_str:
@@ -1662,24 +1736,22 @@ def read_market_regime(eval_date: _date) -> dict[str, Any]:
             return {
                 "is_entry_allowed": bool(is_entry_allowed),
                 "exposure_pct": float(exposure_pct),
-                "regime": regime or "unknown",
+                "regime": regime,
                 "halt_reasons": halt_reasons,
                 "raw_score": float(raw_score) if raw_score is not None else None,
-                "exposure_tier": exposure_tier or "unknown",
+                "exposure_tier": exposure_tier,
             }
 
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-        logger.critical(
-            f"[MARKET REGIME] Could not read market regime for {eval_date}: {e} — halting entries (fail-closed)"
+        # CRITICAL: Never return fake "unknown" regime — raise error instead
+        # Position sizing code cannot handle "unknown" tier; must fail-fast
+        msg = (
+            f"[MARKET REGIME CRITICAL] Could not read market regime for {eval_date}: {type(e).__name__}: {e} "
+            f"— Market exposure data unavailable. Position sizing cannot proceed without valid regime. "
+            f"Check: (1) market_exposure_daily table exists, (2) Phase 4 loader has run, (3) database connection"
         )
-        return {
-            "is_entry_allowed": False,
-            "exposure_pct": 0,
-            "regime": "unknown",
-            "halt_reasons": [f"Market regime read failed: {type(e).__name__}"],
-            "raw_score": 0,
-            "exposure_tier": "unknown",
-        }
+        logger.critical(msg)
+        raise MarketDataUnavailableError(msg) from e
 
 
 if __name__ == "__main__":
