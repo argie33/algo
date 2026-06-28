@@ -300,9 +300,10 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Cause = "stock_prices_daily failed after retries. Pipeline halted to prevent trading on stale data. Check CloudWatch logs for details."
       }
 
-      # ── Step 2: Market health + trend template + market exposure (parallel enrichment) ─
+      # ── Step 2: Market health + trend template (parallel enrichment) ─
       # REFACTORED: Removed technical_data_daily (90 min) — orchestrator Phase 5 computes signals on-the-fly.
-      # FIXED: Added market_exposure_daily to EOD pipeline to guarantee availability regardless of orchestrator halt.
+      # FIXED: Moved market_exposure_daily to run AFTER sector_ranking (Step 8c) to ensure all dependencies complete.
+      # Previously was in parallel enrichment with 600s timeout → failed because trend_template takes 5400s.
       ParallelEnrichment = {
         Type = "Parallel"
         Branches = [
@@ -340,29 +341,6 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
                   Cluster              = var.ecs_cluster_arn
                   LaunchType           = "FARGATE"
                   TaskDefinition       = var.loader_task_definition_arns["trend_template_data"]
-                  NetworkConfiguration = local.network_config
-                }
-                Retry = [{
-                  ErrorEquals     = ["States.ALL"]
-                  IntervalSeconds = 60
-                  MaxAttempts     = 2
-                  BackoffRate     = 2.0
-                }]
-                End = true
-              }
-            }
-          },
-          {
-            StartAt = "MarketExposureDaily"
-            States = {
-              MarketExposureDaily = {
-                Type           = "Task"
-                Resource       = "arn:aws:states:::ecs:runTask.sync"
-                TimeoutSeconds = 600
-                Parameters = {
-                  Cluster              = var.ecs_cluster_arn
-                  LaunchType           = "FARGATE"
-                  TaskDefinition       = var.loader_task_definition_arns["market_exposure_daily"]
                   NetworkConfiguration = local.network_config
                 }
                 Retry = [{
@@ -677,13 +655,69 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         }]
         Catch = [{
           ErrorEquals = ["States.ALL"]
+          Next        = "MarketExposureDaily"
+          ResultPath  = "$.logError"
+        }]
+        Next = "MarketExposureDaily"
+      }
+
+      # ── Step 8d: Market exposure limits — CRITICAL for Phase 1 freshness check ──
+      # FIXED: Moved from ParallelEnrichment (was timing out at 600s) to run AFTER sector_ranking.
+      # Now has 600+ seconds guaranteed with all dependencies complete:
+      # - market_health_daily (VIX, put/call, breadth, new highs/lows)
+      # - trend_template_data (price_above_sma calculations)
+      # - price_daily (via stock_prices_daily, for momentum/distribution days)
+      # - economic_data (credit spreads, yield curve, jobless claims)
+      # CRITICAL: Phase 1 checks market_exposure_daily freshness and halts if stale
+      MarketExposureDaily = {
+        Type           = "Task"
+        Resource       = "arn:aws:states:::ecs:runTask.sync"
+        TimeoutSeconds = 600
+        Parameters = {
+          Cluster              = var.ecs_cluster_arn
+          LaunchType           = "FARGATE"
+          TaskDefinition       = var.loader_task_definition_arns["market_exposure_daily"]
+          NetworkConfiguration = local.network_config
+        }
+        Retry = [{
+          ErrorEquals     = ["States.ALL"]
+          IntervalSeconds = 60
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "LogMarketExposureFailure"
+          ResultPath  = "$.loaderError"
+        }]
+        Next = "DataPatrol"
+      }
+
+      LogMarketExposureFailure = {
+        Type     = "Task"
+        Resource = var.loader_failure_handler_arn
+        Parameters = {
+          loader_name       = "market_exposure_daily"
+          "error.$"         = "$.loaderError.Error"
+          "error_message.$" = "$.loaderError.Cause"
+          is_critical_loader = true
+        }
+        ResultPath = "$.failureLog"
+        Retry = [{
+          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
+          IntervalSeconds = 2
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
           Next        = "DataPatrol"
           ResultPath  = "$.logError"
         }]
         Next = "DataPatrol"
       }
 
-      # ── Step 8b: Data patrol — validates data quality before orchestrator runs ──
+      # ── Step 8e: Data patrol — validates data quality before orchestrator runs ──
       # Runs algo/algo_data_patrol.py, writes findings to data_patrol_log.
       # Orchestrator Phase 1 reads data_patrol_log; CRITICAL findings block trading.
       # Fail-open: if patrol itself errors, pipeline continues (Phase 1 passes vacuously).
