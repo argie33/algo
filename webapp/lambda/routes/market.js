@@ -3503,12 +3503,18 @@ router.get("/technicals-fresh", async (req, res) => {
     if (mcclellanData.status === 'rejected') {
       throw new Error(`CRITICAL: McClellan oscillator data fetch failed: ${mcclellanData.reason.message}`);
     }
-    const mcclellan = mcclellanData.value || [];
+    if (!mcclellanData.value) {
+      throw new Error("CRITICAL: McClellan oscillator data unavailable");
+    }
+    const mcclellan = mcclellanData.value;
 
     if (distributionDaysData.status === 'rejected') {
       throw new Error(`CRITICAL: Distribution days data fetch failed: ${distributionDaysData.reason.message}`);
     }
-    const distributionDays = distributionDaysData.value || {};
+    if (!distributionDaysData.value) {
+      throw new Error("CRITICAL: Distribution days data unavailable");
+    }
+    const distributionDays = distributionDaysData.value;
 
     if (volatilityData.status === 'rejected') {
       throw new Error(`CRITICAL: Volatility data fetch failed: ${volatilityData.reason.message}`);
