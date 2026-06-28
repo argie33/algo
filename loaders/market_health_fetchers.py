@@ -152,10 +152,8 @@ class YieldCurveFetcher:
         """Fetch yield curve data with circuit breaker protection.
 
         Returns:
-            dict with yield data keyed by date, or empty dict if no data available for date range.
-
-        Raises:
-            RuntimeError: If yield curve data cannot be fetched (OPTIONAL importance, but still fails fast)
+            dict with yield data keyed by date (may be empty if data unavailable/incomplete).
+            Yield curve is OPTIONAL enrichment—returns empty dict rather than raising on data issues.
         """
         try:
             result = self.breaker.execute(
@@ -164,33 +162,27 @@ class YieldCurveFetcher:
                 fallback_value=None,
             )
             if result is None:
-                raise RuntimeError(
-                    f"Yield curve data unavailable for {start} to {end}. "
-                    "Circuit breaker repeated failures. "
-                    "Yield curve is used for market regime detection (Fed rate environment, inversion detection). "
-                    "Cannot proceed without this data — check network connectivity and API availability."
-                )
+                logger.debug(f"Yield curve data unavailable for {start} to {end} - circuit breaker exhausted")
+                return {}
             if not isinstance(result, dict):
-                raise RuntimeError(
+                logger.warning(
                     f"Yield curve fetch returned invalid type {type(result).__name__}. "
-                    f"Expected dict, got {result!r}. "
-                    "Data corruption or API response format change detected."
+                    f"Expected dict, got {result!r}. Returning empty dict for optional enrichment."
                 )
+                return {}
             return result
-        except RuntimeError:
-            raise
+        except RuntimeError as e:
+            logger.warning(f"Yield curve fetch failed (optional enrichment): {e}")
+            return {}
         except Exception as e:
-            raise RuntimeError(
-                f"Yield curve fetch failed: {e}. "
-                "Yield curve is used for market regime detection and cannot be unavailable. "
-                f"Check database connectivity, API keys, and network status."
-            ) from e
+            logger.warning(f"Yield curve fetch error (optional enrichment): {e}")
+            return {}
 
     def _fetch_yield_curve_data(self, start: date, end: date) -> dict[str, Any]:
         """Internal yield curve fetch implementation.
 
-        Skip dates with missing yield data (common for weekends/holidays/recent dates).
-        Return available data and allow forward-fill in the caller.
+        OPTIONAL enrichment: Skip dates with missing yield data (common for weekends/holidays/recent dates).
+        Return available data only; incomplete dates are silently skipped (not an error for optional data).
         """
         try:
             import pandas as pd
@@ -198,11 +190,8 @@ class YieldCurveFetcher:
 
             fred_api_key = __import__("os").getenv("FRED_API_KEY")
             if not fred_api_key:
-                logger.error("CRITICAL: FRED_API_KEY environment variable not set — cannot fetch yield curve data for market regime detection")
-                raise RuntimeError(
-                    "FRED_API_KEY not configured. Yield curve data is required for market regime detection "
-                    "(Fed rate environment, inversion detection). Check AWS Secrets Manager configuration."
-                )
+                logger.debug("FRED_API_KEY not configured — yield curve unavailable (optional enrichment)")
+                return {}
 
             url = "https://www.alphavantage.co/query"
             params = {
@@ -214,10 +203,8 @@ class YieldCurveFetcher:
             data = response.json()
 
             if "data" not in data:
-                raise RuntimeError(
-                    "[YIELD_CURVE] No data field in API response. "
-                    "Yield curve data is critical for market regime detection and cannot be absent."
-                )
+                logger.debug("[YIELD_CURVE] No data field in API response — yield curve unavailable")
+                return {}
 
             result = {}
             incomplete_dates = []
@@ -237,15 +224,13 @@ class YieldCurveFetcher:
                     }
 
             if incomplete_dates:
-                raise RuntimeError(
-                    f"[YIELD_CURVE] Incomplete yield data for {len(incomplete_dates)} date(s): "
-                    f"{incomplete_dates[:3]}{'...' if len(incomplete_dates) > 3 else ''}. "
-                    "Market regime detection requires complete 2Y/10Y yield data. Cannot proceed with partial data."
-                )
+                logger.debug(f"[YIELD_CURVE] Skipped {len(incomplete_dates)} dates with incomplete data (optional enrichment)")
+            if result:
+                logger.info(f"[YIELD_CURVE] Fetched {len(result)} dates with complete yield data")
             return result
         except Exception as e:
-            logger.warning(f"Yield curve fetch failed: {e}")
-            raise
+            logger.debug(f"Yield curve fetch failed (optional enrichment): {e}")
+            return {}
 
 
 class BreadthFetcher:
