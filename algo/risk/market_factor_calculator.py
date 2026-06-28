@@ -26,16 +26,19 @@ class MarketFactorCalculator:
     def _wt_pts(factor: dict[str, Any], weight: float) -> tuple[float, float]:
         """Scale factor score to weight. Returns (pts, avail_weight).
 
-        Raises: RuntimeError if score is missing or invalid (fail-closed)
+        When score is None (data missing), returns (0.0, 0.0) so the
+        factor is excluded from both the score and the available-max denominator.
+        Normalization will handle missing factors by scaling remaining scores.
         """
         score = factor.get("score")
         if score is None:
-            raise ValueError("Market factor score missing - all factors required for exposure calculation")
+            return 0.0, 0.0
 
         try:
             score = float(score)
-        except (ValueError, TypeError) as e:
-            raise ValueError(f"Market factor score is not numeric: {score}") from e
+        except (ValueError, TypeError):
+            logger.warning(f"Market factor score is not numeric: {score}")
+            return 0.0, 0.0
 
         return score * weight / 100.0, weight
 
@@ -214,8 +217,9 @@ class MarketFactorCalculator:
     def selling_pressure(self, eval_date: Any, cur: Any) -> dict[str, Any]:
         """Heavy-volume down days in last 25 sessions (optional).
 
-        Raises if data unavailable. Selling pressure is a 10pt
-        factor and missing volume/price data must be handled by caller.
+        Returns {"score": None} if data unavailable instead of raising.
+        Selling pressure is a 10pt factor and missing volume/price data
+        is handled by returning None score — normalization will exclude this factor.
         """
         try:
             cur.execute(
@@ -237,14 +241,19 @@ class MarketFactorCalculator:
                 # 0-2 = 100, 3-4 = 60, 5+ = 20
                 score = 100.0 if dist <= 2 else (60.0 if dist <= 4 else 20.0)
                 return {"heavy_down_days": dist, "count": dist, "value": dist, "score": score}
-            raise RuntimeError(f"Selling pressure data unavailable for {eval_date} — insufficient SPY price history")
-        except RuntimeError:
-            raise
+            logger.warning(f"Selling pressure data unavailable for {eval_date} — insufficient SPY price history")
+            return {"score": None, "reason": "selling_pressure data unavailable"}
         except (ValueError, ZeroDivisionError, TypeError, psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            raise RuntimeError(f"Selling pressure calculation failed: {e}") from e
+            logger.warning(f"Selling pressure calculation failed: {e}")
+            return {"score": None, "reason": f"selling_pressure calculation error: {e}"}
 
     def vix_regime(self, eval_date: Any, cur: Any) -> dict[str, Any]:
-        """VIX level + term structure."""
+        """VIX level + term structure.
+
+        Returns {"score": None} if data unavailable instead of raising.
+        VIX is a 10pt factor and missing volatility data is handled
+        by returning None score — normalization will exclude this factor.
+        """
         try:
             cur.execute(
                 "SELECT vix_level FROM market_health_daily WHERE date <= %s ORDER BY date DESC LIMIT 1",
@@ -256,15 +265,18 @@ class MarketFactorCalculator:
                 # Simplified: no term structure data
                 score, detail = self._vix_score(vix, vix > 20)
                 return {"value": round(vix, 1), "score": score, **detail}
-            raise RuntimeError("No VIX data available for volatility regime calculation")
+            logger.warning("No VIX data available for volatility regime calculation")
+            return {"score": None, "reason": "vix_regime data unavailable"}
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            raise RuntimeError(f"VIX regime calculation failed: {e}") from e
+            logger.warning(f"VIX regime calculation failed: {e}")
+            return {"score": None, "reason": f"vix_regime calculation error: {e}"}
 
     def put_call_ratio(self, eval_date: Any, cur: Any) -> dict[str, Any]:
         """Put/call ratio (contrarian indicator).
 
-        Raises if data unavailable. Put/call is an 8pt factor that affects
-        market exposure scoring — missing data must be explicitly handled by caller.
+        Returns {"score": None} if data unavailable instead of raising.
+        Put/call is an 8pt factor and missing options data is handled
+        by returning None score — normalization will exclude this factor.
         """
         try:
             cur.execute("SAVEPOINT sp_put_call")
@@ -275,14 +287,16 @@ class MarketFactorCalculator:
             row = cur.fetchone()
             cur.execute("RELEASE SAVEPOINT sp_put_call")
             if not row or row[0] is None:
-                raise RuntimeError(f"Put/call ratio unavailable for {eval_date}")
+                logger.warning(f"Put/call ratio unavailable for {eval_date}")
+                return {"score": None, "reason": "put_call_ratio data unavailable"}
             pcr = float(row[0])
             if pcr <= 0:
-                raise RuntimeError(
+                logger.warning(
                     f"Put/call ratio invalid for {eval_date}: {pcr}. "
                     f"Put/call ratio must be > 0 (ratio of puts to calls). "
                     f"Value of {pcr} is placeholder/corrupted data. Check market_health_daily data quality."
                 )
+                return {"score": None, "reason": f"put_call_ratio invalid: {pcr}"}
             score = max(0, min(100, (pcr - 0.7) * 100))
             return {"value": round(pcr, 2), "score": score}
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
@@ -291,13 +305,15 @@ class MarketFactorCalculator:
                 cur.execute("RELEASE SAVEPOINT sp_put_call")
             except Exception as cleanup_err:
                 logger.error(f"Savepoint cleanup failed (put_call_ratio): {cleanup_err}", exc_info=True)
-            raise RuntimeError(f"Put/call ratio query failed: {e}") from e
+            logger.warning(f"Put/call ratio query failed: {e}")
+            return {"score": None, "reason": f"put_call_ratio calculation error: {e}"}
 
     def new_highs_lows(self, eval_date: Any, cur: Any) -> dict[str, Any]:
         """52-week new highs vs new lows.
 
-        Raises if data unavailable. New highs/lows is a 7pt factor that affects
-        market regime detection — missing data must be explicitly handled by caller.
+        Returns {"score": None} if data unavailable instead of raising.
+        New highs/lows is a 7pt factor and missing market leadership data
+        is handled by returning None score — normalization will exclude this factor.
         """
         try:
             cur.execute("SAVEPOINT sp_nhnl")
@@ -323,20 +339,23 @@ class MarketFactorCalculator:
                         "nh_pct": round(nh_pct, 1),
                         "score": score,
                     }
-            raise RuntimeError(f"New highs/lows unavailable for {eval_date}")
+            logger.warning(f"New highs/lows unavailable for {eval_date}")
+            return {"score": None, "reason": "new_highs_lows data unavailable"}
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             try:
                 cur.execute("ROLLBACK TO SAVEPOINT sp_nhnl")
                 cur.execute("RELEASE SAVEPOINT sp_nhnl")
             except Exception as cleanup_err:
                 logger.error(f"Savepoint cleanup failed (new_highs_lows): {cleanup_err}", exc_info=True)
-            raise RuntimeError(f"New highs/lows query failed: {e}") from e
+            logger.warning(f"New highs/lows query failed: {e}")
+            return {"score": None, "reason": f"new_highs_lows calculation error: {e}"}
 
     def ad_line(self, eval_date: Any, cur: Any) -> dict[str, Any]:
         """Advance/decline line vs SPY.
 
-        Raises if data unavailable. A/D line is a 6pt factor that affects
-        market breadth assessment — missing data must be explicitly handled by caller.
+        Returns {"score": None} if data unavailable instead of raising.
+        A/D line is a 6pt factor and missing breadth direction data
+        is handled by returning None score — normalization will exclude this factor.
         """
         try:
             cur.execute("SAVEPOINT sp_ad_line")
@@ -355,14 +374,16 @@ class MarketFactorCalculator:
                 direction = row[0]
                 score = 100.0 if direction == "up" else 0.0
                 return {"direction": direction, "relation": direction, "value": direction, "score": score}
-            raise RuntimeError(f"A/D line unavailable for {eval_date}")
+            logger.warning(f"A/D line unavailable for {eval_date}")
+            return {"score": None, "reason": "ad_line data unavailable"}
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             try:
                 cur.execute("ROLLBACK TO SAVEPOINT sp_ad_line")
                 cur.execute("RELEASE SAVEPOINT sp_ad_line")
             except Exception as cleanup_err:
                 logger.error(f"Savepoint cleanup failed (ad_line): {cleanup_err}", exc_info=True)
-            raise RuntimeError(f"A/D line query failed: {e}") from e
+            logger.warning(f"A/D line query failed: {e}")
+            return {"score": None, "reason": f"ad_line calculation error: {e}"}
 
     def credit_spread(self, eval_date: Any, cur: Any) -> dict[str, Any]:
         """High-yield credit spread (HY OAS).

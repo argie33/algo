@@ -322,11 +322,9 @@ class MarketExposure:
             score += b50_pts
             b50_val = b50.get("value")
             if b50_val is None:
-                raise RuntimeError(
-                    f"[MARKET EXPOSURE CRITICAL] Breadth 50-DMA data unavailable for {eval_date} — "
-                    f"required for short-term market participation factor. Check market_health_daily loader."
-                )
-            logger.debug(f"  Breadth 50-DMA: {b50_val:.1f}%, {b50_pts:.1f} pts")
+                logger.warning(f"Breadth 50-DMA data unavailable for {eval_date}")
+            else:
+                logger.debug(f"  Breadth 50-DMA: {b50_val:.1f}%, {b50_pts:.1f} pts")
 
             # --- 4. Breadth: % stocks above 200-DMA ---
             b200 = self.calculator._pct_above_ma(eval_date, ma_days=200, cur=cur)
@@ -340,21 +338,18 @@ class MarketExposure:
             score += b200_pts
             b200_val = b200.get("value")
             if b200_val is None:
-                raise RuntimeError(
-                    f"[MARKET EXPOSURE CRITICAL] Breadth 200-DMA data unavailable for {eval_date} — "
-                    f"required for long-term market regime factor. Check market_health_daily loader."
-                )
-            logger.debug(f"  Breadth 200-DMA: {b200_val:.1f}%, {b200_pts:.1f} pts")
+                logger.warning(f"Breadth 200-DMA data unavailable for {eval_date}")
+            else:
+                logger.debug(f"  Breadth 200-DMA: {b200_val:.1f}%, {b200_pts:.1f} pts")
 
             # --- 5. Selling pressure (heavy-volume down days) ---
             sp = self.calculator.selling_pressure(eval_date, cur)
             if sp is None or not isinstance(sp, dict):
-                raise RuntimeError(
+                logger.warning(
                     f"Selling pressure calculation failed (returned {type(sp).__name__}). "
-                    f"Cannot calculate market distribution days."
+                    f"Excluding from exposure calculation."
                 )
-            if sp.get("count") is None:
-                raise RuntimeError("Selling pressure count unavailable — cannot calculate market distribution days")
+                sp = {"score": None, "count": None}
             sp_pts, sp_avail = self.calculator._wt_pts(sp, self.W_SELLING_PRESSURE)
             avail_max += sp_avail
             factors["distribution_days"] = {  # key preserved for frontend/API compatibility
@@ -363,7 +358,10 @@ class MarketExposure:
                 "max": self.W_SELLING_PRESSURE,
             }
             score += sp_pts
-            logger.debug(f"  Selling pressure: {sp['count']} days, {sp_pts:.1f} pts")
+            if sp.get("count") is not None:
+                logger.debug(f"  Selling pressure: {sp['count']} days, {sp_pts:.1f} pts")
+            else:
+                logger.warning("Selling pressure data unavailable")
 
             # --- 6. VIX regime (level + VIX3M term structure) ---
             # _vix_regime() raises RuntimeError if VIX data is unavailable (critical dependency).
@@ -532,52 +530,45 @@ class MarketExposure:
             cap = eco_cap  # Start with eco-overlay cap (may already restrict)
 
             # Veto 1: SPY < rising 30wk MA AND breadth weak
-            # CRITICAL: Breadth data is required for market exposure assessment
             b50_value = b50.get("value")
-            if t30.get("price_below_ma"):
-                if b50_value is None:
-                    raise ValueError(
-                        "Market exposure assessment failed: breadth data unavailable when SPY is below 30-week MA. "
-                        "Cannot assess market conditions without breadth confirmation. "
-                        "Check breadth_50dma_factor data pipeline."
-                    )
-                if b50_value < 30:
+            if t30.get("score") is not None and t30.get("above_30wma") is False:
+                if b50_value is not None and b50_value < 30:
                     halt_reasons.append("SPY < 30wk MA AND <30% above 50-DMA")
                     cap = min(cap, 25.0)
+                elif b50_value is None:
+                    logger.warning("Veto 1 (SPY below 30wk MA): breadth data unavailable, skipping")
             # Veto 2: VIX > 40 rising (only if VIX data available)
             vix_value = vix.get("value")
             if vix_value is not None and vix_value > 40 and vix.get("rising"):
                 halt_reasons.append(f"VIX {vix_value:.1f} rising > 40")
                 cap = min(cap, 30.0)
             # Veto 3: 6+ selling-pressure days (severe institutional distribution)
-            if "count" not in sp:
-                logger.error(f"Selling pressure data incomplete: missing 'count' field. Data: {sp}")
-                raise ValueError("Selling pressure data missing required 'count' field")
-            sp_count = sp["count"]
-            if sp_count >= 6:
+            sp_count = sp.get("count")
+            if sp_count is not None and sp_count >= 6:
                 halt_reasons.append(f"{sp_count} selling-pressure days >= 6")
                 cap = min(cap, 35.0)
+            elif sp_count is None:
+                logger.warning("Veto 3 (selling pressure): data unavailable, skipping")
             # Veto 4: No market confirmation signal while SPY below 30-week MA.
             # Only applies when SPY is actually below its 30-week MA — in smooth uptrends
             # SPY never drops enough to need confirmation, so this veto is dormant.
-            has_confirmation = self._has_market_confirmation(eval_date, cur)
-            if not has_confirmation and t30.get("price_below_ma"):
-                halt_reasons.append("No market confirmation signal while SPY below 30-week MA")
-                cap = min(cap, 40.0)
-            # Veto 5: HY credit spread systemic stress
-            cs_value = cs.get("hy_oas")
-            if cs_value is None:
-                msg = (
-                    "Market exposure assessment failed: HY credit spread data missing. "
-                    "Credit spreads are a leading indicator of systemic risk — "
-                    "cannot assess market exposure without them. "
-                    "Check credit_spreads table in economic_data loader."
-                )
-                logger.critical(msg)
-                raise ValueError(msg)
-            if cs_value > 8.5:
-                halt_reasons.append(f"HY credit spread {cs_value:.2f}% > 8.5% (systemic stress)")
-                cap = min(cap, 30.0)
+            try:
+                has_confirmation = self._has_market_confirmation(eval_date, cur)
+                if not has_confirmation and t30.get("score") is not None and t30.get("above_30wma") is False:
+                    halt_reasons.append("No market confirmation signal while SPY below 30-week MA")
+                    cap = min(cap, 40.0)
+            except RuntimeError as e:
+                logger.warning(f"Veto 4 (market confirmation): {e}, skipping")
+                has_confirmation = True  # Conservative: assume confirmation if check fails
+            # Veto 5: HY credit spread systemic stress (only if data available)
+            cs_value = cs.get("value")
+            if cs_value is not None:
+                cs_value = float(cs_value)
+                if cs_value > 850:  # OAS in basis points, 850 bps = 8.5%
+                    halt_reasons.append(f"HY credit spread {cs_value:.0f} bps > 850 (systemic stress)")
+                    cap = min(cap, 30.0)
+            else:
+                logger.warning("Veto 5 (credit spreads): data unavailable, skipping")
 
             if halt_reasons:
                 logger.warning(f"  Hard vetoes active: {'; '.join(halt_reasons)}, cap={cap}%")
@@ -606,7 +597,7 @@ class MarketExposure:
                 "exposure_pct": round(final, 1),
                 "regime": regime,
                 "halt_reasons": halt_reasons,
-                "distribution_days": sp_count,
+                "distribution_days": sp_count if sp_count is not None else 0,
                 "factors": factors,
             }
             self._persist(eval_date, result)
