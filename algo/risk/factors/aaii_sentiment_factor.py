@@ -35,11 +35,12 @@ class AAIISentimentFactor(MarketFactorStrategy):
         Contrarian: high bearish spread (many bears) = bullish signal.
         """
         cur.execute("""
-            SELECT bullish_pct, bearish_pct, date
-            FROM aaii_sentiment_daily
+            SELECT bullish, bearish, date
+            FROM aaii_sentiment
+            WHERE date <= %s
             ORDER BY date DESC
             LIMIT 1
-        """)
+        """, (eval_date,))
         row = cur.fetchone()
         if not row:
             raise ValueError("AAII sentiment factor: no AAII sentiment data available")

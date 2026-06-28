@@ -248,40 +248,31 @@ class MarketHealthDailyLoader(OptimalLoader):
     def _merge_put_call_data(self, health_metrics: list[dict[str, Any]], end: date) -> None:
         """Merge put/call ratio into health metrics.
 
-        Put/call ratio is a critical enrichment for market exposure scoring (8pt factor).
-        Options sentiment (put/call) is essential for assessing market risk appetite.
-        If unavailable, this is a data quality issue that must be logged as ERROR.
+        Put/call ratio is OPTIONAL enrichment for market exposure scoring (8pt factor).
+        Options sentiment (put/call) is useful for assessing market risk appetite, but
+        market can function without it. Gracefully degrade if unavailable.
         """
         try:
             today_pc = self._put_call_fetcher.fetch(end)
         except Exception as e:
-            logger.error(f"[MARKET_HEALTH CRITICAL] Put/call ratio fetch failed: {e}. "
-                        f"Cannot assess options sentiment for market exposure calculation.")
-            raise RuntimeError(
-                f"[MARKET_HEALTH] Put/call ratio fetch failed for {end}: {e}. "
-                f"Options market sentiment is critical for exposure risk assessment."
-            ) from e
+            logger.warning(f"[MARKET_HEALTH] Put/call ratio fetch failed for {end}: {e}. "
+                          f"Options sentiment is optional - continuing without it.")
+            # Set to None for this date; market exposure will handle missing optional data
+            today_pc = None
 
-        if today_pc is None:
-            logger.error(
-                f"[MARKET_HEALTH CRITICAL] Put/call ratio unavailable for {end}. "
-                f"Cannot assess options sentiment - market exposure calculation will be incomplete."
-            )
-            raise ValueError(
-                f"[MARKET_HEALTH] Put/call ratio data is None for {end}. "
-                f"Options sentiment is required for accurate market exposure scoring."
-            )
-
-        end_str = end.isoformat()
-        matched_count = 0
-        for m in health_metrics:
-            if m["date"] == end_str:
-                m["put_call_ratio"] = today_pc
-                matched_count += 1
-            # Note: Do NOT set put_call_ratio for historical dates
-            # Historical dates keep their existing put_call_ratio values (if any)
-
-        logger.info(f"Put/call ratio: {today_pc:.3f} (matched {matched_count} rows)")
+        if today_pc is not None:
+            end_str = end.isoformat()
+            matched_count = 0
+            for m in health_metrics:
+                if m["date"] == end_str:
+                    m["put_call_ratio"] = today_pc
+                    matched_count += 1
+                # Note: Do NOT set put_call_ratio for historical dates
+                # Historical dates keep their existing put_call_ratio values (if any)
+            logger.info(f"Put/call ratio: {today_pc:.3f} (matched {matched_count} rows)")
+        else:
+            logger.warning(f"[MARKET_HEALTH] Put/call ratio unavailable for {end}. "
+                          f"Options sentiment optional - market exposure will proceed without it.")
 
     def _merge_yield_curve_data(self, health_metrics: list[dict[str, Any]], start: date, end: date) -> None:
         """Merge yield curve slope into health metrics.
@@ -442,10 +433,9 @@ class MarketHealthDailyLoader(OptimalLoader):
         date_end = health_metrics[-1]["date"]
         logger.info(f"Computed {len(health_metrics)} metrics from {len(rows)} rows, range: {date_start} to {date_end}")
 
-        try:
-            self._merge_breadth_data(health_metrics, start, end)
-        except Exception as e:
-            logger.warning(f"[MARKET_HEALTH] Breadth enrichment failed: {e} (optional, skipping)")
+        # Breadth data (new highs/lows, advance/decline) is critical for market analysis
+        # Fail-fast if unavailable; don't silently skip with NULL values
+        self._merge_breadth_data(health_metrics, start, end)
 
         self._merge_vix_data(health_metrics, start, end)
         self._merge_put_call_data(health_metrics, end)

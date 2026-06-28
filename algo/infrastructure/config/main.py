@@ -1235,7 +1235,11 @@ class AlgoConfig:
                                     f"Admin must fix database value: {e}"
                                 )
                             else:
-                                logger.warning(f"Warning: Invalid config {key}={value}: {e}  - using default")
+                                logger.warning(
+                                    f"[AlgoConfig] NON-CRITICAL Invalid config {key}={value}: {e}. "
+                                    f"This is not a safety gate, using default. "
+                                    f"Consider fixing in database for consistency."
+                                )
                                 self._sources[key] = "default_fallback"
 
                 if invalid_critical_values:

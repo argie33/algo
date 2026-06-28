@@ -516,14 +516,26 @@ class OptimalLoader:
     def _update_final_status(self, expected_symbols: int) -> None:
         try:
             with DatabaseContext("read") as cur:
-                cur.execute(f"SELECT COUNT(*), MAX({self.watermark_field}) FROM {self.table_name}")
-                result = cur.fetchone()
-                if result is None:
-                    raise RuntimeError(f"Status query failed for table '{self.table_name}': query returned None")
-                if result[0] is None:
-                    raise RuntimeError(f"COUNT query returned NULL for table '{self.table_name}'")
-                total_rows = result[0]
-                latest_date = result[1].date() if result[1] is not None and hasattr(result[1], "date") else None
+                # CRITICAL: Handle loaders with no watermark_field (e.g., stock_scores computed all-at-once)
+                if self.watermark_field:
+                    cur.execute(f"SELECT COUNT(*), MAX({self.watermark_field}) FROM {self.table_name}")
+                    result = cur.fetchone()
+                    if result is None:
+                        raise RuntimeError(f"Status query failed for table '{self.table_name}': query returned None")
+                    if result[0] is None:
+                        raise RuntimeError(f"COUNT query returned NULL for table '{self.table_name}'")
+                    total_rows = result[0]
+                    latest_date = result[1].date() if result[1] is not None and hasattr(result[1], "date") else None
+                else:
+                    # No watermark_field: just count rows
+                    cur.execute(f"SELECT COUNT(*) FROM {self.table_name}")
+                    result = cur.fetchone()
+                    if result is None:
+                        raise RuntimeError(f"Status query failed for table '{self.table_name}': query returned None")
+                    if result[0] is None:
+                        raise RuntimeError(f"COUNT query returned NULL for table '{self.table_name}'")
+                    total_rows = result[0]
+                    latest_date = None
 
             symbols_processed = self._stats.get("symbols_processed")
             completion_pct = (symbols_processed / expected_symbols * 100) if expected_symbols > 0 else 100.0

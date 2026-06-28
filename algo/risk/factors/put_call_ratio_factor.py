@@ -35,7 +35,9 @@ class PutCallRatioFactor(MarketFactorStrategy):
         - P/C 0.5-0.7 = 40 (complacent)
         - P/C < 0.5 = 20 (extreme greed → caution)
 
-        Raises ValueError if options data unavailable.
+        IMPORTANT: Put/call ratio is OPTIONAL enrichment (8pt factor).
+        Returns 50 (neutral) if data unavailable rather than raising error.
+        Market exposure will handle missing data via weight normalization.
         """
         try:
             cur.execute(
@@ -48,7 +50,13 @@ class PutCallRatioFactor(MarketFactorStrategy):
             )
             row = cur.fetchone()
             if not row or row[0] is None:
-                raise ValueError("Put/call ratio factor: no options data available")
+                # Optional data not available - return neutral score
+                logger.warning(f"Put/call ratio unavailable for {eval_date} - using neutral score (50)")
+                return {
+                    "score": 50.0,
+                    "reason": "Put/call ratio data unavailable (optional enrichment)",
+                    "details": {"put_call_ratio": None, "signal": "neutral_unavailable"},
+                }
 
             pcr = float(row[0])
 

@@ -356,21 +356,38 @@ class ExitHandler:
                     "message": f"Exit order failed: {error_message}",
                 }
 
-        final_exit_price = actual_fill_price if actual_fill_price is not None else exit_price
-        if final_exit_price == exit_price and not is_estimated_price:
-            logger.critical(
-                f"[EXEC_EXIT_PRICE_FALLBACK] Using estimated exit price for {symbol} despite auto mode. "
-                f"This should only occur in review/paper mode. Check execution_mode={execution_mode}"
+        # Determine final exit price with explicit fail-fast validation
+        if execution_mode == "auto" and not is_estimated_price:
+            # In auto mode with actual fill: must use actual price, never fallback
+            if actual_fill_price is None:
+                raise DataUnavailableError(
+                    f"[CRITICAL] Auto mode executed order but actual_fill_price is None for {symbol}. "
+                    f"Logic error: execution succeeded but fill price unavailable. Cannot record exit."
+                )
+            final_exit_price = actual_fill_price
+        elif is_estimated_price:
+            # Estimated price (paper/review mode or order failed) - use provided exit_price
+            final_exit_price = exit_price
+        else:
+            # Should never reach here if logic is correct
+            raise RuntimeError(
+                f"[CRITICAL] Inconsistent exit state for {symbol}: "
+                f"is_estimated_price={is_estimated_price} but no actual fill price available. "
+                f"Cannot determine which price to use for P&L calculation."
             )
 
-        # Validate prices
+        # Validate prices - fail-fast instead of returning error dict
         if final_exit_price <= 0:
-            logger.warning(f"Invalid exit price {final_exit_price} for {symbol}")
-            return {"success": False, "message": f"Invalid exit price for {trade_id}"}
+            raise ValueError(
+                f"[INVALID_EXIT_PRICE] Exit price {final_exit_price} is invalid for {symbol}. "
+                f"Cannot execute trade with zero or negative price. Check broker response or market data validity."
+            )
 
         if entry_price <= 0:
-            logger.warning(f"Invalid entry price {entry_price} for {symbol}")
-            return {"success": False, "message": f"Invalid entry price for {trade_id}"}
+            raise ValueError(
+                f"[INVALID_ENTRY_PRICE] Entry price {entry_price} is invalid for {symbol}. "
+                f"Cannot calculate P&L with zero or negative entry price. Check position data integrity."
+            )
 
         # Calculate P&L metrics
         risk_per_share = Decimal(str(entry_price)) - Decimal(str(stop_loss_price))
