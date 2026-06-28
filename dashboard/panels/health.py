@@ -184,7 +184,20 @@ def _format_phase_badge(phase_status: str | None) -> tuple[str, str]:
     # Ensure phase_status is a string (handle malformed data)
     if not isinstance(phase_status, str):
         phase_status = ""
-    return _format_phase_badge(phase_status)
+
+    # Normalize to lowercase for comparison
+    status_lower = phase_status.lower()
+
+    # Map status to (color, icon) tuple
+    if status_lower in SUCCESS_STATES:
+        return (G, "✓")
+    elif status_lower in HALTED_STATES:
+        return (Y, "~")
+    elif status_lower in ERROR_STATES:
+        return (R, "✗")
+    else:
+        # Default to error state for unknown statuses
+        return (R, "✗")
 
 
 # Severity to color mapping
