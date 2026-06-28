@@ -132,16 +132,28 @@ def fetch_portfolio(c: None) -> dict[str, Any]:
             val = unrealized_pnl_dict.get("total_pct")
             unrealized_pnl_pct = float(val) if val is not None else None
 
+        # STRICT: Optional analytics fields must be explicitly documented
+        # These are enrichments computed daily. If missing on trading day, log for investigation.
+        optional_metrics = {
+            "daily_return_pct": port.get("daily_return_pct"),
+            "cumulative_return_pct": port.get("cumulative_return_pct"),
+            "max_drawdown_pct": port.get("max_drawdown_pct"),
+            "largest_position_pct": port.get("largest_position_pct"),
+        }
+        missing_optional = [k for k, v in optional_metrics.items() if v is None]
+        if missing_optional and MarketCalendar.is_trading_day():
+            logger.warning(f"Portfolio enrichment incomplete on trading day. Missing: {missing_optional}")
+
         return {
             "snapshot_date": port.get("last_run"),
             "total_portfolio_value": tpv,
             "total_cash": tc,
             "position_count": pc,
-            "daily_return_pct": port.get("daily_return_pct"),
+            "daily_return_pct": optional_metrics["daily_return_pct"],
             "unrealized_pnl_pct": unrealized_pnl_pct,
-            "cumulative_return_pct": port.get("cumulative_return_pct"),
-            "max_drawdown_pct": port.get("max_drawdown_pct"),
-            "largest_position_pct": port.get("largest_position_pct"),
+            "cumulative_return_pct": optional_metrics["cumulative_return_pct"],
+            "max_drawdown_pct": optional_metrics["max_drawdown_pct"],
+            "largest_position_pct": optional_metrics["largest_position_pct"],
             "data_age_seconds": port.get("data_age_seconds"),
         }
     except Exception as e:
@@ -152,7 +164,11 @@ def fetch_portfolio(c: None) -> dict[str, Any]:
 
 
 def fetch_positions(c: None) -> dict[str, Any]:
-    """Fetch positions via AWS API only (fail-fast: error if unavailable)."""
+    """Fetch positions via AWS API only (fail-fast: error if unavailable).
+
+    STRICT MODE: All open positions MUST have critical fields for dashboard display.
+    Missing fields indicate API schema mismatch or data corruption.
+    """
     from dashboard.fetcher_validator import FetcherValidator
 
     try:
@@ -179,6 +195,28 @@ def fetch_positions(c: None) -> dict[str, Any]:
             logger.error(error_msg)
             record_data_quality_issue("pos", "validation", "invalid_response_type")
             return FetcherValidator.build_error_response(error_msg)
+
+        # STRICT: Validate each position has critical fields
+        critical_fields = [
+            "symbol",
+            "avg_entry_price",
+            "current_price",
+            "position_value",
+            "stop_loss_price",
+            "unrealized_pnl_pct",
+        ]
+        for idx, pos in enumerate(items):
+            if not isinstance(pos, dict):
+                continue
+            missing = [f for f in critical_fields if pos.get(f) is None]
+            if missing:
+                logger.warning(
+                    f"Position {idx} ({pos.get('symbol', 'unknown')}): "
+                    f"missing critical fields: {missing}. "
+                    f"Position data may be incomplete. Available: {list(pos.keys())}"
+                )
+                record_data_quality_issue("pos", f"position_{idx}", "missing_critical_fields", str(missing))
+
         return {"items": items, "timestamp": datetime.now(ET)}
     except Exception as e:
         error_msg = _format_fetcher_error("pos", e)

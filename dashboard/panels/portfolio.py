@@ -151,11 +151,32 @@ def panel_portfolio(
     pv = safe_float(pv_raw, strict=True, field_name="total_portfolio_value")
     cash = safe_float(cash_raw, strict=True, field_name="total_cash")
     npos = safe_int(npos_raw, strict=True, field_name="position_count")
-    dr = safe_float(port.get("daily_return_pct"), default=None)
-    urp = safe_float(port.get("unrealized_pnl_pct"), default=None)
-    cum = safe_float(port.get("cumulative_return_pct"), default=None)
-    mxdd = safe_float(port.get("max_drawdown_pct"), default=None)
-    lgpos = safe_float(port.get("largest_position_pct"), default=None)
+
+    # STRICT: Optional enrichment metrics—explicitly handle missing data
+    # These are computed daily; missing values should not silently default to None
+    # Instead, log and indicate data unavailable (not the same as zero/empty)
+    from algo.infrastructure.market_calendar import MarketCalendar
+
+    dr_raw = port.get("daily_return_pct")
+    dr = safe_float(dr_raw, default=None) if dr_raw is not None else None
+    if dr is None and MarketCalendar.is_trading_day():
+        logger.warning("Portfolio metric missing on trading day: daily_return_pct")
+
+    urp_raw = port.get("unrealized_pnl_pct")
+    urp = safe_float(urp_raw, default=None) if urp_raw is not None else None
+
+    cum_raw = port.get("cumulative_return_pct")
+    cum = safe_float(cum_raw, default=None) if cum_raw is not None else None
+    if cum is None and MarketCalendar.is_trading_day():
+        logger.warning("Portfolio metric missing on trading day: cumulative_return_pct")
+
+    mxdd_raw = port.get("max_drawdown_pct")
+    mxdd = safe_float(mxdd_raw, default=None) if mxdd_raw is not None else None
+    if mxdd is None and MarketCalendar.is_trading_day():
+        logger.warning("Portfolio metric missing on trading day: max_drawdown_pct")
+
+    lgpos_raw = port.get("largest_position_pct")
+    lgpos = safe_float(lgpos_raw, default=None) if lgpos_raw is not None else None
     snap = port.get("snapshot_date")
     max_n_val = cfg.get("max_pos_n") if cfg else None
     if max_n_val is None:
