@@ -150,7 +150,7 @@ def test_admin_rate_limit_with_malformed_endpoint():
 
     # Test with None endpoint
     try:
-        allowed, msg = check_admin_rate_limit(user_id, None, 3, 1)
+        allowed, _ = check_admin_rate_limit(user_id, None, 3, 1)
         assert isinstance(allowed, bool)
     except (TypeError, AttributeError):
         pass
@@ -178,7 +178,7 @@ def test_admin_rate_limit_with_negative_values():
 
     # Test with negative window
     try:
-        allowed, msg = check_admin_rate_limit(user_id, endpoint, 3, -1)
+        allowed, _ = check_admin_rate_limit(user_id, endpoint, 3, -1)
         assert isinstance(allowed, bool)
     except (ValueError, AssertionError):
         pass
@@ -197,7 +197,7 @@ def test_public_rate_limit_with_malformed_endpoint():
 
     # Test with None
     try:
-        allowed, msg = check_public_rate_limit(None, 3, 1)
+        allowed, _ = check_public_rate_limit(None, 3, 1)
         assert isinstance(allowed, bool)
     except (TypeError, AttributeError):
         pass
@@ -217,7 +217,7 @@ def test_public_rate_limit_with_string_limits():
 
     # Test with string max_requests
     try:
-        allowed, msg = check_public_rate_limit(endpoint, "3", 1)
+        allowed, _ = check_public_rate_limit(endpoint, "3", 1)
         assert isinstance(allowed, bool)
     except (TypeError, ValueError):
         pass
