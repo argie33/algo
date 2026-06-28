@@ -431,7 +431,7 @@ class PriceLoader(OptimalLoader):
                 f"Next batch size recommendation: {self._get_adaptive_batch_size()}"
             )
 
-    def _check_market_close_data_available(self, max_wait_sec: int | None = None) -> bool:
+    def _check_market_close_data_available(self, max_wait_sec: int | None = None) -> bool:  # noqa: C901
         """Check if SPY close data is available (market close data freshness check).
 
         EOD pipeline starts at 4:05 PM ET. yfinance API can lag 5-15 minutes after market close (4 PM ET).
