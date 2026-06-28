@@ -178,7 +178,16 @@ def fetch_economic_pulse(c: None) -> dict[str, Any]:
         dxy = by_series.get("DTWEXBGS")
         oil = by_series.get("DCOILWTICO")
         anfci = by_series.get("ANFCI")
-        nfci = anfci if anfci is not None else by_series.get("STLFSI4")
+        # NFCI fallback logic: prefer ANFCI (advanced), fallback to STLFSI4 (traditional) if missing
+        # Both are measures of financial stress; document which one is being used
+        nfci = None
+        if anfci is not None:
+            nfci = anfci
+        else:
+            stlfsi = by_series.get("STLFSI4")
+            if stlfsi is not None:
+                logger.debug("NFCI: Using STLFSI4 (St. Louis Fed Stress Index) as fallback. ANFCI was missing.")
+                nfci = stlfsi
         umcsent = by_series.get("UMCSENT")
         mortgage = by_series.get("MORTGAGE30US")
 

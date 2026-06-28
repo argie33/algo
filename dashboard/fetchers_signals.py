@@ -116,13 +116,29 @@ def fetch_signals(c: None) -> dict[str, Any]:
             return FetcherValidator.build_error_response(error_msg)
 
         n = result.get("n")
-        if n is None and buy_sigs:
-            n = len(buy_sigs)
+        if n is None:
+            if buy_sigs:
+                n = len(buy_sigs)
+                logger.info(f"Signal count derived from buy_sigs array length ({n}). API 'n' field was missing.")
+            else:
+                raise ValueError(
+                    "CRITICAL: Signal response missing 'n' field and cannot derive from buy_sigs (empty or missing). "
+                    "Signal count is required for panel display. Check API response schema and buy_sigs array."
+                )
+
         total = result.get("total")
-        if total is None and n is not None:
-            total = n
-        elif total is None and buy_sigs:
-            total = len(buy_sigs)
+        if total is None:
+            if n is not None:
+                total = n
+                logger.info(f"Total signal count derived from n ({total}). API 'total' field was missing.")
+            elif buy_sigs:
+                total = len(buy_sigs)
+                logger.info(f"Total signal count derived from buy_sigs array ({total}). API 'total' and 'n' fields were missing.")
+            else:
+                raise ValueError(
+                    "CRITICAL: Signal response missing 'total' field and cannot derive from n or buy_sigs. "
+                    "Total signal count is required for panel display. Check API response schema."
+                )
 
         return {
             "n": n,

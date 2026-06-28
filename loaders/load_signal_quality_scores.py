@@ -800,14 +800,20 @@ def main() -> int:
 
 
 def _sync_scores_to_buy_sell() -> None:
-    """Sync composite_sqs from signal_quality_scores to buy_sell_daily.signal_quality_score."""
+    """Sync composite_sqs from signal_quality_scores to buy_sell_daily.signal_quality_score.
+
+    CRITICAL: Only update if BOTH signal_quality_scores has data AND buy_sell_daily is missing it.
+    NEVER use COALESCE to fall back to old values — stale data is worse than no data.
+    """
     from utils.db.context import DatabaseContext
 
     try:
         with DatabaseContext("write") as cur:
+            # EXPLICIT JOIN: Only update when quality score is computed AND target is NULL
+            # No COALESCE fallback — if SQS computed a score, use it; otherwise leave NULL
             cur.execute("""
                 UPDATE buy_sell_daily bsd
-                SET signal_quality_score = COALESCE(sqs.composite_sqs, bsd.signal_quality_score)
+                SET signal_quality_score = sqs.composite_sqs
                 FROM signal_quality_scores sqs
                 WHERE bsd.symbol = sqs.symbol
                 AND bsd.date = sqs.date
@@ -816,7 +822,7 @@ def _sync_scores_to_buy_sell() -> None:
             """)
             rows = cur.rowcount
             if rows > 0:
-                logger.info(f"Synced {rows} signal quality scores to buy_sell_daily")
+                logger.info(f"Synced {rows} new signal quality scores to buy_sell_daily (no COALESCE fallback)")
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.error(f"Failed to sync signal quality scores to buy_sell_daily: {e}")
         raise RuntimeError(

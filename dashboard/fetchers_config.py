@@ -237,9 +237,20 @@ def fetch_algo_config(c: None) -> dict[str, Any]:
             record_data_quality_issue("cfg", "validation", "missing_fields", ", ".join(missing))
             return FetcherValidator.build_error_response(error_msg)
 
-        # Boolean string conversion
+        # Boolean string conversion - CRITICAL: Must parse explicitly, no silent False default
         en_raw = cfg["enable_algo"]
-        enabled = str(en_raw).lower() in ("true", "1", "yes") if en_raw is not None else False
+        if en_raw is None:
+            error_msg = "Config enable_algo field has NULL value — cannot determine if algo is enabled"
+            logger.error(error_msg)
+            record_data_quality_issue("cfg", "validation", "null_enable_algo")
+            return FetcherValidator.build_error_response(error_msg)
+        try:
+            enabled = str(en_raw).lower() in ("true", "1", "yes")
+        except (ValueError, TypeError) as e:
+            error_msg = f"Config enable_algo field has invalid value '{en_raw}' — cannot parse as boolean. Error: {e}"
+            logger.error(error_msg)
+            record_data_quality_issue("cfg", "validation", "invalid_enable_algo_value", str(en_raw))
+            return FetcherValidator.build_error_response(error_msg)
         return {
             "enabled": enabled,
             "mode": cfg["execution_mode"],
@@ -276,9 +287,17 @@ def fetch_health(c: None) -> dict[str, Any]:
             logger.error(error_msg)
             record_data_quality_issue("health", "validation", "invalid_response_type")
             return FetcherValidator.build_error_response(error_msg)
+        # REQUIRED FIELD: 'sources' must be present (API contract). Don't fall back to 'items'.
+        # If API is returning 'items' instead, that's a schema change that must be explicitly handled.
         raw_sources = inner.get("sources")
         if raw_sources is None:
-            raw_sources = inner.get("items")
+            error_msg = (
+                "Health API response missing required 'sources' field (API contract violation). "
+                "Expected list of data source health entries. Response keys: " + str(list(inner.keys()))
+            )
+            logger.error(error_msg)
+            record_data_quality_issue("health", "validation", "missing_sources_field")
+            return FetcherValidator.build_error_response(error_msg)
         if not isinstance(raw_sources, list):
             error_msg = f"Health API 'sources'/'items' field must be list, got {type(raw_sources).__name__}"
             logger.error(error_msg)
@@ -313,19 +332,26 @@ def fetch_health(c: None) -> dict[str, Any]:
             # Explicit validation: age_hours required for freshness display
             age_hours = s.get("age_hours")
             if age_hours is None:
-                logger.warning(f"Data freshness missing age_hours for {name}")
+                logger.warning(f"Data freshness missing age_hours for {name} — freshness cannot be displayed")
                 age_days = None
             else:
                 try:
                     age_days = round(float(age_hours) / 24, 1)
                 except (ValueError, TypeError):
-                    logger.warning(f"Invalid age_hours value for {name}: {age_hours}")
+                    logger.warning(f"Invalid age_hours value for {name}: {age_hours} — freshness cannot be calculated")
                     age_days = None
 
+            # REQUIRED: status field must be present — no fallback to "unknown"
+            # Missing status means the API response is malformed or incomplete
             status = s.get("status")
             if status is None:
-                logger.warning(f"Data freshness missing status for {name}")
-                status = "unknown"
+                error_msg = (
+                    f"Health API source entry '{name}': missing required 'status' field. "
+                    f"Cannot display data freshness without status. API schema incomplete."
+                )
+                logger.error(error_msg)
+                record_data_quality_issue("health", "validation", "missing_status_field", name)
+                return FetcherValidator.build_error_response(error_msg)
 
             sources.append(
                 {
