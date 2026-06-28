@@ -58,7 +58,7 @@ def _get_endpoint_path(fetcher_key: str, params: dict[str, Any] | None = None) -
     return endpoint
 
 
-def fetch_economic_pulse(c: None) -> dict[str, Any]:
+def fetch_economic_pulse(c: None) -> dict[str, Any]:  # noqa: C901
     """Fetch economic macro indicators. Fail-fast: error only on failure.
 
     Fetches from /api/economic/yield-curve-full and /api/economic/indicators.
