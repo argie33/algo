@@ -1944,7 +1944,7 @@ CREATE TABLE IF NOT EXISTS sector_rotation_signal (
     id SERIAL PRIMARY KEY,
     date DATE NOT NULL,
     sector VARCHAR(50) NOT NULL,
-    signal VARCHAR(20),
+    signal VARCHAR(30),
     strength DECIMAL(8, 4),
     rank INTEGER,
     details JSONB,

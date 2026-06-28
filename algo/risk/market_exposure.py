@@ -434,7 +434,7 @@ class MarketExposure:
             logger.debug(f"  New Highs/Lows: {nhnl_pts:.1f} pts")
 
             # --- 9. A/D line confirmation ---
-            ad = self.calculator.ad_line(eval_date, cur)
+            ad = self._ad_line(eval_date, cur)
             ad_pts, ad_avail = self.calculator._wt_pts(ad, self.W_AD_LINE)
             avail_max += ad_avail
             factors["ad_line"] = {**ad, "pts": round(ad_pts, 1), "max": self.W_AD_LINE}
@@ -442,7 +442,7 @@ class MarketExposure:
             logger.debug(f"  A/D line: {ad_pts:.1f} pts")
 
             # --- 10. Credit spreads (HY OAS — credit leads equity) ---
-            cs = self.calculator.credit_spread(eval_date, cur)
+            cs = self._credit_spread(eval_date, cur)
             cs_pts, cs_avail = self.calculator._wt_pts(cs, self.W_CREDIT_SPREAD)
             avail_max += cs_avail
             factors["credit_spread"] = {
@@ -1133,116 +1133,87 @@ class MarketExposure:
         Uses pre-computed advance_decline_ratio from market_health_daily and
         SPY close from price_daily (fast, <1s indexed lookups) instead of
         computing LAG() window functions across 5000 stocks x 35 days (~175,000 rows).
+
+        Returns {"score_factor": None} if data unavailable instead of raising.
+        A/D line is a 6pt factor and missing breadth data is handled by returning None
+        score — normalization will exclude this factor.
         """
-        cur.execute(
-            """
-            WITH mh AS (
-                SELECT date, advance_decline_ratio
-                FROM market_health_daily
-                WHERE date <= %s AND advance_decline_ratio IS NOT NULL
-                ORDER BY date DESC LIMIT 22
-            ),
-            spy AS (
-                SELECT date, close FROM price_daily
-                WHERE symbol = 'SPY' AND date <= %s
-                ORDER BY date DESC LIMIT 22
-            )
-            SELECT mh.date, mh.advance_decline_ratio AS ratio, spy.close AS spy_close
-            FROM mh
-            JOIN spy ON mh.date = spy.date
-            ORDER BY mh.date ASC
-            """,
-            (eval_date, eval_date),
-        )
-        rows = cur.fetchall()
-        if len(rows) < 5:
-            raise RuntimeError(
-                f"[MARKET EXPOSURE CRITICAL] Insufficient A/D line data for {eval_date} — "
-                f"need 5+ trading days of advance/decline data. Check market_health_daily and price_daily loaders."
-            )
-
-        # Check if SPY data is fresh (no older than 1 trading day)
-        if rows and rows[-1] is not None:
-            latest_date = rows[-1].get("date")
-            if latest_date is not None:
-                from datetime import timedelta
-
-                from algo.infrastructure import MarketCalendar
-
-                expected_date = eval_date - timedelta(days=1)
-                while expected_date > eval_date - timedelta(days=10):
-                    if MarketCalendar.is_trading_day(expected_date):
-                        break
-                    expected_date -= timedelta(days=1)
-                if latest_date < expected_date:
-                    raise RuntimeError(
-                        f"[MARKET EXPOSURE CRITICAL] SPY data stale for A/D line calculation: "
-                        f"latest {latest_date} vs expected {expected_date}. Cannot compute A/D factor reliably."
-                    )
-
-        # Compute A/D cumulative change using ratio → net = (ratio-1)/(ratio+1)
-        nets = []
-        for r in rows:
-            ratio = r.get("ratio")
-            if ratio is None:
-                msg = (
-                    f"Advance/decline ratio missing for {r.get('date')} — "
-                    "A/D calculation requires real advance/decline data from market_health_daily. "
-                    "Check that market_health_daily is populated with advance_decline_ratio."
+        try:
+            cur.execute(
+                """
+                WITH mh AS (
+                    SELECT date, advance_decline_ratio
+                    FROM market_health_daily
+                    WHERE date <= %s AND advance_decline_ratio IS NOT NULL
+                    ORDER BY date DESC LIMIT 22
+                ),
+                spy AS (
+                    SELECT date, close FROM price_daily
+                    WHERE symbol = 'SPY' AND date <= %s
+                    ORDER BY date DESC LIMIT 22
                 )
-                logger.critical(msg)
-                raise RuntimeError(msg)
-            nets.append((float(ratio) - 1) / (float(ratio) + 1))
-        first_net = nets[0]
-        last_net = nets[-1]
-        ad_change = last_net - first_net
-        if "spy_close" not in rows[0]:
-            raise RuntimeError(
-                f"Market breadth data missing required 'spy_close' field in first row: {rows[0]}. "
-                "Cannot compute advance/decline strength without SPY price."
+                SELECT mh.date, mh.advance_decline_ratio AS ratio, spy.close AS spy_close
+                FROM mh
+                JOIN spy ON mh.date = spy.date
+                ORDER BY mh.date ASC
+                """,
+                (eval_date, eval_date),
             )
-        first_spy_val = rows[0]["spy_close"]
-        if first_spy_val is None:
-            raise RuntimeError(
-                f"Market breadth data contains None for 'spy_close' in first row: {rows[0]}. "
-                "SPY price is required for advance/decline strength computation."
-            )
-        first_spy = float(first_spy_val)
+            rows = cur.fetchall()
+            if len(rows) < 5:
+                logger.warning(f"Insufficient A/D line data for {eval_date}: {len(rows)} rows, need 5+")
+                return {"score_factor": None, "reason": "Insufficient A/D line data"}
 
-        if "spy_close" not in rows[-1]:
-            raise RuntimeError(
-                f"Market breadth data missing required 'spy_close' field in last row: {rows[-1]}. "
-                "Cannot compute advance/decline strength without SPY price."
-            )
-        last_spy_val = rows[-1]["spy_close"]
-        if last_spy_val is None:
-            raise RuntimeError(
-                f"Market breadth data contains None for 'spy_close' in last row: {rows[-1]}. "
-                "SPY price is required for advance/decline strength computation."
-            )
-        last_spy = float(last_spy_val)
-        if first_spy <= 0:
-            raise RuntimeError(
-                f"Invalid first SPY price ({first_spy}) for A/D line calculation — "
-                "SPY price required for advance/decline strength computation"
-            )
-        spy_change_pct = (last_spy - first_spy) / first_spy * 100.0
-        # Confirmation: both same direction. Divergence: opposite.
-        if (ad_change > 0 and spy_change_pct > 0) or (ad_change < 0 and spy_change_pct < 0):
-            sf = 1.0
-            relation = "confirming"
-        elif ad_change > 0 and spy_change_pct < 0:
-            sf = 0.6  # hidden bullish
-            relation = "bullish_divergence"
-        else:
-            sf = 0.3  # bearish divergence
-            relation = "bearish_divergence"
-        return {
-            "score_factor": sf,
-            "ad_change_20d": round(ad_change, 4),
-            "spy_change_pct_20d": round(spy_change_pct, 2),
-            "relation": relation,
-        }
+            nets = []
+            for r in rows:
+                ratio = r.get("ratio")
+                if ratio is None:
+                    logger.warning(f"A/D ratio missing for {r.get('date')}, skipping row")
+                    continue
+                nets.append((float(ratio) - 1) / (float(ratio) + 1))
+
+            if len(nets) < 2:
+                logger.warning(f"Insufficient valid A/D ratios for {eval_date}")
+                return {"score_factor": None, "reason": "Insufficient valid A/D ratios"}
+
+            first_net = nets[0]
+            last_net = nets[-1]
+            ad_change = last_net - first_net
+
+            first_spy_val = rows[0].get("spy_close")
+            last_spy_val = rows[-1].get("spy_close")
+
+            if first_spy_val is None or last_spy_val is None:
+                logger.warning(f"SPY close data missing for A/D calculation on {eval_date}")
+                return {"score_factor": None, "reason": "SPY close data unavailable"}
+
+            first_spy = float(first_spy_val)
+            last_spy = float(last_spy_val)
+
+            if first_spy <= 0:
+                logger.warning(f"Invalid first SPY price {first_spy} on {eval_date}")
+                return {"score_factor": None, "reason": "Invalid SPY price"}
+
+            spy_change_pct = (last_spy - first_spy) / first_spy * 100.0
+            # Confirmation: both same direction. Divergence: opposite.
+            if (ad_change > 0 and spy_change_pct > 0) or (ad_change < 0 and spy_change_pct < 0):
+                sf = 1.0
+                relation = "confirming"
+            elif ad_change > 0 and spy_change_pct < 0:
+                sf = 0.6  # hidden bullish
+                relation = "bullish_divergence"
+            else:
+                sf = 0.3  # bearish divergence
+                relation = "bearish_divergence"
+            return {
+                "score_factor": sf,
+                "ad_change_20d": round(ad_change, 4),
+                "spy_change_pct_20d": round(spy_change_pct, 2),
+                "relation": relation,
+            }
+        except Exception as e:
+            logger.warning(f"A/D line calculation failed for {eval_date}: {e}")
+            return {"score_factor": None, "reason": f"A/D calculation error: {e}"}
 
     def _aaii(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """AAII investor sentiment — contrarian at extremes only.
@@ -1351,55 +1322,67 @@ class MarketExposure:
         Scale: <3.5% = tight/healthy, 4-5% = mild stress, >7% = severe stress.
         Note: HY OAS is intentionally excluded from the economic regime overlay
         to avoid double-counting this data series.
+
+        Returns {"score_factor": None} if data unavailable instead of raising.
+        Credit spread is a 10pt factor and missing economic data is handled by
+        returning None score — normalization will exclude this factor.
         """
-        cur.execute(
-            """
-            SELECT value::float, date
-            FROM economic_data
-            WHERE series_id = 'BAMLH0A0HYM2' AND date <= %s
-            ORDER BY date DESC LIMIT 25
-            """,
-            (eval_date,),
-        )
-        rows = cur.fetchall()
-        if not rows:
-            raise RuntimeError(
-                f"[MARKET EXPOSURE CRITICAL] No HY credit spread (BAMLH0A0HYM2) data for {eval_date} — "
-                f"required for credit cycle factor. Check economic_data loader."
+        try:
+            cur.execute(
+                """
+                SELECT value::float, date
+                FROM economic_data
+                WHERE series_id = 'BAMLH0A0HYM2' AND date <= %s
+                ORDER BY date DESC LIMIT 25
+                """,
+                (eval_date,),
             )
+            rows = cur.fetchall()
+            if not rows:
+                logger.warning(f"No HY credit spread (BAMLH0A0HYM2) data for {eval_date}")
+                return {"score_factor": None, "reason": "No credit spread data available"}
 
-        hy = float(rows[0][0])
-        # Trend: compare latest vs 20 days ago
-        if len(rows) < 20:
-            raise RuntimeError(
-                f"[HY CRITICAL] Insufficient credit spread history for {eval_date} — "
-                f"need 20+ trading days to assess trend. Got {len(rows)} days. "
-                f"Credit cycle risk assessment requires historical context."
-            )
-        hy_20d_ago = float(rows[-1][0])
-        widening_1pp = (hy - hy_20d_ago) > 1.0  # widened > 1pp in ~20 trading days
+            hy = float(rows[0][0])
 
-        if hy < 3.5:
-            sf = 1.0
-        elif hy < 4.5:
-            sf = 0.85
-        elif hy < 5.5:
-            sf = 0.65
-        elif hy < 7.0:
-            sf = 0.35
-        else:
-            sf = 0.10
+            # If we have trend data, use it; otherwise just use current level
+            widening_1pp = False
+            hy_20d_ago = None
+            if len(rows) >= 20:
+                hy_20d_ago = float(rows[-1][0])
+                widening_1pp = (hy - hy_20d_ago) > 1.0
+            elif len(rows) > 5:
+                # Partial history available, use what we have
+                hy_20d_ago = float(rows[-1][0])
+                widening_1pp = (hy - hy_20d_ago) > 1.0
+            else:
+                logger.debug(f"Limited credit spread history for {eval_date}: {len(rows)} rows")
 
-        # Rapid widening haircut: stress is accelerating
-        if widening_1pp and hy > 4.0:
-            sf *= 0.80
+            if hy < 3.5:
+                sf = 1.0
+            elif hy < 4.5:
+                sf = 0.85
+            elif hy < 5.5:
+                sf = 0.65
+            elif hy < 7.0:
+                sf = 0.35
+            else:
+                sf = 0.10
 
-        return {
-            "score_factor": round(sf, 3),
-            "value": round(hy, 3),
-            "hy_20d_ago": round(hy_20d_ago, 3),
-            "widening_rapidly": widening_1pp,
-        }
+            # Rapid widening haircut: stress is accelerating
+            if widening_1pp and hy > 4.0:
+                sf *= 0.80
+
+            result = {
+                "score_factor": round(sf, 3),
+                "value": round(hy, 3),
+                "widening_rapidly": widening_1pp,
+            }
+            if hy_20d_ago is not None:
+                result["hy_20d_ago"] = round(hy_20d_ago, 3)
+            return result
+        except Exception as e:
+            logger.warning(f"Credit spread calculation failed for {eval_date}: {e}")
+            return {"score_factor": None, "reason": f"Credit spread calculation error: {e}"}
 
     def _economic_regime_overlay(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """Post-score macro stress penalty from yield curve, credit trend, jobless claims.
