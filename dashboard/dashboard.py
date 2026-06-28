@@ -593,7 +593,7 @@ def _render_dashboard_body(
     def safe_render_panel(panel_fn: Any, *args: Any, **kwargs: Any) -> Panel:
         """Safely render panel, catching validation/rendering exceptions."""
         try:
-            return panel_fn(*args, **kwargs)
+            return cast(Panel, panel_fn(*args, **kwargs))
         except Exception as e:
             return Panel(
                 Text.from_markup(f"[red]Panel rendering failed[/]: {type(e).__name__}\n[dim]{str(e)[:80]}[/]"),
