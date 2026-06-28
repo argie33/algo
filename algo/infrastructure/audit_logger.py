@@ -9,6 +9,7 @@ Tracks:
 - Entry quality scores (all 6 tiers)
 """
 
+import json
 import logging
 from datetime import date as _date
 from datetime import datetime, timezone
@@ -345,7 +346,7 @@ class TradeAuditLogger:
                         "PORTFOLIO_SNAPSHOT",
                         str(snapshot_date),
                         "reconciliation",
-                        audit_msg,
+                        json.dumps({"message": audit_msg}),
                     ),
                 )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
