@@ -71,7 +71,8 @@ DECLARE
   v_span DECIMAL;
 BEGIN
   -- Get total open risk across all open positions
-  SELECT COALESCE(SUM(open_risk_dollars), 0)
+  -- CRITICAL: Return NULL if no open positions or risk data missing (don't mask with 0)
+  SELECT SUM(open_risk_dollars)
   INTO v_total_risk
   FROM algo_positions
   WHERE status = 'open';
@@ -153,7 +154,8 @@ BEGIN
   WHERE snapshot_date = p_snapshot_date;
 
   -- Get total position value
-  SELECT COALESCE(SUM(position_value), 0)
+  -- CRITICAL: Return NULL if no positions or data missing (don't mask with 0)
+  SELECT SUM(position_value)
   INTO v_total_value
   FROM algo_positions
   WHERE status = 'open';
@@ -163,15 +165,15 @@ BEGIN
     (snapshot_date, sector, position_count, total_value_dollars, allocation_pct, is_overweight, created_at, updated_at)
   SELECT
     p_snapshot_date,
-    COALESCE(sector, 'Unknown') as sector,
+    sector,
     COUNT(*) as position_count,
-    COALESCE(SUM(position_value), 0) as total_value_dollars,
+    SUM(position_value) as total_value_dollars,
     CASE
-      WHEN v_total_value > 0 THEN (COALESCE(SUM(position_value), 0) / v_total_value) * 100
-      ELSE 0
+      WHEN v_total_value > 0 AND SUM(position_value) IS NOT NULL THEN (SUM(position_value) / v_total_value) * 100
+      ELSE NULL
     END as allocation_pct,
     CASE
-      WHEN v_total_value > 0 AND (COALESCE(SUM(position_value), 0) / v_total_value) > 0.3 THEN TRUE
+      WHEN v_total_value > 0 AND SUM(position_value) IS NOT NULL AND (SUM(position_value) / v_total_value) > 0.3 THEN TRUE
       ELSE FALSE
     END as is_overweight,
     CURRENT_TIMESTAMP,

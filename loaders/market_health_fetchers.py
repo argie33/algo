@@ -133,8 +133,8 @@ class PutCallRatioFetcher:
 
             return float(total_puts / total_calls)
         except Exception as e:
-            logger.warning(f"Put/call ratio fetch failed: {e}")
-            raise
+            logger.warning(f"Put/call ratio fetch failed for {eval_date}: {e}. Returning None for optional enrichment.")
+            return None
 
 
 class YieldCurveFetcher:
@@ -161,7 +161,8 @@ class YieldCurveFetcher:
             fallback_value=None,
         )
         if result is None:
-            raise RuntimeError(f"Yield curve data unavailable for {start} to {end} - circuit breaker exhausted")
+            logger.warning(f"Yield curve data unavailable for {start} to {end} - circuit breaker exhausted. Returning empty dict for optional enrichment.")
+            return {}
         if not isinstance(result, dict):
             raise ValueError(
                 f"Yield curve fetch returned invalid type {type(result).__name__}. "
@@ -235,7 +236,7 @@ class BreadthFetcher:
 
         Returns: dict[date_str] -> {advance_decline_ratio, new_highs_count, new_lows_count}
 
-        Breadth data is optional enrichment. If unavailable, returns empty dict.
+        Breadth data is optional enrichment. If unavailable or incomplete, returns empty dict.
         """
         try:
             from utils.db import DatabaseContext
@@ -257,21 +258,22 @@ class BreadthFetcher:
                 )
                 rows = cur.fetchall()
                 if not rows:
-                    raise ValueError(f"[BREADTH_FETCHER] No breadth data available for {start} to {end}")
+                    logger.debug(f"[BREADTH_FETCHER] No breadth data available for {start} to {end}. Returning empty dict for optional enrichment.")
+                    return {}
 
                 result = {}
                 for row in rows:
                     d = row[0].isoformat() if hasattr(row[0], "isoformat") else str(row[0])
-                    if row[1] is None:
-                        raise ValueError(f"Missing advances data for date {d}")
-                    if row[2] is None:
-                        raise ValueError(f"Missing declines data for date {d}")
+                    if row[1] is None or row[2] is None:
+                        logger.debug(f"[BREADTH_FETCHER] Skipping date {d} - missing advances or declines data (optional enrichment)")
+                        continue
 
                     advances = int(row[1])
                     declines = int(row[2])
 
                     if declines <= 0:
-                        raise ValueError(f"Invalid declines count ({declines}) for date {d} - cannot calculate breadth ratio")
+                        logger.debug(f"[BREADTH_FETCHER] Skipping date {d} - invalid declines count ({declines}). Optional enrichment continues.")
+                        continue
 
                     ad_ratio = advances / declines
 
@@ -284,4 +286,5 @@ class BreadthFetcher:
                 logger.info(f"[BREADTH_FETCHER] Fetched breadth for {len(result)} dates from trend_template_data")
                 return result
         except Exception as e:
-            raise RuntimeError(f"[BREADTH_FETCHER] Failed to fetch breadth data: {e}") from e
+            logger.warning(f"[BREADTH_FETCHER] Failed to fetch breadth data: {e}. Returning empty dict for optional enrichment.")
+            return {}

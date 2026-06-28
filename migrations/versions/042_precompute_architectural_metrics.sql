@@ -183,8 +183,8 @@ BEGIN
   ),
   returns_stats AS (
     SELECT
-      COALESCE(MIN(daily_return_pct), 0) as lo,
-      COALESCE(MAX(daily_return_pct), 0) as hi,
+      MIN(daily_return_pct) as lo,
+      MAX(daily_return_pct) as hi,
       COUNT(*) as cnt
     FROM returns_data
   ),
@@ -208,7 +208,7 @@ BEGIN
           'mid', ROUND((lo + span * (i + 0.5) / 12)::NUMERIC, 2),
           'min', ROUND((lo + span * i / 12)::NUMERIC, 2),
           'max', ROUND((lo + span * (i + 1) / 12)::NUMERIC, 2),
-          'count', COALESCE(bucket_counts.count, 0)
+          'count', bucket_counts.count
         )
         ORDER BY i
       ) as buckets,
