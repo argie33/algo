@@ -1,6 +1,8 @@
 """Core rendering pipeline for dashboard."""
 
+import time
 import traceback
+from datetime import datetime
 from typing import Any
 
 from rich.console import Group
@@ -12,14 +14,12 @@ from rich.text import Text
 
 from dashboard.core import DashboardContext
 from dashboard.error_boundary import (
-    error_summary_panel,
     error_summary_panel_expanded,
     has_error,
 )
+from dashboard.formatters import mkt_hours_str
 from dashboard.panels import (
     _expanded_layout,
-    _extract_items,
-    mascot_compact,
     panel_algo_health,
     panel_algo_health_expanded,
     panel_circuit,
@@ -41,11 +41,7 @@ from dashboard.panels import (
     panel_signals_expanded,
     panel_trades_expanded,
 )
-from datetime import datetime
-import time
-
-from dashboard.formatters import mkt_hours_str
-from dashboard.utilities import ET, MASCOT_W, logger
+from dashboard.utilities import ET, logger
 
 
 def render_error_panel(e: Exception, recovery_status: str | None = None) -> Panel:

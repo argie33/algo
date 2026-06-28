@@ -23,7 +23,6 @@ if _repo_root not in sys.path:
 import argparse
 import threading
 import time
-import traceback
 from typing import Any, cast
 from urllib.parse import urlparse
 
@@ -62,14 +61,13 @@ except ImportError:
 
 from rich.layout import Layout
 from rich.live import Live
-from rich.panel import Panel
-from rich.text import Text
 
-from dashboard.api_data_layer import get_cognito_auth, set_api_url, set_cognito_auth
-from dashboard.cognito_auth import get_cognito_auth as get_cognito_auth_instance, save_tokens
+from dashboard.api_data_layer import set_api_url, set_cognito_auth
+from dashboard.cognito_auth import get_cognito_auth as get_cognito_auth_instance
+from dashboard.cognito_auth import save_tokens
 from dashboard.core import DashboardContext, ViewMode
 from dashboard.credentials_provider import CredentialsProvider
-from dashboard.error_boundary import error_summary_panel, has_error
+from dashboard.error_boundary import error_summary_panel
 from dashboard.error_recovery import RenderRecovery
 from dashboard.fetchers import load_all
 from dashboard.panel_registry import get_panel_registry as _get_panel_registry
@@ -82,7 +80,7 @@ from dashboard.renderers import (
     render_header_components,
 )
 from dashboard.utilities import CONSOLE, MASCOT_W, logger
-from dashboard.watch import LoadState, WatchState, WatchModeController
+from dashboard.watch import LoadState, WatchModeController, WatchState
 
 
 class _RenderState:
