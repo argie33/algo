@@ -160,15 +160,24 @@ class MarketHealthDailyLoader(OptimalLoader):
         return written
 
     def _merge_breadth_data(self, health_metrics: list[dict[str, Any]], start: date, end: date) -> None:
-        """Merge breadth data into health metrics. Breadth data is optional enrichment.
+        """Merge breadth data into health metrics.
 
-        If breadth data is unavailable, leaves advance_decline_ratio/new_highs_count/new_lows_count as None.
-        These fields can be populated later or remain None without blocking market health calculation.
+        Breadth data (% stocks > 200-DMA, advance/decline ratio) is CRITICAL for market exposure scoring.
+        Fail-fast if unavailable; don't silently skip.
         """
         breadth = self._breadth_fetcher.fetch(start, end)
-        if not breadth:
-            logger.info("Breadth data unavailable (optional) - proceeding without advance/decline enrichment")
-            return
+
+        if not breadth or len(breadth) == 0:
+            msg = (
+                f"[MARKET_HEALTH CRITICAL] Breadth data unavailable for {start} to {end}. "
+                f"Advance/decline metrics are required inputs to market exposure calculation (10pt + 6pt = 16% of score). "
+                f"Cannot proceed without valid breadth data. "
+                f"Check breadth fetcher and ensure advance_decline_daily table has complete data."
+            )
+            logger.error(msg)
+            for m in health_metrics:
+                m["_breadth_data_unavailable"] = True
+            raise RuntimeError(msg)
 
         matched_count = 0
         for m in health_metrics:
@@ -353,7 +362,7 @@ class MarketHealthDailyLoader(OptimalLoader):
         """Merge Fed rate environment classification into health metrics.
 
         Classifies Fed policy stance (tightening/neutral/easing) based on Fed funds rate trend.
-        This is optional enrichment—if data unavailable, leave as None.
+        Fed policy environment is required for accurate market regime detection.
         """
         try:
             with DatabaseContext("read") as cur:
@@ -369,13 +378,29 @@ class MarketHealthDailyLoader(OptimalLoader):
                 )
                 rows = cur.fetchall()
                 if not rows:
-                    logger.debug("Fed rate data unavailable (optional enrichment)")
-                    return
+                    msg = (
+                        f"[MARKET_HEALTH CRITICAL] Fed funds rate data missing for {start} to {end}. "
+                        f"Fed policy environment is required for accurate market regime detection. "
+                        f"Cannot compute health metrics without Fed rate state (tightening/neutral/easing). "
+                        f"Check economic_data table for FEDFUNDS series."
+                    )
+                    logger.error(msg)
+                    for m in health_metrics:
+                        m["_fed_rate_data_unavailable"] = True
+                    raise ValueError(msg)
 
                 # Get current and historical rates to determine trend
                 current_rate = float(rows[0][0]) if rows[0][0] is not None else None
                 if current_rate is None:
-                    return
+                    msg = (
+                        f"[MARKET_HEALTH CRITICAL] Fed funds rate is NULL for {start} to {end}. "
+                        f"Cannot proceed with missing Fed rate data. "
+                        f"Check economic_data table for FEDFUNDS series."
+                    )
+                    logger.error(msg)
+                    for m in health_metrics:
+                        m["_fed_rate_data_unavailable"] = True
+                    raise ValueError(msg)
 
                 # Get rate 30 days ago for trend
                 rate_30d_ago = None

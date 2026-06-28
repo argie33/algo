@@ -1186,20 +1186,38 @@ class MarketExposure:
             )
             rows = cur.fetchall()
             if len(rows) < 5:
-                logger.warning(f"Insufficient A/D line data for {eval_date}: {len(rows)} rows, need 5+")
-                return {"score_factor": None, "reason": "Insufficient A/D line data"}
+                msg = (
+                    f"[MARKET_EXPOSURE CRITICAL] Insufficient A/D line data for {eval_date}: "
+                    f"{len(rows)} rows, need 5+. "
+                    f"A/D line (6pt factor) is required for accurate market breadth assessment. "
+                    f"Cannot compute exposure score with missing historical data. "
+                    f"Check advance_decline_daily table for data gaps."
+                )
+                logger.error(msg)
+                raise ValueError(msg)
 
             nets = []
             for r in rows:
                 ratio = r.get("ratio")
                 if ratio is None:
-                    logger.warning(f"A/D ratio missing for {r.get('date')}, skipping row")
-                    continue
+                    row_date = r.get("date", "unknown")
+                    msg = (
+                        f"[MARKET_EXPOSURE] A/D ratio corrupted/missing for {row_date}. "
+                        f"Cannot compute A/D line with data gaps — requires complete daily sequence. "
+                        f"Check advance_decline_daily table for data quality."
+                    )
+                    logger.error(msg)
+                    raise ValueError(msg)
                 nets.append((float(ratio) - 1) / (float(ratio) + 1))
 
             if len(nets) < 2:
-                logger.warning(f"Insufficient valid A/D ratios for {eval_date}")
-                return {"score_factor": None, "reason": "Insufficient valid A/D ratios"}
+                msg = (
+                    f"[MARKET_EXPOSURE CRITICAL] Insufficient valid A/D ratios for {eval_date}. "
+                    f"A/D line calculation requires minimum 2 valid data points. "
+                    f"Check advance_decline_daily table for data completeness."
+                )
+                logger.error(msg)
+                raise ValueError(msg)
 
             first_net = nets[0]
             last_net = nets[-1]
@@ -1209,8 +1227,14 @@ class MarketExposure:
             last_spy_val = rows[-1].get("spy_close")
 
             if first_spy_val is None or last_spy_val is None:
-                logger.warning(f"SPY close data missing for A/D calculation on {eval_date}")
-                return {"score_factor": None, "reason": "SPY close data unavailable"}
+                msg = (
+                    f"[MARKET_EXPOSURE CRITICAL] SPY close price missing for A/D line calculation on {eval_date}. "
+                    f"A/D line (6pt factor) is required for accurate market breadth assessment. "
+                    f"Cannot compute exposure score with missing benchmark data. "
+                    f"Check price_daily table for SPY data."
+                )
+                logger.error(msg)
+                raise ValueError(msg)
 
             first_spy = float(first_spy_val)
             last_spy = float(last_spy_val)
