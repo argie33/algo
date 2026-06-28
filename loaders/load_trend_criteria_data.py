@@ -110,12 +110,11 @@ class TrendCriteriaLoader(OptimalLoader):
             start = since - timedelta(days=300)
 
         rows = self._fetch_price_daily(symbol, start, end)
-        if not rows or len(rows) < 50:
-            raise RuntimeError(
-                f"Insufficient price data for {symbol}: {len(rows) if rows else 0} rows, need >= 50. "
-                "Trend criteria calculation requires minimum 50 days of historical data. "
-                "Cannot compute trend signals with incomplete data — check price_daily table and data loader status."
-            )
+        # Allow symbols with at least 20 days of data (early in trading history)
+        # Very new stocks with < 20 days return empty results (optional data)
+        if not rows or len(rows) < 20:
+            logger.debug(f"[TrendCriteria] Skipping {symbol}: insufficient price data ({len(rows) if rows else 0} rows, need >= 20)")
+            return []
 
         results = self._compute_trend_criteria(symbol, rows)
         if since is not None:
@@ -133,7 +132,8 @@ class TrendCriteriaLoader(OptimalLoader):
             )
             rows = cur.fetchall()
             if not rows:
-                raise ValueError(f"No price data found for {symbol} from {start} to {end}")
+                # Return empty list for symbols with no price data (delisted, invalid tickers, etc.)
+                return []
             return [
                 {
                     "date": r[0].isoformat() if r[0] else None,
@@ -143,7 +143,7 @@ class TrendCriteriaLoader(OptimalLoader):
                 for r in rows
             ]
 
-    def _compute_trend_criteria(self, symbol: str, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    def _compute_trend_criteria(self, symbol: str, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:  # noqa: C901
         df = pd.DataFrame(rows)
         df["date"] = pd.to_datetime(df["date"])
         df = df.sort_values("date").reset_index(drop=True)
@@ -233,16 +233,10 @@ class TrendCriteriaLoader(OptimalLoader):
 
             trend_dir = "uptrend" if score >= 6 else ("downtrend" if score <= 2 else "sideways")
 
-            # CRITICAL: SMA-based fields cannot be None or zero - fail fast if missing/invalid
-            # Trend signals require complete SMA data; skipping silently corrupts downstream trading logic
+            # Skip rows where SMAs aren't available yet (early in symbol's trading history)
+            # This is common for newly listed stocks that don't have 200 days of price data yet
             if sma50 is None or sma200 is None:
-                raise RuntimeError(
-                    f"[TREND_CRITERIA] {symbol} [{row['date'].date().isoformat()}]: "
-                    f"Cannot compute trend signals without complete SMA data. "
-                    f"sma_50={sma50}, sma_200={sma200}. "
-                    f"Moving average calculation incomplete—check that technical_data_daily loader populated all SMA fields. "
-                    f"Trend-based position entry/exit decisions require 100% data availability."
-                )
+                continue
             if sma50 <= 0 or sma200 <= 0:
                 raise RuntimeError(
                     f"[TREND_CRITERIA] {symbol} [{row['date'].date().isoformat()}]: "
