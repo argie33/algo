@@ -1,0 +1,225 @@
+#!/usr/bin/env python3
+"""Credit Spreads Daily Loader - High-Yield OAS tracking.
+
+Fetches HY OAS (High-Yield Option-Adjusted Spread) from FRED API.
+Data series: BAMLH0A0HYM2 (Bank of America Merrill Lynch High Yield OAS)
+
+This is CRITICAL data for market_exposure calculation (10 points).
+
+Run: python3 load_credit_spreads.py [--backfill-days N]
+"""
+
+import logging
+import os
+import sys
+from datetime import date, datetime, timedelta, timezone
+from typing import Any
+
+import psycopg2
+import requests
+
+from loaders.runner import run_loader
+from utils.db.context import DatabaseContext
+from utils.infrastructure.circuit_breaker import CircuitBreaker, DataImportance
+from utils.infrastructure.timezone import EASTERN_TZ
+from utils.optimal_loader import OptimalLoader
+
+logger = logging.getLogger(__name__)
+
+
+class CreditSpreadsFetcher:
+    """Fetches HY OAS data from FRED API."""
+
+    def __init__(self) -> None:
+        self.breaker = CircuitBreaker(
+            name="fred_credit_spreads",
+            failure_threshold=3,
+            recovery_timeout_sec=300,
+            importance=DataImportance.CRITICAL,
+        )
+        self.fred_api_key = os.getenv("FRED_API_KEY")
+        if not self.fred_api_key:
+            raise ValueError("FRED_API_KEY environment variable is required for credit spreads loader")
+
+    def fetch(self, start: date, end: date) -> dict[str, float]:
+        """Fetch HY OAS data from FRED API.
+
+        Args:
+            start: Start date
+            end: End date
+
+        Returns:
+            dict[date_str] -> hy_oas_value
+
+        Raises:
+            RuntimeError: If data fetch fails
+        """
+        result = self.breaker.execute(
+            fetch_func=lambda: self._fetch_from_fred(start, end),
+            importance=DataImportance.CRITICAL,
+            fallback_value=None,
+        )
+
+        if result is None:
+            raise RuntimeError(
+                "HY OAS data unavailable from FRED - circuit breaker failed. "
+                "Cannot proceed without credit spread data for systemic risk assessment."
+            )
+
+        if not isinstance(result, dict):
+            raise RuntimeError(f"FRED fetch returned invalid data type {type(result).__name__} — expected dict")
+
+        return result
+
+    def _fetch_from_fred(self, start: date, end: date) -> dict[str, float]:
+        """Internal FRED API fetch implementation.
+
+        Fetches BAMLH0A0HYM2 (HY OAS) from Federal Reserve Economic Data API.
+        """
+        try:
+            base_url = "https://api.stlouisfed.org/fred/series/data"
+            params = {
+                "series_id": "BAMLH0A0HYM2",  # HY OAS series
+                "api_key": self.fred_api_key,
+                "file_type": "json",
+                "observation_start": start.isoformat(),
+                "observation_end": end.isoformat(),
+            }
+
+            response = requests.get(base_url, params=params, timeout=30)
+            response.raise_for_status()
+
+            data = response.json()
+            if "observations" not in data:
+                raise RuntimeError(
+                    f"FRED API returned unexpected response format. "
+                    f"Expected 'observations' key, got keys: {list(data.keys())}"
+                )
+
+            result = {}
+            for obs in data["observations"]:
+                try:
+                    obs_date = obs.get("date")
+                    obs_value = obs.get("value")
+
+                    if obs_date and obs_value and obs_value != ".":
+                        result[obs_date] = float(obs_value)
+                except (ValueError, KeyError, TypeError):
+                    continue
+
+            if not result:
+                raise RuntimeError(
+                    f"[CREDIT_SPREADS] FRED returned no valid HY OAS observations for {start} to {end}. "
+                    f"Check FRED data availability and series BAMLH0A0HYM2."
+                )
+
+            logger.info(f"Fetched {len(result)} HY OAS records from FRED")
+            return result
+
+        except requests.RequestException as e:
+            raise RuntimeError(
+                f"FRED API request failed: {e}. "
+                f"Cannot fetch HY OAS data for systemic stress assessment."
+            ) from e
+        except Exception as e:
+            raise RuntimeError(f"Unexpected error fetching FRED data: {e}") from e
+
+
+class CreditSpreadsDailyLoader(OptimalLoader):
+    """High-Yield Credit Spread loader."""
+
+    table_name = "credit_spreads"
+    primary_key = ("date",)
+    watermark_field = "date"
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._fetcher = CreditSpreadsFetcher()
+
+    def load_global(self) -> int:
+        """Load HY OAS data (market-wide, not per-symbol).
+
+        Raises:
+            RuntimeError: If underlying data unavailable or computation fails.
+        """
+        try:
+            with DatabaseContext("write") as cur:
+                start = self._get_start_date(cur)
+                end = self._get_end_date()
+
+                if start > end:
+                    logger.info(f"[CREDIT_SPREADS] No backfill needed (watermark {start} >= end {end})")
+                    return 0
+
+                logger.info(f"[CREDIT_SPREADS] Fetching HY OAS from FRED for {start} to {end}")
+
+                spreads = self._fetcher.fetch(start, end)
+
+                # Upsert into credit_spreads table
+                inserted = 0
+                for date_str, hy_oas in spreads.items():
+                    try:
+                        obs_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+                    except ValueError:
+                        logger.warning(f"[CREDIT_SPREADS] Invalid date format: {date_str}")
+                        continue
+
+                    cur.execute(
+                        """
+                        INSERT INTO credit_spreads (date, hy_oas, updated_at)
+                        VALUES (%s, %s, NOW())
+                        ON CONFLICT (date)
+                        DO UPDATE SET
+                            hy_oas = EXCLUDED.hy_oas,
+                            updated_at = NOW()
+                        """,
+                        (obs_date, hy_oas),
+                    )
+                    inserted += 1
+
+                cur.connection.commit()
+                logger.info(f"[CREDIT_SPREADS] ✓ Loaded {inserted} HY OAS records")
+                return inserted
+
+        except RuntimeError:
+            raise
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            raise RuntimeError(f"[CREDIT_SPREADS] Database error: {e}. Cannot store HY OAS data.") from e
+
+    def run(self, symbols: list[str], **kwargs: Any) -> dict[str, Any]:
+        """Not applicable for market-wide loader. Use load_global() instead."""
+        raise NotImplementedError("CREDIT_SPREADS loader is market-wide only. Use load_global().")
+
+    def _get_start_date(self, cur: Any) -> date:
+        """Get start date from watermark or default to recent backfill."""
+        try:
+            cur.execute("SELECT MAX(date) FROM credit_spreads")
+            row = cur.fetchone()
+            if row and row[0] is not None:
+                # Start one day after last record
+                return row[0] + timedelta(days=1)
+        except (psycopg2.DatabaseError, psycopg2.OperationalError):
+            pass
+
+        # Default: last 90 days if table is empty (FRED data only weekly in many cases)
+        return date.today() - timedelta(days=90)
+
+    def _get_end_date(self) -> date:
+        """Get end date (latest trading day in ET)."""
+        now_utc = datetime.now(timezone.utc)
+        now_et = now_utc.astimezone(EASTERN_TZ)
+        end = now_et.date()
+
+        from algo.infrastructure import MarketCalendar
+
+        max_iterations = 365
+        iterations = 0
+        while end > date(2020, 1, 1) and not MarketCalendar.is_trading_day(end) and iterations < max_iterations:
+            end = end - timedelta(days=1)
+            iterations += 1
+
+        return end
+
+
+if __name__ == "__main__":
+    sys.exit(run_loader(CreditSpreadsDailyLoader, description="Credit spreads (HY OAS) loader", global_mode=True))
