@@ -62,7 +62,7 @@ except ImportError:
 from rich.layout import Layout
 from rich.live import Live
 
-from dashboard.api_data_layer import set_api_url, set_cognito_auth
+from dashboard.api_data_layer import set_api_url, set_cognito_auth, validate_api_config
 from dashboard.cognito_auth import get_cognito_auth as get_cognito_auth_instance
 from dashboard.cognito_auth import save_tokens
 from dashboard.core import DashboardContext, ViewMode
@@ -516,9 +516,11 @@ def main() -> None:
 
     if args.local:
         data_source = _setup_local_api()
+        validate_api_config(allow_localhost=True)
     else:
         aws_url, pool_id, client_id = _fetch_and_validate_aws_credentials()
         _configure_aws_and_auth(aws_url, pool_id, client_id)
+        validate_api_config(allow_localhost=False)
         data_source = "AWS"
 
     if args.watch is not None:

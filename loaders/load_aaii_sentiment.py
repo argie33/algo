@@ -214,10 +214,11 @@ class AAIISentimentLoader(OptimalLoader):
                 else:
                     raise RuntimeError(f"[AAII] Unexpected error after 3 attempts: {e}") from e
 
-        raise RuntimeError(
+        logger.warning(
             "[AAII_SENTIMENT] Failed to fetch AAII sentiment data after exhausting all retries. "
-            "AAII server is unreachable. Data is optional; trading will proceed without AAII sentiment."
+            "AAII server is unreachable. Data is optional; returning None."
         )
+        return None
 
 
 if __name__ == "__main__":

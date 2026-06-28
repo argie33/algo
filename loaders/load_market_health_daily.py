@@ -175,8 +175,6 @@ class MarketHealthDailyLoader(OptimalLoader):
                 f"Check breadth fetcher and ensure advance_decline_daily table has complete data."
             )
             logger.error(msg)
-            for m in health_metrics:
-                m["_breadth_data_unavailable"] = True
             raise RuntimeError(msg)
 
         matched_count = 0
@@ -298,18 +296,7 @@ class MarketHealthDailyLoader(OptimalLoader):
         try:
             yield_curve = self._yield_curve_fetcher.fetch(start, end)
 
-            # Check for unavailability marker (API failed)
-            if yield_curve.get("_data_unavailable"):
-                reason = yield_curve.get("_reason")
-                if reason is None:
-                    logger.warning(
-                        "Yield curve data unavailable (reason not provided) - market regime will skip inversion detection. "
-                        "Check _yield_curve_fetcher.fetch() to ensure it returns '_reason' when data is unavailable."
-                    )
-                else:
-                    logger.warning(f"Yield curve data unavailable ({reason}) - market regime will skip inversion detection")
-                return
-
+            # YieldCurveFetcher returns {} on unavailability (optional enrichment)
             if not yield_curve:
                 logger.debug("Yield curve data empty - market regime will skip inversion detection")
                 return
@@ -385,8 +372,6 @@ class MarketHealthDailyLoader(OptimalLoader):
                         f"Check economic_data table for FEDFUNDS series."
                     )
                     logger.error(msg)
-                    for m in health_metrics:
-                        m["_fed_rate_data_unavailable"] = True
                     raise ValueError(msg)
 
                 # Get current and historical rates to determine trend
@@ -398,8 +383,6 @@ class MarketHealthDailyLoader(OptimalLoader):
                         f"Check economic_data table for FEDFUNDS series."
                     )
                     logger.error(msg)
-                    for m in health_metrics:
-                        m["_fed_rate_data_unavailable"] = True
                     raise ValueError(msg)
 
                 # Get rate 30 days ago for trend
