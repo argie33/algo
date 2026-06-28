@@ -57,7 +57,7 @@ class TestVIXFetcherFailFast:
             mock_db.return_value = mock_cursor
 
             # Should raise RuntimeError with CRITICAL message
-            with pytest.raises(RuntimeError, match="\\[CRITICAL\\].*VIX data unavailable"):
+            with pytest.raises(RuntimeError, match=r"\[CRITICAL\].*VIX data unavailable"):
                 fetcher._fetch_vix_data(date(2026, 1, 1), date(2026, 1, 31))
 
     def test_vix_no_data_raises(self):
@@ -91,7 +91,7 @@ class TestMarketHealthDailyFailFast:
         # Mock fetch_incremental returning no rows
         with patch.object(loader, "fetch_incremental", return_value=None):
             # Should raise RuntimeError, not return code 1
-            with pytest.raises(RuntimeError, match="MARKET_HEALTH.*No incremental data"):
+            with pytest.raises(RuntimeError, match=r"MARKET_HEALTH.*No incremental data"):
                 loader.load_symbol("SPY")
 
 
