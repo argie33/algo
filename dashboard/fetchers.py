@@ -210,6 +210,8 @@ def load_all() -> dict[str, Any]:
         "sig": 8.0,
         "health": 8.0,
         "cb": 8.0,
+        "risk": 8.0,  # CRITICAL: Risk metrics required for position sizing
+        "exp_factors": 8.0,  # CRITICAL: Market exposure factors required for trading decisions
         # Optional fetchers: 3 second timeout (nice-to-have)
         "srank": 3.0,
         "activity": 3.0,
@@ -217,7 +219,6 @@ def load_all() -> dict[str, Any]:
         "notifs": 3.0,
         "sentiment": 3.0,
         "econ_cal": 3.0,
-        "risk": 3.0,
         "perf_anl": 3.0,
         "sig_eval": 3.0,
         "sec_rot": 3.0,
@@ -225,7 +226,6 @@ def load_all() -> dict[str, Any]:
         "irank": 3.0,
         "audit": 3.0,
         "exec_hist": 3.0,
-        "exp_factors": 3.0,
         "scores": 3.0,
     }
 
@@ -241,6 +241,8 @@ def load_all() -> dict[str, Any]:
         "sig",
         "health",
         "cb",
+        "risk",  # CRITICAL: Risk metrics for position sizing hard vetoes
+        "exp_factors",  # CRITICAL: Market exposure factors for trading decisions
     }
     optional_fetchers = {
         "srank",
@@ -249,7 +251,6 @@ def load_all() -> dict[str, Any]:
         "notifs",
         "sentiment",
         "econ_cal",
-        "risk",
         "perf_anl",
         "sig_eval",
         "sec_rot",
@@ -257,7 +258,6 @@ def load_all() -> dict[str, Any]:
         "irank",
         "audit",
         "exec_hist",
-        "exp_factors",
         "scores",
     }
 

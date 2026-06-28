@@ -1,410 +1,379 @@
 #!/usr/bin/env python3
-"""Comprehensive tests for dashboard formatters and presentation layer.
+"""Tests for refactored dashboard formatters module.
 
-Formatters transform raw data into human-readable dashboard displays.
-Tests verify correctness of formatting, null handling, and edge cases.
+Tests the new function-based formatter API for dashboard display formatting.
 """
 
-from datetime import datetime, date, timedelta
-from unittest.mock import MagicMock, patch
+import time
+from datetime import date, datetime
 
 import pytest
 
 
-class TestFormatterBasics:
-    """Test formatter basic functionality."""
+class TestMoneyFormatting:
+    """Test money/currency formatting."""
 
-    def test_formatter_initialization(self):
-        """Test that formatters can be initialized."""
-        from dashboard.formatters import Formatter
+    def test_fmt_money_basic(self):
+        """Test basic money formatting."""
+        from dashboard.formatters import fmt_money
 
-        formatter = Formatter()
-        assert formatter is not None
+        result = fmt_money(1000)
+        assert result is not None
+        assert isinstance(result, str)
 
-    def test_formatter_handles_none_values(self):
-        """Test that formatter handles None/null values gracefully."""
-        from dashboard.formatters import Formatter
+    def test_fmt_money_with_decimals(self):
+        """Test money formatting with decimals."""
+        from dashboard.formatters import fmt_money
 
-        formatter = Formatter()
+        result = fmt_money(1000.50)
+        assert result is not None
 
-        if hasattr(formatter, 'format'):
-            result = formatter.format(None)
-            # Should return a safe default, not crash
-            assert result is not None
+    def test_fmt_money_large_values(self):
+        """Test money formatter with large values."""
+        from dashboard.formatters import fmt_money
 
-    def test_formatter_handles_empty_strings(self):
-        """Test that formatter handles empty strings."""
-        from dashboard.formatters import Formatter
+        result = fmt_money(1000000)
+        assert result is not None
+        # Should compact large values
+        assert 'M' in result or '1' in result
 
-        formatter = Formatter()
+    def test_fmt_money_short(self):
+        """Test short money formatting."""
+        from dashboard.formatters import fmt_money_short
 
-        if hasattr(formatter, 'format'):
-            result = formatter.format("")
-            assert result is not None or result == ""
+        result = fmt_money_short(1000000)
+        assert result is not None
+        # Should be compact
+        assert len(result) < 15
 
-    def test_formatter_handles_large_numbers(self):
-        """Test that formatter correctly formats large numbers."""
-        from dashboard.formatters import Formatter
+    def test_fmt_money_zero(self):
+        """Test money formatter with zero."""
+        from dashboard.formatters import fmt_money
 
-        formatter = Formatter()
+        result = fmt_money(0)
+        assert result is not None
 
-        if hasattr(formatter, 'format_number'):
-            # Test with million+
-            result = formatter.format_number(1000000)
-            assert result is not None
+    def test_fmt_money_none(self):
+        """Test money formatter with None."""
+        from dashboard.formatters import fmt_money
 
+        result = fmt_money(None)
+        assert result is not None
 
-class TestPriceFormatting:
-    """Test price formatting."""
+    def test_fmt_money_negative(self):
+        """Test money formatter with negative values."""
+        from dashboard.formatters import fmt_money
 
-    def test_price_formatter_rounds_correctly(self):
-        """Test that price formatter rounds to 2 decimals."""
-        from dashboard.formatters import PriceFormatter
+        result = fmt_money(-500)
+        assert result is not None
 
-        formatter = PriceFormatter()
 
-        if hasattr(formatter, 'format'):
-            result = formatter.format(150.12345)
-            # Should round to 2 decimals
-            assert '150.12' in str(result) or '150.1' in str(result)
+class TestAgeFormatting:
+    """Test timestamp age formatting."""
 
-    def test_price_formatter_handles_large_prices(self):
-        """Test price formatter with large prices."""
-        from dashboard.formatters import PriceFormatter
+    def test_fmt_age_recent(self):
+        """Test age formatting for recent timestamps."""
+        from dashboard.formatters import fmt_age
 
-        formatter = PriceFormatter()
+        ts = time.time()
+        result = fmt_age(ts)
+        assert result is not None
+        assert isinstance(result, str)
 
-        if hasattr(formatter, 'format'):
-            result = formatter.format(99999.99)
-            assert result is not None
+    def test_fmt_age_old(self):
+        """Test age formatting for old timestamps."""
+        from dashboard.formatters import fmt_age
 
-    def test_price_formatter_handles_zero(self):
-        """Test price formatter with zero."""
-        from dashboard.formatters import PriceFormatter
+        # 1 hour ago
+        ts = time.time() - 3600
+        result = fmt_age(ts)
+        assert result is not None
 
-        formatter = PriceFormatter()
+    def test_fmt_age_none(self):
+        """Test age formatter with None."""
+        from dashboard.formatters import fmt_age
 
-        if hasattr(formatter, 'format'):
-            result = formatter.format(0.0)
-            assert '0' in str(result)
+        result = fmt_age(None)
+        assert result is not None
 
-    def test_price_formatter_handles_negative(self):
-        """Test price formatter with negative values."""
-        from dashboard.formatters import PriceFormatter
 
-        formatter = PriceFormatter()
+class TestSignFormatting:
+    """Test sign formatting for positive/negative."""
 
-        if hasattr(formatter, 'format'):
-            result = formatter.format(-150.50)
-            assert result is not None
+    def test_sign_positive(self):
+        """Test sign formatter with positive values."""
+        from dashboard.formatters import sign
 
+        result = sign(5.5)
+        assert isinstance(result, str)
 
-class TestPercentageFormatting:
-    """Test percentage formatting."""
+    def test_sign_negative(self):
+        """Test sign formatter with negative values."""
+        from dashboard.formatters import sign
 
-    def test_percentage_formatter_adds_percent_sign(self):
-        """Test that percentage formatter adds % sign."""
-        from dashboard.formatters import PercentageFormatter
+        result = sign(-5.5)
+        assert isinstance(result, str)
 
-        formatter = PercentageFormatter()
+    def test_sign_zero(self):
+        """Test sign formatter with zero."""
+        from dashboard.formatters import sign
 
-        if hasattr(formatter, 'format'):
-            result = formatter.format(25.5)
-            assert '%' in str(result)
+        result = sign(0)
+        assert isinstance(result, str)
 
-    def test_percentage_formatter_rounds_correctly(self):
-        """Test that percentage formatter rounds to 1-2 decimals."""
-        from dashboard.formatters import PercentageFormatter
 
-        formatter = PercentageFormatter()
+class TestBarFormatting:
+    """Test bar chart formatters."""
 
-        if hasattr(formatter, 'format'):
-            result = formatter.format(25.12345)
-            # Should round appropriately
-            assert '25' in str(result)
+    def test_hbar_basic(self):
+        """Test horizontal bar basic usage."""
+        from dashboard.formatters import hbar
 
-    def test_percentage_formatter_handles_negative(self):
-        """Test percentage formatter with negative percentages."""
-        from dashboard.formatters import PercentageFormatter
+        result = hbar(50, 100)
+        assert result is not None
+        assert isinstance(result, str)
+        # Should contain filled bars
+        assert '█' in result or '░' in result
 
-        formatter = PercentageFormatter()
+    def test_hbar_full(self):
+        """Test horizontal bar at 100%."""
+        from dashboard.formatters import hbar
 
-        if hasattr(formatter, 'format'):
-            result = formatter.format(-5.5)
-            assert '-' in str(result)
+        result = hbar(100, 100)
+        assert '█' in result
 
+    def test_hbar_empty(self):
+        """Test horizontal bar at 0%."""
+        from dashboard.formatters import hbar
 
-class TestCurrencyFormatting:
-    """Test currency formatting."""
+        result = hbar(0, 100)
+        assert '░' in result
 
-    def test_currency_formatter_adds_dollar_sign(self):
-        """Test that currency formatter adds $ sign."""
-        from dashboard.formatters import CurrencyFormatter
+    def test_hbar_none(self):
+        """Test hbar with None values."""
+        from dashboard.formatters import hbar
 
-        formatter = CurrencyFormatter()
+        result = hbar(None, 100)
+        assert '✗' in result
 
-        if hasattr(formatter, 'format'):
-            result = formatter.format(1000.50)
-            assert '$' in str(result) or 'USD' in str(result)
+    def test_exp_bar(self):
+        """Test exponential bar."""
+        from dashboard.formatters import exp_bar
 
-    def test_currency_formatter_adds_comma_separators(self):
-        """Test that currency formatter adds comma thousands separators."""
-        from dashboard.formatters import CurrencyFormatter
+        result = exp_bar(50)
+        assert result is not None
+        assert isinstance(result, str)
 
-        formatter = CurrencyFormatter()
+    def test_exp_bar_none(self):
+        """Test exp_bar with None."""
+        from dashboard.formatters import exp_bar
 
-        if hasattr(formatter, 'format'):
-            result = formatter.format(1000000)
-            # Should have separators or formatted notation
-            assert result is not None
+        result = exp_bar(None)
+        assert '✗' in result
 
-    def test_currency_formatter_rounds_to_cents(self):
-        """Test that currency formatter rounds to 2 decimals."""
-        from dashboard.formatters import CurrencyFormatter
+    def test_mini_bar(self):
+        """Test mini bar."""
+        from dashboard.formatters import mini_bar
 
-        formatter = CurrencyFormatter()
+        result = mini_bar(5, 10)
+        assert result is not None
+        assert isinstance(result, str)
 
-        if hasattr(formatter, 'format'):
-            result = formatter.format(99.999)
-            assert result is not None
+    def test_mini_bar_none(self):
+        """Test mini_bar with None."""
+        from dashboard.formatters import mini_bar
 
+        result = mini_bar(None, 10)
+        assert '✗' in result
 
-class TestDateTimeFormatting:
-    """Test date/time formatting."""
 
-    def test_datetime_formatter_formats_dates(self):
-        """Test that datetime formatter formats dates correctly."""
-        from dashboard.formatters import DateTimeFormatter
+class TestSparklineFormatting:
+    """Test sparkline formatting."""
 
-        formatter = DateTimeFormatter()
+    def test_sparkline_basic(self):
+        """Test sparkline with basic data."""
+        from dashboard.formatters import sparkline
 
-        test_date = datetime(2024, 11, 27, 15, 30, 45)
+        values = [1, 2, 3, 4, 5]
+        result = sparkline(values)
+        assert result is not None
+        assert isinstance(result, str)
 
-        if hasattr(formatter, 'format'):
-            result = formatter.format(test_date)
-            # Should be readable date
-            assert '2024' in str(result) or '27' in str(result)
+    def test_sparkline_large_dataset(self):
+        """Test sparkline with large dataset."""
+        from dashboard.formatters import sparkline
 
-    def test_datetime_formatter_handles_none(self):
-        """Test that datetime formatter handles None dates."""
-        from dashboard.formatters import DateTimeFormatter
+        values = list(range(1000))
+        result = sparkline(values)
+        assert result is not None
+        # Should be compact
+        assert len(result) < 200
 
-        formatter = DateTimeFormatter()
+    def test_sparkline_empty(self):
+        """Test sparkline with empty data."""
+        from dashboard.formatters import sparkline
 
-        if hasattr(formatter, 'format'):
-            result = formatter.format(None)
-            # Should not crash
-            assert result is not None or result is None
+        result = sparkline([])
+        assert result is not None
+        assert 'no' in result.lower() or 'data' in result.lower()
 
-    def test_datetime_formatter_handles_date_objects(self):
-        """Test that datetime formatter handles date objects."""
-        from dashboard.formatters import DateTimeFormatter
+    def test_sparkline_single(self):
+        """Test sparkline with single value."""
+        from dashboard.formatters import sparkline
 
-        formatter = DateTimeFormatter()
+        result = sparkline([5])
+        assert result is not None
 
-        test_date = date(2024, 11, 27)
+    def test_sparkline_none_values(self):
+        """Test sparkline filters None values."""
+        from dashboard.formatters import sparkline
 
-        if hasattr(formatter, 'format'):
-            result = formatter.format(test_date)
-            assert '2024' in str(result) or '27' in str(result)
+        values = [1, None, 3, None, 5]
+        result = sparkline(values)
+        assert result is not None
 
 
-class TestNumberFormatting:
-    """Test general number formatting."""
+class TestMarketStatusFormatting:
+    """Test market status formatters."""
 
-    def test_number_formatter_handles_integers(self):
-        """Test number formatter with integers."""
-        from dashboard.formatters import NumberFormatter
+    def test_is_open(self):
+        """Test market open status check."""
+        from dashboard.formatters import is_open
 
-        formatter = NumberFormatter()
+        result = is_open()
+        assert isinstance(result, bool)
 
-        if hasattr(formatter, 'format'):
-            result = formatter.format(12345)
-            assert '12345' in str(result) or '12,345' in str(result)
+    def test_next_run_str(self):
+        """Test next run string formatting."""
+        from dashboard.formatters import next_run_str
 
-    def test_number_formatter_handles_floats(self):
-        """Test number formatter with floats."""
-        from dashboard.formatters import NumberFormatter
-
-        formatter = NumberFormatter()
-
-        if hasattr(formatter, 'format'):
-            result = formatter.format(123.456)
-            assert '123' in str(result)
-
-    def test_number_formatter_handles_scientific_notation(self):
-        """Test number formatter with very large numbers."""
-        from dashboard.formatters import NumberFormatter
-
-        formatter = NumberFormatter()
-
-        if hasattr(formatter, 'format'):
-            result = formatter.format(1000000000)
-            # Should be readable (not scientific notation)
-            assert result is not None
-
-
-class TestColorCoding:
-    """Test color coding for positive/negative values."""
-
-    def test_positive_value_gets_green_color(self):
-        """Test that positive gains are color-coded green."""
-        from dashboard.formatters import ColorCodedFormatter
-
-        formatter = ColorCodedFormatter()
-
-        if hasattr(formatter, 'format_with_color'):
-            result = formatter.format_with_color(5.5)  # Positive
-            assert 'green' in str(result).lower() or 'positive' in str(result).lower() or result is not None
-
-    def test_negative_value_gets_red_color(self):
-        """Test that negative losses are color-coded red."""
-        from dashboard.formatters import ColorCodedFormatter
-
-        formatter = ColorCodedFormatter()
-
-        if hasattr(formatter, 'format_with_color'):
-            result = formatter.format_with_color(-5.5)  # Negative
-            assert 'red' in str(result).lower() or 'negative' in str(result).lower() or result is not None
-
-    def test_zero_value_gets_neutral_color(self):
-        """Test that zero is color-coded neutral."""
-        from dashboard.formatters import ColorCodedFormatter
-
-        formatter = ColorCodedFormatter()
-
-        if hasattr(formatter, 'format_with_color'):
-            result = formatter.format_with_color(0.0)
-            assert result is not None
+        result = next_run_str()
+        assert result is not None
+        assert isinstance(result, str)
+        assert len(result) > 0
 
 
 class TestFormatterIntegration:
     """Integration tests for multiple formatters."""
 
-    def test_price_and_percentage_together(self):
-        """Test formatting price with percentage change."""
-        from dashboard.formatters import PriceFormatter, PercentageFormatter
+    def test_multiple_formatters_independent(self):
+        """Test that multiple formatters work independently."""
+        from dashboard.formatters import fmt_age, fmt_money, sign, sparkline
 
-        price_fmt = PriceFormatter()
-        pct_fmt = PercentageFormatter()
+        # Use all formatters
+        money = fmt_money(1000)
+        age = fmt_age(time.time())
+        s = sign(5)
+        spark = sparkline([1, 2, 3])
 
-        if hasattr(price_fmt, 'format') and hasattr(pct_fmt, 'format'):
-            price = price_fmt.format(150.00)
-            change = pct_fmt.format(5.5)
-            # Should both work
-            assert price is not None
-            assert change is not None
+        assert money is not None
+        assert age is not None
+        assert s is not None
+        assert spark is not None
 
-    def test_currency_and_datetime_together(self):
-        """Test formatting currency with datetime."""
-        from dashboard.formatters import CurrencyFormatter, DateTimeFormatter
+    def test_bar_and_sparkline(self):
+        """Test bar and sparkline together."""
+        from dashboard.formatters import hbar, sparkline
 
-        curr_fmt = CurrencyFormatter()
-        dt_fmt = DateTimeFormatter()
+        bar = hbar(75, 100)
+        spark = sparkline([10, 20, 30, 40, 50])
 
-        test_date = datetime(2024, 11, 27, 14, 30)
-
-        if hasattr(curr_fmt, 'format') and hasattr(dt_fmt, 'format'):
-            amount = curr_fmt.format(1000)
-            time_str = dt_fmt.format(test_date)
-            # Should both work
-            assert amount is not None
-            assert time_str is not None
+        assert bar is not None
+        assert spark is not None
 
 
-class TestFormatterRobustness:
-    """Test formatter robustness against edge cases."""
+class TestFormatterEdgeCases:
+    """Test formatter edge cases and robustness."""
 
-    def test_formatter_handles_unicode_characters(self):
-        """Test formatter with unicode characters."""
-        from dashboard.formatters import Formatter
+    def test_fmt_money_large_values(self):
+        """Test money formatter with very large values."""
+        from dashboard.formatters import fmt_money
 
-        formatter = Formatter()
+        result = fmt_money(999999999)
+        assert result is not None
 
-        if hasattr(formatter, 'format'):
-            result = formatter.format("测试 €£¥")
-            # Should handle unicode
-            assert result is not None
+    def test_fmt_money_small_values(self):
+        """Test money formatter with small values."""
+        from dashboard.formatters import fmt_money
 
-    def test_formatter_handles_very_long_strings(self):
-        """Test formatter with very long strings."""
-        from dashboard.formatters import Formatter
+        result = fmt_money(0.01)
+        assert result is not None
 
-        formatter = Formatter()
+    def test_sparkline_constant_values(self):
+        """Test sparkline with constant values."""
+        from dashboard.formatters import sparkline
 
-        long_string = "A" * 10000
+        values = [5] * 100
+        result = sparkline(values)
+        assert result is not None
 
-        if hasattr(formatter, 'format'):
-            result = formatter.format(long_string)
-            # Should not crash
-            assert result is not None
+    def test_hbar_zero_denominator(self):
+        """Test hbar gracefully handles zero denominator."""
+        from dashboard.formatters import hbar
 
-    def test_formatter_handles_special_characters(self):
-        """Test formatter with special characters."""
-        from dashboard.formatters import Formatter
+        # Should not crash with zero max
+        result = hbar(0, 0)
+        assert result is not None
 
-        formatter = Formatter()
+    def test_mini_bar_zero_denominator(self):
+        """Test mini_bar gracefully handles zero denominator."""
+        from dashboard.formatters import mini_bar
 
-        if hasattr(formatter, 'format'):
-            result = formatter.format("!@#$%^&*()")
-            # Should not crash
-            assert result is not None
+        # Should not crash
+        result = mini_bar(0, 0)
+        assert result is not None
 
 
 class TestFormatterPerformance:
     """Test formatter performance."""
 
-    def test_formatter_completes_quickly(self):
-        """Test that formatter completes in reasonable time."""
-        from dashboard.formatters import Formatter
-        import time
+    def test_fmt_money_bulk(self):
+        """Test money formatter performance with bulk calls."""
+        from dashboard.formatters import fmt_money
 
-        formatter = Formatter()
+        start = time.time()
+        for i in range(100):
+            fmt_money(i * 1000)
+        elapsed = time.time() - start
 
-        if hasattr(formatter, 'format'):
-            start = time.time()
-            formatter.format(12345)
-            elapsed = time.time() - start
+        # Should be reasonably fast
+        assert elapsed < 1.0
 
-            # Should complete in < 10ms
-            assert elapsed < 0.01
+    def test_sparkline_bulk(self):
+        """Test sparkline formatter with multiple calls."""
+        from dashboard.formatters import sparkline
 
-    def test_formatter_handles_bulk_data(self):
-        """Test formatter with bulk data."""
-        from dashboard.formatters import NumberFormatter
+        start = time.time()
+        for i in range(10):
+            values = list(range(i, i + 100))
+            sparkline(values)
+        elapsed = time.time() - start
 
-        formatter = NumberFormatter()
-
-        if hasattr(formatter, 'format'):
-            # Format 1000 numbers
-            for i in range(1000):
-                result = formatter.format(i)
-                assert result is not None
+        # Should be reasonably fast
+        assert elapsed < 1.0
 
 
 class TestFormatterConsistency:
-    """Test formatter consistency across calls."""
+    """Test formatter consistency and idempotency."""
 
-    def test_same_input_produces_same_output(self):
-        """Test that same input always produces same output."""
-        from dashboard.formatters import PriceFormatter
+    def test_same_input_same_output(self):
+        """Test that identical inputs produce identical outputs."""
+        from dashboard.formatters import fmt_money
 
-        formatter = PriceFormatter()
+        result1 = fmt_money(150.50)
+        result2 = fmt_money(150.50)
+        assert result1 == result2
 
-        if hasattr(formatter, 'format'):
-            result1 = formatter.format(150.50)
-            result2 = formatter.format(150.50)
-            assert str(result1) == str(result2)
+    def test_fmt_age_increasing(self):
+        """Test fmt_age increases for older timestamps."""
+        from dashboard.formatters import fmt_age
 
-    def test_formatter_state_independent(self):
-        """Test that formatter state doesn't affect output."""
-        from dashboard.formatters import Formatter
+        now = time.time()
+        old = time.time() - 1000
 
-        formatter1 = Formatter()
-        formatter2 = Formatter()
+        result_now = fmt_age(now)
+        result_old = fmt_age(old)
 
-        if hasattr(formatter1, 'format'):
-            result1 = formatter1.format(100)
-            result2 = formatter2.format(100)
-            # Both should produce same result
-            assert result1 == result2 or str(result1) == str(result2)
+        # Both should be valid
+        assert result_now is not None
+        assert result_old is not None

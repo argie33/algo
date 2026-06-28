@@ -434,7 +434,7 @@ class MarketExposure:
             logger.debug(f"  New Highs/Lows: {nhnl_pts:.1f} pts")
 
             # --- 9. A/D line confirmation ---
-            ad = self._ad_line(eval_date, cur)
+            ad = self.calculator.ad_line(eval_date, cur)
             ad_pts, ad_avail = self.calculator._wt_pts(ad, self.W_AD_LINE)
             avail_max += ad_avail
             factors["ad_line"] = {**ad, "pts": round(ad_pts, 1), "max": self.W_AD_LINE}
@@ -571,7 +571,13 @@ class MarketExposure:
                     halt_reasons.append("SPY < 30wk MA AND <30% above 50-DMA")
                     cap = min(cap, 25.0)
                 elif b50_value is None:
-                    logger.warning("Veto 1 (SPY below 30wk MA): breadth data unavailable, skipping")
+                    msg = (
+                        "[VETO 1 CRITICAL] Breadth data unavailable for veto check. "
+                        "Cannot apply 25% cap without knowing market breadth. "
+                        "Check: technical_data_daily table freshness"
+                    )
+                    logger.critical(msg)
+                    raise RuntimeError(msg)
             # Veto 2: VIX > 40 rising (only if VIX data available)
             vix_value = vix.get("value")
             if vix_value is not None and vix_value > 40 and vix.get("rising"):
@@ -583,7 +589,13 @@ class MarketExposure:
                 halt_reasons.append(f"{sp_count} selling-pressure days >= 6")
                 cap = min(cap, 35.0)
             elif sp_count is None:
-                logger.warning("Veto 3 (selling pressure): data unavailable, skipping")
+                msg = (
+                    "[VETO 3 CRITICAL] Selling pressure data unavailable for distribution detection. "
+                    "Cannot apply 35% cap without knowing institutional distribution. "
+                    "Check: selling_pressure() implementation, price_daily table freshness"
+                )
+                logger.critical(msg)
+                raise RuntimeError(msg)
             # Veto 4: No market confirmation signal while SPY below 30-week MA.
             # Only applies when SPY is actually below its 30-week MA — in smooth uptrends
             # SPY never drops enough to need confirmation, so this veto is dormant.
@@ -593,8 +605,12 @@ class MarketExposure:
                     halt_reasons.append("No market confirmation signal while SPY below 30-week MA")
                     cap = min(cap, 40.0)
             except RuntimeError as e:
-                logger.warning(f"Veto 4 (market confirmation): {e}, skipping")
-                has_confirmation = True  # Conservative: assume confirmation if check fails
+                msg = (
+                    f"[VETO 4 CRITICAL] Market confirmation check failed: {e}. "
+                    f"Cannot proceed with position sizing without confirmation signal."
+                )
+                logger.critical(msg)
+                raise RuntimeError(msg) from e
             # Veto 5: HY credit spread systemic stress (only if data available)
             cs_value = cs.get("value")
             if cs_value is not None:

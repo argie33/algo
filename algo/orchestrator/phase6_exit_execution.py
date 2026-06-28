@@ -57,12 +57,17 @@ def run(
         from algo.trading import ExitEngine
         from algo.trading.executor import TradeExecutor
 
-        # Detect Phase 3 crash: if position monitor errored, _position_recs is []
-        # but we may have real open positions. Log a critical alert so we know.
+        # Detect Phase 3 crash: if position monitor errored, position_recs is []
+        # but we may have real open positions. This is a critical data integrity error.
         if position_recs is None:
-            logger.critical("Phase 6: position_recs not set — Phase 3 may not have run")
+            msg = (
+                "[PHASE 6 CRITICAL] position_recs not set — Phase 3 did not execute properly. "
+                "Cannot proceed with exit execution without position monitor recommendations."
+            )
+            logger.critical(msg)
+            raise RuntimeError(msg)
         elif len(position_recs) == 0:
-            # "no positions" from "Phase 3 crashed with fail-open"
+            # Check if open positions exist but phase 3 returned empty
             try:
                 with DatabaseContext("read") as cur_chk:
                     cur_chk.execute("SELECT COUNT(*) FROM algo_positions WHERE status = 'open'")
@@ -71,12 +76,23 @@ def run(
                         raise RuntimeError("Open position count query failed")
                     open_count = row[0]
                 if open_count > 0:
-                    logger.error(
-                        f"Phase 6: position_recs is empty but {open_count} open positions exist "
-                        "— Phase 3 likely crashed (fail-open). Early-exit logic will be skipped."
+                    msg = (
+                        f"[PHASE 6 CRITICAL] position_recs is empty but {open_count} open positions exist. "
+                        f"Phase 3 likely crashed without recommendations. "
+                        f"Cannot execute safety exits without position monitor evaluation. "
+                        f"Open positions remain unevaluated for exit conditions."
                     )
-            except RuntimeError as e:
-                logger.error(f"Position count check failed: {e}")
+                    logger.critical(msg)
+                    raise RuntimeError(msg)
+            except RuntimeError:
+                raise
+            except Exception as e:
+                msg = (
+                    f"[PHASE 6 CRITICAL] Position count check failed: {e}. "
+                    f"Cannot verify if open positions need exit evaluation."
+                )
+                logger.critical(msg)
+                raise RuntimeError(msg) from e
 
         # In dry-run mode, skip TradeExecutor initialization (no Alpaca credentials needed)
         if dry_run:
