@@ -203,6 +203,25 @@ def _format_phase_badge(phase_status: str | None) -> tuple[str, str]:
 # Severity to color mapping
 SEV_COLORS = {"critical": R, "warning": Y, "info": CY, "debug": DIM}
 
+
+class HealthFormatter:
+    """Format health metrics to color-coded display values."""
+
+    @staticmethod
+    def var_color(value: float | None) -> str:
+        """Map VaR/VIX numeric values to Rich color style strings."""
+        if value is None:
+            return DIM  # Gray for unknown/missing data
+        if value >= 35.0:
+            return R  # Red for critical (VIX >= 35)
+        elif value >= 25.0:
+            return Y  # Yellow for warning (VIX 25-35)
+        elif value >= 15.0:
+            return CY  # Cyan for caution (VIX 15-25)
+        else:
+            return G  # Green for normal (VIX < 15)
+
+
 # Notification title short names
 NOTIF_SHORT_NAMES = {
     "trading halted by circuit": "Halted: CB",
