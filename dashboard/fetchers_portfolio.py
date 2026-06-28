@@ -323,18 +323,20 @@ def fetch_perf_analytics(c: None) -> dict[str, Any]:
 
         d = data
 
-        # NOTE: Performance analytics is informational for dashboard (not critical to trading).
-        # Gracefully handle None values instead of failing - dashboard should degrade gracefully,
-        # not crash when perf analytics data is unavailable.
+        # CRITICAL: Performance metrics are NOT informational — they are fundamental to portfolio analysis.
+        # These metrics (Sharpe, Sortino, Calmar, Max Drawdown, Win Rate, Avg Win/Loss, Expectancy)
+        # determine strategy quality and operator awareness. Missing or invalid metrics must fail-fast
+        # so operators are immediately alerted to data loading failures. Silent None values mask
+        # critical data issues. Fail-closed: require valid metrics or raise error to operator.
         return {
-            "sharpe252": safe_float(d.get("rolling_sharpe_252d"), strict=False, field_name="sharpe252"),
-            "sortino": safe_float(d.get("rolling_sortino_252d"), strict=False, field_name="sortino"),
-            "calmar": safe_float(d.get("calmar_ratio"), strict=False, field_name="calmar"),
-            "wr50": safe_float(d.get("win_rate_50t"), strict=False, field_name="wr50"),
-            "avg_w_r": safe_float(d.get("avg_win_r_50t"), strict=False, field_name="avg_w_r"),
-            "avg_l_r": safe_float(d.get("avg_loss_r_50t"), strict=False, field_name="avg_l_r"),
-            "expectancy": safe_float(d.get("expectancy"), strict=False, field_name="expectancy"),
-            "maxdd": safe_float(d.get("max_drawdown_pct"), strict=False, field_name="maxdd"),
+            "sharpe252": safe_float(d.get("rolling_sharpe_252d"), strict=True, field_name="sharpe252"),
+            "sortino": safe_float(d.get("rolling_sortino_252d"), strict=True, field_name="sortino"),
+            "calmar": safe_float(d.get("calmar_ratio"), strict=True, field_name="calmar"),
+            "wr50": safe_float(d.get("win_rate_50t"), strict=True, field_name="wr50"),
+            "avg_w_r": safe_float(d.get("avg_win_r_50t"), strict=True, field_name="avg_w_r"),
+            "avg_l_r": safe_float(d.get("avg_loss_r_50t"), strict=True, field_name="avg_l_r"),
+            "expectancy": safe_float(d.get("expectancy"), strict=True, field_name="expectancy"),
+            "maxdd": safe_float(d.get("max_drawdown_pct"), strict=True, field_name="maxdd"),
         }
     except Exception as e:
         error_msg = format_fetcher_error("perf_anl", e)
