@@ -31,16 +31,16 @@ def validate_imports() -> bool:
         "pydantic",
         "requests",
         "boto3",
-        "PyJWT",
+        "jwt",
     ]
 
     all_ok = True
     for module in required_modules:
         try:
             __import__(module)
-            logger.info(f"  ✓ {module}")
+            logger.info(f"  OK: {module}")
         except ImportError as e:
-            logger.error(f"  ✗ {module}: {e}")
+            logger.error(f"  FAIL: {module}: {e}")
             all_ok = False
 
     return all_ok
@@ -52,14 +52,14 @@ def validate_handler_imports() -> bool:
     try:
         import importlib
         importlib.import_module("dashboard.panels")
-        logger.info("  ✓ dashboard.panels")
+        logger.info("  OK: dashboard.panels")
 
-        importlib.import_module("lambda.api.api_router")
-        logger.info("  ✓ lambda.api.api_router")
+        importlib.import_module("lambda.api.lambda_function")
+        logger.info("  OK: lambda.api.lambda_function")
 
         return True
     except ImportError as e:
-        logger.error(f"  ✗ Handler import failed: {e}")
+        logger.error(f"  FAIL: Handler import failed: {e}")
         return False
 
 
@@ -99,7 +99,7 @@ def validate_endpoint_handlers() -> dict[str, Any]:
     try:
         # Import handlers
         import importlib
-        api_router = importlib.import_module("lambda.api.api_router")
+        lambda_func = importlib.import_module("lambda.api.lambda_function")
 
         # Create mock event/context for testing
         mock_event = {
@@ -116,49 +116,49 @@ def validate_endpoint_handlers() -> dict[str, Any]:
         logger.info("  Testing /api/algo/positions...")
         try:
             event = {**mock_event, "path": "/api/algo/positions"}
-            response = api_router.lambda_handler(event, mock_context)
+            response = lambda_func.lambda_handler(event, mock_context)
             if response.get("statusCode") == 200:
-                logger.info("    ✓ Positions endpoint returns 200")
+                logger.info("    OK: Positions endpoint returns 200")
                 results["positions"] = "PASS"
             else:
-                logger.warning(f"    ⚠ Positions endpoint returned {response.get('statusCode')}")
+                logger.warning(f"    WARN: Positions endpoint returned {response.get('statusCode')}")
                 results["positions"] = f"FAIL: {response.get('statusCode')}"
         except Exception as e:
-            logger.error(f"    ✗ Positions endpoint error: {e}")
+            logger.error(f"    FAIL: Positions endpoint error: {e}")
             results["positions"] = f"ERROR: {str(e)[:100]}"
 
         # Test performance endpoint
         logger.info("  Testing /api/algo/performance...")
         try:
             event = {**mock_event, "path": "/api/algo/performance"}
-            response = api_router.lambda_handler(event, mock_context)
+            response = lambda_func.lambda_handler(event, mock_context)
             if response.get("statusCode") == 200:
-                logger.info("    ✓ Performance endpoint returns 200")
+                logger.info("    OK: Performance endpoint returns 200")
                 results["performance"] = "PASS"
             else:
-                logger.warning(f"    ⚠ Performance endpoint returned {response.get('statusCode')}")
+                logger.warning(f"    WARN: Performance endpoint returned {response.get('statusCode')}")
                 results["performance"] = f"FAIL: {response.get('statusCode')}"
         except Exception as e:
-            logger.error(f"    ✗ Performance endpoint error: {e}")
+            logger.error(f"    FAIL: Performance endpoint error: {e}")
             results["performance"] = f"ERROR: {str(e)[:100]}"
 
         # Test swing scores endpoint
         logger.info("  Testing /api/algo/swing-scores...")
         try:
             event = {**mock_event, "path": "/api/algo/swing-scores"}
-            response = api_router.lambda_handler(event, mock_context)
+            response = lambda_func.lambda_handler(event, mock_context)
             if response.get("statusCode") == 200:
-                logger.info("    ✓ Swing Scores endpoint returns 200")
+                logger.info("    OK: Swing Scores endpoint returns 200")
                 results["swing_scores"] = "PASS"
             else:
-                logger.warning(f"    ⚠ Swing Scores endpoint returned {response.get('statusCode')}")
+                logger.warning(f"    WARN: Swing Scores endpoint returned {response.get('statusCode')}")
                 results["swing_scores"] = f"FAIL: {response.get('statusCode')}"
         except Exception as e:
-            logger.error(f"    ✗ Swing Scores endpoint error: {e}")
+            logger.error(f"    FAIL: Swing Scores endpoint error: {e}")
             results["swing_scores"] = f"ERROR: {str(e)[:100]}"
 
     except Exception as e:
-        logger.error(f"  ✗ Failed to test handlers: {e}")
+        logger.error(f"  FAIL: Failed to test handlers: {e}")
 
     return results
 
@@ -224,31 +224,31 @@ def print_deployment_checklist(handler_results: dict[str, Any]) -> None:
     )
 
     print("\nBefore AWS Lambda Deployment:")
-    print("  ☐ All tests pass locally (pytest)")
-    print("  ☐ All type checks pass (mypy strict)")
-    print("  ☐ All endpoints tested successfully")
-    print(f"  ☐ Critical endpoints: {'✓ READY' if critical_pass else '✗ ISSUES FOUND'}")
+    print("  [ ] All tests pass locally (pytest)")
+    print("  [ ] All type checks pass (mypy strict)")
+    print("  [ ] All endpoints tested successfully")
+    print(f"  [ ] Critical endpoints: {'OK READY' if critical_pass else 'FAIL ISSUES FOUND'}")
 
     print("\nDuring AWS Lambda Deployment:")
-    print("  ☐ AWS credentials configured (aws sts get-caller-identity)")
-    print("  ☐ Build Lambda package (pip install -r requirements.txt -t package/)")
-    print("  ☐ Create ZIP file (zip -r algo-api.zip .)")
-    print("  ☐ Deploy to Lambda (aws lambda update-function-code ...)")
-    print("  ☐ Wait for deployment to complete")
+    print("  [ ] AWS credentials configured (aws sts get-caller-identity)")
+    print("  [ ] Build Lambda package (pip install -r requirements.txt -t package/)")
+    print("  [ ] Create ZIP file (zip -r algo-api.zip .)")
+    print("  [ ] Deploy to Lambda (aws lambda update-function-code ...)")
+    print("  [ ] Wait for deployment to complete")
 
     print("\nAfter AWS Lambda Deployment:")
-    print("  ☐ Get API Gateway URL from AWS console")
-    print("  ☐ Test /api/algo/positions endpoint")
-    print("  ☐ Test /api/algo/performance endpoint")
-    print("  ☐ Test /api/algo/swing-scores endpoint")
-    print("  ☐ Open dashboard in browser")
-    print("  ☐ Verify all panels load with real data")
-    print("  ☐ Check CloudWatch logs for errors")
+    print("  [ ] Get API Gateway URL from AWS console")
+    print("  [ ] Test /api/algo/positions endpoint")
+    print("  [ ] Test /api/algo/performance endpoint")
+    print("  [ ] Test /api/algo/swing-scores endpoint")
+    print("  [ ] Open dashboard in browser")
+    print("  [ ] Verify all panels load with real data")
+    print("  [ ] Check CloudWatch logs for errors")
 
     print("\nEndpoint Test Results:")
     for endpoint, result in handler_results.items():
-        status = "✓" if result == "PASS" else "✗"
-        print(f"  {status} {endpoint}: {result}")
+        status = "OK" if result == "PASS" else "FAIL"
+        print(f"  {status}: {endpoint}: {result}")
 
 
 def main() -> int:
@@ -274,19 +274,19 @@ def main() -> int:
     logger.info("="*60)
 
     for check, passed in results.items():
-        status = "✓" if passed else "✗"
-        print(f"{status} {check.upper()}: {'PASS' if passed else 'CHECK'}")
+        status = "OK" if passed else "FAIL"
+        print(f"{status}: {check.upper()}: {'PASS' if passed else 'CHECK'}")
 
     critical_pass = all(
         handler_results.get(k) == "PASS"
         for k in ["positions", "performance", "swing_scores"]
     )
-    status = "✓" if critical_pass else "✗"
-    print(f"{status} CRITICAL ENDPOINTS: {'READY FOR DEPLOYMENT' if critical_pass else 'ISSUES FOUND'}")
+    status = "OK" if critical_pass else "FAIL"
+    print(f"{status}: CRITICAL ENDPOINTS: {'READY FOR DEPLOYMENT' if critical_pass else 'ISSUES FOUND'}")
 
     # Exit code based on critical checks
     all_pass = all(results.values()) and critical_pass
-    logger.info("\n" + ("✓ READY FOR AWS LAMBDA DEPLOYMENT" if all_pass else "✗ FIX ISSUES BEFORE DEPLOYMENT"))
+    logger.info("\n" + ("OK: READY FOR AWS LAMBDA DEPLOYMENT" if all_pass else "FAIL: FIX ISSUES BEFORE DEPLOYMENT"))
 
     return 0 if all_pass else 1
 
