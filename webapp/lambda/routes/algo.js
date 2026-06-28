@@ -443,12 +443,16 @@ router.get("/last-run", async (req, res) => {
     }
 
     const run = result.rows[0];
+    // Extract halt_reason: if halted, use error_message as reason, else null
+    const halt_reason = run.halted && run.error_message ? run.error_message : null;
+
     return sendSuccess(res, {
       run_id: run.run_id,
       run_at: run.run_at,
       success: run.success,
       halted: run.halted,
       error_message: run.error_message,
+      halt_reason: halt_reason,
       phases: run.phases || [],
     });
   } catch (error) {
@@ -757,6 +761,7 @@ router.get("/portfolio", async (req, res) => {
         cumulative_return_pct: snapshot.cumulative_return_pct,
         max_drawdown_pct: snapshot.max_drawdown_pct,
         largest_position_pct: snapshot.largest_position_pct,
+        data_age_seconds: data_age_seconds,
       },
       data_freshness: data_freshness,
     });
@@ -948,8 +953,8 @@ router.get("/trades", async (req, res) => {
       exit_date: { type: "date", required: false },
       exit_price: { type: "float", required: false },
       exit_r_multiple: { type: "float", required: false },
-      profit_loss_pct: { type: "float", required: false, defaultValue: 0 },
-      profit_loss_dollars: { type: "float", required: false, defaultValue: 0 },
+      profit_loss_pct: { type: "float", required: false },
+      profit_loss_dollars: { type: "float", required: false },
       trade_duration_days: { type: "int", required: false },
     });
 
@@ -1667,21 +1672,21 @@ router.get("/swing-scores-history", async (req, res) => {
     return sendSuccess(res, {
       items: validateAndCoerceRows(result, {
         eval_date: { type: "date", required: true },
-        total: { type: "int", required: false, defaultValue: 0 },
-        score_high: { type: "int", required: false, defaultValue: 0 },
-        score_medium: { type: "int", required: false, defaultValue: 0 },
-        score_low: { type: "int", required: false, defaultValue: 0 },
-        avg_score: { type: "float", required: false, defaultValue: 0 },
-        pass_count: { type: "int", required: false, defaultValue: 0 },
+        total: { type: "int", required: false },
+        score_high: { type: "int", required: false },
+        score_medium: { type: "int", required: false },
+        score_low: { type: "int", required: false },
+        avg_score: { type: "float", required: false },
+        pass_count: { type: "int", required: false },
       }).map((r) => ({
         eval_date: r.eval_date,
         date: r.eval_date,
-        total: r.total || 0,
-        grade_aplus: r.score_high || 0, // scores >= 80
-        grade_a: r.score_medium || 0, // scores 60-79
-        pass_count: r.pass_count || 0,
-        low_scores: r.score_low || 0,
-        high_scores: r.score_high || 0,
+        total: r.total !== null && r.total !== undefined ? r.total : null,
+        grade_aplus: r.score_high !== null && r.score_high !== undefined ? r.score_high : null,
+        grade_a: r.score_medium !== null && r.score_medium !== undefined ? r.score_medium : null,
+        pass_count: r.pass_count !== null && r.pass_count !== undefined ? r.pass_count : null,
+        low_scores: r.score_low !== null && r.score_low !== undefined ? r.score_low : null,
+        high_scores: r.score_high !== null && r.score_high !== undefined ? r.score_high : null,
         medium_scores: r.score_medium || 0,
         avg_score: r.avg_score || 0,
       })),
@@ -2784,18 +2789,18 @@ router.get("/sector-breadth", async (req, res) => {
     return sendSuccess(res, {
       items: validateAndCoerceRows(result, {
         sector: { type: "string", required: true },
-        total_stocks: { type: "int", required: false, defaultValue: 0 },
-        above_50d: { type: "int", required: false, defaultValue: 0 },
-        above_200d: { type: "int", required: false, defaultValue: 0 },
-        pct_above_50d: { type: "float", required: false, defaultValue: 0 },
-        pct_above_200d: { type: "float", required: false, defaultValue: 0 },
+        total_stocks: { type: "int", required: false },
+        above_50d: { type: "int", required: false },
+        above_200d: { type: "int", required: false },
+        pct_above_50d: { type: "float", required: false },
+        pct_above_200d: { type: "float", required: false },
       }).map((r) => ({
         sector: r.sector,
-        total_stocks: r.total_stocks || 0,
-        above_50d: r.above_50d || 0,
-        above_200d: r.above_200d || 0,
-        pct_above_50d: r.pct_above_50d || 0,
-        pct_above_200d: r.pct_above_200d || 0,
+        total_stocks: r.total_stocks !== null && r.total_stocks !== undefined ? r.total_stocks : null,
+        above_50d: r.above_50d !== null && r.above_50d !== undefined ? r.above_50d : null,
+        above_200d: r.above_200d !== null && r.above_200d !== undefined ? r.above_200d : null,
+        pct_above_50d: r.pct_above_50d !== null && r.pct_above_50d !== undefined ? r.pct_above_50d : null,
+        pct_above_200d: r.pct_above_200d !== null && r.pct_above_200d !== undefined ? r.pct_above_200d : null,
       })),
     });
   } catch (error) {
@@ -2847,21 +2852,21 @@ router.get("/sector-stage2", async (req, res) => {
     return sendSuccess(res, {
       items: validateAndCoerceRows(result, {
         sector: { type: "string", required: true },
-        total_stocks: { type: "int", required: false, defaultValue: 0 },
-        stage_1: { type: "int", required: false, defaultValue: 0 },
-        stage_2: { type: "int", required: false, defaultValue: 0 },
-        stage_3: { type: "int", required: false, defaultValue: 0 },
-        stage_4: { type: "int", required: false, defaultValue: 0 },
+        total_stocks: { type: "int", required: false },
+        stage_1: { type: "int", required: false },
+        stage_2: { type: "int", required: false },
+        stage_3: { type: "int", required: false },
+        stage_4: { type: "int", required: false },
         avg_trend_score: { type: "float", required: false },
-        pct_stage_2: { type: "float", required: false, defaultValue: 0 },
+        pct_stage_2: { type: "float", required: false },
       }).map((r) => ({
         sector: r.sector,
-        total: r.total_stocks || 0,
-        stage_1: r.stage_1 || 0,
-        stage_2: r.stage_2 || 0,
-        stage_3: r.stage_3 || 0,
-        stage_4: r.stage_4 || 0,
-        pct_stage_2: r.pct_stage_2 || 0,
+        total: r.total_stocks !== null && r.total_stocks !== undefined ? r.total_stocks : null,
+        stage_1: r.stage_1 !== null && r.stage_1 !== undefined ? r.stage_1 : null,
+        stage_2: r.stage_2 !== null && r.stage_2 !== undefined ? r.stage_2 : null,
+        stage_3: r.stage_3 !== null && r.stage_3 !== undefined ? r.stage_3 : null,
+        stage_4: r.stage_4 !== null && r.stage_4 !== undefined ? r.stage_4 : null,
+        pct_stage_2: r.pct_stage_2 !== null && r.pct_stage_2 !== undefined ? r.pct_stage_2 : null,
         avg_trend_score: r.avg_trend_score,
       })),
     });
@@ -2921,14 +2926,14 @@ router.get("/sector-rotation", async (req, res) => {
         date: { type: "date", required: false },
         sector: { type: "string", required: false },
         signal: { type: "string", required: false },
-        strength: { type: "float", required: false, defaultValue: 0 },
+        strength: { type: "float", required: false },
         rank: { type: "int", required: false },
         details: { type: "raw", required: false },
       }).map((r) => ({
         date: r.date,
         sector: r.sector,
         signal: r.signal,
-        strength: r.strength || 0,
+        strength: r.strength !== null && r.strength !== undefined ? r.strength : null,
         rank: r.rank,
         ...parseDetailsJSON(r.details),
       })),
@@ -3060,7 +3065,7 @@ router.get("/data-quality", async (req, res) => {
       loader_name: { type: "string", required: true },
       table_name: { type: "string", required: true },
       latest_data_date: { type: "string", required: false },
-      age_hours: { type: "float", required: false, defaultValue: 0 },
+      age_hours: { type: "float", required: false },
       max_age_hours: { type: "int", required: false },
       row_count_today: { type: "int", required: false },
       status: { type: "string", required: false },
@@ -3069,7 +3074,7 @@ router.get("/data-quality", async (req, res) => {
       loader: r.loader_name,
       table: r.table_name,
       latest_date: r.latest_data_date,
-      age_hours: r.age_hours || 0,
+      age_hours: r.age_hours !== null && r.age_hours !== undefined ? r.age_hours : null,
       max_age_hours: r.max_age_hours,
       row_count: r.row_count_today,
       status: r.status,
@@ -3387,19 +3392,19 @@ router.get("/signal-performance-by-pattern", async (req, res) => {
 
     const patterns = validateAndCoerceRows(result, {
       pattern: { type: "string", required: false, defaultValue: "Unknown" },
-      total_trades: { type: "int", required: false, defaultValue: 0 },
-      winning_trades: { type: "int", required: false, defaultValue: 0 },
-      losing_trades: { type: "int", required: false, defaultValue: 0 },
-      closed_trades: { type: "int", required: false, defaultValue: 0 },
-      avg_return_pct: { type: "float", required: false, defaultValue: 0 },
-      total_pnl: { type: "float", required: false, defaultValue: 0 },
-      win_rate_pct: { type: "float", required: false, defaultValue: 0 },
+      total_trades: { type: "int", required: false },
+      winning_trades: { type: "int", required: false },
+      losing_trades: { type: "int", required: false },
+      closed_trades: { type: "int", required: false },
+      avg_return_pct: { type: "float", required: false },
+      total_pnl: { type: "float", required: false },
+      win_rate_pct: { type: "float", required: false },
     }).map((r) => ({
       pattern: r.pattern,
-      total_trades: r.total_trades || 0,
-      winning_trades: r.winning_trades ?? 0,
-      losing_trades: r.losing_trades ?? 0,
-      closed_trades: r.closed_trades ?? 0,
+      total_trades: r.total_trades !== null && r.total_trades !== undefined ? r.total_trades : null,
+      winning_trades: r.winning_trades !== null && r.winning_trades !== undefined ? r.winning_trades : null,
+      losing_trades: r.losing_trades !== null && r.losing_trades !== undefined ? r.losing_trades : null,
+      closed_trades: r.closed_trades !== null && r.closed_trades !== undefined ? r.closed_trades : null,
       avg_return_pct: r.avg_return_pct !== null && r.avg_return_pct !== undefined ? r.avg_return_pct : null,
       total_pnl: r.total_pnl !== null && r.total_pnl !== undefined ? r.total_pnl : null,
       win_rate_pct: r.win_rate_pct !== null && r.win_rate_pct !== undefined ? r.win_rate_pct : null,
@@ -3810,18 +3815,18 @@ router.get("/performance-analytics", authenticateToken, async (req, res) => {
     }
 
     const perf = validateAndCoerceRow(perfResult.rows[0], {
-      win_rate_pct: { type: "float", required: false, defaultValue: 0 },
-      avg_win_pct: { type: "float", required: false, defaultValue: 0 },
-      avg_loss_pct: { type: "float", required: false, defaultValue: 0 },
-      profit_factor: { type: "float", required: false, defaultValue: 0 },
-      total_return_pct: { type: "float", required: false, defaultValue: 0 },
+      win_rate_pct: { type: "float", required: false },
+      avg_win_pct: { type: "float", required: false },
+      avg_loss_pct: { type: "float", required: false },
+      profit_factor: { type: "float", required: false },
+      total_return_pct: { type: "float", required: false },
       sharpe252: { type: "float", required: false },
       sortino: { type: "float", required: false },
       calmar: { type: "float", required: false },
-      max_drawdown_pct: { type: "float", required: false, defaultValue: 0 },
-      best_win_streak: { type: "int", required: false, defaultValue: 0 },
-      worst_loss_streak: { type: "int", required: false, defaultValue: 0 },
-      avg_holding_days: { type: "float", required: false, defaultValue: 0 },
+      max_drawdown_pct: { type: "float", required: false },
+      best_win_streak: { type: "int", required: false },
+      worst_loss_streak: { type: "int", required: false },
+      avg_holding_days: { type: "float", required: false },
     });
 
     const expectancy = perf.profit_factor

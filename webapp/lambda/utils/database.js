@@ -42,9 +42,12 @@ async function getDbConfig() {
 
   try {
     const secretArn = process.env.DB_SECRET_ARN;
+    const isLocalDev = process.env.NODE_ENV === "development" && process.env.DB_HOST === "localhost";
 
-    // If we have a secret ARN, use Secrets Manager
-    if (secretArn) {
+    // In development with local DB_HOST, skip AWS Secrets Manager
+    if (isLocalDev) {
+      // Fall through to environment variables below
+    } else if (secretArn) {
       try {
         const command = new GetSecretValueCommand({ SecretId: secretArn });
         const client = getSecretsManagerClient();
