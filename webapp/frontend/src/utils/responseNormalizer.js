@@ -125,7 +125,18 @@ export const extractData = (response) => {
   if (data.data !== null && data.data !== undefined) {
     // Check if data.data contains paginated items (list_response structure)
     // API returns: { statusCode: 200, data: { items: [...], total: N, limit: N, offset: N } }
-    if (Array.isArray(data.data.items)) {
+    // CRITICAL: Only treat as paginated if it has pagination markers AND no other important fields
+    const hasPaginationMarkers =
+      data.data.total !== undefined ||
+      data.data.limit !== undefined ||
+      data.data.offset !== undefined ||
+      data.data.pagination !== undefined;
+    const hasOnlyPaginationFields =
+      Object.keys(data.data).every(k =>
+        ['items', 'total', 'limit', 'offset', 'pagination', 'page', 'totalPages', 'hasNext', 'hasPrev'].includes(k)
+      );
+
+    if (Array.isArray(data.data.items) && hasPaginationMarkers && hasOnlyPaginationFields) {
       const filteredItems = data.data.items.filter(
         (item) => item !== null && item !== undefined
       );
