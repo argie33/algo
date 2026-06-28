@@ -262,3 +262,39 @@ def test_empty_optional_data_not_treated_as_error():
     panel = error_summary_panel(data)
     assert panel is None, "Empty optional data should not trigger error panel"
     print("OK empty optional data does not trigger error panel")
+
+
+def test_error_message_fallback_for_missing_error_details():
+    """Verify that missing or None _error values show fallback message, not 'Unknown error'."""
+    from dashboard.error_boundary import error_summary_panel
+
+    # Test case 1: _error is None
+    data_none_error = {"mkt": {"_error": None}}
+    panel = error_summary_panel(data_none_error)
+    assert panel is not None, "Should render error panel for None _error"
+    rendered = str(panel.renderable)
+    assert "API error (no details available)" in rendered, (
+        f"Should show fallback message, got: {rendered}"
+    )
+    assert "Unknown error" not in rendered, "Should not show 'Unknown error'"
+    print("OK error message fallback works for None _error")
+
+    # Test case 2: _error is empty string
+    data_empty_error = {"mkt": {"_error": ""}}
+    panel = error_summary_panel(data_empty_error)
+    assert panel is not None, "Should render error panel for empty _error"
+    rendered = str(panel.renderable)
+    assert "API error (no details available)" in rendered, (
+        f"Should show fallback message, got: {rendered}"
+    )
+    print("OK error message fallback works for empty _error")
+
+    # Test case 3: Proper error message is preserved
+    data_good_error = {"mkt": {"_error": "Market API timeout"}}
+    panel = error_summary_panel(data_good_error)
+    assert panel is not None, "Should render error panel"
+    rendered = str(panel.renderable)
+    assert "Market API timeout" in rendered, (
+        f"Should preserve error message, got: {rendered}"
+    )
+    print("OK error message is preserved when provided")
