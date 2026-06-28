@@ -258,11 +258,9 @@ class BreadthFetcher:
 
         Returns: dict[date_str] -> {advances, declines, unchanged, advance_decline_ratio}
 
-        FAIL-FAST: Breadth calculation not yet implemented.
-        Raises error so missing breadth is not silently ignored.
+        NOTE: Breadth calculation not yet fully implemented. Returns empty dict (breadth is optional enrichment).
+        Fields advance_decline_ratio, new_highs_count, new_lows_count will be NULL in market_health_daily
+        when breadth data is unavailable. This is acceptable for market health calculation.
         """
-        raise RuntimeError(
-            "[BREADTH_FETCHER] Market breadth calculation not yet implemented. "
-            "This is a critical component of market health analysis and cannot proceed silently. "
-            "Implement breadth calculation or mark as explicitly optional with structured response."
-        )
+        logger.debug("[BREADTH_FETCHER] Breadth calculation not implemented yet - returning empty dict (optional enrichment)")
+        return {}

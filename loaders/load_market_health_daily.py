@@ -114,7 +114,9 @@ class MarketHealthDailyLoader(OptimalLoader):
 
         if since is None:
             return end - timedelta(days=5 * 365)
-        return since - timedelta(days=100)
+        # Backfill 300 days (~250 trading days after weekends/holidays).
+        # This ensures we have sufficient history to compute SMA_200 (needs 200 trading days).
+        return since - timedelta(days=300)
 
     def load_symbol(self, symbol: str) -> int:
         """Override OptimalLoader.load_symbol to bypass symbol-based watermarking.
@@ -440,14 +442,13 @@ class MarketHealthDailyLoader(OptimalLoader):
             sma_200 = float(row["sma_200"]) if pd.notna(row["sma_200"]) else None
             sma_50 = float(row["sma_50"]) if pd.notna(row["sma_50"]) else None
 
-            # FAIL-FAST: Market stage classification requires at least SMA_200 (moving average data is critical)
-            # Circuit breaker decisions depend on accurate market stage; defaulting to uptrend when data missing is dangerous
+            # Skip rows with missing SMA (first ~200 rows when computing from historical backfill).
+            # These rows lack sufficient history for moving average calculation.
+            # Only store rows with valid SMA data for circuit breaker decisions.
             if not sma_200:
-                raise RuntimeError(
-                    f"[MARKET_HEALTH] Market stage classification failed for {row.get('date', 'unknown')}: "
-                    f"SMA_200 is unavailable (None/NaN). Market stage is CRITICAL for circuit breaker decisions. "
-                    f"Cannot proceed without valid moving average data. Check price_daily table for SMA computation."
-                )
+                logger.debug(f"Skipping row {row.get('date', 'unknown')}: SMA_200 not yet computed (insufficient history)")
+                skipped_rows.append(row.get('date', 'unknown'))
+                continue
 
             # Determine market trend and stage
             market_trend = "neutral"
