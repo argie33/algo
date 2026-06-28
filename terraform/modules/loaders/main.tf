@@ -645,16 +645,16 @@ locals {
     # Previous: parallelism=8, but when multiple loaders run concurrently (9 loaders × 8 parallelism = 72 connections) exhausted RDS Proxy
     # New: parallelism=2-3 reduces peak connections to 27-54 range while maintaining parallelism benefits
     # FIXED 2026-06-21: Reduced timeouts from 7200→1800s (2h→30m) and 21600→1800s (6h→30m) to fail fast instead of masking failures
-    # OPTIMIZED 2026-06-28: Reduced memory from 4096→2048MB (vectorized pandas operations use <2GB heap)
-    "growth_metrics"      = { cpu = 2048, memory = 2048, timeout = 1800, parallelism = 2 }
-    "quality_metrics"     = { cpu = 2048, memory = 2048, timeout = 1800, parallelism = 2 }
-    "value_metrics"       = { cpu = 2048, memory = 2048, timeout = 1800, parallelism = 2 }
+    # OPTIMIZED 2026-06-28: Reduced to 1024 CPU, 2048MB (vectorized pandas ops use <2GB, 2048 CPU requires min 4096 MB)
+    "growth_metrics"      = { cpu = 1024, memory = 2048, timeout = 1800, parallelism = 2 }
+    "quality_metrics"     = { cpu = 1024, memory = 2048, timeout = 1800, parallelism = 2 }
+    "value_metrics"       = { cpu = 1024, memory = 2048, timeout = 1800, parallelism = 2 }
     # positioning_metrics: yfinance-based, was hanging for 1700+ minutes
     # FIXED 2026-06-26: Increased timeout from 1200→3600s (20m→1h) to handle rate-limited yfinance fetches
     "positioning_metrics" = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 2 }
     "stability_metrics"   = { cpu = 1024, memory = 2048, timeout = 1800, parallelism = 2 }
-    # OPTIMIZED 2026-06-28: Reduced memory from 4096→2048MB + parallelism from 3→2 (eliminates thread pool overhead)
-    "stock_scores"        = { cpu = 2048, memory = 2048, timeout = 3600, parallelism = 2 }
+    # OPTIMIZED 2026-06-28: Reduced to 1024 CPU, 2048MB + parallelism from 3→2 (eliminates thread pool overhead; 2048 CPU requires min 4096 MB)
+    "stock_scores"        = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
 
     # Earnings data — uses yfinance with 2-second rate limit per symbol
     # With 10,574 symbols: 10574 × 2s = 21,148s = 5.87 hours for full load (but incremental after first load)
@@ -692,14 +692,14 @@ locals {
     # BUY/SELL signals — compute trade signals for all 5000+ symbols
     # OPTIMIZED 2026-06-28: Reduced memory from 4096→2048MB + parallelism from 3→2 (vectorized ops, lower RDS contention)
     # FIXED 2026-06-21: Reduced timeout from 21600→1800s (6h→30m) to fail fast instead of masking failures
-    "buy_sell_daily" = { cpu = 2048, memory = 2048, timeout = 1800, parallelism = 2 }
+    "buy_sell_daily" = { cpu = 2048, memory = 4096, timeout = 1800, parallelism = 2 } # Vectorized: requires 4096 MB min for 2048 CPU
 
     # Technical indicators (vectorized) — 4-6x faster via bulk query + vectorized pandas operations
     # FIXED Issue #???: Vectorized approach: 1 bulk query → vectorized pandas → single bulk insert
     # Full load (300-day lookback): 15-25 min vs old 60-90 min
     # Intraday mode (today only): 3-8 min vs old 60-90 min
     # OPTIMIZED 2026-06-28: Reduced memory from 4096→2048MB (vectorized pandas uses <2GB heap)
-    "technical_data_daily" = { cpu = 2048, memory = 2048, timeout = 1800, parallelism = 1 } # Vectorized: bulk fetch + pandas ops for 5000+ symbols
+    "technical_data_daily" = { cpu = 2048, memory = 4096, timeout = 1800, parallelism = 1 } # Vectorized: bulk fetch + pandas ops for 5000+ symbols; 2048 CPU requires min 4096 MB
 
     # Market health — reads price_daily, processes 5000+ symbols
     "market_health_daily" = { cpu = 256, memory = 512, timeout = 1200, parallelism = 1 }
@@ -717,7 +717,7 @@ locals {
     # Swing trader scores — bulk query + vectorized pandas operations
     # Full load (30-day lookback): 10-20 min, Intraday (--today flag): 5-15 min
     # OPTIMIZED 2026-06-28: Reduced memory from 4096→2048MB (vectorized pandas uses <2GB heap)
-    "swing_trader_scores" = { cpu = 2048, memory = 2048, timeout = 1200, parallelism = 1 } # Vectorized: bulk processing for 5000+ symbols
+    "swing_trader_scores" = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 1 } # Vectorized: bulk processing for 5000+ symbols; 2048 CPU requires min 4096 MB
 
     # Sector ranking — compute sector composite scores and rankings
     "sector_ranking" = { cpu = 512, memory = 1024, timeout = 900, parallelism = 1 }
@@ -733,7 +733,7 @@ locals {
 
     # Trend template — compute-heavy scoring
     # OPTIMIZED 2026-06-28: Reduced memory from 4096→2048MB + parallelism from 4→2 (vectorized, lower overhead)
-    "trend_template_data" = { cpu = 2048, memory = 2048, timeout = 5400, parallelism = 2 }
+    "trend_template_data" = { cpu = 2048, memory = 4096, timeout = 5400, parallelism = 2 } # 2048 CPU requires min 4096 MB Fargate memory
     # Pre-computed metrics for API endpoints � pure SQL aggregation, no external APIs
     # Lightweight: reads portfolio snapshots, trades, and market health (all cached locally)
     # Runs after Phase 7 reconciliation to capture latest position/trade state
