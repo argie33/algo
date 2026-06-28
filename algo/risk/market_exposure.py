@@ -442,7 +442,7 @@ class MarketExposure:
             logger.debug(f"  A/D line: {ad_pts:.1f} pts")
 
             # --- 10. Credit spreads (HY OAS — credit leads equity) ---
-            cs = self._credit_spread(eval_date, cur)
+            cs = self.calculator.credit_spread(eval_date, cur)
             cs_pts, cs_avail = self.calculator._wt_pts(cs, self.W_CREDIT_SPREAD)
             avail_max += cs_avail
             factors["credit_spread"] = {
