@@ -295,7 +295,7 @@ class MarketExposure:
             if cached:
                 return cached
 
-        logger.info(f"Computing market exposure for {eval_date} (12 sequential queries)")
+        logger.info(f"[MARKET_EXPOSURE] Computing market exposure for {eval_date} (12 sequential queries, using calculator methods)")
         with DatabaseContext("read") as cur:
             # Per-query timeout: 45s. Breadth queries use pre-computed sma_50/sma_200 from
             # technical_data_daily (fast indexed lookup). 45s x 12 = 540s max, fits in Lambda
@@ -419,6 +419,7 @@ class MarketExposure:
                 "max": self.W_PUT_CALL,
             }
             score += pc_pts
+            logger.info(f"[PUT_CALL_RATIO] Value: {pc.get('value')}, Score: {pc.get('score'):.1f}, Points: {pc_pts:.1f}/{self.W_PUT_CALL}")
             logger.debug(f"  Put/call ratio: {pc_pts:.1f} pts")
 
             # --- 8. New highs vs new lows ---
@@ -439,6 +440,7 @@ class MarketExposure:
             avail_max += ad_avail
             factors["ad_line"] = {**ad, "pts": round(ad_pts, 1), "max": self.W_AD_LINE}
             score += ad_pts
+            logger.info(f"[AD_LINE] Direction: {ad.get('direction')}, Score: {ad.get('score'):.1f}, Points: {ad_pts:.1f}/{self.W_AD_LINE}")
             logger.debug(f"  A/D line: {ad_pts:.1f} pts")
 
             # --- 10. Credit spreads (HY OAS - credit leads equity) ---
@@ -451,6 +453,7 @@ class MarketExposure:
                 "max": self.W_CREDIT_SPREAD,
             }
             score += cs_pts
+            logger.info(f"[CREDIT_SPREAD] Value: {cs.get('value')} bps, Score: {cs.get('score'):.1f}, Points: {cs_pts:.1f}/{self.W_CREDIT_SPREAD}")
             logger.debug(f"  Credit spreads: {cs_pts:.1f} pts")
 
             # --- 11. AAII sentiment (contrarian at extremes only) ---
@@ -645,7 +648,7 @@ class MarketExposure:
             else:
                 regime = "correction"
 
-            logger.info(f"  Final score: {final}% ({regime})")
+            logger.info(f"[MARKET_EXPOSURE_FINAL] exposure_pct={final}%, regime={regime}, raw_score={score:.1f}, factors_computed=12")
 
             # CRITICAL: distribution_days is required for position sizing hard vetoes
             # Never default to 0 - missing data must be detected as error, not assumed "clean market"

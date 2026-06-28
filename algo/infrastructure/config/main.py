@@ -807,9 +807,20 @@ class AlgoConfig:
             "100000000",
             "int",
             "Volume sanity check: daily volume above this = suspicious",
+            "Data Patrol",
         ),
-        "patrol_low_volume_threshold": ("1000", "int", "Volume sanity check: daily volume below this = suspicious"),
-        "patrol_new_low_volume_alert": ("5", "int", "Alert when N stocks hit 52w volume lows"),
+        "patrol_low_volume_threshold": (
+            "1000",
+            "int",
+            "Volume sanity check: daily volume below this = suspicious",
+            "Data Patrol",
+        ),
+        "patrol_new_low_volume_alert": (
+            "5",
+            "int",
+            "Alert when N stocks hit 52w volume lows",
+            "Data Patrol",
+        ),
         # Data Patrol Quality Thresholds
         "patrol_max_null_pct_threshold": ("5.0", "float", "Max allowed null % in a data table"),
         "patrol_max_daily_move_pct": ("0.5", "float", "Flag OHLC rows with daily move > N * 100%"),

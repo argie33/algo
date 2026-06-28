@@ -41,18 +41,20 @@ class OrchestratorPhaseExecutor:
     4. Enable phase reordering, parallelization, and unit testing
     """
 
-    def __init__(self, config: Any, halt_check_fn: Callable[[], bool]):
+    def __init__(self, config: Any, halt_check_fn: Callable[[], bool], skip_phases: list[int | str] | None = None):
         """Initialize executor.
 
         Args:
             config: Configuration object
             halt_check_fn: Function that returns True if orchestrator should halt
+            skip_phases: Optional list of phase numbers to skip (useful for non-trading days)
         """
         self.config = config
         self.halt_check_fn = halt_check_fn
         self.phases: dict[int | str, PhaseDefinition] = {}
         self.phase_results: dict[int | str, PhaseResult] = {}
         self.execution_order: list[int | str] = []
+        self.skip_phases = set(skip_phases or [])
 
     def register_phase(self, definition: PhaseDefinition) -> None:
         """Register a phase for execution.
@@ -253,6 +255,21 @@ class OrchestratorPhaseExecutor:
 
         for phase_num in remaining:
             phase_def = self.phases[phase_num]
+
+            # Skip phases in skip_phases list (unless always_run)
+            if phase_num in self.skip_phases:
+                if not phase_def.always_run:
+                    logger.info(f"Phase {phase_num} ({phase_def.phase_name}) skipped (non-trading day)")
+                    result = PhaseResult(
+                        phase_num=phase_num,
+                        phase_name=phase_def.phase_name,
+                        status="skipped",
+                        halted=False,
+                    )
+                    self.phase_results[phase_num] = result
+                    continue
+                else:
+                    logger.info(f"Phase {phase_num} ({phase_def.phase_name}) running despite skip request (always_run=True)")
 
             # Skip non-always_run phases after a halt (they will fail dep checks anyway)
             if halted and not phase_def.always_run:

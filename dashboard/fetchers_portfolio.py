@@ -342,7 +342,12 @@ def fetch_perf(c: None) -> dict[str, Any]:
 
 
 def fetch_perf_analytics(c: None) -> dict[str, Any]:
-    """API-only performance analytics. Fail-fast: error only on failure."""
+    """API-only performance analytics. Fail-fast: error only on failure.
+
+    STRICT MODE: Performance metrics (Sharpe, Sortino, Expectancy, etc.) are CRITICAL.
+    Missing data indicates API schema mismatch or computation failure.
+    No fallback to None—must raise to surface the issue to operators.
+    """
     from dashboard.fetcher_validator import FetcherValidator
 
     try:
@@ -355,15 +360,36 @@ def fetch_perf_analytics(c: None) -> dict[str, Any]:
             return FetcherValidator.build_error_response(error_msg)
 
         d = data
+
+        # CRITICAL: Validate all performance metrics exist (fail-fast on missing data)
+        required_metrics = [
+            ("rolling_sharpe_252d", "sharpe252"),
+            ("rolling_sortino_252d", "sortino"),
+            ("calmar_ratio", "calmar"),
+            ("win_rate_50t", "wr50"),
+            ("avg_win_r_50t", "avg_w_r"),
+            ("avg_loss_r_50t", "avg_l_r"),
+            ("expectancy", "expectancy"),
+            ("max_drawdown_pct", "maxdd"),
+        ]
+
+        missing = [api_field for api_field, _ in required_metrics if d.get(api_field) is None]
+        if missing:
+            error_msg = f"Performance analytics: missing required metrics: {missing}"
+            logger.error(error_msg)
+            for field in missing:
+                record_data_quality_issue("perf_anl", field, "missing_required_metric")
+            return FetcherValidator.build_error_response(error_msg)
+
         return {
-            "sharpe252": safe_float(d.get("rolling_sharpe_252d"), default=None),
-            "sortino": safe_float(d.get("rolling_sortino_252d"), default=None),
-            "calmar": safe_float(d.get("calmar_ratio"), default=None),
-            "wr50": safe_float(d.get("win_rate_50t"), default=None),
-            "avg_w_r": safe_float(d.get("avg_win_r_50t"), default=None),
-            "avg_l_r": safe_float(d.get("avg_loss_r_50t"), default=None),
-            "expectancy": safe_float(d.get("expectancy"), default=None),
-            "maxdd": safe_float(d.get("max_drawdown_pct"), default=None),
+            "sharpe252": safe_float(d.get("rolling_sharpe_252d"), strict=True, field_name="sharpe252"),
+            "sortino": safe_float(d.get("rolling_sortino_252d"), strict=True, field_name="sortino"),
+            "calmar": safe_float(d.get("calmar_ratio"), strict=True, field_name="calmar"),
+            "wr50": safe_float(d.get("win_rate_50t"), strict=True, field_name="wr50"),
+            "avg_w_r": safe_float(d.get("avg_win_r_50t"), strict=True, field_name="avg_w_r"),
+            "avg_l_r": safe_float(d.get("avg_loss_r_50t"), strict=True, field_name="avg_l_r"),
+            "expectancy": safe_float(d.get("expectancy"), strict=True, field_name="expectancy"),
+            "maxdd": safe_float(d.get("max_drawdown_pct"), strict=True, field_name="maxdd"),
         }
     except Exception as e:
         error_msg = _format_fetcher_error("perf_anl", e)

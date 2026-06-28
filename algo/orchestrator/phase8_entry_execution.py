@@ -311,9 +311,14 @@ def run(
 
     # CRITICAL: Verify data freshness before executing trades
 
-    # Trades should only execute on current market data (same day or previous trading day)
+    # Trades execute on EOD (after market close), so expect:
+    # - If today is a trading day: same-day data
+    # - If today is not a trading day: most recent trading day's data (within 10 days)
 
     try:
+        from datetime import timedelta as td
+        from infrastructure.market_calendar import MarketCalendar
+
         with DatabaseContext("read") as cur:
             cur.execute("""SELECT MAX(date) as latest_price_date FROM price_daily""")
 
@@ -323,10 +328,23 @@ def run(
 
             latest_price_date = result[0]
 
-            if latest_price_date is None or latest_price_date != run_date:
+            # Determine expected last trading day (intelligent logic for non-trading days)
+            if MarketCalendar.is_trading_day(run_date):
+                # Today is a trading day: expect data for today
+                expected_price_date = run_date
+            else:
+                # Weekend/holiday: find most recent trading day within last 10 days
+                expected_price_date = run_date - td(days=1)
+                while expected_price_date > run_date - td(days=10):
+                    if MarketCalendar.is_trading_day(expected_price_date):
+                        break
+                    expected_price_date -= td(days=1)
+
+            if latest_price_date is None or latest_price_date != expected_price_date:
                 msg = (
-                    f"[PHASE 8 CRITICAL] Price data is not current (latest: {latest_price_date}, expected: {run_date}). "
-                    f"Cannot execute trades without today's price data. "
+                    f"[PHASE 8 CRITICAL] Price data is not current (latest: {latest_price_date}, "
+                    f"expected: {expected_price_date}, run_date: {run_date}). "
+                    f"Cannot execute trades without current market data. "
                     f"EOD price loader may not have completed — check data_loader_status and CloudWatch logs."
                 )
 
@@ -337,7 +355,7 @@ def run(
                 return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, msg)
 
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-        msg = f"[PHASE 6 CRITICAL] Data freshness check failed: {e}"
+        msg = f"[PHASE 8 CRITICAL] Data freshness check failed: {e}"
 
         logger.critical(msg)
 

@@ -750,17 +750,20 @@ class Orchestrator:
 
     # ---------- Executor setup (Phase 2: Phase Executor Framework) ----------
 
-    def _setup_executor(self) -> OrchestratorPhaseExecutor:
+    def _setup_executor(self, skip_phases: list[int | str] | None = None) -> OrchestratorPhaseExecutor:
         """Create and configure the phase executor.
 
         Loads phase definitions from PhaseRegistry and wires executor methods.
         Eliminates Shotgun Surgery: adding a phase is now a single registry entry,
         not multiple method additions and orchestrator changes.
 
+        Args:
+            skip_phases: Optional list of phase numbers to skip (e.g., trading phases on non-trading days)
+
         Returns:
             OrchestratorPhaseExecutor ready to execute all phases.
         """
-        executor = OrchestratorPhaseExecutor(config=self.config, halt_check_fn=self.halt_manager.check_halt_flag)
+        executor = OrchestratorPhaseExecutor(config=self.config, halt_check_fn=self.halt_manager.check_halt_flag, skip_phases=skip_phases)
 
         # Wire phase executor functions from registry
         phase_executors: dict[int | str, Any] = {
@@ -917,17 +920,11 @@ class Orchestrator:
         logger.info(f"#   START TIME: {datetime.now(timezone.utc).isoformat()}")
         logger.info(f"{'#' * 70}")
 
-        if not MarketCalendar.is_trading_day(self.run_date):
+        is_trading_day = MarketCalendar.is_trading_day(self.run_date)
+        if not is_trading_day:
             status = MarketCalendar.market_status(datetime.combine(self.run_date, datetime.min.time()))
-            logger.info(f"\n Market closed: {status['reason']}")
-            logger.info("Skipping all trading phases.\n")
-            # FIXED Issue #6: Log skipped runs to execution log
-            self.execution_tracker.save_execution_log("skipped", status["reason"])
-            return {
-                "success": True,
-                "skipped": True,
-                "reason": f"Market closed: {status['reason']}",
-            }
+            logger.info(f"\nMarket closed: {status['reason']}")
+            logger.info("Skipping trading phases (1-6). Will run Phase 9 for daily metrics.\n")
 
         # Concurrency lock — prevent two orchestrators running at once
         # which would risk duplicate trades or double-counting circuit breakers
