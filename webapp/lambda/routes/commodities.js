@@ -699,10 +699,12 @@ router.get("/correlations", async (req, res) => {
     validateQueryResult(result, { requireRows: false });
 
     const correlations = result.rows.map((row) => {
-      const coeff = parseFloat(row.coefficient) || 0;
-      let strength = "weak";
-      if (Math.abs(coeff) > 0.7) strength = "strong";
-      else if (Math.abs(coeff) > 0.5) strength = "moderate";
+      const coeff = row.coefficient !== null && row.coefficient !== undefined ? parseFloat(row.coefficient) : null;
+      let strength = coeff === null ? "unavailable" : "weak";
+      if (coeff !== null) {
+        if (Math.abs(coeff) > 0.7) strength = "strong";
+        else if (Math.abs(coeff) > 0.5) strength = "moderate";
+      }
 
       return {
         symbol1: row.symbol1,

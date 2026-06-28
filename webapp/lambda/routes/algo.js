@@ -3259,7 +3259,7 @@ router.get("/orders/pending", authenticateToken, async (req, res) => {
       order_type: { type: "string", required: false },
       side: { type: "string", required: false },
       requested_shares: { type: "float", required: false },
-      requested_price: { type: "float", required: false, defaultValue: 0 },
+      requested_price: { type: "float", required: false },
       order_timestamp: { type: "date", required: false },
     }).map((r) => ({
       order_id: r.id,
@@ -3268,13 +3268,13 @@ router.get("/orders/pending", authenticateToken, async (req, res) => {
       order_type: r.order_type,
       side: r.side,
       requested_shares: r.requested_shares,
-      requested_price: r.requested_price || 0,
+      requested_price: r.requested_price !== null && r.requested_price !== undefined ? r.requested_price : null,
       order_timestamp: r.order_timestamp,
     }));
 
     const totals = validateAndCoerceRow(totalsResult.rows[0], {
-      order_count: { type: "int", required: false, defaultValue: 0 },
-      total_buy_value: { type: "float", required: false, defaultValue: 0 },
+      order_count: { type: "int", required: false },
+      total_buy_value: { type: "float", required: false },
     });
 
     return sendSuccess(res, {
@@ -3326,26 +3326,26 @@ router.get("/execution-quality", authenticateToken, async (req, res) => {
     validateQueryResult(result, { minRows: 1, maxRows: 1 });
 
     const row = validateAndCoerceRow(result.rows[0], {
-      total_orders: { type: "int", required: false, defaultValue: 0 },
-      filled: { type: "int", required: false, defaultValue: 0 },
-      rejected: { type: "int", required: false, defaultValue: 0 },
-      partial: { type: "int", required: false, defaultValue: 0 },
-      avg_fill_rate: { type: "float", required: false, defaultValue: 0 },
-      avg_slippage_bps: { type: "float", required: false, defaultValue: 0 },
-      max_slippage_bps: { type: "float", required: false, defaultValue: 0 },
-      slippage_alert: { type: "bool", required: false, defaultValue: false },
+      total_orders: { type: "int", required: false },
+      filled: { type: "int", required: false },
+      rejected: { type: "int", required: false },
+      partial: { type: "int", required: false },
+      avg_fill_rate: { type: "float", required: false },
+      avg_slippage_bps: { type: "float", required: false },
+      max_slippage_bps: { type: "float", required: false },
+      slippage_alert: { type: "bool", required: false },
     });
 
     const metrics = {
       period: `last ${days} days`,
-      total_orders: row.total_orders || 0,
-      filled: row.filled || 0,
-      rejected: row.rejected || 0,
-      partial: row.partial || 0,
-      fill_rate_pct: row.avg_fill_rate || 0,
-      avg_slippage_bps: row.avg_slippage_bps || 0,
-      max_slippage_bps: row.max_slippage_bps || 0,
-      slippage_alert: row.slippage_alert || false,
+      total_orders: row.total_orders !== null && row.total_orders !== undefined ? row.total_orders : null,
+      filled: row.filled !== null && row.filled !== undefined ? row.filled : null,
+      rejected: row.rejected !== null && row.rejected !== undefined ? row.rejected : null,
+      partial: row.partial !== null && row.partial !== undefined ? row.partial : null,
+      fill_rate_pct: row.avg_fill_rate !== null && row.avg_fill_rate !== undefined ? row.avg_fill_rate : null,
+      avg_slippage_bps: row.avg_slippage_bps !== null && row.avg_slippage_bps !== undefined ? row.avg_slippage_bps : null,
+      max_slippage_bps: row.max_slippage_bps !== null && row.max_slippage_bps !== undefined ? row.max_slippage_bps : null,
+      slippage_alert: row.slippage_alert !== null && row.slippage_alert !== undefined ? row.slippage_alert : false,
     };
 
     return sendSuccess(res, { metrics });
