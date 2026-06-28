@@ -81,6 +81,32 @@ def get_api_url() -> str:
     return API_BASE_URL
 
 
+def validate_api_config(allow_localhost: bool = False) -> None:
+    """Validate that API configuration is set correctly.
+
+    Raises RuntimeError if configuration is missing or invalid.
+
+    Args:
+        allow_localhost: If True, localhost is accepted (for local dev).
+                        If False (production), localhost is invalid.
+    """
+    if not _dashboard_api_url:
+        if allow_localhost:
+            logger.debug("[API] DASHBOARD_API_URL not set, using localhost for local dev")
+        else:
+            raise RuntimeError(
+                "[API] DASHBOARD_API_URL environment variable not set. "
+                "Cannot initialize dashboard API layer for production. "
+                "Set DASHBOARD_API_URL to your API endpoint."
+            )
+    elif "localhost" in API_BASE_URL and not allow_localhost:
+        raise RuntimeError(
+            f"[API] DASHBOARD_API_URL is set to {API_BASE_URL} (localhost). "
+            "This is only valid for local development. "
+            "Production must use a valid AWS API endpoint."
+        )
+
+
 # Circuit breaker for preventing hammering a downed API
 _circuit_breaker_state = "closed"
 _circuit_breaker_failures = 0

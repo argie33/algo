@@ -85,11 +85,7 @@ class AnalystSentimentLoader(OptimalLoader):
 
         if not ticker:
             logger.debug(f"[ANALYST_SENTIMENT] No ticker available for {symbol} — likely no analyst coverage")
-            return {
-                "data_unavailable": True,
-                "reason": "no_ticker_found",
-                "symbol": symbol
-            }
+            return None
 
         try:
             recs = ticker.recommendations
@@ -102,11 +98,7 @@ class AnalystSentimentLoader(OptimalLoader):
 
         if recs is None or recs.empty:
             logger.debug(f"[ANALYST_SENTIMENT] No analyst recommendations for {symbol} — no coverage available")
-            return {
-                "data_unavailable": True,
-                "reason": "no_recommendations_available",
-                "symbol": symbol
-            }
+            return None
 
         # Group by date and aggregate sentiment counts
         sentiment_by_date: dict[Any, dict[str, int]] = {}
@@ -169,11 +161,7 @@ class AnalystSentimentLoader(OptimalLoader):
 
         if not results:
             logger.debug(f"[ANALYST_SENTIMENT] No sentiment data aggregated for {symbol}")
-            return {
-                "data_unavailable": True,
-                "reason": "no_aggregated_sentiment_data",
-                "symbol": symbol
-            }
+            return None
 
         return results
 
