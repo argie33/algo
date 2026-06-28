@@ -246,21 +246,68 @@ class YieldCurveFetcher:
 class BreadthFetcher:
     """Fetches market breadth data (advance/decline) from database.
 
-    Breadth data (advances/declines/unchanged) is computed from price_daily table
-    when available. If not available, returns empty dict (breadth is optional for market health).
+    Computes from trend_template_data to get advance/decline counts and new highs/lows.
     """
 
     def __init__(self) -> None:
         pass
 
     def fetch(self, start: date, end: date) -> dict[str, Any]:
-        """Fetch market breadth data from price_daily advances/declines computed daily.
+        """Fetch market breadth data from trend_template_data.
 
-        Returns: dict[date_str] -> {advances, declines, unchanged, advance_decline_ratio}
+        Returns: dict[date_str] -> {advance_decline_ratio, new_highs_count, new_lows_count}
 
-        NOTE: Breadth calculation not yet fully implemented. Returns empty dict (breadth is optional enrichment).
-        Fields advance_decline_ratio, new_highs_count, new_lows_count will be NULL in market_health_daily
-        when breadth data is unavailable. This is acceptable for market health calculation.
+        Breadth data is optional enrichment. If unavailable, returns empty dict.
+        Fields will be NULL in market_health_daily until breadth data is available.
         """
-        logger.debug("[BREADTH_FETCHER] Breadth calculation not implemented yet - returning empty dict (optional enrichment)")
-        return {}
+        try:
+            from utils.db import DatabaseContext
+
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    """
+                    WITH daily_breadth AS (
+                        SELECT DISTINCT ON (date)
+                            date,
+                            COUNT(*) FILTER (WHERE price_above_sma50 = true) AS up_count,
+                            COUNT(*) FILTER (WHERE price_above_sma50 = false) AS down_count,
+                            COUNT(*) FILTER (WHERE high > LAG(high) OVER (PARTITION BY symbol ORDER BY date)) AS nh_count,
+                            COUNT(*) FILTER (WHERE low < LAG(low) OVER (PARTITION BY symbol ORDER BY date)) AS nl_count
+                        FROM trend_template_data
+                        WHERE date >= %s AND date <= %s
+                        GROUP BY date
+                        ORDER BY date DESC
+                    )
+                    SELECT date, up_count, down_count, nh_count, nl_count
+                    FROM daily_breadth
+                    ORDER BY date ASC
+                    """,
+                    (start, end),
+                )
+                rows = cur.fetchall()
+                if not rows:
+                    logger.debug("[BREADTH_FETCHER] No breadth data available in trend_template_data")
+                    return {}
+
+                result = {}
+                for row in rows:
+                    d = row[0].isoformat() if hasattr(row[0], "isoformat") else str(row[0])
+                    up = int(row[1]) if row[1] is not None else 0
+                    down = int(row[2]) if row[2] is not None else 0
+                    nh = int(row[3]) if row[3] is not None else 0
+                    nl = int(row[4]) if row[4] is not None else 0
+
+                    # Advance/decline ratio: up / down (neutral at 1.0)
+                    ad_ratio = (up / down) if down > 0 else 1.0
+
+                    result[d] = {
+                        "advance_decline_ratio": round(ad_ratio, 3),
+                        "new_highs_count": nh,
+                        "new_lows_count": nl,
+                    }
+
+                logger.info(f"[BREADTH_FETCHER] Fetched breadth for {len(result)} dates from trend_template_data")
+                return result
+        except Exception as e:
+            logger.warning(f"[BREADTH_FETCHER] Failed to fetch breadth data: {e} — returning empty (optional enrichment)")
+            return {}

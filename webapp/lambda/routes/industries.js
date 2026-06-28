@@ -221,11 +221,17 @@ router.get("/trends-batch", async (req, res) => {
       if (!grouped[row.industry]) {
         grouped[row.industry] = [];
       }
+      const avgPrice = row.avg_price ? parseFloat(row.avg_price) : null;
+      const strengthScore = row.daily_strength_score ? parseFloat(row.daily_strength_score) : null;
+      if (avgPrice === null || strengthScore === null) {
+        logger.warn(`Industry trend data incomplete for ${row.industry}: avgPrice=${avgPrice}, strengthScore=${strengthScore}`);
+        return;
+      }
       grouped[row.industry].push({
         date: row.date,
-        avgPrice: parseFloat(row.avg_price) || 0,
+        avgPrice: avgPrice,
         stockCount: parseInt(row.stock_count) || 0,
-        dailyStrengthScore: parseFloat(row.daily_strength_score) || 0,
+        dailyStrengthScore: strengthScore,
       });
     });
 
@@ -341,14 +347,26 @@ router.get("/:industry/trend", async (req, res) => {
       );
     }
 
+    const validTrendData = result.rows
+      .map((row) => {
+        const avgPrice = row.avg_price ? parseFloat(row.avg_price) : null;
+        const strengthScore = row.daily_strength_score ? parseFloat(row.daily_strength_score) : null;
+        if (avgPrice === null || strengthScore === null) {
+          logger.warn(`Industry trend data incomplete for ${industry}: avgPrice=${avgPrice}, strengthScore=${strengthScore}`);
+          return null;
+        }
+        return {
+          date: row.date,
+          avgPrice: avgPrice,
+          stockCount: parseInt(row.stock_count) || 0,
+          dailyStrengthScore: strengthScore,
+        };
+      })
+      .filter(Boolean);
+
     return sendSuccess(res, {
       industry,
-      trendData: result.rows.map((row) => ({
-        date: row.date,
-        avgPrice: parseFloat(row.avg_price) || 0,
-        stockCount: parseInt(row.stock_count) || 0,
-        dailyStrengthScore: parseFloat(row.daily_strength_score) || 0,
-      })),
+      trendData: validTrendData,
     });
   } catch (error) {
     console.error("Error fetching industry trend:", error.message);
@@ -398,14 +416,24 @@ router.get("/trend/industry/:industryName", async (req, res) => {
       );
     }
 
-    const trendData = result.rows.map((row) => ({
-      date: row.date,
-      avgPrice: parseFloat(row.avg_price) || 0,
-      stockCount: parseInt(row.stock_count) || 0,
-      dailyStrengthScore: parseFloat(row.daily_strength_score) || 0,
-    }));
+    const validTrendData = result.rows
+      .map((row) => {
+        const avgPrice = row.avg_price ? parseFloat(row.avg_price) : null;
+        const strengthScore = row.daily_strength_score ? parseFloat(row.daily_strength_score) : null;
+        if (avgPrice === null || strengthScore === null) {
+          logger.warn(`Industry trend data incomplete for ${industryName}: avgPrice=${avgPrice}, strengthScore=${strengthScore}`);
+          return null;
+        }
+        return {
+          date: row.date,
+          avgPrice: avgPrice,
+          stockCount: parseInt(row.stock_count) || 0,
+          dailyStrengthScore: strengthScore,
+        };
+      })
+      .filter(Boolean);
 
-    return sendSuccess(res, { industry: industryName, trendData });
+    return sendSuccess(res, { industry: industryName, trendData: validTrendData });
   } catch (error) {
     console.error("Error fetching industry trend:", error.message);
     return sendError(

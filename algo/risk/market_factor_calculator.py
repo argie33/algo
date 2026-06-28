@@ -253,7 +253,7 @@ class MarketFactorCalculator:
                 vix = float(row[0])
                 # Simplified: no term structure data
                 score, detail = self._vix_score(vix, vix > 20)
-                return {"value": round(vix, 1), "vix": round(vix, 1), "score": score, **detail}
+                return {"value": round(vix, 1), "score": score, **detail}
             raise RuntimeError("No VIX data available for volatility regime calculation")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"VIX regime calculation failed: {e}") from e
@@ -282,7 +282,7 @@ class MarketFactorCalculator:
                     f"Value of {pcr} is placeholder/corrupted data. Check market_health_daily data quality."
                 )
             score = max(0, min(100, (pcr - 0.7) * 100))
-            return {"value": round(pcr, 2), "put_call_ratio": round(pcr, 2), "score": score}
+            return {"value": round(pcr, 2), "score": score}
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             try:
                 cur.execute("ROLLBACK TO SAVEPOINT sp_put_call")
@@ -379,7 +379,7 @@ class MarketFactorCalculator:
             if row is not None and row[0] is not None:
                 oas = float(row[0])
                 score = max(0, min(100, 100 - (oas - 300) / 2))
-                return {"value": round(oas, 0), "hy_oas": round(oas, 0), "score": score}
+                return {"value": round(oas, 0), "score": score}
             raise RuntimeError(f"Credit spreads unavailable for {eval_date}")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             try:
@@ -444,7 +444,7 @@ class MarketFactorCalculator:
             if row is not None and row[0] is not None:
                 exp = float(row[0])
                 score = min(100, max(0, 100 - exp / 2))
-                return {"value": round(exp, 1), "exposure": round(exp, 1), "score": score}
+                return {"value": round(exp, 1), "score": score}
             raise RuntimeError(f"NAAIM data unavailable for {eval_date} — missing exposure reading")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             try:

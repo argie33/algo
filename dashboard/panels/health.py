@@ -680,8 +680,21 @@ def _format_loader_status(loader: list[Any]) -> list[Text]:
     if len(valid_loader) == 0:
         rows.append(Text.from_markup("[dim]No loaders configured[/]"))
         return rows
-    problem_loader = [r for r in valid_loader if (r.get("status") or "") in LOADER_STATUS_ERROR]
-    running_loader = [r for r in valid_loader if (r.get("status") or "") == LOADER_STATUS_LOADING]
+
+    # CRITICAL: Do NOT fallback missing status to "" - it masks broken loaders
+    # Explicit validation: status must be one of known values
+    unknown_status = [r for r in valid_loader if r.get("status") is None]
+    if unknown_status:
+        logger.error(
+            f"[HEALTH] {len(unknown_status)} loaders have missing status field. "
+            f"Cannot determine loader health. Available keys: {list(unknown_status[0].keys()) if unknown_status else []}"
+        )
+        # Mark loaders with missing status as problem loaders
+        for r in unknown_status:
+            r["status"] = "unknown"
+
+    problem_loader = [r for r in valid_loader if r.get("status") in LOADER_STATUS_ERROR or r.get("status") == "unknown"]
+    running_loader = [r for r in valid_loader if r.get("status") == LOADER_STATUS_LOADING]
     ok_count = len(valid_loader) - len(problem_loader) - len(running_loader)
 
     if problem_loader:

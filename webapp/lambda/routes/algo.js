@@ -854,23 +854,10 @@ router.get("/portfolio-summary", authenticateToken, async (req, res) => {
             required: false,
             defaultValue: 0,
           },
-          max_drawdown_pct: { type: "float", required: false, defaultValue: 0 },
-          sharpe_ratio: { type: "float", required: false, defaultValue: 0 },
+          max_drawdown_pct: { type: "float", required: false },
+          sharpe_ratio: { type: "float", required: false },
         })
-      : {
-          snapshot_date: null,
-          total_portfolio_value: 0,
-          position_count: 0,
-          unrealized_pnl_pct: 0,
-          daily_return_pct: 0,
-          largest_position_pct: 0,
-          average_position_size_pct: 0,
-          concentration_risk_pct: 0,
-          realized_pnl_today: 0,
-          unrealized_pnl_total: 0,
-          max_drawdown_pct: 0,
-          sharpe_ratio: 0,
-        };
+      : null;
 
     const sector_allocation = validateAndCoerceRows(sectorResult, {
       sector: { type: "string", required: true },
@@ -2284,7 +2271,7 @@ router.get("/performance", async (req, res) => {
       sharpe_annualized: { type: "float", required: false, defaultValue: 0 },
       sortino_annualized: { type: "float", required: false, defaultValue: 0 },
       calmar_ratio: { type: "float", required: false, defaultValue: 0 },
-      max_drawdown_pct: { type: "float", required: false, defaultValue: 0 },
+      max_drawdown_pct: { type: "float", required: false },
       current_win_streak: { type: "int", required: false, defaultValue: 0 },
       best_win_streak: { type: "int", required: false, defaultValue: 0 },
       worst_loss_streak: { type: "int", required: false, defaultValue: 0 },
@@ -2309,6 +2296,20 @@ router.get("/performance", async (req, res) => {
         ? parseFloat(((totalWins / totalTrades) * 100).toFixed(2))
         : 0;
 
+    // CRITICAL: Validate essential risk metrics are present
+    const criticalPerfMetrics = [
+      "max_drawdown_pct",
+      "sharpe_annualized",
+      "total_pnl_dollars",
+    ];
+    const missingPerfCritical = criticalPerfMetrics.filter(
+      (m) => perf[m] === null || perf[m] === undefined
+    );
+    if (missingPerfCritical.length > 0) {
+      logger.error(`CRITICAL: Performance metrics incomplete. Missing: ${missingPerfCritical.join(", ")}`);
+      // Still return response with available data but mark critical fields as null
+    }
+
     return sendSuccess(res, {
       // Trade counts (closed + open)
       total_trades: totalTrades,
@@ -2329,18 +2330,18 @@ router.get("/performance", async (req, res) => {
       expectancy_r: parseFloat(perf.expectancy_r) || 0,
       profit_factor: perf.profit_factor ? parseFloat(perf.profit_factor) : null,
 
-      // Total
-      total_pnl_dollars: parseFloat(perf.total_pnl_dollars) || 0,
-      unrealized_pnl: openStats.total_unrealized_pnl || 0,
-      gross_win_dollars: parseFloat(perf.gross_win_dollars) || 0,
-      gross_loss_dollars: parseFloat(perf.gross_loss_dollars) || 0,
-      total_return_pct: parseFloat(perf.total_return_pct) || 0,
+      // Total (CRITICAL: total_pnl must not default to 0)
+      total_pnl_dollars: perf.total_pnl_dollars ? parseFloat(perf.total_pnl_dollars) : null,
+      unrealized_pnl: openStats.total_unrealized_pnl ?? 0,
+      gross_win_dollars: perf.gross_win_dollars ? parseFloat(perf.gross_win_dollars) : null,
+      gross_loss_dollars: perf.gross_loss_dollars ? parseFloat(perf.gross_loss_dollars) : null,
+      total_return_pct: perf.total_return_pct ? parseFloat(perf.total_return_pct) : null,
 
-      // Risk-adjusted
-      sharpe_annualized: parseFloat(perf.sharpe_annualized) || 0,
-      sortino_annualized: parseFloat(perf.sortino_annualized) || 0,
-      calmar_ratio: parseFloat(perf.calmar_ratio) || 0,
-      max_drawdown_pct: parseFloat(perf.max_drawdown_pct) || 0,
+      // Risk-adjusted (CRITICAL: Use raw values to expose missing data)
+      sharpe_annualized: perf.sharpe_annualized ? parseFloat(perf.sharpe_annualized) : null,
+      sortino_annualized: perf.sortino_annualized ? parseFloat(perf.sortino_annualized) : null,
+      calmar_ratio: perf.calmar_ratio ? parseFloat(perf.calmar_ratio) : null,
+      max_drawdown_pct: perf.max_drawdown_pct ? parseFloat(perf.max_drawdown_pct) : null,
 
       // Streaks + duration
       current_streak: perf.current_win_streak || 0,
@@ -3411,12 +3412,12 @@ router.get("/signal-performance-by-pattern", async (req, res) => {
     }).map((r) => ({
       pattern: r.pattern,
       total_trades: r.total_trades || 0,
-      winning_trades: r.winning_trades || 0,
-      losing_trades: r.losing_trades || 0,
-      closed_trades: r.closed_trades || 0,
-      avg_return_pct: r.avg_return_pct || 0,
-      total_pnl: r.total_pnl || 0,
-      win_rate_pct: r.win_rate_pct || 0,
+      winning_trades: r.winning_trades ?? 0,
+      losing_trades: r.losing_trades ?? 0,
+      closed_trades: r.closed_trades ?? 0,
+      avg_return_pct: r.avg_return_pct !== null && r.avg_return_pct !== undefined ? r.avg_return_pct : null,
+      total_pnl: r.total_pnl !== null && r.total_pnl !== undefined ? r.total_pnl : null,
+      win_rate_pct: r.win_rate_pct !== null && r.win_rate_pct !== undefined ? r.win_rate_pct : null,
     }));
 
     return sendSuccess(res, { patterns, timestamp: new Date() }, 200);

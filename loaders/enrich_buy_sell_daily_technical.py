@@ -196,13 +196,13 @@ def enrich_technical_data(
             if checked is None or checked == 0:
                 raise ValueError("No records checked for technical enrichment")
             if checked > 0:
-                updated: int = stats.get("updated")
+                updated: int | None = stats.get("updated")
                 if updated is None:
                     raise ValueError(
                         "[ENRICHMENT] Missing 'updated' count in enrichment stats — "
                         "cannot assess enrichment coverage without tracking successful updates"
                     )
-                nulls: int = stats.get("nulls_remaining")
+                nulls: int | None = stats.get("nulls_remaining")
                 if nulls is None:
                     raise ValueError(
                         "[ENRICHMENT] Missing 'nulls_remaining' count in enrichment stats — "

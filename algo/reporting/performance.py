@@ -459,8 +459,8 @@ class LivePerformance:
             # Upsert into database (insert or replace if already exists for this date)
             try:
                 sharpe_val = float(sharpe) if sharpe is not None else None
-                float(sortino) if sortino is not None else None
-                float(calmar) if calmar is not None else None
+                sortino_val = float(sortino) if sortino is not None else None
+                calmar_val = float(calmar) if calmar is not None else None
                 win_rate_val = float(wr["win_rate_pct"]) if wr else None
                 avg_win_r_val = float(wr["avg_win_r"]) if wr else None
                 avg_loss_r_val = float(wr["avg_loss_r"]) if wr else None
@@ -471,12 +471,14 @@ class LivePerformance:
                     cur.execute(
                         """
                         INSERT INTO algo_performance_daily (
-                            report_date, rolling_sharpe_252d,
+                            report_date, rolling_sharpe_252d, rolling_sortino_252d, calmar_ratio,
                             win_rate_50t, avg_win_r_50t, avg_loss_r_50t, expectancy,
                             max_drawdown_pct
-                        ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                         ON CONFLICT (report_date) DO UPDATE SET
                             rolling_sharpe_252d = EXCLUDED.rolling_sharpe_252d,
+                            rolling_sortino_252d = EXCLUDED.rolling_sortino_252d,
+                            calmar_ratio = EXCLUDED.calmar_ratio,
                             win_rate_50t = EXCLUDED.win_rate_50t,
                             avg_win_r_50t = EXCLUDED.avg_win_r_50t,
                             avg_loss_r_50t = EXCLUDED.avg_loss_r_50t,
@@ -486,6 +488,8 @@ class LivePerformance:
                         (
                             report_date,
                             sharpe_val,
+                            sortino_val,
+                            calmar_val,
                             win_rate_val,
                             avg_win_r_val,
                             avg_loss_r_val,
@@ -494,7 +498,7 @@ class LivePerformance:
                         ),
                     )
                     logger.info(
-                        f"[OK] Performance report persisted: sharpe={sharpe_val}, wr={win_rate_val}%, max_dd={max_dd_val}%"
+                        f"[OK] Performance report persisted: sharpe={sharpe_val}, sortino={sortino_val}, calmar={calmar_val}, wr={win_rate_val}%, max_dd={max_dd_val}%"
                     )
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.error(f"Failed to persist performance report: {e}", exc_info=True)

@@ -85,92 +85,50 @@ def _get_algo_audit_log(cur: cursor, limit: int = 100, offset: int = 0, action_t
 
 @db_route_handler("get last run")
 def _get_last_run(cur: cursor) -> Any:
-    """Get the most recent orchestrator run with per-phase status."""
+    """Get the most recent orchestrator run with halt reason."""
     cur.execute("""
-        SELECT details->>'run_id' AS run_id, MAX(created_at) AS run_at
-        FROM algo_audit_log
-        WHERE details->>'run_id' IS NOT NULL
-        GROUP BY details->>'run_id'
-        ORDER BY MAX(created_at) DESC
+        SELECT run_id, run_date, overall_status, halt_reason, started_at, completed_at, phases_completed
+        FROM orchestrator_execution_log
+        ORDER BY created_at DESC
         LIMIT 1
     """)
     latest = cur.fetchone()
-    if latest is None or latest["run_id"] is None or latest["run_id"] == "":
+    if latest is None:
         return error_response(503, "no_data", "No orchestrator run data available yet")
 
-    run_id = latest["run_id"]
-    run_at = latest["run_at"]
+    latest_dict = safe_json_serialize(safe_dict_convert(latest))
 
-    cur.execute(
-        """
-        SELECT action_type, status, action_date, created_at,
-               details->>'summary' AS summary,
-               error_message AS error
-        FROM algo_audit_log
-        WHERE details->>'run_id' = %s
-        ORDER BY created_at ASC
-    """,
-        (run_id,),
-    )
-    phases = [safe_json_serialize(safe_dict_convert(r)) for r in cur.fetchall()]
+    run_id = latest_dict.get("run_id")
+    overall_status = latest_dict.get("overall_status", "unknown")
+    halt_reason = latest_dict.get("halt_reason")
+    started_at = latest_dict.get("started_at")
+    completed_at = latest_dict.get("completed_at")
+    phases_completed = latest_dict.get("phases_completed", 0)
 
-    halted = any(p.get("status") in ("halt", "halted") for p in phases)
-    errored = any(p.get("status") == "error" for p in phases)
-    success = len(phases) > 0 and not errored and not halted
+    if not run_id:
+        return error_response(503, "invalid_data", "Run ID missing from orchestrator execution log")
 
-    halted_phases = [p for p in phases if p.get("status") in ("halt", "halted")]
-    errored_phases = [p for p in phases if p.get("status") == "error"]
-    completed_phases = [p for p in phases if p.get("status") == "success"]
-
-    if halted and halted_phases:
-        run_summary = halted_phases[0].get("summary")
-        if not run_summary:
-            action_type = halted_phases[0].get("action_type", "unknown phase")
-            raise RuntimeError(
-                f"[HALT_REASON] Phase {action_type} halted but missing halt reason. "
-                "Audit log must contain halt summary for all halted phases."
-            )
-    elif errored and errored_phases:
-        run_summary = errored_phases[0].get("error")
-        if not run_summary:
-            action_type = errored_phases[0].get("action_type", "unknown phase")
-            raise RuntimeError(
-                f"[ERROR_REASON] Phase {action_type} errored but missing error message. "
-                "Audit log must contain error details for all errored phases."
-            )
-    elif success:
-        run_summary = f"Completed successfully ({len(completed_phases)} phases)"
-    else:
-        run_summary = None
+    # Determine success/halted/errored from overall_status
+    success = overall_status == "success"
+    halted = overall_status in ("halted", "halt")
+    errored = overall_status == "error"
 
     response_data = {
         "run_id": run_id,
-        "started_at": run_at.isoformat() if run_at else None,
-        "completed_at": run_at.isoformat() if run_at else None,
+        "started_at": started_at,
+        "completed_at": completed_at,
         "success": success,
         "halted": halted,
         "errored": errored,
-        "summary": run_summary,
-        "halt_reason": run_summary if (halted or errored) else None,
-        "phases": phases,
-        "phases_completed": [p.get("action_type") for p in completed_phases if p.get("action_type")],
-        "phases_halted": [p.get("action_type") for p in halted_phases if p.get("action_type")],
-        "phases_errored": [p.get("action_type") for p in errored_phases if p.get("action_type")],
+        "summary": halt_reason if (halted or errored) else f"Completed successfully ({phases_completed} phases)",
+        "halt_reason": halt_reason if (halted or errored) else None,
+        "phases_completed": phases_completed,
     }
-
-    print(f"[_get_last_run DEBUG] response_data keys before ensure_valid: {list(response_data.keys())}", flush=True)
-    print(f"[_get_last_run DEBUG] 'phases' in response_data: {'phases' in response_data}", flush=True)
 
     # Validate response matches contract schema
     ensure_valid_response("run", response_data)
 
-    print(f"[_get_last_run DEBUG] response_data keys after ensure_valid: {list(response_data.keys())}", flush=True)
-
-    result = json_response(200, response_data)
-    print(f"[_get_last_run DEBUG] json_response result type: {type(result)}", flush=True)
-    if isinstance(result, dict) and 'data' in result:
-        print(f"[_get_last_run DEBUG] result['data'] keys: {list(result['data'].keys())}", flush=True)
-    return result
+    return json_response(200, response_data)
 
 
 @db_route_handler("fetch notifications")

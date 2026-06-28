@@ -103,7 +103,17 @@ function getActiveTier(exposurePct, tiers) {
     return null;
   }
 
-  const exposure = parseFloat(exposurePct) || 0;
+  // CRITICAL: Exposure pct is required for tier decisions. 0 is a valid value, but missing is an error.
+  if (exposurePct === null || exposurePct === undefined) {
+    console.error("CRITICAL: Exposure percentage missing. Cannot determine active tier.");
+    return null;
+  }
+
+  const exposure = parseFloat(exposurePct);
+  if (isNaN(exposure)) {
+    console.error(`CRITICAL: Exposure percentage invalid (NaN). Value: ${exposurePct}`);
+    return null;
+  }
 
   // Find tier where: min <= exposure <= max
   // Use min_pct/max_pct fields (database field names)

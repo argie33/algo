@@ -29,12 +29,23 @@ class IdempotentCheckHandler(CheckResultHandler):
     def process(self, result: tuple[Any, ...]) -> tuple[bool, str, dict[str, Any] | None]:
         is_dup, error_msg, existing_trade_id = result
         if is_dup:
+            # CRITICAL: If duplicate detected, existing_trade_id must be present
+            if not existing_trade_id:
+                raise ValueError(
+                    f"Duplicate trade detected but existing_trade_id missing. "
+                    f"Cannot validate without prior trade reference. error_msg={error_msg}"
+                )
+            if not error_msg:
+                raise ValueError(
+                    "Duplicate trade detected but error_msg missing. "
+                    "Cannot proceed without validation context."
+                )
             return (
                 True,
                 error_msg,
                 {
                     "status": "duplicate",
-                    "trade_id": existing_trade_id or "",
+                    "trade_id": existing_trade_id,
                     "duplicate": True,
                 },
             )
@@ -61,12 +72,23 @@ class FingerprintCheckHandler(CheckResultHandler):
     def process(self, result: tuple[Any, ...]) -> tuple[bool, str, dict[str, Any] | None]:
         is_dup, error_msg, existing_trade_id = result
         if is_dup:
+            # CRITICAL: If duplicate detected, existing_trade_id must be present
+            if not existing_trade_id:
+                raise ValueError(
+                    f"Fingerprint duplicate detected but existing_trade_id missing. "
+                    f"Cannot validate without prior trade reference. error_msg={error_msg}"
+                )
+            if not error_msg:
+                raise ValueError(
+                    "Fingerprint duplicate detected but error_msg missing. "
+                    "Cannot proceed without validation context."
+                )
             return (
                 True,
                 error_msg,
                 {
                     "status": "duplicate",
-                    "trade_id": existing_trade_id or "",
+                    "trade_id": existing_trade_id,
                     "duplicate": True,
                 },
             )
@@ -93,13 +115,19 @@ class ReentryCheckHandler(CheckResultHandler):
     def process(self, result: tuple[Any, ...]) -> tuple[bool, str, dict[str, Any] | None]:
         valid, error_msg, _ = result
         if not valid:
-            status = "reentry_blocked" if "prior re-entries" in (error_msg or "") else "reentry_cooldown"
+            # CRITICAL: If reentry validation fails, error_msg must be present for diagnosis
+            if not error_msg:
+                raise ValueError(
+                    "Reentry check failed but error_msg missing. "
+                    "Cannot determine failure reason without validation context."
+                )
+            status = "reentry_blocked" if "prior re-entries" in error_msg else "reentry_cooldown"
             return (
                 True,
                 error_msg,
                 {
                     "status": status,
-                    "reentry_blocked": "prior" in (error_msg or "").lower(),
+                    "reentry_blocked": "prior" in error_msg.lower(),
                 },
             )
         return False, "", None

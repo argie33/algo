@@ -161,9 +161,17 @@ async function performAlpacaSync(userId = null) {
             })(),
           ]);
 
-          // Update portfolio performance
-          const portfolioValue = account.portfolioValue || 0;
-          const lastEquity = account.lastEquity || portfolioValue;
+          // Update portfolio performance - CRITICAL: Portfolio value is required for position sizing
+          if (!account.portfolioValue || typeof account.portfolioValue !== 'number' || account.portfolioValue <= 0) {
+            throw new Error(
+              `CRITICAL: Invalid portfolio value from Alpaca API. ` +
+              `Cannot proceed with portfolio calculations. Value: ${account.portfolioValue}`
+            );
+          }
+          const portfolioValue = account.portfolioValue;
+          const lastEquity = account.lastEquity && typeof account.lastEquity === 'number'
+            ? account.lastEquity
+            : portfolioValue;
           const dayChange = portfolioValue - lastEquity;
           const dayChangePercent =
             lastEquity > 0 ? (dayChange / lastEquity) * 100 : 0;

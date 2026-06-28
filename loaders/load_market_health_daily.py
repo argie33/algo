@@ -97,7 +97,9 @@ class MarketHealthDailyLoader(OptimalLoader):
                     row = cur.fetchone()
                     if row is None or len(row) < 2:
                         raise RuntimeError("[MARKET_HEALTH] Watermark query returned no rows")
-                    row_count = row[1] if row[1] is not None else 0
+                    if row[1] is None:
+                        raise RuntimeError("[MARKET_HEALTH] Row count query returned NULL — database query may have failed")
+                    row_count = int(row[1])
                     if row and row[0] is not None:
                         if row_count < 5:
                             logger.info(
@@ -326,6 +328,68 @@ class MarketHealthDailyLoader(OptimalLoader):
                 "Cannot proceed without valid yield curve data."
             ) from e
 
+    def _merge_fed_rate_environment(self, health_metrics: list[dict[str, Any]], start: date, end: date) -> None:
+        """Merge Fed rate environment classification into health metrics.
+
+        Classifies Fed policy stance (tightening/neutral/easing) based on Fed funds rate trend.
+        This is optional enrichment—if data unavailable, leave as None.
+        """
+        try:
+            with DatabaseContext("read") as cur:
+                # Get Fed funds rate for the period
+                cur.execute(
+                    """
+                    SELECT value::float, date FROM economic_data
+                    WHERE series_id = 'FEDFUNDS' AND date >= %s AND date <= %s
+                    ORDER BY date DESC
+                    LIMIT 60
+                    """,
+                    (start, end),
+                )
+                rows = cur.fetchall()
+                if not rows:
+                    logger.debug("Fed rate data unavailable (optional enrichment)")
+                    return
+
+                # Get current and historical rates to determine trend
+                current_rate = float(rows[0][0]) if rows[0][0] is not None else None
+                if current_rate is None:
+                    return
+
+                # Get rate 30 days ago for trend
+                rate_30d_ago = None
+                for r in rows:
+                    d = r[1]
+                    if d and (start - d).days >= 30:
+                        rate_30d_ago = float(r[0]) if r[0] is not None else None
+                        break
+
+                # Classify environment
+                if rate_30d_ago is not None:
+                    if current_rate > rate_30d_ago * 1.05:
+                        env = "tightening"
+                    elif current_rate < rate_30d_ago * 0.95:
+                        env = "easing"
+                    else:
+                        env = "neutral"
+                else:
+                    # If insufficient history, use absolute level
+                    if current_rate >= 5.0:
+                        env = "restrictive"
+                    elif current_rate >= 2.5:
+                        env = "neutral"
+                    elif current_rate > 0:
+                        env = "accommodative"
+                    else:
+                        env = "emergency"
+
+                # Apply to all metrics
+                for m in health_metrics:
+                    m["fed_rate_environment"] = env
+                logger.info(f"Fed rate environment: {env} (current={current_rate}%)")
+        except Exception as e:
+            logger.debug(f"Fed rate enrichment skipped: {e} (optional)")
+
     def fetch_incremental(self, symbol: str = "SPY", since: date | None = None) -> list[dict[str, Any]]:
         """Fetch SPY price data and compute market health metrics."""
         end = self._get_end_date()
@@ -353,6 +417,7 @@ class MarketHealthDailyLoader(OptimalLoader):
         self._merge_vix_data(health_metrics, start, end)
         self._merge_put_call_data(health_metrics, end)
         self._merge_yield_curve_data(health_metrics, start, end)
+        self._merge_fed_rate_environment(health_metrics, start, end)
 
         # Optimize breadth data fetching for incremental updates: only compute for dates we'll keep
         if since is not None:

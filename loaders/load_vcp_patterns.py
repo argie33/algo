@@ -150,17 +150,23 @@ class VCPPatternsLoader:
         range_rows = cur.fetchall()
 
         if range_rows:
-            ranges = [float(row[1]) if row[1] else 0 for row in range_rows]
-            range_30d_avg = sum(ranges) / len(ranges) if ranges else 0
-            range_current = float(range_rows[0][1]) if range_rows[0][1] else 0
+            # Fail-fast if price range data is missing (NULL indicates upstream data quality issue)
+            if any(row[1] is None for row in range_rows):
+                logger.warning(f"[VCP] {symbol} {end_date}: Price range data missing (NULL values in price_daily). "
+                              "Cannot compute VCP pattern — skipping this symbol-date.")
+                return
+            ranges = [float(row[1]) for row in range_rows]
+            range_30d_avg = sum(ranges) / len(ranges)
+            range_current = float(range_rows[0][1])
         else:
-            range_30d_avg = 0
-            range_current = 0
+            logger.warning(f"[VCP] {symbol} {end_date}: No price range data found for last 30 days. "
+                          "Cannot compute VCP pattern — skipping this symbol-date.")
+            return
 
         # Calculate range compression
-        range_compression_pct = 0
+        range_compression_pct: float = 0.0
         if range_30d_avg > 0:
-            range_compression_pct = max(0, (1.0 - (range_current / range_30d_avg)) * 100)
+            range_compression_pct = max(0.0, (1.0 - (range_current / range_30d_avg)) * 100)
 
         # Calculate volume ratio for breakout confirmation
         cur.execute(
@@ -172,11 +178,17 @@ class VCPPatternsLoader:
         vol_rows = cur.fetchall()
         breakout_volume_ratio = 0.0
         if vol_rows:
-            current_vol = float(vol_rows[0][1]) if vol_rows[0][1] else 0
-            vols = [float(row[1]) if row[1] else 0 for row in vol_rows[1:]]
-            avg_vol = sum(vols) / len(vols) if vols else 0
-            if avg_vol > 0:
-                breakout_volume_ratio = current_vol / avg_vol
+            # Fail-fast if volume data is missing (NULL indicates upstream data quality issue)
+            if any(row[1] is None for row in vol_rows):
+                logger.warning(f"[VCP] {symbol} {end_date}: Volume data missing (NULL values in price_daily). "
+                              "Cannot compute breakout volume ratio — setting to 0.")
+                breakout_volume_ratio = 0.0
+            else:
+                current_vol = float(vol_rows[0][1])
+                vols = [float(row[1]) for row in vol_rows[1:]]
+                avg_vol = sum(vols) / len(vols) if vols else 0
+                if avg_vol > 0:
+                    breakout_volume_ratio = current_vol / avg_vol
 
         # Calculate VCP strength (0-100 scale)
         # Strong VCP: ATR compression > 30% and range compression > 20%

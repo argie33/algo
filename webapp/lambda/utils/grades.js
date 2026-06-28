@@ -86,7 +86,25 @@ function getGradeForScore(score, grades) {
     };
   }
 
-  const scoreVal = parseFloat(score) || 0;
+  // CRITICAL: Score is required for grading. 0 is a valid value, but missing is an error.
+  if (score === null || score === undefined) {
+    console.error("CRITICAL: Score missing. Cannot determine grade.");
+    return {
+      letter: "?",
+      pass_gates: false,
+      fail_reason: "Score unavailable",
+    };
+  }
+
+  const scoreVal = parseFloat(score);
+  if (isNaN(scoreVal)) {
+    console.error(`CRITICAL: Score invalid (NaN). Value: ${score}`);
+    return {
+      letter: "?",
+      pass_gates: false,
+      fail_reason: "Score is invalid",
+    };
+  }
 
   // Find grade where: min_score <= score < max_score
   const gradeInfo = grades.find(

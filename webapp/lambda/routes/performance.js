@@ -97,67 +97,88 @@ async function getPerformanceMetrics(req, res) {
     }
 
     const metrics = validateAndCoerceRow(result.rows[0], {
-      total_trades: { type: "int", required: false, defaultValue: 0 },
-      win_count: { type: "int", required: false, defaultValue: 0 },
-      loss_count: { type: "int", required: false, defaultValue: 0 },
-      win_rate_pct: { type: "float", required: false, defaultValue: 0 },
-      gross_profit: { type: "float", required: false, defaultValue: 0 },
-      gross_loss: { type: "float", required: false, defaultValue: 0 },
-      profit_factor: { type: "float", required: false, defaultValue: 0 },
-      total_pnl: { type: "float", required: false, defaultValue: 0 },
-      avg_pnl_per_trade: { type: "float", required: false, defaultValue: 0 },
-      avg_return_pct: { type: "float", required: false, defaultValue: 0 },
-      avg_win: { type: "float", required: false, defaultValue: 0 },
-      avg_loss: { type: "float", required: false, defaultValue: 0 },
-      avg_win_pct: { type: "float", required: false, defaultValue: 0 },
-      avg_loss_pct: { type: "float", required: false, defaultValue: 0 },
-      avg_hold_days: { type: "float", required: false, defaultValue: 0 },
-      avg_r_multiple: { type: "float", required: false, defaultValue: 0 },
-      sharpe_ratio: { type: "float", required: false, defaultValue: 0 },
-      max_drawdown: { type: "float", required: false, defaultValue: 0 },
-      calmar_ratio: { type: "float", required: false, defaultValue: 0 },
-      biggest_win: { type: "float", required: false, defaultValue: 0 },
-      biggest_loss: { type: "float", required: false, defaultValue: 0 },
-      best_trade_r: { type: "float", required: false, defaultValue: 0 },
-      worst_trade_r: { type: "float", required: false, defaultValue: 0 },
+      total_trades: { type: "int", required: false },
+      win_count: { type: "int", required: false },
+      loss_count: { type: "int", required: false },
+      win_rate_pct: { type: "float", required: false },
+      gross_profit: { type: "float", required: false },
+      gross_loss: { type: "float", required: false },
+      profit_factor: { type: "float", required: false },
+      total_pnl: { type: "float", required: false },
+      avg_pnl_per_trade: { type: "float", required: false },
+      avg_return_pct: { type: "float", required: false },
+      avg_win: { type: "float", required: false },
+      avg_loss: { type: "float", required: false },
+      avg_win_pct: { type: "float", required: false },
+      avg_loss_pct: { type: "float", required: false },
+      avg_hold_days: { type: "float", required: false },
+      avg_r_multiple: { type: "float", required: false },
+      sharpe_ratio: { type: "float", required: false },
+      max_drawdown: { type: "float", required: false },
+      calmar_ratio: { type: "float", required: false },
+      biggest_win: { type: "float", required: false },
+      biggest_loss: { type: "float", required: false },
+      best_trade_r: { type: "float", required: false },
+      worst_trade_r: { type: "float", required: false },
     });
+
+    // CRITICAL: Validate essential performance metrics are present
+    const criticalMetrics = [
+      "win_rate_pct",
+      "total_pnl",
+      "sharpe_ratio",
+      "max_drawdown",
+      "profit_factor",
+    ];
+    const missingCritical = criticalMetrics.filter(
+      (m) => metrics[m] === null || metrics[m] === undefined
+    );
+    if (missingCritical.length > 0) {
+      logger.error(`CRITICAL: Performance metrics incomplete. Missing: ${missingCritical.join(", ")}`);
+      return sendError(
+        res,
+        `Performance metrics unavailable (incomplete data: ${missingCritical.join(", ")}). ` +
+        "Ensure algo has completed at least one full trading cycle with closed trades.",
+        503
+      );
+    }
 
     const response = {
       period,
       summary: {
-        total_trades: metrics.total_trades || 0,
-        win_count: metrics.win_count || 0,
-        loss_count: metrics.loss_count || 0,
+        total_trades: metrics.total_trades ?? 0,
+        win_count: metrics.win_count ?? 0,
+        loss_count: metrics.loss_count ?? 0,
         breakeven_count:
-          (metrics.total_trades || 0) -
-          (metrics.win_count || 0) -
-          (metrics.loss_count || 0),
-        win_rate_pct: parseFloat(metrics.win_rate_pct) || 0,
+          (metrics.total_trades ?? 0) -
+          (metrics.win_count ?? 0) -
+          (metrics.loss_count ?? 0),
+        win_rate_pct: metrics.win_rate_pct,
       },
       profitability: {
-        gross_profit: parseFloat(metrics.gross_profit) || 0,
-        gross_loss: parseFloat(metrics.gross_loss) || 0,
-        profit_factor: parseFloat(metrics.profit_factor) || 0,
-        total_pnl: parseFloat(metrics.total_pnl) || 0,
-        avg_pnl_per_trade: parseFloat(metrics.avg_pnl_per_trade) || 0,
-        avg_return_pct: parseFloat(metrics.avg_return_pct) || 0,
-        biggest_win: parseFloat(metrics.biggest_win) || 0,
-        biggest_loss: parseFloat(metrics.biggest_loss) || 0,
+        gross_profit: metrics.gross_profit ?? 0,
+        gross_loss: metrics.gross_loss ?? 0,
+        profit_factor: metrics.profit_factor,
+        total_pnl: metrics.total_pnl,
+        avg_pnl_per_trade: metrics.avg_pnl_per_trade ?? 0,
+        avg_return_pct: metrics.avg_return_pct ?? 0,
+        biggest_win: metrics.biggest_win ?? 0,
+        biggest_loss: metrics.biggest_loss ?? 0,
       },
       trade_quality: {
-        avg_win: parseFloat(metrics.avg_win) || 0,
-        avg_loss: parseFloat(metrics.avg_loss) || 0,
-        avg_win_pct: parseFloat(metrics.avg_win_pct) || 0,
-        avg_loss_pct: parseFloat(metrics.avg_loss_pct) || 0,
-        avg_hold_days: parseFloat(metrics.avg_hold_days) || 0,
-        avg_r_multiple: parseFloat(metrics.avg_r_multiple) || 0,
-        best_trade_r: parseFloat(metrics.best_trade_r) || 0,
-        worst_trade_r: parseFloat(metrics.worst_trade_r) || 0,
+        avg_win: metrics.avg_win ?? 0,
+        avg_loss: metrics.avg_loss ?? 0,
+        avg_win_pct: metrics.avg_win_pct ?? 0,
+        avg_loss_pct: metrics.avg_loss_pct ?? 0,
+        avg_hold_days: metrics.avg_hold_days ?? 0,
+        avg_r_multiple: metrics.avg_r_multiple ?? 0,
+        best_trade_r: metrics.best_trade_r ?? 0,
+        worst_trade_r: metrics.worst_trade_r ?? 0,
       },
       risk_metrics: {
-        sharpe_ratio: parseFloat(metrics.sharpe_ratio) || 0,
-        max_drawdown: parseFloat(metrics.max_drawdown) || 0,
-        calmar_ratio: parseFloat(metrics.calmar_ratio) || 0,
+        sharpe_ratio: metrics.sharpe_ratio,
+        max_drawdown: metrics.max_drawdown,
+        calmar_ratio: metrics.calmar_ratio ?? 0,
       },
     };
 

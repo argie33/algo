@@ -155,7 +155,12 @@ class SignalsDailyLoader(OptimalLoader):
                         f"CRITICAL: technical_data_daily query returned invalid structure. "
                         f"Expected 2 columns, got {len(tech_row)}."
                     )
-                tech_coverage_symbols = int(tech_row[0]) if tech_row[0] is not None else 0
+                if tech_row[0] is None:
+                    raise RuntimeError(
+                        f"CRITICAL: technical_data_daily row count query returned NULL for {end}. "
+                        "Database query or upstream loader may have failed."
+                    )
+                tech_coverage_symbols = int(tech_row[0])
                 if tech_coverage_symbols == 0:
                     raise RuntimeError(
                         f"CRITICAL: No symbols found in technical_data_daily for {end}. "
@@ -483,6 +488,7 @@ class SignalsDailyLoader(OptimalLoader):
                         f"[BUY_SELL] {symbol}: Dropped {dropped_rows} row(s) due to missing date or close price — "
                         "cannot generate signals with incomplete technical data; all dates and closes required"
                     )
+                return rows
         except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(
                 f"[BUY_SELL] Failed to fetch signal data for {symbol}: {e}. "
@@ -657,7 +663,12 @@ def main() -> int:
                     "CRITICAL: Failed to count technical_data_daily symbols. "
                     "Query returned invalid row structure. Cannot verify coverage."
                 )
-            tech_symbol_count = int(cur_row[0]) if cur_row[0] is not None else 0
+            if cur_row[0] is None:
+                raise RuntimeError(
+                    "CRITICAL: technical_data_daily symbol count query returned NULL. "
+                    "Database query or upstream loader may have failed."
+                )
+            tech_symbol_count = int(cur_row[0])
             if tech_symbol_count == 0:
                 raise RuntimeError(
                     "CRITICAL: No symbols found in technical_data_daily on latest date. "
