@@ -35,11 +35,13 @@ describe("Null Safety Utilities", () => {
       expect(result.halt_reasons).toBe(null);
     });
 
-    it("provides defaults when properties are missing", () => {
+    it("fails fast when financial properties are missing", () => {
       const markets = { current: {} };
       const result = safeGetMarketCurrent(markets);
-      expect(result.exposure_pct).toBe(0);
-      expect(result.raw_score).toBe(0);
+      // Financial metrics must be explicit (null = missing data, never silently 0)
+      expect(result.exposure_pct).toBeNull();
+      expect(result.raw_score).toBeNull();
+      // Non-financial defaults are acceptable for display purposes
       expect(result.regime).toBe("unknown");
       expect(result.factors).toEqual({});
     });
@@ -163,8 +165,9 @@ describe("Null Safety Utilities", () => {
       };
 
       const safeCurrent = safeGetMarketCurrent(markets);
-      expect(safeCurrent.exposure_pct).toBe(0); // Safe default
-      expect(safeCurrent).not.toBe(null); // Safe object to work with
+      // Missing financial metrics return null (fail-fast); components must check before using
+      expect(safeCurrent.exposure_pct).toBeNull();
+      expect(safeCurrent).not.toBe(null); // Safe object to work with (object exists, metrics null)
     });
 
     it("can safely process sector data when symbols is null", () => {
