@@ -1,6 +1,0 @@
-# Syntax Error Fixes (Session 88)
-# Temporarily ignore while fixing orphaned debug code
-src/config/amplify.js
-src/contexts/AuthContext.jsx
-src/utils/errorLogger.js
-vite.config.js
