@@ -450,7 +450,10 @@ class MarketExposure:
                         }
             except Exception as e:
                 # Sector rotation detector failure is critical: cannot apply position-sizing penalty.
-                msg = f"[SECTOR ROTATION CRITICAL] Detector failed, cannot assess defensive rotation: {type(e).__name__}: {e}"
+                msg = (
+                    f"[SECTOR ROTATION CRITICAL] Detector failed, cannot assess defensive rotation: "
+                    f"{type(e).__name__}: {e}"
+                )
                 logger.critical(msg)
                 raise RuntimeError(msg) from e
 
@@ -1362,7 +1365,9 @@ class MarketExposure:
             claims_now = float(claims_rows[0][0])
             claims_26w = float(claims_rows[-1][0])
             if claims_26w <= 0:
-                logger.warning(f"Invalid 26-week claims baseline ({claims_26w}) — skipping jobless claims stress signal")
+                logger.warning(
+                    f"Invalid 26-week claims baseline ({claims_26w}) — skipping jobless claims signal"
+                )
                 chg_pct = 0.0
             else:
                 chg_pct = (claims_now - claims_26w) / claims_26w * 100
