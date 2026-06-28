@@ -30,7 +30,11 @@ class FetcherValidator:
             (is_error: bool, error_message: str|None)
         """
         if isinstance(response, dict) and "_error" in response:
-            return True, response.get("_error", "Unknown API error")
+            error_msg = response.get("_error")
+            # Ensure error message is always a non-empty string, never None
+            if not error_msg or not str(error_msg).strip():
+                return True, "Unknown API error"
+            return True, str(error_msg)
         return False, None
 
     @staticmethod
@@ -136,10 +140,15 @@ class FetcherValidator:
 
         Returns:
             dict with _error key and message
+
+        Ensures error message is always a non-empty string with actual details.
         """
-        if not error_message or not error_message.strip():
-            return {"_error": "API error (no details available)"}
-        return {"_error": error_message}
+        if error_message is None:
+            return {"_error": "Unknown error (no details provided)"}
+        error_str = str(error_message).strip()
+        if not error_str:
+            return {"_error": "Unknown error (empty error message)"}
+        return {"_error": error_str}
 
     @staticmethod
     def validate_response(

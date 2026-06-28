@@ -49,7 +49,11 @@ def get_error_message_plain(data: Any) -> str | None:
     """Extract error message from data without Rich formatting."""
     if not isinstance(data, dict):
         return None
-    return data.get("_error")
+    error_msg = data.get("_error")
+    # Ensure we never return None or empty string as error message
+    if error_msg is None or (isinstance(error_msg, str) and not error_msg.strip()):
+        return "Unknown error (no details available)"
+    return str(error_msg)
 
 
 def get_error_message(data: Any) -> str | None:
@@ -111,7 +115,8 @@ def error_summary_panel(data: dict[str, Any]) -> Panel | None:
     errors = {}
     for key, value in data.items():
         if isinstance(value, dict) and "_error" in value:
-            errors[key] = value.get("_error") or "API error (no details available)"
+            msg = get_error_message_plain(value) or "Unknown error"
+            errors[key] = msg
 
     if not errors:
         return None
@@ -133,7 +138,8 @@ def error_summary_panel_expanded(data: dict[str, Any]) -> Panel | None:
     errors = {}
     for key, value in data.items():
         if isinstance(value, dict) and "_error" in value:
-            errors[key] = value.get("_error") or "API error (no details available)"
+            msg = get_error_message_plain(value) or "Unknown error"
+            errors[key] = msg
 
     if not errors:
         return None

@@ -68,7 +68,9 @@ class DashboardResponse:
         for fetcher_name, result in self.results.items():
             if fetcher_name in CRITICAL_FETCHERS:
                 if isinstance(result, dict) and "_error" in result:
-                    error_msg = result.get("_error") or "API error (no details available)"
+                    error_msg = result.get("_error")
+                    if not error_msg:
+                        error_msg = "Unknown error (no details available)"
                     errors[fetcher_name] = str(error_msg)
         return errors
 
@@ -82,7 +84,9 @@ class DashboardResponse:
         for fetcher_name, result in self.results.items():
             if fetcher_name not in CRITICAL_FETCHERS:
                 if isinstance(result, dict) and "_error" in result:
-                    error_msg = result.get("_error") or "API error (no details available)"
+                    error_msg = result.get("_error")
+                    if not error_msg:
+                        error_msg = "Unknown error (no details available)"
                     errors[fetcher_name] = str(error_msg)
         return errors
 
