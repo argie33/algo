@@ -102,6 +102,10 @@ def _handle_basic(cur: cursor) -> Any:
         # MAX(date) uses the btree index on date; ORDER BY created_at had no index and scanned
         # the full table, timing out on every health request.
         try:
+            from utils.infrastructure import MarketCalendar
+            market_cal = MarketCalendar()
+            market_is_open = market_cal.is_market_open(datetime.now(timezone.utc))
+
             signal_check = execute_with_timeout(
                 cur,
                 "SELECT MAX(date)::timestamp AS latest_signal FROM swing_trader_scores",
@@ -115,16 +119,20 @@ def _handle_basic(cur: cursor) -> Any:
                         datetime.now(timezone.utc) - latest.replace(tzinfo=timezone.utc)
                     ).total_seconds() / 3600
                     config = get_config()
-                    if age_hours > config.signal_stale_threshold_hours:
+                    # Only mark as critical if market is open AND signals are stale
+                    # During market closure (nights/weekends), stale data is expected
+                    if age_hours > config.signal_stale_threshold_hours and market_is_open:
                         has_critical = True
                         health["freshness"] = {
                             "status": "STALE",
                             "signal_age_hours": round(age_hours, 1),
+                            "market_open": market_is_open,
                         }
                     else:
                         health["freshness"] = {
                             "status": "OK",
                             "signal_age_hours": round(age_hours, 1),
+                            "market_open": market_is_open,
                         }
                 else:
                     health["freshness"] = {"status": "UNKNOWN"}
@@ -231,36 +239,46 @@ def _handle_cognito(cur: cursor) -> Any:
 
             # Validate pool response is a dict
             if not isinstance(pool_response, dict):
-                logger.warning(f"Invalid Cognito pool response type: {type(pool_response).__name__}")
-                health["cognito_verification_skipped"] = True
-                return success_response(health)
+                return error_response(
+                    503,
+                    "cognito_configuration_error",
+                    f"Cognito pool API returned invalid response type {type(pool_response).__name__} — cannot validate authentication configuration"
+                )
 
             pool_data = pool_response.get("UserPool")
             if not pool_data:
-                logger.warning(f"[COGNITO] UserPool missing from describe_user_pool response. Keys: {list(pool_response.keys())}")
-                health["cognito_verification_skipped"] = True
-                return success_response(health)
+                return error_response(
+                    503,
+                    "cognito_configuration_error",
+                    f"Cognito pool API missing 'UserPool' field in response — response keys: {list(pool_response.keys())}"
+                )
 
             # List app clients in this user pool
             apps_response = cognito.list_user_pool_clients(UserPoolId=cognito_user_pool_id, MaxResults=10)
 
             # Validate apps response is a dict
             if not isinstance(apps_response, dict):
-                logger.warning(f"Invalid Cognito apps response type: {type(apps_response).__name__}")
-                health["cognito_verification_skipped"] = True
-                return success_response(health)
+                return error_response(
+                    503,
+                    "cognito_configuration_error",
+                    f"Cognito clients API returned invalid response type {type(apps_response).__name__} — cannot validate application configuration"
+                )
 
             clients = apps_response.get("UserPoolClients")
             if not clients:
-                logger.warning(f"[COGNITO] UserPoolClients missing from list_user_pool_clients response. Keys: {list(apps_response.keys())}")
-                health["cognito_verification_skipped"] = True
-                return success_response(health)
+                return error_response(
+                    503,
+                    "cognito_configuration_error",
+                    f"Cognito clients API missing 'UserPoolClients' field in response — response keys: {list(apps_response.keys())}"
+                )
 
             # Validate clients is a list
             if not isinstance(clients, list):
-                logger.warning(f"Invalid UserPoolClients type: {type(clients).__name__}. Expected list.")
-                health["cognito_verification_skipped"] = True
-                return success_response(health)
+                return error_response(
+                    503,
+                    "cognito_configuration_error",
+                    f"Cognito 'UserPoolClients' has invalid type {type(clients).__name__}, expected list — configuration may be corrupted"
+                )
 
             # Find matching client
             matching_client = None

@@ -146,39 +146,38 @@ async function getPerformanceMetrics(req, res) {
     const response = {
       period,
       summary: {
-        total_trades: metrics.total_trades ?? 0,
-        win_count: metrics.win_count ?? 0,
-        loss_count: metrics.loss_count ?? 0,
-        breakeven_count:
-          (metrics.total_trades ?? 0) -
-          (metrics.win_count ?? 0) -
-          (metrics.loss_count ?? 0),
-        win_rate_pct: metrics.win_rate_pct,
+        total_trades: metrics.total_trades !== null && metrics.total_trades !== undefined ? metrics.total_trades : null,
+        win_count: metrics.win_count !== null && metrics.win_count !== undefined ? metrics.win_count : null,
+        loss_count: metrics.loss_count !== null && metrics.loss_count !== undefined ? metrics.loss_count : null,
+        breakeven_count: (metrics.total_trades !== null && metrics.total_trades !== undefined ? metrics.total_trades : 0) -
+          (metrics.win_count !== null && metrics.win_count !== undefined ? metrics.win_count : 0) -
+          (metrics.loss_count !== null && metrics.loss_count !== undefined ? metrics.loss_count : 0),
+        win_rate_pct: metrics.win_rate_pct !== null && metrics.win_rate_pct !== undefined ? metrics.win_rate_pct : null,
       },
       profitability: {
-        gross_profit: metrics.gross_profit ?? 0,
-        gross_loss: metrics.gross_loss ?? 0,
-        profit_factor: metrics.profit_factor,
-        total_pnl: metrics.total_pnl,
-        avg_pnl_per_trade: metrics.avg_pnl_per_trade ?? 0,
-        avg_return_pct: metrics.avg_return_pct ?? 0,
-        biggest_win: metrics.biggest_win ?? 0,
-        biggest_loss: metrics.biggest_loss ?? 0,
+        gross_profit: metrics.gross_profit !== null && metrics.gross_profit !== undefined ? metrics.gross_profit : null,
+        gross_loss: metrics.gross_loss !== null && metrics.gross_loss !== undefined ? metrics.gross_loss : null,
+        profit_factor: metrics.profit_factor !== null && metrics.profit_factor !== undefined ? metrics.profit_factor : null,
+        total_pnl: metrics.total_pnl !== null && metrics.total_pnl !== undefined ? metrics.total_pnl : null,
+        avg_pnl_per_trade: metrics.avg_pnl_per_trade !== null && metrics.avg_pnl_per_trade !== undefined ? metrics.avg_pnl_per_trade : null,
+        avg_return_pct: metrics.avg_return_pct !== null && metrics.avg_return_pct !== undefined ? metrics.avg_return_pct : null,
+        biggest_win: metrics.biggest_win !== null && metrics.biggest_win !== undefined ? metrics.biggest_win : null,
+        biggest_loss: metrics.biggest_loss !== null && metrics.biggest_loss !== undefined ? metrics.biggest_loss : null,
       },
       trade_quality: {
-        avg_win: metrics.avg_win ?? 0,
-        avg_loss: metrics.avg_loss ?? 0,
-        avg_win_pct: metrics.avg_win_pct ?? 0,
-        avg_loss_pct: metrics.avg_loss_pct ?? 0,
-        avg_hold_days: metrics.avg_hold_days ?? 0,
-        avg_r_multiple: metrics.avg_r_multiple ?? 0,
-        best_trade_r: metrics.best_trade_r ?? 0,
-        worst_trade_r: metrics.worst_trade_r ?? 0,
+        avg_win: metrics.avg_win !== null && metrics.avg_win !== undefined ? metrics.avg_win : null,
+        avg_loss: metrics.avg_loss !== null && metrics.avg_loss !== undefined ? metrics.avg_loss : null,
+        avg_win_pct: metrics.avg_win_pct !== null && metrics.avg_win_pct !== undefined ? metrics.avg_win_pct : null,
+        avg_loss_pct: metrics.avg_loss_pct !== null && metrics.avg_loss_pct !== undefined ? metrics.avg_loss_pct : null,
+        avg_hold_days: metrics.avg_hold_days !== null && metrics.avg_hold_days !== undefined ? metrics.avg_hold_days : null,
+        avg_r_multiple: metrics.avg_r_multiple !== null && metrics.avg_r_multiple !== undefined ? metrics.avg_r_multiple : null,
+        best_trade_r: metrics.best_trade_r !== null && metrics.best_trade_r !== undefined ? metrics.best_trade_r : null,
+        worst_trade_r: metrics.worst_trade_r !== null && metrics.worst_trade_r !== undefined ? metrics.worst_trade_r : null,
       },
       risk_metrics: {
-        sharpe_ratio: metrics.sharpe_ratio,
-        max_drawdown: metrics.max_drawdown,
-        calmar_ratio: metrics.calmar_ratio ?? 0,
+        sharpe_ratio: metrics.sharpe_ratio !== null && metrics.sharpe_ratio !== undefined ? metrics.sharpe_ratio : null,
+        max_drawdown: metrics.max_drawdown !== null && metrics.max_drawdown !== undefined ? metrics.max_drawdown : null,
+        calmar_ratio: metrics.calmar_ratio !== null && metrics.calmar_ratio !== undefined ? metrics.calmar_ratio : null,
       },
     };
 

@@ -237,6 +237,13 @@ class EntryHandler:
 
             # Handle slippage: recalculate targets if fill price differs from signal
             if executed_price and executed_price != entry_price:
+                slippage_pct = abs((float(executed_price) - float(entry_price)) / float(entry_price) * 100)
+                if slippage_pct > 5.0:
+                    logger.warning(
+                        f"[SLIPPAGE ALERT] {symbol}: excessive slippage {slippage_pct:.2f}% "
+                        f"(signal=${entry_price:.2f}, fill=${executed_price:.2f}). "
+                        "Verify market conditions. Order may need review."
+                    )
                 tgt_1_price, tgt_2_price, tgt_3_price = self._recalculate_targets_for_slippage(
                     executed_price, entry_price, stop_loss_price
                 )

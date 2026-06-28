@@ -465,16 +465,16 @@ router.get("/analyst/insights/:symbol", async (req, res) => {
     validateQueryResult(momentumResult, { requireRows: false });
 
     const row = sentimentResult.rows[0] || null;
-    const total = row ? parseInt(row.analyst_count) || 0 : 0;
-    const bullish = row ? parseInt(row.bullish_count) || 0 : 0;
-    const bearish = row ? parseInt(row.bearish_count) || 0 : 0;
-    const neutral = row ? parseInt(row.neutral_count) || 0 : 0;
-    const pct = (n) => (total > 0 ? Math.round((n / total) * 100) : 0);
+    const total = row ? (row.analyst_count !== null && row.analyst_count !== undefined ? parseInt(row.analyst_count) : null) : null;
+    const bullish = row ? (row.bullish_count !== null && row.bullish_count !== undefined ? parseInt(row.bullish_count) : null) : null;
+    const bearish = row ? (row.bearish_count !== null && row.bearish_count !== undefined ? parseInt(row.bearish_count) : null) : null;
+    const neutral = row ? (row.neutral_count !== null && row.neutral_count !== undefined ? parseInt(row.neutral_count) : null) : null;
+    const pct = (n) => (total !== null && total > 0 ? Math.round((n / total) * 100) : null);
 
     const momentumRow = momentumResult.rows[0] || {};
 
     return sendSuccess(res, {
-      metrics: row
+      metrics: row && total !== null && bullish !== null && bearish !== null && neutral !== null
         ? {
             bullish,
             neutral,
@@ -488,8 +488,8 @@ router.get("/analyst/insights/:symbol", async (req, res) => {
           }
         : null,
       momentum: {
-        upgrades30d: parseInt(momentumRow.upgrades30d) || 0,
-        downgrades30d: parseInt(momentumRow.downgrades30d) || 0,
+        upgrades30d: momentumRow.upgrades30d !== null && momentumRow.upgrades30d !== undefined ? parseInt(momentumRow.upgrades30d) : null,
+        downgrades30d: momentumRow.downgrades30d !== null && momentumRow.downgrades30d !== undefined ? parseInt(momentumRow.downgrades30d) : null,
       },
       priceTargets: [],
       coverage: null,

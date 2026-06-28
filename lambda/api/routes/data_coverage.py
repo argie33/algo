@@ -64,10 +64,24 @@ def get_price_coverage(cur: cursor) -> Any:
         zero_vol = row["zero_volume_rows"]
         invalid_prices = row["invalid_price_rows"]
 
+        if sp500_total is None or sp500_total <= 0:
+            return error_response(
+                503,
+                "configuration_error",
+                "SP500 symbol target count missing or zero — configuration required"
+            )
+
+        if not total_rows:
+            return error_response(
+                503,
+                "no_data",
+                "No price rows available in last 7 days — data loading required"
+            )
+
         days_stale = (_date.today() - latest_date).days if latest_date else None
         zero_vol_pct = (zero_vol / total_rows * 100) if total_rows else None
         invalid_pct = (invalid_prices / total_rows * 100) if total_rows else None
-        coverage_pct = (round(total_symbols / sp500_total * 100, 1) if sp500_total else None)
+        coverage_pct = round(total_symbols / sp500_total * 100, 1)
 
         result = {
             "total_symbols": total_symbols,
@@ -81,11 +95,6 @@ def get_price_coverage(cur: cursor) -> Any:
                 "invalid_price_pct": round(invalid_pct, 2) if invalid_pct is not None else None,
             },
         }
-
-        if not total_rows:
-            result["_warning"] = "No price rows available for quality metrics"
-        if sp500_total is None or sp500_total == 0:
-            result["_warning"] = "SP500 target count missing or zero"
 
         return success_response(result)
     except (

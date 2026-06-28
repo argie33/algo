@@ -349,9 +349,9 @@ router.get("/evaluate", async (req, res) => {
       completeness_pct: { type: "float", required: false },
       sqs: { type: "int", required: false },
     }).map((row) => {
-      const tier1 = (row.completeness_pct ?? 0) >= filterConfig.completeness_pct_min;
-      const tier3 = (row.trend_score ?? 0) >= filterConfig.trend_score_min;
-      const tier4 = (row.sqs ?? 0) >= filterConfig.sqs_min;
+      const tier1 = row.completeness_pct !== null && row.completeness_pct !== undefined ? row.completeness_pct >= filterConfig.completeness_pct_min : false;
+      const tier3 = row.trend_score !== null && row.trend_score !== undefined ? row.trend_score >= filterConfig.trend_score_min : false;
+      const tier4 = row.sqs !== null && row.sqs !== undefined ? row.sqs >= filterConfig.sqs_min : false;
 
       const all_tiers_pass = filterConfig.require_all_tiers
         ? tier1 && tier3 && tier4
@@ -373,8 +373,8 @@ router.get("/evaluate", async (req, res) => {
 
     // Filter to qualified and sort by configured field/direction
     const sortComparator = (a, b) => {
-      const aVal = a[filterConfig.sort_by] || 0;
-      const bVal = b[filterConfig.sort_by] || 0;
+      const aVal = a[filterConfig.sort_by] !== null && a[filterConfig.sort_by] !== undefined ? a[filterConfig.sort_by] : 0;
+      const bVal = b[filterConfig.sort_by] !== null && b[filterConfig.sort_by] !== undefined ? b[filterConfig.sort_by] : 0;
       const diff = parseFloat(bVal) - parseFloat(aVal);
       return filterConfig.sort_order === "ASC" ? -diff : diff;
     };
@@ -820,39 +820,32 @@ router.get("/portfolio-summary", authenticateToken, async (req, res) => {
           total_portfolio_value: {
             type: "float",
             required: false,
-            defaultValue: 0,
           },
-          position_count: { type: "int", required: false, defaultValue: 0 },
+          position_count: { type: "int", required: false },
           unrealized_pnl_pct: {
             type: "float",
             required: false,
-            defaultValue: 0,
           },
-          daily_return_pct: { type: "float", required: false, defaultValue: 0 },
+          daily_return_pct: { type: "float", required: false },
           largest_position_pct: {
             type: "float",
             required: false,
-            defaultValue: 0,
           },
           average_position_size_pct: {
             type: "float",
             required: false,
-            defaultValue: 0,
           },
           concentration_risk_pct: {
             type: "float",
             required: false,
-            defaultValue: 0,
           },
           realized_pnl_today: {
             type: "float",
             required: false,
-            defaultValue: 0,
           },
           unrealized_pnl_total: {
             type: "float",
             required: false,
-            defaultValue: 0,
           },
           max_drawdown_pct: { type: "float", required: false },
           sharpe_ratio: { type: "float", required: false },
@@ -861,10 +854,10 @@ router.get("/portfolio-summary", authenticateToken, async (req, res) => {
 
     const sector_allocation = validateAndCoerceRows(sectorResult, {
       sector: { type: "string", required: true },
-      position_count: { type: "int", required: false, defaultValue: 0 },
-      total_value_dollars: { type: "float", required: false, defaultValue: 0 },
-      allocation_pct: { type: "float", required: false, defaultValue: 0 },
-      is_overweight: { type: "bool", required: false, defaultValue: false },
+      position_count: { type: "int", required: false },
+      total_value_dollars: { type: "float", required: false },
+      allocation_pct: { type: "float", required: false },
+      is_overweight: { type: "bool", required: false },
     });
 
     return sendSuccess(res, {
@@ -2254,32 +2247,31 @@ router.get("/performance", async (req, res) => {
     }
 
     const perf = validateAndCoerceRow(perfResult.rows[0], {
-      total_trades: { type: "int", required: false, defaultValue: 0 },
-      winning_trades: { type: "int", required: false, defaultValue: 0 },
-      losing_trades: { type: "int", required: false, defaultValue: 0 },
-      win_rate_pct: { type: "float", required: false, defaultValue: 0 },
-      avg_win_pct: { type: "float", required: false, defaultValue: 0 },
-      avg_loss_pct: { type: "float", required: false, defaultValue: 0 },
-      avg_win_r: { type: "float", required: false, defaultValue: 0 },
-      avg_loss_r: { type: "float", required: false, defaultValue: 0 },
-      expectancy_r: { type: "float", required: false, defaultValue: 0 },
-      profit_factor: { type: "float", required: false, defaultValue: null },
-      total_pnl_dollars: { type: "float", required: false, defaultValue: 0 },
-      gross_win_dollars: { type: "float", required: false, defaultValue: 0 },
-      gross_loss_dollars: { type: "float", required: false, defaultValue: 0 },
-      total_return_pct: { type: "float", required: false, defaultValue: 0 },
-      sharpe_annualized: { type: "float", required: false, defaultValue: 0 },
-      sortino_annualized: { type: "float", required: false, defaultValue: 0 },
-      calmar_ratio: { type: "float", required: false, defaultValue: 0 },
+      total_trades: { type: "int", required: false },
+      winning_trades: { type: "int", required: false },
+      losing_trades: { type: "int", required: false },
+      win_rate_pct: { type: "float", required: false },
+      avg_win_pct: { type: "float", required: false },
+      avg_loss_pct: { type: "float", required: false },
+      avg_win_r: { type: "float", required: false },
+      avg_loss_r: { type: "float", required: false },
+      expectancy_r: { type: "float", required: false },
+      profit_factor: { type: "float", required: false },
+      total_pnl_dollars: { type: "float", required: false },
+      gross_win_dollars: { type: "float", required: false },
+      gross_loss_dollars: { type: "float", required: false },
+      total_return_pct: { type: "float", required: false },
+      sharpe_annualized: { type: "float", required: false },
+      sortino_annualized: { type: "float", required: false },
+      calmar_ratio: { type: "float", required: false },
       max_drawdown_pct: { type: "float", required: false },
-      current_win_streak: { type: "int", required: false, defaultValue: 0 },
-      best_win_streak: { type: "int", required: false, defaultValue: 0 },
-      worst_loss_streak: { type: "int", required: false, defaultValue: 0 },
-      avg_hold_days: { type: "float", required: false, defaultValue: 0 },
+      current_win_streak: { type: "int", required: false },
+      best_win_streak: { type: "int", required: false },
+      worst_loss_streak: { type: "int", required: false },
+      avg_hold_days: { type: "float", required: false },
       portfolio_snapshots_count: {
         type: "int",
         required: false,
-        defaultValue: 0,
       },
     });
 
@@ -2315,42 +2307,42 @@ router.get("/performance", async (req, res) => {
       total_trades: totalTrades,
       winning_trades: totalWins,
       losing_trades: closedLosses + openLosses,
-      closed_trades: perf.total_trades || 0,
-      open_positions: openStats.open_count || 0,
+      closed_trades: perf.total_trades !== null && perf.total_trades !== undefined ? perf.total_trades : null,
+      open_positions: openStats.open_count !== null && openStats.open_count !== undefined ? openStats.open_count : null,
 
       // Win/loss profile (including open positions)
       win_rate_pct: winRateIncludingOpen,
-      closed_win_rate_pct: parseFloat(perf.win_rate_pct) || 0,
-      avg_win_pct: parseFloat(perf.avg_win_pct) || 0,
-      avg_loss_pct: parseFloat(perf.avg_loss_pct) || 0,
-      avg_win_r: parseFloat(perf.avg_win_r) || 0,
-      avg_loss_r: parseFloat(perf.avg_loss_r) || 0,
+      closed_win_rate_pct: perf.win_rate_pct !== null && perf.win_rate_pct !== undefined ? parseFloat(perf.win_rate_pct) : null,
+      avg_win_pct: perf.avg_win_pct !== null && perf.avg_win_pct !== undefined ? parseFloat(perf.avg_win_pct) : null,
+      avg_loss_pct: perf.avg_loss_pct !== null && perf.avg_loss_pct !== undefined ? parseFloat(perf.avg_loss_pct) : null,
+      avg_win_r: perf.avg_win_r !== null && perf.avg_win_r !== undefined ? parseFloat(perf.avg_win_r) : null,
+      avg_loss_r: perf.avg_loss_r !== null && perf.avg_loss_r !== undefined ? parseFloat(perf.avg_loss_r) : null,
 
       // Expectancy
-      expectancy_r: parseFloat(perf.expectancy_r) || 0,
-      profit_factor: perf.profit_factor ? parseFloat(perf.profit_factor) : null,
+      expectancy_r: perf.expectancy_r !== null && perf.expectancy_r !== undefined ? parseFloat(perf.expectancy_r) : null,
+      profit_factor: perf.profit_factor !== null && perf.profit_factor !== undefined ? parseFloat(perf.profit_factor) : null,
 
       // Total (CRITICAL: total_pnl must not default to 0)
-      total_pnl_dollars: perf.total_pnl_dollars ? parseFloat(perf.total_pnl_dollars) : null,
-      unrealized_pnl: openStats.total_unrealized_pnl ?? 0,
-      gross_win_dollars: perf.gross_win_dollars ? parseFloat(perf.gross_win_dollars) : null,
-      gross_loss_dollars: perf.gross_loss_dollars ? parseFloat(perf.gross_loss_dollars) : null,
-      total_return_pct: perf.total_return_pct ? parseFloat(perf.total_return_pct) : null,
+      total_pnl_dollars: perf.total_pnl_dollars !== null && perf.total_pnl_dollars !== undefined ? parseFloat(perf.total_pnl_dollars) : null,
+      unrealized_pnl: openStats.total_unrealized_pnl !== null && openStats.total_unrealized_pnl !== undefined ? openStats.total_unrealized_pnl : null,
+      gross_win_dollars: perf.gross_win_dollars !== null && perf.gross_win_dollars !== undefined ? parseFloat(perf.gross_win_dollars) : null,
+      gross_loss_dollars: perf.gross_loss_dollars !== null && perf.gross_loss_dollars !== undefined ? parseFloat(perf.gross_loss_dollars) : null,
+      total_return_pct: perf.total_return_pct !== null && perf.total_return_pct !== undefined ? parseFloat(perf.total_return_pct) : null,
 
       // Risk-adjusted (CRITICAL: Use raw values to expose missing data)
-      sharpe_annualized: perf.sharpe_annualized ? parseFloat(perf.sharpe_annualized) : null,
-      sortino_annualized: perf.sortino_annualized ? parseFloat(perf.sortino_annualized) : null,
-      calmar_ratio: perf.calmar_ratio ? parseFloat(perf.calmar_ratio) : null,
-      max_drawdown_pct: perf.max_drawdown_pct ? parseFloat(perf.max_drawdown_pct) : null,
+      sharpe_annualized: perf.sharpe_annualized !== null && perf.sharpe_annualized !== undefined ? parseFloat(perf.sharpe_annualized) : null,
+      sortino_annualized: perf.sortino_annualized !== null && perf.sortino_annualized !== undefined ? parseFloat(perf.sortino_annualized) : null,
+      calmar_ratio: perf.calmar_ratio !== null && perf.calmar_ratio !== undefined ? parseFloat(perf.calmar_ratio) : null,
+      max_drawdown_pct: perf.max_drawdown_pct !== null && perf.max_drawdown_pct !== undefined ? parseFloat(perf.max_drawdown_pct) : null,
 
       // Streaks + duration
-      current_streak: perf.current_win_streak || 0,
-      best_win_streak: perf.best_win_streak || 0,
-      worst_loss_streak: perf.worst_loss_streak || 0,
-      avg_hold_days: parseFloat(perf.avg_hold_days) || 0,
+      current_streak: perf.current_win_streak !== null && perf.current_win_streak !== undefined ? perf.current_win_streak : null,
+      best_win_streak: perf.best_win_streak !== null && perf.best_win_streak !== undefined ? perf.best_win_streak : null,
+      worst_loss_streak: perf.worst_loss_streak !== null && perf.worst_loss_streak !== undefined ? perf.worst_loss_streak : null,
+      avg_hold_days: perf.avg_hold_days !== null && perf.avg_hold_days !== undefined ? parseFloat(perf.avg_hold_days) : null,
 
       // Sample sizes
-      portfolio_snapshots: perf.portfolio_snapshots_count || 0,
+      portfolio_snapshots: perf.portfolio_snapshots_count !== null && perf.portfolio_snapshots_count !== undefined ? perf.portfolio_snapshots_count : null,
     });
   } catch (error) {
     logger.error("Error in /api/algo/performance:", {
@@ -2399,12 +2391,11 @@ router.get("/equity-curve", authenticateToken, async (req, res) => {
       total_portfolio_value: {
         type: "float",
         required: false,
-        defaultValue: 0,
       },
-      daily_return_pct: { type: "float", required: false, defaultValue: 0 },
-      unrealized_pnl_pct: { type: "float", required: false, defaultValue: 0 },
-      position_count: { type: "int", required: false, defaultValue: 0 },
-      drawdown_pct: { type: "float", required: false, defaultValue: 0 },
+      daily_return_pct: { type: "float", required: false },
+      unrealized_pnl_pct: { type: "float", required: false },
+      position_count: { type: "int", required: false },
+      drawdown_pct: { type: "float", required: false },
     });
 
     // Reverse to chronological order (oldest first)
@@ -2581,51 +2572,45 @@ router.get("/circuit-breakers", async (req, res) => {
     validateQueryResult(cbResult, { requireRows: false });
     validateQueryResult(marketResult, { requireRows: false });
 
-    // Get circuit breaker metrics (or defaults if not yet computed for today)
-    const cbRow =
-      cbResult.rows.length > 0
-        ? validateAndCoerceRow(cbResult.rows[0], {
-            portfolio_drawdown_pct: {
-              type: "float",
-              required: false,
-              defaultValue: 0,
-            },
-            daily_loss_pct: { type: "float", required: false, defaultValue: 0 },
-            weekly_loss_pct: {
-              type: "float",
-              required: false,
-              defaultValue: 0,
-            },
-            open_risk_pct: { type: "float", required: false, defaultValue: 0 },
-            consecutive_losses: {
-              type: "int",
-              required: false,
-              defaultValue: 0,
-            },
-            vix_level: { type: "float", required: false, defaultValue: 0 },
-            market_stage: { type: "int", required: false, defaultValue: 1 },
-            spy_prior_day_change_pct: {
-              type: "float",
-              required: false,
-              defaultValue: 0,
-            },
-            win_rate_last_30_pct: {
-              type: "float",
-              required: false,
-              defaultValue: 0,
-            },
-          })
-        : {
-            portfolio_drawdown_pct: 0,
-            daily_loss_pct: 0,
-            weekly_loss_pct: 0,
-            open_risk_pct: 0,
-            consecutive_losses: 0,
-            vix_level: 0,
-            market_stage: 1,
-            spy_prior_day_change_pct: 0,
-            win_rate_last_30_pct: 0,
-          };
+    // Get circuit breaker metrics - must have actual data, not defaults
+    // CRITICAL: Do NOT default to 0 for circuit breaker metrics - it masks missing data
+    // Zero drawdown looks like "safe portfolio" when data might just be unavailable
+    if (cbResult.rows.length === 0) {
+      return sendSuccess(res, {
+        metrics: null,
+        circuit_breakers: null,
+        config: null,
+        data_error: "circuit_breaker_data_unavailable",
+        message: "Circuit breaker metrics not yet available. Run data loaders to compute portfolio metrics.",
+      }, 503);
+    }
+
+    const cbRow = validateAndCoerceRow(cbResult.rows[0], {
+      portfolio_drawdown_pct: {
+        type: "float",
+        required: false,
+      },
+      daily_loss_pct: { type: "float", required: false },
+      weekly_loss_pct: {
+        type: "float",
+        required: false,
+      },
+      open_risk_pct: { type: "float", required: false },
+      consecutive_losses: {
+        type: "int",
+        required: false,
+      },
+      vix_level: { type: "float", required: false },
+      market_stage: { type: "int", required: false },
+      spy_prior_day_change_pct: {
+        type: "float",
+        required: false,
+      },
+      win_rate_last_30_pct: {
+        type: "float",
+        required: false,
+      },
+    });
 
     const marketTrend =
       marketResult.rows.length > 0

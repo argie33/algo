@@ -482,11 +482,12 @@ const MarketExposure = ({ marketData, breadthData, distributionDaysData }) => {
                   {exposureScore.breakdown?.breadth !== null &&
                   exposureScore.breakdown?.breadth !== undefined
                     ? (() => {
+                        if (exposureScore.breakdown.breadth === null || exposureScore.breakdown.breadth === undefined) return "Unavailable";
                         const val =
                           typeof exposureScore.breakdown.breadth === "number"
                             ? exposureScore.breakdown.breadth
-                            : parseFloat(exposureScore.breakdown.breadth) || 0;
-                        return formatPercentageChange(val, 1);
+                            : parseFloat(exposureScore.breakdown.breadth);
+                        return isNaN(val) ? "N/A" : formatPercentageChange(val, 1);
                       })()
                     : "N/A"}
                 </Typography>

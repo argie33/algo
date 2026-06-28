@@ -384,7 +384,7 @@ class SwingTraderScore:
             logger.critical(f"Earnings date unavailable for {symbol}: {e} — CRITICAL gate failure")
             return {
                 "pass": False,
-                "reason": f"Earnings proximity check failed: {str(e)[:60]} (cannot proceed without earnings data)",
+                "reason": f"Earnings proximity check failed: {e} (cannot proceed without earnings data)",
                 "swing_score": 0.0,
             }
 

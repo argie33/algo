@@ -188,10 +188,11 @@ const MarketCorrelation = ({ data, isLoading, error }) => {
                   <Typography variant="h6" sx={{ fontWeight: 600 }}>
                     {statistics.avg_correlation !== null
                       ? (() => {
+                          if (statistics.avg_correlation === null || statistics.avg_correlation === undefined) return "Unavailable";
                           const num =
                             typeof statistics.avg_correlation === "number"
                               ? statistics.avg_correlation
-                              : parseFloat(statistics.avg_correlation) || 0;
+                              : parseFloat(statistics.avg_correlation);
                           return isNaN(num) ? "N/A" : num.toFixed(2);
                         })()
                       : "N/A"}
@@ -209,11 +210,11 @@ const MarketCorrelation = ({ data, isLoading, error }) => {
                   <Typography variant="h6" sx={{ fontWeight: 600 }}>
                     {statistics.max_correlation?.value !== null
                       ? (() => {
+                          if (statistics.max_correlation.value === null || statistics.max_correlation.value === undefined) return "Unavailable";
                           const num =
                             typeof statistics.max_correlation.value === "number"
                               ? statistics.max_correlation.value
-                              : parseFloat(statistics.max_correlation.value) ||
-                                0;
+                              : parseFloat(statistics.max_correlation.value);
                           return isNaN(num) ? "N/A" : num.toFixed(2);
                         })()
                       : "N/A"}
@@ -240,11 +241,11 @@ const MarketCorrelation = ({ data, isLoading, error }) => {
                   <Typography variant="h6" sx={{ fontWeight: 600 }}>
                     {statistics.min_correlation?.value !== null
                       ? (() => {
+                          if (statistics.min_correlation.value === null || statistics.min_correlation.value === undefined) return "Unavailable";
                           const num =
                             typeof statistics.min_correlation.value === "number"
                               ? statistics.min_correlation.value
-                              : parseFloat(statistics.min_correlation.value) ||
-                                0;
+                              : parseFloat(statistics.min_correlation.value);
                           return isNaN(num) ? "N/A" : num.toFixed(2);
                         })()
                       : "N/A"}
@@ -297,10 +298,11 @@ const MarketCorrelation = ({ data, isLoading, error }) => {
                   <Typography variant="h6" sx={{ fontWeight: 600 }}>
                     {analysis?.diversification_score !== null
                       ? (() => {
+                          if (analysis.diversification_score === null || analysis.diversification_score === undefined) return "Unavailable";
                           const num =
                             typeof analysis.diversification_score === "number"
                               ? analysis.diversification_score
-                              : parseFloat(analysis.diversification_score) || 0;
+                              : parseFloat(analysis.diversification_score);
                           return isNaN(num) ? "N/A" : num.toFixed(1);
                         })()
                       : "N/A"}

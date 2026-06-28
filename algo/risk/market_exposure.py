@@ -186,6 +186,58 @@ class MarketExposure:
             else:
                 factors = {}
 
+            # CRITICAL: Validate that all 12 required factors are present with real scores
+            # This prevents using stale cached data with default/missing factor values
+            required_factors = {
+                "trend_30wk",
+                "spy_momentum",
+                "breadth_200dma",
+                "breadth_50dma",
+                "distribution_days",
+                "vix_regime",
+                "put_call_ratio",
+                "new_highs_lows",
+                "ad_line",
+                "credit_spread",
+                "aaii_sentiment",
+                "naaim",
+            }
+            missing_factors = []
+            invalid_factors = []
+
+            for factor_name in required_factors:
+                if factor_name not in factors:
+                    missing_factors.append(factor_name)
+                    continue
+
+                factor_data = factors[factor_name]
+                if not isinstance(factor_data, dict):
+                    invalid_factors.append(f"{factor_name} is not a dict")
+                    continue
+
+                # Check that factor has a points value (cached factors should have "pts")
+                if "pts" not in factor_data:
+                    invalid_factors.append(f"{factor_name} missing 'pts' field")
+                    continue
+
+                pts = factor_data.get("pts")
+                if pts is None:
+                    invalid_factors.append(f"{factor_name} has NULL 'pts' value")
+                    continue
+
+            if missing_factors or invalid_factors:
+                msg = (
+                    f"[CACHE VALIDATION] Cached exposure for {eval_date} is incomplete or corrupted. "
+                    f"Cannot use stale/partial factor data for risk allocation."
+                )
+                if missing_factors:
+                    msg += f" Missing factors: {', '.join(missing_factors)}."
+                if invalid_factors:
+                    msg += f" Invalid factors: {'; '.join(invalid_factors)}."
+                msg += " Will recompute exposure with fresh data."
+                logger.warning(msg)
+                return None  # Force recomputation instead of using incomplete cache
+
             if dist_days is None:
                 raise ValueError("Distribution days data missing; cannot assess institutional distribution risk")
             result = {

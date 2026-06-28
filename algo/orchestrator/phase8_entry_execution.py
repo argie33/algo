@@ -634,7 +634,10 @@ def run(
                         f"Sizer must provide reason for rejection. Response: {sizing}"
                     )
                 logger.info(f"[PHASE 8] {symbol}: sizer blocked — {reason}")
-            elif "shares" not in sizing:
+                skipped_count += 1
+                continue
+
+            if "shares" not in sizing:
                 logger.error(
                     f"[PHASE 8] {symbol}: CRITICAL - sizer did not return shares field. "
                     f"Response: {sizing}. Check position_sizer module."

@@ -230,7 +230,7 @@ router.get("/trends-batch", async (req, res) => {
       grouped[row.industry].push({
         date: row.date,
         avgPrice: avgPrice,
-        stockCount: parseInt(row.stock_count) || 0,
+        stockCount: row.stock_count !== null && row.stock_count !== undefined ? parseInt(row.stock_count) : null,
         dailyStrengthScore: strengthScore,
       });
     });
@@ -282,7 +282,7 @@ router.get("/:industry", async (req, res) => {
     const row = result.rows[0];
     const industryData = {
       industry_name: row.industry_name,
-      stock_count: parseInt(row.stock_count || 0),
+      stock_count: row.stock_count !== null && row.stock_count !== undefined ? parseInt(row.stock_count) : null,
       composite_score: row.composite_score
         ? parseFloat(row.composite_score)
         : null,
@@ -358,7 +358,7 @@ router.get("/:industry/trend", async (req, res) => {
         return {
           date: row.date,
           avgPrice: avgPrice,
-          stockCount: parseInt(row.stock_count) || 0,
+          stockCount: row.stock_count !== null && row.stock_count !== undefined ? parseInt(row.stock_count) : null,
           dailyStrengthScore: strengthScore,
         };
       })
@@ -427,7 +427,7 @@ router.get("/trend/industry/:industryName", async (req, res) => {
         return {
           date: row.date,
           avgPrice: avgPrice,
-          stockCount: parseInt(row.stock_count) || 0,
+          stockCount: row.stock_count !== null && row.stock_count !== undefined ? parseInt(row.stock_count) : null,
           dailyStrengthScore: strengthScore,
         };
       })

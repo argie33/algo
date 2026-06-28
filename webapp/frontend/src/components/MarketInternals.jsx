@@ -78,15 +78,15 @@ const MarketInternals = ({ data, isLoading, error }) => {
   const maChartData = [
     {
       name: "SMA 20",
-      value: parseFloat(moving_average_analysis.above_sma20.percent) || 0,
+      value: moving_average_analysis.above_sma20.percent !== null && moving_average_analysis.above_sma20.percent !== undefined ? parseFloat(moving_average_analysis.above_sma20.percent) : null,
     },
     {
       name: "SMA 50",
-      value: parseFloat(moving_average_analysis.above_sma50.percent) || 0,
+      value: moving_average_analysis.above_sma50.percent !== null && moving_average_analysis.above_sma50.percent !== undefined ? parseFloat(moving_average_analysis.above_sma50.percent) : null,
     },
     {
       name: "SMA 200",
-      value: parseFloat(moving_average_analysis.above_sma200.percent) || 0,
+      value: moving_average_analysis.above_sma200.percent !== null && moving_average_analysis.above_sma200.percent !== undefined ? parseFloat(moving_average_analysis.above_sma200.percent) : null,
     },
   ];
 
