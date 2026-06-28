@@ -611,7 +611,7 @@ class MarketExposure:
                 )
                 logger.critical(msg)
                 raise RuntimeError(msg) from e
-            # Veto 5: HY credit spread systemic stress (only if data available)
+            # Veto 5: HY credit spread systemic stress (critical hard veto)
             cs_value = cs.get("value")
             if cs_value is not None:
                 cs_value = float(cs_value)
@@ -619,7 +619,14 @@ class MarketExposure:
                     halt_reasons.append(f"HY credit spread {cs_value:.0f} bps > 850 (systemic stress)")
                     cap = min(cap, 30.0)
             else:
-                logger.warning("Veto 5 (credit spreads): data unavailable, skipping")
+                msg = (
+                    "[VETO 5 CRITICAL] Credit spread data unavailable for systemic stress check. "
+                    "Cannot apply 30% cap without knowing credit market stress. "
+                    "HY credit spread (OAS) is a leading indicator of systemic risk. "
+                    "Check: credit_spreads table and ensure recent readings are loaded"
+                )
+                logger.critical(msg)
+                raise RuntimeError(msg)
 
             if halt_reasons:
                 logger.warning(f"  Hard vetoes active: {'; '.join(halt_reasons)}, cap={cap}%")
