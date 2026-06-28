@@ -925,13 +925,15 @@ class DailyReconciliation:
                     except (psycopg2.DatabaseError, psycopg2.OperationalError) as atr_e:
                         logger.error(f"[RETRY_IMPORT] Failed to calculate ATR-based stops for {sym}: {atr_e}")
 
-                    # Fail hard if ATR calculation failed - don't fall back to percentages
+                    # CRITICAL: Fail hard if ATR calculation failed - cannot import positions without risk limits
                     if stop_loss_price_retry is None:
-                        logger.warning(
-                            f"[RETRY_IMPORT] Skipping retry for {sym}: cannot calculate risk limits without ATR"
-                        )
                         cur.execute("RELEASE SAVEPOINT retry_sp")
-                        continue
+                        raise RuntimeError(
+                            f"[RECONCILIATION CRITICAL] Cannot import {sym}: ATR-based risk limits failed. "
+                            f"Stop-loss price cannot be calculated. Cannot import positions without validated "
+                            f"stop-loss calculations (risk management failure). "
+                            f"Check technical_data_daily table for {sym} ATR data and retry."
+                        )
 
                     cur.execute(
                         "INSERT INTO algo_trades "
@@ -1008,6 +1010,18 @@ class DailyReconciliation:
                     )
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.debug(f"  Retry prep for {sym} failed: {e}")
+
+        # CRITICAL: If any positions were skipped due to missing financial data, halt reconciliation
+        # Do not silently accumulate orphaned positions — portfolio reconciliation depends on completeness
+        if skipped_count > 0:
+            raise RuntimeError(
+                f"[RECONCILIATION CRITICAL] Cannot retry position imports — {skipped_count} positions "
+                f"have missing critical financial data (qty, prices, PnL). Cannot reconcile portfolio "
+                f"with incomplete position data. Failed symbols: {skip_reasons[:5]}. "
+                f"Reconciliation halted to prevent orphaned positions. "
+                f"Check Alpaca data completeness and retry."
+            )
+
         # Issue #11: Log skip summary for audit trail
         logger.info(
             f"[RECONCILIATION] Retry import: {retried} succeeded, {skipped_count} skipped. "
@@ -1030,13 +1044,23 @@ class DailyReconciliation:
                     details={"failure_count": failure_count},
                 )
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as alert_e:
-                logger.warning(f"Could not send failure alert: {alert_e}")
+                # CRITICAL: Fail fast when alert system is down — operators must be notified of import failures
+                raise RuntimeError(
+                    f"[RECONCILIATION ALERT CRITICAL] Failed to notify operators of {failure_count} "
+                    f"position import failures: {alert_e}. Operator awareness is critical for orphaned "
+                    f"position detection. Cannot proceed without alert system. Check notification service."
+                ) from alert_e
         try:
             cur.execute(
                 "DELETE FROM alpaca_import_failures WHERE resolved = TRUE AND resolved_at < NOW() - INTERVAL '7 days'"
             )
-        except (ValueError, ZeroDivisionError, TypeError) as e:
-            logger.warning(f"Could not cleanup old failures: {e}")
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            # CRITICAL: If cleanup fails, database may grow unbounded with stale failure records
+            raise RuntimeError(
+                f"[RECONCILIATION CLEANUP CRITICAL] Failed to clean old failure records from database: {e}. "
+                f"Database may grow unbounded. Cleanup is required for data integrity. "
+                f"Check database connection and retry."
+            ) from e
         return retried
 
     def compute_analytics_metrics(self, cur: Any) -> dict[str, Any]:
@@ -1074,8 +1098,12 @@ class DailyReconciliation:
             mismatches = []
             for order in orders:
                 if "symbol" not in order or "filled_qty" not in order or "status" not in order:
-                    logger.warning(f"Order from Alpaca missing required fields: {order}")
-                    continue
+                    # CRITICAL: Alpaca API contract violation — cannot reconcile fill status without required fields
+                    raise RuntimeError(
+                        f"[PARTIAL_FILL_CHECK CRITICAL] Alpaca API returned malformed order (missing required fields). "
+                        f"Cannot reconcile fills: {order}. Partial fill detection disabled. "
+                        f"API contract violated — check Alpaca API response structure."
+                    )
                 symbol = order["symbol"]
                 alpaca_filled_qty = float(order["filled_qty"])
                 order_status = order["status"]
@@ -1146,7 +1174,12 @@ class DailyReconciliation:
                             },
                         )
                     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                        logger.warning(f"Could not send partial fill alert: {e}")
+                        # CRITICAL: Fail fast when alert system is down — partial fill corrections must be audited
+                        raise RuntimeError(
+                            f"[PARTIAL_FILL_ALERT CRITICAL] Failed to notify operator of fill correction "
+                            f"for {symbol}: {e}. Partial fill notification is required for audit trail. "
+                            f"Cannot proceed without operator awareness. Check notification service."
+                        ) from e
 
             return {
                 "checked": len(orders),
@@ -1161,8 +1194,12 @@ class DailyReconciliation:
             json.JSONDecodeError,
             psycopg2.DatabaseError,
         ) as e:
-            logger.warning(f"Partial fill check error: {e}")
-            return {"checked": 0, "mismatches": 0, "message": f"Error: {e}"}
+            # CRITICAL: Partial fill detection failure — cannot reconcile fill status
+            raise RuntimeError(
+                f"[PARTIAL_FILL_CHECK FAILED] {type(e).__name__}: {e}. "
+                f"Cannot reconcile fill status — algorithm cannot proceed without fill validation. "
+                f"Partial fills undetected could lead to position quantity mismatches. Check broker connection."
+            ) from e
 
     def check_pending_reconciliations(self, cur: Any) -> dict[str, Any]:
         """Identify and report on trades pending Phase 7 price reconciliation.
