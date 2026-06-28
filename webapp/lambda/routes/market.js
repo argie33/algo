@@ -2604,7 +2604,10 @@ async function getMarketDataHandler(req, res) {
           WHERE symbol IN ('SPY', 'QQQ', 'DIA', 'IWM', '^VIX')
           ORDER BY symbol, date DESC
         `);
-        return result.rows || [];
+        if (!result.rows || result.rows.length === 0) {
+          throw new Error("CRITICAL: Index price data not available in database");
+        }
+        return result.rows;
       })(),
 
       // 6. Volatility
@@ -3321,7 +3324,10 @@ router.get("/technicals-fresh", async (req, res) => {
         `,
           [latestDate]
         );
-        return result.rows[0] || {};
+        if (!result.rows || result.rows.length === 0) {
+          throw new Error("CRITICAL: Breadth data unavailable for market date " + latestDate);
+        }
+        return result.rows[0];
       })(),
 
       // 2. McClellan Oscillator (real data from database)
@@ -3424,7 +3430,10 @@ router.get("/technicals-fresh", async (req, res) => {
             AND date >= NOW() - INTERVAL '60 days'
             AND close IS NOT NULL AND open IS NOT NULL
         `);
-        return result.rows[0] || {};
+        if (!result.rows || result.rows.length === 0) {
+          throw new Error("CRITICAL: SPY volatility data unavailable");
+        }
+        return result.rows[0];
       })(),
 
       // 5. Internals (real data from database with SMA20/50 percentages)
@@ -3472,12 +3481,25 @@ router.get("/technicals-fresh", async (req, res) => {
         `,
           [latestDate]
         );
-        return result.rows[0] || {};
+        if (!result.rows || result.rows.length === 0) {
+          throw new Error("CRITICAL: Market internals (SMA) data unavailable");
+        }
+        return result.rows[0];
       })(),
     ]);
 
-    // Extract results from allSettled promises
-    const breadth = breadthData.value || {};
+    // Extract results from allSettled promises - validate critical data availability
+    if (breadthData.status === 'rejected') {
+      throw new Error(`CRITICAL: Breadth data fetch failed: ${breadthData.reason.message}`);
+    }
+    if (!breadthData.value) {
+      throw new Error("CRITICAL: Breadth data unavailable");
+    }
+    const breadth = breadthData.value;
+
+    if (mcclellanData.status === 'rejected') {
+      throw new Error(`CRITICAL: McClellan oscillator data fetch failed: ${mcclellanData.reason.message}`);
+    }
     const mcclellan = mcclellanData.value || [];
     const distributionDays = distributionDaysData.value || {};
     const volatility = volatilityData.value || {};
