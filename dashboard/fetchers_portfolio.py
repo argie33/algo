@@ -23,23 +23,6 @@ def record_data_quality_issue(*args: object, **kwargs: object) -> None:
 
 
 
-def get_endpoint_path(fetcher_key: str, params: dict[str, Any] | None = None) -> str:
-    """Map fetcher key to full endpoint path with optional query parameters.
-
-    Examples:
-      get_endpoint_path('pos') → '/api/algo/positions'
-      get_endpoint_path('trades', params={'limit': 10}) → '/api/algo/trades' (params passed to api_call)
-    """
-    from .fetchers_common import FETCHER_METADATA
-
-    meta = FETCHER_METADATA.get(fetcher_key)
-    if not meta:
-        # For endpoints with direct paths (like '/api/algo/last-run')
-        return fetcher_key
-    endpoint = meta.get("endpoint", "")
-    if not endpoint:
-        return fetcher_key
-    return endpoint
 
 
 def fetch_portfolio(c: None) -> dict[str, Any]:

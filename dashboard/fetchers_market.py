@@ -31,31 +31,6 @@ def clear_markets_cache() -> None:
 
 
 
-def get_endpoint_path(fetcher_key: str, params: dict[str, Any] | None = None) -> str:
-    """Map fetcher key to full endpoint path with optional query parameters.
-
-    Examples:
-      get_endpoint_path('pos') → '/api/algo/positions'
-      get_endpoint_path('trades', params={'limit': 10}) → '/api/algo/trades' (params passed to api_call)
-    """
-    from .fetchers_common import FETCHER_METADATA
-
-    meta = FETCHER_METADATA.get(fetcher_key)
-    if not meta:
-        # For endpoints with direct paths (like '/api/algo/last-run')
-        return fetcher_key
-    if "endpoint" not in meta:
-        raise KeyError(
-            f"CRITICAL: Fetcher configuration for '{fetcher_key}' missing required 'endpoint' field. "
-            "Configuration incomplete. Cannot construct API path."
-        )
-    endpoint = meta["endpoint"]
-    if not endpoint:
-        raise ValueError(
-            f"CRITICAL: Fetcher configuration for '{fetcher_key}' has empty 'endpoint' field. "
-            "Endpoint must be a non-empty API path."
-        )
-    return endpoint
 
 
 def _get_markets_cached() -> dict[str, Any]:

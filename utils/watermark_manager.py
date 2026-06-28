@@ -62,12 +62,23 @@ class WatermarkManager:
 
     @staticmethod
     def _parse_watermark_date(value: Any) -> date | None:
-        """Parse watermark value to date."""
+        """Parse watermark value to date.
+
+        Handles both date-based watermarks (e.g., "2026-06-28") and
+        year-based watermarks (e.g., 2026 for fiscal_year).
+        """
         if value is None:
             return None
         if isinstance(value, date):
             return value
         try:
-            return date.fromisoformat(str(value).split("T")[0])
+            # For year-only values (e.g., fiscal_year = 2026), return Jan 1 of that year
+            str_val = str(value).strip()
+            if len(str_val) == 4 and str_val.isdigit():
+                year = int(str_val)
+                if 1990 < year < 2100:
+                    return date(year, 1, 1)
+            # For ISO date values (e.g., "2026-06-28"), parse normally
+            return date.fromisoformat(str_val.split("T")[0])
         except (ValueError, TypeError):
             return None
