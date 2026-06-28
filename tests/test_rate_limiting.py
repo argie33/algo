@@ -122,7 +122,7 @@ def test_admin_rate_limit_with_malformed_user_id():
 
     # Test with None
     try:
-        allowed, msg = check_admin_rate_limit(None, endpoint, 3, 1)
+        allowed, _ = check_admin_rate_limit(None, endpoint, 3, 1)
         # Should handle None gracefully
         assert isinstance(allowed, bool)
     except (TypeError, AttributeError):
