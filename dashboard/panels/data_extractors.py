@@ -144,13 +144,13 @@ def extract_run_info(run: dict[str, Any]) -> dict[str, Any]:
     """
     if not isinstance(run, dict) or has_error(run):
         return {"_error": "Run info unavailable"}
-    required = ["success", "halted", "errored", "run_id"]
+    required = ["success", "halted", "errored", "run_id", "phase_results"]
     missing = [k for k in required if k not in run]
     if missing:
         raise KeyError(f"Run info missing critical fields: {missing}")
-    phase_results = run.get("phase_results")
+    phase_results = run["phase_results"]
     if not isinstance(phase_results, list):
-        phase_results = []
+        raise TypeError(f"phase_results must be list, got {type(phase_results).__name__}")
     return {
         "success": run["success"],
         "halted": run["halted"],
@@ -190,16 +190,16 @@ def extract_health_items(hlth: dict[str, Any] | list[Any]) -> tuple[list[Any], b
 def extract_phase_results(run: dict[str, Any]) -> list[dict[str, Any]]:
     """Extract and normalize phase results from run data.
 
-    Handles various phase result formats and ensures consistent structure.
-    Fail-fast: If phase_results is present but invalid, error should have been caught at API layer.
+    Fail-fast: phase_results is required. Missing or invalid phase_results is a critical data error.
     """
     if not isinstance(run, dict):
-        return []
-    # Only return phase_results if it's explicitly a list; don't fall back to empty list
-    if "phase_results" in run:
-        results = run.get("phase_results")
-        return results if isinstance(results, list) else []
-    return []
+        raise TypeError(f"extract_phase_results expects dict, got {type(run).__name__}")
+    if "phase_results" not in run:
+        raise KeyError("Run data missing required 'phase_results' field")
+    results = run["phase_results"]
+    if not isinstance(results, list):
+        raise TypeError(f"phase_results must be list, got {type(results).__name__}")
+    return results
 
 
 def safe_get_field(data: dict[str, Any] | None, field: str, default: Any = None) -> Any:

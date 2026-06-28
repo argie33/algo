@@ -77,21 +77,38 @@ def _get_data_status_cached() -> dict[str, Any]:
     Both fetch_health and fetch_loader_status need the same endpoint. This
     caches the result to avoid duplicate API calls when both are fetched
     in parallel. Thread-safe with lock to ensure single API call.
+
+    CRITICAL: Never returns stale cache. Health status drives UI warnings. Cache TTL
+    is 60 seconds (within-cycle only). After 60s, data is considered stale and fresh
+    fetch is required.
     """
-    if "result" in _data_status_cache:
+    import time as time_module
+
+    now = time_module.time()
+    if (
+        "result" in _data_status_cache
+        and "_time" in _data_status_cache
+        and (now - _data_status_cache["_time"]) < 60
+    ):
         return cast(dict[str, Any], _data_status_cache["result"])
 
     with _data_status_lock:
-        if "result" in _data_status_cache:
+        if (
+            "result" in _data_status_cache
+            and "_time" in _data_status_cache
+            and (now - _data_status_cache["_time"]) < 60
+        ):
             return cast(dict[str, Any], _data_status_cache["result"])
 
         try:
             data = api_call(_get_endpoint_path("health"))
             _data_status_cache["result"] = data
+            _data_status_cache["_time"] = now
             return data
         except Exception as e:
             error_result = {"_error": str(e)}
             _data_status_cache["result"] = error_result
+            _data_status_cache["_time"] = now
             return error_result
 
 

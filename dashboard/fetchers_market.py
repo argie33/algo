@@ -86,14 +86,24 @@ def _get_markets_cached() -> dict[str, Any]:
     caches the result to avoid duplicate API calls when both are fetched
     in parallel. Thread-safe with lock to ensure single API call.
 
-    CRITICAL: Never returns stale cache on 503 errors. Market prices must be current
-    for accurate position sizing. If API is unavailable, returns error dict instead.
+    CRITICAL: Never returns stale cache. Market prices must be current for accurate
+    position sizing. Cache TTL is 60 seconds (within-cycle only). If API unavailable,
+    returns error dict instead.
     """
-    if "result" in _markets_cache:
+    now = __import__("time").time()
+    if (
+        "result" in _markets_cache
+        and "_time" in _markets_cache
+        and (now - _markets_cache["_time"]) < 60
+    ):
         return cast(dict[str, Any], _markets_cache["result"])
 
     with _markets_lock:
-        if "result" in _markets_cache:
+        if (
+            "result" in _markets_cache
+            and "_time" in _markets_cache
+            and (now - _markets_cache["_time"]) < 60
+        ):
             return cast(dict[str, Any], _markets_cache["result"])
 
         try:
@@ -108,8 +118,9 @@ def _get_markets_cached() -> dict[str, Any]:
                 logger.error(f"API /api/algo/markets failed: {data.get('_error')}")
                 return data
 
-            # Only cache successful responses (no _error field)
+            # Only cache successful responses (no _error field) with timestamp
             _markets_cache["result"] = data
+            _markets_cache["_time"] = now
             return data
         except Exception as e:
             error_result = {"_error": str(e)}

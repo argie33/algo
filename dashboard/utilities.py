@@ -12,6 +12,7 @@ from zoneinfo import ZoneInfo
 
 from rich.console import Console
 
+from dashboard.error_boundary import has_error
 from utils.safe_data_conversion import safe_float
 
 # ── globals ───────────────────────────────────────────────────────────────────
@@ -160,8 +161,8 @@ def compute_sector_agg(pos: Any, port: dict[str, Any]) -> tuple[list[tuple[str, 
 
     Thread-safe: Uses lock during cache reads/writes to prevent race conditions.
     """
-    pos_items, pos_timestamp, has_error = normalize_positions_data(pos)
-    if has_error:
+    pos_items, _pos_timestamp, pos_has_error = normalize_positions_data(pos)
+    if pos_has_error:
         raise ValueError("Cannot compute sector aggregation: positions data contains error")
 
     if not pos_items:
@@ -174,6 +175,10 @@ def compute_sector_agg(pos: Any, port: dict[str, Any]) -> tuple[list[tuple[str, 
             cached = _sector_agg_cache[pos_hash]
             return cached["sorted_secs"], cached["total_secs"], cached.get("pv")
 
+    # CRITICAL: Check for error BEFORE extracting portfolio value
+    if has_error(port):
+        raise ValueError(f"Portfolio data contains error: {port.get('_error')}")
+
     pv = safe_float(port.get("total_portfolio_value"), default=None)
     sd: dict[str, dict[str, Any]] = {}
     invalid_count = 0
@@ -181,6 +186,11 @@ def compute_sector_agg(pos: Any, port: dict[str, Any]) -> tuple[list[tuple[str, 
         if not isinstance(p, dict):
             invalid_count += 1
             logger.error(f"compute_sector_agg: invalid position (not a dict): {type(p).__name__}")
+            continue
+        # Fail-fast: Positions with error field should not be included in aggregation
+        if has_error(p):
+            invalid_count += 1
+            logger.error(f"compute_sector_agg: position has error field: {p.get('_error')}")
             continue
         # Sector is critical for aggregation; fail if missing instead of silently using "Unknown"
         sec = p.get("sector")

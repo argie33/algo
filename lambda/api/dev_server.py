@@ -81,7 +81,7 @@ def _load_db_credentials() -> dict[str, Any]:
             "password": password,
             "database": dbname,
         }
-    except (json.JSONDecodeError, ValueError) as e:
+    except Exception as e:
         error_msg = f"{type(e).__name__}: {str(e)[:200]}"
 
         # If local mode is enabled, fall back to localhost
@@ -102,28 +102,15 @@ def _load_db_credentials() -> dict[str, Any]:
                 "database": os.getenv("DB_NAME", "stocks"),
             }
 
-        # In production mode (LOCAL_MODE not set), this is a fatal error
-        print(
-            "[DEV_SERVER] FATAL: AWS Secrets Manager failed and LOCAL_MODE not enabled",
-            flush=True,
+        # In production mode, raise exception for Lambda handler to return 500 error
+        # Don't call sys.exit(1) — that's inappropriate for Lambda (terminates process)
+        error_detail = (
+            f"FATAL: AWS Secrets Manager failed. "
+            f"Error: {error_msg}. "
+            f"Ensure DB_SECRET_ARN is set and Secrets Manager secret exists in AWS account."
         )
-        print(f"[DEV_SERVER] Error: {error_msg}", flush=True)
-        print("[DEV_SERVER]", flush=True)
-        print("[DEV_SERVER] To fix:", flush=True)
-        print(
-            "[DEV_SERVER]   1. Set AWS credentials: aws configure or AWS_PROFILE=algo-developer",
-            flush=True,
-        )
-        print(
-            "[DEV_SERVER]   2. Ensure secret exists: algo/database in Secrets Manager",
-            flush=True,
-        )
-        print(
-            "[DEV_SERVER]   3. For local dev: set LOCAL_MODE=true to use localhost postgres",
-            flush=True,
-        )
-        print("[DEV_SERVER]", flush=True)
-        sys.exit(1)
+        print(f"[DEV_SERVER] {error_detail}", flush=True)
+        raise RuntimeError(error_detail) from e
 
 
 creds = _load_db_credentials()
@@ -264,12 +251,12 @@ class APIHandler(BaseHTTPRequestHandler):
                 try:
                     content_length = int(content_length_header)
                     body_raw = self.rfile.read(content_length) if content_length > 0 else b""
-                except ValueError:
+                except ValueError as e:
                     logger.error(
                         f"[DEV_SERVER CRITICAL] Invalid Content-Length header: {content_length_header}. "
                         f"Cannot read request body safely."
                     )
-                    raise ValueError(f"Invalid Content-Length header: {content_length_header}")
+                    raise ValueError(f"Invalid Content-Length header: {content_length_header}") from e
 
             try:
                 body = json.loads(body_raw.decode("utf-8")) if body_raw else None

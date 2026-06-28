@@ -379,7 +379,7 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
                 context,
             )
             continue
-        bar_f = int(min(pts / max_pts, 1.0) * 12) if max_pts > 0 and pts is not None else 0
+        bar_f = int(min(pts / max_pts, 1.0) * 12) if max_pts > 0 and pts is not None else 12
         fc = G if pts is not None and pts >= max_pts * 0.75 else (Y if pts is not None and pts >= max_pts * 0.35 else R)
         bar_s = Text.from_markup(f"[{fc}]{'█' * bar_f}[/][dim]{'░' * (12 - bar_f)}[/]  [{fc}]{pts:.0f}/{max_pts}[/]")
 
@@ -405,11 +405,14 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
             val_s = f"VIX {v:.1f}" if v is not None else "--"
         elif key == "new_highs_lows":
             nh_val = f.get("new_highs")
-            nh = int(nh_val) if nh_val is not None and isinstance(nh_val, (int, float)) else 0
             nl_val = f.get("new_lows")
-            nl = int(nl_val) if nl_val is not None and isinstance(nl_val, (int, float)) else 0
-            net = nh - nl
-            val_s = f"NH:{nh} NL:{nl} net:{net:+d}"
+            if nh_val is None or nl_val is None or not (isinstance(nh_val, (int, float)) and isinstance(nl_val, (int, float))):
+                val_s = "[red]✗ Missing new highs/lows data[/]"
+            else:
+                nh = int(nh_val)
+                nl = int(nl_val)
+                net = nh - nl
+                val_s = f"NH:{nh} NL:{nl} net:{net:+d}"
         elif key == "credit_spread":
             v = f.get("value")
             val_s = f"{v:.2f}% OAS" if v is not None else "--"
@@ -450,36 +453,36 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
         if isinstance(eco_raw, dict):
             eco = eco_raw
 
-    sr_pen = 0.0
-    eco_pen = 0.0
+    sr_pen = None
+    eco_pen = None
     if sr:
         sr_pts_raw = sr.get("pts")
         if sr_pts_raw is None:
-            logger.warning("sector_rotation factor missing 'pts' field")
+            logger.error("CRITICAL: sector_rotation factor missing 'pts' field — cannot calculate adjustment")
         else:
             try:
-                sr_pen_tmp = safe_float(sr_pts_raw, 0.0, strict=True, field_name="sector_rotation_pts")
-                sr_pen = sr_pen_tmp if sr_pen_tmp is not None else 0.0
+                sr_pen = safe_float(sr_pts_raw, strict=True, field_name="sector_rotation_pts")
             except StrictValidationError as e:
-                logger.warning(f"sector_rotation pts conversion failed: {e}")
+                logger.error(f"CRITICAL: sector_rotation pts conversion failed: {e}")
     if eco:
         eco_pts_raw = eco.get("pts")
         if eco_pts_raw is None:
-            logger.warning("economic_overlay factor missing 'pts' field")
+            logger.error("CRITICAL: economic_overlay factor missing 'pts' field — cannot calculate adjustment")
         else:
             try:
-                eco_pen_tmp = safe_float(eco_pts_raw, 0.0, strict=True, field_name="economic_overlay_pts")
-                eco_pen = eco_pen_tmp if eco_pen_tmp is not None else 0.0
+                eco_pen = safe_float(eco_pts_raw, strict=True, field_name="economic_overlay_pts")
             except StrictValidationError as e:
-                logger.warning(f"economic_overlay pts conversion failed: {e}")
-    if sr_pen != 0 or eco_pen != 0:
+                logger.error(f"CRITICAL: economic_overlay pts conversion failed: {e}")
+    if sr_pen is not None or eco_pen is not None:
         rows.append(Rule(style="dim"))
         rows.append(Text.from_markup("[dim bold]ADJUSTMENTS[/]"))
-        if sr_pen != 0 and sr:
+        if sr_pen is not None and sr:
             sig = (sr.get("signal", "")).replace("_", " ")
             sc = R if sr_pen < 0 else G
             rows.append(Text.from_markup(f"  [dim]Sector Rotation:[/] [{sc}]{sr_pen:+.0f} pts[/]  [dim]{sig}[/]"))
-        if eco_pen != 0 and eco:
+        elif sr:
+            rows.append(Text.from_markup("  [dim]Sector Rotation:[/] [red]✗ data unavailable[/]"))
+        if eco_pen is not None and eco:
             eco_err = (eco.get("error", ""))[:30]
             ec = R if eco_pen < 0 else G
             rows.append(
@@ -488,6 +491,8 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
                     + (f"  [dim]{eco_err}[/]" if eco_err else "")
                 )
             )
+        elif eco:
+            rows.append(Text.from_markup("  [dim]Economic Overlay:[/] [red]✗ data unavailable[/]"))
 
     return Panel(
         Group(*cast(list[ConsoleRenderable | RichCast | str], rows)),
