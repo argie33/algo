@@ -680,8 +680,8 @@ def _format_loader_status(loader: list[Any]) -> list[Text]:
     if len(valid_loader) == 0:
         rows.append(Text.from_markup("[dim]No loaders configured[/]"))
         return rows
-    problem_loader = [r for r in valid_loader if (r.get("status") or "") in LOADER_STATUS_ERROR]
-    running_loader = [r for r in valid_loader if (r.get("status") or "") == LOADER_STATUS_LOADING]
+    problem_loader = [r for r in valid_loader if r.get("status") in LOADER_STATUS_ERROR or r.get("status") is None]
+    running_loader = [r for r in valid_loader if r.get("status") == LOADER_STATUS_LOADING]
     ok_count = len(valid_loader) - len(problem_loader) - len(running_loader)
 
     if problem_loader:
@@ -1532,8 +1532,8 @@ def panel_status(  # noqa: C901
             rows.append(Rule(style="dim"))
             rows.append(Text.from_markup("[red]Loader data unavailable[/]"))
     if valid_loader is not None:
-        problem_loader = [r for r in valid_loader if (r.get("status") or "") in ("error", "failed", "stale")]
-        running_loader = [r for r in valid_loader if (r.get("status") or "") == "loading"]
+        problem_loader = [r for r in valid_loader if r.get("status") in ("error", "failed", "stale") or r.get("status") is None]
+        running_loader = [r for r in valid_loader if r.get("status") == "loading"]
         ok_count = len(valid_loader) - len(problem_loader) - len(running_loader)
     else:
         problem_loader = []

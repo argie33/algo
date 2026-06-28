@@ -685,9 +685,13 @@ class PriceLoader(OptimalLoader):
             )
 
         # Determine root cause for clearer diagnostics
-        last_error_lower = (last_error_msg or "").lower()
-        is_rate_limit = "429" in last_error_lower or "too many" in last_error_lower or "rate" in last_error_lower
-        root_cause = "yfinance rate limiting" if is_rate_limit else "yfinance API lag/unavailability"
+        if last_error_msg:
+            last_error_lower = last_error_msg.lower()
+            is_rate_limit = "429" in last_error_lower or "too many" in last_error_lower or "rate" in last_error_lower
+            root_cause = "yfinance rate limiting" if is_rate_limit else "yfinance API lag/unavailability"
+        else:
+            logger.warning(f"[{self._correlation_id}] last_error_msg is None - cannot determine root cause for market close timeout")
+            root_cause = "unknown error (no message provided)"
 
         error_msg = (
             f"Market close data NOT available after {elapsed:.0f}s ({elapsed / 60:.1f} min, {attempt} attempts). "

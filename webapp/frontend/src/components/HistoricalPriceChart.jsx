@@ -51,13 +51,18 @@ const HistoricalPriceChart = ({ symbol = "AAPL", days = 90 }) => {
           responseData = response?.data || [];
         }
 
-        const data = Array.isArray(responseData)
-          ? responseData
-          : Array.isArray(responseData?.items)
-            ? responseData.items
-            : Array.isArray(responseData?.data)
-              ? responseData.data
-              : [];
+        let data = [];
+        if (Array.isArray(responseData)) {
+          data = responseData;
+        } else if (Array.isArray(responseData?.items)) {
+          data = responseData.items;
+        } else if (Array.isArray(responseData?.data)) {
+          data = responseData.data;
+        }
+
+        if (!data || data.length === 0) {
+          console.warn("HistoricalPriceChart: No valid price data in response");
+        }
 
         // Transform and validate OHLCV data
         const transformed = data.map((row) => {
