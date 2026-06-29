@@ -1,9 +1,12 @@
 """Pydantic models for API request bodies - single source of truth for request validation."""
 
+import logging
 import re
 from typing import cast
 
 from pydantic import BaseModel, Field, field_validator
+
+logger = logging.getLogger(__name__)
 
 SYMBOL_PATTERN = r"^[A-Z0-9\-\^]{1,10}$"
 EMAIL_PATTERN = re.compile(
@@ -69,7 +72,7 @@ class ContactSubmissionRequest(BaseModel):
         """Validate phone number format.
 
         Returns:
-            str: Valid phone number if non-empty
+            str: Valid phone number if non-empty and matches pattern
             None: If phone is None or empty string (phone is optional field)
         """
         if v is not None and v.strip():
@@ -77,6 +80,7 @@ class ContactSubmissionRequest(BaseModel):
             if not re.match(r"^\+?[\d\s\-\(\)]{10,15}$", v):
                 raise ValueError("Phone number format invalid")
             return v
+        logger.debug("validate_phone: phone is None or empty (optional field not provided)")
         return None
 
     @field_validator("name", "message", "subject")
@@ -241,11 +245,18 @@ class PositionUpdateRequest(BaseModel):
     @field_validator("position_type")
     @classmethod
     def validate_position_type(cls, v: str | None) -> str | None:
+        """Validate position type field.
+
+        Returns:
+            str: Lowercase position type ("buy", "sell", "long", "short")
+            None: If position_type is None (optional field not provided)
+        """
         if v is not None:
             v_lower = v.lower()
             if v_lower not in ("buy", "sell", "long", "short"):
                 raise ValueError('Position type must be "buy", "sell", "long", or "short"')
             return v_lower
+        logger.debug("validate_position_type: position_type is None (optional field not provided)")
         return None
 
     def validate_stop_loss_vs_entry(self) -> None:

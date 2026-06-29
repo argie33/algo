@@ -76,12 +76,18 @@ class LoaderConfigManager:
 
     @classmethod
     def _get_cache(cls, loader_name: str) -> dict[str, Any] | None:
-        """Get cached configuration (thread-safe)."""
+        """Get cached configuration (thread-safe).
+
+        Returns:
+            dict: cached config if available and fresh
+            None: if cache expired or loader_name not in cache (cache miss expected)
+        """
         with cls._cache_lock:
             now = time.time()
             if now - cls._cache_timestamp > cls._cache_ttl_seconds:
                 cls._cache.clear()
                 cls._cache_timestamp = now
+                logger.debug(f"[CONFIG_LOADER] Cache expired, returning None for {loader_name}")
                 return None
             return cls._cache.get(loader_name)
 
@@ -96,7 +102,8 @@ class LoaderConfigManager:
         """Get current RDS active connection count from CloudWatch metrics (cached).
 
         Returns:
-            Current active connections or None if unavailable.
+            int: Current active connections count from CloudWatch
+            None: if CloudWatch metrics unavailable (no datapoints, or cache miss but metrics unavailable)
         """
         now = time.time()
         if self._rds_connection_cache is not None and (now - self._rds_connection_cache_time) < self._rds_cache_ttl:
@@ -123,6 +130,7 @@ class LoaderConfigManager:
                 self._rds_connection_cache = int(latest["Average"])
                 self._rds_connection_cache_time = now
                 return self._rds_connection_cache
+            logger.debug("[CONFIG_LOADER] No CloudWatch datapoints available for RDS connection count")
             return None
         except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
@@ -222,7 +230,12 @@ class LoaderConfigManager:
             return False
 
     def _get_from_dynamodb(self, loader_name: str) -> dict[str, Any] | None:
-        """Fetch configuration from DynamoDB."""
+        """Fetch configuration from DynamoDB.
+
+        Returns:
+            dict: configuration item from DynamoDB if found
+            None: if loader_name not found in DynamoDB (config not available, use defaults)
+        """
         try:
             import boto3
 
@@ -256,6 +269,7 @@ class LoaderConfigManager:
                     }
                 except (KeyError, ValueError, TypeError) as e:
                     raise RuntimeError(f"[CONFIG_LOADER] CRITICAL: Failed to parse DynamoDB config: {e}") from e
+            logger.debug(f"[CONFIG_LOADER] No DynamoDB config found for {loader_name}, using defaults")
             return None
         except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e

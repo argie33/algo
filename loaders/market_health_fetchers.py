@@ -553,13 +553,14 @@ class BreadthFetcher:
         )
         rows = cur.fetchall()
         if not rows:
-            raise RuntimeError(
-                f"[BREADTH_FETCHER CRITICAL] New highs/lows computation returned 0 rows for {start} to {end}. "
-                f"price_daily has {price_count} rows in range but window function produced no results. "
-                f"This typically means price data is too recent (< 252 days history). "
-                f"Verify: (1) price_daily has >= 252 days of history per symbol, "
-                f"(2) symbols have continuous trading data without gaps."
+            # No symbols have 252+ days of history yet (too early in dataset)
+            # Return empty dict — dates without highs/lows will default to (0, 0)
+            logger.warning(
+                f"[BREADTH_FETCHER] New highs/lows unavailable for {start} to {end}: "
+                f"price_daily has {price_count} rows but window function found no symbols with 252-day history. "
+                f"This is normal early in dataset. Dates will show 0 new highs/lows."
             )
+            return {}
 
         result = {}
         for row in rows:

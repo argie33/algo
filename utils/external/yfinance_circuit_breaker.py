@@ -180,7 +180,8 @@ class YFinanceIPCircuitBreaker:
         """Get current ban state from PostgreSQL.
 
         Returns:
-            Dict with ban state or None if not set.
+            dict: ban state with is_banned, failure_count, ban_until, etc.
+            None: if no ban state record exists yet (initial state, not banned)
 
         CRITICAL: All fields must be non-None when row exists. Missing fields
         indicate corrupted state which must be detected and raised, not silently
@@ -195,6 +196,7 @@ class YFinanceIPCircuitBreaker:
                 )
                 row = cur.fetchone()
                 if row is None:
+                    logger.debug("[YFINANCE_CIRCUIT_BREAKER] No ban state record found (initial state, not banned)")
                     return None
 
                 # Validate critical fields that must always exist
