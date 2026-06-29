@@ -337,6 +337,64 @@ Comprehensive audit found 13 major anti-patterns where missing critical financia
 
 ---
 
+## Comprehensive Fallback Data Audit Results (June 29, 2026)
+
+**Total Codebase Scan**: 150+ files across all major areas  
+**Issues Found**: 5 major anti-patterns  
+**Remediation Status**: 2 CRITICAL fixed ✅, 2 in progress 🔄, 1 conditional ⚠️
+
+### CRITICAL Issues - Dashboard (4)
+
+**Issue #1: Empty Dict Masking Missing Data** ✅ FIXED
+- `dashboard/panels/exposure.py:98` — `.get("factors", {})` silently defaults to empty dict
+- **Impact**: Exposure panel renders with no factor breakdown when data missing
+- **Fix**: Explicit None check with error return (Commit 3aabc05da)
+
+**Issue #2: Enrichment Silently Lost** ✅ FIXED
+- `dashboard/panels/positions.py:218` — `.get("company_name", "")` silently defaults
+- **Impact**: Position names show blank with no indication enrichment failed
+- **Fix**: Explicit None check with `[dim]?[/dim]` UI indicator (Commit 3aabc05da)
+
+**Issue #3: Multiple Silent Field Defaults** 🔄 IN PROGRESS
+- `dashboard/panels/exposure.py` (8 lines: 157, 261, 264, 328, 469, 480, 533, 540)
+- Pattern: `.get("field", "")` converts missing data to blank rendering
+- **Mitigation**: Add validation wrapper for factor rendering pipeline
+
+**Issue #4: Placeholder Values** 🔄 IN PROGRESS
+- 10+ locations using hardcoded "N/A", "Unknown" instead of `data_unavailable` markers
+- **Mitigation**: Replace with explicit data unavailability indicators
+
+### HIGH Issues - Loaders (1)
+
+**Issue: Partial Metrics Allowed** ⚠️ CONDITIONAL
+- `loaders/load_stock_scores.py:167` — Allows computing scores from 1 metric (instead of 6+)
+- **Status**: Conditional violation (mitigated by `data_completeness: 0-100%` field)
+- **Decision Needed**: Increase min_required_metrics OR add downstream filtering
+
+### CLEAN Areas
+
+✅ **algo/** — No fallback issues, fail-fast governance compliant  
+✅ **lambda/api/** — All handlers properly validated, no synthetic data  
+✅ **signals/** — Strong hard-fail gates, explicit data_unavailable markers
+
+### Prevention Going Forward
+
+**Forbidden Patterns**:
+```python
+value = data.get("field", "")    # ❌ Silent empty string
+value = data.get("field", {})    # ❌ Silent empty dict
+```
+
+**Required Pattern**:
+```python
+value = data.get("field")
+if value is None:
+    logger.warning(f"[CONTEXT] field missing")
+    return {"data_unavailable": True, "reason": "field_name missing"}
+```
+
+---
+
 ## For Detailed Reference
 
 See:
