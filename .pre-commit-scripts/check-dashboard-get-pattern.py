@@ -35,7 +35,7 @@ def check_get_patterns_with_defaults(filepath: str) -> list[str]:
         return violations
 
     try:
-        with open(filepath) as f:
+        with open(filepath, encoding="utf-8", errors="ignore") as f:
             lines = f.readlines()
     except Exception as e:
         return [f"Could not read file: {e}"]
@@ -69,7 +69,7 @@ def check_dashboard_patterns(filepath: str) -> list[str]:
         return violations
 
     try:
-        with open(filepath) as f:
+        with open(filepath, encoding="utf-8", errors="ignore") as f:
             lines = f.readlines()
     except Exception as e:
         return [f"Could not read file: {e}"]
