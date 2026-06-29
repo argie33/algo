@@ -1,7 +1,7 @@
 name: Trigger Data Loader
 
-# Manually trigger any ECS data loader by name.
-# Useful when a scheduled loader fails and needs a manual retry.
+# Manually trigger any ECS data loader by name via Lambda.
+# Lambda applies correct environment overrides (LOADER_CHUNK_SIZE=100, LOADER_TIMEOUT_SEC=600)
 
 on:
   workflow_dispatch:
@@ -18,8 +18,6 @@ on:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-  # Force workflow re-fetch from main (fixes caching issue)
-  CACHE_BUST: "v2"
 
 jobs:
   trigger-loader:
@@ -38,64 +36,47 @@ jobs:
           role-to-assume: ${{ secrets.GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/{1}', secrets.AWS_ACCOUNT_ID, secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev') }}
           aws-region: us-east-1
 
-      - name: Invoke Lambda trigger (applies environment overrides)
+      - name: Invoke algo-trigger-loaders Lambda (applies LOADER_CHUNK_SIZE=100, LOADER_TIMEOUT_SEC=600)
         id: lambda
         run: |
-          # Invoke Lambda with loader name
+          # Invoke Lambda which applies correct environment overrides
           aws lambda invoke \
             --function-name algo-trigger-loaders \
             --region us-east-1 \
             --payload "{\"loader_name\": \"${{ inputs.loader_name }}\"}" \
-            /tmp/lambda_response.json
+            /tmp/response.json
 
-          # Parse Lambda response using Python for reliability
-          python3 << 'EOF'
-          import json
-          import sys
-
-          try:
-              with open('/tmp/lambda_response.json') as f:
-                  response = json.load(f)
-
-              # Handle both direct response and wrapped response
-              if isinstance(response, dict) and 'body' in response:
-                  body = response['body']
-                  if isinstance(body, str):
-                      body = json.loads(body)
-              else:
-                  body = response
-
-              tasks = body.get('tasks', [])
-              if not tasks:
-                  print("ERROR: No task ARN returned from Lambda")
-                  print(f"Response: {json.dumps(response, indent=2)}")
-                  sys.exit(1)
-
-              task_arn = tasks[0]
-              with open('/tmp/task_arn.txt', 'w') as f:
-                  f.write(task_arn)
-
-              print(f"✅ Lambda triggered loader: {task_arn}")
-              print("   Environment: LOADER_CHUNK_SIZE=100, LOADER_TIMEOUT_SEC=600")
-          except Exception as e:
-              print(f"ERROR: Failed to parse Lambda response: {e}")
-              print("Response content:")
-              with open('/tmp/lambda_response.json') as f:
-                  print(f.read())
+          # Extract task ARN from Lambda response
+          python3 << 'PYEOF'
+          import json, sys
+          with open('/tmp/response.json') as f:
+              resp = json.load(f)
+          # Handle wrapped response
+          body = resp.get('body', resp)
+          if isinstance(body, str):
+              body = json.loads(body)
+          tasks = body.get('tasks', [])
+          if not tasks:
+              print("ERROR: Lambda did not return task ARN")
+              print(json.dumps(resp, indent=2))
               sys.exit(1)
-          EOF
+          print(f"Lambda launched: {tasks[0]}")
+          with open('/tmp/arn.txt', 'w') as f:
+              f.write(tasks[0])
+          PYEOF
 
-          TASK_ARN=$(cat /tmp/task_arn.txt)
+          TASK_ARN=$(cat /tmp/arn.txt)
           echo "task_arn=$TASK_ARN" >> $GITHUB_OUTPUT
 
       - name: Wait for completion
         if: inputs.wait_for_completion
         timeout-minutes: 120
         run: |
-          echo "Waiting for ${{ inputs.loader_name }} to finish (up to 2h)..."
           TASK_ARN="${{ steps.lambda.outputs.task_arn }}"
-          MAX_WAIT=7200
+          echo "Waiting for completion: $TASK_ARN"
+
           ELAPSED=0
+          MAX_WAIT=7200
           while [ $ELAPSED -lt $MAX_WAIT ]; do
             STATUS=$(aws ecs describe-tasks \
               --cluster algo-cluster \
@@ -115,5 +96,11 @@ jobs:
             --tasks "$TASK_ARN" \
             --region us-east-1 \
             --query "tasks[0].containers[0].exitCode" --output text)
-          echo "Exit code: $EXIT_CODE"
-          [ "$EXIT_CODE" = "0" ] && echo "${{ inputs.loader_name }} succeeded!" || { echo "${{ inputs.loader_name }} failed with exit code $EXIT_CODE"; exit 1; }
+
+          echo "Task exit code: $EXIT_CODE"
+          if [ "$EXIT_CODE" = "0" ]; then
+            echo "SUCCESS: ${{ inputs.loader_name }}"
+          else
+            echo "FAILED: ${{ inputs.loader_name }} (exit code $EXIT_CODE)"
+            exit 1
+          fi
