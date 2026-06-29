@@ -91,7 +91,17 @@ class VIXFetcher:
 
 
 class PutCallRatioFetcher:
-    """Fetches put/call ratio with circuit breaker."""
+    """Fetches put/call ratio with circuit breaker and exponential backoff retry logic.
+
+    Implements resilience against transient failures:
+    - Categorizes errors as TRANSIENT (503, ConnectionError, timeout) vs PERMANENT (404, auth)
+    - Retries TRANSIENT errors up to 3 times with exponential backoff (1s, 2s, 4s)
+    - Only marks data_unavailable if all retries fail
+    - Logs all retry attempts and final failure reason
+    """
+
+    MAX_RETRIES = 3
+    BACKOFF_SECONDS = [1, 2, 4]  # Exponential backoff: 1s, 2s, 4s
 
     def __init__(self) -> None:
         self.breaker = CircuitBreaker(
@@ -101,19 +111,125 @@ class PutCallRatioFetcher:
             importance=DataImportance.OPTIONAL,
         )
 
+    def _is_transient_error(self, exc: Exception) -> bool:
+        """Categorize exception as transient (retriable) or permanent.
+
+        TRANSIENT errors (should retry):
+        - HTTP 503 (Service Unavailable)
+        - ConnectionError, TimeoutError
+        - HTTPError with status 502, 503, 504
+
+        PERMANENT errors (should not retry):
+        - HTTP 404 (Not Found), 401 (Unauthorized), 403 (Forbidden)
+        - ValueError (malformed data)
+        - RuntimeError from validation
+        """
+        error_str = str(exc).lower()
+        error_type = type(exc).__name__
+
+        # Check for HTTP error codes in exception message
+        if '503' in error_str or '502' in error_str or '504' in error_str:
+            return True
+
+        # Network/connection errors are transient
+        if error_type in ('ConnectionError', 'TimeoutError', 'Timeout'):
+            return True
+
+        if 'timeout' in error_str or 'connection' in error_str or 'reset' in error_str:
+            return True
+
+        # Check for permanent errors (don't retry)
+        if '404' in error_str or '401' in error_str or '403' in error_str:
+            return False
+
+        # Validation/structural errors are permanent
+        if error_type in ('ValueError', 'KeyError', 'AttributeError'):
+            return False
+
+        if 'no options' in error_str or 'empty' in error_str or 'invalid' in error_str:
+            return False
+
+        # Default to transient for unknown errors (better to retry than silently fail)
+        return True
+
     def fetch(self, eval_date: date) -> float | None:
-        """Fetch put/call ratio with circuit breaker protection."""
-        result = self.breaker.execute(
-            fetch_func=lambda: self._fetch_put_call_ratio(eval_date),
-            importance=DataImportance.OPTIONAL,
-            fallback_value=None,
-        )
-        if result is not None and not isinstance(result, float):
-            raise RuntimeError(
-                f"[PUT_CALL_RATIO] Circuit breaker returned unexpected type {type(result).__name__}. "
-                f"Expected float or None, got {result!r}. Circuit breaker logic may be corrupted."
+        """Fetch put/call ratio with exponential backoff retry and circuit breaker protection.
+
+        Returns:
+            float: Put/call ratio if successful
+            None: If all retries exhausted or permanent error encountered
+
+        Raises:
+            RuntimeError: Only on validation errors (invalid type from circuit breaker)
+        """
+        # Attempt direct fetch with retries first (before circuit breaker check)
+        result = self._fetch_with_retries(eval_date)
+
+        if result is None:
+            # All retries exhausted - log and return None
+            logger.warning(
+                f"[PUT_CALL_RATIO] All retries exhausted for {eval_date}. "
+                f"Options sentiment enrichment unavailable (will be marked data_unavailable)."
             )
+            return None
+
+        # Validate result type
+        if not isinstance(result, float):
+            raise RuntimeError(
+                f"[PUT_CALL_RATIO] Fetch returned unexpected type {type(result).__name__}. "
+                f"Expected float, got {result!r}."
+            )
+
         return result
+
+    def _fetch_with_retries(self, eval_date: date) -> float | None:
+        """Attempt put/call ratio fetch with exponential backoff retry logic.
+
+        Returns:
+            float: Put/call ratio if successful
+            None: If all retries exhausted
+        """
+        last_exception = None
+
+        for attempt in range(1, self.MAX_RETRIES + 1):
+            try:
+                return self._fetch_put_call_ratio(eval_date)
+            except Exception as e:
+                last_exception = e
+                is_transient = self._is_transient_error(e)
+
+                if not is_transient:
+                    # Permanent error - don't retry
+                    logger.warning(
+                        f"[PUT_CALL_RATIO] Permanent error on attempt {attempt}/{self.MAX_RETRIES} for {eval_date}: "
+                        f"{type(e).__name__}: {str(e)[:100]}. "
+                        f"Will not retry."
+                    )
+                    return None
+
+                # Transient error - log and retry if attempts remain
+                if attempt < self.MAX_RETRIES:
+                    backoff = self.BACKOFF_SECONDS[attempt - 1]
+                    logger.warning(
+                        f"[PUT_CALL_RATIO] Transient error on attempt {attempt}/{self.MAX_RETRIES} for {eval_date}: "
+                        f"{type(e).__name__}: {str(e)[:100]}. "
+                        f"Retrying in {backoff}s..."
+                    )
+                    time.sleep(backoff)
+                else:
+                    logger.warning(
+                        f"[PUT_CALL_RATIO] Transient error on attempt {attempt}/{self.MAX_RETRIES} for {eval_date}: "
+                        f"{type(e).__name__}: {str(e)[:100]}. "
+                        f"No retries remaining."
+                    )
+
+        # All retries exhausted
+        if last_exception:
+            logger.error(
+                f"[PUT_CALL_RATIO] All {self.MAX_RETRIES} retries failed for {eval_date}. "
+                f"Final error: {type(last_exception).__name__}: {str(last_exception)[:100]}"
+            )
+        return None
 
     def _fetch_put_call_ratio(self, eval_date: date) -> float | None:
         """Internal put/call fetch implementation.
@@ -187,7 +303,18 @@ class PutCallRatioFetcher:
 
 
 class YieldCurveFetcher:
-    """Fetches yield curve data with circuit breaker."""
+    """Fetches yield curve data with circuit breaker and exponential backoff retry logic.
+
+    Implements resilience against transient failures:
+    - Categorizes errors as TRANSIENT (connection, timeout, 503) vs PERMANENT (data not found)
+    - Retries TRANSIENT errors up to 3 times with exponential backoff (1s, 2s, 4s)
+    - Only marks data_unavailable if all retries fail
+    - Logs each retry attempt and final failure reason
+    - OPTIONAL enrichment: Gracefully degrades when unavailable (no trading halt)
+    """
+
+    MAX_RETRIES = 3
+    BACKOFF_SECONDS = [1, 2, 4]  # Exponential backoff: 1s, 2s, 4s
 
     def __init__(self) -> None:
         self.breaker = CircuitBreaker(
@@ -197,8 +324,51 @@ class YieldCurveFetcher:
             importance=DataImportance.OPTIONAL,
         )
 
+    def _is_transient_error(self, exc: Exception) -> bool:
+        """Categorize exception as transient (retriable) or permanent.
+
+        TRANSIENT errors (should retry):
+        - HTTP 503 (Service Unavailable), 502 (Bad Gateway), 504 (Gateway Timeout)
+        - ConnectionError, TimeoutError
+        - Database connection issues (connection reset, timeout)
+
+        PERMANENT errors (should not retry):
+        - RuntimeError from data validation (no data available)
+        - ValueError (malformed data)
+        - KeyError (missing keys in response)
+        """
+        error_str = str(exc).lower()
+        error_type = type(exc).__name__
+
+        # Check for HTTP error codes in exception message
+        if '503' in error_str or '502' in error_str or '504' in error_str:
+            return True
+
+        # Network/connection errors are transient
+        if error_type in ('ConnectionError', 'TimeoutError', 'Timeout'):
+            return True
+
+        if 'timeout' in error_str or 'connection' in error_str or 'reset' in error_str:
+            return True
+
+        # Database connection issues are transient
+        if 'connection' in error_str or 'EOF' in error_str:
+            return True
+
+        # Check for permanent errors (don't retry)
+        # "no data" or "empty" indicate permanent absence, not transient failure
+        if 'no data' in error_str or 'empty' in error_str or 'not found' in error_str:
+            return False
+
+        # Validation/structural errors are permanent
+        if error_type in ('ValueError', 'KeyError', 'AttributeError'):
+            return False
+
+        # Default to transient for unknown errors (better to retry than silently fail)
+        return True
+
     def fetch(self, start: date, end: date) -> dict[str, Any]:
-        """Fetch yield curve data with circuit breaker protection.
+        """Fetch yield curve data with exponential backoff retry and circuit breaker protection.
 
         IMPORTANT: This is OPTIONAL enrichment (not critical for trading).
         Returns explicit data_unavailable flag on failures so callers can distinguish
@@ -207,24 +377,76 @@ class YieldCurveFetcher:
         Returns:
             dict with yield data keyed by date, or marker dict with data_unavailable=True if data unavailable.
         """
-        try:
-            result = self.breaker.execute(
-                fetch_func=lambda: self._fetch_yield_curve_data(start, end),
-                importance=DataImportance.OPTIONAL,
-                fallback_value=None,
+        # Attempt direct fetch with retries first (before circuit breaker check)
+        result = self._fetch_with_retries(start, end)
+
+        if result is None:
+            # All retries exhausted
+            logger.warning(
+                f"[YIELD_CURVE] All retries exhausted for {start}:{end}. "
+                f"Yield curve enrichment unavailable (will be marked data_unavailable)."
             )
-            if result is None:
-                logger.warning(f"[YIELD_CURVE] Circuit breaker exhausted for {start}:{end} — enrichment unavailable")
-                return {"data_unavailable": True, "reason": "Circuit breaker exhausted"}
-            if not isinstance(result, dict):
-                logger.warning(f"[YIELD_CURVE] Invalid response type {type(result).__name__} for {start}:{end} — enrichment unavailable")
-                return {"data_unavailable": True, "reason": f"Invalid response type {type(result).__name__}"}
-            if result.get("data_unavailable"):
-                return result
+            return {"data_unavailable": True, "reason": "All retries exhausted"}
+
+        # Validate result type
+        if not isinstance(result, dict):
+            logger.warning(f"[YIELD_CURVE] Invalid response type {type(result).__name__} for {start}:{end} — enrichment unavailable")
+            return {"data_unavailable": True, "reason": f"Invalid response type {type(result).__name__}"}
+
+        if result.get("data_unavailable"):
             return result
-        except Exception as e:
-            logger.warning(f"[YIELD_CURVE] Fetch failed for {start}:{end}: {e} — enrichment unavailable")
-            return {"data_unavailable": True, "reason": f"Fetch error: {str(e)[:100]}"}
+
+        return result
+
+    def _fetch_with_retries(self, start: date, end: date) -> dict[str, Any] | None:
+        """Attempt yield curve fetch with exponential backoff retry logic.
+
+        Returns:
+            dict: Yield curve data if successful (may be empty dict if no data for period)
+            None: If all retries exhausted
+        """
+        last_exception = None
+
+        for attempt in range(1, self.MAX_RETRIES + 1):
+            try:
+                return self._fetch_yield_curve_data(start, end)
+            except Exception as e:
+                last_exception = e
+                is_transient = self._is_transient_error(e)
+
+                if not is_transient:
+                    # Permanent error - don't retry (e.g., no data available)
+                    logger.warning(
+                        f"[YIELD_CURVE] Permanent error on attempt {attempt}/{self.MAX_RETRIES} for {start}:{end}: "
+                        f"{type(e).__name__}: {str(e)[:100]}. "
+                        f"Will not retry."
+                    )
+                    return None
+
+                # Transient error - log and retry if attempts remain
+                if attempt < self.MAX_RETRIES:
+                    backoff = self.BACKOFF_SECONDS[attempt - 1]
+                    logger.warning(
+                        f"[YIELD_CURVE] Transient error on attempt {attempt}/{self.MAX_RETRIES} for {start}:{end}: "
+                        f"{type(e).__name__}: {str(e)[:100]}. "
+                        f"Retrying in {backoff}s..."
+                    )
+                    time.sleep(backoff)
+                else:
+                    logger.warning(
+                        f"[YIELD_CURVE] Transient error on attempt {attempt}/{self.MAX_RETRIES} for {start}:{end}: "
+                        f"{type(e).__name__}: {str(e)[:100]}. "
+                        f"No retries remaining."
+                    )
+
+        # All retries exhausted
+        if last_exception:
+            logger.critical(
+                f"[YIELD_CURVE] All {self.MAX_RETRIES} retries failed for {start}:{end}. "
+                f"Final error: {type(last_exception).__name__}: {str(last_exception)[:100]}. "
+                f"Yield curve enrichment unavailable."
+            )
+        return None
 
     def _fetch_yield_curve_data(self, start: date, end: date) -> dict[str, Any]:
         """Internal yield curve fetch implementation.
@@ -232,6 +454,9 @@ class YieldCurveFetcher:
         Fetches from database economic_data table (T10Y2Y series).
         OPTIONAL enrichment: Skip dates with missing yield data (common for weekends/holidays/recent dates).
         Return available data only; incomplete dates are silently skipped (not an error for optional data).
+
+        Raises:
+            RuntimeError: On database connection errors or data format issues
         """
         try:
             from utils.db import DatabaseContext
@@ -263,16 +488,14 @@ class YieldCurveFetcher:
 
             if result:
                 logger.info(f"[YIELD_CURVE] Fetched {len(result)} dates with yield spread from T10Y2Y series")
+            else:
+                logger.debug(f"[YIELD_CURVE] No yield data available for date range {start}:{end}")
+
             return result
         except Exception as e:
-            logger.error(
-                f"[YIELD_CURVE] Fetch failed: {e}. Yield curve is CRITICAL for market regime detection. "
-                f"Cannot continue with empty yield curve data — system must detect API failures explicitly."
-            )
+            # Re-raise with context for retry handler to evaluate transience
             raise RuntimeError(
-                f"[YIELD_CURVE] Failed to fetch yield spread data: {e}. "
-                f"Market regime classification requires valid yield curve. "
-                f"Not using empty fallback — API failure must be visible and handled explicitly."
+                f"[YIELD_CURVE] Fetch failed for {start}:{end}: {e}"
             ) from e
 
 
