@@ -1,7 +1,6 @@
 """Route: contact"""
 
 import logging
-import os
 import re
 from datetime import datetime, timezone
 from time import time
@@ -163,7 +162,7 @@ def handle(
         if path == "/api/contact/submissions":
             if not jwt_claims or not jwt_claims.get("sub"):
                 return error_response(401, "unauthorized", "Authentication required")
-            if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(jwt_claims):
+            if not _check_admin_access(jwt_claims):
                 logger.warning(f"Unauthorized contact submissions access attempt by {jwt_claims.get('sub')}")
                 return error_response(403, "forbidden", "Admin access required")
             if method == "GET":

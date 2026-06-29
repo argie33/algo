@@ -51,9 +51,6 @@ class ParallelismValidator:
         try:
             from loaders.load_prices import PriceLoader
 
-            # Test with 500 symbols (smaller subset for validation)
-            test_symbols = [f"TEST{i}" for i in range(500)]
-
             loader = PriceLoader(interval="1d", asset_class="stock")
 
             issues = []
@@ -84,7 +81,6 @@ class ParallelismValidator:
 
             return {
                 "test_passed": len(issues) == 0,
-                "symbols_tested": len(test_symbols),
                 "batch_size": loader.batch_size,
                 "rate_limit_tokens": getattr(loader, "_rate_limit_tokens", None),
                 "rate_limit_threshold_sec": timeout,

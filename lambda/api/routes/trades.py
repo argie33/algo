@@ -3,7 +3,6 @@
 import hashlib
 import json as _json
 import logging
-import os
 import uuid
 from datetime import date
 from typing import Any
@@ -107,14 +106,14 @@ def handle(
     """Handle /api/trades and /api/trades/* endpoints."""
     try:
         if path == "/api/trades/manual" and method == "POST":
-            if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(jwt_claims):
+            if not _check_admin_access(jwt_claims):
                 raise_api_error(403, "forbidden", "Admin access required")
             if not body:
                 raise_api_error(400, "bad_request", "Request body is required")
             idempotency_key = headers.get("idempotency-key") if headers else None
             return _create_manual_trade(cur, body, idempotency_key)
         if path == "/api/trades":
-            if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(jwt_claims):
+            if not _check_admin_access(jwt_claims):
                 raise_api_error(403, "forbidden", "Admin access required")
             limit = safe_limit(extract_param(params, "limit"), max_val=5000, default=500)
             offset = safe_offset(extract_param(params, "offset") or "0")
@@ -174,7 +173,7 @@ def handle(
                 return error_response(500, "response_validation_error", error_msg or "Trades validation failed")
             return trades_result
         elif path == "/api/trades/summary":
-            if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(jwt_claims):
+            if not _check_admin_access(jwt_claims):
                 raise_api_error(403, "forbidden", "Admin access required")
             cur.execute("SET LOCAL statement_timeout = '4000ms'")
             cur.execute("""

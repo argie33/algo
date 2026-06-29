@@ -565,19 +565,17 @@ def _get_cognito_jwks() -> dict[str, Any] | None:
             _JWKS_CACHE_TIME = now
             return _JWKS_CACHE
         except (requests.RequestException, requests.Timeout) as e:
-            # When Lambda has no NAT / VPC endpoint for Cognito, fall back to the
-            # hardcoded JWKS captured at deploy time. JWT signatures are still verified
-            # cryptographically; the only risk is using stale keys after a pool rotation.
-            logger.warning(
-                "Cognito JWKS fetch failed (%s); using hardcoded fallback keys. "
-                "Re-enable NAT Gateway or add cognito-idp VPC endpoint to restore live JWKS.",
+            logger.critical(
+                "Cognito JWKS fetch failed (%s). "
+                "Cannot authenticate users without live JWKS from Cognito. "
+                "Enable NAT Gateway or add cognito-idp VPC endpoint to restore JWKS access. "
+                "Failing fast to prevent authentication with potentially stale or invalid keys.",
                 e,
             )
-            if _COGNITO_JWKS_FALLBACK:
-                _JWKS_CACHE = _COGNITO_JWKS_FALLBACK
-                _JWKS_CACHE_TIME = now
-                return _JWKS_CACHE
-            raise RuntimeError(f"Cognito JWKS unavailable and no fallback configured: {e}") from e
+            raise RuntimeError(
+                f"Cognito JWKS unavailable - authentication cannot proceed: {e}. "
+                "Ensure NAT Gateway or VPC endpoint is configured for cognito-idp.us-east-1.amazonaws.com."
+            ) from e
 
 
 def validate_bearer_token(token: str | None) -> tuple:

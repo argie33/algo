@@ -11,7 +11,6 @@ Endpoints:
 
 import json
 import logging
-import os
 from datetime import datetime, timezone
 from typing import Any
 
@@ -45,7 +44,7 @@ def handle(
     jwt_claims: dict[str, Any] | None = None,
 ) -> Any:
     """Route risk dashboard endpoints."""
-    if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(jwt_claims):
+    if not _check_admin_access(jwt_claims):
         return error_response(403, "forbidden", "Admin access required")
     if path == "/api/algo/risk-dashboard":
         return _get_comprehensive_risk_dashboard(cur)
