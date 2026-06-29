@@ -10,7 +10,6 @@ Validates:
 import re
 import sys
 
-
 CRITICAL_FIELDS = {
     "data_unavailable",  # Must check with explicit default or explicit check
     "close",

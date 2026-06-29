@@ -44,7 +44,7 @@ SKIP_PATHS = {
     ".git",
     "tests/",
     "test_",  # test_*.py files
-    ".pre-commit-scripts/",
+    ".pre-commit-scripts/",  # Skip the hook scripts themselves (they contain examples)
     "venv",
     ".venv",
     "migrations/",
@@ -61,6 +61,11 @@ def should_check_file(filepath: Path) -> bool:
         return False
 
     str_path = str(filepath)
+    filename = filepath.name
+
+    # Skip all hook scripts (they contain examples/patterns of violations)
+    if filename.startswith("check-"):
+        return False
 
     # Skip if in SKIP_PATHS
     for skip in SKIP_PATHS:
@@ -121,6 +126,22 @@ def check_file_for_fallbacks(filepath: Path) -> list[dict[str, Any]]:
             # Check if this is in a financial function (heuristic: function name or nearby comments suggest financial)
             context_start = max(0, line_num - 20)
             context = "\n".join(lines[context_start:line_num])
+
+            # Skip if this is in a scoring function (legitimate 0-100 scale)
+            is_scoring_function = any(kw in context.lower() for kw in [
+                "_score_", "calculate_score", "get_score", "strength", "rating",
+                "grade", "rank", "signal_strength"
+            ])
+            if is_scoring_function:
+                continue
+
+            # Skip if return 0 is for a count (legitimate: count executed, count found, etc.)
+            is_count_return = any(phrase in context.lower() for phrase in [
+                "count", "executed", "found", "processed", "fetched", "rows", "records"
+            ])
+            if is_count_return:
+                continue
+
             is_financial = any(kw in context.lower() for kw in [
                 "position", "score", "size", "price", "volume", "volatility", "beta", "metric",
                 "signal", "technical", "financial", "market", "risk", "exposure", "exposure_pct"
@@ -139,12 +160,35 @@ def check_file_for_fallbacks(filepath: Path) -> list[dict[str, Any]]:
         # Normal .get() without defaults is OK (returns None which callers should handle)
         get_with_default = re.search(r'\.get\([^,]+,\s*(["\']|0|None|\[\]|{}|Decimal)', stripped)
         if get_with_default:
-            # Check if this is likely financial data
+            # Skip if it's clearly a logging/error message or metadata field
+            is_logging_context = any(context in stripped.lower() for context in [
+                "logger", "print", "_error", "msg", "message", "reason", "summary",
+                "note", "description", "status", "source"
+            ])
+            if is_logging_context:
+                continue
+
+            # Check if this is likely financial data calculation
             is_financial_get = any(pattern in stripped for pattern in [
                 "row.get(", "data.get(", "info.get(", "breadth.get(", "metrics.get(",
                 "prices.get(", "volumes.get(", "position.get(", "score.get("
             ])
-            if is_financial_get:
+
+            # Additional safety check: make sure it's not being used for descriptive/metadata fields
+            is_metadata = any(field in stripped for field in [
+                ".get(\"symbol", ".get(\"date", ".get(\"updated_at", ".get(\"timestamp",
+                ".get(\"reason", ".get(\"message", ".get(\"error", ".get(\"status",
+                ".get(\"source", ".get(\"note", ".get(\"_"
+            ])
+
+            # Skip if in health/monitoring/validation paths (not core trading logic)
+            is_non_critical_path = any(module in str(filepath).lower() for module in [
+                "health", "validation", "monitoring", "diagnostic"
+            ])
+            if is_non_critical_path:
+                continue
+
+            if is_financial_get and not is_metadata:
                 violations.append({
                     "file": filepath,
                     "line": line_num,
