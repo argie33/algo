@@ -216,13 +216,10 @@ def handle(
             )
             latest = DatabaseResultValidator.safe_get_first_row(rows, "analyst sentiment metrics")
             if not latest:
-                return json_response(
-                    200,
-                    {
-                        "_data_unavailable": True,
-                        "metrics": None,
-                        "priceTargets": [],
-                    },
+                return error_response(
+                    503,
+                    "service_unavailable",
+                    f"Analyst sentiment data unavailable for {symbol} — no coverage in analyst_sentiment_analysis table",
                 )
             # Use latest row for metrics summary
             latest = dict(latest)

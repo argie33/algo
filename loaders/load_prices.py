@@ -1678,7 +1678,7 @@ class PriceLoader(OptimalLoader):
                             },
                         )
         except Exception as e:
-            logger.debug("metrics unavailable: %s", e)
+            logger.warning("[LOAD_PRICES] Metrics reporting unavailable (circuit breaker data not recorded): %s", e)
 
         self._update_loader_status()
 

@@ -142,11 +142,10 @@ def get_user_alpaca_credentials(cur: cursor, user_id: str, default_to_shared: bo
         # Validate credentials structure
         if creds and not _validate_credentials_structure(creds):
             logger.error(f"[ALPACA] User-scoped credentials for {user_id} failed validation")
-            if default_to_shared:
-                logger.debug("[ALPACA] Falling back to shared credentials after validation failure")
-                creds = {}
-            else:
+            if not default_to_shared:
                 return None
+            logger.debug("[ALPACA] Falling back to shared credentials after validation failure")
+            creds = None
 
         if creds:
             return creds

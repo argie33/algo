@@ -426,7 +426,7 @@ class MarketHealthDailyLoader(OptimalLoader):
                     m["fed_rate_environment"] = env
                 logger.info(f"Fed rate environment: {env} (current={current_rate}%)")
         except Exception as e:
-            logger.debug(f"Fed rate enrichment skipped: {e} (optional)")
+            logger.warning(f"[MARKET_HEALTH] Fed rate enrichment unavailable: {e} (optional data skipped)")
 
     def fetch_incremental(self, symbol: str = "SPY", since: date | None = None) -> list[dict[str, Any]]:
         """Fetch SPY price data and compute market health metrics."""

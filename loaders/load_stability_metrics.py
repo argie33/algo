@@ -147,7 +147,7 @@ class StabilityMetricsLoader(OptimalLoader):
                     returns.append(ret)
 
             if not returns:
-                logger.debug(f"[STABILITY_METRICS] Cannot calculate returns for {symbol} (skipping)")
+                logger.warning(f"[STABILITY_METRICS] Insufficient price data for {symbol} (cannot calculate returns - skipping)")
                 return None
 
             # Calculate volatilities (annualized: sqrt(252) * daily_std)
@@ -169,7 +169,7 @@ class StabilityMetricsLoader(OptimalLoader):
             }
 
         except (ValueError, ZeroDivisionError, TypeError) as e:
-            logger.debug(f"[STABILITY_METRICS] Calculation error for {symbol} (skipping): {e}")
+            logger.warning(f"[STABILITY_METRICS] Calculation error for {symbol} (volatility/beta unavailable): {e}")
             return None
 
     @staticmethod
