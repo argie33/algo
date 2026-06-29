@@ -39,10 +39,13 @@ jobs:
       - name: Invoke algo-trigger-loaders Lambda (applies LOADER_CHUNK_SIZE=100, LOADER_TIMEOUT_SEC=600)
         id: lambda
         run: |
-          # Write JSON payload to file to avoid encoding issues
-          cat > /tmp/payload.json << EOF
-          {"loader_name": "${{ inputs.loader_name }}"}
-          EOF
+          # Write JSON payload using Python to avoid shell encoding issues
+          python3 << 'PYEOF'
+          import json
+          payload = {"loader_name": "${{ inputs.loader_name }}"}
+          with open('/tmp/payload.json', 'w') as f:
+              json.dump(payload, f)
+          PYEOF
 
           # Invoke Lambda which applies correct environment overrides
           aws lambda invoke \
