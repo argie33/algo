@@ -275,14 +275,33 @@ class SectorRotationDetector:
                     "Sector data is required; cannot proceed with empty sector breakdown."
                 )
 
+            # CRITICAL FAIL-FAST: Validate all scoring fields are present (not None)
+            # These fields directly affect market exposure % and position sizing
+            required_fields = [
+                "defensive_lead_score",
+                "cyclical_weak_score",
+                "defensive_rank_improvement_4w",
+                "cyclical_rank_improvement_4w",
+                "spread_4w",
+                "weeks_persistent",
+                "reduce_exposure_pts",
+            ]
+            missing_fields = [f for f in required_fields if f not in result or result[f] is None]
+            if missing_fields:
+                raise ValueError(
+                    f"[CRITICAL] Sector rotation scoring incomplete for {eval_date}: "
+                    f"missing fields: {', '.join(missing_fields)}. "
+                    f"Cannot persist incomplete sector rotation signal — affects market exposure calculation."
+                )
+
             details_dict: dict[str, Any] = {
-                "defensive_lead_score": result.get("defensive_lead_score"),
-                "cyclical_weak_score": result.get("cyclical_weak_score"),
-                "defensive_rank_improvement_4w": result.get("defensive_rank_improvement_4w"),
-                "cyclical_rank_improvement_4w": result.get("cyclical_rank_improvement_4w"),
-                "spread_4w": result.get("spread_4w"),
-                "weeks_persistent": result.get("weeks_persistent"),
-                "reduce_exposure_pts": result.get("reduce_exposure_pts"),
+                "defensive_lead_score": result["defensive_lead_score"],
+                "cyclical_weak_score": result["cyclical_weak_score"],
+                "defensive_rank_improvement_4w": result["defensive_rank_improvement_4w"],
+                "cyclical_rank_improvement_4w": result["cyclical_rank_improvement_4w"],
+                "spread_4w": result["spread_4w"],
+                "weeks_persistent": result["weeks_persistent"],
+                "reduce_exposure_pts": result["reduce_exposure_pts"],
                 "sector_data": result["sector_data"],
             }
 

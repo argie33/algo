@@ -71,15 +71,33 @@ FETCHER_METADATA = {
 
 def format_fetcher_error(fetcher_name: str, error: Exception) -> str:
     meta = FETCHER_METADATA.get(fetcher_name)
-    endpoint = meta.get("endpoint", "unknown endpoint") if meta else "unknown endpoint"
-    desc = meta.get("desc", "") if meta else ""
+    if not meta:
+        raise ValueError(
+            f"CRITICAL: Fetcher metadata missing for '{fetcher_name}'. "
+            f"Cannot format error without fetcher configuration. "
+            f"Check FETCHER_METADATA registration."
+        )
+
+    endpoint = meta.get("endpoint")
+    if not endpoint:
+        raise ValueError(
+            f"CRITICAL: Fetcher '{fetcher_name}' missing required 'endpoint' metadata. "
+            f"Cannot format error without endpoint configuration. "
+            f"Check FETCHER_METADATA['{fetcher_name}'] has 'endpoint' key."
+        )
+
+    desc = meta.get("desc")
+    if not desc:
+        raise ValueError(
+            f"CRITICAL: Fetcher '{fetcher_name}' missing required 'desc' metadata. "
+            f"Cannot format error without fetcher description. "
+            f"Check FETCHER_METADATA['{fetcher_name}'] has 'desc' key."
+        )
 
     error_type = type(error).__name__
     error_msg = str(error)
 
-    context = f"{endpoint}"
-    if desc:
-        context += f": {desc}"
+    context = f"{endpoint}: {desc}"
 
     if error_msg:
         return f"Fetcher {fetcher_name} ({context}) - {error_type}: {error_msg}"
@@ -90,10 +108,18 @@ def format_fetcher_error(fetcher_name: str, error: Exception) -> str:
 def get_endpoint_path(fetcher_key: str, params: dict[str, Any] | None = None) -> str:
     meta = FETCHER_METADATA.get(fetcher_key)
     if not meta:
-        return fetcher_key
-    endpoint = meta.get("endpoint", "")
+        raise ValueError(
+            f"CRITICAL: Fetcher metadata missing for '{fetcher_key}'. "
+            f"Cannot resolve endpoint without fetcher configuration. "
+            f"Check FETCHER_METADATA registration."
+        )
+    endpoint = meta.get("endpoint")
     if not endpoint:
-        return fetcher_key
+        raise ValueError(
+            f"CRITICAL: Fetcher '{fetcher_key}' missing required 'endpoint' metadata. "
+            f"Cannot route request without valid endpoint configuration. "
+            f"Check FETCHER_METADATA['{fetcher_key}'] has 'endpoint' key."
+        )
     return endpoint
 
 
