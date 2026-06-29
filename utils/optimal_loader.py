@@ -68,16 +68,46 @@ class OptimalLoader:
         raise NotImplementedError("Implement fetch_incremental or fetch_global")
 
     def fetch_global(self, since: date | None) -> list[dict[str, Any]] | None:
+        """Fetch global data. Override in subclasses that implement global load patterns.
+
+        Returns:
+            list[dict]: Data rows if available, None if not implemented by subclass.
+
+        Note: Returning None is acceptable for loaders that only implement symbol-level incremental loads.
+        """
         return None
 
     def transform(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         return rows
 
     def watermark_from_rows(self, rows: list[dict[str, Any]]) -> date | None:
+        """Extract watermark (max date) from rows.
+
+        Args:
+            rows: List of data rows to extract watermark from.
+
+        Returns:
+            Maximum date value from watermark_field, or None if no valid dates found.
+            Returns None silently only when rows are empty (acceptable—caller handles
+            empty result sets).
+        """
         if not rows:
+            # Empty result set is acceptable—no data to extract watermark from
             return None
-        values: list[Any] = [r.get(self.watermark_field) for r in rows if r.get(self.watermark_field)]
-        return max(values) if values else None
+        # Extract all non-None values of watermark_field
+        values: list[Any] = [
+            r.get(self.watermark_field, None)
+            for r in rows
+            if r.get(self.watermark_field, None) is not None
+        ]
+        if not values:
+            # No valid watermark values found in rows—log warning but don't fail
+            logger.warning(
+                f"[{self.table_name}] watermark_from_rows: "
+                f"Rows present ({len(rows)}) but no valid {self.watermark_field} values found"
+            )
+            return None
+        return max(values)
 
     @property
     def router(self) -> Any:
@@ -100,9 +130,15 @@ class OptimalLoader:
         max_attempts = 3
         last_exception: Exception | None = None
 
+        rows = None
         for attempt in range(1, max_attempts + 1):
             try:
                 rows = self.fetch_incremental(symbol, previous_date)
+                if rows is None:
+                    raise RuntimeError(
+                        f"[{self.table_name}] {symbol}: fetch_incremental returned None instead of list. "
+                        "Subclass must return list[dict] or raise exception, never return None."
+                    )
                 if attempt > 1:
                     logger.info(f"[{self.table_name}] {symbol}: Success on attempt {attempt}/{max_attempts}")
                 break
@@ -126,7 +162,12 @@ class OptimalLoader:
                 f"[{self.table_name}] {symbol}: Failed to fetch after {max_attempts} attempts due to transient errors"
             ) from last_exception
 
-        if not rows:
+        if rows is None or not rows:
+            # No new data since watermark—expected for incremental loads
+            logger.debug(
+                f"[{self.table_name}] {symbol}: No new data since watermark "
+                f"(previous={previous_date}), skipping"
+            )
             self._stats.increment("symbols_skipped_by_watermark")
             return 0
 
@@ -166,7 +207,15 @@ class OptimalLoader:
         return inserted
 
     def _validate_row(self, row: dict[str, Any]) -> bool:
-        return all(row.get(c) is not None for c in self.primary_key)
+        """Validate row has all required primary key fields non-None.
+
+        Args:
+            row: Data row to validate.
+
+        Returns:
+            True if all primary_key fields are present and non-None, False otherwise.
+        """
+        return all(row.get(c, None) is not None for c in self.primary_key)
 
     def _prepare_batch_context(self) -> None:
         self._batch_context = {}
@@ -333,8 +382,16 @@ class OptimalLoader:
             except Exception as e:
                 raise RuntimeError(f"[{self.table_name}] fetch_global failed: {e}") from e
 
+            # fetch_global can return None if not implemented by subclass
+            if rows is None:
+                logger.debug(
+                    f"[{self.table_name}] fetch_global not implemented by subclass (returned None). "
+                    "Skipping global load step."
+                )
+                return 0
+
             if not rows:
-                logger.info(f"[{self.table_name}] fetch_global returned no rows")
+                logger.info(f"[{self.table_name}] fetch_global returned empty list (no data available)")
                 return 0
 
             rows = self.transform(rows)
@@ -495,13 +552,18 @@ class OptimalLoader:
             logger.error(f"[{self.table_name}] {symbol} failed: {e}")
 
     def _check_upstream_completeness(self, expected_symbols: int) -> bool:
+        """Check that upstream dependencies are sufficiently complete.
+
+        Loaders may have dependencies on other loaders completing first.
+        This method validates that required upstream data is available.
+        """
         upstream_deps = {
             "technical_data_daily": "price_daily",
             "buy_sell_daily": "technical_data_daily",
             "signal_quality_scores": "buy_sell_daily",
             "swing_trader_scores": "signal_quality_scores",
         }
-        upstream_table = upstream_deps.get(self.table_name)
+        upstream_table = upstream_deps.get(self.table_name, None)
         if not upstream_table:
             return True
 
@@ -548,7 +610,7 @@ class OptimalLoader:
                             datetime.fromtimestamp(self._execution_start_time, tz=timezone.utc),
                             datetime.now(timezone.utc),
                             status,
-                            self._stats.get("rows_inserted"),
+                            self._stats.get("rows_inserted", 0),
                             error_message,
                         ),
                     )
@@ -581,7 +643,7 @@ class OptimalLoader:
                     total_rows = result[0]
                     latest_date = None
 
-            symbols_processed = self._stats.get("symbols_processed")
+            symbols_processed = self._stats.get("symbols_processed", 0)
             completion_pct = (symbols_processed / expected_symbols * 100) if expected_symbols > 0 else 100.0
             loader_status = "COMPLETED" if completion_pct >= 95 else "INCOMPLETE"
 
@@ -628,7 +690,7 @@ class OptimalLoader:
                 return
             except ClientError as delete_err:
                 error_dict = delete_err.response.get("Error", {})
-                if error_dict.get("Code") in ("AccessDenied", "AccessDeniedException"):
+                if error_dict.get("Code", "") in ("AccessDenied", "AccessDeniedException"):
                     logger.warning(
                         f"[{self.table_name}] Cache invalidation: No DynamoDB write access (permission denied). "
                         "Loader will continue, but Phase 1 may use stale data from previous run."
@@ -651,7 +713,7 @@ class OptimalLoader:
                 return
             except ClientError as poison_err:
                 error_dict = poison_err.response.get("Error", {})
-                if error_dict.get("Code") in ("AccessDenied", "AccessDeniedException"):
+                if error_dict.get("Code", "") in ("AccessDenied", "AccessDeniedException"):
                     logger.warning(
                         f"[{self.table_name}] Cache poisoning: No DynamoDB write access (permission denied). "
                         "Loader will continue, but Phase 1 may use stale data from previous run."
