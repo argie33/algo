@@ -73,9 +73,24 @@ jobs:
             --query SecretString \
             --output text)
 
-          DB_USER=$(echo "$SECRET" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('username','stocks'))")
-          DB_PASSWORD=$(echo "$SECRET" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('password',''))")
-          DB_NAME=$(echo "$SECRET" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('dbname','algo'))")
+          # Parse credentials with error checking
+          DB_USER=$(echo "$SECRET" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('username','stocks'))" 2>&1) || DB_USER="stocks"
+          if [[ "$DB_USER" == *"Traceback"* ]] || [[ "$DB_USER" == *"JSONDecodeError"* ]]; then
+            echo "[ERROR] Failed to parse DB_USER from secret"
+            DB_USER="stocks"
+          fi
+
+          DB_PASSWORD=$(echo "$SECRET" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('password',''))" 2>&1) || DB_PASSWORD=""
+          if [[ "$DB_PASSWORD" == *"Traceback"* ]] || [[ "$DB_PASSWORD" == *"JSONDecodeError"* ]]; then
+            echo "[ERROR] Failed to parse DB_PASSWORD from secret"
+            DB_PASSWORD=""
+          fi
+
+          DB_NAME=$(echo "$SECRET" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('dbname','algo'))" 2>&1) || DB_NAME="algo"
+          if [[ "$DB_NAME" == *"Traceback"* ]] || [[ "$DB_NAME" == *"JSONDecodeError"* ]]; then
+            echo "[ERROR] Failed to parse DB_NAME from secret"
+            DB_NAME="algo"
+          fi
 
           echo "db_host=$RDS_ENDPOINT" >> $GITHUB_OUTPUT
           echo "db_user=$DB_USER" >> $GITHUB_OUTPUT
