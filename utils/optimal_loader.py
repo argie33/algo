@@ -567,8 +567,9 @@ class OptimalLoader:
 
         # Allow up to 60% failure rate (tolerate missing data for non-critical symbols)
         # Most loaders can handle this: quality_metrics (55% missing), growth_metrics similar
-        # Only fail if >60% of symbols fail, indicating systemic issue (DB down, API banned, etc.)
-        max_fail_rate = 60.0
+        # Only fail if >max_fail_rate of symbols fail, indicating systemic issue (DB down, API banned, etc.)
+        # Subclasses can override max_fail_rate for data with limited coverage (e.g., earnings_history)
+        max_fail_rate = getattr(self, "max_fail_rate", 60.0)
 
         if fail_rate > max_fail_rate:
             raise RuntimeError(

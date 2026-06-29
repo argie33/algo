@@ -23,7 +23,7 @@ class FearGreedIndexLoader(OptimalLoader):
     primary_key = ("date",)
     watermark_field = "date"
 
-    def fetch_global(self, since: date | None) -> list[dict[str, Any]] | None:  # noqa: C901
+    def fetch_global(self, since: date | None) -> list[dict[str, Any]]:  # noqa: C901
         """Fetch Fear & Greed Index from CNN.
 
         Returns list of fear/greed records on success.

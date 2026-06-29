@@ -21,7 +21,7 @@ class AlgoMetricsDailyLoader(OptimalLoader):
     primary_key = ("date",)
     watermark_field = "date"
 
-    def fetch_global(self, since: date | None) -> list[dict[str, Any]] | None:
+    def fetch_global(self, since: date | None) -> list[dict[str, Any]]:
         """Compute daily algo metrics from audit log."""
         try:
             now_utc = datetime.now(timezone.utc)

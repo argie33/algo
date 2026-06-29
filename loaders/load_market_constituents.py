@@ -71,7 +71,7 @@ class MarketConstituentsLoader(OptimalLoader):
     primary_key = ("symbol",)
     watermark_field = "created_at"
 
-    def fetch_global(self, since: date | None) -> list[dict[str, Any]] | None:
+    def fetch_global(self, since: date | None) -> list[dict[str, Any]]:
         """Fetch all symbols and mark index membership.
 
         ATOMIC OPERATION:

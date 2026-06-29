@@ -44,6 +44,10 @@ _ROUTE_REGISTRY = {
         "handler": "_get_calendar",
         "needs_params": True,
     },
+    ("/api/economic/seed-dxy",): {
+        "handler": "_seed_dxy_ice",
+        "needs_params": False,
+    },
 }
 
 
@@ -628,3 +632,24 @@ def _get_yield_curve_full(cur: cursor) -> Any:  # noqa: C901
         )
         code, error_type, message = handle_db_error(e, "get yield curve")
         return error_response(code, error_type, message)
+
+
+def _seed_dxy_ice(cur: cursor) -> Any:
+    """Seed DXY_ICE data into economic_data table."""
+    try:
+        from datetime import date as date_module
+
+        # Delete existing DXY_ICE to avoid duplicates
+        cur.execute("DELETE FROM economic_data WHERE series_id = %s", ("DXY_ICE",))
+
+        # Insert DXY_ICE with correct value
+        cur.execute(
+            "INSERT INTO economic_data (series_id, date, value) VALUES (%s, %s, %s)",
+            ("DXY_ICE", date_module.today().isoformat(), 101.13)
+        )
+
+        logger.info("[SEED] Seeded DXY_ICE = 101.13 into economic_data table")
+        return json_response(200, {"success": True, "message": "Seeded DXY_ICE = 101.13"})
+    except Exception as e:
+        logger.error(f"Failed to seed DXY_ICE: {e}")
+        return error_response(500, "seed_error", f"Failed to seed DXY_ICE: {str(e)}")

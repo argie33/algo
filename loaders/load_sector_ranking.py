@@ -22,7 +22,7 @@ class SectorRankingLoader(OptimalLoader):
     primary_key = ("sector_name", "date")
     watermark_field = "date"
 
-    def fetch_global(self, since: date | None) -> list[dict[str, Any]] | None:
+    def fetch_global(self, since: date | None) -> list[dict[str, Any]]:
         """Compute sector rankings from stock scores and company profile data."""
         try:
             row = fetch_latest("price_daily", "date")
@@ -108,15 +108,33 @@ class SectorRankingLoader(OptimalLoader):
                         f"[SECTOR_RANKING] Sector {r['sector_name']} missing required momentum_score — "
                         "cannot default momentum to 0.0; signal requires explicit momentum data"
                     )
+                # Check for missing historical rank data - log but don't hide with -1 defaults
+                missing_history = []
+                if r["rank_1w_ago"] is None:
+                    missing_history.append("1w")
+                if r["rank_4w_ago"] is None:
+                    missing_history.append("4w")
+                if r["rank_12w_ago"] is None:
+                    missing_history.append("12w")
+
+                if missing_history:
+                    logger.warning(
+                        f"[SECTOR_RANKING] {r['sector_name']}: Missing historical rank data for {', '.join(missing_history)}. "
+                        f"Historical comparison may be incomplete. Refusing to use -1 defaults that would hide missing data."
+                    )
+
                 valid_rows.append(
                     {
                         "sector_name": r["sector_name"],
                         "date": latest_date,
                         "current_rank": current_rank,
                         "momentum_score": float(momentum),
-                        "rank_1w_ago": (r["rank_1w_ago"] if r["rank_1w_ago"] is not None else -1),
-                        "rank_4w_ago": (r["rank_4w_ago"] if r["rank_4w_ago"] is not None else -1),
-                        "rank_12w_ago": (r["rank_12w_ago"] if r["rank_12w_ago"] is not None else -1),
+                        "rank_1w_ago": r["rank_1w_ago"],
+                        "rank_4w_ago": r["rank_4w_ago"],
+                        "rank_12w_ago": r["rank_12w_ago"],
+                        "historical_data_available": all(
+                            r[f"rank_{p}_ago"] is not None for p in ["1w", "4w", "12w"]
+                        ),
                     }
                 )
 

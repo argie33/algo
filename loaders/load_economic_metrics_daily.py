@@ -45,7 +45,7 @@ class EconomicMetricsDailyLoader(OptimalLoader):
     # Allow multiple updates per day
     allow_multiple_updates_per_day = True
 
-    def fetch_global(self, since: date | None) -> list[dict[str, Any]] | None:
+    def fetch_global(self, since: date | None) -> list[dict[str, Any]]:
         """Compute daily economic metrics from source data.
 
         All metrics are CRITICAL—function raises RuntimeError if any metric unavailable.

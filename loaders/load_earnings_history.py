@@ -24,6 +24,7 @@ class EarningsHistoryLoader(OptimalLoader):
     table_name = "earnings_history"
     primary_key = ("symbol", "quarter")
     watermark_field = "earnings_date"
+    max_fail_rate = 99.5  # Only major symbols have earnings history; allow 99.5% failure rate
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Fetch earnings history from yfinance earnings_dates.
