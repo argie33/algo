@@ -154,12 +154,22 @@ class PanelRegistry:
     def get_panel_dependencies(self, name: str) -> list[str]:
         """Get list of endpoint dependencies for a panel."""
         panel = self._panels.get(name)
-        return panel.endpoint_deps if panel else []
+        if not panel:
+            raise ValueError(
+                f"[PANEL_REGISTRY] Unknown panel '{name}'. "
+                f"Available panels: {sorted(self._panels.keys())}"
+            )
+        return panel.endpoint_deps
 
     def is_panel_optional(self, name: str) -> bool:
         """Check if a panel is optional (ok to skip if endpoint missing)."""
         panel = self._panels.get(name)
-        return panel.optional if panel else True
+        if not panel:
+            raise ValueError(
+                f"[PANEL_REGISTRY] Unknown panel '{name}'. "
+                f"Available panels: {sorted(self._panels.keys())}"
+            )
+        return panel.optional
 
     def validate_panel_dependencies(self, name: str) -> tuple[bool, list[str]]:
         """Check if all required endpoints for a panel are defined in contract.

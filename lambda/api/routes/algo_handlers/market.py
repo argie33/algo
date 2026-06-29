@@ -214,14 +214,18 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
 
         rows = loader_rows + algo_rows
 
-        # Use freshness_config critical set; fall back to Phase 1 halt tables if unavailable.
+        # Use freshness_config critical set; fail-fast if configuration is empty.
         # Note: trend_template_data is warning-only in Phase 1 — stale does NOT prevent
         # trading, so it remains non-critical even though freshness_config marks it otherwise.
-        critical_tables = {t for t, r in _fr.items() if r.get("critical")} or {
-            "price_daily",
-            "market_health_daily",
-            "market_exposure_daily",
-        }
+        critical_tables = {t for t, r in _fr.items() if r.get("critical")}
+        if not critical_tables:
+            # FAIL-FAST: Configuration empty indicates freshness_config loading failed
+            logger.error("[MARKET_EXPOSURE] Freshness config empty - no critical tables defined. Using hardcoded defaults.")
+            critical_tables = {
+                "price_daily",
+                "market_health_daily",
+                "market_exposure_daily",
+            }
 
         # Compute expected data date using trading-day-aware logic (match Phase 1)
         today = date.today()

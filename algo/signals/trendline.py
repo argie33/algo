@@ -44,7 +44,12 @@ class TrendlineSupport:
                     (symbol, end_date - timedelta(days=days), end_date),
                 )
                 result = cur.fetchall()
-                return cast(list[Any], result) if result is not None else []
+                if not result:
+                    raise RuntimeError(
+                        f"[TRENDLINE] No price history found for {symbol}. "
+                        "Cannot compute trendline without historical prices."
+                    )
+                return cast(list[Any], result)
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(
                 f"Failed to fetch price history for {symbol}: {e}. "

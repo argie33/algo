@@ -117,11 +117,13 @@ def normalize_positions_data(data: Any) -> tuple[list[Any], Any, bool]:
     Returns:
         (positions_list, timestamp, has_error) tuple
     """
-    from .error_boundary import has_error as check_has_error
+    from .error_boundary import get_error_message, has_error as check_has_error
 
     if isinstance(data, dict):
         if check_has_error(data):
-            return [], None, True
+            error_msg = get_error_message(data)
+            logger.error(f"[POSITIONS_DATA_ERROR] Data contains error marker: {error_msg}")
+            raise ValueError(f"Positions data error: {error_msg}")
         if "items" not in data:
             # Dict without items or error — log and fail
             logger.error(
@@ -238,7 +240,9 @@ def extract_items_and_error(data: Any) -> tuple[list[Any], str | None]:
 
     if isinstance(data, dict):
         if has_error(data):
-            return [], get_error_message(data)
+            error_msg = get_error_message(data)
+            logger.error(f"[DATA_EXTRACTION_ERROR] Data contains error marker: {error_msg}")
+            raise ValueError(f"Data extraction error: {error_msg}")
         if "items" in data:
             items = data.get("items")
             if isinstance(items, list):

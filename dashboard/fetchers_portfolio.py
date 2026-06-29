@@ -150,6 +150,24 @@ def fetch_portfolio(c: None) -> dict[str, Any]:
         largest_pos = port.get("largest_position_pct")
         data_age = port.get("data_age_seconds")
 
+        # FAIL-FAST: Validate critical optional fields. Return error dict if any are missing.
+        # These metrics are used for position sizing and risk monitoring — silent None values mask data failures.
+        missing_metrics = []
+        if daily_return is None:
+            missing_metrics.append("daily_return_pct")
+        if cumulative_return is None:
+            missing_metrics.append("cumulative_return_pct")
+        if max_dd is None:
+            missing_metrics.append("max_drawdown_pct")
+        if largest_pos is None:
+            missing_metrics.append("largest_position_pct")
+
+        if missing_metrics:
+            error_msg = f"Portfolio missing critical optional metrics: {', '.join(missing_metrics)}"
+            logger.error(f"[FAIL_FAST] {error_msg}")
+            record_data_quality_issue("portfolio", "missing_metrics", "validation", error_msg)
+            return FetcherValidator.build_error_response(error_msg)
+
         return {
             "snapshot_date": snapshot_date,
             "total_portfolio_value": tpv,
@@ -353,6 +371,26 @@ def fetch_perf(c: None) -> dict[str, Any]:
             )
         open_count = open_positions_count if open_positions_count is not None else open_losses_count
 
+        # FAIL-FAST: Validate critical risk metrics. These determine strategy quality and risk assessment.
+        # None values mask data failures. Must validate all critical fields are present.
+        critical_metrics = {
+            "win_rate_pct": "wr",
+            "total_pnl_dollars": "pnl",
+            "current_streak": "streak",
+            "sharpe_annualized": "sharpe",
+            "max_drawdown_pct": "maxdd",
+            "avg_win_pct": "avg_win",
+            "avg_loss_pct": "avg_loss",
+            "profit_factor": "profit_factor",
+            "expectancy_r": "expectancy",
+        }
+        missing_metrics = [name for field, name in critical_metrics.items() if field not in perf or perf.get(field) is None]
+        if missing_metrics:
+            error_msg = f"Performance data missing critical metrics: {', '.join(missing_metrics)}"
+            logger.error(f"[FAIL_FAST] {error_msg}")
+            record_data_quality_issue("perf", "missing_metrics", "validation", error_msg)
+            return FetcherValidator.build_error_response(error_msg)
+
         return {
             "n": n,
             "w": w,
@@ -399,16 +437,12 @@ def fetch_perf_analytics(c: None) -> dict[str, Any]:
 
         d = data
 
-        # CRITICAL: Performance metrics are NOT informational — they are fundamental to portfolio analysis.
-        # These metrics (Sharpe, Sortino, Calmar, Max Drawdown, Win Rate, Avg Win/Loss, Expectancy)
-        # determine strategy quality and operator awareness. Missing or invalid metrics must fail-fast
-        # so operators are immediately alerted to data loading failures. Silent None values mask
-        # NOTE: Performance analytics is non-critical dashboard metric (not used for trading decisions).
-        # Use strict=False to gracefully handle None/missing values instead of failing hard.
-        # Critical metrics (VaR, risk) use strict=True; informational metrics (Sharpe, Sortino) use strict=False.
+        # FAIL-FAST: Performance analytics metrics determine strategy quality and risk assessment.
+        # These are critical for operator awareness and decision-making. No silent None fallbacks.
+        # Missing or invalid metrics must fail-fast to surface data loading failures immediately.
+        # Use strict=True to enforce all metrics present and valid (no None conversions).
 
-        # Extract metrics with explicit logging for missing optional fields
-        optional_fields = {
+        required_metrics = {
             "rolling_sharpe_252d": "sharpe252",
             "rolling_sortino_252d": "sortino",
             "calmar_ratio": "calmar",
@@ -419,19 +453,22 @@ def fetch_perf_analytics(c: None) -> dict[str, Any]:
             "max_drawdown_pct": "maxdd",
         }
 
-        for api_field, _display_name in optional_fields.items():
-            if api_field not in d:
-                logger.debug(f"[DATA_QUALITY] Performance analytics missing optional '{api_field}'")
+        missing_fields = [name for field, name in required_metrics.items() if field not in d or d.get(field) is None]
+        if missing_fields:
+            error_msg = f"Performance analytics missing required metrics: {', '.join(missing_fields)}"
+            logger.error(f"[FAIL_FAST] {error_msg}")
+            record_data_quality_issue("perf_anl", "missing_metrics", "validation", error_msg)
+            return FetcherValidator.build_error_response(error_msg)
 
         return {
-            "sharpe252": safe_float(d.get("rolling_sharpe_252d"), strict=False, field_name="sharpe252"),
-            "sortino": safe_float(d.get("rolling_sortino_252d"), strict=False, field_name="sortino"),
-            "calmar": safe_float(d.get("calmar_ratio"), strict=False, field_name="calmar"),
-            "wr50": safe_float(d.get("win_rate_50t"), strict=False, field_name="wr50"),
-            "avg_w_r": safe_float(d.get("avg_win_r_50t"), strict=False, field_name="avg_w_r"),
-            "avg_l_r": safe_float(d.get("avg_loss_r_50t"), strict=False, field_name="avg_l_r"),
-            "expectancy": safe_float(d.get("expectancy"), strict=False, field_name="expectancy"),
-            "maxdd": safe_float(d.get("max_drawdown_pct"), strict=False, field_name="maxdd"),
+            "sharpe252": safe_float(d.get("rolling_sharpe_252d"), strict=True, field_name="sharpe252"),
+            "sortino": safe_float(d.get("rolling_sortino_252d"), strict=True, field_name="sortino"),
+            "calmar": safe_float(d.get("calmar_ratio"), strict=True, field_name="calmar"),
+            "wr50": safe_float(d.get("win_rate_50t"), strict=True, field_name="wr50"),
+            "avg_w_r": safe_float(d.get("avg_win_r_50t"), strict=True, field_name="avg_w_r"),
+            "avg_l_r": safe_float(d.get("avg_loss_r_50t"), strict=True, field_name="avg_l_r"),
+            "expectancy": safe_float(d.get("expectancy"), strict=True, field_name="expectancy"),
+            "maxdd": safe_float(d.get("max_drawdown_pct"), strict=True, field_name="maxdd"),
         }
     except Exception as e:
         error_msg = format_fetcher_error("perf_anl", e)

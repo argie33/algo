@@ -57,40 +57,41 @@ class TestPipelineHealthMonitoring:
 
     def test_pipeline_health_monitor_initialization(self):
         """Test that pipeline health monitor can be initialized."""
-        from algo.monitoring.pipeline_health import PipelineHealthMonitor
+        from algo.monitoring.pipeline_health import PipelineHealth
 
-        monitor = PipelineHealthMonitor()
+        monitor = PipelineHealth()
         assert monitor is not None
 
-    def test_pipeline_health_detects_stalled_loaders(self):
-        """Test that health monitor detects stalled data loaders."""
-        from algo.monitoring.pipeline_health import PipelineHealthMonitor
+    def test_pipeline_health_get_pipeline_status(self):
+        """Test that health monitor can get pipeline status."""
+        from algo.monitoring.pipeline_health import PipelineHealth
 
-        monitor = PipelineHealthMonitor()
+        monitor = PipelineHealth()
+        status = monitor.get_pipeline_status()
+        assert status is not None
+        assert hasattr(status, "tables")
+        assert hasattr(status, "is_healthy")
 
-        if hasattr(monitor, "check_loader_staleness"):
-            stale = monitor.check_loader_staleness("buy_sell_daily", hours_threshold=4)
-            assert isinstance(stale, bool)
+    def test_pipeline_health_check_table_health(self):
+        """Test that health monitor can check individual table health."""
+        from algo.monitoring.pipeline_health import PipelineHealth, TableHealth, HealthStatus
 
-    def test_pipeline_health_tracks_run_times(self):
-        """Test that health monitor tracks loader run times."""
-        from algo.monitoring.pipeline_health import PipelineHealthMonitor
+        monitor = PipelineHealth()
+        assert hasattr(monitor, "check_table_health")
+        # Note: actual table checks require database access, tested in integration tests
 
-        monitor = PipelineHealthMonitor()
+    def test_pipeline_health_status_properties(self):
+        """Test pipeline status has expected properties and methods."""
+        from algo.monitoring.pipeline_health import PipelineHealth
 
-        if hasattr(monitor, "get_last_run_time"):
-            last_run = monitor.get_last_run_time("price_daily")
-            assert last_run is None or isinstance(last_run, datetime)
-
-    def test_pipeline_health_detects_missing_data(self):
-        """Test that health monitor detects missing critical data."""
-        from algo.monitoring.pipeline_health import PipelineHealthMonitor
-
-        monitor = PipelineHealthMonitor()
-
-        if hasattr(monitor, "check_data_available"):
-            available = monitor.check_data_available("stock_scores")
-            assert isinstance(available, bool)
+        monitor = PipelineHealth()
+        status = monitor.get_pipeline_status()
+        assert hasattr(status, "healthy_count")
+        assert hasattr(status, "total_count")
+        assert hasattr(status, "coverage_pct")
+        assert isinstance(status.healthy_count, int)
+        assert isinstance(status.total_count, int)
+        assert isinstance(status.coverage_pct, float)
 
 
 class TestConnectionMonitoring:

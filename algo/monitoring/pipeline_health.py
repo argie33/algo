@@ -16,26 +16,6 @@ from utils.infrastructure import EASTERN_TZ
 logger = logging.getLogger(__name__)
 
 
-class PipelineHealthMonitor:
-    """Monitor data pipeline health and freshness.
-
-    DEPRECATED: This class contained only stubbed methods that returned hardcoded
-    fake values (always False/None/True) without performing actual health checks.
-    The real health monitoring is handled by PipelineHealth class below.
-    Use PipelineHealth for all production health monitoring.
-    """
-
-    def __init__(self) -> None:
-        """Initialize pipeline health monitor.
-
-        DEPRECATED: This class is not used. Use PipelineHealth instead.
-        """
-        raise NotImplementedError(
-            "PipelineHealthMonitor is deprecated. Use PipelineHealth class for production health monitoring. "
-            "This stubbed class was returning hardcoded fake health status values."
-        )
-
-
 class HealthStatus(str, Enum):
     HEALTHY = "HEALTHY"
     STALE = "STALE"  # Data older than SLA
