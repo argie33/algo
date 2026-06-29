@@ -83,6 +83,7 @@ def panel_circuit(cb: Any) -> Panel:
     if err_panel:
         return err_panel
     if not isinstance(cb, dict):
+        logger.error("[CIRCUIT] Circuit breaker data is not a dict: got %s", type(cb).__name__)
         return Panel(
             Text("Circuit breaker data is invalid", style="dim"),
             title="[bold blue]CIRCUIT BREAKERS[/]",
@@ -91,14 +92,32 @@ def panel_circuit(cb: Any) -> Panel:
         )
     n_raw = cb.get("n")
     any_raw = cb.get("any")
-    if n_raw is None or any_raw is None:
+    if n_raw is None:
+        logger.error("[CIRCUIT] Missing critical field 'n' (breaker count)")
         return Panel(
-            Text("Circuit breaker data missing critical fields", style="dim"),
+            Text("Circuit breaker count missing (data_unavailable)", style="dim"),
             title="[bold blue]CIRCUIT BREAKERS[/]",
             border_style="red",
             padding=(0, 1),
         )
-    n_f = safe_int(n_raw, strict=True, field_name="circuit_breaker_count")
+    if any_raw is None:
+        logger.error("[CIRCUIT] Missing critical field 'any' (breach flag)")
+        return Panel(
+            Text("Circuit breaker status missing (data_unavailable)", style="dim"),
+            title="[bold blue]CIRCUIT BREAKERS[/]",
+            border_style="red",
+            padding=(0, 1),
+        )
+    try:
+        n_f = safe_int(n_raw, strict=True, field_name="circuit_breaker_count")
+    except StrictValidationError as e:
+        logger.error("[CIRCUIT] Failed to parse breaker count: %s", e)
+        return Panel(
+            Text("Circuit breaker count invalid (data_unavailable)", style="dim"),
+            title="[bold blue]CIRCUIT BREAKERS[/]",
+            border_style="red",
+            padding=(0, 1),
+        )
     any_f = any_raw if isinstance(any_raw, bool) else bool(any_raw)
     hc = R if any_f else G
     hs = f"✗ {n_f} BREAKER{'S' if n_f != 1 else ''} FIRED" if any_f else "✓ ALL CLEAR"
@@ -107,6 +126,10 @@ def panel_circuit(cb: Any) -> Panel:
     tbl.add_column("b", ratio=1)
     bs = cb.get("bs")
     if bs is None:
+        logger.warning("[CIRCUIT] Missing breaker list 'bs' - no individual breaker data available")
+        bs = []
+    elif not isinstance(bs, list):
+        logger.error("[CIRCUIT] Breaker list 'bs' is not a list: got %s", type(bs).__name__)
         bs = []
     for a, b in zip(bs[::2], [*bs[1::2], None], strict=False):
 
@@ -114,30 +137,41 @@ def panel_circuit(cb: Any) -> Panel:
             if br is None:
                 return ""
             if not isinstance(br, dict):
+                logger.debug("[CIRCUIT] Breaker entry is not a dict: got %s", type(br).__name__)
                 return ""
             fired = br.get("fired")
             if fired is None:
+                logger.debug("[CIRCUIT] Breaker missing 'fired' status - cannot render")
+                return ""
+            if not isinstance(fired, bool):
+                logger.debug("[CIRCUIT] Breaker 'fired' is not bool: got %s", type(fired).__name__)
                 return ""
             thr = br.get("thr")
             cur = br.get("cur")
-            lbl_s = str(br.get("lbl", "N/A"))[:20]
+            lbl_raw = br.get("lbl")
+            if lbl_raw is None:
+                logger.debug("[CIRCUIT] Breaker missing 'lbl' field")
+                lbl_s = "N/A"
+            else:
+                lbl_s = str(lbl_raw)[:20]
             if thr is None or cur is None:
                 thr_f = safe_float(thr, default=None)
                 thr_s = "--" if thr_f is None else f"{thr_f:.0f}"
                 cur_s = "--" if cur is None else str(cur)
-                # Unit field should always be present - don't silently use empty string
-                unit = br.get('u')
-                if unit is None:
-                    unit_display = "[yellow]?[/]"  # Show missing data indicator
+                unit_raw = br.get('u')
+                if unit_raw is None:
+                    logger.debug("[CIRCUIT] Breaker %s missing unit field 'u'", lbl_s)
+                    unit_display = "[yellow]?[/]"
                 else:
-                    unit_display = str(unit)
+                    unit_display = str(unit_raw)
                 return (
                     f"[{R if fired else 'dim'}]{lbl_s}:[/]{cur_s}{unit_display}[dim]/{thr_s}{unit_display}[/]"
                 )
             try:
                 thr_f = safe_float(thr, 0.0, strict=True, field_name="circuit_breaker_threshold")
                 cur_f = safe_float(cur, 0.0, strict=True, field_name="circuit_breaker_current")
-            except StrictValidationError:
+            except StrictValidationError as e:
+                logger.error("[CIRCUIT] Breaker %s failed validation: %s", lbl_s, e)
                 return f"[{R}]{lbl_s}:[/] [red]✗ BAD DATA[/]"
             if thr_f is not None and thr_f > 0 and cur_f is not None:
                 util = cur_f / thr_f
@@ -153,9 +187,15 @@ def panel_circuit(cb: Any) -> Panel:
                 if cur_f is not None and cur_f != int(cur_f)
                 else (f"{int(cur_f)}" if cur_f is not None else "0")
             )
+            unit_str = br.get('u')
+            if unit_str is None:
+                logger.debug("[CIRCUIT] Breaker %s missing unit for display", lbl_s)
+                unit_str = ""
+            else:
+                unit_str = str(unit_str)
             return (
-                f"[{fc}]{lbl_s}:[/]{cur_fmt}{br.get('u', '')!s}"
-                f"[dim]/{thr_f:.0f}{br.get('u', '')!s}[/]{hbar(cur_f, thr_f, w=4)}{pct_s}{ind}"
+                f"[{fc}]{lbl_s}:[/]{cur_fmt}{unit_str}"
+                f"[dim]/{thr_f:.0f}{unit_str}[/]{hbar(cur_f, thr_f, w=4)}{pct_s}{ind}"
             )
 
         tbl.add_row(Text.from_markup(fmt_b(a)), Text.from_markup(fmt_b(b)))
@@ -185,8 +225,38 @@ def panel_circuit_expanded(cb: Any) -> Panel:
     if err_panel:
         return err_panel
 
-    n_f = cb["n"]
-    any_f = cb["any"]
+    # Explicit validation of critical fields
+    if not isinstance(cb, dict):
+        logger.error("[CIRCUIT_EXPANDED] Circuit breaker data is not a dict: got %s", type(cb).__name__)
+        return Panel(
+            Text("Circuit breaker data is invalid", style="dim"),
+            title="[bold blue]CIRCUIT BREAKERS - EXPANDED[/]",
+            border_style="red",
+            padding=(0, 1),
+        )
+
+    n_f = cb.get("n")
+    if n_f is None:
+        logger.error("[CIRCUIT_EXPANDED] Missing critical field 'n' (breaker count)")
+        return Panel(
+            Text("Circuit breaker count missing (data_unavailable)", style="dim"),
+            title="[bold blue]CIRCUIT BREAKERS - EXPANDED[/]",
+            border_style="red",
+            padding=(0, 1),
+        )
+
+    any_f_raw = cb.get("any")
+    if any_f_raw is None:
+        logger.error("[CIRCUIT_EXPANDED] Missing critical field 'any' (breach flag)")
+        return Panel(
+            Text("Circuit breaker status missing (data_unavailable)", style="dim"),
+            title="[bold blue]CIRCUIT BREAKERS - EXPANDED[/]",
+            border_style="red",
+            padding=(0, 1),
+        )
+
+    any_f = any_f_raw if isinstance(any_f_raw, bool) else bool(any_f_raw)
+
     if any_f:
         rows.append(
             Text.from_markup(f"[bold {R}]⚠  {n_f} BREAKER{'S' if n_f != 1 else ''} FIRED  —  TRADING HALTED[/]")
@@ -196,8 +266,15 @@ def panel_circuit_expanded(cb: Any) -> Panel:
     rows.append(Rule(style="dim"))
 
     bs = cb.get("bs")
-    if not bs:
-        rows.append(Text("no breaker data", style="dim"))
+    if bs is None:
+        logger.warning("[CIRCUIT_EXPANDED] Missing breaker list 'bs' - no individual breaker data available (data_unavailable)")
+        rows.append(Text("breaker list data_unavailable", style="dim"))
+    elif not isinstance(bs, list):
+        logger.error("[CIRCUIT_EXPANDED] Breaker list 'bs' is not a list: got %s", type(bs).__name__)
+        rows.append(Text("breaker list invalid type (data_unavailable)", style="dim"))
+    elif len(bs) == 0:
+        logger.warning("[CIRCUIT_EXPANDED] Breaker list 'bs' is empty")
+        rows.append(Text("no breaker entries", style="dim"))
     else:
         tbl = Table(
             box=box.SIMPLE_HEAD,
@@ -214,13 +291,34 @@ def panel_circuit_expanded(cb: Any) -> Panel:
         tbl.add_column("Status", justify="center", no_wrap=True, min_width=8)
 
         for br in bs:
+            if not isinstance(br, dict):
+                logger.debug("[CIRCUIT_EXPANDED] Breaker entry is not a dict: got %s", type(br).__name__)
+                continue
+
             lbl_val = br.get("lbl")
-            lbl = str(lbl_val if lbl_val is not None else "--")
+            if lbl_val is None:
+                logger.debug("[CIRCUIT_EXPANDED] Breaker missing 'lbl' field")
+                lbl = "--"
+            else:
+                lbl = str(lbl_val)
+
             cur = br.get("cur")
             thr = br.get("thr")
             u_val = br.get("u")
-            u = str(u_val if u_val is not None else "")
-            fired = br["fired"]
+            if u_val is None:
+                logger.debug("[CIRCUIT_EXPANDED] Breaker %s missing unit field 'u'", lbl)
+                u = ""
+            else:
+                u = str(u_val)
+
+            fired_val = br.get("fired")
+            if fired_val is None:
+                logger.debug("[CIRCUIT_EXPANDED] Breaker %s missing 'fired' status", lbl)
+                continue
+            if not isinstance(fired_val, bool):
+                logger.debug("[CIRCUIT_EXPANDED] Breaker %s 'fired' is not bool: got %s", lbl, type(fired_val).__name__)
+                continue
+            fired = fired_val
 
             util_high = False
             if cur is None or thr is None:
@@ -232,7 +330,8 @@ def panel_circuit_expanded(cb: Any) -> Panel:
                 try:
                     thr_f = safe_float(thr, 0.0, strict=True, field_name="circuit_breaker_threshold")
                     cur_f = safe_float(cur, 0.0, strict=True, field_name="circuit_breaker_current")
-                except StrictValidationError:
+                except StrictValidationError as e:
+                    logger.error("[CIRCUIT_EXPANDED] Breaker %s failed validation: %s", lbl, e)
                     status = Text("BAD DATA", style=R)
                     util_bar = Text("!/ !", style=R)
                     cur_s = f"{cur}{u}"
