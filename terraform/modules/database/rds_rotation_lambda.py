@@ -147,9 +147,15 @@ def handler(event: Any, context: Any) -> dict[str, Any]:
 
             current_secret = get_secret_dict(secret_id, "AWSCURRENT")
 
+            # CRITICAL: Port must be explicitly configured, no defaults
+            # Using a fallback port masks configuration errors and can break rotations
+            db_port = current_secret.get("port")
+            if not db_port:
+                raise ValueError("[RDS_ROTATION] Database port not found in secret — cannot proceed with password rotation")
+
             update_rds_password(
                 host=current_secret["host"],
-                port=int(current_secret.get("port", 5432)),
+                port=int(db_port),
                 username=current_secret["username"],
                 current_password=current_secret["password"],
                 new_password=pending_secret["password"],
@@ -165,9 +171,15 @@ def handler(event: Any, context: Any) -> dict[str, Any]:
             pending_secret = get_secret_dict(secret_id, "AWSPENDING")
 
             try:
+                # CRITICAL: Port must be explicitly configured, no defaults
+                # Using a fallback port masks configuration errors
+                db_port = pending_secret.get("port")
+                if not db_port:
+                    raise ValueError("[RDS_ROTATION] Database port not found in secret — cannot verify credentials")
+
                 conn = psycopg2.connect(
                     host=pending_secret["host"],
-                    port=int(pending_secret.get("port", 5432)),
+                    port=int(db_port),
                     user=pending_secret["username"],
                     password=pending_secret["password"],
                     database="postgres",

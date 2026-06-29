@@ -489,7 +489,9 @@ class YieldCurveFetcher:
             if result:
                 logger.info(f"[YIELD_CURVE] Fetched {len(result)} dates with yield spread from T10Y2Y series")
             else:
-                logger.debug(f"[YIELD_CURVE] No yield data available for date range {start}:{end}")
+                # CRITICAL: Yield curve is critical market data per CLAUDE.md governance
+                # Missing data must be visible to ops for market stress calculations
+                logger.error(f"[YIELD_CURVE] CRITICAL: No yield data available for date range {start}:{end} — market stress calculations may be incomplete")
 
             return result
         except Exception as e:

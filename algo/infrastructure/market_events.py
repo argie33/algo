@@ -38,8 +38,14 @@ class MarketEventHandler:
         self.config = config
         self.alpaca_base_url = get_alpaca_base_url()
         cm = get_credential_manager()
-        self.alpaca_key = cm.get_alpaca_credentials()["key"]
-        self.alpaca_secret = cm.get_alpaca_credentials()["secret"]
+        creds = cm.get_alpaca_credentials()
+        # CRITICAL: Fail fast if credentials missing (no defaults)
+        if "key" not in creds:
+            raise ValueError("[MARKET_EVENTS] Alpaca API key missing from credentials")
+        if "secret" not in creds:
+            raise ValueError("[MARKET_EVENTS] Alpaca API secret missing from credentials")
+        self.alpaca_key = creds["key"]
+        self.alpaca_secret = creds["secret"]
 
     def check_single_stock_halt(self, symbol: str) -> dict[str, Any] | None:
         """Check if symbol is currently halted from trading.

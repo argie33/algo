@@ -100,7 +100,9 @@ def handle(
                         "value_metrics loader must run before deep-value screening is available.",
                     )
             except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
-                logger.debug("[DEEP_VALUE] value_metrics table not found - financial data not loaded yet")
+                # CRITICAL: value_metrics is HIGH-priority financial data
+                # Logging at WARNING to ensure ops visibility of missing loader
+                logger.warning("[DEEP_VALUE] value_metrics table not found - financial data not loaded yet")
                 return error_response(
                     503,
                     "data_unavailable",

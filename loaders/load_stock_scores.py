@@ -326,8 +326,9 @@ class StockScoresLoader(OptimalLoader):
                     "current_ratio": self._safe_float(row[5], f"{symbol}.current_ratio"),
                     "quick_ratio": self._safe_float(row[6], f"{symbol}.quick_ratio"),
                 }
-            # Explicitly log when quality data unavailable (optional enrichment)
-            logger.debug(f"[LOAD_STOCK_SCORES] No quality metrics available for {symbol} — will reduce score completeness")
+            # CRITICAL: Quality metrics are HIGH-priority financial data (SEC filings)
+            # Logging at WARNING to ensure ops visibility of degraded scoring
+            logger.warning(f"[LOAD_STOCK_SCORES] No quality metrics available for {symbol} — score completeness will be reduced")
             return None
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Database operation failed fetching quality metrics for {symbol}: {e}") from e
@@ -353,8 +354,9 @@ class StockScoresLoader(OptimalLoader):
                     "eps_growth_3y": self._safe_float(row[4], f"{symbol}.eps_growth_3y"),
                     "eps_growth_5y": self._safe_float(row[5], f"{symbol}.eps_growth_5y"),
                 }
-            # Explicitly log when growth data unavailable (optional enrichment)
-            logger.debug(f"[LOAD_STOCK_SCORES] No growth metrics available for {symbol} — will reduce score completeness")
+            # CRITICAL: Growth metrics are HIGH-priority financial data (SEC filings)
+            # Logging at WARNING to ensure ops visibility of degraded scoring
+            logger.warning(f"[LOAD_STOCK_SCORES] No growth metrics available for {symbol} — score completeness will be reduced")
             return None
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Database operation failed fetching growth metrics for {symbol}: {e}") from e
@@ -380,8 +382,9 @@ class StockScoresLoader(OptimalLoader):
                     "dividend_yield": self._safe_float(row[4], f"{symbol}.dividend_yield"),
                     "fcf_yield": self._safe_float(row[5], f"{symbol}.fcf_yield"),
                 }
-            # Explicitly log when value data unavailable (optional enrichment)
-            logger.debug(f"[LOAD_STOCK_SCORES] No value metrics available for {symbol} — will reduce score completeness")
+            # CRITICAL: Value metrics are HIGH-priority financial data (market pricing)
+            # Logging at WARNING to ensure ops visibility of degraded scoring
+            logger.warning(f"[LOAD_STOCK_SCORES] No value metrics available for {symbol} — score completeness will be reduced")
             return None
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Database operation failed fetching value metrics for {symbol}: {e}") from e
@@ -404,7 +407,8 @@ class StockScoresLoader(OptimalLoader):
                     "insider_ownership": self._safe_float(row[1], f"{symbol}.insider_ownership"),
                     "short_interest": self._safe_float(row[2], f"{symbol}.short_interest"),
                 }
-            # Explicitly log when positioning data unavailable (optional enrichment)
+            # Positioning metrics are optional enrichment (institutional ownership, short interest)
+            # Debug level acceptable for optional data
             logger.debug(f"[LOAD_STOCK_SCORES] No positioning metrics available for {symbol} — will reduce score completeness")
             return None
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
@@ -429,8 +433,9 @@ class StockScoresLoader(OptimalLoader):
                     "volatility_30d": float(row[2]) if row[2] is not None else None,
                     "beta": float(row[3]) if row[3] is not None else None,
                 }
-            # Explicitly log when stability data unavailable (optional enrichment)
-            logger.debug(f"[LOAD_STOCK_SCORES] No stability metrics available for {symbol} — will reduce score completeness")
+            # CRITICAL: Stability metrics are HIGH-priority financial data (volatility, beta)
+            # Logging at WARNING to ensure ops visibility of degraded scoring
+            logger.warning(f"[LOAD_STOCK_SCORES] No stability metrics available for {symbol} — score completeness will be reduced")
             return None
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Database operation failed fetching stability metrics for {symbol}: {e}") from e
@@ -493,8 +498,9 @@ class StockScoresLoader(OptimalLoader):
                     "momentum_6m": momentum_6m,
                     "momentum_12m": momentum_12m,
                 }
-            # Explicitly log when momentum data unavailable (price data missing)
-            logger.debug(f"[LOAD_STOCK_SCORES] No momentum data available for {symbol} — insufficient price history")
+            # CRITICAL: Momentum is HIGH-priority technical indicator data (price history)
+            # Logging at WARNING to ensure ops visibility of degraded scoring
+            logger.warning(f"[LOAD_STOCK_SCORES] No momentum data available for {symbol} — insufficient price history")
             return None
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Database operation failed fetching momentum metrics for {symbol}: {e}") from e
