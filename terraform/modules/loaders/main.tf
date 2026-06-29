@@ -691,8 +691,10 @@ locals {
     # OPTIMIZED 2026-06-28: Reduced parallelism from 4→2 (vectorized operations, no thread pool benefit)
     "signal_themes" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 2 }
     # signal_quality_scores: reduced from parallelism=4 to 2 to prevent statement timeouts during concurrent loader runs
-    # FIXED 2026-06-21: Reduced timeout from 5400→1800s (1.5h→30m) to fail fast instead of masking failures
-    "signal_quality_scores" = { cpu = 1024, memory = 2048, timeout = 1800, parallelism = 2 }
+    # CRITICAL FIX 2026-06-28: Increased timeout from 1800→3600s (30m→1h) to prevent signal generation failure
+    # Reason: Depends on technical_data_daily + buy_sell_daily + position data; cascade delays extend runtime
+    # Previous 30m timeout was causing Phase 5 signal generation to halt due to missing data
+    "signal_quality_scores" = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
 
     # BUY/SELL signals — compute trade signals for all 5000+ symbols
     # OPTIMIZED 2026-06-28: Reduced memory from 4096→2048MB + parallelism from 3→2 (vectorized ops, lower RDS contention)

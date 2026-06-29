@@ -50,13 +50,12 @@ class PutCallRatioFactor(MarketFactorStrategy):
             )
             row = cur.fetchone()
             if not row or row[0] is None:
-                # Optional data not available - return neutral score
-                logger.warning(f"Put/call ratio unavailable for {eval_date} - using neutral score (50)")
-                return {
-                    "score": 50.0,
-                    "reason": "Put/call ratio data unavailable (optional enrichment)",
-                    "details": {"put_call_ratio": None, "signal": "neutral_unavailable"},
-                }
+                raise RuntimeError(
+                    f"[PUT_CALL_RATIO] Put/call ratio unavailable for {eval_date}. "
+                    f"Put/call ratio is CRITICAL for market sentiment analysis - reflects fear/greed extremes. "
+                    f"Cannot use neutral default score (would mask extreme market conditions). "
+                    f"Require fresh options data from load_options_chains before computing market factors."
+                )
 
             pcr = float(row[0])
 
