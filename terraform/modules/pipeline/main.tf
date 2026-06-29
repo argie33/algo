@@ -1638,6 +1638,280 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
   tags = var.common_tags
 }
 
+# ============================================================
+# Computed Metrics Pipeline - Daily Stock Metrics
+# FIXED Issue #31: Wire quality/growth/value/stability loaders into Step Functions
+# Metrics (5:00 PM ET): Runs AFTER financial pipeline completes
+# Depends on: financial_data_pipeline (must complete by 5:00 PM)
+# Computes: quality_metrics, growth_metrics, value_metrics, stability_metrics, stock_scores
+# Runs sequentially to respect dependencies and avoid RDS connection pool exhaustion
+# ============================================================
+
+resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
+  name     = "${var.project_name}-computed-metrics-pipeline-${var.environment}"
+  role_arn = aws_iam_role.sfn_pipeline.arn
+  type     = "STANDARD"
+
+  logging_configuration {
+    log_destination        = "${aws_cloudwatch_log_group.sfn_pipeline.arn}:*"
+    include_execution_data = true
+    level                  = "ALL"
+  }
+
+  definition = jsonencode({
+    Comment = "Daily computed metrics: quality/growth/value/stability/stock scores (depends on financial data)"
+    StartAt = "GrowthMetrics"
+
+    States = {
+      # ── Growth Metrics (depends on financial data) ──
+      GrowthMetrics = {
+        Type           = "Task"
+        Resource       = "arn:aws:states:::ecs:runTask.sync"
+        TimeoutSeconds = 3600
+        Parameters = {
+          Cluster              = var.ecs_cluster_arn
+          LaunchType           = "FARGATE"
+          TaskDefinition       = var.loader_task_definition_arns["growth_metrics"]
+          NetworkConfiguration = local.network_config
+        }
+        Retry = [{
+          ErrorEquals     = ["States.ALL"]
+          IntervalSeconds = 60
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "LogGrowthMetricsFailure"
+          ResultPath  = "$.loaderError"
+        }]
+        Next = "QualityMetrics"
+      }
+
+      LogGrowthMetricsFailure = {
+        Type     = "Task"
+        Resource = var.loader_failure_handler_arn
+        Parameters = {
+          loader_name       = "growth_metrics"
+          "error.$"         = "$.loaderError.Error"
+          "error_message.$" = "$.loaderError.Cause"
+        }
+        ResultPath = "$.failureLog"
+        Retry = [{
+          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
+          IntervalSeconds = 2
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "QualityMetrics"
+          ResultPath  = "$.logError"
+        }]
+        Next = "QualityMetrics"
+      }
+
+      # ── Quality Metrics (depends on financial data) ──
+      QualityMetrics = {
+        Type           = "Task"
+        Resource       = "arn:aws:states:::ecs:runTask.sync"
+        TimeoutSeconds = 3600
+        Parameters = {
+          Cluster              = var.ecs_cluster_arn
+          LaunchType           = "FARGATE"
+          TaskDefinition       = var.loader_task_definition_arns["quality_metrics"]
+          NetworkConfiguration = local.network_config
+        }
+        Retry = [{
+          ErrorEquals     = ["States.ALL"]
+          IntervalSeconds = 60
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "LogQualityMetricsFailure"
+          ResultPath  = "$.loaderError"
+        }]
+        Next = "ValueMetrics"
+      }
+
+      LogQualityMetricsFailure = {
+        Type     = "Task"
+        Resource = var.loader_failure_handler_arn
+        Parameters = {
+          loader_name       = "quality_metrics"
+          "error.$"         = "$.loaderError.Error"
+          "error_message.$" = "$.loaderError.Cause"
+        }
+        ResultPath = "$.failureLog"
+        Retry = [{
+          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
+          IntervalSeconds = 2
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "ValueMetrics"
+          ResultPath  = "$.logError"
+        }]
+        Next = "ValueMetrics"
+      }
+
+      # ── Value Metrics (independent of financial data) ──
+      ValueMetrics = {
+        Type           = "Task"
+        Resource       = "arn:aws:states:::ecs:runTask.sync"
+        TimeoutSeconds = 3600
+        Parameters = {
+          Cluster              = var.ecs_cluster_arn
+          LaunchType           = "FARGATE"
+          TaskDefinition       = var.loader_task_definition_arns["value_metrics"]
+          NetworkConfiguration = local.network_config
+        }
+        Retry = [{
+          ErrorEquals     = ["States.ALL"]
+          IntervalSeconds = 60
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "LogValueMetricsFailure"
+          ResultPath  = "$.loaderError"
+        }]
+        Next = "StabilityMetrics"
+      }
+
+      LogValueMetricsFailure = {
+        Type     = "Task"
+        Resource = var.loader_failure_handler_arn
+        Parameters = {
+          loader_name       = "value_metrics"
+          "error.$"         = "$.loaderError.Error"
+          "error_message.$" = "$.loaderError.Cause"
+        }
+        ResultPath = "$.failureLog"
+        Retry = [{
+          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
+          IntervalSeconds = 2
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "StabilityMetrics"
+          ResultPath  = "$.logError"
+        }]
+        Next = "StabilityMetrics"
+      }
+
+      # ── Stability Metrics (independent of financial data) ──
+      StabilityMetrics = {
+        Type           = "Task"
+        Resource       = "arn:aws:states:::ecs:runTask.sync"
+        TimeoutSeconds = 1800
+        Parameters = {
+          Cluster              = var.ecs_cluster_arn
+          LaunchType           = "FARGATE"
+          TaskDefinition       = var.loader_task_definition_arns["stability_metrics"]
+          NetworkConfiguration = local.network_config
+        }
+        Retry = [{
+          ErrorEquals     = ["States.ALL"]
+          IntervalSeconds = 60
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "LogStabilityMetricsFailure"
+          ResultPath  = "$.loaderError"
+        }]
+        Next = "StockScores"
+      }
+
+      LogStabilityMetricsFailure = {
+        Type     = "Task"
+        Resource = var.loader_failure_handler_arn
+        Parameters = {
+          loader_name       = "stability_metrics"
+          "error.$"         = "$.loaderError.Error"
+          "error_message.$" = "$.loaderError.Cause"
+        }
+        ResultPath = "$.failureLog"
+        Retry = [{
+          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
+          IntervalSeconds = 2
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "StockScores"
+          ResultPath  = "$.logError"
+        }]
+        Next = "StockScores"
+      }
+
+      # ── Stock Composite Scores (depends on all above metrics) ──
+      StockScores = {
+        Type           = "Task"
+        Resource       = "arn:aws:states:::ecs:runTask.sync"
+        TimeoutSeconds = 3600
+        Parameters = {
+          Cluster              = var.ecs_cluster_arn
+          LaunchType           = "FARGATE"
+          TaskDefinition       = var.loader_task_definition_arns["stock_scores"]
+          NetworkConfiguration = local.network_config
+        }
+        Retry = [{
+          ErrorEquals     = ["States.ALL"]
+          IntervalSeconds = 60
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "LogStockScoresFailure"
+          ResultPath  = "$.loaderError"
+        }]
+        Next = "MetricsSuccess"
+      }
+
+      LogStockScoresFailure = {
+        Type     = "Task"
+        Resource = var.loader_failure_handler_arn
+        Parameters = {
+          loader_name       = "stock_scores"
+          "error.$"         = "$.loaderError.Error"
+          "error_message.$" = "$.loaderError.Cause"
+        }
+        ResultPath = "$.failureLog"
+        Retry = [{
+          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
+          IntervalSeconds = 2
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "MetricsSuccess"
+          ResultPath  = "$.logError"
+        }]
+        Next = "MetricsSuccess"
+      }
+
+      MetricsSuccess = {
+        Type = "Succeed"
+      }
+    }
+  })
+
+  tags = var.common_tags
+}
+
 # CloudWatch Alarm: Morning pipeline not completed by 9:30 AM
 resource "aws_cloudwatch_metric_alarm" "morning_pipeline_timeout_risk" {
   alarm_name          = "${var.project_name}-morning-pipeline-timeout-${var.environment}"
@@ -2014,6 +2288,32 @@ resource "aws_scheduler_schedule" "financial_data_pipeline_trigger" {
 
     input = jsonencode({
       execution_name = "financial-<aws.scheduler.execution-id>"
+    })
+
+    retry_policy {
+      maximum_event_age_in_seconds = 3600
+      maximum_retry_attempts       = 2
+    }
+  }
+}
+
+resource "aws_scheduler_schedule" "computed_metrics_pipeline_trigger" {
+  name                         = "${var.project_name}-computed-metrics-pipeline-${var.environment}"
+  description                  = "Daily computed metrics: quality/growth/value/stability/scores - 5:00 PM ET, depends on financial data pipeline"
+  schedule_expression          = "cron(0 17 ? * MON-FRI *)"
+  schedule_expression_timezone = "America/New_York"
+  state                        = "ENABLED"
+
+  flexible_time_window {
+    mode = "OFF"
+  }
+
+  target {
+    arn      = aws_sfn_state_machine.computed_metrics_pipeline.arn
+    role_arn = var.eventbridge_scheduler_role_arn
+
+    input = jsonencode({
+      execution_name = "metrics-<aws.scheduler.execution-id>"
     })
 
     retry_policy {
