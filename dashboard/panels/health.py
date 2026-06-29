@@ -42,24 +42,6 @@ def _var_color(var95: float | None) -> str:
     return "white"
 
 
-def _format_phase_badge(phase_status: str) -> tuple[str, str]:
-    """Format phase status to (color, icon) badge."""
-    from ..utilities import G, R, Y
-
-    # CRITICAL: Explicit None check instead of falsy OR fallback
-    # Missing status should not silently default to empty string
-    if phase_status is None or not isinstance(phase_status, str):
-        ps_lower = ""
-    else:
-        ps_lower = phase_status.lower()
-    if ps_lower in PHASE_SUCCESS_STATES:
-        return G, "✓"
-    elif ps_lower in PHASE_HALTED_STATES:
-        return Y, "~"
-    else:
-        return R, "✗"
-
-
 def _fmt_age(r: dict[str, Any]) -> str:
     """Format age from health item dict."""
     from dashboard.data_validation import StrictValidationError, safe_float
