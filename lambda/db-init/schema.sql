@@ -820,6 +820,8 @@ CREATE TABLE IF NOT EXISTS aaii_sentiment (
     bullish DECIMAL(8, 4),
     neutral DECIMAL(8, 4),
     bearish DECIMAL(8, 4),
+    data_unavailable BOOLEAN DEFAULT FALSE,
+    reason VARCHAR(500),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
