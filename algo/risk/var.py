@@ -321,11 +321,11 @@ class ValueAtRisk:
         except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def beta_exposure(self) -> dict[str, Any] | None:
+    def beta_exposure(self) -> dict[str, Any]:
         """Compute portfolio beta exposure vs. S&P 500.
 
         Returns:
-            dict with portfolio beta and per-position beta, or None if no positions exist
+            dict with portfolio beta and per-position beta. If no positions exist, returns zero-exposure response.
         """
         try:
             with DatabaseContext("read") as cur:
@@ -337,8 +337,13 @@ class ValueAtRisk:
                 positions = cur.fetchall()
 
                 if not positions:
-                    logger.warning("Beta exposure calculation skipped: no open positions exist yet")
-                    return None
+                    logger.info("No open positions: returning zero beta exposure")
+                    return {
+                        "portfolio_beta": 0.0,
+                        "interpretation": "No open positions - portfolio beta is zero",
+                        "positions": [],
+                        "portfolio_value": 0.0,
+                    }
 
                 cur.execute(
                     "SELECT total_portfolio_value, snapshot_date FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1"
@@ -519,11 +524,11 @@ class ValueAtRisk:
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def concentration_report(self) -> dict[str, Any] | None:
+    def concentration_report(self) -> dict[str, Any]:
         """Generate concentration report: top holdings, sectors, industries.
 
         Returns:
-            dict with concentration metrics, or None if no positions exist
+            dict with concentration metrics. If no positions exist, returns zero-concentration response.
         """
         try:
             with DatabaseContext("read") as cur:
@@ -557,8 +562,16 @@ class ValueAtRisk:
                 positions = cur.fetchall()
 
                 if not positions:
-                    logger.warning("Concentration report skipped: no open positions exist yet")
-                    return None
+                    logger.info("No open positions: returning zero concentration")
+                    return {
+                        "top_holdings": [],
+                        "sector_exposure": {},
+                        "industry_exposure": {},
+                        "max_single_position": 0.0,
+                        "herfindahl_index": 0.0,
+                        "interpretation": "No open positions - portfolio concentration is zero",
+                        "portfolio_value": 0.0,
+                    }
 
                 cur.execute(
                     "SELECT total_portfolio_value, snapshot_date FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1"
