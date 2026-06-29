@@ -13,6 +13,13 @@ Purpose:
 - Persists to market_exposure_daily table for API + dashboard consumption
 - Runs independently of orchestrator to guarantee availability
 
+Validation & Error Handling (Fail-Fast):
+- MarketExposure.compute() raises RuntimeError on invalid/missing data (no fallback)
+- Loader validates result structure BEFORE using any fields
+- All critical fields (regime, exposure_pct, raw_score, halt_reasons, distribution_days) required
+- Invalid regime, exposure_pct outside [0,100], or missing factors cause immediate failure
+- No placeholder data or silent defaults — missing data is reported as FAILED status
+
 Time: ~2-5 seconds (vectorized computation, minimal DB load)
 """
 
@@ -86,21 +93,51 @@ def main() -> int:
         me = MarketExposure()
         result = me.compute(latest_date, force_recompute=True)
 
-        if result.get("success") is False:
-            logger.error(f"Market exposure computation failed: {result.get('error')}")
+        # CRITICAL: Validate result structure - compute() either succeeds with full dict or raises error
+        # No "success" field exists; validation is fail-fast via exception
+        try:
+            required_fields = ["eval_date", "regime", "exposure_pct", "raw_score", "halt_reasons", "distribution_days", "factors"]
+            missing_fields = [f for f in required_fields if f not in result]
+            if missing_fields:
+                msg = (
+                    f"Market exposure computation returned incomplete result. "
+                    f"Missing required fields: {missing_fields}. "
+                    f"Cannot proceed with incomplete market regime data."
+                )
+                logger.error(msg)
+                with DatabaseContext("write") as cur:
+                    cur.execute(
+                        "UPDATE data_loader_status SET status = %s, last_updated = NOW(), error_message = %s WHERE table_name = %s",
+                        ("FAILED", msg, table_name),
+                    )
+                return 1
+
+            # Validate critical field types
+            if not isinstance(result["regime"], str) or result["regime"] not in ["confirmed_uptrend", "uptrend_under_pressure", "caution", "correction"]:
+                raise ValueError(f"Invalid regime value: {result.get('regime')}")
+            if not isinstance(result["exposure_pct"], (int, float)) or not (0 <= result["exposure_pct"] <= 100):
+                raise ValueError(f"Invalid exposure_pct: {result.get('exposure_pct')}")
+            if not isinstance(result["halt_reasons"], list):
+                raise ValueError(f"Invalid halt_reasons type: {type(result['halt_reasons'])}")
+            if not isinstance(result["distribution_days"], int):
+                raise ValueError(f"Invalid distribution_days type: {type(result['distribution_days'])}")
+
+        except (KeyError, ValueError, TypeError) as e:
+            msg = f"Market exposure validation failed: {type(e).__name__}: {e}"
+            logger.error(msg)
             with DatabaseContext("write") as cur:
                 cur.execute(
                     "UPDATE data_loader_status SET status = %s, last_updated = NOW(), error_message = %s WHERE table_name = %s",
-                    ("FAILED", result.get("error"), table_name),
+                    ("FAILED", msg[:200], table_name),
                 )
             return 1
 
         logger.info("✓ Market exposure computed:")
-        logger.info(f"  Regime: {result.get('regime')}")
-        logger.info(f"  Exposure: {result.get('exposure_pct')}%")
-        logger.info(f"  Raw score: {result.get('raw_score')}")
+        logger.info(f"  Regime: {result['regime']}")
+        logger.info(f"  Exposure: {result['exposure_pct']}%")
+        logger.info(f"  Raw score: {result['raw_score']}")
 
-        if result.get("halt_reasons"):
+        if result["halt_reasons"]:  # Already validated as list above
             logger.info(f"  Halt reasons: {'; '.join(result['halt_reasons'])}")
 
         # Mark loader as COMPLETED (atomic upsert prevents race conditions from concurrent loaders)
