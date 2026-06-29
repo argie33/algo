@@ -10,7 +10,6 @@ All symbols are configurable via the algo_config table (config keys: market_etf_
 market_index_symbols, market_index_names, essential_stocks).
 """
 
-import json
 import logging
 from typing import Any, cast
 

@@ -11,8 +11,8 @@ in the GitHub Actions deployment pipeline via Lambda invocation.
 import json
 import logging
 import os
-import sys
 import subprocess
+import sys
 from pathlib import Path
 
 logger = logging.getLogger()
@@ -190,7 +190,7 @@ def lambda_handler(event, context):
         result = run_migrations(creds)
 
         if result["success"]:
-            logger.info(f"✅ Migrations completed successfully")
+            logger.info("✅ Migrations completed successfully")
             return {
                 "statusCode": 200,
                 "body": json.dumps(result),

@@ -220,7 +220,7 @@ def _get_signals_etf(cur: cursor, limit: int = 500) -> Any:
     """
     try:
         cur.execute("SET LOCAL statement_timeout = '15000ms'")
-        from utils.market_symbols_config import MarketSymbolsConfig  # noqa: E402
+        from utils.market_symbols_config import MarketSymbolsConfig
         etf_symbols = MarketSymbolsConfig.get_etf_symbols()
         cur.execute(
             """
