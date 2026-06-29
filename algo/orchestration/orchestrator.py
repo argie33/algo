@@ -498,9 +498,22 @@ class Orchestrator:
                     except Exception as alert_err:
                         logger.debug(f"[LOADER HEALTH] Could not send alert: {alert_err}")
 
+                    # CRITICAL: Halt trading if all loaders stale/missing
+                    # Using stale data for trading decisions is unacceptable - stop here
+                    raise RuntimeError(
+                        f"[ORCHESTRATOR] CRITICAL HALT: All critical loaders are stale/missing. "
+                        f"Cannot proceed with trading using stale data. "
+                        f"Stale loaders: {stale_loaders}. Missing loaders: {missing_loaders}. "
+                        f"Fix loader infrastructure before resuming trading."
+                    )
+
         except (psycopg2.DatabaseError, psycopg2.OperationalError, TimeoutError) as e:
             logger.warning(f"[LOADER HEALTH] Could not check loader status: {e}")
-            # Non-blocking — don't halt trading
+            # If we can't check loader health, HALT (don't assume data is fresh)
+            raise RuntimeError(
+                f"[ORCHESTRATOR] CRITICAL: Cannot verify loader health: {e}. "
+                f"Halting trading - unable to confirm data freshness."
+            )
         except Exception as e:
             logger.debug(f"[LOADER HEALTH] Unexpected error checking loader health: {e}")
 
