@@ -60,6 +60,8 @@ class TriggerLoadersHandler(LambdaHandler):
 
         critical_loaders = {
             "stock_prices_daily",
+            "market_health_daily",
+            "market_exposure_daily",
             "signals_daily",
             "algo_metrics_daily",
             "stock_scores",
