@@ -403,15 +403,33 @@ def fetch_activity(c: None) -> dict[str, Any]:
             record_data_quality_issue("activity", "validation", "invalid_response_type")
             return FetcherValidator.build_error_response(error_msg)
 
-        run_at = items[0].get("action_date") if items else None
-        run_id = next(
-            (details.get("run_id") for i in items if (details := i.get("details")) is not None and details.get("run_id")),
-            None,
-        )
+        # Extract run timestamp and ID with explicit validation
+        run_at = None
+        if items and len(items) > 0:
+            run_at = items[0].get("action_date")
+            if run_at is None:
+                logger.warning("[FETCH] Activity items present but first item missing 'action_date' field")
+        else:
+            logger.warning("[FETCH] No activity items available - run_at will be None")
+
+        # Extract run_id with explicit search and logging
+        run_id = None
+        for i in items:
+            details = i.get("details")
+            if details is not None and isinstance(details, dict):
+                candidate_run_id = details.get("run_id")
+                if candidate_run_id is not None:
+                    run_id = candidate_run_id
+                    break
+        if run_id is None:
+            logger.debug("[FETCH] No run_id found in activity details - run_id will be None")
+
+        # Extract phase events
         phases = [
             i for i in items
             if i.get("action_type") and str(i.get("action_type")).startswith("phase_")
         ]
+
         return {
             "run_id": run_id,
             "run_at": run_at,

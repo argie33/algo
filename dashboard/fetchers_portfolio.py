@@ -305,24 +305,15 @@ def fetch_perf(c: None) -> dict[str, Any]:
             except (TypeError, ValueError) as e:
                 raise ValueError(f"Failed to convert performance metric to float: {v!r} — {e}") from e
 
-        # unrealized_pnl comes from portfolio endpoint (performance endpoint doesn't have it)
+        # unrealized_pnl is optional enrichment (comes from portfolio endpoint if available)
+        # Performance endpoint may not include it; return explicit marker if unavailable
         unrealized_pnl = perf.get("unrealized_pnl")
         if unrealized_pnl is None:
-            logger.debug("Performance data missing 'unrealized_pnl' field, falling back to portfolio endpoint")
-            port_data = api_call("/api/algo/portfolio")
-            is_port_error, port_error_msg = FetcherValidator.check_api_error(port_data)
-            if is_port_error:
-                logger.warning(
-                    f"[DATA_QUALITY] Could not fetch unrealized_pnl from portfolio endpoint: {port_error_msg}"
-                )
-            elif isinstance(port_data.get("unrealized_pnl"), dict):
-                unrealized_pnl = port_data["unrealized_pnl"]
-                logger.debug("Successfully retrieved unrealized_pnl from portfolio endpoint fallback")
-            else:
-                logger.warning(
-                    f"[DATA_QUALITY] Portfolio endpoint missing/invalid 'unrealized_pnl' field. "
-                    f"Type: {type(port_data.get('unrealized_pnl')).__name__}"
-                )
+            logger.debug("Performance data missing 'unrealized_pnl' field (optional enrichment)")
+            unrealized_pnl = {
+                "data_unavailable": True,
+                "reason": "not_in_performance_response"
+            }
 
         # CRITICAL: open_losses_count is REQUIRED. No fallback to alternative fields.
         # Missing field indicates API schema mismatch — fail-fast.
