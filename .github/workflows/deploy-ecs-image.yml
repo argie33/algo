@@ -1,0 +1,107 @@
+name: Deploy ECS Docker Image
+
+# Builds the Docker image for all ECS loaders and the orchestrator, pushes to ECR.
+# Use when you've changed loader code (loaders/, algo/, utils/) and need the ECS
+# tasks to pick up the new code without a full Terraform apply.
+
+on:
+  workflow_dispatch:
+    inputs:
+      force_recreate:
+        description: 'Force ECS service update after push (restarts running tasks)'
+        required: false
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  AWS_REGION: us-east-1
+  ENVIRONMENT: dev
+
+jobs:
+  build-and-push:
+    name: Build & Push Docker Image to ECR
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    outputs:
+      image_tag: ${{ steps.build.outputs.image_tag }}
+
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a  # v4
+        with:
+          role-to-assume: ${{ secrets.GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/{1}', secrets.AWS_ACCOUNT_ID, secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev') }}
+          aws-region: us-east-1
+
+      - name: Get ECR repository URI
+        id: ecr
+        run: |
+          REPO_URI=$(aws ecr describe-repositories \
+            --region $AWS_REGION \
+            --query "repositories[?contains(repositoryName, 'algo')].repositoryUri | [0]" \
+            --output text)
+          if [ -z "$REPO_URI" ] || [ "$REPO_URI" = "None" ]; then
+            echo "ERROR: Could not find ECR repository for algo"
+            exit 1
+          fi
+          echo "repo_uri=$REPO_URI" >> $GITHUB_OUTPUT
+          echo "ECR repo: $REPO_URI"
+
+      - name: Log in to Amazon ECR
+        run: |
+          aws ecr get-login-password --region $AWS_REGION | \
+            docker login --username AWS --password-stdin ${{ steps.ecr.outputs.repo_uri }}
+
+      - name: Build and push Docker image
+        id: build
+        run: |
+          REPO_URI="${{ steps.ecr.outputs.repo_uri }}"
+          IMAGE_TAG="${ENVIRONMENT}-latest"
+          FULL_TAG="$REPO_URI:$IMAGE_TAG"
+
+          echo "Building image: $FULL_TAG"
+          docker build -t "$FULL_TAG" .
+          docker push "$FULL_TAG"
+
+          echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
+          echo "image_uri=$FULL_TAG" >> $GITHUB_OUTPUT
+          echo "Successfully pushed: $FULL_TAG"
+
+      - name: Force ECS service update (restart tasks with new image)
+        if: ${{ inputs.force_recreate == 'true' }}
+        run: |
+          CLUSTER=$(aws ecs list-clusters --region $AWS_REGION \
+            --query "clusterArns[?contains(@, 'algo')] | [0]" --output text)
+          if [ -z "$CLUSTER" ] || [ "$CLUSTER" = "None" ]; then
+            echo "WARNING: Could not find algo ECS cluster — skipping service update"
+            exit 0
+          fi
+          echo "Found cluster: $CLUSTER"
+
+          # List all services in the cluster and force-update each one
+          SERVICES=$(aws ecs list-services --cluster "$CLUSTER" --region $AWS_REGION \
+            --query "serviceArns[]" --output text)
+          if [ -z "$SERVICES" ]; then
+            echo "No services found in cluster — individual tasks will pick up new image on next run"
+            exit 0
+          fi
+
+          for SERVICE in $SERVICES; do
+            echo "Forcing new deployment for: $SERVICE"
+            aws ecs update-service \
+              --cluster "$CLUSTER" \
+              --service "$SERVICE" \
+              --force-new-deployment \
+              --region $AWS_REGION \
+              --query "service.serviceName" \
+              --output text || echo "WARNING: Failed to update $SERVICE (may be a one-off task, not a service)"
+          done
+          echo "ECS services updated — tasks will restart with new image"

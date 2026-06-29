@@ -17,7 +17,11 @@ from datetime import datetime, timezone
 from typing import Any
 
 import boto3
-import psycopg2
+
+try:
+    import psycopg2
+except ImportError:
+    psycopg2 = None  # type: ignore[assignment]
 
 logger = logging.getLogger()
 
@@ -127,8 +131,13 @@ class LambdaHandler(ABC):
         password: str | None = None,
         ssl_mode: str = "require",
         timeout: int = 10,
-    ) -> psycopg2.extensions.connection:
+    ) -> Any:
         """Get a database connection with proper error handling."""
+        if psycopg2 is None:
+            raise RuntimeError(
+                "psycopg2 is not installed in this Lambda environment. "
+                "This Lambda function does not support database connections."
+            )
         try:
             db_host = host or os.environ.get("DB_HOST")
             # CRITICAL: Port must be explicitly configured, no defaults

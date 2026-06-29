@@ -329,10 +329,11 @@ class MarketFactorCalculator:
             ) from e
 
     def put_call_ratio(self, eval_date: Any, cur: Any) -> dict[str, Any]:
-        """Put/call ratio (contrarian indicator, critical).
+        """Put/call ratio (contrarian indicator).
 
-        Raises RuntimeError if data unavailable — sentiment extremes are key to risk management.
-        Put/call is a 5pt factor. Missing options data is a data error, not a skip condition.
+        Returns neutral score (50/100) when data unavailable — put/call data is enrichment from
+        a third-party feed that is often unavailable. Raising here blocks market_exposure_daily
+        from computing entirely, which halts Phase 1 and stops all trading.
         """
         try:
             cur.execute("SAVEPOINT sp_put_call")
@@ -343,17 +344,18 @@ class MarketFactorCalculator:
             row = cur.fetchone()
             cur.execute("RELEASE SAVEPOINT sp_put_call")
             if not row or row[0] is None:
-                raise RuntimeError(
-                    "[PUT_CALL CRITICAL] Put/call ratio unavailable. "
-                    "Check: (1) market_health_daily table has recent readings, (2) put_call_ratio column is populated"
+                logger.warning(
+                    "[PUT_CALL] Put/call ratio unavailable — returning neutral score. "
+                    "Check: (1) market_health_daily has recent readings, (2) put_call_ratio column is populated"
                 )
+                return {"value": None, "score": 50, "data_unavailable": True, "reason": "put_call_ratio_null"}
             pcr = float(row[0])
             if pcr <= 0:
-                raise RuntimeError(
-                    f"[PUT_CALL CRITICAL] Put/call ratio invalid for {eval_date}: {pcr}. "
-                    f"Put/call ratio must be > 0 (ratio of puts to calls). "
-                    f"Value of {pcr} is corrupted data. Check market_health_daily data quality."
+                logger.warning(
+                    f"[PUT_CALL] Put/call ratio invalid for {eval_date}: {pcr} — returning neutral score. "
+                    f"Put/call ratio must be > 0. Value of {pcr} indicates data quality issue."
                 )
+                return {"value": None, "score": 50, "data_unavailable": True, "reason": "put_call_ratio_invalid"}
             score = max(0, min(100, (pcr - 0.7) * 100))
             return {"value": round(pcr, 2), "score": score}
         except RuntimeError:

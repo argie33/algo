@@ -86,7 +86,7 @@ def check_auth_lost() -> Panel | None:
             title="[bold red]RE-AUTHENTICATION REQUIRED[/]",
             border_style="red",
         )
-    logger.debug("Authentication status check: auth valid")
+    logger.debug("[RENDERER] Authentication status check passed - no auth error panel needed (auth_valid)")
     return None
 
 
@@ -225,7 +225,7 @@ def render_expanded_view(  # noqa: C901
 ) -> Layout | None:
     """Render expanded detail view for given mode."""
     if view_mode == "normal":
-        logger.debug("Expanded view mode is 'normal' - returning normal dashboard")
+        logger.debug("[RENDERER] Expanded view mode is 'normal' - using normal dashboard layout (no expanded view needed)")
         return None
 
     _exp_top = (hdr_panel, exp_panel, mascot_panel)

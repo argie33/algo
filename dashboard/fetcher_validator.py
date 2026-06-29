@@ -138,15 +138,16 @@ class FetcherValidator:
                 if required:
                     return None, f"Missing required field: {field_path}"
                 # Optional field missing — log for visibility but return None with no error
-                logger.debug(f"Optional field not present: {field_path}")
+                logger.debug(f"[FETCHER_VALIDATOR] Optional field not present: {field_path} (unavailable)")
                 return None, None
             current = current[part]
 
         if required and current is None:
             return None, f"Field {field_path} is None"
         if not required and current is None:
-            logger.debug(f"Optional field is None: {field_path}")
+            logger.debug(f"[FETCHER_VALIDATOR] Optional field is None: {field_path} (unavailable)")
             return None, None
+        logger.debug(f"[FETCHER_VALIDATOR] Field extraction successful: {field_path}")
         return current, None
 
     @staticmethod

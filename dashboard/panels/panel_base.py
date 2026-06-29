@@ -83,9 +83,10 @@ class PanelBase(ABC):
             **kwargs: Input data dicts
 
         Returns:
-            None if valid, error message if invalid
+            None if valid (validation passed), error message string if invalid
 
         """
+        self.logger.debug(f"[{self.__class__.__name__}] Input validation passed (no errors)")
         return None
 
     @abstractmethod
@@ -204,7 +205,11 @@ class MultiViewPanelBase(ABC):
             return self._error_panel(f"Rendering error: {e!s}")
 
     def validate_inputs(self, **kwargs: Any) -> str | None:
-        """Validate inputs. Override in subclasses."""
+        """Validate inputs. Override in subclasses.
+
+        Returns None if validation passes, error string if validation fails.
+        """
+        self.logger.debug(f"[{self.__class__.__name__}] Multi-view validation passed (no errors)")
         return None
 
     @abstractmethod

@@ -85,6 +85,15 @@ def up():
             """
         )
 
+        # If backtest_trades was previously created with wrong schema (trade_date instead of
+        # entry_date), add the missing column so the index below doesn't fail.
+        cur.execute(
+            """
+            ALTER TABLE backtest_trades
+            ADD COLUMN IF NOT EXISTS entry_date DATE
+            """
+        )
+
         # Create index on backtest_trades run_id for faster queries
         cur.execute(
             """

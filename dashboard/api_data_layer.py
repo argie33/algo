@@ -269,12 +269,12 @@ def get_cache_age_seconds(data: dict[str, Any]) -> int | None:
         ValueError: If _cache_age_seconds is present but not an integer (data corruption)
     """
     if "_cache_age_seconds" not in data:
-        logger.debug("Data is fresh from API (not from cache), _cache_age_seconds not present")
+        logger.debug("[API_CACHE] Data is fresh from API (not from cache), _cache_age_seconds not present")
         return None
 
     age = data.get("_cache_age_seconds")
     if age is None:
-        logger.debug("Cache age field is None - treating as fresh data")
+        logger.debug("[API_CACHE] Cache age field is None - treating as fresh data (no cache age available)")
         return None
     if not isinstance(age, int):
         raise ValueError(f"Cache age corrupted: _cache_age_seconds is {type(age).__name__}, expected int. Value: {age}")
@@ -306,7 +306,7 @@ def get_cached_response(endpoint: str, mark_stale: bool = False) -> dict[str, An
     with _response_cache_lock:
         cached = _response_cache.get(endpoint)
         if not cached:
-            logger.debug(f"No cached response found for {endpoint} - API response required (cache miss)")
+            logger.debug(f"[API_CACHE] No cached response found for {endpoint} - API response required (cache miss, no data available)")
             return None
     # Validate cache structure (fail-fast if corrupted)
     # CRITICAL: Cache must have required fields, data must be dict, timestamp must be datetime

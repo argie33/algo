@@ -330,12 +330,12 @@ def fetch_perf(c: None) -> dict[str, Any]:
 
         def _f(v: object) -> float | None:
             if v is None:
-                logger.debug("Performance metric value is None - cannot convert to float")
+                logger.debug("[PORTFOLIO_FETCHER] Performance metric value is None - optional metric unavailable")
                 return None
             try:
                 return float(v)  # type: ignore[arg-type]
             except (TypeError, ValueError) as e:
-                raise ValueError(f"Failed to convert performance metric to float: {v!r} — {e}") from e
+                raise ValueError(f"[PORTFOLIO_FETCHER] Failed to convert performance metric {v!r} to float: {e}") from e
 
         # unrealized_pnl is optional enrichment (comes from portfolio endpoint if available)
         # Performance endpoint may not include it; return explicit marker if unavailable

@@ -2608,8 +2608,8 @@ CREATE TABLE IF NOT EXISTS backtest_results (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Backtest trade details
-CREATE TABLE IF NOT EXISTS backtest_trades (
+-- Backtest trade details (legacy backtest_results system — separate from backtest_runs/backtest_trades)
+CREATE TABLE IF NOT EXISTS backtest_trade_details (
     id SERIAL PRIMARY KEY,
     backtest_id UUID REFERENCES backtest_results(backtest_id) ON DELETE CASCADE,
     symbol VARCHAR(20) NOT NULL,
@@ -2628,8 +2628,8 @@ CREATE TABLE IF NOT EXISTS backtest_trades (
 -- Indexes for backtest queries
 CREATE INDEX IF NOT EXISTS idx_backtest_results_strategy ON backtest_results(strategy_name);
 CREATE INDEX IF NOT EXISTS idx_backtest_results_date ON backtest_results(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_backtest_trades_backtest_id ON backtest_trades(backtest_id);
-CREATE INDEX IF NOT EXISTS idx_backtest_trades_symbol ON backtest_trades(symbol);
+CREATE INDEX IF NOT EXISTS idx_backtest_trade_details_backtest_id ON backtest_trade_details(backtest_id);
+CREATE INDEX IF NOT EXISTS idx_backtest_trade_details_symbol ON backtest_trade_details(symbol);
 
 -- Relative performance (loadrelativeperformance.py) — OHLCV per symbol for RS calculation
 CREATE TABLE IF NOT EXISTS relative_performance (
