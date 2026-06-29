@@ -25,7 +25,7 @@ resource "aws_lambda_function" "aaii_loader" {
     variables = {
       DB_HOST     = var.db_host != "" ? var.db_host : aws_db_instance.main.address
       DB_PORT     = tostring(var.db_port)
-      DB_USER     = local.rds_username
+      DB_USER     = var.db_master_username
       DB_PASSWORD = local.rds_password
       DB_NAME     = aws_db_instance.main.db_name
     }
