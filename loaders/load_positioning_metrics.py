@@ -131,21 +131,30 @@ class PositioningMetricsLoader(OptimalLoader):
             short_interest_percent = None
             short_interest_trend = None
 
+            # yfinance returns decimal percentages (0.5 = 50%)
+            # Consistently convert all to percentage scale (0-100)
             if "heldPercentInstitutions" in info and info["heldPercentInstitutions"] is not None:
                 institutional_ownership = float(info["heldPercentInstitutions"]) * 100
             elif "institutional_ownership" in info and info["institutional_ownership"] is not None:
+                # Fallback field: yfinance returns as 0-100 scale directly (no multiply)
                 institutional_ownership = float(info["institutional_ownership"])
 
             if "heldPercentInsiders" in info and info["heldPercentInsiders"] is not None:
                 insider_ownership = float(info["heldPercentInsiders"]) * 100
             elif "insider_ownership" in info and info["insider_ownership"] is not None:
+                # Fallback field: yfinance returns as 0-100 scale directly (no multiply)
                 insider_ownership = float(info["insider_ownership"])
 
             if "shortPercentOfFloat" in info and info["shortPercentOfFloat"] is not None:
+                # CRITICAL: This field is returned as a decimal (0.05 = 5%), not a percentage (5.0)
+                # Must multiply by 100 to convert to percentage scale
                 short_interest_percent = float(info["shortPercentOfFloat"]) * 100
             elif "short_percent_of_float" in info and info["short_percent_of_float"] is not None:
+                # Fallback field: may be 0-100 scale already (yfinance inconsistency)
                 short_interest_percent = float(info["short_percent_of_float"])
             elif "shortRatio" in info and info["shortRatio"] is not None:
+                # Short ratio is absolute number of days to cover short (not a percentage)
+                # Store as-is but document that this is NOT a percentage metric
                 short_interest_percent = float(info["shortRatio"])
 
             if "sharesShort" in info and info["sharesShort"] is not None:

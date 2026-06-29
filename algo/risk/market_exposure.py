@@ -495,7 +495,7 @@ class MarketExposure:
                     f"Only {avail_max:.1f}/100 points of factor data available (threshold: {min_avail_weight}). "
                     f"Missing {100 - avail_max:.1f} points from market data pipeline. "
                     f"Cannot compute reliable market exposure score. "
-                    f"Check: phase 4 loaders, technical_data_daily, price_daily freshness."
+                    f"Check: phase 4 loaders, price_daily freshness, market_health_daily data."
                 )
                 logger.critical(msg)
                 raise RuntimeError(msg)
@@ -581,7 +581,7 @@ class MarketExposure:
                     msg = (
                         "[VETO 1 CRITICAL] Breadth data unavailable for veto check. "
                         "Cannot apply 25% cap without knowing market breadth. "
-                        "Check: technical_data_daily table freshness"
+                        "Check: market_health_daily table freshness and breadth data"
                     )
                     logger.critical(msg)
                     raise RuntimeError(msg)
@@ -834,68 +834,50 @@ class MarketExposure:
     def _trend_30wk(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """SPY vs 30-week (150d) MA + slope over 30 trading days.
 
-        Reads pre-computed sma_150 from technical_data_daily (indexed lookup, <1s)
-        instead of computing AVG() OVER a window across all SPY rows in price_daily
-        (7000+ rows x window function = slow under load on t4g.micro).
-
-        FALLBACK: If technical_data_daily is not available (removed from pipeline),
-        compute SMA_150 directly from price_daily.
+        Computes 150-day SMA directly from price_daily. Previously used pre-computed
+        technical_data_daily, but that table was removed from the EOD pipeline.
+        In-memory SMA calculation is fast enough for SPY (single symbol).
         """
-        # First, try to read from technical_data_daily (pre-computed, faster)
+        # Fetch SPY prices: need 180 days (150 for SMA + 30 for slope calculation)
         cur.execute(
             """
-            SELECT date, close, sma_150
-            FROM technical_data_daily
+            SELECT date, close
+            FROM price_daily
             WHERE symbol = 'SPY' AND date <= %s
             ORDER BY date DESC
-            LIMIT 35
+            LIMIT 180
             """,
             (eval_date,),
         )
-        rows = cur.fetchall()
+        price_rows = cur.fetchall()
 
-        # If technical_data_daily is empty/missing, fall back to computing from price_daily
+        if not price_rows or len(price_rows) < 35:
+            return {
+                "score_factor": None,
+                "value": None,
+                "reason": "Insufficient price history (need 35+ days)",
+            }
+
+        # Compute SMA_150 for each date in reverse chronological order (most recent first)
+        # rows format: [(date, close, sma_150_computed), ...]
+        rows = []
+        price_list = list(price_rows)  # [(date, close), ...] most recent first
+
+        for i in range(len(price_list)):
+            if i + 150 <= len(price_list):
+                # Calculate 150-day SMA: average of closes from day i to day i+149
+                sma_150_val = sum(float(p[1]) for p in price_list[i:i+150]) / 150.0
+                rows.append((price_list[i][0], float(price_list[i][1]), sma_150_val))
+            else:
+                # Not enough history for full 150-day SMA
+                break
+
         if not rows:
-            logger.debug("[MARKET_EXPOSURE] technical_data_daily not available, computing SMA from price_daily")
-            cur.execute(
-                """
-                SELECT date, close
-                FROM price_daily
-                WHERE symbol = 'SPY' AND date <= %s
-                ORDER BY date DESC
-                LIMIT 200  -- Need 200 days for 150-day SMA + buffer for 30d-ago calculation
-                """,
-                (eval_date,),
-            )
-            price_rows = cur.fetchall()
-
-            if not price_rows or len(price_rows) < 35:
-                return {
-                    "score_factor": None,
-                    "value": None,
-                    "reason": "Insufficient price history for SMA calculation",
-                }
-
-            # Compute SMA_150 for each date in the result
-            # rows format: [(date, close, sma_150_computed), ...]
-            rows = []
-            price_rows_list = list(price_rows)  # Most recent first
-
-            for i, (row_date, row_close) in enumerate(price_rows_list):
-                if i + 150 <= len(price_rows_list):
-                    # Calculate 150-day SMA: average of closes from day i to day i+149
-                    sma_150_val = sum(float(p[1]) for p in price_rows_list[i:i+150]) / 150.0
-                    rows.append((row_date, float(row_close), sma_150_val))
-                else:
-                    # Not enough history for full SMA
-                    break
-
-            if not rows:
-                return {
-                    "score_factor": None,
-                    "value": None,
-                    "reason": "Insufficient history for 150-day SMA",
-                }
+            return {
+                "score_factor": None,
+                "value": None,
+                "reason": "Insufficient history for 150-day SMA calculation",
+            }
 
         if not rows or rows[0][2] is None:
             return {

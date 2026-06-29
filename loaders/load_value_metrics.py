@@ -156,6 +156,15 @@ class ValueMetricsLoader(OptimalLoader):
                     logger.warning(f"Failed to convert value {val!r} to float: {e}")
                     return None
 
+            # Convert held_percent fields to 0-100 scale (yfinance returns 0-1 scale)
+            # CRITICAL: Must match load_positioning_metrics.py behavior for data consistency
+            held_insiders_pct = None
+            if held_insiders is not None:
+                held_insiders_pct = float(held_insiders) * 100
+            held_institutions_pct = None
+            if held_institutions is not None:
+                held_institutions_pct = float(held_institutions) * 100
+
             return [
                 {
                     "symbol": symbol,
@@ -167,8 +176,8 @@ class ValueMetricsLoader(OptimalLoader):
                     "peg_ratio": _cap(peg) if peg and peg > 0 else None,
                     "dividend_yield": float(div) if div else None,
                     "fcf_yield": fcf_yield,
-                    "held_percent_insiders": (float(held_insiders) if held_insiders else None),
-                    "held_percent_institutions": (float(held_institutions) if held_institutions else None),
+                    "held_percent_insiders": held_insiders_pct,
+                    "held_percent_institutions": held_institutions_pct,
                     "data_unavailable": False,
                     "updated_at": datetime.now(timezone.utc).isoformat(),
                 }
@@ -219,6 +228,8 @@ def _apply_schema_migrations() -> None:
         "ALTER TABLE value_metrics ADD COLUMN IF NOT EXISTS held_percent_insiders DECIMAL(8,4)",
         "ALTER TABLE value_metrics ADD COLUMN IF NOT EXISTS held_percent_institutions DECIMAL(8,4)",
         "ALTER TABLE value_metrics ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+        "ALTER TABLE value_metrics ADD COLUMN IF NOT EXISTS data_unavailable BOOLEAN DEFAULT FALSE",
+        "ALTER TABLE value_metrics ADD COLUMN IF NOT EXISTS reason TEXT",
     ]
     try:
         with DatabaseContext("write") as cur:
