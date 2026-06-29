@@ -506,22 +506,36 @@ class DailyReconciliation:
 
                 # Calculate Sharpe ratio: mean_return / std_dev * sqrt(252)
                 sharpe_ratio = None
-                cur.execute("""
-                    SELECT daily_return_pct FROM algo_portfolio_snapshots
-                    WHERE daily_return_pct IS NOT NULL
-                    ORDER BY snapshot_date DESC LIMIT 252
-                """)
-                returns = [float(r[0]) / 100.0 for r in cur.fetchall() if r[0] is not None]
-                if len(returns) > 1:
-                    import statistics
+                try:
+                    cur.execute("""
+                        SELECT daily_return_pct FROM algo_portfolio_snapshots
+                        WHERE daily_return_pct IS NOT NULL
+                        ORDER BY snapshot_date DESC LIMIT 252
+                    """)
+                    returns = [float(r[0]) / 100.0 for r in cur.fetchall() if r[0] is not None]
+                    if len(returns) > 1:
+                        import statistics
 
-                    try:
                         std_dev = statistics.stdev(returns)
                         mean_return = statistics.mean(returns)
                         if std_dev > 0:
                             sharpe_ratio = mean_return / std_dev * (252**0.5)
-                    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                        logger.warning(f"Sharpe calculation failed: {e}")
+                    elif len(returns) <= 1:
+                        logger.warning(
+                            f"[RECONCILIATION] Sharpe calculation skipped: insufficient return history ({len(returns)} values). "
+                            "Need at least 2 return points to calculate standard deviation."
+                        )
+                except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+                    logger.error(
+                        f"[RECONCILIATION CRITICAL] Sharpe ratio calculation failed: {e}. "
+                        "Cannot compute risk-adjusted return metric. This is critical for portfolio risk assessment. "
+                        "Check database connection and portfolio snapshot data consistency."
+                    )
+                    raise ValueError(
+                        f"CRITICAL: Sharpe ratio calculation failed: {e}. "
+                        "Reconciliation requires valid return history for risk metrics. "
+                        "Cannot proceed without Sharpe calculation capability."
+                    ) from e
 
                 cur.execute("SELECT pg_advisory_lock(%s)", (PORTFOLIO_SNAPSHOT_LOCK_ID,))
                 cur.fetchone()
@@ -653,8 +667,12 @@ class DailyReconciliation:
             since = datetime.now(timezone.utc) - timedelta(days=2)
             orders = self.broker.fetch_closed_orders(since=since)
             if not orders:
-                logger.debug("No closed orders found for exit fill reconciliation")
-                return {"updated": 0, "message": "No closed orders to reconcile"}
+                logger.debug(
+                    "No closed orders returned from broker in exit fill reconciliation. "
+                    "This is expected if: (1) No orders were placed in the last 2 days, "
+                    "(2) All orders were already reconciled. Otherwise, broker API may be unavailable."
+                )
+                return {"updated": 0, "message": "No closed orders to reconcile", "no_orders_available": True}
 
             updated = 0
             two_days_ago = reconcile_date - timedelta(days=2)
@@ -788,7 +806,11 @@ class DailyReconciliation:
                     logger.info(f"   Exit fill reconciled: {symbol} {trade_id} @ ${filled_price:.2f} ({pnl_pct:.1f}%)")
                 except (psycopg2.DatabaseError, ValueError, TypeError) as e:
                     cur.execute("ROLLBACK TO SAVEPOINT reconcile_fill")
-                    logger.warning(f"   Exit fill reconcile failed for {symbol}: {e}")
+                    logger.error(
+                        f"[RECONCILIATION] Exit fill reconciliation failed for {symbol}: {e}. "
+                        f"Trade exit price could not be reconciled with Alpaca fill price. "
+                        f"Skipping this trade but continuing reconciliation (partial reconciliation detected)."
+                    )
 
             return {
                 "updated": updated,
@@ -800,8 +822,17 @@ class DailyReconciliation:
             json.JSONDecodeError,
             psycopg2.DatabaseError,
         ) as e:
-            logger.warning(f"Exit fill reconciliation error: {e}")
-            return {"updated": 0, "message": f"Error: {e}"}
+            logger.error(
+                f"[RECONCILIATION CRITICAL] Exit fill reconciliation failed: {e}. "
+                "Cannot reconcile trade exit prices with actual Alpaca fill prices. "
+                "This prevents accurate P&L calculation and risk reporting. "
+                "Reconciliation must fail explicitly rather than silently skip exit price validation."
+            )
+            raise ValueError(
+                f"CRITICAL: Exit fill reconciliation failed: {e}. "
+                "Cannot reconcile exit prices with broker fills. "
+                "Reconciliation requires accurate exit prices for P&L validation."
+            ) from e
 
     def audit_stale_estimated_prices(self, cur: Any) -> dict[str, Any]:
         """Audit for trades with estimated exit prices.
@@ -1101,8 +1132,12 @@ class DailyReconciliation:
         try:
             orders = self.broker.fetch_closed_orders()
             if not orders:
-                logger.debug("No closed orders found for partial fill check")
-                return {"mismatches": 0, "message": "No closed orders to check"}
+                logger.debug(
+                    "No closed orders returned from broker in partial fill check. "
+                    "This is expected if: (1) No orders were placed recently, "
+                    "(2) All recent orders are still open/pending. Otherwise, broker API may be unavailable."
+                )
+                return {"mismatches": 0, "message": "No closed orders to check", "no_orders_available": True}
 
             # Check each order against our DB records
             mismatches = []

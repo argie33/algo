@@ -87,23 +87,15 @@ router.get("/leading-indicators", async (req, res) => {
       LIMIT 500
     `;
 
-    // Execute both queries in parallel with error handling
-    let result = { rows: [] };
-    let calendarResult = { rows: [] };
+    // FAIL-FAST: Don't catch query errors silently. Let them propagate.
+    // Economic data is CRITICAL for risk assessment.
+    let result;
+    let calendarResult;
 
     try {
-      let fetchError = null;
       const [ecResult, calResult] = await Promise.all([
-        query(economicQuery).catch((e) => {
-          console.warn("Economic data table not available:", e.message);
-          fetchError = e;
-          return { rows: [] };
-        }),
-        query(calendarQuery).catch((e) => {
-          console.warn("Economic calendar table not available:", e.message);
-          fetchError = e;
-          return { rows: [] };
-        }),
+        query(economicQuery),
+        query(calendarQuery),
       ]);
       validateQueryResult(ecResult, { requireRows: false });
       validateQueryResult(calResult, { requireRows: false });
@@ -114,22 +106,18 @@ router.get("/leading-indicators", async (req, res) => {
         (!result.rows || result.rows.length === 0) &&
         (!calendarResult.rows || calendarResult.rows.length === 0)
       ) {
-        return sendPlaceholder(
+        return sendError(
           res,
-          fetchError
-            ? "Economic data tables not available"
-            : "No economic data available",
-          503,
-          "object"
+          "[ECONOMIC_DATA_UNAVAILABLE] No economic indicators or calendar events available. Critical data required for risk assessment.",
+          503
         );
       }
     } catch (e) {
-      console.warn("Could not fetch economic data:", e.message);
-      return sendPlaceholder(
+      console.error("[ECONOMIC_QUERY_FAILURE] Critical error fetching economic data:", e.message);
+      return sendError(
         res,
-        `Failed to fetch economic data: ${e.message}`,
-        503,
-        "object"
+        `[ECONOMIC_DATA_FAILURE] Failed to fetch economic data: ${e.message}`,
+        503
       );
     }
 

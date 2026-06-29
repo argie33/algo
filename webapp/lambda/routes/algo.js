@@ -3576,8 +3576,9 @@ router.get("/daily-return-histogram", authenticateToken, async (req, res) => {
     const returns = result.rows
       .map((r) => parseFloat(r.daily_return_pct))
       .filter((v) => !isNaN(v));
+    // FAIL-FAST: No valid return data means we can't compute performance histogram
     if (returns.length === 0) {
-      return sendSuccess(res, { buckets: [], stats: null });
+      return sendError(res, "[RETURN_DATA_UNAVAILABLE] No valid daily return data available to compute histogram", 503);
     }
 
     const BW = 0.5;
@@ -3615,12 +3616,8 @@ router.get("/daily-return-histogram", authenticateToken, async (req, res) => {
     logger.error("Error in /api/algo/daily-return-histogram:", {
       error: error.message,
     });
-    return sendSuccess(res, {
-      buckets: [],
-      stats: null,
-      _error: error.message,
-      _is_placeholder: true,
-    });
+    // FAIL-FAST: Return error response, not success with error marker
+    return sendError(res, `[HISTOGRAM_COMPUTATION_FAILED] ${error.message}`, 500);
   }
 });
 

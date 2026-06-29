@@ -2559,14 +2559,18 @@ async function getMarketDataHandler(req, res) {
               `SELECT * FROM price_daily WHERE symbol = 'SPY' ORDER BY date DESC LIMIT 2`
             ),
           ]);
+        // FAIL-FAST: Don't fall back to empty objects. Missing data must be explicit.
+        if (!marketCapResult.rows || marketCapResult.rows.length === 0) {
+          throw new Error("[MARKET_OVERVIEW] Stock scores data unavailable");
+        }
         return {
-          quality_counts: marketCapResult.rows[0] ?? {},
-          top_stocks: topStocksResult.rows ?? [],
-          breadth_summary: breadthResult.rows ?? [],
+          quality_counts: marketCapResult.rows[0],
+          top_stocks: topStocksResult.rows || [],
+          breadth_summary: breadthResult.rows || [],
         };
       })(),
 
-      // 2. Breadth (advancing/declining/unchanged)
+      // 2. Breadth (advancing/declining/unchanged) - CRITICAL for circuit breakers
       (async () => {
         const result = await query(
           `
@@ -2580,7 +2584,11 @@ async function getMarketDataHandler(req, res) {
         `,
           [latestDate]
         );
-        return result.rows[0] ?? {};
+        // FAIL-FAST: Market breadth is CRITICAL for circuit breaker evaluation
+        if (!result.rows || result.rows.length === 0) {
+          throw new Error(`[MARKET_BREADTH] No price data available for date ${latestDate}`);
+        }
+        return result.rows[0];
       })(),
 
       // 3. McClellan Oscillator
