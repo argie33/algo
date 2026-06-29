@@ -168,9 +168,16 @@ class DashboardDataExtractor:
         return cast(dict[str, Any], extract_data_or_empty(self.data.get("eco"), dict))
 
     def notifications(self) -> list[Any]:
-        """Extract notifications."""
+        """Extract notifications (fail-fast if missing or wrong type)."""
         notifs = self.data.get("notifs")
-        return notifs if isinstance(notifs, list) else []
+        if notifs is None:
+            # Notifications are optional - return empty list only if explicitly missing
+            return []
+        if not isinstance(notifs, list):
+            raise DataExtractionError(
+                f"Expected notifications to be list, got {type(notifs).__name__}: {notifs!r}"
+            )
+        return notifs
 
     def risk(self) -> dict[str, Any]:
         """Extract risk metrics."""
