@@ -578,7 +578,7 @@ class OptimalLoader:
             "technical_data_daily": "price_daily",
             "buy_sell_daily": "technical_data_daily",
             "signal_quality_scores": "buy_sell_daily",
-            "swing_trader_scores": "signal_quality_scores",
+            # swing_trader_scores: signal_quality_scores removed (computed on-the-fly, not loaded)
         }
         upstream_table = upstream_deps.get(self.table_name, None)
         if not upstream_table:
