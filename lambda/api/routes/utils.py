@@ -626,7 +626,7 @@ def check_data_freshness(
         import psycopg2.sql
 
         cur.execute(
-            psycopg2.sql.SQL("SELECT MAX({}) FROM {}").format(
+            psycopg2.sql.SQL("SELECT MAX({}) as max_value FROM {}").format(
                 psycopg2.sql.Identifier(date_column),
                 psycopg2.sql.Identifier(table_name),
             )
@@ -642,7 +642,7 @@ def check_data_freshness(
                 "warning": f"No data in {table_name}",
             }
 
-        max_date_value = result.get("max")
+        max_date_value = result.get("max_value")
         if max_date_value is None:
             logger.warning(f"[DATA_FRESHNESS] No rows in {table_name} (max({date_column}) is None)")
             return {
