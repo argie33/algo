@@ -996,6 +996,10 @@ class AlgoConfig:
         self._load_from_database()
         t2 = time.time()
         logger.info(f"[AlgoConfig] database loaded in {t2 - t1:.2f}s, total {t2 - t0:.2f}s")
+
+        # CRITICAL: Detect if config database load failed (all values still at defaults)
+        self._detect_config_db_failure()
+
         self._validate_critical_thresholds()
         t_crit = time.time()
         logger.info(f"[AlgoConfig] critical threshold validation completed in {t_crit - t2:.2f}s")
@@ -1414,6 +1418,45 @@ class AlgoConfig:
         except (TypeError, ValueError) as e:
             logger.error(f"Config validation failed: {e}")
             raise
+
+    def _detect_config_db_failure(self) -> None:
+        """CRITICAL: Detect if config database failed silently.
+
+        If ALL configuration values still at defaults (source='default'),
+        this indicates the database load failed completely. Raise error instead
+        of silently running with cached/old config.
+        """
+        if not self._sources:
+            logger.warning("[AlgoConfig] No config sources tracked - unable to verify database load")
+            return
+
+        # Count how many configs came from database vs defaults
+        db_sources = sum(1 for src in self._sources.values() if src == "database")
+        default_sources = sum(1 for src in self._sources.values() if src == "default")
+        total_sources = len(self._sources)
+
+        logger.info(
+            f"[AlgoConfig] Config load summary: {db_sources} from database, "
+            f"{default_sources} defaults, total {total_sources}"
+        )
+
+        # CRITICAL: All config still at defaults = database load failed
+        if db_sources == 0 and default_sources > 0:
+            raise RuntimeError(
+                f"[CONFIG CRITICAL] Database config load FAILED. "
+                f"ALL {default_sources} configuration values are still at hardcoded defaults. "
+                f"This indicates algo_config table is unreachable or empty. "
+                f"Cannot proceed with trading using cached/default config. "
+                f"Action: Verify database connectivity and algo_config table is properly populated."
+            )
+
+        # WARNING: Mostly defaults (>75% not loaded) indicates partial database failure
+        if total_sources > 0 and (default_sources / total_sources) > 0.75:
+            logger.critical(
+                f"[CONFIG WARNING] PARTIAL database load failure: {default_sources}/{total_sources} configs "
+                f"still at defaults ({(default_sources/total_sources)*100:.0f}%). "
+                f"Database may be slow/degraded. Verify algo_config table has all required values."
+            )
 
     def _validate_critical_thresholds(self) -> None:
         """Fail-fast validation: critical safety thresholds must be within safe ranges.
