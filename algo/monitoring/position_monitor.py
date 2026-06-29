@@ -530,12 +530,14 @@ class PositionMonitor:
         if days_held >= max_hold * 0.5 and target_hits == 0 and r_multiple < 0.5:
             flags.append("TIME_DECAY_NO_PROGRESS")
 
-        # 3e. Earnings proximity (hard fail if data unavailable)
+        # 3e. Earnings proximity (warn and skip if data unavailable — earnings data is optional enrichment)
         try:
             days_to_earn = self._days_to_earnings(symbol, current_date, cur)
             if 0 <= days_to_earn <= 3:
                 flags.append(f"EARNINGS_IN_{days_to_earn}D")
-        except (ValueError, RuntimeError) as e:
+        except ValueError as e:
+            logger.warning(f"[POSITION_MONITOR] Earnings data unavailable for {symbol} — skipping proximity check: {e}")
+        except RuntimeError as e:
             raise PositionValidationError(f"Cannot evaluate earnings proximity for {symbol}: {e}") from e
 
         # 3f. Distribution-day stress
@@ -1058,7 +1060,7 @@ class PositionMonitor:
         Uses savepoint to ensure both position update and audit log succeed together.
         If audit log fails, both are rolled back.
         """
-        sp_name = f"sp_persist_review_{rec['position_id']}"
+        sp_name = f"sp_persist_review_{rec['position_id'].replace('-', '_')}"
         cur.execute(f"SAVEPOINT {sp_name}")
         try:
             if "current_price" not in rec or rec["current_price"] is None:
