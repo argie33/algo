@@ -71,11 +71,11 @@ class TradeContext:
         self.shares = safe_decimal(self.shares)
         self.stop_loss_price = safe_decimal(self.stop_loss_price)
         if self.target_1_price is not None:
-            self.target_1_price = safe_decimal(self.target_1_price, allow_none=False)
+            self.target_1_price = safe_decimal(self.target_1_price)
         if self.target_2_price is not None:
-            self.target_2_price = safe_decimal(self.target_2_price, allow_none=False)
+            self.target_2_price = safe_decimal(self.target_2_price)
         if self.target_3_price is not None:
-            self.target_3_price = safe_decimal(self.target_3_price, allow_none=False)
+            self.target_3_price = safe_decimal(self.target_3_price)
 
 
 @dataclass
@@ -122,10 +122,10 @@ class PositionContext:
         self.active_stop = safe_decimal(self.active_stop)
         self.init_stop = safe_decimal(self.init_stop)
         if self.target_1_price is not None:
-            self.target_1_price = safe_decimal(self.target_1_price, allow_none=False)
+            self.target_1_price = safe_decimal(self.target_1_price)
         if self.target_2_price is not None:
-            self.target_2_price = safe_decimal(self.target_2_price, allow_none=False)
+            self.target_2_price = safe_decimal(self.target_2_price)
         if self.target_3_price is not None:
-            self.target_3_price = safe_decimal(self.target_3_price, allow_none=False)
+            self.target_3_price = safe_decimal(self.target_3_price)
         if self.prev_close is not None:
-            self.prev_close = safe_decimal(self.prev_close, allow_none=False)
+            self.prev_close = safe_decimal(self.prev_close)

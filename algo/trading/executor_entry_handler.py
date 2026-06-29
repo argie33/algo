@@ -104,22 +104,25 @@ class EntryHandler:
     def _validate_stage_phase(self, stage_phase: str | None) -> int | None:
         """Validate stage_phase against known mapping.
 
+        CRITICAL: When stage_phase is provided (not None), it MUST be valid.
+        Fails fast if an invalid stage phase is provided—no silent defaults.
+
         Args:
-            stage_phase: Stage phase name (early, mid, late) or None
+            stage_phase: Stage phase name (early, mid, late) or None if not provided
 
         Returns:
-            int: Integer ID from STAGE_PHASE_MAPPING if stage_phase provided
+            int: Integer ID from STAGE_PHASE_MAPPING if stage_phase provided and valid
             None: if stage_phase is None (optional field not provided)
 
         Raises:
             ValueError: If stage_phase is provided but not in STAGE_PHASE_MAPPING
         """
         if stage_phase is None:
-            logger.debug("_validate_stage_phase: stage_phase is None (optional)")
+            logger.debug("[ENTRY_HANDLER] Stage phase not provided (optional field, proceeding)")
             return None
         if stage_phase not in STAGE_PHASE_MAPPING:
             raise ValueError(
-                f"Invalid stage_phase '{stage_phase}'. "
+                f"[ENTRY_HANDLER] CRITICAL: Invalid stage_phase '{stage_phase}' provided. "
                 f"Must be one of: {list(STAGE_PHASE_MAPPING.keys())}. "
                 f"Cannot record trade with unknown stage phase—data integrity issue."
             )
