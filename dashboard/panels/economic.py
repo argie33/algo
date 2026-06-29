@@ -126,8 +126,8 @@ def _build_calendar_rows(econ_cal: Any) -> list[Text | Rule]:
 
         importance_val = ev.get("importance")
         if importance_val is None:
-            logger.debug(f"Economic calendar event '{name}' ({ed_raw!s}) missing 'importance' field - defaulting to LOW for display")
-            importance_val = "LOW"  # Default for display only; missing enrichment field logged at DEBUG
+            logger.warning(f"Economic calendar event '{name}' ({ed_raw!s}) missing required 'importance' field - skipping event")
+            continue  # Skip events without importance level; cannot render with missing required field
         imp = str(importance_val).upper()
         ic = imp_c.get(imp, "dim")
 
