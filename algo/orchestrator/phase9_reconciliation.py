@@ -187,16 +187,13 @@ def _compute_signal_attribution(run_date: _date, log_phase_result_fn: Callable[.
         for comp, ic_data in attr_result.items():
             ic_value = ic_data.get("ic_value")
             ic_pvalue = ic_data.get("ic_pvalue")
-            if ic_value is None:
+            if ic_value is None or ic_pvalue is None:
+                if ic_data.get("data_unavailable"):
+                    reason = ic_data.get("reason", "unknown")
+                    logger.warning(f"[ATTRIBUTION] {comp} IC unavailable: {reason} — skipping")
+                    continue
                 logger.critical(f"CRITICAL: IC value missing for component {comp}. Cannot validate signal quality.")
                 raise ValueError(f"IC calculation failed for {comp}: missing 'ic_value'. Signal validation incomplete.")
-            if ic_pvalue is None:
-                logger.critical(
-                    f"CRITICAL: IC p-value missing for component {comp}. Cannot validate signal significance."
-                )
-                raise ValueError(
-                    f"IC calculation failed for {comp}: missing 'ic_pvalue'. Signal validation incomplete."
-                )
             logger.info(f"  {comp}: IC={ic_value:.3f}, pval={ic_pvalue:.3f}")
         if attr_result:
             attribution.persist(run_date, attr_result)
