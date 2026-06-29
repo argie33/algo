@@ -619,6 +619,10 @@ jobs:
               alert_creds = json.loads(result.stdout.strip())
               alert_webhook_url = alert_creds.get('webhook_url', '')
               alert_email_to = alert_creds.get('email_to', '')
+              if not alert_webhook_url and not alert_email_to:
+                print("ERROR: Alert secret exists but is missing both webhook_url and email_to")
+                print(f"  Secret contents: {list(alert_creds.keys())}")
+                exit(1)
               if alert_webhook_url or alert_email_to:
                 print(f"  Alert config found: webhook={bool(alert_webhook_url)}, email={bool(alert_email_to)}")
           except Exception as e:
@@ -975,6 +979,16 @@ jobs:
           cognito_pool_id = "${{ needs.resolve-infra.outputs.cognito_user_pool_id }}"
           cognito_client_id = "${{ needs.resolve-infra.outputs.cognito_user_pool_client_id }}"
 
+          # Validate critical Cognito credentials
+          if not cognito_pool_id or cognito_pool_id in ['None', 'null', '']:
+            print("ERROR: COGNITO_USER_POOL_ID is missing from Terraform outputs")
+            print(f"  Output value: '{cognito_pool_id}'")
+            exit(1)
+          if not cognito_client_id or cognito_client_id in ['None', 'null', '']:
+            print("ERROR: COGNITO_USER_POOL_CLIENT_ID is missing from Terraform outputs")
+            print(f"  Output value: '{cognito_client_id}'")
+            exit(1)
+
           # Build Lambda configuration
           # NOTE: DO NOT include DB_PASSWORD in env vars - use DB_SECRET_ARN instead
           # This ensures Lambda always reads the latest password from Secrets Manager
@@ -992,8 +1006,8 @@ jobs:
                 "DB_SSL": "prefer",
                 "ALLOWED_ORIGINS": allowed_origins,
                 "ALLOW_LOCALHOST_CORS": "false",
-                "COGNITO_USER_POOL_ID": cognito_pool_id or "",
-                "COGNITO_USER_POOL_CLIENT_ID": cognito_client_id or "",
+                "COGNITO_USER_POOL_ID": cognito_pool_id,
+                "COGNITO_USER_POOL_CLIENT_ID": cognito_client_id,
               }
             },
             "Layers": ["${{ env.API_LAYER_ARN }}"]

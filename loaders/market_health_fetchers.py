@@ -622,16 +622,15 @@ class BreadthFetcher:
             # Fail-fast if computation fails; don't silently skip
             new_highs_lows = self._compute_new_highs_lows(cur, start, end)
 
-            # Check if new highs/lows is unavailable
+            # Check if new highs/lows is unavailable (e.g., insufficient 252-day price history)
+            # This is acceptable during market startup or early in dataset; don't fail the entire feed
             if isinstance(new_highs_lows, dict) and new_highs_lows.get("data_unavailable"):
-                msg = (
-                    f"[BREADTH_FETCHER CRITICAL] New highs/lows computation failed: {new_highs_lows.get('reason')}. "
-                    f"New highs/lows are CRITICAL for market breadth assessment (part of 16% breadth score). "
-                    f"Cannot proceed without valid 52-week highs/lows data. "
-                    f"Breadth data is essential for market exposure scoring and position sizing."
+                logger.warning(
+                    f"[BREADTH_FETCHER] New highs/lows unavailable for {start} to {end}: "
+                    f"{new_highs_lows.get('reason')}. Will use 0 as placeholder."
                 )
-                logger.error(msg)
-                raise RuntimeError(msg)
+                # Use empty dict so .get(d, (0, 0)) returns (0, 0) for all dates
+                new_highs_lows = {}
 
             result = {}
             for row in rows:

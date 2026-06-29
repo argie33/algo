@@ -81,11 +81,25 @@ jobs:
           role = config.get('Role', '')
           env_vars = config.get('Environment', {}).get('Variables', {})
 
-          subnet_ids = ','.join(vpc.get('SubnetIds', []))
-          sg_ids = ','.join(vpc.get('SecurityGroupIds', []))
+          if not role:
+            print("ERROR: Lambda Role ARN is missing from current configuration")
+            exit(1)
+          if not vpc or 'SubnetIds' not in vpc:
+            print("ERROR: VpcConfig.SubnetIds is missing from current configuration")
+            exit(1)
+          if 'SecurityGroupIds' not in vpc:
+            print("ERROR: VpcConfig.SecurityGroupIds is missing from current configuration")
+            exit(1)
+
           db_host = env_vars.get('DB_HOST', '')
+          if not db_host:
+            print("ERROR: DB_HOST is missing from Lambda environment — deployment cannot proceed")
+            exit(1)
           db_port = env_vars.get('DB_PORT', '5432')
           db_name = env_vars.get('DB_NAME', 'algo')
+
+          subnet_ids = ','.join(vpc['SubnetIds'])
+          sg_ids = ','.join(vpc['SecurityGroupIds'])
 
           if 'DB_SECRET_ARN' not in env_vars or not env_vars['DB_SECRET_ARN']:
             print("ERROR: DB_SECRET_ARN not configured in Lambda environment — deployment cannot proceed")

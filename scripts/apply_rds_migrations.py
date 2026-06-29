@@ -28,13 +28,21 @@ def get_rds_credentials():
         response = client.get_secret_value(SecretId='arn:aws:secretsmanager:us-east-1:626216981288:secret:algo/database-kymxp8')
         secret = json.loads(response['SecretString'])
 
+        if 'host' not in secret:
+            raise ValueError('[CRITICAL] RDS host missing from Secrets Manager')
+        if 'password' not in secret:
+            raise ValueError('[CRITICAL] RDS password missing from Secrets Manager')
+
+        host = secret['host']
         return {
-            'host': secret.get('host', '').split(':')[0] if ':' in secret.get('host', '') else secret.get('host'),
+            'host': host.split(':')[0] if ':' in host else host,
             'port': int(secret.get('port', 5432)),
             'database': secret.get('dbname', 'stocks'),
             'user': secret.get('username', 'stocks'),
-            'password': secret.get('password'),
+            'password': secret['password'],
         }
+    except ValueError:
+        raise
     except Exception as e:
         print(f"ERROR: Failed to get RDS credentials: {e}")
         sys.exit(1)
