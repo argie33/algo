@@ -3669,13 +3669,13 @@ router.get("/trade-distribution", authenticateToken, async (req, res) => {
   } catch (error) {
     logger.error("Error in /api/algo/trade-distribution:", {
       error: error.message,
+      stack: error.stack,
     });
-    return sendSuccess(res, {
-      buckets: [],
-      total_trades: 0,
-      _error: error.message,
-      _is_placeholder: true,
-    });
+    return sendDatabaseError(
+      res,
+      error,
+      "An error occurred while computing trade distribution"
+    );
   }
 });
 
@@ -3732,13 +3732,13 @@ router.get(
     } catch (error) {
       logger.error("Error in /api/algo/holding-period-distribution:", {
         error: error.message,
+        stack: error.stack,
       });
-      return sendSuccess(res, {
-        buckets: [],
-        total_trades: 0,
-        _error: error.message,
-        _is_placeholder: true,
-      });
+      return sendDatabaseError(
+        res,
+        error,
+        "An error occurred while computing holding period distribution"
+      );
     }
   }
 );
@@ -3786,12 +3786,13 @@ router.get("/stage-distribution", authenticateToken, async (req, res) => {
       stageConfig.stage_2_mid_min_score === null ||
       stageConfig.stage_2_late_min_score === null
     ) {
-      return sendSuccess(res, {
-        buckets: [],
-        total_positions: 0,
-        _error: "Stage configuration incomplete - cannot compute stage distribution",
-        _is_placeholder: true,
-      }, 503);
+      return sendError(
+        res,
+        503,
+        "CRITICAL: Stage threshold configuration incomplete. " +
+          "Cannot compute position stage distribution without configured thresholds. " +
+          "Check algo_config for stage_2_early_min_score, stage_2_mid_min_score, stage_2_late_min_score."
+      );
     }
 
     const order = [
