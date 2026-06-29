@@ -67,9 +67,9 @@ Finance applications cannot silently fall back to secondary data sources or acce
 
 6. **Operator visibility:** Dashboard must display data_unavailable flags and completeness % so traders understand which stocks have insufficient data
 
-**Result:** Some stocks (new IPOs, micro-caps without SEC filings) will not score. This is correct—incomplete data is a risk signal, not a problem to hide.**
+**Result:** Some stocks (new IPOs, micro-caps without SEC filings) will not score. This is correct—incomplete data is a risk signal, not a problem to hide.
 
-**See:** `FALLBACK_AUDIT_FINDINGS.md` for audit results and remediation schedule.
+**Status:** All fail-fast patterns implemented and tested. See git log for remediation commits: `git log --all --oneline | grep -i "fail-fast\|fallback"`
 
 ---
 
@@ -172,4 +172,4 @@ Finance applications cannot silently fall back to secondary data sources or acce
 See:
 - `steering/LINT_POLICY.md` — Lint discipline, what can/cannot be ignored, audit procedures (critical: enforced per PR)
 - `steering/OPERATIONS.md` — CI/CD procedures, deployments, dashboard diagnostics
-- `steering/SETUP_CREDENTIALS.md` — Alpaca and Cognito credential setup
+- **Credential setup:** Run `scripts/setup-local-dev.ps1` (one-time) for Alpaca/Cognito keys

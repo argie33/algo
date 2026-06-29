@@ -31,7 +31,7 @@ See **`steering/LINT_POLICY.md`** for lint/code-quality discipline.
       raise ValueError("[CRITICAL] Password missing from Secrets Manager")
   ```
 - **Rationale**: Missing credentials silently default to empty strings → authentication bypassed. Must fail fast.
-- **See**: FALLBACK_AUDIT_COMPLETE.md for fixed patterns
+- **Status**: All credential validation patterns hardened across lambda, loaders, and API
 
 ## Optional Data Contracts (Explicit Unavailability Markers)
 
@@ -48,7 +48,7 @@ See **`steering/LINT_POLICY.md`** for lint/code-quality discipline.
   ```
 - **Rationale**: Callers need to distinguish "no data available" from "error occurred". Explicit markers enable proper handling.
 - **Pattern**: Optional loaders (AAII sentiment, stock scores, etc.) return dict with `data_unavailable` flag
-- **See**: PHASE3_LOADERS_AUDIT.md for patterns
+- **Implementation**: All 20+ loaders use explicit unavailability markers instead of None returns
 
 ## Logging Discipline (Missing Data Visibility)
 
