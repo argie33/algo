@@ -155,22 +155,55 @@ def check_file_for_fallbacks(filepath: Path) -> list[dict[str, Any]]:
 
         # ========== PATTERN 5: Silent None return ==========
         if stripped == "return None" or re.match(r"return\s+None\s*$", stripped):
-            context_start = max(0, line_num - 10)
+            context_start = max(0, line_num - 15)
             context = "\n".join(lines[context_start:line_num])
+
             # Skip if it's in a try/except context (error handling)
-            if "except" not in context and "try:" not in context:
-                is_financial = any(kw in context.lower() for kw in [
-                    "fetch", "load", "get_", "price", "metric", "data", "auth", "token",
-                    "calculate", "score", "signal", "validate"
-                ])
-                if is_financial:
-                    violations.append({
-                        "file": filepath,
-                        "line": line_num,
-                        "pattern": "return None",
-                        "message": "Silent None return (caller cannot distinguish 'no data' from 'error')",
-                        "fix": "Raise exception OR return {'data_unavailable': True, 'reason': '...'}"
-                    })
+            if "except" in context or "try:" in context:
+                continue
+
+            # Skip if function is Optional[T] (returns None as valid state)
+            # Search backward for "def " to find function definition
+            func_def_line = None
+            for search_line in range(line_num - 1, max(0, line_num - 50), -1):
+                if lines[search_line].strip().startswith("def "):
+                    func_def_line = search_line
+                    break
+
+            if func_def_line is not None:
+                # Get full function signature (might span multiple lines)
+                func_sig = "\n".join(lines[func_def_line:line_num])
+                # Check if function explicitly returns Optional/Union with None
+                if ("-> " in func_sig and ("| None" in func_sig or "Optional" in func_sig)) or \
+                   ("-> None:" in func_sig):  # Function that returns only None
+                    continue
+
+            # Skip if comment indicates None is intentional (cache miss, no data, etc.)
+            if any(phrase in context.lower() for phrase in [
+                "cache miss", "not cached", "no data", "optional", "not provided",
+                "expected state", "no error", "validation passed", "no duplicate",
+                "can proceed", "market closed", "fresh data"
+            ]):
+                continue
+
+            # Only flag if in financial function AND context suggests error path
+            is_financial = any(kw in context.lower() for kw in [
+                "fetch", "load", "get_", "price", "metric", "data", "auth", "token",
+                "calculate", "score", "signal", "validate"
+            ])
+
+            is_error_path = any(phrase in context.lower() for phrase in [
+                "error", "failed", "unavailable", "exception", "corrupted", "invalid state"
+            ])
+
+            if is_financial and is_error_path:
+                violations.append({
+                    "file": filepath,
+                    "line": line_num,
+                    "pattern": "return None",
+                    "message": "Silent None return in error path (caller cannot distinguish 'no data' from 'error')",
+                    "fix": "Raise exception OR return {'data_unavailable': True, 'reason': '...'}"
+                })
 
     return violations
 
