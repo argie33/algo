@@ -95,7 +95,10 @@ def _apply_critical_migrations():
             "growth_metrics",
             "value_metrics",
             "positioning_metrics",
-            "stability_metrics"
+            "stability_metrics",
+            "aaii_sentiment",
+            "fear_greed_index",
+            "naaim"
         ]
 
         for table in tables:
