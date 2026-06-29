@@ -22,8 +22,23 @@ class AlpacaSyncManager:
         self.config = config
         credential_manager = get_credential_manager()
         creds = credential_manager.get_alpaca_credentials()
-        self._alpaca_key = creds.get("key")
-        self._alpaca_secret = creds.get("secret")
+
+        # Fail-fast credential validation: never use .get() with silent defaults
+        if "key" not in creds:
+            raise ValueError(
+                "[CRITICAL] Alpaca API key missing from credentials. "
+                "AlpacaSyncManager cannot proceed without valid authentication. "
+                "Verify Alpaca credentials are properly configured in Secrets Manager."
+            )
+        if "secret" not in creds:
+            raise ValueError(
+                "[CRITICAL] Alpaca API secret missing from credentials. "
+                "AlpacaSyncManager cannot proceed without valid authentication. "
+                "Verify Alpaca credentials are properly configured in Secrets Manager."
+            )
+
+        self._alpaca_key = creds["key"]
+        self._alpaca_secret = creds["secret"]
         self._alpaca_base_url = get_alpaca_base_url()
 
     @property
