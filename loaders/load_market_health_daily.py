@@ -1140,12 +1140,54 @@ def _write_vix_family_prices(start: date, end: date) -> int:
     if not MarketCalendar.is_trading_day(today):
         logger.info(f"Market closed today ({today}) - skipping VIX/index yfinance fetch")
         return 0
+
+    # Pre-check: find which symbols already have fresh data in price_daily.
+    # Avoids yfinance calls for symbols that are already up-to-date, preventing rate-limit cascades
+    # when multiple loaders run simultaneously.
+    existing_dates: dict[str, date] = {}
+    try:
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT symbol, MAX(date) AS max_date
+                FROM price_daily
+                WHERE symbol = ANY(%s) AND date >= %s
+                GROUP BY symbol
+                """,
+                (INDEX_SYMBOLS_FOR_PRICE_DAILY, start),
+            )
+            existing_dates = {row[0]: row[1] for row in cur.fetchall()}
+    except Exception as e:
+        logger.warning(f"[MARKET_HEALTH] Could not check existing price_daily freshness: {e}")
+
+    # A symbol is "fresh" if its latest date is within 5 calendar days of end (handles weekends/holidays)
+    fresh_cutoff = end - timedelta(days=5)
+    symbols_needing_refresh = {
+        sym for sym in INDEX_SYMBOLS_FOR_PRICE_DAILY
+        if sym not in existing_dates or existing_dates[sym] < fresh_cutoff
+    }
+
+    if not symbols_needing_refresh:
+        logger.info(
+            f"[MARKET_HEALTH] All {len(INDEX_SYMBOLS_FOR_PRICE_DAILY)} index symbols already "
+            f"fresh in price_daily (through {max(existing_dates.values())}) — skipping yfinance"
+        )
+        return 0
+
+    logger.info(
+        f"[MARKET_HEALTH] Refreshing {len(symbols_needing_refresh)} symbols from yfinance: "
+        f"{sorted(symbols_needing_refresh)}"
+    )
+
     try:
         from utils.external.yfinance import YFinanceWrapper
 
         records = []
         failed_symbols = {}
         for sym in INDEX_SYMBOLS_FOR_PRICE_DAILY:
+            if sym not in symbols_needing_refresh:
+                logger.debug(f"[MARKET_HEALTH] {sym} already fresh in price_daily — skipping yfinance")
+                continue
             try:
                 ticker = YFinanceWrapper.get_ticker(sym)
                 if not ticker:
@@ -1224,8 +1266,16 @@ def _write_vix_family_prices(start: date, end: date) -> int:
                     f"Cannot proceed with incomplete market health context. "
                     f"Error: {e}"
                 ) from e
-            except RuntimeError:
-                raise
+            except RuntimeError as e:
+                # yfinance failed (rate-limit, auth error, network) — use existing price_daily data if available
+                if sym in existing_dates:
+                    logger.warning(
+                        f"[MARKET_HEALTH] yfinance failed for {sym} ({e}), "
+                        f"but price_daily has data through {existing_dates[sym]} — using existing data"
+                    )
+                    continue
+                logger.error(f"[MARKET_HEALTH] yfinance failed for {sym} and no existing price_daily data: {e}")
+                failed_symbols[sym] = str(e)
             except ZeroDivisionError as e:
                 logger.error(f"[MARKET_HEALTH] Unexpected calculation error for {sym}: {e}")
                 raise RuntimeError(f"[MARKET_HEALTH] Unexpected error loading market health for {sym}: {e}") from e
