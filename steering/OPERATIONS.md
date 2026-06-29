@@ -66,9 +66,37 @@ Required:
 
 ---
 
+## Portfolio Data Freshness (Critical for Trading)
+
+**Problem:** Dashboard shows "Data is stale (Xs old, max 360s)"
+
+**Root Cause:** Phase 9 (Daily Reconciliation) hasn't run. Creates `algo_portfolio_snapshots` rows. If latest row is > 6 minutes old (trading hours), portfolio is stale.
+
+**Quick Fix (2 min):**
+1. AWS Lambda Console → Find `algo-orchestrator` function
+2. Click **Test** tab → Create test event → Click **Test** button
+3. Wait 60-120 seconds for execution
+4. ✅ Status = "success" → Portfolio data is now fresh
+
+**Prevent Recurrence:**
+1. AWS EventBridge Console → **Rules** → Search `algo-orchestrator-schedule`
+2. If **State = DISABLED** → Click rule → Click **Enable**
+3. If rule missing → Create rule with:
+   - Schedule: `cron(*/5 13-20 ? * MON-FRI *)` (every 5 min, trading hours)
+   - Target: `algo-orchestrator` Lambda function
+
+**Diagnosis (if manual refresh doesn't help):**
+- CloudWatch Logs: `/aws/lambda/algo-orchestrator` — Check for Phase 9 errors
+- RDS Connectivity: Can Lambda reach database? Check VPC, security groups
+- EventBridge Metrics: Is rule firing (Invocations > 0 in last hour)?
+- Lambda Concurrency: Check if provisioned concurrency is 0 (would throttle)
+
+**Architecture:** EventBridge (cron) → Lambda → 9 phases → Phase 9 creates portfolio snapshot → Dashboard reads snapshot age
+
+---
+
 ## For Detailed Reference
 
 See:
-- `steering/REFERENCE_OPERATIONS.md` — Full CI gate details, debugging, troubleshooting, dashboard debugging, FAQ, verification checklist
-- `steering/GOVERNANCE.md` — Architecture, safety rules, system map
-- `steering/REFERENCE_GOVERNANCE.md` — Exception handling, patterns, workflows
+- `steering/GOVERNANCE.md` — Architecture, safety rules, system map, fail-fast principles
+- `steering/LINT_POLICY.md` — Code quality, pre-commit enforcement
