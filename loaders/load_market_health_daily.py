@@ -10,6 +10,7 @@ Run: python3 load_market_health_daily.py [--parallelism 1]
 import argparse
 import logging
 import sys
+import time
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
@@ -100,7 +101,9 @@ class MarketHealthDailyLoader(OptimalLoader):
                     if row is None or len(row) < 2:
                         raise RuntimeError("[MARKET_HEALTH] Watermark query returned no rows")
                     if row[1] is None:
-                        raise RuntimeError("[MARKET_HEALTH] Row count query returned NULL — database query may have failed")
+                        raise RuntimeError(
+                            "[MARKET_HEALTH] Row count query returned NULL — database query may have failed"
+                        )
                     row_count = int(row[1])
                     if row and row[0] is not None:
                         if row_count < 5:
@@ -343,6 +346,53 @@ class MarketHealthDailyLoader(OptimalLoader):
 
         logger.info(f"VIX enrichment: matched {matched_count}/{len(health_metrics)} dates with valid vix_close values")
 
+    def _fetch_put_call_with_retries(
+        self, end_date: date, max_retries: int = 3, backoff_seconds: float = 1.0
+    ) -> tuple[float | None, str | None]:
+        """Fetch put/call ratio with retry logic for transient errors.
+
+        Retries on transient errors (ConnectionError, timeout, 503).
+        Returns explicit data_unavailable marker after all retries exhausted.
+
+        Args:
+            end_date: Date to fetch put/call ratio for
+            max_retries: Maximum number of retry attempts (default 3)
+            backoff_seconds: Initial backoff delay in seconds (default 1.0)
+
+        Returns:
+            Tuple of (ratio, error_reason) where:
+            - ratio: Put/call ratio if successful, None if all retries exhausted
+            - error_reason: Human-readable error reason for data_unavailable marker
+        """
+        for attempt in range(max_retries):
+            try:
+                ratio = self._put_call_fetcher.fetch(end_date)
+                # Success: return the ratio (may be None from fetcher, which we handle)
+                return ratio, None
+            except (ConnectionError, TimeoutError) as e:
+                # Transient errors: retry with backoff
+                if attempt < max_retries - 1:
+                    wait_time = backoff_seconds * (2**attempt)  # Exponential backoff
+                    logger.warning(
+                        f"[MARKET_HEALTH] Put/call ratio fetch attempt {attempt + 1}/{max_retries} failed with "
+                        f"transient error: {type(e).__name__}: {e}. Retrying in {wait_time}s..."
+                    )
+                    time.sleep(wait_time)
+                else:
+                    logger.error(
+                        f"[MARKET_HEALTH] Put/call ratio fetch failed after {max_retries} attempts. "
+                        f"All retries exhausted on transient error: {e}"
+                    )
+                    return None, "transient_error_max_retries"
+            except Exception as e:
+                # Other exceptions: don't retry, mark unavailable
+                logger.warning(
+                    f"[MARKET_HEALTH] Put/call ratio fetch failed with non-transient error: {type(e).__name__}: {e}. "
+                    f"Options sentiment is optional - marking unavailable."
+                )
+                return None, "fetch_exception"
+        return None, "transient_error_max_retries"
+
     def _merge_put_call_data(self, health_metrics: list[dict[str, Any]], end: date) -> None:
         """Merge put/call ratio into health metrics.
 
@@ -350,14 +400,9 @@ class MarketHealthDailyLoader(OptimalLoader):
         Options sentiment (put/call) is useful for assessing market risk appetite, but
         market can function without it. Gracefully degrade if unavailable.
 
-        Marks data_unavailable when fetcher fails or returns None.
+        Uses retry logic for transient errors. Marks data_unavailable when unavailable.
         """
-        try:
-            today_pc = self._put_call_fetcher.fetch(end)
-        except Exception as e:
-            logger.warning(f"[MARKET_HEALTH] Put/call ratio fetch failed for {end}: {e}. "
-                          f"Options sentiment is optional - marking unavailable and continuing.")
-            today_pc = None
+        today_pc, error_reason = self._fetch_put_call_with_retries(end)
 
         end_str = end.isoformat()
         matched_count = 0
@@ -379,8 +424,59 @@ class MarketHealthDailyLoader(OptimalLoader):
                     m["put_call_ratio_available"] = False
                     m["put_call_ratio_data_unavailable"] = True
                     matched_count += 1
-            logger.warning(f"[MARKET_HEALTH] Put/call ratio unavailable for {end} — marked explicitly as data_unavailable. "
-                          f"Options sentiment is optional enrichment.")
+            reason_str = f" ({error_reason})" if error_reason else ""
+            logger.warning(
+                f"[MARKET_HEALTH] Put/call ratio unavailable for {end}{reason_str} — marked explicitly as data_unavailable. "
+                f"Options sentiment is optional enrichment."
+            )
+
+    def _fetch_yield_curve_with_retries(
+        self, start: date, end: date, max_retries: int = 3, backoff_seconds: float = 1.0
+    ) -> tuple[dict[str, Any] | None, str | None]:
+        """Fetch yield curve data with retry logic for transient errors.
+
+        Retries on transient errors (API timeout, connection issues).
+        Returns explicit data_unavailable marker after all retries exhausted.
+
+        Args:
+            start: Start date for yield curve range
+            end: End date for yield curve range
+            max_retries: Maximum number of retry attempts (default 3)
+            backoff_seconds: Initial backoff delay in seconds (default 1.0)
+
+        Returns:
+            Tuple of (data, error_reason) where:
+            - data: Yield curve dict if successful, None if all retries exhausted
+            - error_reason: Human-readable error reason for data_unavailable marker
+        """
+        for attempt in range(max_retries):
+            try:
+                yield_curve = self._yield_curve_fetcher.fetch(start, end)
+                # Success: return the data (may have data_unavailable flag set by fetcher)
+                return yield_curve, None
+            except (ConnectionError, TimeoutError) as e:
+                # Transient errors: retry with backoff
+                if attempt < max_retries - 1:
+                    wait_time = backoff_seconds * (2**attempt)  # Exponential backoff
+                    logger.warning(
+                        f"[MARKET_HEALTH] Yield curve fetch attempt {attempt + 1}/{max_retries} failed with "
+                        f"transient error: {type(e).__name__}: {e}. Retrying in {wait_time}s..."
+                    )
+                    time.sleep(wait_time)
+                else:
+                    logger.error(
+                        f"[MARKET_HEALTH] Yield curve fetch failed after {max_retries} attempts. "
+                        f"All retries exhausted on transient error: {e}"
+                    )
+                    return None, "transient_error_max_retries"
+            except Exception as e:
+                # Other exceptions: don't retry, mark unavailable
+                logger.warning(
+                    f"[MARKET_HEALTH] Yield curve fetch failed with non-transient error: {type(e).__name__}: {e}. "
+                    f"Market regime detection will skip inversion signals."
+                )
+                return None, "fetch_exception"
+        return None, "transient_error_max_retries"
 
     def _merge_yield_curve_data(self, health_metrics: list[dict[str, Any]], start: date, end: date) -> None:
         """Merge yield curve slope into health metrics.
@@ -392,6 +488,7 @@ class MarketHealthDailyLoader(OptimalLoader):
 
         On data unavailability: Log and mark with data_unavailable flag.
         This allows market health metrics to continue without regime classification.
+        Uses retry logic for transient errors.
         """
         try:
             # Check freshness of economic_metrics (contains yield curve data)
@@ -408,10 +505,23 @@ class MarketHealthDailyLoader(OptimalLoader):
                     m["yield_curve_unavailable_reason"] = "source_data_stale"
                 return
 
-            yield_curve = self._yield_curve_fetcher.fetch(start, end)
+            yield_curve, error_reason = self._fetch_yield_curve_with_retries(start, end)
+
+            # Handle retry exhaustion
+            if error_reason and yield_curve is None:
+                logger.warning(
+                    f"[MARKET_HEALTH] Yield curve data unavailable after retries ({error_reason}) - "
+                    f"marking data_unavailable and skipping inversion detection"
+                )
+                # Mark all metrics as having unavailable yield curve data
+                for m in health_metrics:
+                    m["yield_curve_slope"] = None
+                    m["yield_curve_data_unavailable"] = True
+                    m["yield_curve_unavailable_reason"] = error_reason
+                return
 
             # YieldCurveFetcher returns explicit data_unavailable flag
-            if yield_curve.get("data_unavailable"):
+            if yield_curve is not None and yield_curve.get("data_unavailable"):
                 reason = yield_curve.get("reason", "unknown")
                 logger.warning(
                     f"[MARKET_HEALTH] Yield curve data unavailable ({reason}) - "
@@ -489,7 +599,9 @@ class MarketHealthDailyLoader(OptimalLoader):
                 )
 
             if matched_count > 0:
-                logger.info(f"Yield curve enrichment: matched {matched_count}/{len(health_metrics)} dates with valid yield_spread")
+                logger.info(
+                    f"Yield curve enrichment: matched {matched_count}/{len(health_metrics)} dates with valid yield_spread"
+                )
             elif matched_count == 0:
                 logger.warning(
                     "[MARKET_HEALTH] Yield curve data available but no valid slopes found for any date - "
@@ -506,98 +618,159 @@ class MarketHealthDailyLoader(OptimalLoader):
                 m["yield_curve_data_unavailable"] = True
                 m["yield_curve_unavailable_reason"] = "fetcher_exception"
 
+    def _fetch_fed_rate_with_retries(
+        self, start: date, end: date, max_retries: int = 3, backoff_seconds: float = 1.0
+    ) -> tuple[list[Any] | None, str | None]:
+        """Fetch Fed rate data from database with retry logic for transient errors.
+
+        Retries on OperationalError (connection pool exhaustion, transient failures).
+        Raises on DatabaseError (permanent failures - table missing, permissions, etc).
+
+        Args:
+            start: Start date for query range
+            end: End date for query range
+            max_retries: Maximum number of retry attempts (default 3)
+            backoff_seconds: Initial backoff delay in seconds (default 1.0)
+
+        Returns:
+            Tuple of (rows, error_reason) where:
+            - rows: Query results if successful, None if all retries exhausted
+            - error_reason: Human-readable error reason for data_unavailable marker
+        """
+        for attempt in range(max_retries):
+            try:
+                with DatabaseContext("read") as cur:
+                    cur.execute(
+                        """
+                        SELECT value::float, date FROM economic_data
+                        WHERE series_id = 'FEDFUNDS' AND date >= %s AND date <= %s
+                        ORDER BY date DESC
+                        LIMIT 60
+                        """,
+                        (start, end),
+                    )
+                    rows = cur.fetchall()
+                    return rows, None
+            except psycopg2.OperationalError as e:
+                # Transient error: connection pool exhaustion, temporary network issue
+                if attempt < max_retries - 1:
+                    wait_time = backoff_seconds * (2**attempt)  # Exponential backoff
+                    logger.warning(
+                        f"[MARKET_HEALTH] Fed rate fetch attempt {attempt + 1}/{max_retries} failed with "
+                        f"transient OperationalError: {e}. Retrying in {wait_time}s..."
+                    )
+                    time.sleep(wait_time)
+                else:
+                    logger.error(
+                        f"[MARKET_HEALTH] Fed rate fetch failed after {max_retries} attempts. "
+                        f"All retries exhausted on transient OperationalError: {e}"
+                    )
+                    return None, "database_connection_failed"
+            except psycopg2.DatabaseError as e:
+                # Permanent error: invalid SQL, table missing, permissions, schema mismatch
+                logger.error(
+                    f"[MARKET_HEALTH] Fed rate fetch failed with permanent DatabaseError "
+                    f"(not retrying): {e}. Check economic_data table schema and permissions."
+                )
+                raise RuntimeError(
+                    f"[MARKET_HEALTH] Permanent database error fetching Fed rate data: {e}. "
+                    "This indicates a schema or configuration problem that requires investigation."
+                ) from e
+        return None, "database_connection_failed"
+
     def _merge_fed_rate_environment(self, health_metrics: list[dict[str, Any]], start: date, end: date) -> None:
         """Merge Fed rate environment classification into health metrics.
 
         Classifies Fed policy stance (tightening/neutral/easing) based on Fed funds rate trend.
         Fed policy environment is optional enrichment for market regime detection.
         Marks data_unavailable when data cannot be fetched or is insufficient.
+
+        Uses retry logic for transient database errors (OperationalError).
+        Raises on permanent database errors (DatabaseError).
         """
         try:
-            with DatabaseContext("read") as cur:
-                # Get Fed funds rate for the period
-                cur.execute(
-                    """
-                    SELECT value::float, date FROM economic_data
-                    WHERE series_id = 'FEDFUNDS' AND date >= %s AND date <= %s
-                    ORDER BY date DESC
-                    LIMIT 60
-                    """,
-                    (start, end),
+            # Fetch Fed rate data with retry logic for transient errors
+            rows, error_reason = self._fetch_fed_rate_with_retries(start, end)
+
+            if error_reason:
+                # All retries exhausted on transient error
+                msg = (
+                    f"[MARKET_HEALTH] Fed rate enrichment unavailable after retries: {error_reason}. "
+                    f"Fed policy environment optional enrichment unavailable. Marking data_unavailable and continuing."
                 )
-                rows = cur.fetchall()
-                if not rows:
-                    msg = (
-                        f"[MARKET_HEALTH] Fed funds rate data missing for {start} to {end}. "
-                        f"Fed policy environment optional enrichment unavailable. "
-                        f"Marking data_unavailable and continuing (check economic_data table for FEDFUNDS series)."
-                    )
-                    logger.warning(msg)
-                    # Mark all metrics with data_unavailable for fed_rate_environment
-                    for m in health_metrics:
-                        m["fed_rate_environment"] = None
-                        m["fed_rate_data_unavailable"] = True
-                        m["fed_rate_unavailable_reason"] = "no_historical_data"
-                    return
+                logger.warning(msg)
+                for m in health_metrics:
+                    m["fed_rate_environment"] = None
+                    m["fed_rate_data_unavailable"] = True
+                    m["fed_rate_unavailable_reason"] = error_reason
+                return
 
-                # Get current and historical rates to determine trend
-                current_rate = float(rows[0][0]) if rows[0][0] is not None else None
-                if current_rate is None:
-                    msg = (
-                        f"[MARKET_HEALTH] Fed funds rate is NULL for current period {start} to {end}. "
-                        f"Fed policy environment unavailable. Marking data_unavailable and continuing."
-                    )
-                    logger.warning(msg)
-                    # Mark all metrics with data_unavailable
-                    for m in health_metrics:
-                        m["fed_rate_environment"] = None
-                        m["fed_rate_data_unavailable"] = True
-                        m["fed_rate_unavailable_reason"] = "current_rate_null"
-                    return
+            if not rows:
+                msg = (
+                    f"[MARKET_HEALTH] Fed funds rate data missing for {start} to {end}. "
+                    f"Fed policy environment optional enrichment unavailable. "
+                    f"Marking data_unavailable and continuing (check economic_data table for FEDFUNDS series)."
+                )
+                logger.warning(msg)
+                # Mark all metrics with data_unavailable for fed_rate_environment
+                for m in health_metrics:
+                    m["fed_rate_environment"] = None
+                    m["fed_rate_data_unavailable"] = True
+                    m["fed_rate_unavailable_reason"] = "no_historical_data"
+                return
 
-                # Get rate 30 days ago for trend
-                rate_30d_ago = None
-                for r in rows:
-                    d = r[1]
-                    if d and (start - d).days >= 30:
-                        rate_30d_ago = float(r[0]) if r[0] is not None else None
-                        break
+            # Get current and historical rates to determine trend
+            current_rate = float(rows[0][0]) if rows[0][0] is not None else None
+            if current_rate is None:
+                msg = (
+                    f"[MARKET_HEALTH] Fed funds rate is NULL for current period {start} to {end}. "
+                    f"Fed policy environment unavailable. Marking data_unavailable and continuing."
+                )
+                logger.warning(msg)
+                # Mark all metrics with data_unavailable
+                for m in health_metrics:
+                    m["fed_rate_environment"] = None
+                    m["fed_rate_data_unavailable"] = True
+                    m["fed_rate_unavailable_reason"] = "current_rate_null"
+                return
 
-                # Classify environment: requires 30+ days of history for trend comparison
-                if rate_30d_ago is not None:
-                    if current_rate > rate_30d_ago * 1.05:
-                        env = "tightening"
-                    elif current_rate < rate_30d_ago * 0.95:
-                        env = "easing"
-                    else:
-                        env = "neutral"
-                    # Apply to all metrics with available data marker
-                    for m in health_metrics:
-                        m["fed_rate_environment"] = env
-                        m["fed_rate_data_unavailable"] = False
-                        m["fed_rate_unavailable_reason"] = None
-                    logger.info(f"Fed rate environment: {env} (current={current_rate}%, 30d_ago={rate_30d_ago}%)")
+            # Get rate 30 days ago for trend
+            rate_30d_ago = None
+            for r in rows:
+                d = r[1]
+                if d and (start - d).days >= 30:
+                    rate_30d_ago = float(r[0]) if r[0] is not None else None
+                    break
+
+            # Classify environment: requires 30+ days of history for trend comparison
+            if rate_30d_ago is not None:
+                if current_rate > rate_30d_ago * 1.05:
+                    env = "tightening"
+                elif current_rate < rate_30d_ago * 0.95:
+                    env = "easing"
                 else:
-                    # Insufficient history: don't classify (don't mix stale trend with absolute levels)
-                    logger.warning(
-                        f"[MARKET_HEALTH] Fed rate environment skipped: <30 days history available. "
-                        f"Cannot classify trend without 30-day baseline (current={current_rate}%). "
-                        f"Marking data_unavailable for trend classification."
-                    )
-                    for m in health_metrics:
-                        m["fed_rate_environment"] = None
-                        m["fed_rate_data_unavailable"] = True
-                        m["fed_rate_unavailable_reason"] = "insufficient_history"
-        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.warning(
-                f"[MARKET_HEALTH] Fed rate enrichment database error: {e}. "
-                f"Fed policy environment optional enrichment unavailable. Marking data_unavailable and continuing."
-            )
-            # Mark all metrics with data_unavailable on database error
-            for m in health_metrics:
-                m["fed_rate_environment"] = None
-                m["fed_rate_data_unavailable"] = True
-                m["fed_rate_unavailable_reason"] = "database_error"
+                    env = "neutral"
+                # Apply to all metrics with available data marker
+                for m in health_metrics:
+                    m["fed_rate_environment"] = env
+                    m["fed_rate_data_unavailable"] = False
+                    m["fed_rate_unavailable_reason"] = None
+                logger.info(f"Fed rate environment: {env} (current={current_rate}%, 30d_ago={rate_30d_ago}%)")
+            else:
+                # Insufficient history: don't classify (don't mix stale trend with absolute levels)
+                logger.warning(
+                    f"[MARKET_HEALTH] Fed rate environment skipped: <30 days history available. "
+                    f"Cannot classify trend without 30-day baseline (current={current_rate}%). "
+                    f"Marking data_unavailable for trend classification."
+                )
+                for m in health_metrics:
+                    m["fed_rate_environment"] = None
+                    m["fed_rate_data_unavailable"] = True
+                    m["fed_rate_unavailable_reason"] = "insufficient_history"
+        except RuntimeError:
+            # Permanent database error (re-raised from _fetch_fed_rate_with_retries)
+            # This is a critical configuration problem - let it propagate up
+            raise
         except Exception as e:
             logger.warning(
                 f"[MARKET_HEALTH] Fed rate enrichment failed: {e}. "
@@ -713,12 +886,12 @@ class MarketHealthDailyLoader(OptimalLoader):
         skipped_rows = []
         for idx, row in df.iterrows():
             if not pd.notna(row["close"]) or row["close"] <= 0:
-                if 'date' not in row or row.get('date') is None:
+                if "date" not in row or row.get("date") is None:
                     raise ValueError(
                         "[MARKET_HEALTH_CRITICAL] Market health row missing required 'date' field. "
                         "Cannot process market data without date. Row keys: " + str(list(row.index.tolist()))
                     )
-                row_date = row['date']
+                row_date = row["date"]
                 logger.error(
                     f"[MARKET_HEALTH_DATA_GAP] Invalid close price for {row_date}: {row['close']}. "
                     f"Skipping row - this creates gap in distribution day counts and market health metrics."
@@ -733,8 +906,10 @@ class MarketHealthDailyLoader(OptimalLoader):
             # These rows lack sufficient history for moving average calculation.
             # Only store rows with valid SMA data for circuit breaker decisions.
             if not sma_200:
-                logger.debug(f"Skipping row {row.get('date', 'unknown')}: SMA_200 not yet computed (insufficient history)")
-                skipped_rows.append(row.get('date', 'unknown'))
+                logger.debug(
+                    f"Skipping row {row.get('date', 'unknown')}: SMA_200 not yet computed (insufficient history)"
+                )
+                skipped_rows.append(row.get("date", "unknown"))
                 continue
 
             # Determine market trend and stage
@@ -941,9 +1116,7 @@ def _write_vix_family_prices(start: date, end: date) -> int:
                 raise
             except ZeroDivisionError as e:
                 logger.error(f"[MARKET_HEALTH] Unexpected calculation error for {sym}: {e}")
-                raise RuntimeError(
-                    f"[MARKET_HEALTH] Unexpected error loading market health for {sym}: {e}"
-                ) from e
+                raise RuntimeError(f"[MARKET_HEALTH] Unexpected error loading market health for {sym}: {e}") from e
 
         coverage = (len(INDEX_SYMBOLS_FOR_PRICE_DAILY) - len(failed_symbols)) / len(INDEX_SYMBOLS_FOR_PRICE_DAILY) * 100
         if coverage < 80:
