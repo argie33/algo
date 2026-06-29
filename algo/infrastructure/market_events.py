@@ -194,7 +194,8 @@ class MarketEventHandler:
             def fetch_bars() -> Any:
                 # Use Market Data API (data.alpaca.markets) not Trading API (paper-api.alpaca.markets)
                 alpaca_data_url = get_alpaca_data_url()
-                url = f"{alpaca_data_url}/v2/stocks/SPY/bars/latest?timeframe=1day"
+                # /bars/latest endpoint does not accept timeframe parameter (returns 400 if included)
+                url = f"{alpaca_data_url}/v2/stocks/SPY/bars/latest"
                 try:
                     resp = requests.get(url, headers=headers, timeout=get_market_data_timeout())
                     if resp.status_code != 200:
