@@ -102,7 +102,7 @@ class VCPPatternsLoader:
 
             cur.connection.commit()
 
-        result = {
+        result: dict[str, Any] = {
             "symbols_processed": self.symbols_processed,
             "symbols_failed": self.symbols_failed,
             "patterns_found": self.patterns_found,

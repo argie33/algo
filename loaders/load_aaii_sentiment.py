@@ -141,6 +141,7 @@ class AAIISentimentLoader(OptimalLoader):
 
                 except Exception as e:
                     logger.warning(f"[AAII_SENTIMENT] Playwright page fetch failed: {type(e).__name__}: {str(e)[:100]}")
+                    return None
                 finally:
                     try:
                         page.close()

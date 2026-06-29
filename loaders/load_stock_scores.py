@@ -105,27 +105,33 @@ class StockScoresLoader(OptimalLoader):
             logger.warning(f"[STOCK_SCORES] Pre-flight validation skipped due to query error: {e}")
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
-        """Compute stock scores for this symbol.
+        """Compute stock scores for this symbol. Raises if unable to compute.
 
-        Returns explicit marker if unable to compute score so callers can distinguish
-        between "no metrics available" and "scorer failed".
+        CRITICAL: Fails fast if insufficient metrics to compute valid score.
+        Returning partial/incomplete scores leads to poor position sizing decisions.
+        Missing data must propagate as exceptions, not silent markers.
         """
         score_result = self._compute_stock_score(symbol)
-        if score_result:
-            return [score_result]
-        # Return explicit marker: upstream metrics unavailable
-        # Callers MUST check data_completeness to know if score is valid
-        return [{"symbol": symbol, "data_completeness": False, "reason": "Upstream metrics unavailable"}]
+        if not score_result:
+            raise RuntimeError(
+                f"[STOCK_SCORES] Cannot compute score for {symbol}: insufficient real metric data. "
+                f"Upstream metric loaders (quality, growth, value, stability, positioning, momentum) "
+                f"must have populated data before score computation."
+            )
+        return [score_result]
 
-    def _compute_stock_score(self, symbol: str) -> dict[str, Any] | None:
+    def _compute_stock_score(self, symbol: str) -> dict[str, Any]:
         """Compute composite stock score from REAL metrics only (no fake defaults).
 
-        Only returns a score if stock has sufficient real data (>=50% completeness).
-        Stocks without real data are skipped entirely (return None).
+        CRITICAL: Fails fast if stock has insufficient real data (>=50% completeness required).
+        Do not return None or fake markers — callers must know immediately if scoring failed.
 
         Returns dict with keys: symbol, composite_score, quality_score, growth_score,
         value_score, momentum_score, positioning_score, stability_score, rs_percentile,
         data_completeness
+
+        Raises:
+            RuntimeError: If insufficient metrics available to compute valid score
         """
         try:
             with DatabaseContext("read") as cur:
@@ -166,34 +172,16 @@ class StockScoresLoader(OptimalLoader):
 
             # CRITICAL: Require minimum 50% (3 of 6) metrics for composite scoring.
             # Single or dual-metric composites have severe bias and produce unreliable signals.
-            # Upstream metric loaders (value_metrics, positioning_metrics) may not complete reliably under
-            # AWS constraints (rate limits, timeouts). Return explicit marker if insufficient data.
-            # Downstream systems (signals, filters) weight scores by completeness percentage.
-            # When data unavailable, return explicit marker so callers can't silently degrade.
+            # Upstream metric loaders MUST complete before score computation. Do not degrade silently.
             min_required_metrics = 3
 
             if data_count < min_required_metrics:
-                logger.warning(
+                raise RuntimeError(
                     f"[STOCK_SCORES] {symbol}: insufficient metrics for scoring ({data_count}/{min_required_metrics} required, "
-                    f"{data_completeness:.0f}% complete). Data unavailable marker returned."
+                    f"{data_completeness:.0f}% complete). "
+                    f"Upstream metric loaders (quality, growth, value, positioning, stability, momentum) must have sufficient coverage. "
+                    f"Cannot compute score with incomplete data — failing fast to prevent poor position sizing decisions."
                 )
-                # CRITICAL: Return explicit marker that score is unavailable (not a fake/partial score)
-                # Downstream: Callers MUST check data_unavailable=True before using composite_score
-                return {
-                    "symbol": symbol,
-                    "composite_score": None,
-                    "quality_score": None,
-                    "growth_score": None,
-                    "value_score": None,
-                    "momentum_score": None,
-                    "positioning_score": None,
-                    "stability_score": None,
-                    "rs_percentile": 0.0,
-                    "data_completeness": data_completeness,
-                    "data_unavailable": True,
-                    "reason": f"insufficient_metrics ({data_count}/{min_required_metrics} available)",
-                    "updated_at": datetime.now(timezone.utc).isoformat(),
-                }
 
             # Compute weighted composite score with NORMALIZED weights
             # When metrics are missing, redistribute their weight to available metrics

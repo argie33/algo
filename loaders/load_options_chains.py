@@ -98,7 +98,7 @@ class OptionsLoader:
 
         # Mark as unavailable if no data collected
         data_unavailable = chains_inserted == 0 and iv_inserted == 0
-        result = {
+        result: dict[str, Any] = {
             "symbols_processed": symbols_processed,
             "symbols_no_options": symbols_no_options,
             "chains_inserted": chains_inserted,
