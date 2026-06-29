@@ -406,12 +406,34 @@ class PriceLoader(OptimalLoader):
 
         success_rate = self._batch_success_count / self._batch_total_count
 
-        if success_rate > 0.8:
-            return 100  # High success: keep large batches
-        elif success_rate > 0.5:
-            return 50  # Moderate success: smaller batches
-        else:
-            return 20  # Low success: very small batches
+        # CRITICAL: Price data quality is essential — no silent degradation to low success rates.
+        # Require 95%+ success rate to confirm data integrity.
+        # - >95% success: normal batch size (100)
+        # - <95% success: fail-hard instead of silently adapting to low quality
+        #
+        # Why? Silently accepting 50-80% success means:
+        # - Position sizing gets stale/incomplete prices
+        # - Technical indicators calculated on partial data
+        # - Signal generation with degraded price quality
+        # - Circuit breakers trigger on incomplete market data
+        #
+        # Better to fail and fix upstream than continue with bad data.
+
+        if success_rate < 0.95:
+            logger.critical(
+                f"[PRICE_LOADER] Success rate ({success_rate:.1%}) below 95% threshold. "
+                f"Price data is CRITICAL — cannot continue with degraded quality. "
+                f"Batch count: {self._batch_success_count}/{self._batch_total_count}. "
+                f"Failing fast instead of silently adapting batch size to degrade gracefully."
+            )
+            raise RuntimeError(
+                f"[PRICE_LOADER] Price data quality degraded (success rate {success_rate:.1%}). "
+                f"Received only {self._batch_success_count} successful batches of {self._batch_total_count}. "
+                f"Cannot proceed with incomplete price coverage. "
+                f"Check yfinance API health, rate limiting, and network connectivity."
+            )
+
+        return 100  # Full batch size when success rate is high
 
     def _record_batch_result(self, success_count: int, total_count: int) -> None:
         """Record batch success/failure ratio for adaptive retry logic.

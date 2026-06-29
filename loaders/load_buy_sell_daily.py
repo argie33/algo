@@ -340,13 +340,20 @@ class SignalsDailyLoader(OptimalLoader):
                     (tech_coverage_symbols / price_coverage_symbols * 100) if price_coverage_symbols > 0 else 0
                 )
 
-                # Fail-fast if technical data covers < 70% of price symbols (normal is 80-83%)
-                # Do not generate signals with incomplete technical data-this would create inconsistent coverage.
-                # Upstream loader must complete or fix coverage issues before signal generation proceeds.
-                if tech_coverage < 70:
+                # CRITICAL: Signal generation requires COMPLETE technical data (95%+ coverage minimum).
+                # Accepting 70-80% coverage means 20-30% of symbols lack complete technical patterns.
+                # Signals generated without technical data are degraded:
+                # - Missing moving averages (trend validation breaks)
+                # - Missing momentum indicators (signal quality degrades)
+                # - Missing volume patterns (entry confirmation fails)
+                # Position sizing and exit logic depend on complete technical analysis.
+                min_tech_coverage = 95.0
+                if tech_coverage < min_tech_coverage:
                     raise RuntimeError(
                         f"{symbol}: technical_data_daily incomplete for {end}: "
-                        f"{tech_coverage_symbols}/{price_coverage_symbols} price symbols "
+                        f"Only {tech_coverage:.1f}% coverage (need >= {min_tech_coverage:.1f}%). "
+                        f"{tech_coverage_symbols}/{price_coverage_symbols} price symbols have technical data. "
+                        f"Cannot generate reliable signals with {100-tech_coverage:.1f}% missing technical indicators. "
                         f"({tech_coverage:.1f}%, required >= 70%). "
                         "Cannot generate buy/sell signals without sufficient technical data coverage."
                     )

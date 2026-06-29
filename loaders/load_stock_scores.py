@@ -330,7 +330,6 @@ class StockScoresLoader(OptimalLoader):
         """Fetch momentum/RS metrics for symbol using DATE-based lookups (not OFFSET).
 
         Uses date arithmetic to find approximate prices at 1m/3m/6m/12m ago.
-        For new stocks with <1m history, also calculates short-term momentum (1-week).
         More robust than OFFSET which breaks on data gaps or different row counts.
         """
         try:
@@ -338,34 +337,25 @@ class StockScoresLoader(OptimalLoader):
                 """
                 SELECT
                     (SELECT close FROM price_daily WHERE symbol = %s ORDER BY date DESC LIMIT 1) as current,
-                    (SELECT close FROM price_daily WHERE symbol = %s AND date <= CURRENT_DATE - INTERVAL '7 days' ORDER BY date DESC LIMIT 1) as price_1w_ago,
                     (SELECT close FROM price_daily WHERE symbol = %s AND date <= CURRENT_DATE - INTERVAL '1 month' ORDER BY date DESC LIMIT 1) as price_1m_ago,
                     (SELECT close FROM price_daily WHERE symbol = %s AND date <= CURRENT_DATE - INTERVAL '3 months' ORDER BY date DESC LIMIT 1) as price_3m_ago,
                     (SELECT close FROM price_daily WHERE symbol = %s AND date <= CURRENT_DATE - INTERVAL '6 months' ORDER BY date DESC LIMIT 1) as price_6m_ago,
                     (SELECT close FROM price_daily WHERE symbol = %s AND date <= CURRENT_DATE - INTERVAL '1 year' ORDER BY date DESC LIMIT 1) as price_12m_ago
             """,
-                (symbol, symbol, symbol, symbol, symbol, symbol),
+                (symbol, symbol, symbol, symbol, symbol),
             )
             row = cur.fetchone()
 
             if row and row[0] is not None:
                 prices = {
                     "current": float(row[0]) if row[0] is not None else None,
-                    "price_1w_ago": float(row[1]) if row[1] is not None else None,
-                    "price_1m_ago": float(row[2]) if row[2] is not None else None,
-                    "price_3m_ago": float(row[3]) if row[3] is not None else None,
-                    "price_6m_ago": float(row[4]) if row[4] is not None else None,
-                    "price_12m_ago": float(row[5]) if row[5] is not None else None,
+                    "price_1m_ago": float(row[1]) if row[1] is not None else None,
+                    "price_3m_ago": float(row[2]) if row[2] is not None else None,
+                    "price_6m_ago": float(row[3]) if row[3] is not None else None,
+                    "price_12m_ago": float(row[4]) if row[4] is not None else None,
                 }
 
                 current = prices["current"]
-                # 1-week momentum (for new stocks)
-                momentum_1w = (
-                    ((current / prices["price_1w_ago"] - 1) * 100)
-                    if current is not None and prices["price_1w_ago"] is not None and prices["price_1w_ago"] != 0
-                    else None
-                )
-                # Standard 1m/3m/6m/12m momentum
                 momentum_1m = (
                     ((current / prices["price_1m_ago"] - 1) * 100)
                     if current is not None and prices["price_1m_ago"] is not None and prices["price_1m_ago"] != 0
@@ -386,10 +376,6 @@ class StockScoresLoader(OptimalLoader):
                     if current is not None and prices["price_12m_ago"] is not None and prices["price_12m_ago"] != 0
                     else None
                 )
-
-                # Use 1-week momentum as fallback if 1m momentum not available
-                if momentum_1m is None and momentum_1w is not None:
-                    momentum_1m = momentum_1w
 
                 return {
                     "momentum_1m": momentum_1m,

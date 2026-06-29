@@ -74,7 +74,8 @@ class StabilityMetricsLoader(OptimalLoader):
     def _compute_stability_metrics(self, symbol: str) -> dict[str, Any] | None:
         """Compute volatility from price_daily and beta from yfinance.
 
-        For new stocks with <30 days history, fall back to yfinance beta alone.
+        Requires minimum 30 days of price history. New stocks without sufficient
+        history should not score on stability—incomplete data biases risk assessment.
         """
         try:
             with DatabaseContext("read") as cur:
@@ -90,43 +91,12 @@ class StabilityMetricsLoader(OptimalLoader):
                 )
                 rows = cur.fetchall()
 
-            # For stocks with NO price data at all, fail
-            if not rows:
-                logger.debug(
-                    f"[STABILITY_METRICS] No price data for {symbol}"
+            # Require minimum 30 days of data for meaningful volatility calculation
+            if not rows or len(rows) < 30:
+                logger.warning(
+                    f"[STABILITY_METRICS] Insufficient data for {symbol} ({len(rows) if rows else 0}/30 days required) — metrics unavailable"
                 )
                 return None
-
-            # For stocks with <30 days, use yfinance beta as fallback
-            if len(rows) < 30:
-                logger.debug(
-                    f"[STABILITY_METRICS] Only {len(rows)} days available for {symbol}, falling back to yfinance beta"
-                )
-                beta = self._get_beta_yfinance(symbol)
-                if beta is not None:
-                    return {
-                        "symbol": symbol,
-                        "volatility_30d": None,
-                        "volatility_60d": None,
-                        "volatility_252d": None,
-                        "beta": round(beta, 4),
-                        "data_unavailable": False,
-                        "updated_at": datetime.now(timezone.utc).isoformat(),
-                    }
-                # If no beta available either, return data_unavailable
-                logger.info(
-                    f"[STABILITY_METRICS] {symbol}: insufficient data (<30 days) and no yfinance beta — metrics unavailable"
-                )
-                return {
-                    "symbol": symbol,
-                    "volatility_30d": None,
-                    "volatility_60d": None,
-                    "volatility_252d": None,
-                    "beta": None,
-                    "data_unavailable": True,
-                    "reason": "Insufficient price history (<30 days) and no beta available",
-                    "updated_at": datetime.now(timezone.utc).isoformat(),
-                }
 
             # Sort chronologically (oldest to newest)
             prices = sorted(

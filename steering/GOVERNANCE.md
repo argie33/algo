@@ -35,6 +35,44 @@ Allowed: `print()` in loaders, scripts, tests only.
 
 ---
 
+## Data Quality (Critical for Trading)
+
+**PRINCIPLE: Fail-fast on missing data. No silent fallbacks. Incomplete data is honest data.**
+
+Finance applications cannot silently fall back to secondary data sources or accept degraded datasets. Silent data loss leads to:
+- Incorrect position sizing (using incomplete market exposure)
+- Wrong composite scores (weighting single factors 100%)
+- Inaccurate risk calculations (using stale or synthetic data)
+
+**Strict Rules for Metric Loaders:**
+
+1. **Explicit availability:** Every record must have `data_unavailable` flag (BOOLEAN, default FALSE)
+   - When `data_unavailable=TRUE`, include `reason` field explaining why (VARCHAR 255)
+
+2. **Fail-fast on insufficient data:** Return `None` (not degraded data) when:
+   - Price history < 30 days (cannot calculate volatility)
+   - No SEC filings available (cannot calculate quality/growth)
+   - Missing upstream metric data
+   
+3. **No secondary fallbacks:** Never use:
+   - yfinance beta instead of calculated volatility (incomplete risk picture)
+   - Short-term momentum when long-term unavailable (different signal)
+   - Single-metric composite scores (extreme bias)
+
+4. **Minimum completeness threshold:** Composite scores require min_required_metrics ≥3
+   - Prevents single-metric bias (100% weight on one factor)
+   - Signals < 70% completeness are excluded from scoring
+
+5. **Explicit logging:** When data missing, use WARNING (not DEBUG) so operators see failures
+
+6. **Operator visibility:** Dashboard must display data_unavailable flags and completeness % so traders understand which stocks have insufficient data
+
+**Result:** Some stocks (new IPOs, micro-caps without SEC filings) will not score. This is correct—incomplete data is a risk signal, not a problem to hide.**
+
+**See:** `FALLBACK_AUDIT_FINDINGS.md` for audit results and remediation schedule.
+
+---
+
 ## Trading Safety (Non-Negotiable)
 
 **Three layers of gates** (all hot-reloadable via `algo_config` table):
@@ -44,6 +82,7 @@ Allowed: `print()` in loaders, scripts, tests only.
 3. **Quality gates (warn-only):** RS slope, volume decay
 
 **NEVER set any threshold to zero.** Doing so bypasses all guards.
+**NEVER accept scores with <50% data completeness.** Degraded data biases position sizing.
 
 **Pre-deployment:** Run `python scripts/verify_safety_thresholds.py --strict` before production.
 
