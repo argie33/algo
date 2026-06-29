@@ -217,16 +217,22 @@ class AAIISentimentLoader(OptimalLoader):
                     time.sleep(wait_time)
                 else:
                     logger.warning(
-                        f"[AAII] Failed after 3 attempts: Invalid Excel data format. {e}. "
-                        "AAII sentiment is optional enrichment; returning None to allow trading to proceed."
+                        f"[AAII] Failed after 3 attempts: Invalid Excel data format. {e}"
                     )
-                    return None
+                    return [{
+                        "data_unavailable": True,
+                        "reason": f"Invalid Excel data format after 3 attempts: {str(e)[:100]}",
+                        "created_at": datetime.now().isoformat(),
+                    }]
             except (KeyError, AttributeError, TypeError) as e:
                 logger.warning(
-                    f"[AAII] Data format error parsing Excel: {e}. AAII file structure may have changed. "
-                    "AAII sentiment is optional enrichment; returning None to allow trading to proceed."
+                    f"[AAII] Data format error parsing Excel: {e}. AAII file structure may have changed."
                 )
-                return None
+                return [{
+                    "data_unavailable": True,
+                    "reason": f"Data format error parsing Excel: {str(e)[:100]}",
+                    "created_at": datetime.now().isoformat(),
+                }]
             except (OSError, requests.RequestException) as e:
                 logger.error(f"Download attempt {attempt} unexpected error: {e}")
                 if attempt < 3:
@@ -237,16 +243,23 @@ class AAIISentimentLoader(OptimalLoader):
                     time.sleep(wait_time)
                 else:
                     logger.warning(
-                        f"[AAII] Unexpected error after 3 attempts: {e}. "
-                        "AAII sentiment is optional enrichment; returning None to allow trading to proceed."
+                        f"[AAII] Unexpected error after 3 attempts: {e}"
                     )
-                    return None
+                    return [{
+                        "data_unavailable": True,
+                        "reason": f"Unexpected error after 3 attempts: {str(e)[:100]}",
+                        "created_at": datetime.now().isoformat(),
+                    }]
 
         logger.warning(
             "[AAII_SENTIMENT] Failed to fetch AAII sentiment data after exhausting all retries. "
-            "AAII server is unreachable. AAII sentiment is optional enrichment; degrading gracefully."
+            "AAII server is unreachable."
         )
-        return None
+        return [{
+            "data_unavailable": True,
+            "reason": "Failed to fetch AAII sentiment after exhausting all retries",
+            "created_at": datetime.now().isoformat(),
+        }]
 
 
 if __name__ == "__main__":
