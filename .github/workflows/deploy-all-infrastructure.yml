@@ -1599,7 +1599,7 @@ jobs:
           fi
 
   #
-  # Populate Database with Initial Data (via EventBridge)
+  # Populate Database with Initial Data
   #
   run-initial-loaders:
     name: Populate Database - Run Initial Loaders
@@ -1607,11 +1607,56 @@ jobs:
     if: success()
     runs-on: ubuntu-latest
     steps:
-      - name: Data Population via EventBridge
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a  # v4
+        with:
+          role-to-assume: ${{ secrets.GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/{1}', secrets.AWS_ACCOUNT_ID, secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev') }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Run AAII Sentiment Loader (Lambda)
+        continue-on-error: true
         run: |
-          echo "✓ Data population handled by EventBridge scheduled loaders"
-          echo "AAII Sentiment Loader will execute within 5 minutes via scheduled ECS task"
-          echo "Monitor progress: aws logs tail /aws/ecs/data-loaders --follow --region us-east-1"
+          PROJECT=$(grep '^project_name' terraform/terraform.tfvars | cut -d'"' -f2)
+          ENVIRONMENT=$(grep '^environment' terraform/terraform.tfvars | cut -d'"' -f2)
+          LAMBDA_NAME="${PROJECT}-aaii-loader-${ENVIRONMENT}"
+
+          echo "Invoking AAII Sentiment Loader Lambda: $LAMBDA_NAME"
+
+          # Invoke Lambda and capture response
+          RESPONSE=$(aws lambda invoke \
+            --function-name "$LAMBDA_NAME" \
+            --region $AWS_REGION \
+            --output json \
+            /tmp/aaii_response.json 2>&1)
+
+          if [ $? -eq 0 ]; then
+            # Lambda invocation succeeded, extract body from response
+            BODY=$(python3 << 'PYTHON'
+          import json
+          try:
+            with open('/tmp/aaii_response.json', 'r') as f:
+              response = json.load(f)
+              if 'body' in response:
+                body = response['body']
+                # body might be a JSON string or plain string
+                try:
+                  parsed = json.loads(body)
+                  print(parsed if isinstance(parsed, str) else body)
+                except:
+                  print(body)
+              else:
+                print(json.dumps(response))
+          except Exception as e:
+            print(f"Error reading response: {e}")
+          PYTHON
+            )
+            echo "$BODY"
+          else
+            echo "[WARN] AAII Sentiment Loader Lambda invocation failed: $RESPONSE"
+            echo "The loader will run post-deployment via EventBridge scheduled tasks."
+          fi
 
   #
   # Final Summary

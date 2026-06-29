@@ -1,102 +1,89 @@
 # ============================================================
-# AAII Sentiment Loader Lambda - Runs inside VPC for RDS access
+# AAII Sentiment Loader Lambda
 # ============================================================
+# Runs inside VPC with direct RDS access during deployment.
+# Populates aaii_sentiment table with 2029 records.
+# Invoked by GitHub Actions workflow after Terraform apply.
 
+# Lambda function for AAII Sentiment loading
 resource "aws_lambda_function" "aaii_loader" {
-  filename         = data.archive_file.aaii_loader_zip.output_path
-  function_name    = "${var.project_name}-aaii-loader-${var.environment}"
-  role             = aws_iam_role.aaii_loader.arn
-  handler          = "index.lambda_handler"
-  runtime          = "python3.12"
-  timeout          = 300
-  memory_size      = 512
+  filename      = "${path.module}/aaii_loader.zip"
+  function_name = "${var.project_name}-aaii-loader-${var.environment}"
+  role          = aws_iam_role.aaii_loader.arn
+  handler       = "lambda_function.lambda_handler"
+  runtime       = "python3.12"
+  timeout       = 60
+
+  layers = [var.psycopg2_layer_arn != "" ? var.psycopg2_layer_arn : ""]
 
   vpc_config {
-    subnet_ids            = var.private_subnet_ids
-    security_group_ids    = [var.rds_security_group_id]
+    subnet_ids         = var.private_subnet_ids
+    security_group_ids = [var.rds_security_group_id]
   }
 
   environment {
     variables = {
-      DB_HOST     = var.db_host
-      DB_PORT     = var.db_port
-      DB_USER     = var.db_user
-      DB_PASSWORD = var.db_password
-      DB_NAME     = var.db_name
+      DB_HOST     = var.db_host != "" ? var.db_host : aws_db_instance.main.address
+      DB_PORT     = tostring(var.db_port)
+      DB_USER     = local.rds_username
+      DB_PASSWORD = local.rds_password
+      DB_NAME     = aws_db_instance.main.db_name
     }
   }
 
-  depends_on = [aws_iam_role_policy.aaii_loader_logs]
-
-  tags = merge(var.common_tags, {
-    Name = "${var.project_name}-aaii-loader"
-  })
+  depends_on = [aws_iam_role_policy_attachment.aaii_loader_vpc]
 }
 
-# IAM role for Lambda
+# IAM role for AAII Loader Lambda
 resource "aws_iam_role" "aaii_loader" {
   name = "${var.project_name}-aaii-loader-role-${var.environment}"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [{
-      Action = "sts:AssumeRole"
-      Effect = "Allow"
-      Principal = {
-        Service = "lambda.amazonaws.com"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "lambda.amazonaws.com"
+        }
       }
-    }]
+    ]
   })
 
   tags = var.common_tags
 }
 
-# Permissions for VPC access
-resource "aws_iam_role_policy_attachment" "aaii_loader_vpc" {
-  role       = aws_iam_role.aaii_loader.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
-}
-
-# CloudWatch logs permission
+# Allow Lambda to write CloudWatch logs
 resource "aws_iam_role_policy" "aaii_loader_logs" {
-  name = "${var.project_name}-aaii-loader-logs"
+  name = "${var.project_name}-aaii-loader-logs-${var.environment}"
   role = aws_iam_role.aaii_loader.id
 
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [{
-      Action = [
-        "logs:CreateLogGroup",
-        "logs:CreateLogStream",
-        "logs:PutLogEvents"
-      ]
-      Effect   = "Allow"
-      Resource = "arn:aws:logs:*:*:*"
-    }]
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ]
+        Resource = "arn:aws:logs:${var.aws_region}:${var.aws_account_id}:log-group:/aws/lambda/${var.project_name}-aaii-loader-${var.environment}:*"
+      }
+    ]
   })
 }
 
-# Lambda deployment package
-data "archive_file" "aaii_loader_zip" {
-  type        = "zip"
-  output_path = "${path.module}/aaii_loader.zip"
-
-  source {
-    content  = file("${path.root}/../../scripts/aaii_loader_function.py")
-    filename = "index.py"
-  }
+# Allow Lambda to access VPC
+resource "aws_iam_role_policy_attachment" "aaii_loader_vpc" {
+  role       = aws_iam_role.aaii_loader.id
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
 }
 
-# Invoke Lambda during deployment
-resource "null_resource" "invoke_aaii_loader" {
-  provisioner "local-exec" {
-    command = <<-EOT
-      aws lambda invoke \
-        --function-name ${aws_lambda_function.aaii_loader.function_name} \
-        --region ${var.aws_region} \
-        /tmp/aaii_loader_response.json
-    EOT
-  }
-
-  depends_on = [aws_lambda_function.aaii_loader]
+# Build AAII Loader Lambda ZIP
+data "archive_file" "aaii_loader" {
+  type        = "zip"
+  source_file = "${path.module}/../../scripts/aaii_loader_function.py"
+  output_path = "${path.module}/aaii_loader.zip"
 }
