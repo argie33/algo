@@ -584,7 +584,8 @@ class SignalQualityScoresLoader(OptimalLoader):
 
             results = []
             for _, row in merged.iterrows():
-                signal_type = row.get("signal_type")
+                # Access Series values using bracket notation (standard pandas idiom, not .get())
+                signal_type = row["signal_type"] if "signal_type" in row.index else None
                 if not signal_type:
                     continue
 
@@ -595,14 +596,14 @@ class SignalQualityScoresLoader(OptimalLoader):
                 base_quality_score = scorer.calculate_base_quality_score()
 
                 # Volume confirmation score (0-20): based on MACD/RSI
-                rsi = row.get("rsi")
-                macd = row.get("macd")
-                macd_signal = row.get("macd_signal")
+                rsi = row["rsi"] if "rsi" in row.index else None
+                macd = row["macd"] if "macd" in row.index else None
+                macd_signal = row["macd_signal"] if "macd_signal" in row.index else None
                 volume_confirmation_score = scorer.calculate_volume_confirmation_score(rsi, macd, macd_signal)
 
                 # Trend template score (0-25): minervini score and stage
-                minervini = row.get("minervini_score")
-                weinstein_stage = row.get("weinstein_stage")
+                minervini = row["minervini_score"] if "minervini_score" in row.index else None
+                weinstein_stage = row["weinstein_stage"] if "weinstein_stage" in row.index else None
                 trend_template_score = scorer.calculate_trend_template_score(minervini, weinstein_stage)
 
                 if trend_template_score > 25:
@@ -614,7 +615,7 @@ class SignalQualityScoresLoader(OptimalLoader):
 
                 # Distance from high score (0-15): closer to 52w high = better
                 distance_from_high_score = 0
-                pct_from_high = row.get("percent_from_52w_high")
+                pct_from_high = row["percent_from_52w_high"] if "percent_from_52w_high" in row.index else None
                 if pct_from_high is not None:
                     try:
                         pct = float(pct_from_high)
@@ -665,7 +666,7 @@ class SignalQualityScoresLoader(OptimalLoader):
 
                 # VCP pattern score (0-10)
                 vcp_pattern_score = 0
-                vcp_strength = row.get("vcp_strength")
+                vcp_strength = row["vcp_strength"] if "vcp_strength" in row.index else None
                 if vcp_strength is not None and not pd.isna(vcp_strength):
                     try:
                         strength = int(vcp_strength)
@@ -701,13 +702,14 @@ class SignalQualityScoresLoader(OptimalLoader):
                 composite_sqs = sum(score_components)
                 unclamped_composite = int(composite_sqs)
                 if unclamped_composite > 100:
+                    log_date = row["date"] if "date" in row.index else "unknown"
                     logger.warning(
-                        f"[SQS_CLAMP] {symbol} {row.get('date')}: Composite quality score clamped from {unclamped_composite} to 100. "
+                        f"[SQS_CLAMP] {symbol} {log_date}: Composite quality score clamped from {unclamped_composite} to 100. "
                         "Score exceeds design range: check individual component contributions."
                     )
                 composite_sqs = min(100, unclamped_composite)
 
-                date_val = row.get("date")
+                date_val = row["date"] if "date" in row.index else None
                 if date_val is not None:
                     date_str = date_val.date().isoformat() if hasattr(date_val, "date") else str(date_val)
                     signal_date = pd.Timestamp(date_str).date()
@@ -717,6 +719,10 @@ class SignalQualityScoresLoader(OptimalLoader):
                     tech_age = (signal_date - max_tech_date.date()).days if max_tech_date is not None else None
                     trend_age = (signal_date - max_trend_date.date()).days if max_trend_date is not None else None
 
+                    # CRITICAL: distribution_days_score and earnings_proximity_score are intentionally None
+                    # because upstream loaders have not provided these data sources. Do NOT convert None to
+                    # int() — that will raise TypeError and mask the root cause (missing upstream data).
+                    # Instead, leave as None in output so consuming systems can detect data unavailability.
                     results.append(
                         {
                             "symbol": symbol,
@@ -728,8 +734,8 @@ class SignalQualityScoresLoader(OptimalLoader):
                             "institutional_ownership_score": int(institutional_ownership_score),
                             "market_stage_score": int(market_stage_score),
                             "vcp_pattern_score": int(vcp_pattern_score),
-                            "distribution_days_score": int(distribution_days_score),
-                            "earnings_proximity_score": int(earnings_proximity_score),
+                            "distribution_days_score": distribution_days_score,  # None (data unavailable)
+                            "earnings_proximity_score": earnings_proximity_score,  # None (data unavailable)
                             "composite_sqs": composite_sqs,
                             "buy_sell_daily_age_days": bs_age,
                             "technical_data_age_days": tech_age,

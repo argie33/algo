@@ -193,9 +193,19 @@ class MarketHealthDailyLoader(OptimalLoader):
         for m in health_metrics:
             b = breadth.get(m["date"])
             if b is not None:
-                m["advance_decline_ratio"] = b.get("advance_decline_ratio")
-                m["new_highs_count"] = b.get("new_highs_count")
-                m["new_lows_count"] = b.get("new_lows_count")
+                # CRITICAL: Breadth fields are required for market exposure scoring
+                # Validate all required keys exist - don't silently default to None
+                required_fields = ["advance_decline_ratio", "new_highs_count", "new_lows_count"]
+                for field in required_fields:
+                    if field not in b:
+                        raise RuntimeError(
+                            f"[MARKET_HEALTH CRITICAL] Breadth data for {m['date']} missing required field '{field}'. "
+                            f"All breadth metrics (advance/decline ratio, new highs/lows) are CRITICAL for market exposure scoring. "
+                            f"Cannot proceed with incomplete breadth data. Check breadth fetcher implementation."
+                        )
+                m["advance_decline_ratio"] = b["advance_decline_ratio"]
+                m["new_highs_count"] = b["new_highs_count"]
+                m["new_lows_count"] = b["new_lows_count"]
                 matched_count += 1
 
         if matched_count == 0:
@@ -251,7 +261,19 @@ class MarketHealthDailyLoader(OptimalLoader):
                 continue
 
             vix_data = vix[m["date"]]
-            vix_close = vix_data.get("vix_close") if isinstance(vix_data, dict) else vix_data
+            # CRITICAL: Validate VIX data structure - don't silently default to None
+            if isinstance(vix_data, dict):
+                if "vix_close" not in vix_data:
+                    raise RuntimeError(
+                        f"[MARKET_HEALTH CRITICAL] VIX data for {m['date']} missing 'vix_close' key. "
+                        f"VIX fetcher returned invalid data structure. "
+                        f"Expected dict with 'vix_close' field. Check VIX fetcher and vix_history table."
+                    )
+                vix_close = vix_data["vix_close"]
+            else:
+                # VIX data may be raw value (backward compatibility)
+                vix_close = vix_data
+
             if vix_close is None or vix_close == "":
                 null_values.append(m["date"])
                 continue
@@ -357,7 +379,17 @@ class MarketHealthDailyLoader(OptimalLoader):
                     missing_dates.append(m["date"])
                     continue
 
-                slope = slope_data.get("yield_spread")
+                # CRITICAL: Validate yield_spread key exists in slope_data
+                # Don't silently default to None if key is missing
+                if not isinstance(slope_data, dict) or "yield_spread" not in slope_data:
+                    raise RuntimeError(
+                        f"[MARKET_HEALTH CRITICAL] Yield curve data for {m['date']} missing 'yield_spread' key. "
+                        f"Yield curve fetcher returned invalid data structure. "
+                        f"Expected dict with 'yield_spread' field, got: {type(slope_data).__name__}. "
+                        f"Check yield curve fetcher and economic_metrics_daily table."
+                    )
+
+                slope = slope_data["yield_spread"]
                 if slope is None or slope == "":
                     null_values.append(m["date"])
                     continue

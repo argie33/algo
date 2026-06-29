@@ -53,20 +53,6 @@ class PositioningMetricsLoader(OptimalLoader):
         """
         try:
             metrics = self._fetch_positioning_metrics(symbol)
-            if not metrics:
-                logger.info(f"[POSITIONING_METRICS] No positioning data available for {symbol} — metrics unavailable")
-                return [
-                    {
-                        "symbol": symbol,
-                        "institutional_ownership": None,
-                        "insider_ownership": None,
-                        "short_interest_percent": None,
-                        "short_interest_trend": None,
-                        "data_unavailable": True,
-                        "reason": "Positioning metrics not found in data source",
-                        "updated_at": datetime.now(timezone.utc).isoformat(),
-                    }
-                ]
             return [metrics]
         except (ValueError, TypeError, ZeroDivisionError) as e:
             # Expected errors: parsing issues, type mismatches
@@ -89,13 +75,13 @@ class PositioningMetricsLoader(OptimalLoader):
             raise
 
     @staticmethod
-    def _fetch_positioning_metrics(symbol: str) -> dict[str, Any] | None:
+    def _fetch_positioning_metrics(symbol: str) -> dict[str, Any]:
         """Fetch institutional ownership and short interest from yfinance via the rate-limiting wrapper.
 
-        Skips symbols with market cap < $50M (illiquid stocks typically lack positioning data).
+        Skips symbols with market cap < $1M (illiquid stocks typically lack positioning data).
         This reduces unnecessary API calls and improves loader throughput.
 
-        Returns None if no positioning data found (caller will add data_unavailable flag).
+        Returns dict with data_unavailable=True if positioning data unavailable (not silent None).
 
         Raises:
             TransientAPIError: On timeouts/connection errors (orchestrator will retry with backoff)
@@ -112,7 +98,17 @@ class PositioningMetricsLoader(OptimalLoader):
             raise TransientAPIError(f"Connection error fetching ticker for {symbol}") from e
 
         if not ticker:
-            return None
+            logger.info(f"[POSITIONING_METRICS] No ticker data available for {symbol}")
+            return {
+                "symbol": symbol,
+                "institutional_ownership": None,
+                "insider_ownership": None,
+                "short_interest_percent": None,
+                "short_interest_trend": None,
+                "data_unavailable": True,
+                "reason": "Ticker object unavailable from yfinance",
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }
 
         try:
             try:
@@ -127,9 +123,18 @@ class PositioningMetricsLoader(OptimalLoader):
             # Early exit for extremely illiquid symbols (< $1M market cap)
             # These symbols typically lack reliable positioning data and aren't trading candidates
             mkt_cap = info.get("marketCap")
-            if mkt_cap and mkt_cap < 1_000_000:
-                logger.info(f"Skipping {symbol} (market cap ${mkt_cap:,} < $1M threshold)")
-                return None
+            if mkt_cap is not None and mkt_cap < 1_000_000:
+                logger.info(f"[POSITIONING_METRICS] Skipping {symbol} (market cap ${mkt_cap:,} < $1M threshold)")
+                return {
+                    "symbol": symbol,
+                    "institutional_ownership": None,
+                    "insider_ownership": None,
+                    "short_interest_percent": None,
+                    "short_interest_trend": None,
+                    "data_unavailable": True,
+                    "reason": "Market cap below $1M threshold (illiquid stock)",
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }
 
             # Use ONLY primary fields - no fallbacks to alternative field names
             # This makes yfinance schema changes visible immediately (fail-fast)
@@ -165,7 +170,17 @@ class PositioningMetricsLoader(OptimalLoader):
                     "updated_at": datetime.now(timezone.utc).isoformat(),
                 }
 
-            return None
+            logger.info(f"[POSITIONING_METRICS] No positioning metrics found for {symbol} (all fields unavailable)")
+            return {
+                "symbol": symbol,
+                "institutional_ownership": None,
+                "insider_ownership": None,
+                "short_interest_percent": None,
+                "short_interest_trend": None,
+                "data_unavailable": True,
+                "reason": "No positioning metrics available in data source",
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }
 
         except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.error(

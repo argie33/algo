@@ -344,7 +344,11 @@ class StockScoresLoader(OptimalLoader):
             raise RuntimeError(f"Database operation failed fetching growth metrics for {symbol}: {e}") from e
 
     def _get_value_metrics(self, cur: Any, symbol: str) -> dict[str, Any] | None:
-        """Fetch value metrics for symbol."""
+        """Fetch value metrics for symbol.
+
+        Returns None only if data is explicitly unavailable (value_metrics table
+        has no entry for this symbol). Raises on database errors.
+        """
         try:
             cur.execute(
                 "SELECT pe_ratio, pb_ratio, ps_ratio, peg_ratio, dividend_yield, fcf_yield FROM value_metrics WHERE symbol = %s",
@@ -360,12 +364,18 @@ class StockScoresLoader(OptimalLoader):
                     "dividend_yield": self._safe_float(row[4], f"{symbol}.dividend_yield"),
                     "fcf_yield": self._safe_float(row[5], f"{symbol}.fcf_yield"),
                 }
+            # Explicitly log when value data unavailable (optional enrichment)
+            logger.debug(f"[LOAD_STOCK_SCORES] No value metrics available for {symbol} — will reduce score completeness")
             return None
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            raise RuntimeError(f"Operation failed: {e}") from e
+            raise RuntimeError(f"Database operation failed fetching value metrics for {symbol}: {e}") from e
 
     def _get_positioning_metrics(self, cur: Any, symbol: str) -> dict[str, Any] | None:
-        """Fetch positioning metrics for symbol."""
+        """Fetch positioning metrics for symbol.
+
+        Returns None only if data is explicitly unavailable (positioning_metrics table
+        has no entry for this symbol). Raises on database errors.
+        """
         try:
             cur.execute(
                 "SELECT institutional_ownership, insider_ownership, short_interest_percent FROM positioning_metrics WHERE symbol = %s",
@@ -378,12 +388,18 @@ class StockScoresLoader(OptimalLoader):
                     "insider_ownership": self._safe_float(row[1], f"{symbol}.insider_ownership"),
                     "short_interest": self._safe_float(row[2], f"{symbol}.short_interest"),
                 }
+            # Explicitly log when positioning data unavailable (optional enrichment)
+            logger.debug(f"[LOAD_STOCK_SCORES] No positioning metrics available for {symbol} — will reduce score completeness")
             return None
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            raise RuntimeError(f"Operation failed: {e}") from e
+            raise RuntimeError(f"Database operation failed fetching positioning metrics for {symbol}: {e}") from e
 
     def _get_stability_metrics(self, cur: Any, symbol: str) -> dict[str, Any] | None:
-        """Fetch stability metrics for symbol."""
+        """Fetch stability metrics for symbol.
+
+        Returns None only if data is explicitly unavailable (stability_metrics table
+        has no entry for this symbol). Raises on database errors.
+        """
         try:
             cur.execute(
                 "SELECT volatility_252d, volatility_60d, volatility_30d, beta FROM stability_metrics WHERE symbol = %s",
@@ -397,15 +413,18 @@ class StockScoresLoader(OptimalLoader):
                     "volatility_30d": float(row[2]) if row[2] is not None else None,
                     "beta": float(row[3]) if row[3] is not None else None,
                 }
+            # Explicitly log when stability data unavailable (optional enrichment)
+            logger.debug(f"[LOAD_STOCK_SCORES] No stability metrics available for {symbol} — will reduce score completeness")
             return None
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            raise RuntimeError(f"Operation failed: {e}") from e
+            raise RuntimeError(f"Database operation failed fetching stability metrics for {symbol}: {e}") from e
 
     def _get_momentum_metrics(self, cur: Any, symbol: str) -> dict[str, Any] | None:
         """Fetch momentum/RS metrics for symbol using DATE-based lookups (not OFFSET).
 
         Uses date arithmetic to find approximate prices at 1m/3m/6m/12m ago.
         More robust than OFFSET which breaks on data gaps or different row counts.
+        Returns None only if no price data available. Raises on database errors.
         """
         try:
             cur.execute(
@@ -458,9 +477,11 @@ class StockScoresLoader(OptimalLoader):
                     "momentum_6m": momentum_6m,
                     "momentum_12m": momentum_12m,
                 }
+            # Explicitly log when momentum data unavailable (price data missing)
+            logger.debug(f"[LOAD_STOCK_SCORES] No momentum data available for {symbol} — insufficient price history")
             return None
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            raise RuntimeError(f"Operation failed: {e}") from e
+            raise RuntimeError(f"Database operation failed fetching momentum metrics for {symbol}: {e}") from e
 
     def _score_quality(self, metrics: dict[str, Any] | None) -> float | None:
         """Score quality metrics on 0-100 scale. Returns None if no real data."""
