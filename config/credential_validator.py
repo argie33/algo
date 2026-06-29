@@ -90,11 +90,18 @@ def validate_credentials() -> tuple[bool, list[str]]:
                 )
                 break
 
-    db_user = os.getenv("DB_USER", "stocks")
-    os.getenv("DB_NAME", "stocks")
+    db_user = os.getenv("DB_USER")
+    db_name = os.getenv("DB_NAME")
 
-    if db_user == "stocks" and not os.getenv("DB_USER"):
-        warnings.append("[WARN] DB_USER not set, using default 'stocks'. For security, consider explicit DB_USER.")
+    if not db_user:
+        errors.append("[ERROR] DB_USER not set. Set DB_USER environment variable.")
+    elif len(db_user.strip()) == 0:
+        errors.append("[ERROR] DB_USER is empty string. Set to valid database username.")
+
+    if not db_name:
+        errors.append("[ERROR] DB_NAME not set. Set DB_NAME environment variable.")
+    elif len(db_name.strip()) == 0:
+        errors.append("[ERROR] DB_NAME is empty string. Set to valid database name.")
 
     # === IMPORTANT: Database Timeout Settings ===
     # CRITICAL ISSUE 4 FIX: Validate timeout is configured

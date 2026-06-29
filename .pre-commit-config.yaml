@@ -65,6 +65,14 @@ repos:
         types: [python]
         stages: [commit]
 
+      - id: check-credential-defaults
+        name: Prevent credential .get() with default values
+        entry: python .pre-commit-scripts/check-credential-defaults.py
+        language: system
+        pass_filenames: false
+        types: [python]
+        stages: [commit]
+
       - id: block-seed-prices-in-orchestrator
         name: Block seed_prices in orchestrator Lambda (test data governance)
         entry: python scripts/block_seed_prices.py

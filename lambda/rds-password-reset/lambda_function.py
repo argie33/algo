@@ -66,7 +66,7 @@ def lambda_handler(event, context):  # noqa: C901
     # CRITICAL: Port must be explicitly configured, no defaults
     db_port_str = os.environ.get("DB_PORT")
     db_user = os.environ.get("DB_USER")
-    db_name = os.environ.get("DB_SYSTEM_DB", "postgres")
+    db_name = os.environ.get("DB_SYSTEM_DB")
     new_password = os.environ.get("NEW_PASSWORD")
     secret_arn = os.environ.get("DB_SECRET_ARN")
     sns_topic_arn = os.environ.get("PASSWORD_RESET_SNS_TOPIC")
@@ -89,6 +89,14 @@ def lambda_handler(event, context):  # noqa: C901
 
     if not new_password:
         error_msg = "NEW_PASSWORD environment variable is required"
+        logger.error(error_msg)
+        return {
+            "statusCode": 400,
+            "body": json.dumps({"error": error_msg}),
+        }
+
+    if not db_name:
+        error_msg = "DB_SYSTEM_DB environment variable is required"
         logger.error(error_msg)
         return {
             "statusCode": 400,

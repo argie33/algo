@@ -60,12 +60,16 @@ class AWSProductionConfigValidator:
 
     def validate_alpaca_config(self) -> bool:
         """Validate Alpaca credentials configured."""
-        api_key = os.getenv("APCA_API_KEY_ID", "").strip()
+        api_key = os.getenv("APCA_API_KEY_ID")
         if not api_key:
-            api_key = os.getenv("ALPACA_API_KEY", "").strip()
-        api_secret = os.getenv("APCA_API_SECRET_KEY", "").strip()
+            api_key = os.getenv("ALPACA_API_KEY")
+        if api_key:
+            api_key = api_key.strip()
+        api_secret = os.getenv("APCA_API_SECRET_KEY")
         if not api_secret:
-            api_secret = os.getenv("ALPACA_API_SECRET", "").strip()
+            api_secret = os.getenv("ALPACA_API_SECRET")
+        if api_secret:
+            api_secret = api_secret.strip()
         paper_trading = os.getenv("ALPACA_PAPER_TRADING", "true").lower() == "true"
 
         if not api_key or not api_secret:
