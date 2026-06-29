@@ -18,6 +18,8 @@ on:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  # Force workflow re-fetch from main (fixes caching issue)
+  CACHE_BUST: "v2"
 
 jobs:
   trigger-loader:
