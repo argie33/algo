@@ -369,28 +369,38 @@ class YieldCurveFetcher:
         """Fetch yield curve data with exponential backoff retry and circuit breaker protection.
 
         Returns:
-            dict with yield data keyed by date
+            dict with yield data keyed by date, OR data_unavailable marker if unavailable
 
-        Raises:
-            RuntimeError: If data unavailable after retries or invalid response type
+        For OPTIONAL enrichment: Gracefully returns explicit data_unavailable marker
+        instead of raising errors. Callers can distinguish unavailable data from errors.
         """
-        # Attempt direct fetch with retries first (before circuit breaker check)
-        result = self._fetch_with_retries(start, end)
-
-        if result is None:
-            raise RuntimeError(
-                f"[YIELD_CURVE] {start}:{end}: unable to fetch yield curve data after {self.MAX_RETRIES} retries. "
-                f"Cannot compute market stress metrics without yield curve data."
+        try:
+            # Use circuit breaker to protect against cascading failures
+            result = self.breaker.execute(
+                fetch_func=lambda: self._fetch_with_retries(start, end),
+                importance=DataImportance.OPTIONAL,
+                fallback_value=None,
             )
 
-        # Validate result type
-        if not isinstance(result, dict):
-            raise RuntimeError(
-                f"[YIELD_CURVE] {start}:{end}: fetch returned unexpected type {type(result).__name__}. "
-                f"Expected dict, got {result!r}."
-            )
+            if result is None:
+                return {
+                    "data_unavailable": True,
+                    "reason": f"Circuit breaker exhaustion: unable to fetch yield curve data after {self.MAX_RETRIES} retries"
+                }
 
-        return result
+            # Validate result type
+            if not isinstance(result, dict):
+                return {
+                    "data_unavailable": True,
+                    "reason": f"Invalid response type {type(result).__name__}, expected dict"
+                }
+
+            return result
+        except Exception as e:
+            return {
+                "data_unavailable": True,
+                "reason": f"Fetch error: {str(e)[:150]}"
+            }
 
     def _fetch_with_retries(self, start: date, end: date) -> dict[str, Any] | None:
         """Attempt yield curve fetch with exponential backoff retry logic.
