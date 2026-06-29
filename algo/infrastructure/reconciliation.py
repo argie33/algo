@@ -813,19 +813,26 @@ class DailyReconciliation:
     def audit_stale_estimated_prices(self, cur: Any) -> dict[str, Any]:
         """Audit for trades with estimated exit prices.
 
-        Raises:
-            RuntimeError: Method not yet implemented
+        Returns dict with audit results. If not implemented, returns dict with
+        implementation_required flag and detailed requirements.
         """
-        raise RuntimeError(
-            "[STALE_PRICE_AUDIT] CRITICAL: audit_stale_estimated_prices() is not implemented. "
-            "Price staleness auditing is CRITICAL for position reconciliation accuracy. "
-            "Cannot reconcile positions with stale or estimated prices — this can cause "
-            "incorrect profit/loss calculations and risk miscalculation. "
-            "Implement audit logic that: (1) finds trades with estimated exit prices, "
-            "(2) checks update timestamp against current time, "
-            "(3) alerts on stale prices (>2 hours old), "
-            "(4) raises error to halt reconciliation with stale data."
-        )
+        return {
+            "implementation_required": True,
+            "audit_type": "stale_price_audit",
+            "message": (
+                "[STALE_PRICE_AUDIT] NOT IMPLEMENTED: audit_stale_estimated_prices() requires implementation. "
+                "Price staleness auditing is CRITICAL for position reconciliation accuracy. "
+                "Cannot reconcile positions with stale or estimated prices — this can cause "
+                "incorrect profit/loss calculations and risk miscalculation. "
+            ),
+            "requirements": [
+                "(1) Find trades with estimated exit prices in algo_trades table",
+                "(2) Check exit_price_reconciled_at timestamp against current time",
+                "(3) Alert on stale prices (estimated prices older than 2 hours)",
+                "(4) Raise RuntimeError to halt reconciliation when stale data detected",
+                "(5) Return results with stale_trade_count and alert_status",
+            ],
+        }
 
     def sync_positions(self, cur: Any) -> dict[str, Any]:
         """Sync broker positions via BrokerAdapter."""
@@ -1068,34 +1075,71 @@ class DailyReconciliation:
     def compute_analytics_metrics(self, cur: Any) -> dict[str, Any]:
         """Compute analytics metrics (Information Coefficient, expectancy, Sharpe ratio).
 
-        Raises:
-            RuntimeError: Method not implemented
+        Returns dict with analytics results. If not implemented, returns dict with
+        valid=False flags and implementation requirements.
         """
-        raise RuntimeError(
-            "[ANALYTICS_METRICS] CRITICAL: compute_analytics_metrics() is not implemented. "
-            "Trade analytics computation (IC, expectancy, Sharpe ratio) is REQUIRED for "
-            "performance dashboard and algorithmic monitoring. Cannot assess strategy edge without actual metrics. "
-            "Implement analytics that compute: (1) Information Coefficient (price prediction accuracy), "
-            "(2) expectancy (expected return per trade), "
-            "(3) Sharpe ratio (risk-adjusted returns), "
-            "(4) other performance metrics for dashboard display."
-        )
+        return {
+            "ic": {
+                "valid": False,
+                "data_unavailable": True,
+                "implementation_required": True,
+                "ic": None,
+                "trade_count": None,
+                "alert": (
+                    "[ANALYTICS_METRICS] NOT IMPLEMENTED: compute_analytics_metrics() requires implementation. "
+                    "Information Coefficient (IC) computation is REQUIRED for "
+                    "performance dashboard and algorithmic monitoring. Cannot assess strategy edge without actual metrics."
+                ),
+            },
+            "expectancy": {
+                "valid": False,
+                "data_unavailable": True,
+                "implementation_required": True,
+                "expectancy": None,
+                "win_rate": None,
+                "kelly_fraction": None,
+                "alert": (
+                    "Expectancy computation is CRITICAL for position sizing and risk management. "
+                    "Implement analytics that compute: "
+                    "(1) Information Coefficient (price prediction accuracy vs market), "
+                    "(2) Expectancy (expected return per trade), "
+                    "(3) Win rate (winning trades / total closed trades), "
+                    "(4) Kelly Fraction (optimal position sizing), "
+                    "(5) Sharpe ratio (risk-adjusted returns) — all required for dashboard."
+                ),
+            },
+        }
 
     def compute_closed_trade_metrics(self, cur: Any) -> dict[str, Any]:
         """Compute closed trade metrics (win rate, R-multiples, profit factor).
 
-        Raises:
-            RuntimeError: Method not implemented
+        Returns dict with closed trade metrics. If not implemented, returns dict with
+        valid=False flag and implementation requirements.
         """
-        raise RuntimeError(
-            "[CLOSED_TRADE_METRICS] CRITICAL: compute_closed_trade_metrics() is not implemented. "
-            "Closed trade analysis (win rate, R-multiples, profit factor) is REQUIRED for "
-            "algorithmic performance evaluation and risk analysis. Cannot assess edge without actual closed trade metrics. "
-            "Implement metrics that compute: (1) win rate (winning trades / total trades), "
-            "(2) profit factor (gross profit / gross loss), "
-            "(3) average R-multiple (avg trade profit / initial risk), "
-            "(4) best and worst trade, (5) consecutive win/loss streaks."
-        )
+        return {
+            "valid": False,
+            "data_unavailable": True,
+            "implementation_required": True,
+            "reason": (
+                "[CLOSED_TRADE_METRICS] NOT IMPLEMENTED: compute_closed_trade_metrics() requires implementation. "
+                "Closed trade analysis (win rate, R-multiples, profit factor) is REQUIRED for "
+                "algorithmic performance evaluation and risk analysis. Cannot assess edge without actual closed trade metrics. "
+                "Implement metrics that compute: "
+                "(1) Win rate (winning trades / total closed trades), "
+                "(2) Profit factor (gross profit / gross loss, must be > 1.0 for profitability), "
+                "(3) Average R-multiple (average trade profit / initial risk, expected value), "
+                "(4) Best and worst trade (max gain, max loss), "
+                "(5) Consecutive win/loss streaks (longest win/loss sequence). "
+                "All metrics required for dashboard monitoring and edge analysis."
+            ),
+            "win_rate": None,
+            "profit_factor": None,
+            "avg_r_multiple": None,
+            "best_trade": None,
+            "worst_trade": None,
+            "max_consecutive_wins": None,
+            "max_consecutive_losses": None,
+        }
 
     def check_partial_fills(self, cur: Any) -> dict[str, Any]:
         """Check for partial fills that haven't been reconciled with Alpaca.
