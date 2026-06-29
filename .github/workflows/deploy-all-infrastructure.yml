@@ -531,6 +531,32 @@ jobs:
             echo "[WARN] lambda/circuit-breaker/index.py not found — skipping"
           fi
 
+      - name: Build AAII Sentiment Loader Lambda
+        run: |
+          # Build AAII Loader Lambda ZIP for initial data population
+          # Must run before Terraform so the Lambda function resource can be created
+          SOURCE=$GITHUB_WORKSPACE/scripts/aaii_loader_function.py
+          TERRAFORM_LAMBDA=$GITHUB_WORKSPACE/terraform/lambda
+          TERRAFORM_MODULES=$GITHUB_WORKSPACE/terraform/modules/database
+          PKG_DIR=/tmp/aaii-loader-pkg
+
+          mkdir -p $PKG_DIR $TERRAFORM_LAMBDA $TERRAFORM_MODULES
+
+          if [ -f "$SOURCE" ]; then
+            # Copy AAII Loader Lambda function
+            cp $SOURCE $PKG_DIR/lambda_function.py
+
+            # Create ZIP in both locations (Terraform references it in modules/database/)
+            rm -f $TERRAFORM_MODULES/aaii_loader.zip
+            cd $PKG_DIR
+            zip -r $TERRAFORM_MODULES/aaii_loader.zip . -q -x "*.pyc" "__pycache__/*"
+
+            echo "[OK] AAII Loader Lambda ZIP: $(du -sh $TERRAFORM_MODULES/aaii_loader.zip | cut -f1)"
+            unzip -l $TERRAFORM_MODULES/aaii_loader.zip | head -10
+          else
+            echo "[WARN] scripts/aaii_loader_function.py not found — skipping AAII loader"
+          fi
+
       - name: Terraform Validate
         run: terraform validate
 

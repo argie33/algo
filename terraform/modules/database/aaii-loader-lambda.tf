@@ -6,15 +6,17 @@
 # Invoked by GitHub Actions workflow after Terraform apply.
 
 # Lambda function for AAII Sentiment loading
+# ZIP file is pre-built by GitHub Actions workflow before Terraform runs
 resource "aws_lambda_function" "aaii_loader" {
-  filename      = "${path.module}/aaii_loader.zip"
-  function_name = "${var.project_name}-aaii-loader-${var.environment}"
-  role          = aws_iam_role.aaii_loader.arn
-  handler       = "lambda_function.lambda_handler"
-  runtime       = "python3.12"
-  timeout       = 60
+  filename            = "${path.module}/aaii_loader.zip"
+  function_name       = "${var.project_name}-aaii-loader-${var.environment}"
+  role                = aws_iam_role.aaii_loader.arn
+  handler             = "lambda_function.lambda_handler"
+  runtime             = "python3.12"
+  timeout             = 60
+  source_code_hash    = filebase64sha256("${path.module}/aaii_loader.zip")
 
-  layers = [var.psycopg2_layer_arn != "" ? var.psycopg2_layer_arn : ""]
+  layers = var.psycopg2_layer_arn != "" ? [var.psycopg2_layer_arn] : []
 
   vpc_config {
     subnet_ids         = var.private_subnet_ids
@@ -81,9 +83,3 @@ resource "aws_iam_role_policy_attachment" "aaii_loader_vpc" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
 }
 
-# Build AAII Loader Lambda ZIP
-data "archive_file" "aaii_loader" {
-  type        = "zip"
-  source_file = "${path.module}/../../scripts/aaii_loader_function.py"
-  output_path = "${path.module}/aaii_loader.zip"
-}
