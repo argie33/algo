@@ -101,13 +101,23 @@ class MarketConstituentsLoader(OptimalLoader):
             # STEP 2: Fetch and index S&P 500 constituents
             logger.info("STEP 2/3: Fetching S&P 500 constituents")
             sp500_symbols = self._fetch_sp500_symbols()
-            sp500_set = set(sp500_symbols) if sp500_symbols else set()
+            if not sp500_symbols:
+                raise RuntimeError(
+                    "[MARKET_CONSTITUENTS] S&P 500 fetch returned empty list. "
+                    "Cannot proceed with empty S&P 500 constituent data."
+                )
+            sp500_set = set(sp500_symbols)
             logger.info(f"Fetched {len(sp500_set)} S&P 500 constituents")
 
             # STEP 3: Fetch and index Russell 2000 constituents
             logger.info("STEP 3/3: Fetching Russell 2000 constituents")
             russell_symbols = self._fetch_russell2000_symbols()
-            russell_set = set(russell_symbols) if russell_symbols else set()
+            if not russell_symbols:
+                raise RuntimeError(
+                    "[MARKET_CONSTITUENTS] Russell 2000 fetch returned empty list. "
+                    "Cannot proceed with empty Russell 2000 constituent data."
+                )
+            russell_set = set(russell_symbols)
             logger.info(f"Fetched {len(russell_set)} Russell 2000 constituents")
 
             # Enrich base symbols with index membership flags
@@ -319,26 +329,31 @@ class MarketConstituentsLoader(OptimalLoader):
             ) from e
 
     def _fetch_russell2000_symbols(self) -> list[str]:
-        """Fetch Russell 2000 constituents from reliable source."""
+        """Fetch Russell 2000 constituents from reliable source (multi-source fallback with explicit validation)."""
         urls = [
             "https://www.multpl.com/russell-2000/table/by-date",
             "https://en.wikipedia.org/wiki/Russell_2000",
         ]
 
-        for url in urls:
+        last_error = None
+        for url_index, url in enumerate(urls, 1):
             is_valid, error_msg = validate_url(url, allowed_domains=["multpl.com", "wikipedia.org"])
             if not is_valid:
-                logger.debug(f"SSRF prevention: Invalid Russell 2000 URL: {error_msg}")
+                logger.warning(
+                    f"[MARKET_CONSTITUENTS] Russell 2000 URL validation failed ({url_index}/{len(urls)}): {error_msg}. "
+                    "Attempting next source."
+                )
                 continue
 
             try:
+                logger.debug(f"Attempting Russell 2000 fetch from source {url_index}/{len(urls)}: {url}")
                 headers = {"User-Agent": "Mozilla/5.0"}
                 response = requests.get(url, headers=headers, timeout=15)
                 response.raise_for_status()
 
                 tables = pd.read_html(StringIO(response.text))
                 if not tables:
-                    logger.debug(f"No tables found at {url}")
+                    logger.warning(f"[MARKET_CONSTITUENTS] No tables found at Russell 2000 source ({url_index}/{len(urls)}). Attempting next source.")
                     continue
 
                 for table in tables:
@@ -346,23 +361,51 @@ class MarketConstituentsLoader(OptimalLoader):
                         if col in table.columns:
                             symbols: list[str] = table[col].str.strip().tolist()
                             if symbols:
-                                logger.debug(f"Found Russell 2000 data at {url} using column {col}")
+                                logger.info(f"Successfully fetched Russell 2000 data from source {url_index}/{len(urls)} using column '{col}': {len(symbols)} constituents")
                                 return symbols
 
-            except requests.exceptions.Timeout:
-                logger.debug(f"Timeout fetching Russell 2000 from {url}")
+                logger.warning(f"[MARKET_CONSTITUENTS] No valid symbol column found at source {url_index}/{len(urls)}. Attempting next source.")
+
+            except requests.exceptions.Timeout as e:
+                last_error = e
+                logger.warning(
+                    f"[MARKET_CONSTITUENTS] Timeout fetching Russell 2000 from source {url_index}/{len(urls)}: {e}. "
+                    "Attempting next source."
+                )
                 continue
             except Exception as e:
-                logger.debug(f"Failed to fetch Russell 2000 from {url}: {e}")
+                last_error = e
+                logger.warning(
+                    f"[MARKET_CONSTITUENTS] Failed to fetch Russell 2000 from source {url_index}/{len(urls)}: {e}. "
+                    "Attempting next source."
+                )
                 continue
 
         raise RuntimeError(
-            "[MARKET_CONSTITUENTS] Failed to fetch Russell 2000 constituents from any available source. "
+            f"[MARKET_CONSTITUENTS] Failed to fetch Russell 2000 constituents from all available sources ({len(urls)} attempted). "
+            f"Last error: {last_error}. "
             "Cannot load Russell 2000 constituent membership data."
         )
 
     def _upsert_etf_symbols(self, etf_rows: list[dict[str, Any]]) -> None:
-        """Refresh ETF symbols table (keep separate from tradable symbols)."""
+        """Refresh ETF symbols table with explicit validation (keep separate from tradable symbols)."""
+        if not etf_rows:
+            logger.info("No ETF symbols to upsert (empty list)")
+            return
+
+        # Validate ETF data structure before database operation
+        for i, row in enumerate(etf_rows):
+            if "symbol" not in row or not row["symbol"]:
+                raise ValueError(
+                    f"[MARKET_CONSTITUENTS] ETF row {i} missing or empty 'symbol' field. "
+                    f"Cannot upsert ETF symbol without symbol. Row: {row}"
+                )
+            if "security_name" not in row or not row["security_name"]:
+                raise ValueError(
+                    f"[MARKET_CONSTITUENTS] ETF row {i} (symbol={row['symbol']}) missing or empty 'security_name' field. "
+                    f"Cannot upsert ETF symbol without name."
+                )
+
         try:
             import psycopg2
 
@@ -370,14 +413,16 @@ class MarketConstituentsLoader(OptimalLoader):
 
             with DatabaseContext("write") as cur:
                 cur.execute("TRUNCATE TABLE etf_symbols")
-                if etf_rows:
-                    cur.executemany(
-                        "INSERT INTO etf_symbols (symbol, security_name) VALUES (%s, %s)",
-                        [(row["symbol"], row["security_name"]) for row in etf_rows],
-                    )
-            logger.info(f"Refreshed etf_symbols table with {len(etf_rows)} ETF symbols")
+                cur.executemany(
+                    "INSERT INTO etf_symbols (symbol, security_name) VALUES (%s, %s)",
+                    [(row["symbol"], row["security_name"]) for row in etf_rows],
+                )
+            logger.info(f"Successfully refreshed etf_symbols table with {len(etf_rows)} ETF symbols")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.warning(f"Failed to refresh etf_symbols: {e}")
+            raise RuntimeError(
+                f"[MARKET_CONSTITUENTS] Failed to refresh etf_symbols table with {len(etf_rows)} symbols: {e}. "
+                "Cannot proceed with incomplete ETF symbol update."
+            ) from e
 
 
 if __name__ == "__main__":

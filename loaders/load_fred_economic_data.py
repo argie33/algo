@@ -139,12 +139,9 @@ class FredEconomicDataLoader(OptimalLoader):
             }
         )
 
-    def fetch_global(self, since: date | None) -> list[dict[str, Any]] | None:
+    def fetch_global(self, since: date | None) -> list[dict[str, Any]]:
         """Fetch FRED economic data for all configured series with circuit breaker and freshness validation."""
         api_key = get_fred_api_key()
-        if not api_key:
-            logger.error("FRED_API_KEY not found")
-            raise ValueError("FRED_API_KEY not found")
 
         # SECURITY FIX S-05: Validate FRED base URL to prevent SSRF attacks
         fred_base_url = get_fred_url()
@@ -264,12 +261,6 @@ class FredEconomicDataLoader(OptimalLoader):
                                     f"Failed to parse latest FRED observation date '{latest_obs_date}': {e}. "
                                     f"Cannot validate data freshness without valid timestamp."
                                 ) from e
-
-                            if latest_dt is None:
-                                raise RuntimeError(
-                                    f"latest_dt is None after parsing '{latest_obs_date}'. "
-                                    "Cannot validate economic data freshness."
-                                )
 
                             self._freshness_validator.check("economic_data", latest_dt, allow_missing=False)
                         except StaleDataError as e:
