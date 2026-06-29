@@ -566,13 +566,13 @@ class BreadthFetcher:
         rows = cur.fetchall()
         if not rows:
             # No symbols have 252+ days of history yet (too early in dataset)
-            # Return empty dict — dates without highs/lows will default to (0, 0)
+            # Return explicit marker for missing optional enrichment
             logger.warning(
                 f"[BREADTH_FETCHER] New highs/lows unavailable for {start} to {end}: "
                 f"price_daily has {price_count} rows but window function found no symbols with 252-day history. "
-                f"This is normal early in dataset. Dates will show 0 new highs/lows."
+                f"This is normal early in dataset. Market breadth enrichment unavailable."
             )
-            return {}
+            return {"data_unavailable": True, "reason": "insufficient_price_history", "start": start.isoformat(), "end": end.isoformat()}
 
         result = {}
         for row in rows:

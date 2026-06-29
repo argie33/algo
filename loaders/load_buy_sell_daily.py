@@ -430,8 +430,9 @@ class SignalsDailyLoader(OptimalLoader):
                 )
                 row = cur.fetchone()
                 if row is None or len(row) < 1 or row[0] is None:
-                    logger.warning(
-                        f"[DATA_AGE] {symbol}: No data in {source_table} - cannot calculate signal data freshness"
+                    logger.error(
+                        f"[DATA_AGE] {symbol}: No data in {source_table} - cannot calculate signal data freshness. "
+                        f"Signal data age unavailable for this symbol."
                     )
                     return None
                 max_date_val = row[0]
@@ -473,7 +474,7 @@ class SignalsDailyLoader(OptimalLoader):
             Explicitly logs when batch context is missing (data unavailable).
         """
         if not self._batch_context:
-            logger.debug("[TECH_DATA_AGE] Batch context not initialized - tech data age unavailable")
+            logger.warning("[TECH_DATA_AGE] Batch context not initialized - tech data age unavailable. Signal generation may have incomplete data.")
             return None
 
         tech_data_age = self._batch_context.get("tech_data_age")
