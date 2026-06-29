@@ -381,7 +381,7 @@ class Orchestrator:
         have been executed and are up-to-date. Non-blocking advisory check that helps
         diagnose data staleness issues before Phase 1 runs.
 
-        Logs warnings if critical loaders are missing or stale (>2 hours old) — this often
+        Logs warnings if critical loaders are missing or stale (>4 hours old) — this often
         indicates EventBridge is not firing the loader schedule, or loaders are hung.
 
         CRITICAL: If ALL critical loaders are missing/stale simultaneously, this indicates
@@ -410,7 +410,7 @@ class Orchestrator:
                 loaders_checked = set()
                 loader_status = {}
                 now_utc = datetime.now(timezone.utc)
-                stale_threshold = now_utc - timedelta(hours=2)
+                stale_threshold = now_utc - timedelta(hours=4)
 
                 for table_name, status, last_updated, completion_pct, symbols_loaded, symbol_count in cur.fetchall():
                     loaders_checked.add(table_name)
