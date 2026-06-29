@@ -176,6 +176,10 @@ class PriceFetcher:
             symbol: Stock symbol
             since: Start date for incremental fetch
             is_eod_pipeline: Whether this is end-of-day pipeline (affects end date logic)
+
+        Raises:
+            ValueError: If date range is invalid (start > end)
+            RuntimeError: If fetch fails after retries. No fallback to stale/fake data.
         """
         from utils.infrastructure.timezone import EASTERN_TZ
 
@@ -198,10 +202,11 @@ class PriceFetcher:
 
     def fetch_batch_incremental(
         self, symbols: list[str], since: date | None, is_eod_pipeline: bool = False
-    ) -> dict[str, Any] | None:
+    ) -> dict[str, Any]:
         """Fetch OHLCV for multiple symbols at once (50x faster than per-symbol).
 
-        Returns: dict[symbol] -> rows or None
+        Returns: dict[symbol] -> rows
+        Raises: RuntimeError if fetch fails or returns no data
         """
         from utils.infrastructure.timezone import EASTERN_TZ
 
@@ -226,12 +231,32 @@ class PriceFetcher:
         logger.debug(f"[FETCH] {len(symbols)} symbols, adaptive batch size: {adaptive_batch_size}")
 
         result = self._fetch_with_fallback(symbols, start, end, batch_size=adaptive_batch_size, attempt=0)
-        if result:
-            self._record_successful_fetch()
+
+        # Explicit validation: fetch must return dict with at least some data
+        if not isinstance(result, dict):
+            raise RuntimeError(
+                f"Batch fetch returned invalid type {type(result).__name__} (expected dict). "
+                "Cannot proceed without valid price data."
+            )
+        if not result:
+            raise RuntimeError(
+                f"Batch fetch returned empty dict for {len(symbols)} symbols. "
+                "No price data available. Cannot proceed."
+            )
+
+        self._record_successful_fetch()
         return result
 
     def _try_fetch(self, symbol: str, start: date, end: date, max_retries: int = 5) -> Any:
-        """Try to fetch data from yfinance with retry logic for transient failures."""
+        """Fetch data from yfinance with retry logic for transient failures.
+
+        Fails fast on authentication errors and rate limits after max_retries.
+        No fallback to cached/stale/fake data - must get fresh data from API.
+
+        Raises:
+            RuntimeError: On rate limit after retries, transient error after retries,
+                         or authentication failure (auth errors always fail fast).
+        """
         for attempt in range(max_retries):
             try:
                 if not self.router:
@@ -339,13 +364,17 @@ class PriceFetcher:
         max_attempts: int = 3,
         elapsed_sec: float = 0,
     ) -> dict[str, Any]:
-        """Fetch batch with fallback to smaller batch size on rate limiting."""
-        """Fetch batch with fallback to smaller batch size on rate limiting."""
+        """Fetch batch with retry to smaller batch size on rate limiting.
+
+        Raises:
+            RuntimeError: If any batch returns invalid data or all retries exhausted.
+                         Price data is critical and must not be empty.
+        """
         batch_size = min(len(symbols), batch_size)
         logger.debug(f"[FETCH_BATCH] Attempting with batch_size={batch_size}, attempt={attempt}")
 
         if batch_size < 1:
-            raise RuntimeError("Cannot further reduce batch size for fallback")
+            raise RuntimeError("Cannot further reduce batch size for retry")
 
         # Split symbols into batches
         all_results = {}
@@ -353,10 +382,20 @@ class PriceFetcher:
             batch = symbols[i : i + batch_size]
             try:
                 result = self.execute_batch_fetch(batch, start, end)
-                if result:
-                    all_results.update(result)
-                    success_count = len([r for r in result.values() if r is not None])
-                    self._record_batch_result(batch_size, success_count, len(batch))
+                # Explicit validation: result must be dict (already validated in execute_batch_fetch)
+                if not isinstance(result, dict):
+                    raise RuntimeError(
+                        f"Batch fetch returned invalid type {type(result).__name__} (expected dict). "
+                        "Router response format error."
+                    )
+                if not result:
+                    raise RuntimeError(
+                        f"Batch fetch returned empty dict for {len(batch)} symbols ({start} to {end}). "
+                        "No price data available for this batch."
+                    )
+                all_results.update(result)
+                success_count = len([r for r in result.values() if r is not None])
+                self._record_batch_result(batch_size, success_count, len(batch))
             except RuntimeError as e:
                 error_str = str(e).lower()
                 # Rate limit errors - use dedicated handler
@@ -410,8 +449,12 @@ class PriceFetcher:
         elapsed_sec: float,
         error: Exception,
     ) -> dict[str, Any]:
-        """Retry rate limit errors with pacing or batch reduction."""
-        """Retry rate limit errors with pacing or batch reduction."""
+        """Retry rate limit errors with pacing or batch reduction.
+
+        Raises:
+            RuntimeError: If batch=1 with multiple rate limit errors (API appears down),
+                         or if EOD pipeline with small batch and persistent rate limits.
+        """
         self._rate_limit_errors += 1
         if self._rate_limit_error_start_time is None:
             self._rate_limit_error_start_time = time.time()
@@ -519,8 +562,12 @@ class PriceFetcher:
         elapsed_sec: float,
         error: Exception,
     ) -> dict[str, Any]:
-        """Retry transient errors with exponential backoff."""
-        """Retry transient errors with exponential backoff."""
+        """Retry transient errors with exponential backoff.
+
+        Raises:
+            RuntimeError: If max_attempts exhausted without success.
+                         No fallback to fake/stale data - must get fresh data.
+        """
         error_str = str(error).lower()
         is_timeout = "timeout" in error_str or "timed out" in error_str
         is_connection = any(x in error_str for x in ["connection", "reset", "broken", "closed"])

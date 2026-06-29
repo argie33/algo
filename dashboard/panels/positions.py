@@ -57,6 +57,7 @@ from rich.table import Table
 from rich.text import Text
 
 from dashboard.data_validation import safe_float
+from dashboard.error_boundary import get_error_message_plain
 
 from ..formatters import (
     fmt_age,
@@ -91,12 +92,13 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
     pos_items, pos_timestamp, has_err = normalize_positions_data(pos)
     if has_err:
         # Hard error: data layer returned explicit error marker
-        err_msg = pos.get("_error") if isinstance(pos, dict) else None
+        # Use error_boundary function which validates _error message MUST exist
+        err_msg = get_error_message_plain(pos)
         if err_msg is None:
             raise RuntimeError(
-                "Positions panel received error flag but no error message. "
+                "Positions panel received error flag but error_boundary could not extract message. "
                 "Cannot display positions without error context. "
-                "Check normalize_positions_data output and _error field."
+                "Check data structure: _error marker present but message is None/empty."
             )
         return Panel(
             Text(f"  Error: {err_msg}", style="red"),
@@ -159,46 +161,62 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
             continue
 
         # Extract and validate critical fields (required for display)
-        symbol = p.get("symbol")
-        if not symbol:
+        # Fail-fast: symbol is REQUIRED
+        if "symbol" not in p or not p["symbol"]:
             invalid_count += 1
             logger.error("panel_positions: position missing required 'symbol' field")
             continue
+        symbol = p["symbol"]
 
         # Extract numeric fields (high-priority data)
-        entry = safe_float(p.get("avg_entry_price"), default=None)
-        price = safe_float(p.get("current_price"), default=None)
-        pval = safe_float(p.get("position_value"), default=None)
-        stop = safe_float(p.get("stop_loss_price"), default=None)
-        pnl = safe_float(p.get("unrealized_pnl_pct"), default=None)
+        # Fail-fast on missing CRITICAL fields: entry price, current price, position value
+        if "avg_entry_price" not in p:
+            invalid_count += 1
+            logger.error(f"panel_positions[{symbol}]: missing required 'avg_entry_price' field")
+            continue
+        if "current_price" not in p:
+            invalid_count += 1
+            logger.error(f"panel_positions[{symbol}]: missing required 'current_price' field")
+            continue
+        if "position_value" not in p:
+            invalid_count += 1
+            logger.error(f"panel_positions[{symbol}]: missing required 'position_value' field")
+            continue
 
-        # Log if critical numeric fields are missing
+        # Convert with validation (strict=False for now, returns None on parse failure)
+        entry = safe_float(p["avg_entry_price"], default=None, field_name=f"{symbol}.avg_entry_price")
+        price = safe_float(p["current_price"], default=None, field_name=f"{symbol}.current_price")
+        pval = safe_float(p["position_value"], default=None, field_name=f"{symbol}.position_value")
+        stop = safe_float(p.get("stop_loss_price"), default=None, field_name=f"{symbol}.stop_loss_price")
+        pnl = safe_float(p.get("unrealized_pnl_pct"), default=None, field_name=f"{symbol}.unrealized_pnl_pct")
+
+        # Fail if critical fields failed to parse (None indicates parse failure)
         if entry is None:
-            logger.debug(f"panel_positions[{symbol}]: missing avg_entry_price")
+            invalid_count += 1
+            logger.error(f"panel_positions[{symbol}]: failed to parse avg_entry_price")
+            continue
         if price is None:
-            logger.debug(f"panel_positions[{symbol}]: missing current_price")
+            invalid_count += 1
+            logger.error(f"panel_positions[{symbol}]: failed to parse current_price")
+            continue
         if pval is None:
-            logger.debug(f"panel_positions[{symbol}]: missing position_value")
+            invalid_count += 1
+            logger.error(f"panel_positions[{symbol}]: failed to parse position_value")
+            continue
 
-        # Extract optional enrichment fields (low-priority data)
+        # Extract optional enrichment fields (low-priority data — graceful degradation)
         days = p.get("days_since_entry", "--")
         stg = p.get("weinstein_stage")  # Optional: Weinstein stage (may be unavailable)
         swg = p.get("swing_score")  # Optional: swing score (may be unavailable)
         sec = (p.get("sector") or "--")[:12]  # Optional: sector enrichment
-        rmul = safe_float(p.get("r_multiple"), default=None)  # Optional: risk multiple
-        dist = safe_float(p.get("distance_to_stop_pct"), default=None)  # Optional: distance metric
-        t1pct = safe_float(p.get("distance_to_t1_pct"), default=None)  # Optional: target distance
+        rmul = safe_float(p.get("r_multiple"), default=None, field_name=f"{symbol}.r_multiple")  # Optional: risk multiple
+        dist = safe_float(p.get("distance_to_stop_pct"), default=None, field_name=f"{symbol}.distance_to_stop_pct")  # Optional: distance metric
+        t1pct = safe_float(p.get("distance_to_t1_pct"), default=None, field_name=f"{symbol}.distance_to_t1_pct")  # Optional: target distance
 
-        # Extract display name (either company_name or generic name field)
+        # Extract display name — NO SECONDARY FALLBACK (remove name field secondary source)
+        # Use only company_name if available, don't fall back to generic name field
         company_name_val = p.get("company_name", "")
-        name_val = p.get("name", "")
-        if company_name_val:
-            name = company_name_val
-        elif name_val:
-            name = name_val
-        else:
-            name = ""
-        name = name[:16]
+        name = company_name_val[:16] if company_name_val else ""
 
         # Determine row styling based on metrics
         pc = G if (pnl is not None and pnl >= 0) else R

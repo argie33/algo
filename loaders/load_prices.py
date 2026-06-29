@@ -856,18 +856,28 @@ class PriceLoader(OptimalLoader):
             for rows in result.values():
                 if rows:
                     for row in rows:
-                        row_date_str = row.get("date")
-                        if row_date_str:
-                            try:
-                                row_date = datetime.fromisoformat(row_date_str)
-                                if latest_price_date is None or row_date > latest_price_date:
-                                    latest_price_date = row_date
-                            except (ValueError, TypeError) as e:
-                                raise RuntimeError(
-                                    f"[PRICE_LOADER] Cannot parse price date: '{row_date_str}'. "
-                                    f"Expected ISO format (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS). "
-                                    f"Price data may be corrupted. Error: {e}"
-                                ) from e
+                        # CRITICAL: Fail-fast if date field missing (no silent fallback)
+                        if "date" not in row:
+                            raise RuntimeError(
+                                f"[PRICE_LOADER] CRITICAL: Price row missing required 'date' field. "
+                                f"Cannot proceed with incomplete price data. Row: {row}"
+                            )
+                        row_date_str = row["date"]
+                        if row_date_str is None:
+                            raise RuntimeError(
+                                f"[PRICE_LOADER] CRITICAL: Price row has null 'date' value. "
+                                f"Cannot calculate freshness without valid date. Row: {row}"
+                            )
+                        try:
+                            row_date = datetime.fromisoformat(row_date_str)
+                            if latest_price_date is None or row_date > latest_price_date:
+                                latest_price_date = row_date
+                        except (ValueError, TypeError) as e:
+                            raise RuntimeError(
+                                f"[PRICE_LOADER] Cannot parse price date: '{row_date_str}'. "
+                                f"Expected ISO format (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS). "
+                                f"Price data may be corrupted. Error: {e}"
+                            ) from e
 
             if latest_price_date is not None:
                 try:
@@ -999,7 +1009,7 @@ class PriceLoader(OptimalLoader):
         time.sleep(wait_time)
 
         results: dict[str, Any] = {}
-        successful_chunks = 0
+        failed_chunks = []
         for i in range(0, len(symbols), new_batch_size):
             chunk = symbols[i : i + new_batch_size]
             chunk_results = self._fetch_with_fallback(
@@ -1011,12 +1021,35 @@ class PriceLoader(OptimalLoader):
                 max_attempts,
                 elapsed_sec=total_elapsed,
             )
-            if chunk_results is not None:
+            if chunk_results is None:
+                # CRITICAL: No results returned for chunk - this is a failure
+                failed_chunks.append(chunk)
+                logger.error(
+                    f"[RATE_LIMIT] Chunk {chunk[:5]} returned None results. "
+                    f"Cannot proceed with incomplete price data."
+                )
+            else:
                 results.update(chunk_results)
-            if chunk_results is not None and any(v is not None for v in chunk_results.values()):
-                successful_chunks += 1
+                # Verify all chunk symbols are present (no partial data)
+                missing_symbols = [s for s in chunk if s not in chunk_results or chunk_results[s] is None]
+                if missing_symbols:
+                    failed_chunks.append(missing_symbols)
+                    logger.error(
+                        f"[RATE_LIMIT] Chunk missing results for symbols: {missing_symbols}. "
+                        f"Cannot proceed with incomplete price data."
+                    )
 
-        total_chunks = (len(symbols) + new_batch_size - 1) // new_batch_size
+        if failed_chunks:
+            failed_count = sum(len(c) for c in failed_chunks)
+            raise RuntimeError(
+                f"[BATCH FETCH] Reduced batch size retry failed for {failed_count} symbols. "
+                f"Cannot proceed with incomplete price coverage. "
+                f"yfinance API degraded. Failed chunks: {failed_chunks[:3]}"
+            )
+
+        # All chunks successful - record batch completion
+        successful_chunks = (len(symbols) + new_batch_size - 1) // new_batch_size
+        total_chunks = successful_chunks
         self._record_batch_result(successful_chunks, total_chunks)
 
         return results
@@ -1644,20 +1677,16 @@ class PriceLoader(OptimalLoader):
                     metric_err,
                 )
 
-            logger.warning(
-                f"[CIRCUIT_BREAKER] Returning with {processed}/{total_symbols} symbols loaded. "
-                "Phase 1 will detect incomplete load and trigger failsafe."
+            # CRITICAL: Do not silently return with incomplete data
+            # Fail fast to trigger Phase 1 failsafe instead of allowing corrupted/incomplete load
+            error_msg = (
+                f"[CIRCUIT_BREAKER] Rate limit cascade detected - batch reduced from 150 to {current_batch_size} "
+                f"after {elapsed_sec / 60:.0f}min with only {completion_pct * 100:.0f}% of symbols loaded. "
+                f"Cannot proceed with incomplete price data ({processed}/{total_symbols} symbols). "
+                f"yfinance API severely degraded. Halting to maintain data integrity."
             )
-            self._stats["duration_sec"] = round(elapsed_sec, 2)
-            self._stats["rate_limit_errors"] = self._rate_limit_errors
-            return {
-                "loaded": processed,
-                "failed": total_symbols - processed,
-                "table": self.table_name,
-                "circuit_breaker_triggered": True,
-                "batch_size_reduced": current_batch_size,
-                "elapsed_min": int(elapsed_sec / 60),
-            }
+            logger.critical(error_msg)
+            raise RuntimeError(error_msg)
 
         return None
 
@@ -1687,12 +1716,22 @@ class PriceLoader(OptimalLoader):
                             "interval": self.interval,
                         },
                     )
-                    from dashboard.data_validation import safe_float
-                    rate_limit_duration = safe_float(self._stats.get("rate_limit_error_duration_sec"))
-                    if rate_limit_duration is not None and rate_limit_duration > 0:
+                    # CRITICAL: Explicit validation - no fallback with safe_float masking missing data
+                    if "rate_limit_error_duration_sec" not in self._stats:
+                        raise RuntimeError(
+                            f"[{self.table_name}] Stats tracking broken: 'rate_limit_error_duration_sec' not present. "
+                            f"Cannot publish rate limit duration metric."
+                        )
+                    rate_limit_duration = self._stats["rate_limit_error_duration_sec"]
+                    if not isinstance(rate_limit_duration, (int, float)):
+                        raise RuntimeError(
+                            f"[{self.table_name}] Stats corruption: 'rate_limit_error_duration_sec' is {type(rate_limit_duration).__name__}, "
+                            f"expected numeric. Value: {rate_limit_duration}"
+                        )
+                    if rate_limit_duration > 0:
                         m.add_metric(
                             "RateLimitErrorDuration",
-                            self._stats["rate_limit_error_duration_sec"],
+                            rate_limit_duration,
                             unit="Seconds",
                             dimensions={
                                 "table": self.table_name,
@@ -1727,13 +1766,13 @@ class PriceLoader(OptimalLoader):
 
             if "symbols_total" not in self._stats:
                 raise RuntimeError(f"[{self.table_name}] Load stats incomplete: 'symbols_total' not tracked.")
-            symbols_total = self._stats.get("symbols_total")
+            symbols_total = self._stats["symbols_total"]
             if not isinstance(symbols_total, int):
                 raise RuntimeError(f"[{self.table_name}] Load stats corrupt: 'symbols_total' is {type(symbols_total).__name__}, expected int")
             symbols_expected = symbols_total
             if "symbols_processed" not in self._stats:
                 raise RuntimeError(f"[{self.table_name}] Load stats incomplete: 'symbols_processed' not tracked.")
-            symbols_successfully_loaded = self._stats.get("symbols_processed")
+            symbols_successfully_loaded = self._stats["symbols_processed"]
             if not isinstance(symbols_successfully_loaded, int):
                 logger.error(
                     f"[{self.table_name}] Load stats corruption: 'symbols_processed' is {type(symbols_successfully_loaded).__name__} "
@@ -1752,6 +1791,12 @@ class PriceLoader(OptimalLoader):
                     f"[{self.table_name}] Load completed but INCOMPLETE: "
                     f"{symbols_successfully_loaded}/{symbols_expected} symbols ({completion_pct:.1f}%)"
                 )
+
+            if "start_time" not in self._stats:
+                raise RuntimeError(f"[{self.table_name}] Load stats incomplete: 'start_time' not tracked.")
+            start_time = self._stats["start_time"]
+            if start_time is None:
+                raise RuntimeError(f"[{self.table_name}] Load stats corrupt: 'start_time' is None, cannot record execution time.")
 
             with DatabaseContext("write") as cur:
                 cur.execute(
@@ -1774,7 +1819,7 @@ class PriceLoader(OptimalLoader):
                         completion_pct,
                         symbols_expected,
                         symbols_successfully_loaded,
-                        self._stats.get("start_time"),
+                        start_time,
                         exec_completed_utc,
                     ),
                 )
@@ -1864,12 +1909,24 @@ class PriceLoader(OptimalLoader):
             previous_date: date | None = datetime.now(EASTERN_TZ).date() - timedelta(days=self._backfill_days)
         else:
             # Use earliest watermark from batch
+            # CRITICAL: Fail-fast if watermark store invalid (no silent None defaults)
+            if wm_store is None:
+                raise RuntimeError(
+                    f"[{self.table_name}] CRITICAL: Watermark store is None. "
+                    f"Cannot determine previous watermark date for incremental loads."
+                )
             watermarks = [wm_store.get(s) for s in symbols]
             previous_dates: list[date | None] = [w if isinstance(w, date) else None for w in watermarks]
             valid_dates: list[date] = [d for d in previous_dates if d is not None]
             if valid_dates:
                 previous_date = min(valid_dates)
             else:
+                # CRITICAL: If no watermarks available for any symbol, this indicates first load
+                # or watermark tracking failure. Log explicitly.
+                logger.warning(
+                    f"[{self.table_name}] No watermarks found for any symbols in batch (symbols: {symbols[:5]}...). "
+                    f"Performing full data fetch (first load or watermark corruption)."
+                )
                 previous_date = None
 
         # Batch fetch all symbols at once
@@ -1877,7 +1934,20 @@ class PriceLoader(OptimalLoader):
 
         # Process each symbol's results
         for symbol in symbols:
-            rows = batch_results.get(symbol) if batch_results else None
+            # CRITICAL: Fail-fast if batch_results structure invalid
+            if batch_results is None:
+                raise RuntimeError(
+                    f"[{self.table_name}] CRITICAL: Batch fetch returned None for symbol '{symbol}'. "
+                    f"Cannot proceed with null batch results."
+                )
+            if symbol not in batch_results:
+                raise RuntimeError(
+                    f"[{self.table_name}] CRITICAL: Batch fetch missing results for symbol '{symbol}'. "
+                    f"All symbols must have results dict entry (even if empty). "
+                    f"Available symbols: {list(batch_results.keys())}"
+                )
+
+            rows = batch_results[symbol]
             if not rows:
                 logger.debug(
                     "[{self.table_name}] %s: No rows fetched (watermark current), skipping",

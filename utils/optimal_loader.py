@@ -88,25 +88,30 @@ class OptimalLoader:
 
         Returns:
             Maximum date value from watermark_field, or None if no valid dates found.
-            Returns None silently only when rows are empty (acceptable—caller handles
-            empty result sets).
+            Returns None only when rows are empty.
+
+        Raises:
+            ValueError: If rows present but critical watermark_field is missing.
         """
         if not rows:
-            # Empty result set is acceptable—no data to extract watermark from
+            # Empty result set—no data to extract watermark from
             return None
-        # Extract all non-None values of watermark_field
-        values: list[Any] = [
-            r.get(self.watermark_field, None)
-            for r in rows
-            if r.get(self.watermark_field, None) is not None
-        ]
+
+        # Extract all non-None values of watermark_field with fail-fast validation
+        values: list[Any] = []
+        for r in rows:
+            if self.watermark_field not in r:
+                raise ValueError(
+                    f"[{self.table_name}] Row missing critical watermark field '{self.watermark_field}': {r}"
+                )
+            field_value = r[self.watermark_field]
+            if field_value is not None:
+                values.append(field_value)
+
         if not values:
-            # No valid watermark values found in rows—log warning but don't fail
-            logger.warning(
-                f"[{self.table_name}] watermark_from_rows: "
-                f"Rows present ({len(rows)}) but no valid {self.watermark_field} values found"
+            raise ValueError(
+                f"[{self.table_name}] watermark_from_rows: {len(rows)} rows present but all {self.watermark_field} values are NULL"
             )
-            return None
         return max(values)
 
     @property
@@ -212,10 +217,22 @@ class OptimalLoader:
         Args:
             row: Data row to validate.
 
+        Raises:
+            ValueError: If any primary key field is missing or None.
+
         Returns:
-            True if all primary_key fields are present and non-None, False otherwise.
+            True if all primary_key fields are present and non-None.
         """
-        return all(row.get(c, None) is not None for c in self.primary_key)
+        for key in self.primary_key:
+            if key not in row:
+                raise ValueError(
+                    f"[{self.table_name}] Row missing required primary key field '{key}'"
+                )
+            if row[key] is None:
+                raise ValueError(
+                    f"[{self.table_name}] Row has NULL value for required primary key field '{key}'"
+                )
+        return True
 
     def _prepare_batch_context(self) -> None:
         self._batch_context = {}

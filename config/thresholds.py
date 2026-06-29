@@ -1,19 +1,25 @@
 #!/usr/bin/env python3
 """
-Unified Threshold Configuration — Single Source of Truth
+Unified Threshold Configuration — Fail-Fast, Single Source of Truth
 
 Consolidates all signal grades, risk levels, and market indicators that were
 previously scattered across 5+ files and hardcoded defaults.
 
-All thresholds are defined in algo_config.py DEFAULTS and can be:
-1. Overridden at runtime via database updates (hot-reload)
-2. Overridden per-session via environment variables
-3. Queried via this unified interface
+Architecture (CRITICAL SAFETY):
+- Database (algo_config table) is PRIMARY and ONLY source of truth
+- NO fallback defaults — all thresholds must be explicitly configured in database
+- NO secondary sources — direct database lookup only
+- FAIL-FAST: Missing or invalid thresholds raise RuntimeError immediately
+- No silent degradation, no trading with undefined safety gates
 
-Architecture:
-- Database (algo_config table) is primary source of truth
-- This module queries algo_config with fallback to built-in defaults
-- No hardcoded thresholds anywhere else in the codebase
+All thresholds are validated at:
+1. Startup (AlgoConfig initialization with full schema validation)
+2. Runtime (this module re-validates on each query)
+3. Hot-reload (when database values are updated)
+
+Usage:
+    from config.thresholds import ThresholdConfig
+    max_daily_loss = ThresholdConfig.max_daily_loss_pct()  # Raises error if not configured
 """
 
 import logging
@@ -26,23 +32,23 @@ class ThresholdConfig:
     """Unified threshold configuration — delegates to algo_config."""
 
     @staticmethod
-    def _get_config_value(key: str, default: Any, allow_fallback: bool = False) -> Any:
+    def _get_config_value(key: str) -> Any:
         """Load a config value from AlgoConfig.
+
+        FAIL-FAST: All thresholds are CRITICAL and must exist in database.
+        No fallback defaults, no secondary sources, no silent degradation.
 
         Args:
             key: Configuration key in algo_config table
-            default: Fallback used if key is absent from the DB (only if allow_fallback=True)
-            allow_fallback: If False (CRITICAL thresholds), raises error if key missing.
-                           If True (non-critical), uses default during migration period.
 
         Returns:
-            Config value
+            Config value from database
 
         Raises:
-            RuntimeError: If config cannot be loaded and fallback not allowed.
+            RuntimeError: If key missing from database or config system unavailable.
+                         This is intentional - trading must fail rather than proceed
+                         with undefined thresholds.
         """
-        import logging
-
         try:
             from algo.infrastructure import get_config
 
@@ -50,32 +56,20 @@ class ThresholdConfig:
             if val is not None:
                 return val
 
-            # CRITICAL thresholds must always exist in database (no fallback)
-            if not allow_fallback:
-                raise RuntimeError(
-                    f"[CONFIG CRITICAL] Missing required configuration key: '{key}'. "
-                    "This threshold is CRITICAL for trading and must be configured in algo_config table. "
-                    "No fallback allowed—database configuration is mandatory."
-                )
-
-            # Non-critical thresholds can use defaults during migration period
-            if default is not None:
-                logging.getLogger(__name__).warning(
-                    f"[CONFIG FALLBACK] Key '{key}' missing from algo_config table. "
-                    f"Using code default: {default}. Apply pending migrations to resolve."
-                )
-                return default
-
+            # FAIL-FAST: Threshold missing from database - this is fatal
             raise RuntimeError(
-                f"[CONFIG] Missing required configuration key: '{key}'. "
-                "No hardcoded fallback allowed. Check algo_config table for this key."
+                f"[CONFIG FATAL] Threshold '{key}' not found in algo_config table. "
+                "All trading thresholds must be explicitly configured in database. "
+                "No fallback defaults allowed - trading cannot proceed with undefined safety gates. "
+                "Action: Ensure algo_config table is populated with all required thresholds."
             )
         except RuntimeError:
             raise
         except Exception as e:
             raise RuntimeError(
-                f"[CONFIG] Failed to load configuration: {e}. "
-                "Cannot proceed without authoritative config values. Check infrastructure config availability."
+                f"[CONFIG FATAL] Failed to load threshold '{key}': {e}. "
+                "Cannot proceed without authoritative config values from database. "
+                "Check database connectivity and algo_config table availability."
             ) from e
 
     # ═══════════════════════════════════════════════════════════════════════════
@@ -84,18 +78,18 @@ class ThresholdConfig:
 
     @staticmethod
     def signal_weak_threshold() -> float:
-        """Score below this = weak signal."""
-        return float(ThresholdConfig._get_config_value("signal_weak_threshold", 40.0))
+        """Score below this = weak signal. CRITICAL: must be configured."""
+        return float(ThresholdConfig._get_config_value("signal_weak_threshold"))
 
     @staticmethod
     def signal_medium_threshold() -> float:
-        """Score 40-60 (by default) = medium strength."""
-        return float(ThresholdConfig._get_config_value("signal_medium_threshold", 60.0))
+        """Score below medium = weak-medium boundary. CRITICAL: must be configured."""
+        return float(ThresholdConfig._get_config_value("signal_medium_threshold"))
 
     @staticmethod
     def signal_strong_threshold() -> float:
-        """Score 60-80 = strong, >=80 = very strong."""
-        return float(ThresholdConfig._get_config_value("signal_strong_threshold", 80.0))
+        """Score below strong = medium-strong boundary. CRITICAL: must be configured."""
+        return float(ThresholdConfig._get_config_value("signal_strong_threshold"))
 
     @staticmethod
     def get_signal_strength_thresholds() -> dict[str, float]:
@@ -112,33 +106,33 @@ class ThresholdConfig:
 
     @staticmethod
     def swing_grade_thresholds() -> dict[str, int]:
-        """Get swing trader score grade thresholds."""
+        """Get swing trader score grade thresholds. CRITICAL: all must be configured."""
         return {
-            "aplus": int(ThresholdConfig._get_config_value("swing_grade_threshold_aplus", 85)),
-            "a": int(ThresholdConfig._get_config_value("swing_grade_threshold_a", 75)),
-            "b": int(ThresholdConfig._get_config_value("swing_grade_threshold_b", 65)),
-            "c": int(ThresholdConfig._get_config_value("swing_grade_threshold_c", 55)),
-            "d": int(ThresholdConfig._get_config_value("swing_grade_threshold_d", 45)),
+            "aplus": int(ThresholdConfig._get_config_value("swing_grade_threshold_aplus")),
+            "a": int(ThresholdConfig._get_config_value("swing_grade_threshold_a")),
+            "b": int(ThresholdConfig._get_config_value("swing_grade_threshold_b")),
+            "c": int(ThresholdConfig._get_config_value("swing_grade_threshold_c")),
+            "d": int(ThresholdConfig._get_config_value("swing_grade_threshold_d")),
         }
 
     @staticmethod
     def advanced_filters_grade_thresholds() -> dict[str, int]:
-        """Get advanced filters (IBD composite) grade thresholds."""
+        """Get advanced filters (IBD composite) grade thresholds. CRITICAL: all must be configured."""
         return {
-            "aplus": int(ThresholdConfig._get_config_value("advanced_filters_grade_threshold_aplus", 90)),
-            "a": int(ThresholdConfig._get_config_value("advanced_filters_grade_threshold_a", 80)),
-            "b": int(ThresholdConfig._get_config_value("advanced_filters_grade_threshold_b", 70)),
-            "c": int(ThresholdConfig._get_config_value("advanced_filters_grade_threshold_c", 60)),
-            "d": int(ThresholdConfig._get_config_value("advanced_filters_grade_threshold_d", 50)),
+            "aplus": int(ThresholdConfig._get_config_value("advanced_filters_grade_threshold_aplus")),
+            "a": int(ThresholdConfig._get_config_value("advanced_filters_grade_threshold_a")),
+            "b": int(ThresholdConfig._get_config_value("advanced_filters_grade_threshold_b")),
+            "c": int(ThresholdConfig._get_config_value("advanced_filters_grade_threshold_c")),
+            "d": int(ThresholdConfig._get_config_value("advanced_filters_grade_threshold_d")),
         }
 
     @staticmethod
     def dashboard_grade_thresholds() -> dict[str, int]:
-        """Get dashboard signals grade thresholds."""
+        """Get dashboard signals grade thresholds. CRITICAL: all must be configured."""
         return {
-            "a": int(ThresholdConfig._get_config_value("dashboard_grade_threshold_a", 80)),
-            "b": int(ThresholdConfig._get_config_value("dashboard_grade_threshold_b", 60)),
-            "c": int(ThresholdConfig._get_config_value("dashboard_grade_threshold_c", 40)),
+            "a": int(ThresholdConfig._get_config_value("dashboard_grade_threshold_a")),
+            "b": int(ThresholdConfig._get_config_value("dashboard_grade_threshold_b")),
+            "c": int(ThresholdConfig._get_config_value("dashboard_grade_threshold_c")),
         }
 
     # ═══════════════════════════════════════════════════════════════════════════
@@ -148,17 +142,17 @@ class ThresholdConfig:
     @staticmethod
     def data_staleness_fresh_days() -> int:
         """Data age (days) considered fresh. CRITICAL: blocks trading if not met."""
-        return int(ThresholdConfig._get_config_value("data_staleness_fresh_days", None, allow_fallback=False))
+        return int(ThresholdConfig._get_config_value("data_staleness_fresh_days"))
 
     @staticmethod
     def data_staleness_stale_days_monday() -> int:
         """Data age (days) on Monday to be considered stale. CRITICAL: blocks trading if exceeded."""
-        return int(ThresholdConfig._get_config_value("data_staleness_stale_days_monday", None, allow_fallback=False))
+        return int(ThresholdConfig._get_config_value("data_staleness_stale_days_monday"))
 
     @staticmethod
     def data_staleness_stale_days_other() -> int:
         """Data age (days) on non-Monday to be considered stale. CRITICAL: blocks trading if exceeded."""
-        return int(ThresholdConfig._get_config_value("data_staleness_stale_days_other", None, allow_fallback=False))
+        return int(ThresholdConfig._get_config_value("data_staleness_stale_days_other"))
 
     @staticmethod
     def get_data_staleness_days(is_monday: bool) -> int:
@@ -178,8 +172,8 @@ class ThresholdConfig:
 
     @staticmethod
     def dashboard_min_quality_threshold() -> float:
-        """Dashboard minimum quality score (0-100)."""
-        return float(ThresholdConfig._get_config_value("dashboard_min_quality_threshold", 40.0))
+        """Dashboard minimum quality score (0-100). CRITICAL: must be configured."""
+        return float(ThresholdConfig._get_config_value("dashboard_min_quality_threshold"))
 
     @staticmethod
     def min_close_quality_pct() -> float:
@@ -187,19 +181,19 @@ class ThresholdConfig:
 
         Range is (day_high - day_low). Quality gate filters weak closes (near day lows)
         which often indicate distribution/selling pressure rather than accumulation.
-        CRITICAL: Gate determines signal validity. Must be explicitly configured.
+        CRITICAL: Gate determines signal validity. Must be explicitly configured in database.
         """
-        return float(ThresholdConfig._get_config_value("min_close_quality_pct", None, allow_fallback=False))
+        return float(ThresholdConfig._get_config_value("min_close_quality_pct"))
 
     @staticmethod
     def dashboard_metrics_max_age_minutes() -> int:
-        """Dashboard: maximum age of metrics in minutes before warning."""
-        return int(ThresholdConfig._get_config_value("dashboard_metrics_max_age_minutes", 120))
+        """Dashboard: maximum age of metrics in minutes before warning. CRITICAL: must be configured."""
+        return int(ThresholdConfig._get_config_value("dashboard_metrics_max_age_minutes"))
 
     @staticmethod
     def dashboard_fetcher_failure_threshold() -> float:
-        """Dashboard: if >N% of fetchers fail, enter degraded mode."""
-        return float(ThresholdConfig._get_config_value("dashboard_fetcher_failure_threshold", 0.5))
+        """Dashboard: if >N% of fetchers fail, enter degraded mode. CRITICAL: must be configured."""
+        return float(ThresholdConfig._get_config_value("dashboard_fetcher_failure_threshold"))
 
     # ═══════════════════════════════════════════════════════════════════════════
     # LOADER OPERATIONAL THRESHOLDS
@@ -208,17 +202,17 @@ class ThresholdConfig:
     @staticmethod
     def loader_rate_limit_circuit_break_threshold_eod() -> int:
         """Circuit break threshold (seconds) during EOD. CRITICAL: loader timeout management."""
-        return int(ThresholdConfig._get_config_value("loader_rate_limit_circuit_break_threshold_eod", None, allow_fallback=False))
+        return int(ThresholdConfig._get_config_value("loader_rate_limit_circuit_break_threshold_eod"))
 
     @staticmethod
     def loader_rate_limit_circuit_break_threshold_morning() -> int:
         """Circuit break threshold (seconds) during morning prep. CRITICAL: loader timeout management."""
-        return int(ThresholdConfig._get_config_value("loader_rate_limit_circuit_break_threshold_morning", None, allow_fallback=False))
+        return int(ThresholdConfig._get_config_value("loader_rate_limit_circuit_break_threshold_morning"))
 
     @staticmethod
     def loader_emergency_mode_threshold_multiplier() -> float:
-        """Emergency mode triggered at N% of task timeout."""
-        return float(ThresholdConfig._get_config_value("loader_emergency_mode_threshold_multiplier", 0.5))
+        """Emergency mode triggered at N% of task timeout. CRITICAL: must be configured."""
+        return float(ThresholdConfig._get_config_value("loader_emergency_mode_threshold_multiplier"))
 
     @staticmethod
     def get_rate_limit_threshold(is_eod_pipeline: bool) -> int:
@@ -243,37 +237,37 @@ class ThresholdConfig:
     @staticmethod
     def vix_max_threshold() -> float:
         """VIX level to halt trading. CRITICAL: safety circuit breaker."""
-        return float(ThresholdConfig._get_config_value("vix_max_threshold", None, allow_fallback=False))
+        return float(ThresholdConfig._get_config_value("vix_max_threshold"))
 
     @staticmethod
     def vix_alert_threshold() -> float:
         """VIX level to trigger RED alert. CRITICAL: market condition monitoring."""
-        return float(ThresholdConfig._get_config_value("vix_alert_threshold", None, allow_fallback=False))
+        return float(ThresholdConfig._get_config_value("vix_alert_threshold"))
 
     @staticmethod
     def vix_caution_threshold() -> float:
         """VIX level to reduce positions. CRITICAL: risk management."""
-        return float(ThresholdConfig._get_config_value("vix_caution_threshold", None, allow_fallback=False))
+        return float(ThresholdConfig._get_config_value("vix_caution_threshold"))
 
     @staticmethod
     def halt_drawdown_pct() -> float:
         """Portfolio drawdown % to halt trading. CRITICAL: loss limit."""
-        return float(ThresholdConfig._get_config_value("halt_drawdown_pct", None, allow_fallback=False))
+        return float(ThresholdConfig._get_config_value("halt_drawdown_pct"))
 
     @staticmethod
     def max_daily_loss_pct() -> float:
         """Max daily loss % before halt. CRITICAL: daily risk limit."""
-        return float(ThresholdConfig._get_config_value("max_daily_loss_pct", None, allow_fallback=False))
+        return float(ThresholdConfig._get_config_value("max_daily_loss_pct"))
 
     @staticmethod
     def max_total_risk_pct() -> float:
         """Max total open risk %. CRITICAL: portfolio risk limit."""
-        return float(ThresholdConfig._get_config_value("max_total_risk_pct", None, allow_fallback=False))
+        return float(ThresholdConfig._get_config_value("max_total_risk_pct"))
 
     @staticmethod
     def portfolio_variance_threshold() -> float:
-        """Portfolio variance threshold to trigger CB circuit breaker."""
-        return float(ThresholdConfig._get_config_value("portfolio_variance_threshold", 0.15))
+        """Portfolio variance threshold to trigger CB circuit breaker. CRITICAL: must be configured."""
+        return float(ThresholdConfig._get_config_value("portfolio_variance_threshold"))
 
     @staticmethod
     def get_all_thresholds() -> dict[str, Any]:

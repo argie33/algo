@@ -6,6 +6,16 @@ Provides safe conversions for:
 - float() → handles NaN, Infinity, None, invalid strings
 - date/datetime parsing → handles multiple formats, timezone-aware
 - JSON parsing → logs warnings for failed parses
+
+FAIL-FAST DESIGN (No Faker/Fallback Patterns):
+- Removed secondary source fallbacks: safe_json_parse no longer silently defaults to {}
+- Removed silent empty string defaults: safe_str now returns None when no default given
+- Removed implicit False defaults: safe_bool now returns None when no default given
+- All functions log explicit failures when returning None (caller visibility)
+- Strict mode available for all critical paths: use strict=True for finance calculations
+- No secondary sources or synthetic data — if data is missing, it's explicitly None or raises
+
+See steering/GOVERNANCE.md for fail-fast design and credential handling rules.
 """
 
 import json
@@ -241,18 +251,23 @@ def safe_json_parse(
 
     Args:
         value: Value to parse (string, dict, list, or None)
-        default: Value to return on parse failure (None for strict mode, {} for permissive)
+        default: Value to return on parse failure (None requires caller to handle missing data)
         context: Context string for logging (deprecated, use field_name)
-        strict: If True, raise StrictValidationError instead of returning default
+        strict: If True, raise StrictValidationError instead of returning default (REQUIRED for finance)
         field_name: Field name for error logging
 
     Returns:
         Parsed object, or default value, or raises StrictValidationError (if strict=True)
+
+    Raises:
+        StrictValidationError: If strict=True and parsing fails (no fallback to empty dict)
     """
     if value is None:
         if strict:
             raise StrictValidationError(f"Cannot parse None as JSON {field_name or context}")
-        return default if default is not None else {}
+        if default is None:
+            logger.warning(f"None value in JSON parse {field_name or context} — returning None (caller must handle)")
+        return default
 
     # If it's already parsed, return as-is
     if isinstance(value, (dict, list)):
@@ -267,20 +282,39 @@ def safe_json_parse(
                 raise StrictValidationError(
                     f"Cannot parse JSON {field_name or context}: {e}. Value: {value[:100]}"
                 ) from e
-            logger.warning(f"Failed to parse JSON {field_name or context}: {e}. Value: {value[:100]}")
-            return default if default is not None else {}
+            logger.warning(
+                f"Failed to parse JSON {field_name or context}: {e}. Value: {value[:100]} (returning {default!r})"
+            )
+            return default
 
     # For unexpected types
     if strict:
         raise StrictValidationError(
             f"Expected string or dict {field_name or context}, got {type(value).__name__}: {value!r}"
         )
-    logger.warning(f"Expected string or dict {field_name or context}, got {type(value).__name__}: {value!r}")
-    return default if default is not None else {}
+    logger.warning(
+        f"Expected string or dict {field_name or context}, got {type(value).__name__}: {value!r} (returning {default!r})"
+    )
+    return default
 
 
 def safe_json_parse_strict(value: Any, context: str = "", field_name: str | None = None) -> Any:
-    """Parse JSON in strict mode. Raises StrictValidationError if fails."""
+    """Parse JSON in strict mode. Raises StrictValidationError if fails.
+
+    REQUIRED for finance paths: No silent fallbacks or secondary sources.
+    Explicitly validates JSON without empty dict defaults.
+
+    Args:
+        value: JSON string, dict, list, or None
+        context: Context string for error messages
+        field_name: Field name for error messages (preferred over context)
+
+    Returns:
+        Parsed object (never returns empty dict fallback)
+
+    Raises:
+        StrictValidationError: If value cannot be parsed as JSON
+    """
     return safe_json_parse(value, default=None, context=context, strict=True, field_name=field_name)
 
 
@@ -289,18 +323,21 @@ def safe_json_parse_strict(value: Any, context: str = "", field_name: str | None
 # ──────────────────────────────────────────────────────────────────────────────
 
 
-def safe_bool(value: Any, default: bool = False, field_name: str | None = None) -> bool:
-    """Safely convert value to bool with logging.
+def safe_bool(value: Any, default: bool | None = None, field_name: str | None = None) -> bool | None:
+    """Safely convert value to bool with explicit failure handling.
 
     Args:
         value: Value to convert (bool, str, int, etc.)
-        default: Default value if conversion fails
+        default: Default value if conversion fails (None requires caller to handle; use False for permissive)
         field_name: Field name for error logging
 
     Returns:
-        bool value or default if conversion fails
+        bool value or default if conversion fails. Never silently defaults to False.
+        If default is None and conversion fails, returns None (caller must handle).
     """
     if value is None:
+        if default is None:
+            logger.warning(f"None value in bool conversion {field_name or ''} — returning None (caller must handle)")
         return default
 
     if isinstance(value, bool):
@@ -314,18 +351,18 @@ def safe_bool(value: Any, default: bool = False, field_name: str | None = None) 
             return False
         else:
             if field_name:
-                logger.warning(f"Cannot convert {field_name}={value!r} to bool")
+                logger.warning(f"Cannot convert {field_name}={value!r} to bool (returning {default!r})")
             else:
-                logger.warning(f"Cannot convert {value!r} to bool")
+                logger.warning(f"Cannot convert {value!r} to bool (returning {default!r})")
             return default
 
     try:
         return bool(value)
     except Exception as e:
         if field_name:
-            logger.warning(f"Failed to convert {field_name}={value!r} to bool: {e}")
+            logger.warning(f"Failed to convert {field_name}={value!r} to bool (returning {default!r}): {e}")
         else:
-            logger.warning(f"Failed to convert {value!r} to bool: {e}")
+            logger.warning(f"Failed to convert {value!r} to bool (returning {default!r}): {e}")
         return default
 
 
@@ -334,18 +371,24 @@ def safe_bool(value: Any, default: bool = False, field_name: str | None = None) 
 # ──────────────────────────────────────────────────────────────────────────────
 
 
-def safe_str(value: Any, default: str = "", field_name: str | None = None) -> str:
-    """Safely convert value to string with logging.
+def safe_str(value: Any, default: str | None = None, field_name: str | None = None) -> str | None:
+    """Safely convert value to string with explicit failure handling.
 
     Args:
         value: Value to convert
-        default: Default value if conversion fails
+        default: Default value if conversion fails (None requires caller to handle missing data)
         field_name: Field name for error logging
 
     Returns:
-        str value or default if conversion fails
+        str value or default if conversion fails. NEVER silently defaults to empty string.
+        If default is None and value is None, returns None (caller must handle).
+
+    Raises:
+        Never raises; returns default instead. Use strict mode in calling code for fail-fast.
     """
     if value is None:
+        if default is None:
+            logger.warning(f"None value in string conversion {field_name or ''} — returning None (caller must handle)")
         return default
 
     if isinstance(value, str):
@@ -355,9 +398,9 @@ def safe_str(value: Any, default: str = "", field_name: str | None = None) -> st
         return str(value)
     except Exception as e:
         if field_name:
-            logger.warning(f"Failed to convert {field_name}={value!r} to str: {e}")
+            logger.warning(f"Failed to convert {field_name}={value!r} to str (returning {default!r}): {e}")
         else:
-            logger.warning(f"Failed to convert {value!r} to str: {e}")
+            logger.warning(f"Failed to convert {value!r} to str (returning {default!r}): {e}")
         return default
 
 
@@ -438,19 +481,28 @@ def safe_json_get(obj: Any, key: str, default: Any = None, context: str = "") ->
     Args:
         obj: Dictionary or object to read from
         key: Key to read
-        default: Default if key missing or obj is invalid
+        default: Default if key missing or obj is invalid (None requires caller to handle missing data)
         context: Context string for logging
 
     Returns:
-        Value at obj[key] or default
+        Value at obj[key] or default. No secondary fallbacks — returns explicit default only.
     """
     if not isinstance(obj, dict):
+        if default is None:
+            logger.warning(f"Cannot read {key}: obj is {type(obj).__name__}, not dict {context} — returning None")
         return default
 
     if key not in obj:
+        if default is None:
+            logger.warning(f"Key {key!r} missing from dict {context} — returning None (caller must handle)")
         return default
 
-    return obj.get(key, default)
+    value = obj[key]
+    if value is None and default is not None:
+        logger.debug(f"Key {key!r} has None value {context} — returning default {default!r}")
+        return default
+
+    return value
 
 
 # ──────────────────────────────────────────────────────────────────────────────

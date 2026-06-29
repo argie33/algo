@@ -114,18 +114,27 @@ class CredentialManager:
 
         Args:
             secret_name: Name of the secret (e.g., 'db/password', 'alpaca/secret')
-            default: Default value if not found (should be None for required secrets)
+            default: Default value if not found (must be None for required secrets; empty string is NOT allowed)
 
         Returns:
             The secret value
 
         Raises:
-            ValueError: If secret not found and no default provided
+            ValueError: If secret not found and no default provided, or if default is empty string
         """
+        if default == "":
+            raise ValueError(
+                f"[CRITICAL] get_password('{secret_name}', default='') is not allowed. "
+                "Empty string defaults silently bypass credential validation. "
+                "Use default=None for required credentials."
+            )
         return self._get_secret(secret_name, default, is_password=True)
 
     def get_secret(self, secret_name: str, default: str | None = None) -> str:
-        """Alias for get_password (get_secret is more generic)."""
+        """Alias for get_password (get_secret is more generic).
+
+        Note: default must be None for required secrets; empty string defaults are not allowed.
+        """
         return self.get_password(secret_name, default)
 
     def _get_secret(self, secret_name: str, default: str | None = None, is_password: bool = False) -> str:
@@ -136,9 +145,18 @@ class CredentialManager:
         1. Cache (if present and not expired)
         2. AWS Secrets Manager (if in AWS and available)
         3. Environment variable (env var name is secret_name with '/' → '_' and uppercase)
-        4. Default value (if provided)
+        4. Default value (if provided, must not be empty string)
         5. Raise ValueError (if required and not found)
+
+        CRITICAL: Empty string defaults are not allowed (they silently bypass credential validation).
         """
+        # Fail-fast: reject empty string defaults
+        if default == "":
+            raise ValueError(
+                f"[CRITICAL] _get_secret('{secret_name}', default='') is not allowed. "
+                "Empty string defaults silently bypass credential validation. Use default=None for required credentials."
+            )
+
         # Check cache with TTL
         if secret_name in self._cache:
             cached_value, timestamp = self._cache[secret_name]
@@ -164,13 +182,16 @@ class CredentialManager:
             self._cache[secret_name] = (secret, time.time())
             return secret
 
-        # Use default if provided
+        # Use default if provided (only if not empty string, which was already validated above)
         if default is not None:
             return default
 
         # Fail if required and not found
+        env_var_display = secret_name.upper().replace("/", "_")
         raise ValueError(
-            "Required credential not found. Configure the secret in Secrets Manager or set the appropriate environment variable."
+            f"[CREDENTIALS_REQUIRED] Secret '{secret_name}' not found. "
+            f"Configure via one of: AWS Secrets Manager ('{secret_name}') or environment variable ({env_var_display}). "
+            f"Missing credentials will cause authentication failures."
         )
 
     def _fetch_from_secrets_manager(self, secret_name: str) -> str | None:
@@ -351,10 +372,8 @@ class CredentialManager:
         Checks in order:
         1. User-specific secret: algo/alpaca/{user_id} (if user_id provided)
         2. ALGO_SECRETS_ARN env var → JSON blob (APCA_API_KEY_ID / APCA_API_SECRET_KEY fields)
-        3. AWS Secrets Manager 'algo/alpaca' JSON blob (api_key, api_secret fields)
-        4. Individual secrets 'alpaca/key' and 'alpaca/secret' (legacy)
-        5. Environment variables APCA_API_KEY_ID and APCA_API_SECRET_KEY
-        6. Fail hard if no fresh credentials available (no stale fallback)
+        3. Environment variables APCA_API_KEY_ID and APCA_API_SECRET_KEY
+        4. Fail hard if no fresh credentials available (no legacy/secondary sources)
 
         Raises ValueError if credentials not found or if Secrets Manager is unreachable.
         """
@@ -467,52 +486,42 @@ class CredentialManager:
         elif algo_secrets_arn and self._is_aws and not is_paper_mode:
             logger.info("[CREDENTIALS] Live mode: skipping ALGO_SECRETS_ARN (contains paper keys), using algo/alpaca")
 
-        # Step 3: Try 'algo/alpaca' JSON blob (legacy secrets module format)
-        if self._is_aws:
-            try:
-                client = self._get_secrets_client()
-                if client:
-                    alpaca_secret_id = os.getenv("ALPACA_LEGACY_SECRET_ID", "algo/alpaca")
-                    response = client.get_secret_value(SecretId=alpaca_secret_id)
-                    secret_string = response.get("SecretString")
-                    if not secret_string:
-                        raise ValueError(f"Alpaca secret '{alpaca_secret_id}' exists but contains no SecretString")
-                    creds = _json.loads(secret_string)
-                    key = creds.get("api_key")
-                    secret = creds.get("api_secret")
-                    if key and secret:
-                        return {"key": key, "secret": secret}
-                    else:
-                        raise ValueError(f"Alpaca secret '{alpaca_secret_id}' exists but missing api_key or api_secret")
-            except ValueError as e:
-                logger.warning(f"Alpaca secret validation failed: {e}")
-            except (ClientError, BotoCoreError) as e:
-                logger.warning(f"Could not fetch Alpaca secret from Secrets Manager: {_sanitize_error(e)}")
-
-        # Step 4: Try individual secrets (legacy format) — get_password already tries Secrets Manager then env var
-        try:
-            key = self.get_password("alpaca/key", default=None)
-            secret = self.get_password("alpaca/secret", default=None)
-            logger.info("[CREDENTIALS] Alpaca credentials loaded from legacy secrets")
-            return {"key": key, "secret": secret}
-        except ValueError:
-            # Neither legacy secret nor env var found; will fail below with explicit error
-            pass
+        # Step 3: Try environment variables (APCA_API_KEY_ID / APCA_API_SECRET_KEY)
+        key_env = os.getenv("APCA_API_KEY_ID")
+        secret_env = os.getenv("APCA_API_SECRET_KEY")
+        if key_env and secret_env:
+            logger.info("[CREDENTIALS] Alpaca credentials loaded from environment variables")
+            return {"key": key_env, "secret": secret_env}
+        elif key_env or secret_env:
+            # Partial credentials: one env var set but not the other (fail-fast)
+            raise ValueError(
+                "[CREDENTIALS_CRITICAL] Alpaca credentials partially configured via environment. "
+                "Both APCA_API_KEY_ID and APCA_API_SECRET_KEY must be set together or both omitted. "
+                f"Found: APCA_API_KEY_ID={'set' if key_env else 'not set'}, "
+                f"APCA_API_SECRET_KEY={'set' if secret_env else 'not set'}"
+            )
 
         # FIX H-3: No credentials found from any fresh source
-        # CRITICAL: We DO NOT fall back to stale cached credentials when Secrets Manager is unreachable.
+        # CRITICAL: We DO NOT fall back to stale cached credentials or use legacy/secondary sources.
+        # Removed secondary sources:
+        # - Legacy 'algo/alpaca' JSON blob (Step 3 in previous version)
+        # - Legacy individual secrets 'alpaca/key' and 'alpaca/secret' (Step 4 in previous version)
+        #
         # If credentials were rotated and Secrets Manager becomes temporarily unavailable, using old
-        # cached credentials will cause trade execution with invalid API keys, leading to 401 errors
-        # or worse, failed trades with incorrect credentials.
+        # cached credentials or legacy secrets will cause trade execution with invalid API keys, leading to
+        # 401 errors or failed trades with incorrect credentials.
         #
         # Instead, fail hard and let Lambda retry on the next invocation. This enforces that every
         # trade execution uses credentials fetched within the last 5 minutes (CREDENTIAL_CACHE_TTL_SECONDS).
         logger.error("[CREDENTIALS] Alpaca credentials NOT FOUND - trades cannot be executed!")
-        logger.error("[CREDENTIALS_H3_FIX] Stale credential fallback REMOVED (was security risk after rotation)")
+        logger.error("[CREDENTIALS_H3_FIX] Stale credential fallback and legacy sources REMOVED (security risk)")
         raise ValueError(
-            "Alpaca API credentials not found. Verify credentials are configured in AWS Secrets Manager and accessible. "
-            "If Secrets Manager is unreachable, check CloudWatch alarm [ALPACA_CREDS_FETCH_FAILED]. "
-            "NOTE: Stale credential fallback is disabled—credentials must be fetched fresh within the last 5 minutes."
+            "Alpaca API credentials not found. Configure credentials via one of these sources:\n"
+            "  1. User-specific secret: algo/alpaca/{user_id} (in AWS Secrets Manager)\n"
+            "  2. ALGO_SECRETS_ARN secret (paper trading mode via Terraform)\n"
+            "  3. Environment variables: APCA_API_KEY_ID and APCA_API_SECRET_KEY\n"
+            "Verify the appropriate source is configured and accessible. "
+            "Legacy secrets (algo/alpaca JSON blob, individual alpaca/key/alpaca/secret) are no longer supported."
         )
 
     def get_smtp_credentials(self) -> dict[str, Any] | None:
