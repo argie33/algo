@@ -1048,7 +1048,7 @@ class PriceLoader(OptimalLoader):
             elapsed_sec=elapsed_sec + wait_time,
         )
 
-    def _fetch_with_fallback(  # noqa: C901
+    def _fetch_with_fallback(
         self,
         symbols: list[str],
         start: date,
@@ -1215,19 +1215,18 @@ class PriceLoader(OptimalLoader):
                         max_attempts=max_attempts,
                     )
                     if reduced_attempt is not None and any(v is not None for v in reduced_attempt.values()):
-                        logger.info(
-                            "[CIRCUIT BREAKER] Partial success with batch=%s (INCOMPLETE: only %d of %d symbols)",
-                            reduced_size,
-                            sum(1 for v in reduced_attempt.values() if v is not None),
-                            len(symbols),
+                        symbols_fetched = sum(1 for v in reduced_attempt.values() if v is not None)
+                        logger.critical(
+                            f"[PRICE_LOADER] Batch size reduction resulted in incomplete price data: "
+                            f"only {symbols_fetched}/{len(symbols)} symbols available. "
+                            f"Batch reduction {batch_size}->{reduced_size} failed to recover full coverage."
                         )
-                        # CRITICAL: Mark this batch as incomplete (partial data)
-                        # Downstream must check _is_incomplete flag to validate coverage
-                        reduced_attempt["_is_incomplete"] = True
-                        reduced_attempt["_incomplete_reason"] = f"Batch size reduced from {batch_size} to {reduced_size} due to rate limiting"
-                        reduced_attempt["_symbols_requested"] = len(symbols)
-                        reduced_attempt["_symbols_fetched"] = sum(1 for v in reduced_attempt.values() if v is not None)
-                        return reduced_attempt
+                        raise RuntimeError(
+                            f"[PRICE_LOADER] Cannot proceed with incomplete price data. "
+                            f"Requested {len(symbols)} symbols but only retrieved {symbols_fetched} after rate-limit batch reduction. "
+                            f"Price coverage MUST be complete for downstream calculations (technical indicators, buy/sell signals). "
+                            f"yfinance API is experiencing degradation; cannot complete load cycle."
+                        )
 
                 # All reduced sizes failed — circuit breaker triggered, fail immediately
                 logger.critical(
@@ -2082,7 +2081,7 @@ def log_loader_execution(
         raise
 
 
-def main() -> int:  # noqa: C901
+def main() -> int:
     """Read config from environment variables (set by ECS task definition)."""
     start_time = time.time()
 

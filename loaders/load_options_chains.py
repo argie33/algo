@@ -193,9 +193,27 @@ class OptionsLoader:
         if not iv_values:
             raise RuntimeError(f"No IV data available for {symbol}")
 
-        current_iv = sum(iv_values) / len(iv_values)  # Mean IV
-        iv_52w_high = max(iv_values)
-        iv_52w_low = min(iv_values)
+        current_iv = sum(iv_values) / len(iv_values)
+
+        # Query actual 52-week historical IV extremes (past 252 trading days)
+        cur.execute(
+            """
+            SELECT MAX(current_iv), MIN(current_iv) FROM iv_history
+            WHERE symbol = %s AND date >= %s - INTERVAL '252 days'
+            """,
+            (symbol, eval_date),
+        )
+        hist_row = cur.fetchone()
+        if hist_row and hist_row[0] is not None and hist_row[1] is not None:
+            iv_52w_high = float(hist_row[0])
+            iv_52w_low = float(hist_row[1])
+        else:
+            # Insufficient historical data for true 52-week metrics
+            raise RuntimeError(
+                f"[IV_HISTORY] Cannot compute accurate 52-week IV extremes for {symbol}: "
+                f"insufficient historical data (need 252+ days in iv_history). "
+                f"Historical IV data required for signal validation."
+            )
 
         # Try INSERT first, then UPDATE if it already exists
         try:

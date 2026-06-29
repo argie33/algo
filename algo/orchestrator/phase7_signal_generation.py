@@ -329,6 +329,7 @@ def _get_candidates_from_buysell(
                     ) atr_calc ON TRUE
                     LEFT JOIN company_profile cp ON cp.ticker = bsd.symbol
                     WHERE ss.composite_score >= %s
+                      AND ss.data_completeness >= 50
                       AND p.close > sma.avg_close
                       AND p.high > p.low
                       AND ((p.close - p.low) / (p.high - p.low)) > %s

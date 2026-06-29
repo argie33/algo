@@ -191,12 +191,12 @@ class EconomicMetricsDailyLoader(OptimalLoader):
                         "CPI is critical for understanding inflation and cost of capital."
                     )
 
-                # SPY price change is useful but can be derived from price_daily if needed
+                # SPY price change is CRITICAL for market regime detection
                 if spy_price_change is None:
-                    logger.warning(
+                    raise RuntimeError(
                         f"[ECONOMIC_METRICS] SPY price change unavailable ({spy_error}). "
-                        "SPY will be NULL but other metrics are available. "
-                        "Consider checking price_daily table if prices exist."
+                        "SPY daily change is critical for market regime classification and cannot be skipped. "
+                        "Ensure SPY prices are loaded in price_daily before computing economic metrics."
                     )
 
                 result = {

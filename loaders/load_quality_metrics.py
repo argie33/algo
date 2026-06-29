@@ -197,6 +197,9 @@ class QualityMetricsLoader(OptimalLoader):
         else:
             metrics["debt_to_assets"] = None
 
+        metrics["data_unavailable"] = False
+        metrics["updated_at"] = date.today().isoformat()
+
         return metrics
 
     def transform(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:

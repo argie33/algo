@@ -135,6 +135,9 @@ class GrowthMetricsLoader(OptimalLoader):
             else:
                 metrics[f"eps_growth_{lookback}y"] = None
 
+        metrics["data_unavailable"] = False
+        metrics["updated_at"] = date.today().isoformat()
+
         return metrics
 
     def transform(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:

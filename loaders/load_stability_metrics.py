@@ -129,6 +129,7 @@ class StabilityMetricsLoader(OptimalLoader):
                 "volatility_60d": round(volatility_60d, 4) if volatility_60d else None,
                 "volatility_252d": (round(volatility_252d, 4) if volatility_252d else None),
                 "beta": round(beta, 4) if beta else None,
+                "data_unavailable": False,
                 "updated_at": datetime.now(timezone.utc).isoformat(),
             }
 
