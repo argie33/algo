@@ -90,10 +90,10 @@ def panel_circuit(cb: Any) -> Panel:  # noqa: C901
             border_style="red",
             padding=(0, 1),
         )
-    n_raw = cb.get("n")
-    any_raw = cb.get("any")
+    n_raw = cb.get("triggered_count")
+    any_raw = cb.get("any_triggered")
     if n_raw is None:
-        logger.error("[CIRCUIT] Missing critical field 'n' (breaker count)")
+        logger.error("[CIRCUIT] Missing critical field 'triggered_count' (breaker count)")
         return Panel(
             Text("Circuit breaker count missing (data_unavailable)", style="dim"),
             title="[bold blue]CIRCUIT BREAKERS[/]",
@@ -101,7 +101,7 @@ def panel_circuit(cb: Any) -> Panel:  # noqa: C901
             padding=(0, 1),
         )
     if any_raw is None:
-        logger.error("[CIRCUIT] Missing critical field 'any' (breach flag)")
+        logger.error("[CIRCUIT] Missing critical field 'any_triggered' (breach flag)")
         return Panel(
             Text("Circuit breaker status missing (data_unavailable)", style="dim"),
             title="[bold blue]CIRCUIT BREAKERS[/]",
@@ -124,12 +124,12 @@ def panel_circuit(cb: Any) -> Panel:  # noqa: C901
     tbl = Table.grid(padding=(0, 1), expand=True)
     tbl.add_column("a", ratio=1)
     tbl.add_column("b", ratio=1)
-    bs = cb.get("bs")
+    bs = cb.get("breakers")
     if bs is None:
-        logger.warning("[CIRCUIT] Missing breaker list 'bs' - no individual breaker data available")
+        logger.warning("[CIRCUIT] Missing breaker list 'breakers' - no individual breaker data available")
         bs = []
     elif not isinstance(bs, list):
-        logger.error("[CIRCUIT] Breaker list 'bs' is not a list: got %s", type(bs).__name__)
+        logger.error("[CIRCUIT] Breaker list 'breakers' is not a list: got %s", type(bs).__name__)
         bs = []
     for a, b in zip(bs[::2], [*bs[1::2], None], strict=False):
 
@@ -139,18 +139,18 @@ def panel_circuit(cb: Any) -> Panel:  # noqa: C901
             if not isinstance(br, dict):
                 logger.debug("[CIRCUIT] Breaker entry is not a dict: got %s", type(br).__name__)
                 return ""
-            fired = br.get("fired")
+            fired = br.get("triggered")
             if fired is None:
-                logger.debug("[CIRCUIT] Breaker missing 'fired' status - cannot render")
+                logger.debug("[CIRCUIT] Breaker missing 'triggered' status - cannot render")
                 return ""
             if not isinstance(fired, bool):
-                logger.debug("[CIRCUIT] Breaker 'fired' is not bool: got %s", type(fired).__name__)
+                logger.debug("[CIRCUIT] Breaker 'triggered' is not bool: got %s", type(fired).__name__)
                 return ""
-            thr = br.get("thr")
-            cur = br.get("cur")
-            lbl_raw = br.get("lbl")
+            thr = br.get("threshold")
+            cur = br.get("current")
+            lbl_raw = br.get("label")
             if lbl_raw is None:
-                logger.debug("[CIRCUIT] Breaker missing 'lbl' field")
+                logger.debug("[CIRCUIT] Breaker missing 'label' field")
                 lbl_s = "N/A"
             else:
                 lbl_s = str(lbl_raw)[:20]
@@ -158,9 +158,9 @@ def panel_circuit(cb: Any) -> Panel:  # noqa: C901
                 thr_f = safe_float(thr, default=None)
                 thr_s = "--" if thr_f is None else f"{thr_f:.0f}"
                 cur_s = "--" if cur is None else str(cur)
-                unit_raw = br.get("u")
+                unit_raw = br.get("unit")
                 if unit_raw is None:
-                    logger.debug("[CIRCUIT] Breaker %s missing unit field 'u'", lbl_s)
+                    logger.debug("[CIRCUIT] Breaker %s missing unit field 'unit'", lbl_s)
                     unit_display = "[yellow]?[/]"
                 else:
                     unit_display = str(unit_raw)
@@ -185,7 +185,7 @@ def panel_circuit(cb: Any) -> Panel:  # noqa: C901
                 if cur_f is not None and cur_f != int(cur_f)
                 else (f"{int(cur_f)}" if cur_f is not None else "0")
             )
-            unit_str = br.get("u")
+            unit_str = br.get("unit")
             if unit_str is None:
                 logger.debug("[CIRCUIT] Breaker %s missing unit for display", lbl_s)
                 unit_str = ""
@@ -233,9 +233,9 @@ def panel_circuit_expanded(cb: Any) -> Panel:  # noqa: C901
             padding=(0, 1),
         )
 
-    n_f = cb.get("n")
+    n_f = cb.get("triggered_count")
     if n_f is None:
-        logger.error("[CIRCUIT_EXPANDED] Missing critical field 'n' (breaker count)")
+        logger.error("[CIRCUIT_EXPANDED] Missing critical field 'triggered_count' (breaker count)")
         return Panel(
             Text("Circuit breaker count missing (data_unavailable)", style="dim"),
             title="[bold blue]CIRCUIT BREAKERS - EXPANDED[/]",
@@ -243,9 +243,9 @@ def panel_circuit_expanded(cb: Any) -> Panel:  # noqa: C901
             padding=(0, 1),
         )
 
-    any_f_raw = cb.get("any")
+    any_f_raw = cb.get("any_triggered")
     if any_f_raw is None:
-        logger.error("[CIRCUIT_EXPANDED] Missing critical field 'any' (breach flag)")
+        logger.error("[CIRCUIT_EXPANDED] Missing critical field 'any_triggered' (breach flag)")
         return Panel(
             Text("Circuit breaker status missing (data_unavailable)", style="dim"),
             title="[bold blue]CIRCUIT BREAKERS - EXPANDED[/]",
@@ -263,17 +263,17 @@ def panel_circuit_expanded(cb: Any) -> Panel:  # noqa: C901
         rows.append(Text.from_markup(f"[bold {G}]✓  ALL CLEAR  —  NO BREAKERS ACTIVE[/]"))
     rows.append(Rule(style="dim"))
 
-    bs = cb.get("bs")
+    bs = cb.get("breakers")
     if bs is None:
         logger.warning(
-            "[CIRCUIT_EXPANDED] Missing breaker list 'bs' - no individual breaker data available (data_unavailable)"
+            "[CIRCUIT_EXPANDED] Missing breaker list 'breakers' - no individual breaker data available (data_unavailable)"
         )
         rows.append(Text("breaker list data_unavailable", style="dim"))
     elif not isinstance(bs, list):
-        logger.error("[CIRCUIT_EXPANDED] Breaker list 'bs' is not a list: got %s", type(bs).__name__)
+        logger.error("[CIRCUIT_EXPANDED] Breaker list 'breakers' is not a list: got %s", type(bs).__name__)
         rows.append(Text("breaker list invalid type (data_unavailable)", style="dim"))
     elif len(bs) == 0:
-        logger.warning("[CIRCUIT_EXPANDED] Breaker list 'bs' is empty")
+        logger.warning("[CIRCUIT_EXPANDED] Breaker list 'breakers' is empty")
         rows.append(Text("no breaker entries", style="dim"))
     else:
         tbl = Table(
@@ -295,28 +295,28 @@ def panel_circuit_expanded(cb: Any) -> Panel:  # noqa: C901
                 logger.debug("[CIRCUIT_EXPANDED] Breaker entry is not a dict: got %s", type(br).__name__)
                 continue
 
-            lbl_val = br.get("lbl")
+            lbl_val = br.get("label")
             if lbl_val is None:
-                logger.debug("[CIRCUIT_EXPANDED] Breaker missing 'lbl' field")
+                logger.debug("[CIRCUIT_EXPANDED] Breaker missing 'label' field")
                 lbl = "--"
             else:
                 lbl = str(lbl_val)
 
-            cur = br.get("cur")
-            thr = br.get("thr")
-            u_val = br.get("u")
+            cur = br.get("current")
+            thr = br.get("threshold")
+            u_val = br.get("unit")
             if u_val is None:
-                logger.debug("[CIRCUIT_EXPANDED] Breaker %s missing unit field 'u'", lbl)
+                logger.debug("[CIRCUIT_EXPANDED] Breaker %s missing unit field 'unit'", lbl)
                 u = ""
             else:
                 u = str(u_val)
 
-            fired_val = br.get("fired")
+            fired_val = br.get("triggered")
             if fired_val is None:
-                logger.debug("[CIRCUIT_EXPANDED] Breaker %s missing 'fired' status", lbl)
+                logger.debug("[CIRCUIT_EXPANDED] Breaker %s missing 'triggered' status", lbl)
                 continue
             if not isinstance(fired_val, bool):
-                logger.debug("[CIRCUIT_EXPANDED] Breaker %s 'fired' is not bool: got %s", lbl, type(fired_val).__name__)
+                logger.debug("[CIRCUIT_EXPANDED] Breaker %s 'triggered' is not bool: got %s", lbl, type(fired_val).__name__)
                 continue
             fired = fired_val
 
