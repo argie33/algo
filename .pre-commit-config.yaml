@@ -65,6 +65,15 @@ repos:
         types: [python]
         stages: [commit]
 
+      - id: block-seed-prices-in-orchestrator
+        name: Block seed_prices in orchestrator Lambda (test data governance)
+        entry: python scripts/block_seed_prices.py
+        language: system
+        files: ^lambda/algo_orchestrator/lambda_function\.py$
+        pass_filenames: true
+        types: [python]
+        stages: [commit]
+
   # Comprehensive CI validation (ruff + basic syntax checks)
   - repo: local
     hooks:
