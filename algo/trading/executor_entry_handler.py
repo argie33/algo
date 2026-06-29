@@ -108,12 +108,14 @@ class EntryHandler:
             stage_phase: Stage phase name (early, mid, late) or None
 
         Returns:
-            Integer ID from STAGE_PHASE_MAPPING or None if stage_phase is None
+            int: Integer ID from STAGE_PHASE_MAPPING if stage_phase provided
+            None: if stage_phase is None (optional field not provided)
 
         Raises:
             ValueError: If stage_phase is provided but not in STAGE_PHASE_MAPPING
         """
         if stage_phase is None:
+            logger.debug("_validate_stage_phase: stage_phase is None (optional)")
             return None
         if stage_phase not in STAGE_PHASE_MAPPING:
             raise ValueError(
@@ -182,9 +184,16 @@ class EntryHandler:
 
         # Check for duplicate position via database
         def _check_dup_pos(cur: Any) -> dict[str, str] | None:
+            """Check if position already exists for symbol.
+
+            Returns:
+                dict: error dict if duplicate found (error key with message)
+                None: if no duplicate (normal state, can proceed with entry)
+            """
             is_dup, msg = self.validator.check_duplicate_position(cur, symbol)
             if is_dup:
                 return {"error": msg}
+            logger.debug(f"[ENTRY_HANDLER] No duplicate position found for {symbol}, can proceed")
             return None
 
         try:

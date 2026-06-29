@@ -914,6 +914,7 @@ class ExitEngine:
                         f"Market is open; this indicates an API issue, not market closure."
                     )
 
+                logger.debug(f"[EXIT_ENGINE] No quote available for {symbol} (market closed, expected state)")
                 return None
 
             elif response.status_code == 401:
