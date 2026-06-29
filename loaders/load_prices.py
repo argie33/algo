@@ -611,7 +611,7 @@ class PriceLoader(OptimalLoader):
                         from algo.reporting import MetricsPublisher
 
                         metrics = MetricsPublisher()
-                        metrics.put_metric(
+                        metrics.add_metric(
                             "MarketCloseDataAvailable",
                             1,
                             unit="Count",
@@ -691,7 +691,7 @@ class PriceLoader(OptimalLoader):
             from algo.reporting import MetricsPublisher
 
             metrics = MetricsPublisher()
-            metrics.put_metric(
+            metrics.add_metric(
                 "MarketCloseDataAvailable",
                 0,
                 unit="Count",
@@ -1209,7 +1209,7 @@ class PriceLoader(OptimalLoader):
                     from algo.reporting import MetricsPublisher
 
                     m = MetricsPublisher()
-                    m.put_metric(
+                    m.add_metric(
                         "BatchFetchMinimumSizeReached",
                         1,
                         unit="Count",
@@ -1544,7 +1544,6 @@ class PriceLoader(OptimalLoader):
             )
             logger.critical(msg)
             raise RuntimeError(msg)
-        return None
 
     def _monitor_and_enforce_timeouts(
         self,
@@ -1602,7 +1601,7 @@ class PriceLoader(OptimalLoader):
                 from algo.reporting import MetricsPublisher
 
                 m = MetricsPublisher()
-                m.put_metric(
+                m.add_metric(
                     "LoaderTimeoutAlert",
                     1,
                     unit="Count",
@@ -1658,7 +1657,7 @@ class PriceLoader(OptimalLoader):
                 from algo.reporting import MetricsPublisher
 
                 m = MetricsPublisher()
-                m.put_metric(
+                m.add_metric(
                     "RateLimitCircuitBreaker",
                     1,
                     unit="Count",
@@ -2239,8 +2238,8 @@ def main() -> int:
 
     # SIGALRM only available on Unix; skip on Windows
     if hasattr(signal, "SIGALRM"):
-        signal.signal(signal.SIGALRM, timeout_handler)
-        signal.alarm(execution_timeout_sec)
+        signal.signal(signal.SIGALRM, timeout_handler)  # type: ignore[attr-defined]
+        signal.alarm(execution_timeout_sec)  # type: ignore[attr-defined]
     else:
         logger.debug("[TIMEOUT] SIGALRM not available (Windows). Using process-level timeout instead.")
 
@@ -2262,7 +2261,7 @@ def main() -> int:
         from utils.db.connection import get_db_connection
 
         _lock_conn = get_db_connection(timeout=30)
-        _lock_conn.autocommit = True  # type: ignore[attr-defined]
+        _lock_conn.autocommit = True  # type: ignore[assignment]
         with _lock_conn.cursor() as _cur:
             _cur.execute(
                 "SELECT pg_try_advisory_lock(hashtext(%s)::bigint)",

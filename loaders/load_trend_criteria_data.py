@@ -110,10 +110,9 @@ class TrendCriteriaLoader(OptimalLoader):
             start = since - timedelta(days=300)
 
         rows = self._fetch_price_daily(symbol, start, end)
-        # CRITICAL: Fail fast if insufficient data. Require at least 20 days for trend analysis
-        if not rows or len(rows) < 20:
+        if len(rows) < 20:
             raise RuntimeError(
-                f"[TrendCriteria] {symbol}: Insufficient price data ({len(rows) if rows else 0} rows, need >= 20). "
+                f"[TrendCriteria] {symbol}: Insufficient price data ({len(rows)} rows, need >= 20). "
                 f"Cannot compute trend criteria with < 20 trading days. "
                 f"Check price_daily loader and market calendar configuration."
             )
@@ -134,8 +133,11 @@ class TrendCriteriaLoader(OptimalLoader):
             )
             rows = cur.fetchall()
             if not rows:
-                # Return empty list for symbols with no price data (delisted, invalid tickers, etc.)
-                return []
+                raise RuntimeError(
+                    f"[TrendCriteria] {symbol}: No price data in database for date range [{start}, {end}]. "
+                    f"Price data is CRITICAL for trend criteria computation. "
+                    f"Check price_daily loader and ensure price data is loaded for this symbol."
+                )
             return [
                 {
                     "date": r[0].isoformat() if r[0] else None,
@@ -279,6 +281,13 @@ class TrendCriteriaLoader(OptimalLoader):
                     "trend_direction": trend_dir,
                     "consolidation_flag": consolidation,
                 }
+            )
+
+        if not results:
+            raise RuntimeError(
+                f"[TrendCriteria] {symbol}: no trend criteria results generated from {len(rows)} price rows. "
+                f"All rows either missing price data or insufficient moving average history. "
+                f"Check price_daily for this symbol — may need >= 200 days of history for trend computation."
             )
 
         return results

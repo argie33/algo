@@ -17,8 +17,11 @@ def get_dashboard_contract_endpoints() -> dict[str, str]:
     """Extract endpoint paths from dashboard_api_contract.py."""
     contract_file = Path("shared_contracts/dashboard_api_contract.py")
     if not contract_file.exists():
-        print("ERROR: dashboard_api_contract.py not found")
-        return {}
+        raise RuntimeError(
+            f"CRITICAL: Dashboard API contract file not found: {contract_file.resolve()}. "
+            "Cannot validate API endpoints without authoritative contract definition. "
+            "Ensure shared_contracts/dashboard_api_contract.py exists and is readable."
+        )
 
     content = contract_file.read_text()
 
