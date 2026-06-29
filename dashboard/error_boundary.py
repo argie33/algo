@@ -14,6 +14,7 @@ from typing import Any
 
 from rich.markup import escape
 from rich.panel import Panel
+from rich.text import Text
 
 logger = logging.getLogger(__name__)
 
@@ -132,8 +133,8 @@ def get_error_message(data: Any) -> str | None:
         ValueError: if error/stale markers present but message is empty/None (invalid state)
     """
     plain_msg = get_error_message_plain(data)
-    if plain_msg is None:
-        logger.debug("No error message found (plain_msg is None)")
+    if isinstance(plain_msg, dict) and plain_msg.get("data_unavailable"):
+        logger.debug(f"No error message found (marker dict): {plain_msg.get('reason')}")
         return None
 
     if is_data_stale(data):
@@ -270,7 +271,12 @@ def error_summary_panel(data: dict[str, Any]) -> Panel | None:
     """
     if not isinstance(data, dict):
         logger.error(f"error_summary_panel received non-dict: {type(data).__name__}")
-        return None
+        return Panel(
+            Text(f"[red]Error panel data invalid (expected dict, got {type(data).__name__})[/]"),
+            title="[red]Data Format Error[/]",
+            style="red",
+            border_style="red",
+        )
 
     errors = {}
     for key, value in data.items():
@@ -283,7 +289,7 @@ def error_summary_panel(data: dict[str, Any]) -> Panel | None:
             errors[key] = msg
 
     if not errors:
-        logger.debug("error_summary_panel: no errors found in data, returning None")
+        logger.debug("[ERROR_BOUNDARY] error_summary_panel: no errors found in data, returning None")
         return None
 
     logger.warning(f"error_summary_panel: found {len(errors)} endpoint error(s)")
@@ -318,7 +324,13 @@ def error_summary_panel_expanded(data: dict[str, Any]) -> Panel | None:
     """
     if not isinstance(data, dict):
         logger.error(f"error_summary_panel_expanded received non-dict: {type(data).__name__}")
-        return None
+        return Panel(
+            Text(f"[red]Error panel data invalid (expected dict, got {type(data).__name__})[/]"),
+            title="[red]Data Format Error[/]",
+            style="red",
+            border_style="red",
+            expand=True,
+        )
 
     errors = {}
     for key, value in data.items():
@@ -331,7 +343,7 @@ def error_summary_panel_expanded(data: dict[str, Any]) -> Panel | None:
             errors[key] = msg
 
     if not errors:
-        logger.debug("error_summary_panel_expanded: no errors found in data, returning None")
+        logger.debug("[ERROR_BOUNDARY] error_summary_panel_expanded: no errors found in data, returning None")
         return None
 
     logger.warning(f"error_summary_panel_expanded: found {len(errors)} endpoint error(s)")
