@@ -140,33 +140,32 @@ class AlpacaSyncManager:
             current_price = pos.get("current_price")
             position_value = float(qty) * float(current_price) if current_price else None
 
-            # Upsert position into algo_positions
+            # Update existing algo-tracked position — never INSERT from Alpaca sync.
+            # The algo's entry execution is the source of truth for position creation.
+            # Inserting with asset_id as position_id creates duplicate NULL-stop records
+            # that trip the circuit breaker. Only update price/qty for existing positions.
             try:
                 cur.execute("""
-                    INSERT INTO algo_positions (
-                        position_id, symbol, quantity, avg_entry_price,
-                        current_price, position_value, status, created_at, updated_at
-                    )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                    ON CONFLICT (position_id) DO UPDATE SET
-                        quantity = EXCLUDED.quantity,
-                        current_price = EXCLUDED.current_price,
-                        position_value = EXCLUDED.position_value,
+                    UPDATE algo_positions
+                    SET quantity = %s,
+                        current_price = %s,
+                        position_value = %s,
                         updated_at = CURRENT_TIMESTAMP
+                    WHERE symbol = %s AND status = 'open'
                 """,
                     (
-                        pos.get("asset_id") or f"alpaca_{symbol}",
-                        symbol,
                         float(qty),
-                        float(avg_entry_price),
                         float(current_price) if current_price else None,
                         float(position_value) if position_value else None,
-                        "open",
+                        symbol,
                     ),
                 )
-                synced_count += 1
+                if cur.rowcount > 0:
+                    synced_count += 1
+                else:
+                    logger.warning(f"[POSITION_SYNC] No existing open position for {symbol} — skipping (not algo-tracked)")
             except Exception as e:
-                logger.error(f"[POSITION_SYNC] Failed to upsert position {symbol}: {e}")
+                logger.error(f"[POSITION_SYNC] Failed to update position {symbol}: {e}")
                 raise RuntimeError(f"[POSITION_SYNC] Database error updating position {symbol}: {e}") from e
 
         # Mark positions as closed if they exist in DB but not in Alpaca
@@ -180,6 +179,20 @@ class AlpacaSyncManager:
         except Exception as e:
             logger.error(f"[POSITION_SYNC] Failed to mark closed positions: {e}")
             raise RuntimeError(f"[POSITION_SYNC] Database error marking closed positions: {e}") from e
+
+        # Remove stale Alpaca-imported rows that have no algo trade association.
+        # These were created by a prior sync bug that INSERTed positions using Alpaca's
+        # asset_id (UUID) as position_id. They have NULL current_stop_price and no
+        # trade_ids_arr, which trips the circuit breaker's missing-stop check.
+        cur.execute("""
+            DELETE FROM algo_positions
+            WHERE status = 'open'
+              AND current_stop_price IS NULL
+              AND (trade_ids_arr IS NULL OR array_length(trade_ids_arr, 1) IS NULL)
+        """)
+        cleaned_count = cur.rowcount
+        if cleaned_count > 0:
+            logger.info(f"[POSITION_SYNC] Removed {cleaned_count} stale Alpaca-imported positions with no trade associations")
 
         # Identify orphan positions (in Alpaca but not in our algo_positions table)
         cur.execute("""
