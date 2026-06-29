@@ -485,7 +485,7 @@ def _get_algo_portfolio(cur: cursor) -> Any:
                    unrealized_pnl_total, position_count, daily_return_pct, unrealized_pnl_pct,
                    cumulative_return_pct, max_drawdown_pct, largest_position_pct,
                    unrealized_pnl_winning_count, unrealized_pnl_losing_count, unrealized_pnl_breakeven_count,
-                   unrealized_pnl_source
+                   unrealized_pnl_source, created_at
             FROM algo_portfolio_snapshots
             ORDER BY snapshot_date DESC
             LIMIT 1
@@ -521,30 +521,50 @@ def _get_algo_portfolio(cur: cursor) -> Any:
         breakeven_count_val = data.get("unrealized_pnl_breakeven_count")
         breakeven_count = int(breakeven_count_val) if breakeven_count_val is not None else 0
 
-        # Calculate data_age_seconds from snapshot_date
-        snapshot_date = data.get("snapshot_date")
+        # Calculate data_age_seconds from created_at timestamp (not snapshot_date date)
+        # CRITICAL: snapshot_date is a DATE column (midnight), created_at is TIMESTAMP (actual freshness)
+        # Using snapshot_date makes recent data appear 6+ hours stale (midnight to current time)
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
         data_age_seconds = None
-        if snapshot_date:
-            from datetime import date as date_type
-            from datetime import datetime, timezone
-            now = datetime.now(timezone.utc)
-            # Handle both datetime.date and datetime.datetime objects
-            if isinstance(snapshot_date, datetime):
-                # datetime object - use directly if it has timezone, else add UTC
-                snapshot_dt = snapshot_date if snapshot_date.tzinfo else snapshot_date.replace(tzinfo=timezone.utc)
-            elif isinstance(snapshot_date, date_type):
-                # date object - convert to datetime with UTC timezone
-                snapshot_dt = datetime.combine(snapshot_date, datetime.min.time()).replace(tzinfo=timezone.utc)
-            elif isinstance(snapshot_date, str):
-                # string - parse and add timezone if missing
+
+        # Try to get created_at first (if available in query result)
+        created_at = data.get("created_at")
+        if created_at:
+            # Handle both datetime.datetime and string
+            if isinstance(created_at, datetime):
+                created_dt = created_at if created_at.tzinfo else created_at.replace(tzinfo=timezone.utc)
+            elif isinstance(created_at, str):
                 try:
-                    snapshot_dt = datetime.fromisoformat(snapshot_date).replace(tzinfo=timezone.utc)
+                    created_dt = datetime.fromisoformat(created_at).replace(tzinfo=timezone.utc)
                 except ValueError:
-                    snapshot_dt = None
+                    created_dt = None
             else:
-                snapshot_dt = None
-            if snapshot_dt:
-                data_age_seconds = int((now - snapshot_dt).total_seconds())
+                created_dt = None
+
+            if created_dt:
+                data_age_seconds = int((now - created_dt).total_seconds())
+
+        # Fallback to snapshot_date if created_at unavailable (for backward compat)
+        if data_age_seconds is None:
+            snapshot_date = data.get("snapshot_date")
+            if snapshot_date:
+                from datetime import date as date_type
+                # Handle both datetime.date and datetime.datetime objects
+                if isinstance(snapshot_date, datetime):
+                    snapshot_dt = snapshot_date if snapshot_date.tzinfo else snapshot_date.replace(tzinfo=timezone.utc)
+                elif isinstance(snapshot_date, date_type):
+                    snapshot_dt = datetime.combine(snapshot_date, datetime.min.time()).replace(tzinfo=timezone.utc)
+                elif isinstance(snapshot_date, str):
+                    try:
+                        snapshot_dt = datetime.fromisoformat(snapshot_date).replace(tzinfo=timezone.utc)
+                    except ValueError:
+                        snapshot_dt = None
+                else:
+                    snapshot_dt = None
+
+                if snapshot_dt:
+                    data_age_seconds = int((now - snapshot_dt).total_seconds())
 
         response_data = {
             "total_portfolio_value": pv,
