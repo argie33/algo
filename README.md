@@ -27,7 +27,7 @@ cd webapp/frontend && npm install && npm run dev
 # 4. Open http://localhost:5173 in browser ✓
 ```
 
-📖 **Full Setup:** See [LOCAL_SETUP_GUIDE.md](LOCAL_SETUP_GUIDE.md)
+For production setup and AWS credentials, see `CLAUDE.md` (Quick reference) and `steering/GOVERNANCE.md` (Architecture).
 
 ### For AWS Deployment
 
@@ -42,7 +42,7 @@ git push main
 # 4. Configures monitoring and alerts
 ```
 
-📖 **Full Deployment:** See [DEPLOYMENT_READINESS.md](DEPLOYMENT_READINESS.md)
+See `steering/OPERATIONS.md` for deployment verification and troubleshooting.
 
 ## ✅ Code Quality & Testing (Before Commits)
 
@@ -158,20 +158,21 @@ algo/
 │   └── DEPLOYMENT_GUIDE.md      # How to deploy
 │
 ├── scripts/                     # Utility scripts
-│   ├── start-dev-backend.ps1    # Start API dev server
-│   ├── start-dev-environment.ps1 # Setup frontend config
 │   ├── apply-database-schema.py # Initialize database
-│   └── refresh-aws-credentials.ps1 # Rotate AWS credentials
+│   ├── refresh-aws-credentials.ps1 # Sync AWS credentials
+│   └── verify_safety_thresholds.py # Pre-deployment checklist
 │
 ├── tests/                       # Automated test suite
 │   ├── unit/                    # Unit tests
 │   ├── integration/             # Integration tests
 │   └── conftest.py              # Pytest configuration
 │
-└── LOCAL_SETUP_GUIDE.md         # ← You are here
-   DEPLOYMENT_READINESS.md       # Deployment checklist
-   CLAUDE.md                     # Project instructions
-   steering/system.md             # System documentation
+├── CLAUDE.md                    # Project governance & rules
+├── README.md                    # ← You are here
+└── steering/                    # Core documentation
+    ├── GOVERNANCE.md            # Architecture & safety
+    ├── LINT_POLICY.md           # Code quality
+    └── OPERATIONS.md            # CI/CD & diagnostics
 ```
 
 ---
@@ -182,15 +183,13 @@ algo/
 
 ```powershell
 # Setup (one time)
-scripts/start-dev-environment.ps1  # Checks dependencies and shows startup instructions
+python scripts/apply-database-schema.py  # Initialize database schema
 
-# Development (3 terminals)
-scripts/start-dev-backend.ps1      # Terminal 1: Start API on port 3001
-cd webapp/frontend && npm run dev  # Terminal 2: Start frontend on port 5173
-npm test                            # Terminal 3: Watch tests
+# Development (2 terminals)
+cd lambda/api && python dev_server.py  # Terminal 1: Start backend on port 3001
+cd webapp/frontend && npm install && npm run dev  # Terminal 2: Start frontend on port 5173
 
 # Database
-python scripts/apply-database-schema.py  # Initialize schema
 psql -h localhost -U stocks -d stocks    # Connect to database
 ```
 
@@ -302,15 +301,15 @@ aws lambda list-functions                    # ✓ Lambda functions deployed
 
 ---
 
-## 🔗 Important Links
+## 🔗 Documentation
 
 | Document | Purpose |
 |----------|---------|
-| [LOCAL_SETUP_GUIDE.md](LOCAL_SETUP_GUIDE.md) | Get site running locally (today) |
-| [DEPLOYMENT_READINESS.md](DEPLOYMENT_READINESS.md) | Deploy to AWS (June 15) |
-| [steering/system.md](steering/system.md) | System architecture details |
-| [terraform/DEPLOYMENT_GUIDE.md](terraform/DEPLOYMENT_GUIDE.md) | IaC deployment walkthrough |
-| [CLAUDE.md](CLAUDE.md) | Project instructions & constraints |
+| [CLAUDE.md](CLAUDE.md) | Project governance & constraints |
+| [steering/GOVERNANCE.md](steering/GOVERNANCE.md) | Architecture, safety rules, fail-fast patterns |
+| [steering/LINT_POLICY.md](steering/LINT_POLICY.md) | Code quality & type safety enforcement |
+| [steering/OPERATIONS.md](steering/OPERATIONS.md) | CI/CD pipeline, diagnostics, troubleshooting |
+| [terraform/](terraform/) | Infrastructure as Code (AWS resources) |
 
 ---
 
@@ -398,10 +397,10 @@ python -c "import lambda.api; print('OK')"
 
 ## 📞 Support
 
-- **Errors during setup?** Check [LOCAL_SETUP_GUIDE.md](LOCAL_SETUP_GUIDE.md) troubleshooting
-- **Deployment questions?** See [DEPLOYMENT_READINESS.md](DEPLOYMENT_READINESS.md)
-- **System architecture?** Read [steering/system.md](steering/system.md)
-- **Code questions?** Check [CLAUDE.md](CLAUDE.md)
+- **Setup issues?** Check local requirements: Node.js, Python 3.11+, PostgreSQL 14+, AWS CLI
+- **Deployment/Infrastructure?** See [steering/OPERATIONS.md](steering/OPERATIONS.md) and [steering/GOVERNANCE.md](steering/GOVERNANCE.md)
+- **Code quality?** Check [steering/LINT_POLICY.md](steering/LINT_POLICY.md)
+- **Project rules?** Read [CLAUDE.md](CLAUDE.md)
 
 ---
 
