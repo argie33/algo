@@ -108,12 +108,11 @@ router.get("/covered-calls", async (req, res) => {
       hasPrev: pageNum > 1,
     });
   } catch (error) {
-    console.error("Error fetching covered call opportunities:", error.message);
-    return sendPlaceholder(
+    logger.error("Error fetching covered call opportunities:", error.message);
+    return sendError(
       res,
       `Failed to fetch covered call opportunities: ${error.message}`,
-      500,
-      "items"
+      500
     );
   }
 });

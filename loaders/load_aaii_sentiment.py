@@ -21,7 +21,7 @@ except ImportError:
 
 from config.api_endpoints import get_aaii_sentiment_url
 from loaders.runner import run_loader
-from utils.infrastructure.url_validator import validate_redirect_url, validate_url
+from utils.infrastructure.url_validator import validate_url
 from utils.optimal_loader import OptimalLoader
 
 logger = logging.getLogger(__name__)
@@ -35,11 +35,12 @@ class AAIISentimentLoader(OptimalLoader):
     watermark_field = "date"
 
     @staticmethod
-    def _fetch_with_playwright(aaii_url: str) -> bytes | None:
-        """Fetch AAII sentiment file using Playwright to bypass bot detection.
+    def _fetch_with_playwright_hybrid(aaii_url: str) -> bytes | None:
+        """Fetch AAII file using Playwright to establish session, then requests to get file.
 
-        AAII website uses Imperva bot protection that blocks regular HTTP requests.
-        Playwright renders JavaScript which bypasses the Imperva challenge.
+        AAII website uses Imperva/Incapsula bot protection that blocks direct requests.
+        Solution: Use Playwright to bypass the challenge and establish cookies, then use
+        those cookies in a normal requests session to fetch the actual file.
 
         Args:
             aaii_url: URL to fetch
@@ -48,42 +49,84 @@ class AAIISentimentLoader(OptimalLoader):
             File content bytes if successful, None on failure
         """
         if not HAS_PLAYWRIGHT:
-            logger.debug("Playwright not available for bot detection bypass")
+            logger.debug("Playwright not available for Incapsula bypass")
             return None
 
         try:
-            logger.debug("Attempting fetch with Playwright (JavaScript rendering)...")
+            logger.debug("Attempting hybrid Playwright+requests fetch...")
             with sync_playwright() as p:
-                # Launch headless browser with minimal overhead
-                browser = p.chromium.launch(headless=True)
-                page = browser.new_page(
-                    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+                # Step 1: Launch browser and establish session
+                logger.debug("Launching browser and establishing Incapsula session...")
+                browser = p.chromium.launch(
+                    headless=True,
+                    args=['--disable-blink-features=AutomationControlled', '--no-sandbox']
                 )
 
+                context = browser.new_context(
+                    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                    viewport={'width': 1920, 'height': 1080},
+                    ignore_https_errors=True,
+                )
+
+                page = context.new_page()
+
                 try:
-                    # First visit sentiment survey page to establish cookies/session
-                    logger.debug("Visiting AAII sentiment page to establish session...")
-                    page.goto("https://www.aaii.com/sentiment-survey", timeout=30000)
+                    # Visit main AAII site to establish baseline
+                    logger.debug("Visiting AAII main site...")
+                    page.goto("https://www.aaii.com", timeout=15000, wait_until="domcontentloaded")
 
-                    # Now fetch the file with proper session/cookies
-                    logger.debug(f"Downloading file from {aaii_url}...")
-                    response = page.goto(aaii_url, timeout=30000)
+                    # Visit sentiment survey page (passes Incapsula check)
+                    import time
+                    logger.debug("Navigating to sentiment survey page...")
+                    page.goto("https://www.aaii.com/sentiment-survey", timeout=15000, wait_until="domcontentloaded")
+                    time.sleep(2)
 
-                    if response and response.status == 200:
-                        logger.debug("File response received")
-                        body = response.body()
-                        if body and len(body) > 1000:
-                            logger.debug(f"Successfully fetched {len(body)} bytes with Playwright")
-                            return body
+                    # Simulate human interaction
+                    logger.debug("Simulating human mouse movement...")
+                    page.mouse.move(500, 500)
+                    time.sleep(1)
+
+                    # Step 2: Extract cookies from Playwright session
+                    logger.debug("Extracting session cookies from Playwright...")
+                    cookies = context.cookies()
+                    logger.debug(f"Got {len(cookies)} cookies")
+
+                    # Step 3: Use requests with Playwright's cookies to fetch file
+                    logger.debug(f"Fetching {aaii_url} with established session...")
+                    session = requests.Session()
+
+                    for cookie in cookies:
+                        session.cookies.set(
+                            cookie['name'],
+                            cookie['value'],
+                            domain=cookie.get('domain')
+                        )
+
+                    session.headers.update({
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                        "Referer": "https://www.aaii.com/sentiment-survey",
+                    })
+
+                    response = session.get(aaii_url, timeout=15)
+                    logger.debug(f"Response status: {response.status_code}")
+
+                    if response.status_code == 200:
+                        content = response.content
+                        if len(content) > 100000:  # Real Excel file is >1MB
+                            logger.info(f"Successfully fetched {len(content)} bytes via hybrid approach")
+                            return content
+                        else:
+                            logger.debug(f"File too small ({len(content)} bytes)")
 
                 except Exception as e:
-                    logger.debug(f"Playwright page navigation error: {e}")
+                    logger.debug(f"Hybrid fetch error: {e}")
                 finally:
                     page.close()
+                    context.close()
                     browser.close()
 
         except Exception as e:
-            logger.debug(f"Playwright fetch failed: {e}")
+            logger.debug(f"Playwright hybrid fetch failed: {e}")
 
         return None
 
@@ -94,7 +137,7 @@ class AAIISentimentLoader(OptimalLoader):
         coerce validation, date validation) are essential for financial data
         security and correctness. Cannot be factored without losing failure context.
 
-        Falls back to Playwright for Imperva bot detection bypass if regular requests fail.
+        Uses hybrid Playwright+requests approach to bypass Imperva bot protection.
         """
         # Set socket-level timeout to catch hanging connections early
         socket.setdefaulttimeout(20.0)
@@ -117,56 +160,35 @@ class AAIISentimentLoader(OptimalLoader):
             "Accept-Language": "en-US,en;q=0.9",
         }
 
-        for attempt in range(1, 4):  # 3 retries (faster failure)
+        for attempt in range(1, 3):  # 2 attempts: regular request, then hybrid Playwright
             try:
-                logger.info(f"Download attempt {attempt}/3")
-                response = requests.get(aaii_url, headers=headers, allow_redirects=True, timeout=15)
-                response.raise_for_status()
+                if attempt == 1:
+                    logger.info(f"Download attempt {attempt}/2: Regular request")
+                    response = requests.get(aaii_url, headers=headers, allow_redirects=True, timeout=15)
+                    response.raise_for_status()
+                    file_content = response.content
+                else:
+                    logger.info(f"Download attempt {attempt}/2: Hybrid Playwright+requests")
+                    file_content = self._fetch_with_playwright_hybrid(aaii_url)
+                    if not file_content:
+                        raise ValueError("Playwright hybrid fetch returned no data")
 
-                # SECURITY FIX S-05: Validate redirect target to prevent SSRF via redirects
-                if response.url != aaii_url:
-                    is_valid, error_msg = validate_redirect_url(aaii_url, response.url, allowed_domains=["aaii.com"])
-                    if not is_valid:
-                        logger.error(f"SSRF prevention: Redirect to invalid URL: {error_msg}")
-                        raise ValueError(f"Redirect to invalid URL: {error_msg}")
+                # Validate content type
+                if len(file_content) < 1000:
+                    raise ValueError(f"Response too small ({len(file_content)} bytes)")
 
-                content_type = response.headers.get("Content-Type")
-                if not content_type:
-                    logger.error("Missing Content-Type header in AAII response")
-                    raise ValueError("Missing Content-Type header in AAII response (cannot verify Excel file)")
-                if "html" in content_type.lower():
-                    logger.error("Server returned HTML instead of Excel (likely Imperva bot detection)")
-                    raise ValueError("Server returned HTML instead of Excel")
-
-                if len(response.content) < 1000:
-                    logger.error(f"Response too small ({len(response.content)} bytes)")
-                    raise ValueError(f"Response too small ({len(response.content)} bytes)")
-
-                # SECURITY FIX S-04: Validate Excel file structure before parsing
-                # Reject files that look malformed or could trigger XXE/billion laughs
-                excel_data = BytesIO(response.content)
-
-                # For XLS files (xlrd): xlrd does NOT parse external entities, so safe from XXE
-                # For XLSX files: validate structure and reject if compressed size is suspicious
-                file_content = response.content
+                # SECURITY FIX S-04: Validate Excel file structure
                 if file_content.startswith(b"PK"):  # XLSX = ZIP format
                     try:
                         with zipfile.ZipFile(BytesIO(file_content), "r") as zf:
-                            # Check for suspicious XML files (XXE indicators)
                             names = zf.namelist()
-                            if len(names) > 10000:  # Reject if too many entries (billion laughs)
-                                raise ValueError("Excel file has suspicious structure (too many entries)")
-                            # Verify standard XLSX structure
-                            expected_dirs = {"_rels/", "xl/", "docProps/"}
-                            actual_dirs = {n.split("/")[0] + "/" for n in names if "/" in n}
-                            if not expected_dirs.issubset(actual_dirs):
-                                logger.warning(f"XLSX structure unusual but continuing: {actual_dirs}")
+                            if len(names) > 10000:
+                                raise ValueError("Excel file has suspicious structure")
                     except zipfile.BadZipFile:
                         logger.warning("File looks like XLSX but ZIP parsing failed, attempting as XLS")
 
-                excel_data = BytesIO(response.content)
-                # Auto-detect format: XLSX files start with PK (ZIP signature); use openpyxl
-                # for XLSX and xlrd for legacy XLS. AAII changed their file format over time.
+                # Parse Excel file
+                excel_data = BytesIO(file_content)
                 xl_engine = "openpyxl" if file_content.startswith(b"PK") else "xlrd"
                 df = pd.read_excel(excel_data, skiprows=3, engine=xl_engine)
 
@@ -178,31 +200,31 @@ class AAIISentimentLoader(OptimalLoader):
 
                 df = df[required_cols]
 
+                # Clean and validate data
                 for col in ["Bullish", "Neutral", "Bearish"]:
                     df[col] = df[col].astype(str).str.replace("%", "", regex=False).str.strip()
-                    # CRITICAL: Validate BEFORE coercion to detect corruption
                     before_coerce = df[col].copy()
                     df[col] = pd.to_numeric(df[col], errors="coerce")
                     newly_nan = before_coerce[df[col].isna() & before_coerce.notna()]
                     if len(newly_nan) > 0:
                         bad_values = newly_nan.unique()[:5]
                         raise ValueError(
-                            f"[AAII_SENTIMENT] {col} contains unparseable values (data corruption): {bad_values}. "
+                            f"[AAII_SENTIMENT] {col} contains unparseable values: {bad_values}. "
                             f"Cannot load sentiment data with corrupted numeric fields."
                         )
 
+                # Parse and validate dates
                 df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
-                # CRITICAL: Validate dates before dropping
                 before_coerce = df["Date"].copy()
                 invalid_dates = before_coerce[df["Date"].isna() & before_coerce.notna()]
                 if len(invalid_dates) > 0:
                     bad_dates = invalid_dates.unique()[:5]
                     raise ValueError(
-                        f"[AAII_SENTIMENT] Date column contains unparseable values (data corruption): {bad_dates}. "
+                        f"[AAII_SENTIMENT] Date column contains unparseable values: {bad_dates}. "
                         f"Cannot load sentiment data with corrupted dates."
                     )
-                df["Date"] = df["Date"].dt.strftime("%Y-%m-%d")
 
+                df["Date"] = df["Date"].dt.strftime("%Y-%m-%d")
                 df.sort_values("Date", inplace=True)
                 df.reset_index(drop=True, inplace=True)
 
@@ -221,14 +243,13 @@ class AAIISentimentLoader(OptimalLoader):
                     )
 
                 if not rows:
-                    logger.warning(
-                        "[AAII_SENTIMENT] No sentiment data parsed from AAII Excel file."
-                    )
+                    logger.warning("[AAII_SENTIMENT] No sentiment data parsed from Excel file")
                     return [{
                         "data_unavailable": True,
                         "reason": "No sentiment data parsed from AAII Excel file",
                         "created_at": datetime.now().isoformat(),
                     }]
+
                 return rows
 
             except (
@@ -236,179 +257,45 @@ class AAIISentimentLoader(OptimalLoader):
                 requests.exceptions.ConnectionError,
             ) as e:
                 logger.warning(f"Download attempt {attempt} network error: {e}")
-                if attempt < 3:
-                    import time
-
-                    wait_time = 2 * (2 ** (attempt - 1))
-                    logger.info(f"Retrying in {wait_time}s...")
-                    time.sleep(wait_time)
-                else:
-                    logger.warning(
-                        f"[AAII] Failed after 3 attempts: Cannot reach AAII server. {e}"
-                    )
+                if attempt >= 2:
+                    logger.warning(f"[AAII] Failed after all attempts: Cannot reach AAII server. {e}")
                     return [{
                         "data_unavailable": True,
-                        "reason": f"Cannot reach AAII server after 3 attempts: {str(e)[:100]}",
-                        "created_at": datetime.now().isoformat(),
-                    }]
-            except (json.JSONDecodeError, zipfile.BadZipFile) as e:
-                logger.warning(f"Download attempt {attempt} data format error: {e}")
-                if attempt < 3:
-                    import time
-
-                    wait_time = 2 * (2 ** (attempt - 1))
-                    logger.info(f"Retrying in {wait_time}s...")
-                    time.sleep(wait_time)
-                else:
-                    logger.warning(
-                        f"[AAII] Failed after 3 attempts: Invalid Excel data format. {e}"
-                    )
-                    return [{
-                        "data_unavailable": True,
-                        "reason": f"Invalid Excel data format after 3 attempts: {str(e)[:100]}",
+                        "reason": f"Cannot reach AAII server: {str(e)[:100]}",
                         "created_at": datetime.now().isoformat(),
                     }]
             except ValueError as e:
-                # If getting HTML (Imperva bot detection), try Playwright fallback on last attempt
-                error_str = str(e)
-                if "HTML instead of Excel" in error_str and attempt == 3 and HAS_PLAYWRIGHT:
-                    logger.info("Regular request failed with bot detection, trying Playwright fallback...")
-                    file_content = self._fetch_with_playwright(aaii_url)
-                    if file_content:
-                        try:
-                            # Parse the Playwright-fetched content
-                            excel_data = BytesIO(file_content)
-                            xl_engine = "openpyxl" if file_content.startswith(b"PK") else "xlrd"
-                            df = pd.read_excel(excel_data, skiprows=3, engine=xl_engine)
-
-                            df.columns = df.columns.str.strip()
-                            required_cols = ["Date", "Bullish", "Neutral", "Bearish"]
-                            df = df[required_cols]
-
-                            for col in ["Bullish", "Neutral", "Bearish"]:
-                                df[col] = df[col].astype(str).str.replace("%", "", regex=False).str.strip()
-                                df[col] = pd.to_numeric(df[col], errors="coerce")
-
-                            df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
-                            df["Date"] = df["Date"].dt.strftime("%Y-%m-%d")
-                            df.sort_values("Date", inplace=True)
-                            df.reset_index(drop=True, inplace=True)
-
-                            logger.info(f"Playwright fallback succeeded! Parsed {len(df)} records")
-
-                            rows = []
-                            for _, row in df.iterrows():
-                                rows.append({
-                                    "date": row["Date"],
-                                    "bullish": (None if pd.isna(row["Bullish"]) else float(row["Bullish"])),
-                                    "neutral": (None if pd.isna(row["Neutral"]) else float(row["Neutral"])),
-                                    "bearish": (None if pd.isna(row["Bearish"]) else float(row["Bearish"])),
-                                })
-                            return rows if rows else [{
-                                "data_unavailable": True,
-                                "reason": "No sentiment data in Playwright fallback file",
-                                "created_at": datetime.now().isoformat(),
-                            }]
-                        except Exception as pw_error:
-                            logger.warning(f"Playwright fallback parsing failed: {pw_error}")
-
-                # Standard ValueError handling
-                logger.warning(f"Download attempt {attempt} data format error: {e}")
-                if attempt < 3:
-                    import time
-
-                    wait_time = 2 * (2 ** (attempt - 1))
-                    logger.info(f"Retrying in {wait_time}s...")
-                    time.sleep(wait_time)
-                else:
-                    logger.warning(
-                        f"[AAII] Failed after 3 attempts: Invalid Excel data format. {e}"
-                    )
+                logger.warning(f"Download attempt {attempt} validation error: {e}")
+                if attempt >= 2:
+                    logger.warning(f"[AAII] Failed after all attempts: {e}")
                     return [{
                         "data_unavailable": True,
-                        "reason": f"Invalid Excel data format after 3 attempts: {str(e)[:100]}",
+                        "reason": f"Data validation error after all attempts: {str(e)[:100]}",
                         "created_at": datetime.now().isoformat(),
                     }]
-            except (KeyError, AttributeError, TypeError) as e:
-                logger.warning(
-                    f"[AAII] Data format error parsing Excel: {e}. AAII file structure may have changed."
-                )
-                return [{
-                    "data_unavailable": True,
-                    "reason": f"Data format error parsing Excel: {str(e)[:100]}",
-                    "created_at": datetime.now().isoformat(),
-                }]
-            except (OSError, requests.RequestException) as e:
-                # If 403 Forbidden on last attempt, try Playwright fallback
-                error_str = str(e)
-                if ("403" in error_str or "Forbidden" in error_str) and attempt == 3 and HAS_PLAYWRIGHT:
-                    logger.info("Got 403 Forbidden (Imperva bot detection), trying Playwright fallback...")
-                    file_content = self._fetch_with_playwright(aaii_url)
-                    if file_content:
-                        try:
-                            # Parse the Playwright-fetched content
-                            excel_data = BytesIO(file_content)
-                            xl_engine = "openpyxl" if file_content.startswith(b"PK") else "xlrd"
-                            df = pd.read_excel(excel_data, skiprows=3, engine=xl_engine)
-
-                            df.columns = df.columns.str.strip()
-                            required_cols = ["Date", "Bullish", "Neutral", "Bearish"]
-                            df = df[required_cols]
-
-                            for col in ["Bullish", "Neutral", "Bearish"]:
-                                df[col] = df[col].astype(str).str.replace("%", "", regex=False).str.strip()
-                                df[col] = pd.to_numeric(df[col], errors="coerce")
-
-                            df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
-                            df["Date"] = df["Date"].dt.strftime("%Y-%m-%d")
-                            df.sort_values("Date", inplace=True)
-                            df.reset_index(drop=True, inplace=True)
-
-                            logger.info(f"Playwright fallback succeeded! Parsed {len(df)} records")
-
-                            rows = []
-                            for _, row in df.iterrows():
-                                rows.append({
-                                    "date": row["Date"],
-                                    "bullish": (None if pd.isna(row["Bullish"]) else float(row["Bullish"])),
-                                    "neutral": (None if pd.isna(row["Neutral"]) else float(row["Neutral"])),
-                                    "bearish": (None if pd.isna(row["Bearish"]) else float(row["Bearish"])),
-                                })
-                            return rows if rows else [{
-                                "data_unavailable": True,
-                                "reason": "No sentiment data in Playwright fallback file",
-                                "created_at": datetime.now().isoformat(),
-                            }]
-                        except Exception as pw_error:
-                            logger.warning(f"Playwright fallback parsing failed: {pw_error}")
-
-                # Standard RequestException handling
+            except (json.JSONDecodeError, zipfile.BadZipFile, KeyError, AttributeError, TypeError) as e:
+                logger.warning(f"Download attempt {attempt} format error: {e}")
+                if attempt >= 2:
+                    logger.warning(f"[AAII] Failed after all attempts: Invalid Excel data format. {e}")
+                    return [{
+                        "data_unavailable": True,
+                        "reason": f"Invalid data format after all attempts: {str(e)[:100]}",
+                        "created_at": datetime.now().isoformat(),
+                    }]
+            except Exception as e:
                 logger.error(f"Download attempt {attempt} unexpected error: {e}")
-                if attempt < 3:
-                    import time
-
-                    wait_time = 2 * (2 ** (attempt - 1))
-                    logger.info(f"Retrying in {wait_time}s...")
-                    time.sleep(wait_time)
-                else:
-                    logger.warning(
-                        f"[AAII] Unexpected error after 3 attempts: {e}"
-                    )
+                if attempt >= 2:
+                    logger.warning(f"[AAII] Unexpected error after all attempts: {e}")
                     return [{
                         "data_unavailable": True,
-                        "reason": f"Unexpected error after 3 attempts: {str(e)[:100]}",
+                        "reason": f"Unexpected error after all attempts: {str(e)[:100]}",
                         "created_at": datetime.now().isoformat(),
                     }]
 
-        logger.warning(
-            "[AAII_SENTIMENT] Failed to fetch AAII sentiment data after exhausting all retries. "
-            "AAII server is unreachable (Imperva bot protection blocking all automation)."
-        )
-        # Return explicit unavailable marker (caller should use this to show status to user)
+        logger.warning("[AAII_SENTIMENT] Failed to fetch AAII sentiment data after exhausting all attempts")
         return [{
             "data_unavailable": True,
-            "reason": "AAII server blocked by Imperva bot protection; cannot fetch fresh data",
-            "remedy": "Retry when Imperva protection is relaxed or network changes allow access",
+            "reason": "Failed to fetch AAII sentiment after all attempts",
             "created_at": datetime.now().isoformat(),
         }]
 

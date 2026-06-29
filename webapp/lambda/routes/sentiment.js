@@ -240,7 +240,7 @@ router.get("/analyst", async (req, res) => {
       return sendPlaceholder(
         res,
         "No analyst sentiment data available",
-        200,
+        503,
         "items"
       );
     }
@@ -253,12 +253,11 @@ router.get("/analyst", async (req, res) => {
       offset: offset,
     });
   } catch (error) {
-    console.error("Analyst sentiment error:", error);
-    return sendPlaceholder(
+    logger.error("Analyst sentiment error:", error.message);
+    return sendError(
       res,
       `Failed to fetch analyst sentiment data: ${error.message}`,
-      500,
-      "items"
+      500
     );
   }
 });
@@ -288,7 +287,7 @@ router.get("/history", async (req, res) => {
         return sendPlaceholder(
           res,
           "No sentiment history available",
-          200,
+          503,
           "items"
         );
       }
@@ -359,12 +358,12 @@ router.get("/current", async (req, res) => {
     };
     return sendSuccess(res, current);
   } catch (error) {
-    console.error("Current sentiment error:", error);
-    return sendSuccess(res, {
-      fear_greed: null,
-      naaim: null,
-      aaii: null,
-    });
+    logger.error("Current sentiment error:", error.message);
+    return sendError(
+      res,
+      `Current sentiment data unavailable: ${error.message}`,
+      503
+    );
   }
 });
 
@@ -403,7 +402,7 @@ router.get("/divergence", async (req, res) => {
       return sendPlaceholder(
         res,
         "Sentiment divergence data not available",
-        200,
+        503,
         "items"
       );
     }
@@ -442,7 +441,7 @@ router.get("/aaii", async (req, res) => {
       return sendPlaceholder(
         res,
         "AAII sentiment data not available",
-        200,
+        503,
         "data"
       );
     }

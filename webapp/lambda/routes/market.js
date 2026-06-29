@@ -107,12 +107,16 @@ async function getFullSeasonalityData() {
   const electionYear = Math.floor((currentYear - 1792) / 4) * 4 + 1792;
   const currentCyclePosition = ((currentYear - electionYear) % 4) + 1;
 
-  let presidentialCycleData = [
-    { year: 1, label: "Post-Election", avgReturn: 12.8 }, // Historical average
-    { year: 2, label: "Mid-Term", avgReturn: 8.5 }, // Historical average
-    { year: 3, label: "Pre-Election", avgReturn: 15.3 }, // Historical average - strongest
-    { year: 4, label: "Election Year", avgReturn: 10.2 }, // Historical average
+  // Historical baseline for comparison (not current data)
+  const historicalAverages = [
+    { year: 1, label: "Post-Election", avgReturn: 12.8 },
+    { year: 2, label: "Mid-Term", avgReturn: 8.5 },
+    { year: 3, label: "Pre-Election", avgReturn: 15.3 },
+    { year: 4, label: "Election Year", avgReturn: 10.2 },
   ];
+
+  let presidentialCycleData = [];
+  let dataSourceNote = "using real market data";
 
   try {
     const cycleReturnsQuery = `
@@ -139,18 +143,31 @@ async function getFullSeasonalityData() {
     if (cycleReturnsResult.rows.length > 0) {
       cycleReturnsResult.rows.forEach((row) => {
         const cyclePos = row.cycle_position;
-        const dataItem = presidentialCycleData.find((d) => d.year === cyclePos);
-        if (dataItem && row.avg_return !== null) {
-          dataItem.avgReturn = parseFloat(row.avg_return);
+        const historicalItem = historicalAverages.find((d) => d.year === cyclePos);
+        if (historicalItem && row.avg_return !== null) {
+          presidentialCycleData.push({
+            year: historicalItem.year,
+            label: historicalItem.label,
+            avgReturn: parseFloat(row.avg_return),
+          });
         }
       });
     }
+
+    // If no real data, fall back to historical averages with explicit marker
+    if (presidentialCycleData.length === 0) {
+      presidentialCycleData = historicalAverages;
+      dataSourceNote = "using historical averages (no recent market data available)";
+    }
   } catch (e) {
-    logger.warn("DB query failed, using default values:", e.message);
+    logger.warn("Presidential cycle data query failed, using historical averages:", e.message);
+    presidentialCycleData = historicalAverages;
+    dataSourceNote = "using historical averages (database error)";
   }
 
   const presidentialCycle = {
     currentPosition: currentCyclePosition,
+    dataSource: dataSourceNote,
     data: presidentialCycleData.map((d) => ({
       year: d.year,
       label: d.label,
@@ -2462,7 +2479,7 @@ router.get("/fear-greed", async (req, res) => {
       return sendPlaceholder(
         res,
         "Fear & Greed index data not available",
-        200,
+        503,
         "object"
       );
     }
@@ -3634,7 +3651,7 @@ router.get("/cap-distribution", async (req, res) => {
       return sendPlaceholder(
         res,
         "Market distribution data not available",
-        200,
+        503,
         "items"
       );
     }

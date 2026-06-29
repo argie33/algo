@@ -814,13 +814,17 @@ class DailyReconciliation:
         """Audit for trades with estimated exit prices.
 
         Raises:
-            NotImplementedError: Method not yet fully implemented
+            RuntimeError: Method not yet implemented
         """
-        raise NotImplementedError(
-            "[STALE_PRICE_AUDIT] audit_stale_estimated_prices() not yet implemented. "
-            "Price staleness auditing is critical for position reconciliation accuracy. "
-            "This method must check for estimated exit prices that have not been updated "
-            "within the freshness window before production use."
+        raise RuntimeError(
+            "[STALE_PRICE_AUDIT] CRITICAL: audit_stale_estimated_prices() is not implemented. "
+            "Price staleness auditing is CRITICAL for position reconciliation accuracy. "
+            "Cannot reconcile positions with stale or estimated prices — this can cause "
+            "incorrect profit/loss calculations and risk miscalculation. "
+            "Implement audit logic that: (1) finds trades with estimated exit prices, "
+            "(2) checks update timestamp against current time, "
+            "(3) alerts on stale prices (>2 hours old), "
+            "(4) raises error to halt reconciliation with stale data."
         )
 
     def sync_positions(self, cur: Any) -> dict[str, Any]:
@@ -1065,26 +1069,32 @@ class DailyReconciliation:
         """Compute analytics metrics (Information Coefficient, expectancy, Sharpe ratio).
 
         Raises:
-            NotImplementedError: Method not yet fully implemented
+            RuntimeError: Method not implemented
         """
-        raise NotImplementedError(
-            "[ANALYTICS_METRICS] compute_analytics_metrics() not yet fully implemented. "
-            "Trade analytics computation (IC, expectancy, Sharpe ratio) is required for "
-            "performance dashboard and algorithmic monitoring. This method was returning "
-            "fake metrics (ic: 0.0, valid: False) — now raises error to prevent silent failure."
+        raise RuntimeError(
+            "[ANALYTICS_METRICS] CRITICAL: compute_analytics_metrics() is not implemented. "
+            "Trade analytics computation (IC, expectancy, Sharpe ratio) is REQUIRED for "
+            "performance dashboard and algorithmic monitoring. Cannot assess strategy edge without actual metrics. "
+            "Implement analytics that compute: (1) Information Coefficient (price prediction accuracy), "
+            "(2) expectancy (expected return per trade), "
+            "(3) Sharpe ratio (risk-adjusted returns), "
+            "(4) other performance metrics for dashboard display."
         )
 
     def compute_closed_trade_metrics(self, cur: Any) -> dict[str, Any]:
         """Compute closed trade metrics (win rate, R-multiples, profit factor).
 
         Raises:
-            NotImplementedError: Method not yet fully implemented
+            RuntimeError: Method not implemented
         """
-        raise NotImplementedError(
-            "[CLOSED_TRADE_METRICS] compute_closed_trade_metrics() not yet fully implemented. "
-            "Closed trade analysis (win rate, R-multiples, profit factor) is required for "
-            "algorithmic performance evaluation and risk analysis. This placeholder must be "
-            "implemented before production use."
+        raise RuntimeError(
+            "[CLOSED_TRADE_METRICS] CRITICAL: compute_closed_trade_metrics() is not implemented. "
+            "Closed trade analysis (win rate, R-multiples, profit factor) is REQUIRED for "
+            "algorithmic performance evaluation and risk analysis. Cannot assess edge without actual closed trade metrics. "
+            "Implement metrics that compute: (1) win rate (winning trades / total trades), "
+            "(2) profit factor (gross profit / gross loss), "
+            "(3) average R-multiple (avg trade profit / initial risk), "
+            "(4) best and worst trade, (5) consecutive win/loss streaks."
         )
 
     def check_partial_fills(self, cur: Any) -> dict[str, Any]:

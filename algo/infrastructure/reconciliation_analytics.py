@@ -29,12 +29,15 @@ class ReconciliationAnalytics:
         Returns dict with daily performance analytics.
 
         Raises:
-            NotImplementedError: Method not yet implemented
+            RuntimeError: Method not implemented
         """
-        raise NotImplementedError(
-            "[ANALYTICS_METRICS] compute_analytics_metrics() not implemented. "
-            "Daily analytics computation is required for performance dashboard. "
-            "This method returns fake 0.0 values - implement the full calculation."
+        raise RuntimeError(
+            "[ANALYTICS_METRICS] CRITICAL: compute_analytics_metrics() is not implemented. "
+            "Daily analytics computation is REQUIRED for performance dashboard and risk monitoring. "
+            "Cannot display performance metrics without actual calculation. "
+            "Implement metrics that compute: (1) daily equity curve, "
+            "(2) daily returns percentage, (3) Sharpe ratio, (4) max drawdown, "
+            "(5) win rate, (6) profit factor, (7) other risk-adjusted returns."
         )
 
     def compute_closed_trade_metrics(self, cur: Any) -> dict[str, Any]:
@@ -43,12 +46,15 @@ class ReconciliationAnalytics:
         Returns dict with cumulative trade performance metrics.
 
         Raises:
-            NotImplementedError: Method not yet implemented
+            RuntimeError: Method not implemented
         """
-        raise NotImplementedError(
-            "[CLOSED_TRADE_METRICS] compute_closed_trade_metrics() not implemented. "
-            "Trade performance metrics computation is required for risk analysis. "
-            "This method returns fake values (0 trades, 1.0 profit factor) - implement the full calculation."
+        raise RuntimeError(
+            "[CLOSED_TRADE_METRICS] CRITICAL: compute_closed_trade_metrics() is not implemented. "
+            "Trade performance metrics computation is REQUIRED for risk analysis and strategy validation. "
+            "Cannot assess strategy performance without actual closed trade metrics. "
+            "Implement metrics that compute: (1) win rate (wins/total), "
+            "(2) profit factor (gross_profit/gross_loss), (3) average R-multiple, "
+            "(4) best trade, (5) worst trade, (6) largest winning/losing streak."
         )
 
     def compute_trade_streak(self, cur: Any) -> int:
@@ -57,10 +63,14 @@ class ReconciliationAnalytics:
         Returns positive number for win streak, negative for loss streak.
 
         Raises:
-            NotImplementedError: Method not yet implemented
+            RuntimeError: Method not implemented
         """
-        raise NotImplementedError(
-            "[TRADE_STREAK] compute_trade_streak() not implemented. "
-            "Win/loss streak tracking is required for performance analysis. "
-            "This method returns fake 0 value - implement the full calculation."
+        raise RuntimeError(
+            "[TRADE_STREAK] CRITICAL: compute_trade_streak() is not implemented. "
+            "Win/loss streak tracking is REQUIRED for performance analysis and psychological edge assessment. "
+            "Cannot evaluate current momentum without actual streak calculation. "
+            "Implement streak calculation that: (1) queries most recent closed trades ordered by date, "
+            "(2) counts consecutive wins (positive) or losses (negative), "
+            "(3) breaks streak on change of direction, "
+            "(4) returns net streak count (positive for wins, negative for losses)."
         )

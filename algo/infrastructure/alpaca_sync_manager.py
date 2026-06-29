@@ -67,9 +67,8 @@ class AlpacaSyncManager:
     def sync_alpaca_positions(self, cur: Any) -> dict[str, Any]:
         """Sync Alpaca positions to database.
 
-        CRITICAL: This method is currently a placeholder that does NOT sync positions.
-        Position sync is not implemented - attempting to call this will raise an error.
-        This is intentional to prevent accidental use of incomplete code.
+        CRITICAL: This method is currently not implemented.
+        Position sync logic must be implemented before production use.
 
         For production (live trading): Implement actual sync logic to update DB with:
         - New positions imported from Alpaca
@@ -77,13 +76,15 @@ class AlpacaSyncManager:
         - Imported position status updates
 
         Raises:
-            NotImplementedError: Position sync logic is not implemented yet
+            RuntimeError: Position sync logic is not implemented
         """
-        raise NotImplementedError(
-            "[POSITION_SYNC] sync_alpaca_positions() is not implemented. "
-            "Position sync logic must be implemented before production use. "
-            "This method was a placeholder that silently returned mock data - "
-            "calling it now raises an error to prevent accidental use of incomplete code."
+        raise RuntimeError(
+            "[POSITION_SYNC] CRITICAL: sync_alpaca_positions() is not implemented. "
+            "Position synchronization between Alpaca and database is REQUIRED for production trading. "
+            "Cannot proceed without actual sync implementation. "
+            "Implement sync logic that: (1) fetches positions from Alpaca, "
+            "(2) imports new positions to database, "
+            "(3) marks closed positions as imported."
         )
 
     def process_failed_imports(self, cur: Any, alpaca_positions: list[Any]) -> dict[str, Any]:
@@ -106,7 +107,10 @@ class AlpacaSyncManager:
             )
 
         raise RuntimeError(
-            "[ALPACA_SYNC] Position failure recovery not yet fully implemented. "
-            f"Found {len(alpaca_positions)} positions in Alpaca but recovery logic is incomplete. "
-            "This is a placeholder. Implement actual failure recovery logic before production use."
+            "[ALPACA_SYNC] CRITICAL: Position failure recovery not implemented. "
+            f"Found {len(alpaca_positions)} positions in Alpaca but recovery logic is NOT implemented. "
+            "Cannot proceed with daily reconciliation without failure recovery mechanism. "
+            "Implement recovery logic that handles: (1) orphaned positions (in Alpaca but not DB), "
+            "(2) mismatch resolution (quantity/price discrepancies), "
+            "(3) state synchronization (pending orders, filled orders)."
         )

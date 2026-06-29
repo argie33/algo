@@ -241,10 +241,12 @@ router.get("/summary", async (req, res) => {
     validateQueryResult(result, { minRows: 1, maxRows: 1 });
 
     // Validate and coerce row types
+    // CRITICAL: Audit counters must come from database, not defaults
+    // Returning defaultValue: 0 masks data unavailability
     const validated = validateAndCoerceRows(result, {
-      trade_actions: { type: "int", required: false, defaultValue: 0 },
-      config_changes: { type: "int", required: false, defaultValue: 0 },
-      safeguard_activations: { type: "int", required: false, defaultValue: 0 },
+      trade_actions: { type: "int", required: true },
+      config_changes: { type: "int", required: true },
+      safeguard_activations: { type: "int", required: true },
       last_trade_action: { type: "date", required: false },
       last_config_change: { type: "date", required: false },
       last_safeguard: { type: "date", required: false },

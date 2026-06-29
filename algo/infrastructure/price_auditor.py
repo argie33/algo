@@ -36,12 +36,16 @@ class PriceAuditor:
         - details: per-symbol stale status
 
         Raises:
-            NotImplementedError: Method not yet implemented
+            RuntimeError: Method not implemented
         """
-        raise NotImplementedError(
-            "[PRICE_AUDIT] audit_stale_estimated_prices() not implemented. "
-            "Price freshness validation is required for position reconciliation. "
-            "This method returns fake empty data (stale_count=0) - implement the full audit."
+        raise RuntimeError(
+            "[PRICE_AUDIT] CRITICAL: audit_stale_estimated_prices() is not implemented. "
+            "Price freshness validation is REQUIRED for position reconciliation — "
+            "stale prices can cause incorrect position sizing and risk miscalculation. "
+            "Cannot proceed with reconciliation without price freshness validation. "
+            "Implement audit that: (1) queries estimated prices for open positions, "
+            "(2) compares update timestamp to current time, "
+            "(3) identifies positions with stale prices (>2 hours old)."
         )
 
     def validate_price_freshness(self, price_timestamp: datetime) -> bool:
