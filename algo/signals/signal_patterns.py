@@ -243,6 +243,23 @@ class SignalPatternsMixin:
             lows = [float(r[2]) for r in rows]
             closes = [float(r[3]) for r in rows]
 
+            # CRITICAL: Validate all required pattern fields are present
+            required_fields = {
+                "base_depth_pct": "base depth percentage",
+                "weeks_in_base": "weeks in base duration",
+                "pivot_high": "pivot high price",
+                "breakout_imminent": "breakout imminent flag",
+                "volume_dryup": "volume dry-up indicator"
+            }
+            missing_fields = [field for field in required_fields if field not in base_info or base_info[field] is None]
+            if missing_fields:
+                raise RuntimeError(
+                    f"[SIGNAL_PATTERNS] Base pattern data incomplete for {symbol}: "
+                    f"missing or None fields: {[required_fields[f] for f in missing_fields]}. "
+                    f"Cannot generate pattern signals without complete base pattern analysis. "
+                    f"Verify load_base_patterns has run and all technical indicators are available."
+                )
+
             depth = base_info["base_depth_pct"]
             duration = base_info["weeks_in_base"]
 

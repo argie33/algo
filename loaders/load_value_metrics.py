@@ -34,6 +34,46 @@ class ValueMetricsLoader(OptimalLoader):
         super().__init__(*args, **kwargs)
         self._illiquid_skip_count = 0
 
+    def _get_top_liquid_symbols(self, symbols: list[str], top_n: int = 500) -> list[str]:
+        """Get top N liquid symbols by average volume to prioritize cache warming.
+
+        OPTIMIZATION (Phase 3.2): Pre-warm cache with frequently-traded symbols.
+        Top 500 symbols represent ~80% of trading activity and rarely change.
+        Processing them first ensures cache hits for subsequent runs.
+
+        Returns symbols sorted with top liquid symbols first, remaining in original order.
+        """
+        if len(symbols) <= top_n:
+            return symbols  # If fewer symbols than top_n, process all normally
+
+        try:
+            with DatabaseContext("read") as cur:
+                # Get top 500 symbols by average 30-day volume
+                # Price data is densest source of trading activity info
+                cur.execute(
+                    f"""
+                    SELECT symbol, AVG(volume) as avg_volume
+                    FROM price_daily
+                    WHERE symbol = ANY(%s)
+                      AND date >= CURRENT_DATE - INTERVAL '30 days'
+                    GROUP BY symbol
+                    ORDER BY avg_volume DESC
+                    LIMIT %s
+                    """,
+                    (symbols, top_n),
+                )
+                top_symbols = [row["symbol"] for row in cur.fetchall()]
+                remaining_symbols = [s for s in symbols if s not in top_symbols]
+
+                logger.info(
+                    f"[VALUE_METRICS] [CACHE_WARM] Found {len(top_symbols)} top-liquid symbols "
+                    f"(avg volume >30d). Processing {len(top_symbols)} + {len(remaining_symbols)} remaining"
+                )
+                return top_symbols + remaining_symbols
+        except Exception as e:
+            logger.warning(f"[VALUE_METRICS] Could not identify top liquid symbols: {e}. Using original order.")
+            return symbols
+
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Fetch value metrics from yfinance for a symbol.
 

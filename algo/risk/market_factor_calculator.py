@@ -235,8 +235,32 @@ class MarketFactorCalculator:
 
         Raises RuntimeError if data unavailable — selling pressure is required for veto 3.
         Selling pressure is a 10pt factor and missing volume/price data is a data error, not a skip.
+        Must be TODAY's data for current market assessment.
         """
         try:
+            # First verify we have TODAY's SPY price data
+            cur.execute(
+                "SELECT date, close FROM price_daily WHERE symbol = 'SPY' AND date <= %s ORDER BY date DESC LIMIT 1",
+                (eval_date,),
+            )
+            price_row = cur.fetchone()
+            if not price_row:
+                raise RuntimeError(
+                    "[SELLING_PRESSURE CRITICAL] SPY price data not available. "
+                    "Check: (1) price_daily has SPY records, (2) loader has run today"
+                )
+
+            most_recent_date = price_row[0]
+            age = eval_date - most_recent_date if hasattr(eval_date, '__sub__') else 0
+            if age and age.days > 0:
+                raise RuntimeError(
+                    f"[SELLING_PRESSURE CRITICAL] SPY price data is stale: from {most_recent_date}, "
+                    f"but eval_date is {eval_date} ({age.days} days old). "
+                    f"Distribution day detection requires TODAY's market data (prices, volumes). "
+                    f"Cannot use yesterday's selling pressure for today's risk assessment."
+                )
+
+            # Now calculate distribution days from last 25 sessions
             cur.execute(
                 """
                 WITH d AS (
