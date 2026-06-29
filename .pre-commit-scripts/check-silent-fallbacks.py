@@ -22,7 +22,6 @@ CRITICAL: Loaders must either:
 Files checked: loaders/*.py, lambda/api/routes/*.py, dashboard/**/*.py
 """
 
-import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -91,9 +90,6 @@ def check_file_for_fallbacks(filepath: Path) -> list[dict[str, Any]]:
 
     lines = content.splitlines()
 
-    # Track if we're in a function/context that might allow empty returns
-    in_optional_getter = False
-
     for line_num, line in enumerate(lines, 1):
         stripped = line.strip()
 
@@ -103,7 +99,6 @@ def check_file_for_fallbacks(filepath: Path) -> list[dict[str, Any]]:
 
         # Skip lines with data_unavailable (these are OK patterns)
         if "data_unavailable" in line:
-            in_optional_getter = True
             continue
 
         # VIOLATION: return [] without data_unavailable marker
