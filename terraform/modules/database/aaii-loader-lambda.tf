@@ -100,8 +100,3 @@ resource "null_resource" "invoke_aaii_loader" {
 
   depends_on = [aws_lambda_function.aaii_loader]
 }
-
-output "aaii_loader_function_name" {
-  value       = aws_lambda_function.aaii_loader.function_name
-  description = "AAII Sentiment Loader Lambda function name"
-}
