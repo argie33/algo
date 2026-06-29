@@ -944,6 +944,35 @@ class MarketHealthDailyLoader(OptimalLoader):
                 logger.info("[MARKET_HEALTH] No dates with VIX coverage — all metrics deferred to next run")
                 return []
 
+            # Filter to only dates where VIX actually exists in price_daily.
+            # The cap above removes dates AFTER the latest VIX row, but VIX coverage may be
+            # sparse within the range (e.g., only recent months loaded due to rate limiting).
+            # Filtering here prevents _merge_vix_data() from failing on historical gaps —
+            # we compute market_health_daily for the dates we DO have VIX, rather than failing
+            # for all dates because some historical dates are missing.
+            vix_range_start = date.fromisoformat(health_metrics[0]["date"]) if health_metrics else start
+            try:
+                with DatabaseContext("read") as cur:
+                    cur.execute(
+                        "SELECT date FROM price_daily WHERE symbol = '^VIX' AND date >= %s AND date <= %s",
+                        (vix_range_start, max_vix_date),
+                    )
+                    vix_dates: set[str] = {row[0].isoformat() for row in cur.fetchall()}
+                if vix_dates:
+                    before_sparse = len(health_metrics)
+                    health_metrics = [m for m in health_metrics if m["date"] in vix_dates]
+                    skipped = before_sparse - len(health_metrics)
+                    if skipped > 0:
+                        logger.info(
+                            f"[MARKET_HEALTH] Filtered to VIX-covered dates: {before_sparse} -> "
+                            f"{len(health_metrics)} (skipped {skipped} historical dates without VIX)"
+                        )
+                    if not health_metrics:
+                        logger.info("[MARKET_HEALTH] No VIX-covered dates remain — deferring to next run")
+                        return []
+            except Exception as e:
+                logger.warning(f"[MARKET_HEALTH] Could not pre-filter by VIX dates: {e} — proceeding")
+
         # Derive the actual date range for external data fetches (only covers retained dates)
         merge_start = date.fromisoformat(health_metrics[0]["date"]) if health_metrics else start
         merge_end = date.fromisoformat(health_metrics[-1]["date"]) if health_metrics else end
