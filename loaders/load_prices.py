@@ -848,10 +848,10 @@ class PriceLoader(OptimalLoader):
         """Fetch OHLCV from yfinance at specified interval."""
         return self.fetcher.fetch_incremental(symbol, since, is_eod_pipeline=self._is_eod_pipeline)
 
-    def fetch_batch_incremental(self, symbols: list[str], since: date | None) -> dict[str, Any] | None:
+    def fetch_batch_incremental(self, symbols: list[str], since: date | None) -> dict[str, Any]:
         """Fetch OHLCV for multiple symbols at once (50x faster than per-symbol).
 
-        Returns: dict[symbol] -> rows or None
+        Returns: dict[symbol] -> rows. Never returns None; raises RuntimeError if fetch fails.
         """
         return self.fetcher.fetch_batch_incremental(symbols, since, is_eod_pipeline=self._is_eod_pipeline)
 
