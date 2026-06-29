@@ -440,7 +440,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
           loader_name        = "swing_trader_scores"
           "error.$"          = "$.loaderError.Error"
           "error_message.$"  = "$.loaderError.Cause"
-          is_critical_loader = true
+          is_critical_loader = false
         }
         ResultPath = "$.failureLog"
         Retry = [{
@@ -451,17 +451,10 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         }]
         Catch = [{
           ErrorEquals = ["States.ALL"]
-          Next        = "SwingScoresFailureHalt"
+          Next        = "TechnicalDataDaily"
           ResultPath  = "$.handlerError"
         }]
-        Next = "SwingScoresFailureHalt"
-      }
-
-      # Fail-closed terminal state: pipeline halts when swing_trader_scores fails
-      SwingScoresFailureHalt = {
-        Type  = "Fail"
-        Error = "CRITICAL_LOADER_FAILURE"
-        Cause = "swing_trader_scores failed after retries. Pipeline halted because signals cannot be generated without trader scores. Check CloudWatch logs for details."
+        Next = "TechnicalDataDaily"
       }
 
       # ── Step 8b: Technical Data Daily (depends on prices) ──────────────
