@@ -8,7 +8,7 @@ import time
 from datetime import date as _date
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 import psycopg2
 

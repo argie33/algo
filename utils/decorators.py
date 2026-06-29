@@ -231,8 +231,8 @@ def timeout_handler(
 
             # Set timeout signal (Unix only)
             try:
-                signal.signal(signal.SIGALRM, timeout_signal_handler)
-                signal.alarm(timeout_sec)
+                signal.signal(signal.SIGALRM, timeout_signal_handler)  # type: ignore[attr-defined]
+                signal.alarm(timeout_sec)  # type: ignore[attr-defined]
             except (AttributeError, ValueError):
                 # Windows or already set
                 pass
@@ -247,7 +247,7 @@ def timeout_handler(
                 return make_error_response(e, operation_name, context)
             finally:
                 try:
-                    signal.alarm(0)
+                    signal.alarm(0)  # type: ignore[attr-defined]
                 except (AttributeError, ValueError):
                     pass
 

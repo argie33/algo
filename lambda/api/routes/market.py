@@ -1377,19 +1377,21 @@ def _get_cap_distribution(cur: cursor) -> Any:
     )
 
 
-INDEX_SYMBOLS = ["^GSPC", "^IXIC", "^NYA", "^RUT"]
-INDEX_NAMES = {
-    "^GSPC": "S&P 500",
-    "^IXIC": "Nasdaq Composite",
-    "^NYA": "NYSE Composite",
-    "^DJI": "Dow Jones",
-    "^RUT": "Russell 2000",
-}
+def _get_index_symbols() -> list[str]:
+    """Get market index symbols from configuration."""
+    from utils.market_symbols_config import MarketSymbolsConfig
+    return MarketSymbolsConfig.get_index_symbols()
+
+
+def _get_index_names() -> dict[str, str]:
+    """Get index symbol names from configuration."""
+    from utils.market_symbols_config import MarketSymbolsConfig
+    return MarketSymbolsConfig.get_index_names()
 
 
 @db_route_handler("get market indices")
 def _get_markets(cur: cursor) -> Any:
-
+    index_symbols = _get_index_symbols()
     cur.execute(
         """
         WITH latest_date AS (
@@ -1420,7 +1422,7 @@ def _get_markets(cur: cursor) -> Any:
         LEFT JOIN yesterday y ON t.symbol = y.symbol
         ORDER BY t.symbol
     """,
-        (INDEX_SYMBOLS, INDEX_SYMBOLS, INDEX_SYMBOLS, INDEX_SYMBOLS),
+        (index_symbols, index_symbols, index_symbols, index_symbols),
     )
     latest = cur.fetchall()
 
@@ -1432,7 +1434,7 @@ def _get_markets(cur: cursor) -> Any:
               AND date >= CURRENT_DATE - INTERVAL '90 days'
         ORDER BY symbol, date DESC
     """,
-        (INDEX_SYMBOLS,),
+        (index_symbols,),
     )
     history_rows = cur.fetchall()
 
@@ -1501,10 +1503,11 @@ def _get_markets(cur: cursor) -> Any:
             if data_age > 1:
                 stale_alerts.append(f"{row['symbol']} {data_age}d old")
 
+        index_names = _get_index_names()
         indices.append(
             {
                 "symbol": row["symbol"],
-                "name": INDEX_NAMES.get(row["symbol"], row["symbol"]),
+                "name": index_names.get(row["symbol"], row["symbol"]),
                 "date": str(row["date"]),
                 "price": round(price, 2),
                 "change": round(change, 2),

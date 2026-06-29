@@ -10,7 +10,7 @@ This module consolidates repeated patterns across the trading system:
 
 import logging
 from decimal import Decimal, InvalidOperation
-from typing import Any, Literal, cast, overload
+from typing import Any, Literal, overload
 
 logger = logging.getLogger(__name__)
 
