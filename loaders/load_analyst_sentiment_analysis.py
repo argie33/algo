@@ -57,6 +57,14 @@ class AnalystSentimentLoader(OptimalLoader):
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]] | None:
         """Fetch analyst recommendations from yfinance and aggregate into sentiment.
 
+        DATA CONTRACT:
+            - All records include: symbol, date, analyst_count, bullish_count, bearish_count, neutral_count
+            - All records include: target_price, current_price, upside_downside_percent (may be None—yfinance doesn't provide)
+            - All records include: data_unavailable (boolean, default False)
+            - When data_unavailable=True, reason field explains why (e.g., "No coverage", "API error")
+            - Target/current price fields intentionally NULL when no yfinance provider data available
+
+        Returns list of records with data_unavailable flags set appropriately.
         Returns None if analyst coverage is legitimately unavailable (common for smaller caps, international stocks).
 
         Raises:
@@ -87,6 +95,14 @@ class AnalystSentimentLoader(OptimalLoader):
             logger.debug(f"[ANALYST_SENTIMENT] No ticker available for {symbol} — likely no analyst coverage")
             return [{
                 "symbol": symbol,
+                "date": date.today(),
+                "analyst_count": None,
+                "bullish_count": None,
+                "bearish_count": None,
+                "neutral_count": None,
+                "target_price": None,
+                "current_price": None,
+                "upside_downside_percent": None,
                 "data_unavailable": True,
                 "reason": "No ticker available from yfinance (no analyst coverage or API issue)",
                 "created_at": datetime.now().isoformat(),
@@ -105,6 +121,14 @@ class AnalystSentimentLoader(OptimalLoader):
             logger.debug(f"[ANALYST_SENTIMENT] No analyst recommendations for {symbol} — no coverage available")
             return [{
                 "symbol": symbol,
+                "date": date.today(),
+                "analyst_count": None,
+                "bullish_count": None,
+                "bearish_count": None,
+                "neutral_count": None,
+                "target_price": None,
+                "current_price": None,
+                "upside_downside_percent": None,
                 "data_unavailable": True,
                 "reason": "No analyst recommendations available (no coverage)",
                 "created_at": datetime.now().isoformat(),
@@ -166,9 +190,10 @@ class AnalystSentimentLoader(OptimalLoader):
                     "bullish_count": bullish_count,
                     "bearish_count": bearish_count,
                     "neutral_count": neutral_count,
-                    "target_price": None,
-                    "current_price": None,
-                    "upside_downside_percent": None,
+                    "target_price": None,  # yfinance aggregated format does not provide target price
+                    "current_price": None,  # yfinance aggregated format does not provide current price
+                    "upside_downside_percent": None,  # yfinance aggregated format does not provide upside/downside
+                    "data_unavailable": False,
                 })
 
             if results:
@@ -178,6 +203,14 @@ class AnalystSentimentLoader(OptimalLoader):
                 logger.debug(f"[ANALYST_SENTIMENT] No sentiment data for {symbol}")
                 return [{
                     "symbol": symbol,
+                    "date": date.today(),
+                    "analyst_count": None,
+                    "bullish_count": None,
+                    "bearish_count": None,
+                    "neutral_count": None,
+                    "target_price": None,
+                    "current_price": None,
+                    "upside_downside_percent": None,
                     "data_unavailable": True,
                     "reason": "No analyst sentiment records extracted from yfinance",
                     "created_at": datetime.now().isoformat(),
@@ -221,9 +254,10 @@ class AnalystSentimentLoader(OptimalLoader):
                     "bullish_count": counts["bullish"],
                     "bearish_count": counts["bearish"],
                     "neutral_count": counts["neutral"],
-                    "target_price": None,
-                    "current_price": None,
-                    "upside_downside_percent": None,
+                    "target_price": None,  # yfinance detailed format does not provide target price
+                    "current_price": None,  # yfinance detailed format does not provide current price
+                    "upside_downside_percent": None,  # yfinance detailed format does not provide upside/downside
+                    "data_unavailable": False,
                 }
                 for rec_date, counts in sentiment_by_date.items()
             ]
@@ -234,6 +268,14 @@ class AnalystSentimentLoader(OptimalLoader):
                 logger.debug(f"[ANALYST_SENTIMENT] No sentiment data aggregated for {symbol}")
                 return [{
                     "symbol": symbol,
+                    "date": date.today(),
+                    "analyst_count": None,
+                    "bullish_count": None,
+                    "bearish_count": None,
+                    "neutral_count": None,
+                    "target_price": None,
+                    "current_price": None,
+                    "upside_downside_percent": None,
                     "data_unavailable": True,
                     "reason": "No analyst sentiment records aggregated from yfinance",
                     "created_at": datetime.now().isoformat(),
@@ -247,6 +289,14 @@ class AnalystSentimentLoader(OptimalLoader):
             )
             return [{
                 "symbol": symbol,
+                "date": date.today(),
+                "analyst_count": None,
+                "bullish_count": None,
+                "bearish_count": None,
+                "neutral_count": None,
+                "target_price": None,
+                "current_price": None,
+                "upside_downside_percent": None,
                 "data_unavailable": True,
                 "reason": f"yfinance response format unknown. Got columns: {list(recs.columns)}",
                 "created_at": datetime.now().isoformat(),

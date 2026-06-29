@@ -97,7 +97,14 @@ def _resolve_period(cli_arg: str | None) -> str:
 
 
 class BalanceSheetLoader(OptimalLoader):
+    """SEC EDGAR balance sheet loader for real stocks only (not ETFs/bonds).
+
+    Financial data from SEC EDGAR is only available for companies that file with the SEC.
+    ETFs, bonds, and other securities don't have balance sheets, so we exclude them.
+    """
+
     watermark_field = "fiscal_year"
+    exclude_etfs_from_symbols = True
 
     def __init__(self, period: str | None = None):
         period = _resolve_period(period)
@@ -175,36 +182,93 @@ class BalanceSheetLoader(OptimalLoader):
                 if db_field in self._schema_cols:
                     row[db_field] = value
             if "fiscal_quarter" in row and isinstance(row["fiscal_quarter"], str):
-                row["fiscal_quarter"] = {"Q1": 1, "Q2": 2, "Q3": 3, "Q4": 4}.get(row["fiscal_quarter"])
+                quarter_str = row["fiscal_quarter"]
+                quarter_map = {"Q1": 1, "Q2": 2, "Q3": 3, "Q4": 4}
+                quarter_num = quarter_map.get(quarter_str)
+                if quarter_num is None:
+                    logger.error(
+                        f"[{self.table_name}] Invalid fiscal_quarter format. "
+                        f"Expected Q1-Q4, found '{quarter_str}'. Skipping row."
+                    )
+                    continue  # Skip this row instead of silently setting None
+                row["fiscal_quarter"] = quarter_num
             transformed.append(row)
 
         seen = {}
         for row in transformed:
             key: tuple[Any, ...]
-            if self.period == "annual":
-                key = (row.get("symbol"), row.get("fiscal_year"))
-            else:
-                key = (
-                    row.get("symbol"),
-                    row.get("fiscal_year"),
-                    row.get("fiscal_quarter"),
+            symbol = row.get("symbol")
+            fiscal_year = row.get("fiscal_year")
+
+            if not symbol:
+                logger.warning(
+                    f"[{self.table_name}] Row missing required 'symbol' field. Row data: {row}. Skipping."
                 )
+                continue
+            if fiscal_year is None:
+                logger.warning(
+                    f"[{self.table_name}] Row missing required 'fiscal_year' field for symbol '{symbol}'. "
+                    f"Row data: {row}. Skipping."
+                )
+                continue
+
+            if self.period == "annual":
+                key = (symbol, fiscal_year)
+            else:
+                fiscal_quarter = row.get("fiscal_quarter")
+                if fiscal_quarter is None:
+                    logger.warning(
+                        f"[{self.table_name}] Row missing required 'fiscal_quarter' field for symbol '{symbol}' "
+                        f"fiscal_year {fiscal_year}. Row data: {row}. Skipping."
+                    )
+                    continue
+                key = (symbol, fiscal_year, fiscal_quarter)
+
             if key not in seen:
                 seen[key] = row
+
+        if not seen:
+            logger.warning(
+                f"[{self.table_name}] No valid transformed rows after deduplication. "
+                f"All rows were filtered due to missing required fields or validation failures."
+            )
+
         return list(seen.values())
 
     def _validate_row(self, row: dict[str, Any]) -> bool:
         if not super()._validate_row(row):
+            symbol = row.get("symbol", "UNKNOWN")
+            logger.warning(
+                f"[{self.table_name}] Row failed parent validation (missing primary key fields) for symbol '{symbol}'. "
+                f"Row: {row}."
+            )
             return False
         fy = row.get("fiscal_year")
         if not (fy and 1990 < fy < 2100):
+            symbol = row.get("symbol", "UNKNOWN")
+            logger.warning(
+                f"[{self.table_name}] Row has invalid or missing fiscal_year for symbol '{symbol}'. "
+                f"Expected 4-digit year between 1990 and 2100, got: {fy}."
+            )
             return False
         if self.period == "quarterly" and row.get("fiscal_quarter") is None:
+            symbol = row.get("symbol", "UNKNOWN")
+            logger.warning(
+                f"[{self.table_name}] Quarterly balance sheet row missing required 'fiscal_quarter' "
+                f"for symbol '{symbol}' fiscal_year {fy}."
+            )
             return False
 
         # Reject rows where all key balance sheet fields are NULL
+        # (indicates API failure or incomplete data from SEC EDGAR)
         balance_fields = ["total_assets", "current_assets", "total_liabilities"]
         if all(row.get(field) is None for field in balance_fields):
+            symbol = row.get("symbol", "UNKNOWN")
+            logger.error(
+                f"[{self.table_name}] Row has all critical balance sheet fields NULL for symbol '{symbol}' "
+                f"fiscal_year {fy}. This indicates incomplete data from SEC EDGAR. "
+                f"Row: {row}. Rejecting row — cannot trust incomplete financial data."
+            )
             return False
 
         return True
