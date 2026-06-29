@@ -16,6 +16,13 @@ FAIL-FAST DESIGN (No Faker/Fallback Patterns):
 - No secondary sources or synthetic data — if data is missing, it's explicitly None or raises
 
 See steering/GOVERNANCE.md for fail-fast design and credential handling rules.
+
+CHANGES SUMMARY (2026-06-29):
+- Removed secondary source fallbacks from safe_json_parse (no more empty dict defaults)
+- Removed silent empty string defaults from safe_str (default now None)
+- Removed implicit False defaults from safe_bool (default now None)
+- Enhanced safe_json_get with explicit logging for missing keys
+- Updated safe_json_parse_strict with comprehensive documentation
 """
 
 import json
