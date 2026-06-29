@@ -182,36 +182,50 @@ def check_and_retry_incomplete_loaders(dry_run: bool = False) -> dict[str, Any]:
                         results["still_failing"].append(table_name)
                         continue
 
-                    # Trigger retry
-                    retry_result = retry_loader(table_name, symbols_missing, is_crit)
+                    # Trigger retry — may raise RuntimeError or TimeoutError on failure
+                    try:
+                        retry_result = retry_loader(table_name, symbols_missing, is_crit)
 
-                    if retry_result["retried"]:
-                        results["retried"].append(table_name)
+                        if retry_result["retried"]:
+                            results["retried"].append(table_name)
 
-                        if retry_result["recovered"]:
-                            results["recovered"].append(table_name)
-                            final_pct = retry_result.get("final_completion_pct")
-                            pct_str = f"{final_pct:.1f}%" if final_pct is not None else "unknown"
-                            logger.info(f"[PHASE 1 FAILSAFE] Loader recovered: {table_name} -> {pct_str}")
-                        else:
-                            results["still_failing"].append(table_name)
-                            final_pct = retry_result.get("final_completion_pct")
-                            pct_str = f"{final_pct:.1f}%" if final_pct is not None else "unknown"
-                            status_reason = retry_result.get("status_reason", "unknown")
-
-                            if status_reason == "timeout":
-                                reason_msg = "timeout (loader still running after 15 minutes)"
-                            elif status_reason == "failed":
-                                reason_msg = f"failed (completed with {pct_str} completion)"
+                            if retry_result["recovered"]:
+                                results["recovered"].append(table_name)
+                                final_pct = retry_result.get("final_completion_pct")
+                                pct_str = f"{final_pct:.1f}%" if final_pct is not None else "unknown"
+                                logger.info(f"[PHASE 1 FAILSAFE] Loader recovered: {table_name} -> {pct_str}")
                             else:
-                                reason_msg = f"failed ({pct_str} completion)"
+                                results["still_failing"].append(table_name)
+                                final_pct = retry_result.get("final_completion_pct")
+                                pct_str = f"{final_pct:.1f}%" if final_pct is not None else "unknown"
+                                status_reason = retry_result.get("status_reason", "unknown")
 
-                            logger.error(
-                                f"[PHASE 1 FAILSAFE] Loader still failing after retry: {table_name} — {reason_msg}"
-                            )
+                                if status_reason == "timeout":
+                                    reason_msg = "timeout (loader still running after 15 minutes)"
+                                elif status_reason == "failed":
+                                    reason_msg = f"failed (completed with {pct_str} completion)"
+                                else:
+                                    reason_msg = f"failed ({pct_str} completion)"
 
-                            if is_crit:
-                                results["halt_required"] = True
+                                logger.error(
+                                    f"[PHASE 1 FAILSAFE] Loader still failing after retry: {table_name} — {reason_msg}"
+                                )
+
+                                if is_crit:
+                                    results["halt_required"] = True
+
+                    except (RuntimeError, TimeoutError, ValueError) as e:
+                        logger.critical(
+                            f"[PHASE 1 FAILSAFE] CRITICAL: Failed to retry loader {table_name}: {e}. "
+                            "Cannot retry critical loader."
+                        )
+                        results["still_failing"].append(table_name)
+                        if is_crit:
+                            results["halt_required"] = True
+                            # Re-raise to prevent proceeding without recovery of critical loader
+                            raise RuntimeError(
+                                f"Phase 1 Failsafe: Critical loader {table_name} retry failed. Halting to prevent trading."
+                            ) from e
 
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         # Database errors indicate infrastructure problems. Must halt trading.
@@ -224,10 +238,6 @@ def check_and_retry_incomplete_loaders(dry_run: bool = False) -> dict[str, Any]:
             f"Phase 1 Failsafe: Cannot check loader status due to database error: {e}. "
             "Halting to prevent trading with potentially incomplete data."
         ) from e
-    except (OSError, RuntimeError, ValueError) as e:
-        logger.error(f"[PHASE 1 FAILSAFE] Error checking incomplete loaders: {e}", exc_info=True)
-        # Don't halt on transient OS/parse errors, just log and proceed
-        # But database errors are re-raised above
 
     return results
 
@@ -248,6 +258,10 @@ def retry_loader(loader_name: str, symbols_missing: int, is_critical: bool) -> d
             "final_completion_pct": float | None,  # None if status unknown
             "status_reason": str,   # 'success', 'timeout' (still running), or 'failed'
         }
+
+    Raises:
+        RuntimeError: If retry invocation fails
+        TimeoutError: If loader retry times out during monitoring
     """
     result: dict[str, bool | float | str | None] = {
         "retried": False,
@@ -256,27 +270,20 @@ def retry_loader(loader_name: str, symbols_missing: int, is_critical: bool) -> d
         "status_reason": "unknown",
     }
 
-    try:
-        # Wait for API throttling to reset
-        logger.info(f"[PHASE 1 FAILSAFE] Waiting {RETRY_WAIT_SECONDS}s before retry (API reset)")
-        time.sleep(RETRY_WAIT_SECONDS)
+    # Wait for API throttling to reset
+    logger.info(f"[PHASE 1 FAILSAFE] Waiting {RETRY_WAIT_SECONDS}s before retry (API reset)")
+    time.sleep(RETRY_WAIT_SECONDS)
 
-        # Trigger retry via Lambda invocation or direct call
-        logger.info(f"[PHASE 1 FAILSAFE] Triggering retry for {loader_name}")
-        result["retried"] = invoke_loader_retry(loader_name, is_critical)
+    # Trigger retry via Lambda invocation or direct call
+    logger.info(f"[PHASE 1 FAILSAFE] Triggering retry for {loader_name}")
+    result["retried"] = invoke_loader_retry(loader_name, is_critical)
 
-        if result["retried"]:
-            # Monitor loader status
-            recovered, final_pct, status_reason = monitor_loader_retry(loader_name, RETRY_MONITOR_TIMEOUT_SECONDS)
-            result["recovered"] = recovered
-            result["final_completion_pct"] = final_pct
-            result["status_reason"] = status_reason
-
-    except (RuntimeError, ValueError, TimeoutError) as e:
-        logger.error(
-            f"[PHASE 1 FAILSAFE] Error retrying loader {loader_name}: {e}",
-            exc_info=True,
-        )
+    if result["retried"]:
+        # Monitor loader status
+        recovered, final_pct, status_reason = monitor_loader_retry(loader_name, RETRY_MONITOR_TIMEOUT_SECONDS)
+        result["recovered"] = recovered
+        result["final_completion_pct"] = final_pct
+        result["status_reason"] = status_reason
 
     return result
 
@@ -322,8 +329,10 @@ def invoke_loader_retry(loader_name: str, is_critical: bool) -> bool:
         }
 
         if loader_name not in loader_modules:
-            logger.warning(f"[PHASE 1 FAILSAFE] Unknown loader: {loader_name} (cannot retry)")
-            return False
+            raise ValueError(
+                f"[PHASE 1 FAILSAFE] Unknown loader: {loader_name} — cannot retry without valid loader mapping. "
+                "Loader must be defined in loader_modules dictionary."
+            )
 
         # Dynamically import and run the loader
         module_name = loader_modules[loader_name]
@@ -363,19 +372,22 @@ def invoke_loader_retry(loader_name: str, is_critical: bool) -> bool:
                         loader_name,
                     )
                 else:
-                    logger.error(f"[PHASE 1 FAILSAFE] Could not find loader class or main() in {module_name}")
-                    return False
+                    raise ValueError(
+                        f"[PHASE 1 FAILSAFE] Could not find loader class {loader_class_name} or main() function in {module_name}. "
+                        "Loader module must have either a main() function or a Loader class with run() method."
+                    )
 
         except ImportError as e:
-            logger.error(f"[PHASE 1 FAILSAFE] Failed to import loader module {module_name}: {e}")
-            return False
+            raise ValueError(
+                f"[PHASE 1 FAILSAFE] Failed to import loader module {module_name}: {e}. "
+                "Cannot invoke retry without valid loader module."
+            ) from e
 
     except (RuntimeError, ValueError, ModuleNotFoundError) as e:
-        logger.error(
-            f"[PHASE 1 FAILSAFE] Failed to invoke retry for {loader_name}: {e}",
-            exc_info=True,
-        )
-        return False
+        raise RuntimeError(
+            f"[PHASE 1 FAILSAFE] Failed to invoke retry for {loader_name}: {e}. "
+            "Explicit error to prevent silent failure."
+        ) from e
 
 
 def _run_loader_with_timeout(loader_func: Any, loader_name: str, timeout_seconds: int = 600) -> bool:
@@ -388,6 +400,10 @@ def _run_loader_with_timeout(loader_func: Any, loader_name: str, timeout_seconds
 
     Returns:
         True if loader completed successfully
+
+    Raises:
+        TimeoutError: If loader exceeds timeout limit
+        RuntimeError: If loader execution fails
     """
     try:
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
@@ -396,13 +412,17 @@ def _run_loader_with_timeout(loader_func: Any, loader_name: str, timeout_seconds
             logger.info(f"[PHASE 1 FAILSAFE] Loader {loader_name} completed successfully: {result}")
             return True
 
-    except concurrent.futures.TimeoutError:
-        logger.error(f"[PHASE 1 FAILSAFE] Loader {loader_name} timeout after {timeout_seconds}s")
-        return False
+    except concurrent.futures.TimeoutError as e:
+        raise TimeoutError(
+            f"[PHASE 1 FAILSAFE] Loader {loader_name} timeout after {timeout_seconds}s. "
+            "Loader did not complete within allocated time."
+        ) from e
 
     except (RuntimeError, ValueError, TypeError) as e:
-        logger.error(f"[PHASE 1 FAILSAFE] Loader {loader_name} failed: {e}", exc_info=True)
-        return False
+        raise RuntimeError(
+            f"[PHASE 1 FAILSAFE] Loader {loader_name} execution failed: {e}. "
+            "Cannot retry loader with errors in execution."
+        ) from e
 
 
 def monitor_loader_retry(loader_name: str, timeout_seconds: int) -> tuple[bool, float | None, str]:
@@ -417,6 +437,9 @@ def monitor_loader_retry(loader_name: str, timeout_seconds: int) -> tuple[bool, 
         - recovered: True if loader reached >=95% completion
         - final_completion_pct: Latest completion percentage, or None if status unknown
         - status_reason: 'success', 'timeout' (still running), or 'failed' (completed low)
+
+    Raises:
+        RuntimeError: If database error occurs during monitoring
     """
     deadline = datetime.now(timezone.utc) + timedelta(seconds=timeout_seconds)
 
@@ -451,8 +474,11 @@ def monitor_loader_retry(loader_name: str, timeout_seconds: int) -> tuple[bool, 
             # Check again in 10 seconds
             time.sleep(10)
 
-        except (OSError, RuntimeError, ValueError) as e:
-            logger.debug(f"[PHASE 1 FAILSAFE] Error monitoring retry for {loader_name}: {e}")
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            raise RuntimeError(
+                f"[PHASE 1 FAILSAFE] Database error monitoring retry for {loader_name}: {e}. "
+                "Cannot determine loader status without database access."
+            ) from e
 
     # Timeout reached — loader still running, didn't complete within deadline
     logger.error(
