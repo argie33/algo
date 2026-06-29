@@ -738,16 +738,20 @@ function IndexCell({ idx, prices = [] }) {
       >
         {last != null ? fmtMoney(last) : "—"}
       </div>
-      {chgPct != null && (
-        <div
-          className={`mono tnum ${positive ? "up" : "down"}`}
-          style={{ fontSize: "var(--t-sm)", fontWeight: "var(--w-semibold)" }}
-        >
-          {chg >= 0 ? "+" : ""}
-          {num(chg)} ({chg >= 0 ? "+" : ""}
-          {num(chgPct)}%)
-        </div>
-      )}
+      <div
+        className={`mono tnum ${chgPct != null && positive ? "up" : chgPct != null && !positive ? "down" : ""}`}
+        style={{ fontSize: "var(--t-sm)", fontWeight: "var(--w-semibold)" }}
+      >
+        {chgPct != null ? (
+          <>
+            {chg >= 0 ? "+" : ""}
+            {num(chg)} ({chg >= 0 ? "+" : ""}
+            {num(chgPct)}%)
+          </>
+        ) : (
+          "—"
+        )}
+      </div>
       {series.length >= 2 && (
         <div style={{ marginTop: 8, height: 30, width: "100%", minWidth: 0 }}>
           <ResponsiveContainer width="100%" height="100%">
@@ -1513,20 +1517,26 @@ function SentimentCard({ markets, sentiment, loading, error }) {
         <div className="grid grid-4" style={{ marginTop: "var(--space-3)" }}>
           <div className="stile">
             <div className="stile-label">Bullish</div>
-            <div className="stile-value up">{num(latest.bull, 1)}%</div>
+            <div className="stile-value up"><SafeMetricValue value={latest.bull} formatter="decimal1" fallback="—" />%</div>
           </div>
           <div className="stile">
             <div className="stile-label">Bearish</div>
-            <div className="stile-value down">{num(latest.bear, 1)}%</div>
+            <div className="stile-value down"><SafeMetricValue value={latest.bear} formatter="decimal1" fallback="—" />%</div>
           </div>
           <div className="stile">
             <div className="stile-label">Spread</div>
-            <div className={`stile-value ${spread >= 0 ? "up" : "down"}`}>
-              {spread >= 0 ? "+" : ""}
-              {num(spread, 1)}
+            <div className={`stile-value ${spread != null && spread >= 0 ? "up" : spread != null && spread < 0 ? "down" : ""}`}>
+              {spread != null ? (
+                <>
+                  {spread >= 0 ? "+" : ""}
+                  <SafeMetricValue value={spread} formatter="decimal1" fallback="—" />
+                </>
+              ) : (
+                "—"
+              )}
             </div>
             <div className="stile-sub">
-              {Math.abs(spread) > 20 ? "contrarian alert" : "normal"}
+              {spread != null && Math.abs(spread) > 20 ? "contrarian alert" : "normal"}
             </div>
           </div>
           <div className="stile">
@@ -1543,9 +1553,11 @@ function SentimentCard({ markets, sentiment, loading, error }) {
             <div className="stile-sub">
               {naaim != null
                 ? "manager exposure"
-                : fearGreed > 50
+                : fearGreed != null && fearGreed > 50
                   ? "greed"
-                  : "fear"}
+                  : fearGreed != null
+                    ? "fear"
+                    : "—"}
             </div>
           </div>
         </div>
@@ -1562,33 +1574,45 @@ function VixCard({ markets }) {
   const safeCurrent = safeGetMarketCurrent(markets);
   const factors = safeCurrent ? safeGetFactors(safeCurrent) : {};
   const vix = factors.vix_regime || {};
-  const level = vix.value != null ? vix.value : 0;
+  const level = vix.value;
   const regime =
-    level < 15
-      ? "Calm"
-      : level < 20
-        ? "Normal"
-        : level < 28
-          ? "Elevated"
-          : level < 36
-            ? "High"
-            : "Extreme";
+    level != null ? (
+      level < 15
+        ? "Calm"
+        : level < 20
+          ? "Normal"
+          : level < 28
+            ? "Elevated"
+            : level < 36
+              ? "High"
+              : "Extreme"
+    ) : (
+      "—"
+    );
   const variant =
-    level < 15
-      ? "badge-success"
-      : level < 20
-        ? "badge-brand"
-        : level < 28
-          ? "badge-amber"
-          : "badge-danger";
+    level != null ? (
+      level < 15
+        ? "badge-success"
+        : level < 20
+          ? "badge-brand"
+          : level < 28
+            ? "badge-amber"
+            : "badge-danger"
+    ) : (
+      "badge-dim"
+    );
   const color =
-    level < 15
-      ? C.success
-      : level < 20
-        ? C.brand2
-        : level < 28
-          ? C.amber
-          : C.danger;
+    level != null ? (
+      level < 15
+        ? C.success
+        : level < 20
+          ? C.brand2
+          : level < 28
+            ? C.amber
+            : C.danger
+    ) : (
+      "var(--text-muted)"
+    );
 
   return (
     <div className="card">
@@ -1614,15 +1638,15 @@ function VixCard({ markets }) {
             textShadow: `0 0 32px ${color}40`,
           }}
         >
-          {num(level, 2)}
+          {level != null ? num(level, 2) : "—"}
         </div>
         <div style={{ marginTop: 12 }}>
           <span className={`badge badge-lg ${variant}`}>
-            {regime.toUpperCase()}
+            {typeof regime === "string" ? regime.toUpperCase() : regime}
           </span>
         </div>
         <div className="t-2xs faint mono" style={{ marginTop: 8 }}>
-          {vix.rising ? "RISING" : "STABLE/FALLING"}
+          {vix.rising != null ? (vix.rising ? "RISING" : "STABLE/FALLING") : "—"}
         </div>
         <div
           className="grid grid-4"
@@ -2450,8 +2474,7 @@ function SectorRotationSignalCard() {
         <div>
           <div className="card-title">Sector Rotation Signal</div>
           <div className="card-sub">
-            Defensive vs Cyclical leadership · {latest?.weeks_persistent !== null && latest?.weeks_persistent !== undefined ? latest.weeks_persistent : "—"}{" "}
-            weeks persistent
+            Defensive vs Cyclical leadership · <SafeMetricValue value={latest?.weeks_persistent} formatter="number" fallback="—" /> weeks persistent
           </div>
         </div>
         <span
@@ -2523,21 +2546,33 @@ function SectorRotationSignalCard() {
           <div className="stile">
             <div className="stile-label">Defensive Lead</div>
             <div className="stile-value mono tnum" style={{ color: C.cyan }}>
-              {num(latest?.defensive_lead_score, 1)}
+              <SafeMetricValue value={latest?.defensive_lead_score} formatter="decimal1" fallback="—" />
             </div>
             <div className="stile-sub" style={{ fontSize: "var(--t-2xs)" }}>
-              {latest?.defensive_avg_rs > 0 ? "+" : ""}
-              {num(latest?.defensive_avg_rs, 2)}% RS avg
+              {latest?.defensive_avg_rs != null ? (
+                <>
+                  {latest.defensive_avg_rs > 0 ? "+" : ""}
+                  <SafeMetricValue value={latest.defensive_avg_rs} formatter="decimal2" fallback="—" />% RS avg
+                </>
+              ) : (
+                "— RS avg"
+              )}
             </div>
           </div>
           <div className="stile">
             <div className="stile-label">Cyclical Weakness</div>
             <div className="stile-value mono tnum" style={{ color: C.success }}>
-              {num(latest?.cyclical_weak_score, 1)}
+              <SafeMetricValue value={latest?.cyclical_weak_score} formatter="decimal1" fallback="—" />
             </div>
             <div className="stile-sub" style={{ fontSize: "var(--t-2xs)" }}>
-              {latest?.cyclical_avg_rs > 0 ? "+" : ""}
-              {num(latest?.cyclical_avg_rs, 2)}% RS avg
+              {latest?.cyclical_avg_rs != null ? (
+                <>
+                  {latest.cyclical_avg_rs > 0 ? "+" : ""}
+                  <SafeMetricValue value={latest.cyclical_avg_rs} formatter="decimal2" fallback="—" />% RS avg
+                </>
+              ) : (
+                "— RS avg"
+              )}
             </div>
           </div>
           <div className="stile">
@@ -2546,10 +2581,10 @@ function SectorRotationSignalCard() {
               className="stile-value mono tnum"
               style={{ color: signalColor }}
             >
-              {num(latest?.spread, 1)}
+              <SafeMetricValue value={latest?.spread} formatter="decimal1" fallback="—" />
             </div>
             <div className="stile-sub" style={{ fontSize: "var(--t-2xs)" }}>
-              {latest?.weeks_persistent || 0} wks persistent
+              <SafeMetricValue value={latest?.weeks_persistent} formatter="number" fallback="—" /> wks persistent
             </div>
           </div>
         </div>
