@@ -99,7 +99,7 @@ def fetch_market(c: None) -> dict[str, Any]:
         # Check for API error
         is_error, error_msg = FetcherValidator.check_api_error(mkt)
         if is_error:
-            record_data_quality_issue("market", "api_call", "api_error", error_msg)
+            record_data_quality_issue("market", "api_call", "api_error", error_msg or "Unknown API error")
             return mkt
 
         # API response is unwrapped so data is at top level (statusCode + fields)
@@ -114,10 +114,7 @@ def fetch_market(c: None) -> dict[str, Any]:
         # VIX and SPY are critical - fail if missing or invalid
         try:
             vix_raw = market_health.get("vix_level")
-            # SPY close is in current object, not market_health
             spy_raw = current.get("spy_close")
-            if spy_raw is None:
-                spy_raw = mkt.get("spy_close")
 
             # Both SPY and VIX are REQUIRED for position sizing
             if vix_raw is None:
@@ -160,18 +157,20 @@ def fetch_market(c: None) -> dict[str, Any]:
             # Raise instead of returning error dict for consistency with halt_reasons validation below
             raise ValueError(error_msg)
 
-        # Optional fields: market_stage, market_trend, fed_rate_environment
-        # Log explicitly if missing to ensure visibility of incomplete market data
+        # Explicit handling for optional fields with visibility flags
         market_stage = market_health.get("market_stage")
-        if market_stage is None:
+        stage_unavailable = market_stage is None
+        if stage_unavailable:
             logger.debug("Optional market data missing: market_stage not provided by API")
 
         market_trend = market_health.get("market_trend")
-        if market_trend is None:
+        trend_unavailable = market_trend is None
+        if trend_unavailable:
             logger.debug("Optional market data missing: market_trend not provided by API")
 
         fed_env = market_health.get("fed_rate_environment")
-        if fed_env is None:
+        fed_unavailable = fed_env is None
+        if fed_unavailable:
             logger.debug("Optional market data missing: fed_rate_environment not provided by API")
 
         # CRITICAL: Circuit breaker halt reasons validation - fail fast on missing data
@@ -189,13 +188,11 @@ def fetch_market(c: None) -> dict[str, Any]:
             )
         halt_reasons = halt_reasons_raw
 
-        return {
+        result = {
             "pct": safe_float(current.get("exposure_pct"), field_name="market.exposure_pct"),
             "tier": tier,
             "halts": halt_reasons,
             "vix": vix,
-            "stage": market_stage,  # May be None if optional data missing; logged above
-            "trend": market_trend,  # May be None if optional data missing; logged above
             "dist": safe_int(current.get("distribution_days"), field_name="market.distribution_days"),
             "spy": spy,
             "spy_chg": safe_float(market_health.get("spy_change_pct"), field_name="market.spy_change_pct"),
@@ -221,8 +218,25 @@ def fetch_market(c: None) -> dict[str, Any]:
                 market_health.get("yield_curve_slope"),
                 field_name="market.yield_curve_slope",
             ),
-            "fed": fed_env,  # May be None if optional data missing; logged above
         }
+
+        # Conditionally include optional fields only if available
+        if not stage_unavailable:
+            result["stage"] = market_stage
+        else:
+            result["stage_unavailable"] = True
+
+        if not trend_unavailable:
+            result["trend"] = market_trend
+        else:
+            result["trend_unavailable"] = True
+
+        if not fed_unavailable:
+            result["fed"] = fed_env
+        else:
+            result["fed_unavailable"] = True
+
+        return result
     except Exception as e:
         error_msg = format_fetcher_error("mkt", e)
         logger.error(error_msg)
@@ -247,7 +261,7 @@ def fetch_exp_factors(c: None) -> dict[str, Any]:
         # Check for API error
         is_error, error_msg = FetcherValidator.check_api_error(data)
         if is_error:
-            record_data_quality_issue("exp_factors", "api_call", "api_error", error_msg)
+            record_data_quality_issue("exp_factors", "api_call", "api_error", error_msg or "Unknown API error")
             return FetcherValidator.build_error_response(error_msg)
 
         # Response: {statusCode, data: {current: {exposure_pct, raw_score, regime, factors}, ...}}
@@ -266,26 +280,38 @@ def fetch_exp_factors(c: None) -> dict[str, Any]:
 
         current = inner["current"]
 
-        # Validate optional fields with explicit logging
+        # Explicit handling for optional fields with visibility flags
         regime = current.get("regime")
-        if regime is None:
+        regime_unavailable = regime is None
+        if regime_unavailable:
             logger.debug("Optional exposure data missing: regime not provided by API")
 
         factors = current.get("factors")
-        if factors is None:
-            logger.debug("Optional exposure data missing: factors not provided by API")
-        elif not isinstance(factors, (list, dict)):
+        factors_unavailable = factors is None
+        if factors is not None and not isinstance(factors, (list, dict)):
             error_msg = f"Exposure factors must be list or dict, got {type(factors).__name__}"
             logger.error(error_msg)
             record_data_quality_issue("exp_factors", "validation", "invalid_factors_type", str(type(factors).__name__))
             return FetcherValidator.build_error_response(error_msg)
+        if factors_unavailable:
+            logger.debug("Optional exposure data missing: factors not provided by API")
 
-        return {
+        result: dict[str, Any] = {
             "exposure_pct": safe_float(current.get("exposure_pct"), field_name="exposure.exposure_pct"),
             "raw_score": safe_float(current.get("raw_score"), field_name="exposure.raw_score"),
-            "regime": regime,  # May be None if optional data missing; logged above
-            "factors": factors,  # May be None if optional data missing; logged above
         }
+
+        if not regime_unavailable:
+            result["regime"] = regime
+        else:
+            result["regime_unavailable"] = True
+
+        if not factors_unavailable:
+            result["factors"] = factors
+        else:
+            result["factors_unavailable"] = True
+
+        return result
     except Exception as e:
         error_msg = format_fetcher_error("exp_factors", e)
         logger.error(error_msg)
@@ -307,7 +333,7 @@ def fetch_risk_metrics(c: None) -> dict[str, Any]:
         # Check for API error
         is_error, error_msg = FetcherValidator.check_api_error(data)
         if is_error:
-            record_data_quality_issue("risk", "api_call", "api_error", error_msg)
+            record_data_quality_issue("risk", "api_call", "api_error", error_msg or "Unknown API error")
             return FetcherValidator.build_error_response(error_msg)
 
         d = data
@@ -320,19 +346,26 @@ def fetch_risk_metrics(c: None) -> dict[str, Any]:
             record_data_quality_issue("risk", "validation", "missing_required_fields", str(missing_fields))
             return FetcherValidator.build_error_response(error_msg)
 
-        # Validate optional field with explicit logging
+        # Explicit handling for optional fields with visibility flags
         report_date = d.get("report_date")
-        if report_date is None:
+        date_unavailable = report_date is None
+        if date_unavailable:
             logger.debug("Optional risk data missing: report_date not provided by API")
 
-        return {
-            "date": report_date,  # May be None if optional data missing; logged above
+        result = {
             "var95": safe_float(d["var_pct_95"]),
             "cvar95": safe_float(d["cvar_pct_95"]),
             "svar": safe_float(d.get("stressed_var_pct"), default=None),
             "beta": safe_float(d["portfolio_beta"]),
             "conc5": safe_float(d["top_5_concentration"]),
         }
+
+        if not date_unavailable:
+            result["date"] = report_date
+        else:
+            result["date_unavailable"] = True
+
+        return result
     except Exception as e:
         error_msg = format_fetcher_error("risk", e)
         logger.error(error_msg)
@@ -350,7 +383,7 @@ def fetch_sector_ranking(c: None) -> dict[str, Any]:
         # Check for API error
         is_error, error_msg = FetcherValidator.check_api_error(data)
         if is_error:
-            record_data_quality_issue("srank", "api_call", "api_error", error_msg)
+            record_data_quality_issue("srank", "api_call", "api_error", error_msg or "Unknown API error")
             return FetcherValidator.build_error_response(error_msg)
 
         raw = data
@@ -394,7 +427,7 @@ def fetch_sector_rotation(c: None) -> dict[str, Any]:
         # Check for API error
         is_error, error_msg = FetcherValidator.check_api_error(data)
         if is_error:
-            record_data_quality_issue("sec_rot", "api_call", "api_error", error_msg)
+            record_data_quality_issue("sec_rot", "api_call", "api_error", error_msg or "Unknown API error")
             return FetcherValidator.build_error_response(error_msg)
 
         raw = data
@@ -431,27 +464,53 @@ def fetch_sector_rotation(c: None) -> dict[str, Any]:
                 "Check sector rotation calculation."
             )
 
-        # Validate optional field with explicit logging
+        # Explicit handling for optional fields with visibility flags
         rotation_date = row.get("date")
-        if rotation_date is None:
+        date_unavailable = rotation_date is None
+        if date_unavailable:
             logger.debug("Optional sector rotation data missing: date not provided by API")
 
-        return {
-            "date": rotation_date,  # May be None if optional data missing; logged above
+        spread = row.get("spread")
+        spread_unavailable = spread is None
+        if spread_unavailable:
+            logger.debug("Optional sector rotation data missing: spread not provided by API")
+
+        def_score_raw = row.get("defensive_lead_score")
+        def_score_unavailable = def_score_raw is None
+        if def_score_unavailable:
+            logger.debug("Optional sector rotation data missing: defensive_lead_score not provided by API")
+
+        cyc_score_raw = row.get("cyclical_weak_score")
+        cyc_score_unavailable = cyc_score_raw is None
+        if cyc_score_unavailable:
+            logger.debug("Optional sector rotation data missing: cyclical_weak_score not provided by API")
+
+        result = {
             "signal": row["signal"],
-            "strength": safe_float(row.get("spread"), default=None, field_name="sec_rot.spread"),
             "weeks": int(weeks_raw),
-            "def_score": safe_float(
-                row.get("defensive_lead_score"),
-                default=None,
-                field_name="sec_rot.defensive_lead_score",
-            ),
-            "cyc_score": safe_float(
-                row.get("cyclical_weak_score"),
-                default=None,
-                field_name="sec_rot.cyclical_weak_score",
-            ),
         }
+
+        if not date_unavailable:
+            result["date"] = rotation_date
+        else:
+            result["date_unavailable"] = True
+
+        if not spread_unavailable:
+            result["strength"] = safe_float(spread, field_name="sec_rot.spread")
+        else:
+            result["strength_unavailable"] = True
+
+        if not def_score_unavailable:
+            result["def_score"] = safe_float(def_score_raw, field_name="sec_rot.defensive_lead_score")
+        else:
+            result["def_score_unavailable"] = True
+
+        if not cyc_score_unavailable:
+            result["cyc_score"] = safe_float(cyc_score_raw, field_name="sec_rot.cyclical_weak_score")
+        else:
+            result["cyc_score_unavailable"] = True
+
+        return result
     except Exception as e:
         error_msg = format_fetcher_error("sec_rot", e)
         logger.error(error_msg)
