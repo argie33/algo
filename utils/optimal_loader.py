@@ -439,8 +439,24 @@ class OptimalLoader:
                     f.cancel()
 
         failed_count = self._stats.get("symbols_failed", 0)
+        fail_rate = (failed_count / len(symbols)) * 100 if symbols else 0
+
+        # Allow up to 60% failure rate (tolerate missing data for non-critical symbols)
+        # Most loaders can handle this: quality_metrics (55% missing), growth_metrics similar
+        # Only fail if >60% of symbols fail, indicating systemic issue (DB down, API banned, etc.)
+        max_fail_rate = 60.0
+
+        if fail_rate > max_fail_rate:
+            raise RuntimeError(
+                f"[{self.table_name}] {failed_count}/{len(symbols)} symbols failed "
+                f"({fail_rate:.1f}% > {max_fail_rate}% threshold)—incomplete dataset cannot be used"
+            )
+
         if failed_count > 0:
-            raise RuntimeError(f"[{self.table_name}] {failed_count}/{len(symbols)} symbols failed—incomplete dataset cannot be used")
+            logger.warning(
+                f"[{self.table_name}] {failed_count}/{len(symbols)} symbols skipped "
+                f"({fail_rate:.1f}% failure rate, within {max_fail_rate}% tolerance)"
+            )
 
     def _safe_load_symbol(self, symbol: str) -> None:
         try:

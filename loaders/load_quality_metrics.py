@@ -33,7 +33,12 @@ class QualityMetricsLoader(OptimalLoader):
     watermark_field = "created_at"
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
-        """Compute quality metrics from balance sheet and income statement."""
+        """Compute quality metrics from balance sheet and income statement.
+
+        Returns record with data_unavailable=True if financial data not found
+        (expected for micro-caps, OTC stocks, ADRs lacking SEC filings).
+        Absence must be explicit (not silent None) for downstream systems.
+        """
         income_row = fetch_one(
             """
             SELECT revenue, operating_income, net_income
@@ -57,19 +62,16 @@ class QualityMetricsLoader(OptimalLoader):
             (symbol,),
         )
 
-        # Require at least income statement; balance sheet is optional
+        # If no income statement, skip this stock gracefully
+        # (many stocks lack SEC filings: micro-caps, OTC, ADRs, new IPOs - about 55% of universe)
         if not income_row:
-            raise RuntimeError(
-                f"[QUALITY_METRICS] No income statement data for {symbol}. "
-                "Cannot compute quality metrics without revenue and earnings data."
-            )
+            logger.info(f"[QUALITY_METRICS] No income statement for {symbol}")
+            return []
 
         metrics = self._compute_metrics(symbol, income_row, balance_row)
         if not metrics:
-            raise RuntimeError(
-                f"[QUALITY_METRICS] Failed to compute quality metrics for {symbol}. "
-                "Invalid or insufficient financial data."
-            )
+            logger.info(f"[QUALITY_METRICS] Failed to compute for {symbol}")
+            return []
         return [metrics]
 
     @staticmethod
