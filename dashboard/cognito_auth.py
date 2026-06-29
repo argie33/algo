@@ -59,6 +59,12 @@ class CognitoAuth:
                 AuthParameters={"USERNAME": username, "PASSWORD": password},
             )
             auth_result = response.get("AuthenticationResult")
+            if not auth_result or not isinstance(auth_result, dict):
+                raise RuntimeError(
+                    f"[COGNITO CRITICAL] initiate_auth returned invalid AuthenticationResult: "
+                    f"{type(auth_result).__name__}. Expected dict with AccessToken. "
+                    f"Cognito API response may be corrupted or service issue."
+                )
             self.access_token = auth_result.get("AccessToken")
             self.id_token = auth_result.get("IdToken")
             self.refresh_token = auth_result.get("RefreshToken")
@@ -98,6 +104,12 @@ class CognitoAuth:
                 AuthParameters={"REFRESH_TOKEN": self.refresh_token},
             )
             auth_result = response.get("AuthenticationResult")
+            if not auth_result or not isinstance(auth_result, dict):
+                raise RuntimeError(
+                    f"[COGNITO CRITICAL] Token refresh returned invalid AuthenticationResult: "
+                    f"{type(auth_result).__name__}. Expected dict with AccessToken. "
+                    f"Cognito API response may be corrupted or refresh token revoked."
+                )
             self.access_token = auth_result.get("AccessToken")
             self.id_token = auth_result.get("IdToken")
             if self.access_token:
