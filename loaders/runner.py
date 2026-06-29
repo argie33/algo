@@ -114,5 +114,12 @@ def run_loader(
                 return 1
 
             return 0
+    except Exception as e:
+        loader_name = loader_class.table_name if hasattr(loader_class, 'table_name') else loader_class.__name__
+        logger.error(
+            f"[LOADER FATAL] {loader_name} loader crashed: {type(e).__name__}: {str(e)[:500]}",
+            exc_info=True
+        )
+        return 1
     finally:
         loader.close()

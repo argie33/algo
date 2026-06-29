@@ -159,10 +159,16 @@ class PriceValidator:
             ) from e
 
     def verify_unique_constraint_exists(self, cur: Any) -> bool:
-        """Verify unique constraint on (symbol, date)."""
+        """Verify unique constraint on (symbol, date).
+
+        CRITICAL: Raises RuntimeError on database errors (fail-fast).
+        Returns False only if schema check shows constraint is actually missing.
+        Database errors are NOT the same as missing constraints.
+        """
         if not self.table_name:
-            logger.error("Table name not set for constraint verification")
-            return False
+            msg = "Table name not set for constraint verification"
+            logger.error(msg)
+            raise RuntimeError(msg)
 
         try:
             constraint_query = """
@@ -176,8 +182,12 @@ class PriceValidator:
                 logger.warning(f"[CONSTRAINT_CHECK] No unique constraint found on {self.table_name}(symbol, date)")
             return constraint_exists
         except psycopg2.Error as e:
-            logger.error(f"[CONSTRAINT_CHECK] Could not verify unique constraint: {e}")
-            return False
+            msg = (
+                f"[CONSTRAINT_CHECK] Failed to verify constraint on {self.table_name}: {e}. "
+                "Database error (not missing constraint). Check database connectivity and permissions."
+            )
+            logger.error(msg)
+            raise RuntimeError(msg) from e
 
     def validate_and_check_preconditions(
         self, cur: Any, interval: str = "1d", check_market_close: bool = False
