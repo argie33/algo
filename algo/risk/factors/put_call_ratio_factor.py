@@ -35,8 +35,8 @@ class PutCallRatioFactor(MarketFactorStrategy):
         - P/C 0.5-0.7 = 40 (complacent)
         - P/C < 0.5 = 20 (extreme greed → caution)
 
-        IMPORTANT: Put/call ratio is OPTIONAL enrichment (8pt factor).
-        Returns 50 (neutral) if data unavailable rather than raising error.
+        Put/call ratio is HIGH-priority enrichment (8pt factor).
+        Returns explicit data_unavailable marker if data missing.
         Market exposure will handle missing data via weight normalization.
         """
         try:
@@ -50,12 +50,15 @@ class PutCallRatioFactor(MarketFactorStrategy):
             )
             row = cur.fetchone()
             if not row or row[0] is None:
-                raise RuntimeError(
+                logger.warning(
                     f"[PUT_CALL_RATIO] Put/call ratio unavailable for {eval_date}. "
-                    f"Put/call ratio is CRITICAL for market sentiment analysis - reflects fear/greed extremes. "
-                    f"Cannot use neutral default score (would mask extreme market conditions). "
-                    f"Require fresh options data from load_options_chains before computing market factors."
+                    f"Market exposure will normalize weight to remaining factors."
                 )
+                return {
+                    "data_unavailable": True,
+                    "reason": "put_call_ratio_missing",
+                    "score": None,
+                }
 
             pcr = float(row[0])
 
