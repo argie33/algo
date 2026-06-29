@@ -391,17 +391,21 @@ def _build_allowed_origins() -> set:
         origins = set()
 
         # FRONTEND_URL is required in production (must be set explicitly)
-        frontend_url = os.getenv("FRONTEND_URL", "").strip()
+        frontend_url = os.getenv("FRONTEND_URL")
         if frontend_url:
-            origins.add(frontend_url)
+            frontend_url = frontend_url.strip()
+            if frontend_url:
+                origins.add(frontend_url)
 
         # Additional origins from ALLOWED_ORIGINS env var (comma-separated)
-        env_origins = os.getenv("ALLOWED_ORIGINS", "")
+        env_origins = os.getenv("ALLOWED_ORIGINS")
         if env_origins:
-            for o in env_origins.split(","):
-                o = o.strip()
-                if o:
-                    origins.add(o)
+            env_origins = env_origins.strip()
+            if env_origins:
+                for o in env_origins.split(","):
+                    o = o.strip()
+                    if o:
+                        origins.add(o)
 
         # In development ONLY, allow localhost origins (if explicitly enabled)
         # This is gated behind ALLOW_LOCALHOST_CORS=true to prevent accidental exposure

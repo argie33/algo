@@ -17,14 +17,14 @@ const requiredInProduction = {
 const _optional = {
   AWS_REGION: { default: "us-east-1" },
   WEBAPP_AWS_REGION: { default: "us-east-1" },
-  FRED_API_KEY: { default: "" },
-  APCA_API_KEY_ID: { default: "" },
-  APCA_API_SECRET_KEY: { default: "" },
-  ALPACA_API_KEY: { default: "" },
-  ALPACA_API_SECRET: { default: "" },
+  FRED_API_KEY: { default: null },
+  APCA_API_KEY_ID: { default: null },
+  APCA_API_SECRET_KEY: { default: null },
+  ALPACA_API_KEY: { default: null },
+  ALPACA_API_SECRET: { default: null },
   ALPACA_PAPER_TRADING: { default: "true" },
-  VITE_API_URL: { default: "" },
-  FRONTEND_URL: { default: "" },
+  VITE_API_URL: { default: null },
+  FRONTEND_URL: { default: null },
   NODE_ENV: { default: "development" },
   PORT: { default: 3001 },
   LOG_LEVEL: { default: "info" },
@@ -66,11 +66,11 @@ const config = {
   isDevelopment: process.env.NODE_ENV !== "production",
 
   database: {
-    host: process.env.DB_HOST || "localhost",
+    host: process.env.DB_HOST || undefined,
     port: process.env.DB_PORT ? parseInt(process.env.DB_PORT) : undefined,
-    user: process.env.DB_USER || "stocks",
+    user: process.env.DB_USER || undefined,
     password: process.env.DB_PASSWORD, // SECURITY FIX S-13: Require explicit password (no empty default)
-    database: process.env.DB_NAME || "stocks",
+    database: process.env.DB_NAME || undefined,
     secretArn: process.env.DB_SECRET_ARN,
     queryTimeout: parseInt(process.env.DB_QUERY_TIMEOUT || 30000),
     initTimeout: parseInt(process.env.DB_INIT_TIMEOUT || 30000),
@@ -90,7 +90,7 @@ const config = {
   api: {
     port: parseInt(process.env.PORT || 3001),
     requestTimeout: parseInt(process.env.API_REQUEST_TIMEOUT || 30000),
-    frontendUrl: process.env.FRONTEND_URL || process.env.VITE_API_URL,
+    frontendUrl: process.env.FRONTEND_URL || process.env.VITE_API_URL || undefined,
   },
 
   logging: {

@@ -284,8 +284,11 @@ def _add_cors_headers(response: Any) -> Any:
         response["headers"] = {}
 
     # Get allowed origins from environment (comma-separated)
-    # Default: only the CloudFront domain (set by Terraform)
-    allowed_origins_str = os.getenv("ALLOWED_ORIGINS", "").strip()
+    # Default: fetch CloudFront domain from Secrets Manager (set by Terraform)
+    allowed_origins_str = os.getenv("ALLOWED_ORIGINS")
+    if allowed_origins_str:
+        allowed_origins_str = allowed_origins_str.strip()
+
     if not allowed_origins_str:
         # Fallback: fetch CloudFront domain from Secrets Manager
         try:
@@ -296,7 +299,7 @@ def _add_cors_headers(response: Any) -> Any:
             cf_domain = None
         allowed_origins = [cf_domain] if cf_domain else []
     else:
-        allowed_origins = [o.strip() for o in allowed_origins_str.split(",")]
+        allowed_origins = [o.strip() for o in allowed_origins_str.split(",") if o.strip()]
 
     # Get request origin from event (passed via Lambda context if available)
     # For now, set generic headers. In production, check Origin header.

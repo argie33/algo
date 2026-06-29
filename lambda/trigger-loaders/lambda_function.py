@@ -152,13 +152,21 @@ class TriggerLoadersHandler(LambdaHandler):
             }
         ]
 
+        subnet_ids = os.getenv("SUBNET_IDS")
+        if not subnet_ids:
+            return LambdaResponse.error("SUBNET_IDS not configured", status_code=500)
+
+        security_group_id = os.getenv("SECURITY_GROUP_ID")
+        if not security_group_id:
+            return LambdaResponse.error("SECURITY_GROUP_ID not configured", status_code=500)
+
         run_task_params: dict[str, Any] = {
             "cluster": cluster_arn,
             "taskDefinition": task_def,
             "networkConfiguration": {
                 "awsvpcConfiguration": {
-                    "subnets": os.getenv("SUBNET_IDS", "").split(","),
-                    "securityGroups": [os.getenv("SECURITY_GROUP_ID", "")],
+                    "subnets": subnet_ids.split(","),
+                    "securityGroups": [security_group_id],
                     "assignPublicIp": "DISABLED",
                 }
             },
