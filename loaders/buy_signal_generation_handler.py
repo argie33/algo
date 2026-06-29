@@ -282,8 +282,9 @@ class BuySignalGenerationHandler:
     def _compute_avg_volume_50d(self, rows: list[dict[str, Any]], i: int) -> int | None:
         """Compute 50-bar average volume.
 
-        Returns None if insufficient historical data available.
-        This is optional enrichment; logs at WARNING to indicate missing optional data.
+        Returns None if insufficient historical data available (optional enrichment).
+        This is optional enrichment; logs at DEBUG level to indicate missing optional data.
+        Callers treat None as "data unavailable for optional enrichment" with full logging context.
         """
         if i >= 10:
             vols_50: list[Any] = [
@@ -291,12 +292,14 @@ class BuySignalGenerationHandler:
             ]
             if vols_50:
                 return int(sum(vols_50) / len(vols_50))
-            logger.warning(
-                f"[SIGNAL_METRICS] Insufficient volume data to compute 50d average (bar index {i}) - optional enrichment unavailable"
+            logger.debug(
+                f"[SIGNAL_METRICS] Insufficient volume data to compute 50d average (bar index {i}): "
+                f"optional enrichment unavailable - will return None to signal"
             )
         else:
-            logger.warning(
-                f"[SIGNAL_METRICS] Insufficient history for 50d average (only {i} bars available, need >= 10) - optional enrichment unavailable"
+            logger.debug(
+                f"[SIGNAL_METRICS] Insufficient history for 50d average (only {i} bars, need >= 10): "
+                f"optional enrichment unavailable - will return None to signal"
             )
         return None
 
@@ -304,7 +307,8 @@ class BuySignalGenerationHandler:
         """Determine market stage from moving average positions.
 
         Returns None if moving averages or close price unavailable.
-        This is optional enrichment; logs at WARNING to indicate missing optional data.
+        This is optional enrichment; logs at DEBUG level to indicate missing optional data.
+        Callers treat None as "data unavailable for optional enrichment" with full logging context.
         """
         if close and sma_50 and sma_200:
             if close > sma_50 > sma_200:
@@ -315,8 +319,10 @@ class BuySignalGenerationHandler:
                 return "Stage 4"
             elif close < sma_200 and close > sma_50:
                 return "Stage 3"
-            logger.warning(
-                f"[SIGNAL_METRICS] Market stage cannot be determined from SMA relationship (close={close}, sma_50={sma_50}, sma_200={sma_200}) - optional enrichment unavailable"
+            logger.debug(
+                f"[SIGNAL_METRICS] Market stage cannot be determined from SMA relationship "
+                f"(close={close}, sma_50={sma_50}, sma_200={sma_200}): "
+                f"optional enrichment unavailable - will return None to signal"
             )
         else:
             missing = []
@@ -326,8 +332,9 @@ class BuySignalGenerationHandler:
                 missing.append("sma_50")
             if sma_200 is None:
                 missing.append("sma_200")
-            logger.warning(
-                f"[SIGNAL_METRICS] Cannot determine market stage - missing: {', '.join(missing)} - optional enrichment unavailable"
+            logger.debug(
+                f"[SIGNAL_METRICS] Cannot determine market stage - missing: {', '.join(missing)}: "
+                f"optional enrichment unavailable - will return None to signal"
             )
         return None
 
