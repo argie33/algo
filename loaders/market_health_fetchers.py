@@ -31,14 +31,19 @@ class VIXFetcher:
         Raises:
             RuntimeError: If VIX data cannot be fetched (CRITICAL for circuit breaker)
         """
-        result = self.breaker.execute(
-            fetch_func=lambda: self._fetch_vix_data(start, end),
-            importance=DataImportance.CRITICAL,
-            fallback_value=None,
-        )
+        try:
+            result = self.breaker.execute(
+                fetch_func=lambda: self._fetch_vix_data(start, end),
+                importance=DataImportance.CRITICAL,
+            )
+        except Exception as e:
+            raise RuntimeError(
+                f"VIX data unavailable - circuit breaker failed: {e}. Cannot proceed without VIX data for market halt decisions."
+            ) from e
+
         if result is None:
             raise RuntimeError(
-                "VIX data unavailable - circuit breaker failed. Cannot proceed without VIX data for market halt decisions."
+                "VIX data unavailable - circuit breaker returned None. Cannot proceed without VIX data for market halt decisions."
             )
         if not isinstance(result, dict):
             raise RuntimeError(f"VIX fetch returned invalid data type {type(result).__name__} — expected dict")

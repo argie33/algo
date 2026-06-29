@@ -84,9 +84,13 @@ def _extract_items(data: Any) -> list[Any] | dict[str, Any]:
     Returns error dict if present, otherwise returns items list.
     Raises on malformed data to prevent silent data loss.
     """
-    # Handle None gracefully — data not available yet (common on first load)
+    # Handle None explicitly — data not available yet (common on first load)
     if data is None:
-        return []
+        return {
+            "_data_unavailable": True,
+            "reason": "data_not_ready",
+            "_message": "Trades data is still loading. Check network and API status.",
+        }
 
     # Propagate error dicts (contains _error field)
     if isinstance(data, dict) and "_error" in data:

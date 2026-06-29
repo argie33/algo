@@ -331,7 +331,9 @@ def panel_sectors_expanded(srank: Any, pos: Any, port: Any, sec_rot: Any = None,
             sec = safe_get_field(p, "sector")
             # CRITICAL: Skip positions without sector (don't default to "Unknown" which masks enrichment gaps)
             if sec is None:
-                sym = p.get("symbol", "unknown")
+                sym = p.get("symbol")
+                if sym is None:
+                    raise ValueError("[DATA_CORRUPTION] Position missing symbol field — cannot identify position")
                 missing_sector_count += 1
                 logger.warning(f"Position {sym} missing sector enrichment — skipping from sector breakdown")
                 continue

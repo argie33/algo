@@ -211,17 +211,22 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
     items = []
     for key, label, max_pts in factor_map:
         if not factors or key not in factors:
-            logger.debug("[EXPOSURE] factor %s not in response", key)
-            f = {}
-        else:
-            f = factors[key]
-            if not isinstance(f, dict):
-                logger.warning("[EXPOSURE] factor %s has invalid type: %s, expected dict", key, type(f).__name__)
-                f = {}
+            logger.warning("[EXPOSURE] factor %s not in response - data unavailable", key)
+            items.append(f"[dim]{label}:[/] [yellow]⚠ factor unavailable[/][dim] /{max_pts}[/]")
+            continue
+
+        f: dict[str, Any] = factors[key]
+        if not isinstance(f, dict):
+            logger.warning("[EXPOSURE] factor %s has invalid type: %s, expected dict", key, type(f).__name__)
+            items.append(f"[dim]{label}:[/] [yellow]⚠ invalid data type[/][dim] /{max_pts}[/]")
+            continue
+
         pts_raw = f.get("pts")
         if pts_raw is None:
-            reason = f.get("reason", "no data")
-            logger.debug("[EXPOSURE] factor %s missing pts field: %s", key, reason)
+            reason = f.get("reason")
+            if reason is None:
+                reason = "data unavailable"
+            logger.warning("[EXPOSURE] factor %s missing pts field: %s", key, reason)
             items.append(f"[dim]{label}:[/] [yellow]⚠ {reason[:20]}[/][dim] /{max_pts}[/]")
         else:
             try:
@@ -433,6 +438,7 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
 
     for key, label, max_pts, context in factor_map_exp:
         # Early exit if factors dict has error markers
+        f: dict[str, Any] = {}
         if error_boundary.has_error(factors):
             logger.debug("[EXPOSURE_EXPANDED] factors dict has error markers, skipping factor %s", key)
             f = {}
