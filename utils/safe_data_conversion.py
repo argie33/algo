@@ -424,9 +424,16 @@ def safe_parse_date(value: Any, context: str = "") -> date | None:
     - datetime objects
     - date objects
 
-    Returns None if parsing fails.
+    Returns:
+        date object if parsing succeeds, or None if input is None or cannot be parsed.
+
+    Note:
+        Logs at ERROR level when input cannot be parsed (invalid format, unsupported type).
+        Callers MUST check return value for None before using. No data_unavailable marker
+        is used because this is an internal utility; callers are responsible for handling None.
     """
     if value is None:
+        logger.error(f"Cannot parse None as date {context} — returning None (caller must handle)")
         return None
 
     if isinstance(value, date) and not isinstance(value, datetime):
@@ -448,19 +455,30 @@ def safe_parse_date(value: Any, context: str = "") -> date | None:
             except ValueError:
                 pass
 
-        logger.warning(f"Failed to parse date {value!r} {context} - no format matched")
+        logger.error(f"Failed to parse date {value!r} {context} - no format matched (returning None, caller must handle)")
         return None
 
-    logger.warning(f"Cannot parse {type(value).__name__} as date {context}")
+    logger.error(f"Cannot parse {type(value).__name__} as date {context} (returning None, caller must handle)")
     return None
 
 
 def safe_parse_datetime_et(value: Any, context: str = "") -> datetime | None:
     """Parse datetime string with timezone awareness (ET).
 
-    Returns timezone-aware datetime in ET, or None if parsing fails.
+    Args:
+        value: Datetime string, datetime object, or None
+        context: Context string for logging
+
+    Returns:
+        Timezone-aware datetime in ET, or None if input is None or cannot be parsed.
+
+    Note:
+        Logs at ERROR level when input cannot be parsed (invalid format, unsupported type).
+        Callers MUST check return value for None before using. No data_unavailable marker
+        is used because this is an internal utility; callers are responsible for handling None.
     """
     if value is None:
+        logger.error(f"Cannot parse None as datetime {context} — returning None (caller must handle)")
         return None
 
     if isinstance(value, datetime):
@@ -476,9 +494,10 @@ def safe_parse_datetime_et(value: Any, context: str = "") -> datetime | None:
                 return dt.replace(tzinfo=EASTERN_TZ)
             return dt
         except (ValueError, TypeError):
-            logger.warning(f"Failed to parse datetime {value!r} {context}")
+            logger.error(f"Failed to parse datetime {value!r} {context} (returning None, caller must handle)")
             return None
 
+    logger.error(f"Cannot parse {type(value).__name__} as datetime {context} (returning None, caller must handle)")
     return None
 
 

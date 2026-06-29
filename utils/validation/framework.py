@@ -350,6 +350,7 @@ def format_decimal_string(value: Any, precision: int = 2, allow_none: bool = Tru
     """
     if value is None:
         if allow_none:
+            logger.debug("Value is None — returning None as specified by allow_none=True")
             return None
         raise ValueError("Cannot convert None to decimal string")
 
@@ -399,9 +400,10 @@ def safe_parse_date(value: Any, context: str = "") -> date | None:
     - datetime objects
     - date objects
 
-    Returns None if parsing fails.
+    Returns None if parsing fails (logged as WARNING for visibility).
     """
     if value is None:
+        logger.debug(f"Value is None in safe_parse_date {context} — returning None")
         return None
 
     if isinstance(value, date) and not isinstance(value, datetime):

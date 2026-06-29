@@ -986,7 +986,12 @@ def _parse_range_param(params: dict, default: int = 30) -> int:
 
 @db_route_handler("get correlation matrix")
 def _get_correlation_matrix(cur: cursor) -> Any:  # noqa: C901
-    """Compute and return correlation matrix between key market indices."""
+    """Compute and return correlation matrix between key market indices.
+
+    Returns correlation matrix with statistics and analysis when sufficient data available.
+    When data is insufficient (no price history or < 2 valid symbols), returns response
+    with data_unavailable marker indicating reason for unavailable data.
+    """
     symbols = ["^GSPC", "^IXIC", "SPY", "QQQ", "IVV", "TLT", "GLD"]
 
     cur.execute("SAVEPOINT correlation_matrix")
@@ -1023,6 +1028,8 @@ def _get_correlation_matrix(cur: cursor) -> Any:  # noqa: C901
                         "portfolio_stability": "unknown",
                     },
                 },
+                "data_unavailable": True,
+                "reason": "no_price_history_available",
             },
         )
 
@@ -1078,15 +1085,22 @@ def _get_correlation_matrix(cur: cursor) -> Any:  # noqa: C901
                         "portfolio_stability": "unknown",
                     },
                 },
+                "data_unavailable": True,
+                "reason": "insufficient_valid_symbols",
             },
         )
 
-    def pearson_corr(x_ret: list[float], y_ret: list[float]) -> float | None:
+    def pearson_corr(x_ret: list[float], y_ret: list[float]) -> dict[str, Any] | float:
+        """Compute Pearson correlation coefficient.
+
+        Returns float correlation value on success, or dict with data_unavailable marker
+        when data is insufficient for calculation.
+        """
         if len(x_ret) < 2 or len(y_ret) < 2:
-            return None
+            return {"data_unavailable": True, "reason": "insufficient_returns_data"}
         min_len = min(len(x_ret), len(y_ret))
         if min_len < 2:
-            return None
+            return {"data_unavailable": True, "reason": "insufficient_returns_data"}
         x = x_ret[-min_len:]
         y = y_ret[-min_len:]
         mx = sum(x) / len(x)
@@ -1096,22 +1110,26 @@ def _get_correlation_matrix(cur: cursor) -> Any:  # noqa: C901
         dy: float = sum((yi - my) ** 2 for yi in y)
         denom = (dx * dy) ** 0.5
         if denom == 0:
-            return None
+            return {"data_unavailable": True, "reason": "zero_deviation"}
         return float(num / denom)
 
     correlations_data = []
     all_corrs = []
 
     for sym1 in valid_symbols:
-        row_corrs = []
+        row_corrs: list[float | None] = []
         for sym2 in valid_symbols:
             if sym1 == sym2:
-                corr_val: float | None = 1.0
+                corr_val: dict[str, Any] | float | None = 1.0
             else:
                 corr_val = pearson_corr(returns_by_symbol[sym1], returns_by_symbol[sym2])
-            row_corrs.append(corr_val)
-            if sym1 != sym2 and corr_val is not None:
-                all_corrs.append(corr_val)
+            # Handle case where pearson_corr returns data_unavailable marker
+            if isinstance(corr_val, dict):
+                row_corrs.append(None)
+            else:
+                row_corrs.append(corr_val)
+                if sym1 != sym2 and corr_val is not None:
+                    all_corrs.append(corr_val)
         correlations_data.append({"symbol": sym1, "correlations": row_corrs})
 
     max_corr = max(all_corrs) if all_corrs else None

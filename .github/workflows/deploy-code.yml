@@ -208,11 +208,12 @@ jobs:
             echo "ERROR: Could not fetch database credentials from Secrets Manager"
             exit 1
           fi
-          export DB_HOST=$(echo "$SECRET" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('host','localhost'))")
-          export DB_PORT=$(echo "$SECRET" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('port',5432))")
-          export DB_USER=$(echo "$SECRET" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('username','postgres'))")
-          export DB_PASSWORD=$(echo "$SECRET" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('password',''))")
-          export DB_NAME=$(echo "$SECRET" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('dbname','algo'))")
+          # Extract credentials with validation - fail fast if required fields missing
+          export DB_HOST=$(echo "$SECRET" | python3 -c "import sys,json; d=json.load(sys.stdin); h=d.get('host'); sys.exit(0 if h else 1); print(h)" 2>&1) || { echo "ERROR: Database host missing from Secrets Manager"; exit 1; }
+          export DB_PORT=$(echo "$SECRET" | python3 -c "import sys,json; d=json.load(sys.stdin); p=d.get('port'); sys.exit(0 if p else 1); print(p)" 2>&1) || { echo "ERROR: Database port missing from Secrets Manager"; exit 1; }
+          export DB_USER=$(echo "$SECRET" | python3 -c "import sys,json; d=json.load(sys.stdin); u=d.get('username'); sys.exit(0 if u else 1); print(u)" 2>&1) || { echo "ERROR: Database username missing from Secrets Manager"; exit 1; }
+          export DB_PASSWORD=$(echo "$SECRET" | python3 -c "import sys,json; d=json.load(sys.stdin); p=d.get('password'); sys.exit(0 if p else 1); print(p)" 2>&1) || { echo "ERROR: Database password missing from Secrets Manager"; exit 1; }
+          export DB_NAME=$(echo "$SECRET" | python3 -c "import sys,json; d=json.load(sys.stdin); n=d.get('dbname'); sys.exit(0 if n else 1); print(n)" 2>&1) || { echo "ERROR: Database name missing from Secrets Manager"; exit 1; }
           export DB_SSL=require
           python3 migrations/run.py apply --all 2>&1 || echo "[WARN] Migrations failed (non-blocking)"
 

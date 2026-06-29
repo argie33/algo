@@ -197,9 +197,16 @@ def get_freshness_rule(table_name: str) -> dict[str, Any] | None:
         table_name: Name of the table (e.g., 'price_daily')
 
     Returns:
-        Rule dict with 'max_age_days', 'critical', 'description', or None if not found
+        Rule dict with 'max_age_days', 'critical', 'description', or None if not found.
+        When None, table has no staleness threshold defined.
+
+    Raises:
+        ValueError: Never - returns None for undefined tables (caller should check)
     """
-    return FRESHNESS_RULES.get(table_name)
+    rule = FRESHNESS_RULES.get(table_name)
+    if rule is None:
+        logger.debug(f"No freshness rule defined for table '{table_name}' — table has no staleness threshold")
+    return rule
 
 
 def is_table_fresh(
@@ -309,11 +316,13 @@ def get_max_age_minutes(table_name: str) -> int | None:
         table_name: Name of the table
 
     Returns:
-        Max age in minutes, or None if rule not found
+        Max age in minutes, or None if rule not found (table has no staleness threshold)
     """
     rule = get_freshness_rule(table_name)
     if rule:
-        return cast(int, rule["max_age_days"] * 24 * 60)
+        max_age_minutes = cast(int, rule["max_age_days"] * 24 * 60)
+        return max_age_minutes
+    logger.debug(f"Table '{table_name}' has no freshness rule — cannot determine max age threshold")
     return None
 
 

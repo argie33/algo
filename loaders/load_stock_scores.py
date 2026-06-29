@@ -105,20 +105,39 @@ class StockScoresLoader(OptimalLoader):
             logger.warning(f"[STOCK_SCORES] Pre-flight validation skipped due to query error: {e}")
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
-        """Compute stock scores for this symbol. Raises if unable to compute.
+        """Compute stock scores for this symbol. Returns data_unavailable dict if unable to compute.
 
-        CRITICAL: Fails fast if insufficient metrics to compute valid score.
-        Returning partial/incomplete scores leads to poor position sizing decisions.
-        Missing data must propagate as exceptions, not silent markers.
+        CRITICAL: At the PUBLIC API boundary, converts internal RuntimeError to explicit
+        data_unavailable marker for operator visibility. Callers can distinguish:
+        - None/empty returns: data genuinely unavailable (not an error)
+        - Exception propagation: actual system failures (database, auth, etc.)
         """
-        score_result = self._compute_stock_score(symbol)
-        if not score_result:
-            raise RuntimeError(
-                f"[STOCK_SCORES] Cannot compute score for {symbol}: insufficient real metric data. "
-                f"Upstream metric loaders (quality, growth, value, stability, positioning, momentum) "
-                f"must have populated data before score computation."
-            )
-        return [score_result]
+        try:
+            score_result = self._compute_stock_score(symbol)
+            if not score_result:
+                # This should not occur (internal _compute_stock_score raises on failure),
+                # but safeguard against unexpected None returns
+                logger.warning(f"[STOCK_SCORES] Unexpected None return for {symbol} — marking data unavailable")
+                return [
+                    {
+                        "symbol": symbol,
+                        "data_unavailable": True,
+                        "reason": "internal_computation_returned_none",
+                        "updated_at": datetime.now(timezone.utc).isoformat(),
+                    }
+                ]
+            return [score_result]
+        except RuntimeError as e:
+            # Upstream metric loaders insufficient data: convert to explicit data_unavailable marker
+            logger.warning(f"[STOCK_SCORES] Cannot compute score for {symbol}: {str(e)}")
+            return [
+                {
+                    "symbol": symbol,
+                    "data_unavailable": True,
+                    "reason": "insufficient_upstream_metrics",
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }
+            ]
 
     def _compute_stock_score(self, symbol: str) -> dict[str, Any]:
         """Compute composite stock score from REAL metrics only (no fake defaults).

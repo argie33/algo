@@ -41,12 +41,17 @@ class WatermarkManager:
             None if no watermark row exists (never fetched)
 
         Raises:
+            ValueError: If watermark_field is not configured (critical for incrementality)
             DatabaseError if DB query fails (distinguish from "never fetched")
         """
-        # CRITICAL: If watermark_field is empty, loader uses full refresh (no incremental tracking)
-        # Return None to indicate no watermark (always fetch full data for symbol)
+        # CRITICAL: If watermark_field is empty, loader cannot track incrementality
+        # This is a configuration error that must fail fast
         if not self.watermark_field:
-            return None
+            raise ValueError(
+                f"[CRITICAL] watermark_field not configured for {self.table_name}. "
+                "Cannot determine incremental load state for {symbol}. "
+                "Must configure watermark_field for incremental loading."
+            )
 
         try:
             with DatabaseContext("read") as cur:
@@ -57,7 +62,8 @@ class WatermarkManager:
                 row = cur.fetchone()
                 if row and row[0] is not None:
                     return self._parse_watermark_date(row[0])
-                # No row or NULL value = never fetched before (not an error)
+                # No row or NULL value = never fetched before (first run, not an error)
+                logger.debug(f"No watermark found for {symbol} in {self.table_name} — will perform full refresh")
                 return None
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(
@@ -66,14 +72,20 @@ class WatermarkManager:
             ) from e
 
     @staticmethod
-    def _parse_watermark_date(value: Any) -> date | None:
+    def _parse_watermark_date(value: Any) -> date:
         """Parse watermark value to date.
 
         Handles both date-based watermarks (e.g., "2026-06-28") and
         year-based watermarks (e.g., 2026 for fiscal_year).
+
+        Raises:
+            ValueError: If value is None or parsing fails (watermark is critical for incrementality)
         """
         if value is None:
-            return None
+            raise ValueError(
+                "[CRITICAL] Watermark value is None. Cannot parse None to date. "
+                "Watermark is required for incremental loader state tracking."
+            )
         if isinstance(value, date):
             return value
         try:
@@ -85,5 +97,8 @@ class WatermarkManager:
                     return date(year, 1, 1)
             # For ISO date values (e.g., "2026-06-28"), parse normally
             return date.fromisoformat(str_val.split("T")[0])
-        except (ValueError, TypeError):
-            return None
+        except (ValueError, TypeError) as e:
+            raise ValueError(
+                f"[CRITICAL] Failed to parse watermark value {value!r} to date. "
+                f"Invalid format for incremental loader watermark: {e}"
+            ) from e

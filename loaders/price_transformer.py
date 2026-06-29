@@ -316,6 +316,7 @@ class PriceTransformer:
             ValueError: If date range extraction or trading day precomputation fails
         """
         if not rows:
+            logger.warning("No price data rows provided to validate_and_transform(). Returning empty result.")
             return []
 
         min_row_date, max_row_date = self._extract_date_range(rows)
