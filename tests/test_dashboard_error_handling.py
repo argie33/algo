@@ -265,34 +265,33 @@ def test_empty_optional_data_not_treated_as_error():
 
 
 def test_error_message_fallback_for_missing_error_details():
-    """Verify that missing or None _error values show improved fallback message."""
+    """Verify that missing or None _error values are rejected with fail-fast errors."""
     from dashboard.error_boundary import error_summary_panel
 
-    # Test case 1: _error is None
+    # Test case 1: _error is None — should raise ValueError
     data_none_error = {"mkt": {"_error": None}}
-    panel = error_summary_panel(data_none_error)
-    assert panel is not None, "Should render error panel for None _error"
-    rendered = str(panel.renderable)
-    # New behavior: show "Unknown error (no details available)" instead of "API error (no details available)"
-    assert "Unknown error (no details available)" in rendered, (
-        f"Should show improved fallback message, got: {rendered}"
-    )
-    print("OK error message fallback works for None _error")
+    try:
+        panel = error_summary_panel(data_none_error)
+        pytest.fail("Should raise ValueError for None _error, not render fallback panel")
+    except ValueError as e:
+        assert "[CRITICAL]" in str(e), f"Should raise CRITICAL error, got: {e}"
+        assert "empty/None" in str(e), f"Error message should mention empty/None state, got: {e}"
+    print("OK error_summary_panel correctly rejects None _error with fail-fast error")
 
-    # Test case 2: _error is empty string
+    # Test case 2: _error is empty string — should raise ValueError
     data_empty_error = {"mkt": {"_error": ""}}
-    panel = error_summary_panel(data_empty_error)
-    assert panel is not None, "Should render error panel for empty _error"
-    rendered = str(panel.renderable)
-    assert "Unknown error (no details available)" in rendered, (
-        f"Should show improved fallback message, got: {rendered}"
-    )
-    print("OK error message fallback works for empty _error")
+    try:
+        panel = error_summary_panel(data_empty_error)
+        pytest.fail("Should raise ValueError for empty _error, not render fallback panel")
+    except ValueError as e:
+        assert "[CRITICAL]" in str(e), f"Should raise CRITICAL error, got: {e}"
+        assert "empty/None" in str(e), f"Error message should mention empty/None state, got: {e}"
+    print("OK error_summary_panel correctly rejects empty _error with fail-fast error")
 
-    # Test case 3: Proper error message is preserved
+    # Test case 3: Proper error message is preserved and rendered
     data_good_error = {"mkt": {"_error": "Market API timeout"}}
     panel = error_summary_panel(data_good_error)
-    assert panel is not None, "Should render error panel"
+    assert panel is not None, "Should render error panel for valid _error"
     rendered = str(panel.renderable)
     assert "Market API timeout" in rendered, (
         f"Should preserve error message, got: {rendered}"

@@ -98,8 +98,8 @@ def is_data_stale(data: Any) -> bool:
 def get_error_message_plain(data: Any) -> str | None:
     """Extract error message from data without Rich formatting.
 
-    Always returns explicit error message or "Unknown error" — never silent None.
-    Validates: error message must exist when _error marker present.
+    Always returns explicit error message or raises on invalid state.
+    Validates: error message must exist and be valid when _error marker present.
     """
     if not isinstance(data, dict):
         return None
@@ -108,8 +108,8 @@ def get_error_message_plain(data: Any) -> str | None:
     if "_error" in data:
         error_msg = data["_error"]  # Direct access, not .get() — required field
         if error_msg is None or (isinstance(error_msg, str) and not error_msg.strip()):
-            logger.warning("Error marker present but message empty/None, using default")
-            return "Unknown error (no details available)"
+            logger.error("Error marker present but message empty/None — invalid error state")
+            raise ValueError("[CRITICAL] _error marker present but message is empty/None")
         return str(error_msg)
 
     return None
@@ -120,17 +120,23 @@ def get_error_message(data: Any) -> str | None:
 
     Distinguishes between stale data and hard errors for better visibility.
     Validates: if _stale_cache present, it must be boolean True.
+    Raises if stale data marker present but error message missing.
     """
     plain_msg = get_error_message_plain(data)
     if plain_msg is None:
         return None
 
     if is_data_stale(data):
-        # If stale, extract error message with safe fallback
+        # If stale, error message MUST exist and be valid
         if isinstance(data, dict) and "_error" in data:
             stale_error = data["_error"]  # Direct access — required if _stale_cache=True
+            if stale_error is None or (isinstance(stale_error, str) and not stale_error.strip()):
+                logger.error("Stale data marker present but error message empty/None — invalid state")
+                raise ValueError("[CRITICAL] _stale_cache=True but _error message is empty/None")
             return f"[yellow]⚠ STALE[/]: {stale_error}"
-        return "[yellow]⚠ STALE[/]: Data too old (no error details)"
+        # If stale but no error marker, this is an invalid state
+        logger.error("Data marked stale but missing _error marker — inconsistent state")
+        raise ValueError("[CRITICAL] Data marked _stale_cache=True but _error marker missing")
 
     return plain_msg
 
@@ -155,7 +161,11 @@ def safe_get(data: Any, key: str) -> Any:
         ValueError: If data has error marker, wrong type, or key missing
     """
     if has_error(data):
-        error_msg = data.get("_error", "unknown error") if isinstance(data, dict) else "unknown error"
+        # Direct access to _error — it MUST exist if has_error() returned True
+        if isinstance(data, dict) and "_error" in data:
+            error_msg = data["_error"]
+        else:
+            error_msg = "[CRITICAL] has_error returned True but _error marker missing"
         logger.error(f"safe_get: Data contains error marker: {error_msg}")
         raise ValueError(f"Data contains error: {error_msg}")
 
@@ -194,7 +204,11 @@ def safe_list(data: Any) -> list[Any]:
         ValueError: If error marker, malformed structure, or cannot extract list
     """
     if has_error(data):
-        error_msg = data.get("_error", "unknown error") if isinstance(data, dict) else "unknown error"
+        # Direct access to _error — it MUST exist if has_error() returned True
+        if isinstance(data, dict) and "_error" in data:
+            error_msg = data["_error"]
+        else:
+            error_msg = "[CRITICAL] has_error returned True but _error marker missing"
         logger.error(f"safe_list: Data contains error marker: {error_msg}")
         raise ValueError(f"Data contains error: {error_msg}")
 
@@ -233,12 +247,16 @@ def error_summary_panel(data: dict[str, Any]) -> Panel | None:
 
     Scans all data endpoints for error markers and renders single error panel.
     Returns None if no errors found (logged for visibility).
+    Raises if error marker found but message cannot be extracted.
 
     Args:
         data: Dict of endpoint responses, some may have _error marker
 
     Returns:
         Panel with error summaries, or None if no errors (logged)
+
+    Raises:
+        ValueError: If _error marker present but message cannot be extracted
     """
     if not isinstance(data, dict):
         logger.error(f"error_summary_panel received non-dict: {type(data).__name__}")
@@ -247,7 +265,11 @@ def error_summary_panel(data: dict[str, Any]) -> Panel | None:
     errors = {}
     for key, value in data.items():
         if isinstance(value, dict) and "_error" in value:
-            msg = get_error_message_plain(value) or "Unknown error"
+            # get_error_message_plain will raise if _error marker invalid
+            msg = get_error_message_plain(value)
+            if msg is None:
+                logger.error(f"error_summary_panel: _error marker in {key} but no message extracted")
+                raise ValueError(f"[CRITICAL] Endpoint '{key}' has _error marker but message extraction failed")
             errors[key] = msg
 
     if not errors:
@@ -273,12 +295,16 @@ def error_summary_panel_expanded(data: dict[str, Any]) -> Panel | None:
 
     Extended version of error_summary_panel with full error messages (no truncation).
     Returns None if no errors found (logged for visibility).
+    Raises if error marker found but message cannot be extracted.
 
     Args:
         data: Dict of endpoint responses, some may have _error marker
 
     Returns:
         Expanded Panel with full error text, or None if no errors (logged)
+
+    Raises:
+        ValueError: If _error marker present but message cannot be extracted
     """
     if not isinstance(data, dict):
         logger.error(f"error_summary_panel_expanded received non-dict: {type(data).__name__}")
@@ -287,7 +313,11 @@ def error_summary_panel_expanded(data: dict[str, Any]) -> Panel | None:
     errors = {}
     for key, value in data.items():
         if isinstance(value, dict) and "_error" in value:
-            msg = get_error_message_plain(value) or "Unknown error"
+            # get_error_message_plain will raise if _error marker invalid
+            msg = get_error_message_plain(value)
+            if msg is None:
+                logger.error(f"error_summary_panel_expanded: _error marker in {key} but no message extracted")
+                raise ValueError(f"[CRITICAL] Endpoint '{key}' has _error marker but message extraction failed")
             errors[key] = msg
 
     if not errors:

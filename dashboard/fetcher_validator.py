@@ -30,12 +30,16 @@ class FetcherValidator:
             (is_error: bool, error_message: str|None)
         """
         if isinstance(response, dict) and "_error" in response:
-            error_msg = response.get("_error", None)
+            error_msg = response["_error"]  # Explicit access, fail if missing
             # Ensure error message is always a non-empty string, never None
-            if not error_msg or not str(error_msg).strip():
-                logger.warning("API error marker present but error message is empty or missing")
-                return True, "Unknown API error"
-            return True, str(error_msg)
+            if error_msg is None:
+                logger.error("API error marker present but error message is None")
+                raise ValueError("API error marker '_error' must contain a non-empty message")
+            error_str = str(error_msg).strip()
+            if not error_str:
+                logger.error("API error marker present but error message is empty after strip")
+                raise ValueError("API error marker '_error' must contain a non-empty message")
+            return True, error_str
         return False, None
 
     @staticmethod
@@ -149,22 +153,24 @@ class FetcherValidator:
         Returns:
             dict with _error key and message
 
-        Ensures error message is always a non-empty string with actual details.
-        Never returns silent empty dict {} or None — always includes explicit error context.
+        Requires error message to contain actual error details — fails fast on None or empty messages.
 
         Args:
-            error_message: Error message to include, or None if no message available
+            error_message: Error message to include (must be non-empty)
 
         Returns:
             {"_error": "<message>"} — always includes detailed error text
+
+        Raises:
+            ValueError: If error_message is None or empty after strip
         """
         if error_message is None:
-            logger.error("build_error_response called with None message — no context provided")
-            return {"_error": "Unknown error (no details provided)"}
+            logger.error("build_error_response called with None message — this is a caller error")
+            raise ValueError("build_error_response requires a non-None error message with actual error details")
         error_str = str(error_message).strip()
         if not error_str:
-            logger.error("build_error_response called with empty message after strip")
-            return {"_error": "Unknown error (empty error message)"}
+            logger.error("build_error_response called with empty message after strip — this is a caller error")
+            raise ValueError("build_error_response requires a non-empty error message with actual error details")
         return {"_error": error_str}
 
     @staticmethod
@@ -195,13 +201,12 @@ class FetcherValidator:
 
         # Check freshness if specified
         if max_age_seconds is not None and timestamp_field:
-            # Timestamp field must be explicitly present when freshness validation is enabled
-            timestamp = response.get(timestamp_field, None)
+            # Timestamp field MUST be present and non-None when freshness validation is enabled
+            if timestamp_field not in response:
+                return False, f"{source_name}: Freshness validation enabled but required timestamp field '{timestamp_field}' is missing"
+            timestamp = response[timestamp_field]  # Explicit access
             if timestamp is None:
-                logger.warning(
-                    f"{source_name}: Freshness validation enabled but timestamp field '{timestamp_field}' "
-                    f"is missing or None (will be treated as stale)"
-                )
+                return False, f"{source_name}: Freshness validation enabled but timestamp field '{timestamp_field}' is None"
             fresh, error_msg = FetcherValidator.check_freshness(timestamp, max_age_seconds)
             if not fresh:
                 return False, error_msg
