@@ -140,36 +140,42 @@ class PositioningMetricsLoader(OptimalLoader):
                     "updated_at": datetime.now(timezone.utc).isoformat(),
                 }
 
-            # Use ONLY primary fields - no fallbacks to alternative field names
-            # This makes yfinance schema changes visible immediately (fail-fast)
             institutional_ownership = None
+            institutional_ownership_reason = "field_missing_from_source"
             insider_ownership = None
+            insider_ownership_reason = "field_missing_from_source"
             short_interest_percent = None
+            short_interest_reason = "field_missing_from_source"
             short_interest_trend = None
+            short_interest_trend_reason = "field_missing_from_source"
 
-            # yfinance returns decimal percentages (0.5 = 50%)
-            # Consistently convert all to percentage scale (0-100)
             if "heldPercentInstitutions" in info and info["heldPercentInstitutions"] is not None:
                 institutional_ownership = float(info["heldPercentInstitutions"]) * 100
+                institutional_ownership_reason = None
 
             if "heldPercentInsiders" in info and info["heldPercentInsiders"] is not None:
                 insider_ownership = float(info["heldPercentInsiders"]) * 100
+                insider_ownership_reason = None
 
             if "shortPercentOfFloat" in info and info["shortPercentOfFloat"] is not None:
-                # CRITICAL: This field is returned as a decimal (0.05 = 5%), not a percentage (5.0)
-                # Must multiply by 100 to convert to percentage scale
                 short_interest_percent = float(info["shortPercentOfFloat"]) * 100
+                short_interest_reason = None
 
             if "sharesShort" in info and info["sharesShort"] is not None:
                 short_interest_trend = "stable"
+                short_interest_trend_reason = None
 
             if institutional_ownership or insider_ownership or short_interest_percent:
                 return {
                     "symbol": symbol,
                     "institutional_ownership": (round(institutional_ownership, 2) if institutional_ownership else None),
+                    "institutional_ownership_unavailable_reason": institutional_ownership_reason,
                     "insider_ownership": (round(insider_ownership, 2) if insider_ownership else None),
+                    "insider_ownership_unavailable_reason": insider_ownership_reason,
                     "short_interest_percent": (round(short_interest_percent, 2) if short_interest_percent else None),
+                    "short_interest_unavailable_reason": short_interest_reason,
                     "short_interest_trend": short_interest_trend,
+                    "short_interest_trend_unavailable_reason": short_interest_trend_reason,
                     "data_unavailable": False,
                     "updated_at": datetime.now(timezone.utc).isoformat(),
                 }
@@ -178,9 +184,13 @@ class PositioningMetricsLoader(OptimalLoader):
             return {
                 "symbol": symbol,
                 "institutional_ownership": None,
+                "institutional_ownership_unavailable_reason": institutional_ownership_reason,
                 "insider_ownership": None,
+                "insider_ownership_unavailable_reason": insider_ownership_reason,
                 "short_interest_percent": None,
+                "short_interest_unavailable_reason": short_interest_reason,
                 "short_interest_trend": None,
+                "short_interest_trend_unavailable_reason": short_interest_trend_reason,
                 "data_unavailable": True,
                 "reason": "No positioning metrics available in data source",
                 "updated_at": datetime.now(timezone.utc).isoformat(),

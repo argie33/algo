@@ -219,8 +219,11 @@ class MigrationRunner:
             self.cursor.execute(query)
             return [row[0] for row in self.cursor.fetchall()]
         except psycopg2.Error as e:
-            logger.warning(f"Could not fetch applied migrations: {e}")
-            return []
+            logger.error(f"[CRITICAL] Failed to fetch applied migrations: {e}")
+            raise RuntimeError(
+                f"Cannot determine applied migrations: database query failed. {e}. "
+                "Migration state is unknown. Check database connectivity and schema_version table."
+            ) from e
 
     def get_pending_migrations(self) -> list[tuple[str, Path]]:
         """Get list of migration files that haven't been applied."""

@@ -422,8 +422,11 @@ class DailyFinanceReport:
                 raise RuntimeError("CRITICAL: Portfolio snapshot count is NULL")
             return int(result[0])
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.warning(f"Exception: {e}")
-            return 0
+            logger.error(f"[CRITICAL] Failed to count portfolio snapshots: {e}")
+            raise RuntimeError(
+                f"Portfolio snapshot count unavailable due to database error: {e}. "
+                "Cannot generate financial report without portfolio data."
+            ) from e
 
 
 if __name__ == "__main__":
