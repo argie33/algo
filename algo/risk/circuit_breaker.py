@@ -207,9 +207,14 @@ class CircuitBreaker:
             FROM algo_portfolio_snapshots
             """)
         row = cur.fetchone()
-        # Bootstrap path: if table is empty (first ever run), allow through
+        # Bootstrap path: if table is empty (first ever run), allow through with explicit logging
         if row is None or row[0] is None or row[1] is None:
-            return {"halted": False, "reason": "First run — no portfolio history yet"}
+            logger.warning(
+                "[CIRCUIT_BREAKER] Bootstrap path: no portfolio history available yet. "
+                "Allowing initial trading while history accumulates. "
+                "Subsequent runs will require valid portfolio peak/current values."
+            )
+            return {"halted": False, "reason": "Bootstrap: no portfolio history yet"}
         peak = _float(row[0], None, context="drawdown peak")
         cur_val = _float(row[1], None, context="drawdown current")
         if peak is None or cur_val is None or peak <= 0 or cur_val <= 0:

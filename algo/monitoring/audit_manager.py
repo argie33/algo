@@ -52,13 +52,19 @@ class AuditManager:
         Raises:
             RuntimeError: If audit logging fails (audit trail is critical for compliance)
         """
+        # Explicit handling of optional enrichment fields
+        flags = review_data.get("flags")
+        if flags is None:
+            logger.debug(f"[AUDIT_MANAGER] {symbol}: flags field missing from review_data (optional enrichment)")
+            flags = {}
+
         audit_entry = {
             "symbol": symbol,
             "review_date": str(current_date),
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "health_score": review_data.get("health_score"),
             "recommendation": review_data.get("recommendation"),
-            "flags": review_data.get("flags", {}),
+            "flags": flags,
             "stop_price": review_data.get("stop_price"),
         }
 

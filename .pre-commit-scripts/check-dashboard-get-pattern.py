@@ -1,19 +1,61 @@
 #!/usr/bin/env python3
-"""Pre-commit check: Detect excessive .get() calls in dashboard panels.
+"""Pre-commit check: Detect problematic .get() patterns in finance-critical code.
 
 Dashboard panels should use fail-fast pattern:
   1. Check error_boundary.has_error(data) once
   2. Use direct access for validated fields
-  3. Only .get() for optional fields
+  3. Only .get() for optional fields (no default or default=None)
+
+Loaders should avoid:
+  - .get() with numeric defaults (0, 0.0) for price/financial data
+  - .get() with dict defaults ({}) for financial records
+  - .get() with string defaults that mask missing data
 
 Pattern violations to catch:
   - Multiple .get() calls on same data dict in same function
-  - .get() without checking has_error() first
+  - .get() without checking has_error() first (dashboard only)
+  - .get() with numeric/dict defaults in finance-critical data
   - .get() in nested loops over data items
 """
 
 import re
 import sys
+
+
+def check_get_patterns_with_defaults(filepath: str) -> list[str]:
+    """Check for problematic .get() calls with numeric/dict defaults.
+
+    Finance-critical paths should not silently default to 0, 0.0, {}, etc.
+    These patterns hide missing data.
+    """
+    violations = []
+
+    finance_paths = ("loaders/", "algo/trading/", "algo/risk/", "algo/signals/")
+    if not filepath.endswith(".py") or not any(fp in filepath for fp in finance_paths):
+        return violations
+
+    try:
+        with open(filepath) as f:
+            lines = f.readlines()
+    except Exception as e:
+        return [f"Could not read file: {e}"]
+
+    # Pattern: .get("key", numeric/dict/problematic_default)
+    problem_patterns = [
+        (r'\.get\s*\(\s*["\'][\w_]+["\']\s*,\s*0(?:\.\d+)?\s*\)', "numeric default (hides missing price data)"),
+        (r'\.get\s*\(\s*["\'][\w_]+["\']\s*,\s*\{\s*\}\s*\)', "dict default (hides missing record)"),
+        (r'\.get\s*\(\s*["\'][\w_]+["\']\s*,\s*""\s*\)', 'empty string default (hides missing data)'),
+    ]
+
+    for i, line in enumerate(lines, 1):
+        for pattern, description in problem_patterns:
+            if re.search(pattern, line):
+                violations.append(
+                    f"  Line {i}: {description} in .get() call. "
+                    f"Finance paths must fail on missing data, not default to {description.split('(')[1].split(')')[0]}."
+                )
+
+    return violations
 
 
 def check_dashboard_patterns(filepath: str) -> list[str]:
@@ -72,15 +114,27 @@ if __name__ == "__main__":
     all_violations = []
 
     for filepath in sys.argv[1:]:
+        # Check for problematic defaults in loaders
+        violations = check_get_patterns_with_defaults(filepath)
+        if violations:
+            all_violations.append(f"{filepath} (loader/finance checks):")
+            all_violations.extend(violations)
+
+        # Check for dashboard fail-fast pattern violations
         violations = check_dashboard_patterns(filepath)
         if violations:
-            all_violations.append(f"{filepath}:")
+            all_violations.append(f"{filepath} (dashboard checks):")
             all_violations.extend(violations)
 
     if all_violations:
-        print("Dashboard .get() pattern violations found:")
+        print("❌ .get() pattern violations found (fail-fast discipline violation):")
         print("\n".join(all_violations))
-        print("\nFix: Use error_boundary.has_error() + direct access. See tools/dashboard/panels/data_extractors.py")
+        print(
+            "\nFix:\n"
+            "  Dashboard: Use error_boundary.has_error() + direct access (see panels/data_extractors.py)\n"
+            "  Loaders: Remove numeric/dict defaults from .get() — use strict validation or raise\n"
+            "  Finance paths: Missing data must be visible (fail fast), not silently defaulted"
+        )
         sys.exit(1)
 
     sys.exit(0)

@@ -852,6 +852,11 @@ class MarketExposure:
         price_rows = cur.fetchall()
 
         if not price_rows or len(price_rows) < 35:
+            logger.warning(
+                f"[MARKET_EXPOSURE] Insufficient price history for factor computation: "
+                f"need 35+ days, have {len(price_rows) if price_rows else 0}. "
+                f"Market exposure factor unavailable — risk calculations may be degraded."
+            )
             return {
                 "score_factor": None,
                 "value": None,
@@ -873,6 +878,10 @@ class MarketExposure:
                 break
 
         if not rows:
+            logger.warning(
+                f"[MARKET_EXPOSURE] Cannot compute 150-day SMA: insufficient price history. "
+                f"Market exposure factor unavailable — risk calculations may be degraded."
+            )
             return {
                 "score_factor": None,
                 "value": None,

@@ -524,8 +524,18 @@ def _get_algo_portfolio(cur: cursor) -> Any:
         # Calculate data_age_seconds from created_at timestamp (REQUIRED, no fallback)
         # CRITICAL: snapshot_date is a DATE column (midnight), created_at is TIMESTAMP (actual freshness)
         # Must use created_at; fallback to snapshot_date made data appear stale
+        # Use database's NOW() to avoid timezone mismatch with Python datetime
+        try:
+            cur.execute("SELECT NOW() at time zone 'UTC'")
+            now_row = cur.fetchone()
+            if not now_row:
+                raise ValueError("Database NOW() returned empty")
+            now_utc_db = now_row[0]
+        except Exception as e:
+            logger.error(f"CRITICAL: Cannot get database NOW(): {e}")
+            return error_response(503, "database_error", "Cannot get current database time")
+
         from datetime import datetime, timezone
-        now = datetime.now(timezone.utc)
 
         # MUST have created_at in query result - query includes it explicitly
         created_at = data.get("created_at")
@@ -533,20 +543,12 @@ def _get_algo_portfolio(cur: cursor) -> Any:
             logger.error("CRITICAL: created_at missing from portfolio snapshot query result")
             return error_response(503, "incomplete_data", "Portfolio snapshot missing created_at timestamp")
 
-        # Convert to datetime with timezone
-        if isinstance(created_at, datetime):
-            created_dt = created_at if created_at.tzinfo else created_at.replace(tzinfo=timezone.utc)
-        elif isinstance(created_at, str):
-            try:
-                created_dt = datetime.fromisoformat(created_at).replace(tzinfo=timezone.utc)
-            except ValueError:
-                logger.error(f"CRITICAL: Cannot parse created_at timestamp: {created_at}")
-                return error_response(503, "data_corruption", f"Portfolio created_at unparseable: {created_at}")
+        # Calculate age using database time - both now and created_at are in same timezone context
+        if isinstance(created_at, datetime) and isinstance(now_utc_db, datetime):
+            data_age_seconds = int((now_utc_db - created_at).total_seconds())
         else:
-            logger.error(f"CRITICAL: created_at has unexpected type: {type(created_at).__name__}")
-            return error_response(503, "data_corruption", f"Portfolio created_at type invalid: {type(created_at).__name__}")
-
-        data_age_seconds = int((now - created_dt).total_seconds())
+            logger.error(f"CRITICAL: Time mismatch - now_utc_db={type(now_utc_db).__name__}, created_at={type(created_at).__name__}")
+            return error_response(503, "data_corruption", "Cannot calculate portfolio age - type mismatch")
 
         response_data = {
             "total_portfolio_value": pv,
