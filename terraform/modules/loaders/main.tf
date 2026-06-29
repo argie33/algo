@@ -506,6 +506,16 @@ resource "aws_ecs_task_definition" "loader" {
           name  = "LOADER_TIMEOUT"
           value = tostring(each.value.timeout)
         },
+        # AWS batch size configuration (reduce 1000→100 in AWS to avoid yfinance rate limiting)
+        {
+          name  = "LOADER_CHUNK_SIZE"
+          value = "100"
+        },
+        # AWS memory configuration for ECS task
+        {
+          name  = "ECS_TASK_MEMORY_LIMIT"
+          value = tostring(each.value.memory)
+        },
         # AWS configuration (region required by credential_manager)
         {
           name  = "AWS_REGION"

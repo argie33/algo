@@ -114,10 +114,20 @@ class SignalPatternsMixin:
                     f"[SIGNAL_PATTERNS] Insufficient volume history for pattern ({len(volumes)}/50 bars). "
                     f"Volume dryup detection disabled — requires 50+ bars."
                 )
-                volume_dryup = None
-            else:
-                prior_vol = sum(volumes[20:50]) / 30
-                volume_dryup = prior_vol > 0 and recent_vol < prior_vol * 0.8
+                return {
+                    "in_base": in_base,
+                    "base_depth_pct": round(base_depth, 1),
+                    "weeks_in_base": weeks_in_base,
+                    "pivot_high": round(base_high, 2),
+                    "pct_to_pivot": round(pct_to_pivot, 2),
+                    "breakout_imminent": breakout_imminent,
+                    "volume_dryup": None,
+                    "volume_dryup_unavailable": True,
+                    "volume_dryup_reason": "insufficient_history (< 50 bars)",
+                }
+
+            prior_vol = sum(volumes[20:50]) / 30
+            volume_dryup = prior_vol > 0 and recent_vol < prior_vol * 0.8
 
             return {
                 "in_base": in_base,

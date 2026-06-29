@@ -93,8 +93,20 @@ class SignalAttributionEngine:
                 trades = cur.fetchall()
 
                 if not trades or len(trades) < 10:
-                    logger.warning(f"Insufficient closed trades ({len(trades) if trades else 0}) for IC calculation")
-                    return {comp: {"ic_value": 0, "ic_pvalue": 1.0, "sample_size": 0} for comp in self.COMPONENTS}
+                    logger.warning(
+                        f"[ATTRIBUTION] Insufficient closed trades ({len(trades) if trades else 0}/10 required) for IC calculation. "
+                        f"Cannot compute Information Coefficient without sufficient trade sample."
+                    )
+                    return {
+                        comp: {
+                            "ic_value": None,
+                            "ic_pvalue": None,
+                            "sample_size": len(trades) if trades else 0,
+                            "data_unavailable": True,
+                            "reason": f"insufficient_trades ({len(trades) if trades else 0}/10 minimum)",
+                        }
+                        for comp in self.COMPONENTS
+                    }
 
                 # Extract component scores and P&Ls
                 ic_results = {}
@@ -174,8 +186,17 @@ class SignalAttributionEngine:
                 logger.info(f"IC computation complete for {report_date}. Samples: {len(trades)}")
                 return ic_results
         except (ValueError, ZeroDivisionError, TypeError) as e:
-            logger.error(f"IC computation failed: {e}")
-            return {comp: {"ic_value": 0, "ic_pvalue": 1.0, "sample_size": 0} for comp in self.COMPONENTS}
+            logger.error(f"[ATTRIBUTION] IC computation failed: {e}")
+            return {
+                comp: {
+                    "ic_value": None,
+                    "ic_pvalue": None,
+                    "sample_size": 0,
+                    "data_unavailable": True,
+                    "reason": f"computation_failed: {type(e).__name__}",
+                }
+                for comp in self.COMPONENTS
+            }
 
     def compute_ic_by_regime(self, report_date: _date, lookback_trades: int = 40) -> dict[str, dict[str, Any]]:
         """
@@ -239,10 +260,17 @@ class SignalAttributionEngine:
                     try:
                         signal_regime = regime_mgr.get_current_regime(signal_date)
                         if signal_regime not in trades_by_regime:
-                            signal_regime = "caution"  # Default if regime not in mapping
+                            logger.warning(
+                                f"[ATTRIBUTION] Regime '{signal_regime}' not in expected regime list for {signal_date}. "
+                                f"Trade {trade_id} will not contribute to regime-specific IC."
+                            )
+                            continue
                     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                        logger.debug(f"Could not determine regime for {signal_date}: {e}")
-                        signal_regime = "caution"
+                        logger.error(
+                            f"[ATTRIBUTION] Could not determine regime for {signal_date}: {e}. "
+                            f"Trade {trade_id} excluded from regime-specific IC (must have complete regime data)."
+                        )
+                        continue
 
                     trades_by_regime[signal_regime].append((trade_id, swing_components, exit_r_multiple))
 

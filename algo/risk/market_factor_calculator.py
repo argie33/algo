@@ -26,19 +26,25 @@ class MarketFactorCalculator:
     def _wt_pts(factor: dict[str, Any], weight: float) -> tuple[float, float]:
         """Scale factor score to weight. Returns (pts, avail_weight).
 
-        When score is None (data missing), returns (0.0, 0.0) so the
-        factor is excluded from both the score and the available-max denominator.
-        Normalization will handle missing factors by scaling remaining scores.
+        Raises exception if score is missing — market factors are critical
+        for position sizing and must not silently degrade.
         """
         score = factor.get("score")
         if score is None:
-            return 0.0, 0.0
+            factor_name = factor.get("name", "unknown")
+            raise ValueError(
+                f"[MARKET_FACTOR] Missing score for factor '{factor_name}'. "
+                f"Market factors are critical for exposure calculation — missing data must be explicit."
+            )
 
         try:
             score = float(score)
-        except (ValueError, TypeError):
-            logger.warning(f"Market factor score is not numeric: {score}")
-            return 0.0, 0.0
+        except (ValueError, TypeError) as e:
+            factor_name = factor.get("name", "unknown")
+            raise ValueError(
+                f"[MARKET_FACTOR] Invalid score for factor '{factor_name}': {score!r}. "
+                f"Cannot compute exposure with non-numeric factor scores."
+            ) from e
 
         return score * weight / 100.0, weight
 

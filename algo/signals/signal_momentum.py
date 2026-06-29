@@ -37,12 +37,11 @@ class SignalMomentumMixin:
             )
             rows = cur.fetchall()
             if len(rows) < 14:
-                return {
-                    "setup_count": 0,
-                    "setup_type": None,
-                    "completed_9": False,
-                    "perfected": False,
-                }
+                raise ValueError(
+                    f"[TD_SEQUENTIAL] Insufficient price history for {symbol} "
+                    f"({len(rows)}/14 bars required). "
+                    f"Cannot compute TD Sequential count without minimum 14-bar price data."
+                )
 
             # Reverse to chronological order
             rows = list(reversed(rows))
@@ -199,18 +198,25 @@ class SignalMomentumMixin:
             )
             row = cur.fetchone()
             if not row or row[1] is None:
-                return {"breakout": False}
+                raise ValueError(
+                    f"[PIVOT_BREAKOUT] Insufficient price history for {symbol}; "
+                    f"cannot compute 21-bar pivot. Requires 21+ bars to establish pivot baseline."
+                )
             close = float(row[0])
             pivot = float(row[1])
 
             if row[2] is None:
-                logger.warning(f"[PIVOT_BREAKOUT] Volume missing for {symbol}; cannot evaluate volume confirmation")
-                return {"breakout": False, "reason": "missing_volume"}
+                raise ValueError(
+                    f"[PIVOT_BREAKOUT] Volume data missing for {symbol}. "
+                    f"Cannot evaluate breakout confirmation without volume data."
+                )
             volume = float(row[2])
 
             if row[3] is None:
-                logger.warning(f"[PIVOT_BREAKOUT] Average volume missing for {symbol}; cannot evaluate volume confirmation")
-                return {"breakout": False, "reason": "missing_avg_volume"}
+                raise ValueError(
+                    f"[PIVOT_BREAKOUT] Average volume (50-day) missing for {symbol}. "
+                    f"Cannot evaluate volume confirmation without 50-bar volume average."
+                )
             avg_vol = float(row[3])
 
             breakout = close > pivot * 1.005
@@ -259,7 +265,10 @@ class SignalMomentumMixin:
             )
             rows = cur.fetchall()
             if not rows:
-                return {"pocket_pivot": False}
+                raise ValueError(
+                    f"[POCKET_PIVOT] No price history for {symbol}. "
+                    f"Cannot evaluate pocket pivot without price data."
+                )
 
             # Find max down-day volume in lookback window
             max_down_vol: float = 0
@@ -267,22 +276,28 @@ class SignalMomentumMixin:
                 _date, close, prev_close, vol, rn = row
                 if prev_close is not None and close < prev_close:
                     if vol is None:
-                        logger.warning(f"[POCKET_PIVOT] Volume missing for {symbol} on down day; cannot evaluate max down-day volume")
-                        return {"pocket_pivot": False, "reason": "missing_volume_data"}
+                        raise ValueError(
+                            f"[POCKET_PIVOT] Volume data missing for {symbol} on down day. "
+                            f"Cannot determine max down-day volume without complete volume data."
+                        )
                     max_down_vol = max(max_down_vol, float(vol))
 
             if rows:
                 _today_date, today_close, today_prev, today_vol, _today_rn = rows[0]
 
                 if today_vol is None:
-                    logger.warning(f"[POCKET_PIVOT] Today's volume missing for {symbol}; cannot evaluate pocket pivot")
-                    return {"pocket_pivot": False, "reason": "missing_today_volume"}
+                    raise ValueError(
+                        f"[POCKET_PIVOT] Today's volume missing for {symbol}. "
+                        f"Cannot evaluate pocket pivot without today's volume."
+                    )
                 today_vol = float(today_vol)
 
                 today_prev = float(today_prev) if today_prev is not None else None
                 if today_close is None or not isinstance(today_close, (int, float)) or today_close <= 0:
-                    logger.warning(f"[POCKET_PIVOT] Today's close price invalid for {symbol}: {today_close}; cannot evaluate pocket pivot")
-                    return {"pocket_pivot": False, "reason": "invalid_today_close"}
+                    raise ValueError(
+                        f"[POCKET_PIVOT] Invalid today's close price for {symbol}: {today_close}. "
+                        f"Cannot evaluate pocket pivot with invalid price data."
+                    )
                 today_close = float(today_close)
 
                 is_up_day = today_prev is not None and today_close > today_prev
@@ -302,13 +317,17 @@ class SignalMomentumMixin:
             for row in rows[1:3]:  # Skip today, check yesterday and day-2
                 _date, close, prev_close, vol, rn = row
                 if vol is None:
-                    logger.warning(f"[POCKET_PIVOT] Missing volume data for {symbol} in historical check - pattern skipped (signal quality impaired)")
-                    continue
+                    raise ValueError(
+                        f"[POCKET_PIVOT] Historical volume data missing for {symbol}. "
+                        f"Cannot evaluate pocket pivot without complete historical volume data."
+                    )
                 vol = float(vol)
                 prev_close = float(prev_close) if prev_close is not None else None
                 if close is None or not isinstance(close, (int, float)) or close <= 0:
-                    logger.warning(f"[POCKET_PIVOT] Historical close price invalid for {symbol}: {close} - pattern skipped (signal quality impaired)")
-                    continue
+                    raise ValueError(
+                        f"[POCKET_PIVOT] Historical close price invalid for {symbol}: {close}. "
+                        f"Cannot evaluate pocket pivot with invalid historical price data."
+                    )
                 close = float(close)
                 if prev_close is not None and close > prev_close and vol >= max_down_vol and max_down_vol > 0:
                     days_since = rn - 1  # rn=1 is most recent

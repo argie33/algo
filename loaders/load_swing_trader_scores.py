@@ -406,9 +406,16 @@ class VectorizedSwingScoresLoader:
             return 60 + ((min(rsi, 100) - 70) / 30) * 40
 
     def _bulk_insert(self, df: pd.DataFrame) -> int:
-        """Bulk insert all scores at once using COPY (fast batch insert)."""
+        """Bulk insert all scores at once using COPY (fast batch insert).
+
+        Raises exception if DataFrame is empty — callers must check for data
+        before reaching insert. Empty batches indicate upstream compute errors.
+        """
         if df.empty:
-            return 0
+            raise ValueError(
+                "[SWING_SCORES] DataFrame is empty before bulk insert. "
+                "No computed scores to insert. Check upstream score computation."
+            )
 
         # Validate required score fields exist
         required_score_fields = [
@@ -541,7 +548,7 @@ def _swing_heartbeat_worker(stop_event: threading.Event) -> None:
                     ("swing_trader_scores", "RUNNING"),
                 )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.debug(f"Swing scores heartbeat failed: {e}")
+            logger.warning(f"Swing scores heartbeat failed: {e} — loader pipeline health check failed")
 
 
 def main() -> int:

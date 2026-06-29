@@ -29,7 +29,11 @@ class TradeNotificationService:
         self.enabled = os.getenv("ENABLE_NOTIFICATIONS", "true").lower() == "true"
 
     def get_recent_events(self, minutes: int = 5) -> list[dict[str, Any]]:
-        """Fetch recent audit log events."""
+        """Fetch recent audit log events.
+
+        Raises exception if fetch fails — notification system requires consistent
+        data access to avoid silent notification queue corruption.
+        """
         try:
             with DatabaseContext("read") as cur:
                 cutoff = datetime.now(timezone.utc) - timedelta(minutes=minutes)
@@ -45,8 +49,11 @@ class TradeNotificationService:
                 )
                 return cast(list[dict[Any, Any]], cur.fetchall())
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.error(f"[NOTIF] Failed to fetch events: {e}")
-            return []
+            raise RuntimeError(
+                f"[NOTIF] Failed to fetch audit events from database: {e}. "
+                f"Cannot generate notifications without access to audit log. "
+                f"Notifications require consistent data access to avoid queue corruption."
+            ) from e
 
     def _format_trade_entry_alert(self, event: dict[str, Any]) -> str | None:
         """Format trade entry notification."""
