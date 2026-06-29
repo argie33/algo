@@ -459,7 +459,7 @@ resource "aws_ecs_task_definition" "loader" {
       name      = "${var.project_name}-${each.key}"
       image     = "${var.ecr_repository_uri}:${var.environment}-latest"
       essential = true
-      command   = ["python3", "-u", "loaders/${local.loader_file_map[each.key]}"]
+      command   = ["loaders/${local.loader_file_map[each.key]}"]
 
       logConfiguration = {
         logDriver = "awslogs"
