@@ -414,7 +414,9 @@ class Orchestrator:
 
                 for table_name, status, last_updated, completion_pct, symbols_loaded, symbol_count in cur.fetchall():
                     loaders_checked.add(table_name)
-                    is_stale = last_updated < stale_threshold if last_updated else False
+                    # last_updated is a naive datetime from PostgreSQL — make it UTC-aware before comparing
+                    last_updated_utc = last_updated.replace(tzinfo=timezone.utc) if last_updated else None
+                    is_stale = last_updated_utc < stale_threshold if last_updated_utc else False
 
                     # CRITICAL: completion_pct is None only if database query failed or loader hasn't reported yet
                     # Treat None as incomplete (fail-safe) — don't silently use 0 (which looks like successful 0% load)
@@ -429,7 +431,7 @@ class Orchestrator:
 
                     loader_status[table_name] = {
                         "status": status,
-                        "last_updated": last_updated,
+                        "last_updated": last_updated_utc,
                         "is_stale": is_stale,
                         "is_complete": is_complete,
                         "completion_pct": completion_pct,
@@ -445,7 +447,7 @@ class Orchestrator:
                                 f"Loader health check failed: {table_name} is stale but has no last_updated timestamp. "
                                 f"Loader execution tracking may be corrupted."
                             )
-                        age_hours = (now_utc - last_updated).total_seconds() / 3600
+                        age_hours = (now_utc - last_updated_utc).total_seconds() / 3600
                         logger.warning(f"[LOADER HEALTH] {table_name} is STALE (last run {age_hours:.1f}h ago)")
                     elif not is_complete:
                         if completion_pct is None:
