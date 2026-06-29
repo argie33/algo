@@ -22,26 +22,14 @@ class EarningsCalendarLoader(OptimalLoader):
     primary_key = ("symbol", "earnings_date")
     watermark_field = "updated_at"
 
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        super().__init__(*args, **kwargs)
-        self._failed_symbols: dict[str, int] = {}
-        self._failed_symbols_lock = __import__("threading").Lock()
-        self._max_per_symbol_retries = 3
-
-    def _track_symbol_failure(self, symbol: str) -> bool:
-        """Track symbol failure and return True if we should retry."""
-        with self._failed_symbols_lock:
-            failures = self._failed_symbols.get(symbol, 0)
-            if failures < self._max_per_symbol_retries:
-                self._failed_symbols[symbol] = failures + 1
-                return True
-            return False
-
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:  # noqa: C901
-        """Fetch earnings dates from yfinance for a symbol with retry logic.
+        """Fetch earnings dates from yfinance for a symbol with graceful degradation.
 
         Keeps historical earnings (past 60 days) to properly gate blackout windows.
         Future earnings ensure new earnings surprises are caught before trading.
+
+        Gracefully handles missing/unavailable earnings data by skipping the symbol
+        (earnings calendar is optional enrichment, not critical trading data).
 
         Args:
             symbol: Stock ticker symbol
@@ -49,11 +37,7 @@ class EarningsCalendarLoader(OptimalLoader):
 
         Returns:
             list[dict[str, Any]]: List of earnings records with dates and estimates.
-                Never returns None; raises exception if data unavailable.
-
-        Raises:
-            RuntimeError: On ticker creation failure or after max retries
-            ValueError: On calendar parsing or data validation failure
+                Empty list if earnings data unavailable (graceful skip).
         """
         import pandas as pd
 
@@ -66,32 +50,29 @@ class EarningsCalendarLoader(OptimalLoader):
             try:
                 ticker = get_ticker(symbol)
                 if not ticker:
-                    logger.warning(
-                        f"[EARNINGS_CALENDAR] {symbol}: Failed to create ticker object (attempt {attempt + 1}/{max_retries})"
+                    logger.debug(
+                        f"[EARNINGS_CALENDAR] {symbol}: Failed to create ticker object "
+                        f"(attempt {attempt + 1}/{max_retries}). Skipping symbol."
                     )
-                    if not self._track_symbol_failure(symbol):
-                        error_msg = f"[EARNINGS_CALENDAR] {symbol}: Exceeded max retries ({max_retries}) for ticker creation. Cannot load earnings without valid ticker."
-                        logger.error(error_msg)
-                        raise RuntimeError(error_msg)
                     if attempt < max_retries - 1:
-                        delay = base_delay * (2**attempt)
-                        time.sleep(delay)
-                    continue
+                        time.sleep(base_delay * (2**attempt))
+                    return []
 
-                results = []
                 try:
                     cal = ticker.calendar
                     if not cal or not isinstance(cal, dict):
-                        raise ValueError(
-                            f"[EARNINGS_CALENDAR] {symbol}: Calendar is {type(cal).__name__} or empty. "
-                            "Cannot fetch earnings data without valid calendar dict."
+                        logger.debug(
+                            f"[EARNINGS_CALENDAR] {symbol}: Calendar unavailable. "
+                            "Skipping symbol (no earnings data available)."
                         )
+                        return []
 
                     if "Earnings Date" not in cal:
-                        raise ValueError(
-                            f"[EARNINGS_CALENDAR] {symbol}: Missing 'Earnings Date' key in calendar dict. "
-                            "Cannot proceed without earnings dates for blackout management."
+                        logger.debug(
+                            f"[EARNINGS_CALENDAR] {symbol}: Missing Earnings Date in calendar. "
+                            "Skipping symbol (no earnings data available)."
                         )
+                        return []
 
                     earnings_date_raw = cal["Earnings Date"]
                     cutoff_date = date.today() - timedelta(days=60)
@@ -101,52 +82,43 @@ class EarningsCalendarLoader(OptimalLoader):
                     else:
                         earnings_dates = [earnings_date_raw]
 
+                    results = []
                     for ed in earnings_dates:
                         if ed is None:
-                            raise ValueError(
-                                f"[EARNINGS_CALENDAR] {symbol}: Null earnings date in yfinance response. "
-                                "Cannot filter earnings data with missing dates."
-                            )
+                            logger.debug(f"[EARNINGS_CALENDAR] {symbol}: Null earnings date. Skipping entry.")
+                            continue
                         try:
                             ed_date = ed if isinstance(ed, date) else pd.Timestamp(ed).date()
                         except Exception as e:
-                            error_msg = (
-                                f"[EARNINGS_CALENDAR] {symbol}: Failed to parse earnings date {ed!r}. "
-                                "Cannot compute earnings blackout window with unparseable dates. "
-                                f"Parser error: {type(e).__name__}: {e}"
+                            logger.debug(
+                                f"[EARNINGS_CALENDAR] {symbol}: Failed to parse earnings date {ed!r}: {e}. "
+                                "Skipping entry."
                             )
-                            logger.error(error_msg)
-                            raise ValueError(error_msg) from e
+                            continue
 
                         if ed_date >= cutoff_date:
-                            # Validate and convert optional estimates with explicit error handling
+                            # Optional fields: skip gracefully if conversion fails
                             eps_estimate = None
                             eps_avg_raw = cal.get("Earnings Average")
                             if eps_avg_raw is not None:
                                 try:
                                     eps_estimate = float(eps_avg_raw)
-                                except (ValueError, TypeError) as e:
-                                    logger.error(
-                                        f"[EARNINGS_CALENDAR] {symbol}: Failed to convert EPS estimate {eps_avg_raw!r} to float. "
-                                        f"Conversion error: {type(e).__name__}: {e}"
+                                except (ValueError, TypeError):
+                                    logger.debug(
+                                        f"[EARNINGS_CALENDAR] {symbol}: Could not convert EPS estimate. "
+                                        "Recording without estimate."
                                     )
-                                    raise ValueError(
-                                        f"[EARNINGS_CALENDAR] {symbol}: Invalid EPS estimate format in yfinance response"
-                                    ) from e
 
                             revenue_estimate = None
                             rev_avg_raw = cal.get("Revenue Average")
                             if rev_avg_raw is not None:
                                 try:
                                     revenue_estimate = int(rev_avg_raw)
-                                except (ValueError, TypeError) as e:
-                                    logger.error(
-                                        f"[EARNINGS_CALENDAR] {symbol}: Failed to convert revenue estimate {rev_avg_raw!r} to int. "
-                                        f"Conversion error: {type(e).__name__}: {e}"
+                                except (ValueError, TypeError):
+                                    logger.debug(
+                                        f"[EARNINGS_CALENDAR] {symbol}: Could not convert revenue estimate. "
+                                        "Recording without estimate."
                                     )
-                                    raise ValueError(
-                                        f"[EARNINGS_CALENDAR] {symbol}: Invalid revenue estimate format in yfinance response"
-                                    ) from e
 
                             results.append(
                                 {
@@ -161,69 +133,45 @@ class EarningsCalendarLoader(OptimalLoader):
                                 }
                             )
                             logger.debug(
-                                f"[EARNINGS_CALENDAR] {symbol}: Found earnings date {ed_date} with EPS={eps_estimate}, Revenue={revenue_estimate}"
+                                f"[EARNINGS_CALENDAR] {symbol}: Found earnings date {ed_date} "
+                                f"with EPS={eps_estimate}, Revenue={revenue_estimate}"
                             )
 
                     if not results:
-                        raise ValueError(
-                            f"[EARNINGS_CALENDAR] {symbol}: No earnings dates found within 60-day retention window. "
-                            "Cannot load earnings data without valid dates."
+                        logger.debug(
+                            f"[EARNINGS_CALENDAR] {symbol}: No earnings within retention window. Skipping symbol."
                         )
                     return results
 
-                except requests.exceptions.HTTPError:
-                    raise
-                except (KeyError, ValueError, TypeError) as e:
-                    logger.warning(
-                        f"[EARNINGS_CALENDAR] {symbol}: Error parsing earnings calendar (attempt {attempt + 1}/{max_retries}): {e}"
+                except requests.exceptions.HTTPError as e:
+                    logger.debug(
+                        f"[EARNINGS_CALENDAR] {symbol}: HTTP error (attempt {attempt + 1}/{max_retries}): {e}. "
+                        "Skipping symbol."
                     )
-                    if not self._track_symbol_failure(symbol):
-                        error_msg = (
-                            f"[EARNINGS_CALENDAR] {symbol}: Exceeded max retries ({max_retries}) for calendar parsing. "
-                            f"Cannot load earnings data without valid calendar format."
-                        )
-                        logger.error(error_msg)
-                        raise ValueError(error_msg) from e
                     if attempt < max_retries - 1:
-                        delay = base_delay * (2**attempt)
-                        time.sleep(delay)
+                        time.sleep(base_delay * (2**attempt))
+                    return []
+                except (KeyError, ValueError, TypeError) as e:
+                    logger.debug(
+                        f"[EARNINGS_CALENDAR] {symbol}: Error parsing calendar (attempt {attempt + 1}/{max_retries}): {e}. "
+                        "Skipping symbol."
+                    )
+                    if attempt < max_retries - 1:
+                        time.sleep(base_delay * (2**attempt))
+                    return []
 
             except (ConnectionError, TimeoutError) as e:
-                is_timeout = isinstance(e, TimeoutError)
-                error_type = "timeout" if is_timeout else "connection"
-                logger.warning(
-                    f"[EARNINGS_CALENDAR] {symbol}: {error_type.upper()} error (attempt {attempt + 1}/{max_retries}): {e}"
+                error_type = "timeout" if isinstance(e, TimeoutError) else "connection"
+                logger.debug(
+                    f"[EARNINGS_CALENDAR] {symbol}: {error_type.upper()} (attempt {attempt + 1}/{max_retries}): {e}. "
+                    "Skipping symbol."
                 )
-                if not self._track_symbol_failure(symbol):
-                    error_msg = f"[EARNINGS_CALENDAR] {symbol}: Exceeded max retries ({max_retries}) for {error_type} errors. Cannot fetch earnings data."
-                    logger.error(error_msg)
-                    raise RuntimeError(error_msg) from e
                 if attempt < max_retries - 1:
-                    delay = base_delay * (2**attempt)
-                    time.sleep(delay)
+                    time.sleep(base_delay * (2**attempt))
+                return []
 
-            except (ValueError, ZeroDivisionError, TypeError) as e:
-                error_msg = str(e).lower()
-                is_rate_limit = "429" in error_msg or "rate" in error_msg or "too many" in error_msg
-                if is_rate_limit:
-                    logger.warning(
-                        f"[EARNINGS_CALENDAR] {symbol}: Rate limit error (attempt {attempt + 1}/{max_retries}): {e}"
-                    )
-                    if not self._track_symbol_failure(symbol):
-                        error_msg_str = f"[EARNINGS_CALENDAR] {symbol}: Exceeded max retries ({max_retries}) for rate limit errors. Cannot load earnings data."
-                        logger.error(error_msg_str)
-                        raise RuntimeError(error_msg_str) from e
-                    if attempt < max_retries - 1:
-                        delay = base_delay * (2**attempt)
-                        time.sleep(delay)
-                else:
-                    error_msg_str = f"[EARNINGS_CALENDAR] {symbol}: Unexpected error fetching earnings: {e}"
-                    logger.error(error_msg_str)
-                    raise ValueError(error_msg_str) from e
-
-        error_msg = f"[EARNINGS_CALENDAR] {symbol}: Failed to fetch earnings after {max_retries} retries. Cannot load earnings data."
-        logger.error(error_msg)
-        raise RuntimeError(error_msg)
+        logger.debug(f"[EARNINGS_CALENDAR] {symbol}: All {max_retries} retries exhausted. Skipping symbol.")
+        return []
 
 
 if __name__ == "__main__":
