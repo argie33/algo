@@ -15,7 +15,7 @@ from typing import Any
 class TestMarkerPropagation(unittest.TestCase):
     """Test marker propagation through stock score calculation."""
 
-    def test_clamp_score_preserves_markers(self):
+    def test_clamp_score_preserves_markers(self) -> None:
         """CRITICAL: Verify clamp_score doesn't silence markers."""
 
         # Mock clamp_score function from the fixed code
@@ -34,7 +34,7 @@ class TestMarkerPropagation(unittest.TestCase):
         self.assertEqual(result, 100.0)
 
         # CRITICAL: Test that markers are NOT silenced
-        marker = {
+        marker: dict[str, Any] = {
             "symbol": "AAPL",
             "data_unavailable": True,
             "reason": "no_quality_metrics"
@@ -42,13 +42,14 @@ class TestMarkerPropagation(unittest.TestCase):
         result = clamp_score(marker)
         self.assertIsInstance(result, dict)
         self.assertEqual(result, marker)  # ✅ Marker preserved
-        self.assertEqual(result["reason"], "no_quality_metrics")  # ✅ Reason preserved
+        if isinstance(result, dict):
+            self.assertEqual(result["reason"], "no_quality_metrics")  # ✅ Reason preserved
 
         # Test with None
         result = clamp_score(None)
         self.assertIsNone(result)
 
-    def test_composite_score_handles_markers(self):
+    def test_composite_score_handles_markers(self) -> None:
         """Verify composite score logic correctly processes marker dicts."""
 
         # Simulated metric scores: some floats, some markers
@@ -111,11 +112,11 @@ class TestMarkerPropagation(unittest.TestCase):
         # ✅ Incomplete data is visible via unavailable_metrics
         self.assertEqual(len(unavailable_metrics), 2)  # 2 out of 6 metrics unavailable
 
-    def test_marker_reason_propagates_to_api_response(self):
+    def test_marker_reason_propagates_to_api_response(self) -> None:
         """Verify marker reasons appear in API responses."""
 
         # Simulated API response after marker propagation fix
-        response = {
+        response: dict[str, Any] = {
             "symbol": "AAPL",
             "composite_score": 76.2,
             "quality_score": 85.0,
@@ -134,8 +135,11 @@ class TestMarkerPropagation(unittest.TestCase):
         }
 
         # ✅ Operators can see why metrics are unavailable
-        self.assertEqual(response["unavailable_metrics"]["growth"], "no_growth_metrics_data")
-        self.assertEqual(response["unavailable_metrics"]["stability"], "insufficient_price_history")
+        unavailable = response.get("unavailable_metrics")
+        self.assertIsInstance(unavailable, dict)
+        if isinstance(unavailable, dict):
+            self.assertEqual(unavailable.get("growth"), "no_growth_metrics_data")
+            self.assertEqual(unavailable.get("stability"), "insufficient_price_history")
 
         # ✅ data_completeness reflects actual available data
         self.assertEqual(response["data_completeness"], 0.50)

@@ -38,13 +38,8 @@ class TestQualityMetricsMarkers:
     def test_all_none_fields_documented(self):
         """Every None field must have explicit unavailability reason."""
         loader = QualityMetricsLoader()
-
-        invalid_income = None
-        invalid_balance = None
-
         result = loader._compute_metrics("TEST", (2024, None, None), None)
 
-        # All None fields must have reasons
         none_fields = [k for k, v in result.items() if v is None and not k.endswith("reason")]
         for field in none_fields:
             reason_field = f"{field}_unavailable_reason"
@@ -123,8 +118,7 @@ class TestPositioningMetricsMarkers:
             ("short_interest_trend", "short_interest_trend_unavailable_reason"),
         ]
 
-        for metric_field, reason_field in test_fields:
-            # When field is None, reason should be "field_missing_from_source" or similar
+        for _metric_field, reason_field in test_fields:
             assert reason_field is not None
 
 
@@ -151,34 +145,29 @@ class TestValueMetricsMarkers:
 class TestFailFastPatterns:
     """Verify fail-fast patterns enforced across financial data."""
 
-    def test_no_bare_none_returns(self):
+    def test_no_bare_none_returns(self) -> None:
         """No function should return bare None without context."""
-        # This is validated through linting/pre-commit, but documented here
-        pass
+        # Validated through linting/pre-commit
 
-    def test_no_silent_empty_returns(self):
+    def test_no_silent_empty_returns(self) -> None:
         """No function should return [] or {} without data_unavailable marker."""
-        # This is validated through linting/pre-commit, but documented here
-        pass
+        # Validated through linting/pre-commit
 
-    def test_all_get_calls_validated(self):
+    def test_all_get_calls_validated(self) -> None:
         """All .get() calls on financial data must be explicitly validated."""
-        # This is validated through linting/pre-commit, but documented here
-        pass
+        # Validated through linting/pre-commit
 
 
 class TestMarkerPropagation:
     """Verify markers propagate through API responses."""
 
-    def test_markers_not_stripped_by_api(self):
+    def test_markers_not_stripped_by_api(self) -> None:
         """API response handler must preserve unavailability markers."""
         # Integration test: when loader returns marker, API must include it
-        pass
 
-    def test_dashboard_handles_markers(self):
+    def test_dashboard_handles_markers(self) -> None:
         """Dashboard validators must acknowledge data_unavailable flag."""
         # Integration test: dashboard doesn't treat unavailable data as available
-        pass
 
 
 if __name__ == "__main__":
