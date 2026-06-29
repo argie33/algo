@@ -319,10 +319,14 @@ class PriceLoader(OptimalLoader):
         except RuntimeError:
             raise
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.warning(
-                f"[CONSTRAINT] Could not verify unique constraint for {self.table_name}: {e}. "
-                f"Proceeding with caution - duplicates may occur if constraint doesn't exist."
+            error_msg = (
+                f"[CRITICAL] Could not verify unique constraint for {self.table_name}: {e}. "
+                f"Price data integrity requires unique (symbol, date) constraint. "
+                f"Cannot proceed without verifying this constraint exists. "
+                f"Risk: Proceeding would allow duplicate price records to be inserted, corrupting data."
             )
+            logger.error(error_msg)
+            raise RuntimeError(error_msg) from e
 
     def _get_smart_batch_size(self) -> int:
         """CREATIVE FIX #2: Calculate optimal batch size based on observed API performance.

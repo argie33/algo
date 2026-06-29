@@ -113,8 +113,12 @@ class EarningsHistoryLoader(OptimalLoader):
                     if eps_actual is not None and eps_est is not None:
                         try:
                             eps_diff = float(eps_actual) - float(eps_est)
-                        except (ValueError, TypeError):
-                            pass
+                        except (ValueError, TypeError) as e:
+                            logger.warning(
+                                f"[EARNINGS_HISTORY] {symbol} {quarter_str}: "
+                                f"Failed to compute EPS surprise (actual={eps_actual!r}, estimate={eps_est!r}): {e}. "
+                                f"EPS difference will be NULL."
+                            )
 
                     rows.append(
                         {

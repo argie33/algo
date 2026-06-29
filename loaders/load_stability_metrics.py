@@ -271,7 +271,10 @@ class StabilityMetricsLoader(OptimalLoader):
             logger.debug(f"[STABILITY_METRICS] {symbol}: division error parsing beta: {e}")
             return None
         except Exception as e:
-            logger.debug(f"[STABILITY_METRICS] {symbol}: unexpected error fetching beta: {type(e).__name__}: {e}")
+            logger.warning(
+                f"[STABILITY_METRICS] {symbol}: unexpected error fetching beta: {type(e).__name__}: {e}. "
+                f"Beta calculation failed - stability metrics may be incomplete for this symbol."
+            )
             return None
 
     def transform(self, rows: Any) -> list[dict[str, Any]]:

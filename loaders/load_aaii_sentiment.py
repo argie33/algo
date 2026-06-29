@@ -18,8 +18,14 @@ try:
     from playwright.sync_api import sync_playwright
 
     HAS_PLAYWRIGHT = True
-except ImportError:
+except ImportError as e:
     HAS_PLAYWRIGHT = False
+    # Log at module load time so missing dependency is visible immediately
+    import sys
+    if "AWS_LAMBDA_FUNCTION_NAME" in __import__('os').environ:
+        # In Lambda runtime, missing Playwright will cause failures later
+        print(f"[CRITICAL] AAII Sentiment Loader: Playwright not available: {e}. "
+              f"Sentiment data will be unavailable.", file=sys.stderr)
 
 from config.api_endpoints import get_aaii_sentiment_url
 from loaders.runner import run_loader
