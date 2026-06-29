@@ -316,6 +316,7 @@ locals {
     "market_exposure_daily"         = "load_market_exposure_daily.py"
     "options_chains"                = "load_options_chains.py"
     "fred_economic_data"            = "load_fred_economic_data.py"
+    "dxy_index"                     = "load_dxy_index.py"
     "economic_metrics_daily"        = "load_economic_metrics_daily.py"
     "trend_template_data"           = "load_trend_criteria_data.py"
     "compute_circuit_breakers"      = "compute_circuit_breakers.py"
@@ -335,6 +336,10 @@ locals {
     "fred_economic_data" = {
       schedule    = "cron(30 20 ? * MON *)"
       description = "FRED economic indicators - Monday 4:30pm ET"
+    }
+    "dxy_index" = {
+      schedule    = "cron(35 20 ? * MON-FRI *)"
+      description = "ICE DXY (USD Dollar Index) from Yahoo Finance - 4:35pm ET"
     }
     "economic_metrics_daily" = {
       schedule    = "cron(5 9 ? * MON-FRI *)"
@@ -421,6 +426,7 @@ locals {
     "swing_trader_scores"           = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 1 }
     "sector_ranking"                = { cpu = 512, memory = 1024, timeout = 900, parallelism = 1 }
     "fred_economic_data"            = { cpu = 256, memory = 1024, timeout = 300, parallelism = 1 }
+    "dxy_index"                     = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
     "economic_metrics_daily"        = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
     "trend_template_data"           = { cpu = 2048, memory = 4096, timeout = 5400, parallelism = 2 }
     "compute_circuit_breakers"      = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
