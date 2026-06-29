@@ -557,10 +557,16 @@ class StockScoresLoader(OptimalLoader):
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Database operation failed fetching momentum metrics for {symbol}: {e}") from e
 
-    def _score_quality(self, metrics: dict[str, Any] | None) -> float | None:
-        """Score quality metrics on 0-100 scale. Returns None if no real data."""
+    def _score_quality(self, metrics: dict[str, Any] | None) -> float | dict[str, Any]:
+        """Score quality metrics on 0-100 scale. Returns marker if no real data."""
         if not metrics:
-            return None
+            logger.debug(f"[STOCK_SCORES] Quality metrics unavailable for {self.symbol}")
+            return {
+                "symbol": self.symbol,
+                "data_unavailable": True,
+                "reason": "no_quality_metrics",
+                "score_type": "quality"
+            }
 
         scores = []
 
@@ -605,14 +611,20 @@ class StockScoresLoader(OptimalLoader):
 
         return sum(scores) / len(scores) if scores else None
 
-    def _score_growth(self, metrics: dict[str, Any] | None) -> float | None:
-        """Score growth metrics on 0-100 scale. Returns None if no real data.
+    def _score_growth(self, metrics: dict[str, Any] | None) -> float | dict[str, Any]:
+        """Score growth metrics on 0-100 scale. Returns marker if no real data.
 
         Uses weighted blend: 1Y growth (60%) + 3Y CAGR (30%) + 5Y CAGR (10%).
         Longer-term growth signals more durable earnings quality.
         """
         if not metrics:
-            return None
+            logger.debug(f"[STOCK_SCORES] Growth metrics unavailable for {self.symbol}")
+            return {
+                "symbol": self.symbol,
+                "data_unavailable": True,
+                "reason": "no_growth_metrics",
+                "score_type": "growth"
+            }
 
         weighted_sum = 0.0
         total_weight = 0.0
@@ -658,14 +670,20 @@ class StockScoresLoader(OptimalLoader):
 
         return weighted_sum / total_weight if total_weight > 0 else None
 
-    def _score_value(self, metrics: dict[str, Any] | None) -> float | None:
-        """Score value metrics on 0-100 scale. Returns None if no real data.
+    def _score_value(self, metrics: dict[str, Any] | None) -> float | dict[str, Any]:
+        """Score value metrics on 0-100 scale. Returns marker if no real data.
 
         Uses P/E (primary), P/B (secondary), FCF yield (secondary), dividend yield (bonus).
         Peak zone for growth stocks: P/E 15-30, P/B < 5, positive FCF yield.
         """
         if not metrics:
-            return None
+            logger.debug(f"[STOCK_SCORES] Value metrics unavailable for {self.symbol}")
+            return {
+                "symbol": self.symbol,
+                "data_unavailable": True,
+                "reason": "no_value_metrics",
+                "score_type": "value"
+            }
 
         weighted_sum = 0.0
         total_weight = 0.0
@@ -712,12 +730,26 @@ class StockScoresLoader(OptimalLoader):
             weighted_sum += div_score * 0.10
             total_weight += 0.10
 
-        return weighted_sum / total_weight if total_weight > 0 else None
+        if total_weight > 0:
+            return weighted_sum / total_weight
+        logger.debug(f"[STOCK_SCORES] No value metrics found to score for {self.symbol}")
+        return {
+            "symbol": self.symbol,
+            "data_unavailable": True,
+            "reason": "no_scoreable_value_data",
+            "score_type": "value"
+        }
 
-    def _score_positioning(self, metrics: dict[str, Any] | None) -> float | None:
-        """Score positioning metrics on 0-100 scale. Returns None if no real data."""
+    def _score_positioning(self, metrics: dict[str, Any] | None) -> float | dict[str, Any]:
+        """Score positioning metrics on 0-100 scale. Returns marker if no real data."""
         if not metrics:
-            return None
+            logger.debug(f"[STOCK_SCORES] Positioning metrics unavailable for {self.symbol}")
+            return {
+                "symbol": self.symbol,
+                "data_unavailable": True,
+                "reason": "no_positioning_metrics",
+                "score_type": "positioning"
+            }
 
         weighted_sum = 0.0
         total_weight = 0.0

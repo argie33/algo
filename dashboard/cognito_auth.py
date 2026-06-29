@@ -374,11 +374,11 @@ def get_cognito_auth(require_auth: bool = True, interactive: bool = True) -> Cog
                     raise RuntimeError(msg)
                 print("[ERROR] Username or password missing")
                 return None
-        except (KeyboardInterrupt, EOFError):
+        except (KeyboardInterrupt, EOFError) as e:
             if require_auth:
                 msg = "[CRITICAL] Interactive authentication cancelled but authentication is required"
                 logger.error(msg)
-                raise RuntimeError(msg)
+                raise RuntimeError(msg) from e
             logger.info("[Cognito] Interactive authentication cancelled")
             return None
 

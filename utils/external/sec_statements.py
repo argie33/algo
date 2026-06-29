@@ -119,14 +119,14 @@ def _aggregate_concepts(
     # special-purpose vehicles, and some investment trusts never file XBRL.
     try:
         all_facts = client.get_company_facts(cik)
-    except FileNotFoundError:
+    except FileNotFoundError as e:
         error_msg = (
             f"[SEC_STATEMENTS] No XBRL filings found for {symbol} (CIK {cik}). "
             f"Company may be an ETF, special-purpose vehicle, or investment trust. "
             f"Cannot fetch SEC financial data without XBRL filings."
         )
         logger.warning(error_msg)
-        raise RuntimeError(error_msg)
+        raise RuntimeError(error_msg) from e
 
     # Extract concepts from all_facts (us-gaap taxonomy).
     # Some entities (ETFs, foreign filers) have CIKs but report under IFRS

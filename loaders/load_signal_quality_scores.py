@@ -653,9 +653,7 @@ class SignalQualityScoresLoader(OptimalLoader):
 
                 # Institutional ownership score (0-10)
                 institutional_ownership_score = 0
-                institutional_ownership_available = False
                 if institutional_ownership is not None and not pd.isna(institutional_ownership):
-                    institutional_ownership_available = True
                     if institutional_ownership >= 60:
                         institutional_ownership_score = 10
                     elif institutional_ownership >= 40:
@@ -667,9 +665,7 @@ class SignalQualityScoresLoader(OptimalLoader):
 
                 # Market stage score (0-10): Weinstein stage 2 and 3 are best
                 market_stage_score = 0
-                market_stage_available = False
                 if weinstein_stage is not None and not pd.isna(weinstein_stage):
-                    market_stage_available = True
                     try:
                         stage = int(weinstein_stage)
                         if stage in [2, 3]:

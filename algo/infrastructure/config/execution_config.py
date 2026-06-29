@@ -102,33 +102,25 @@ class ExecutionConfig:
         return cast(int, self.get("max_trades_per_day", 5))
 
     def get_default_portfolio_value(self) -> float:
-        """Get default portfolio value for dry-run mode.
+        """Get default portfolio value.
 
-        CRITICAL: Returns hardcoded $100k default only if 'default_portfolio_value' config key is missing.
-        This should only happen during initial setup. Production must have explicit portfolio configuration.
+        CRITICAL: Must be explicitly configured. No hardcoded fallback to $100k.
+        Portfolio value is a critical parameter for position sizing and risk management.
 
         Returns:
             Portfolio value in dollars
 
         Raises:
-            RuntimeError: If attempting to use default portfolio value in production (non-dry-run) mode
+            RuntimeError: If 'default_portfolio_value' config key is missing (fail-fast)
         """
-        import logging
-
         value = self.get("default_portfolio_value")
         if value is None:
-            # Only allow hardcoded default in dry-run/paper modes, not production
-            if self.get_execution_mode() not in ("dry", "paper", "review"):
-                raise RuntimeError(
-                    "[EXECUTION_CONFIG] default_portfolio_value config key missing. "
-                    "Cannot use hardcoded $100k default in production (auto) mode. "
-                    "Set 'default_portfolio_value' in configuration before trading."
-                )
-            logging.getLogger(__name__).warning(
-                "[EXECUTION_CONFIG] Using hardcoded default portfolio value ($100k). "
-                "This should only happen in dry-run/paper/review mode or during initial setup."
+            raise RuntimeError(
+                "[EXECUTION_CONFIG] CRITICAL: default_portfolio_value config key missing. "
+                "Portfolio value must be explicitly configured — no fallback to $100k. "
+                "Set 'default_portfolio_value' in algo_config table to proceed. "
+                "Check database: SELECT * FROM algo_config WHERE key = 'default_portfolio_value';"
             )
-            return 100000.0
         return float(value)
 
     def get_execution_config(self) -> dict[str, Any]:
