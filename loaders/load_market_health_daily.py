@@ -1188,8 +1188,10 @@ def _write_vix_family_prices(start: date, end: date) -> int:
     except Exception as e:
         logger.warning(f"[MARKET_HEALTH] Could not check existing price_daily freshness: {e}")
 
-    # A symbol is "fresh" if its latest date is within 5 calendar days of end (handles weekends/holidays)
-    fresh_cutoff = end - timedelta(days=5)
+    # A symbol is "fresh" if its latest date is the previous calendar day or newer.
+    # 1-day tolerance: skips re-fetch only when yesterday's data is already there.
+    # 5-day was too lenient — on Monday it treated Friday's VIX as fresh and skipped today's fetch.
+    fresh_cutoff = end - timedelta(days=1)
     symbols_needing_refresh = {
         sym for sym in INDEX_SYMBOLS_FOR_PRICE_DAILY
         if sym not in existing_dates or existing_dates[sym] < fresh_cutoff

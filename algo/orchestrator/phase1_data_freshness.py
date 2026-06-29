@@ -454,6 +454,30 @@ def run(  # noqa: C901
             }
             date_checked_tables = critical_tables
 
+            # Per-table reference dates: some tables have upstream dependencies that limit how
+            # current they can be. Compare against the appropriate upstream date, not global max.
+            # - market_health_daily: limited by VIX availability in price_daily (^VIX published EOD)
+            # - market_exposure_daily: limited by market_health_daily availability
+            # - all others: compare against global price_daily max_date
+            vix_max_date: _date | None = None
+            health_max_date: _date | None = None
+            try:
+                cur.execute("SELECT MAX(date) FROM price_daily WHERE symbol = '^VIX'")
+                vix_row = cur.fetchone()
+                vix_max_date = vix_row[0] if vix_row else None
+
+                cur.execute("SELECT MAX(date) FROM market_health_daily")
+                health_row = cur.fetchone()
+                health_max_date = health_row[0] if health_row else None
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+                logger.warning(f"[PHASE 1] Could not fetch VIX/health reference dates: {e} — using global max_date")
+
+            # Map each table to its upstream reference date for staleness comparison
+            table_reference_dates = {
+                "market_health_daily": vix_max_date or max_date,
+                "market_exposure_daily": health_max_date or max_date,
+            }
+
             try:
                 union_parts = []
                 for table_name in date_checked_tables.keys():
@@ -481,6 +505,8 @@ def run(  # noqa: C901
 
                 for table_name, description in date_checked_tables.items():
                     is_halt_table = table_name in halt_tables
+                    # Use per-table reference date where applicable (e.g., market_health uses VIX date)
+                    ref_date = table_reference_dates.get(table_name, max_date)
                     try:
                         table_max_date = max_dates.get(table_name)
 
@@ -494,8 +520,8 @@ def run(  # noqa: C901
                                 warn_stale.append(msg)
                             continue
 
-                        if table_max_date < max_date:
-                            days_behind = (max_date - table_max_date).days
+                        if table_max_date < ref_date:
+                            days_behind = (ref_date - table_max_date).days
                             max_tolerance_days = 1 if is_halt_table else 0
                             if days_behind > max_tolerance_days:
                                 msg = f"{description} is {days_behind} day(s) stale"
