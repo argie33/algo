@@ -67,10 +67,14 @@ class CognitoAuth:
                 self.token_expires_at = self._parse_jwt_expiry(self.access_token)
             return bool(self.access_token)
         except ClientError as e:
-            error_dict = e.response.get("Error", {})
+            # FAIL-FAST: Validate Cognito error response structure
+            error_dict = e.response.get("Error")
             if not error_dict:
-                logger.error(f"[COGNITO] ClientError with malformed response (missing 'Error' dict): {e.response}")
-                return False
+                logger.error(
+                    f"[COGNITO] ClientError with malformed response (missing 'Error' dict). "
+                    f"Cannot validate error type. Response: {e.response}"
+                )
+                raise RuntimeError(f"Cognito error response structure invalid: {e.response}") from e
             error_code = error_dict.get("Code")
             if error_code == "NotAuthorizedException":
                 logger.error(f"Invalid credentials for user: {username}")

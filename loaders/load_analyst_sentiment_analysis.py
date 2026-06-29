@@ -79,7 +79,7 @@ class AnalystSentimentLoader(OptimalLoader):
         try:
             from utils.external.yfinance import get_ticker
         except ImportError as e:
-            logger.debug(f"[ANALYST_SENTIMENT] Failed to import yfinance for {symbol}: {e}")
+            logger.info(f"[ANALYST_SENTIMENT] Failed to import yfinance for {symbol}: {e}")
             raise
 
         try:
@@ -92,7 +92,7 @@ class AnalystSentimentLoader(OptimalLoader):
             raise TransientAPIError(f"Connection error fetching ticker for {symbol}") from e
 
         if not ticker:
-            logger.debug(f"[ANALYST_SENTIMENT] No ticker available for {symbol} — likely no analyst coverage")
+            logger.info(f"[ANALYST_SENTIMENT] No ticker available for {symbol} — likely no analyst coverage")
             return [{
                 "symbol": symbol,
                 "date": date.today(),
@@ -118,7 +118,7 @@ class AnalystSentimentLoader(OptimalLoader):
             raise TransientAPIError(f"Connection error fetching recommendations for {symbol}") from e
 
         if recs is None or recs.empty:
-            logger.debug(f"[ANALYST_SENTIMENT] No analyst recommendations for {symbol} — no coverage available")
+            logger.info(f"[ANALYST_SENTIMENT] No analyst recommendations for {symbol} — no coverage available")
             return [{
                 "symbol": symbol,
                 "date": date.today(),
@@ -175,7 +175,7 @@ class AnalystSentimentLoader(OptimalLoader):
                 total = bullish_count + bearish_count + neutral_count
 
                 if total == 0:
-                    logger.debug(f"[ANALYST_SENTIMENT] No analyst ratings found for {symbol}")
+                    logger.info(f"[ANALYST_SENTIMENT] No analyst ratings found for {symbol}")
                     continue
 
                 # Extract date from index or use the recommendation date if available
@@ -200,7 +200,7 @@ class AnalystSentimentLoader(OptimalLoader):
                 logger.debug(f"[ANALYST_SENTIMENT] Parsed {len(results)} records for {symbol}")
                 return results
             else:
-                logger.debug(f"[ANALYST_SENTIMENT] No sentiment data for {symbol}")
+                logger.info(f"[ANALYST_SENTIMENT] No sentiment data for {symbol}")
                 return [{
                     "symbol": symbol,
                     "date": date.today(),
@@ -265,7 +265,7 @@ class AnalystSentimentLoader(OptimalLoader):
             if results:
                 return results
             else:
-                logger.debug(f"[ANALYST_SENTIMENT] No sentiment data aggregated for {symbol}")
+                logger.info(f"[ANALYST_SENTIMENT] No sentiment data aggregated for {symbol}")
                 return [{
                     "symbol": symbol,
                     "date": date.today(),

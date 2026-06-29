@@ -174,10 +174,23 @@ class StockScoresLoader(OptimalLoader):
 
             if data_count < min_required_metrics:
                 logger.warning(
-                    f"[STOCK_SCORES] {symbol}: no metrics available ({data_count}/6, {data_completeness:.0f}% complete). "
-                    f"Cannot compute score without at least one available metric."
+                    f"[STOCK_SCORES] {symbol}: no metrics available ({data_count}/6, {data_completeness:.0f}% complete)"
                 )
-                return None
+                return {
+                    "symbol": symbol,
+                    "composite_score": None,
+                    "quality_score": None,
+                    "growth_score": None,
+                    "value_score": None,
+                    "momentum_score": None,
+                    "positioning_score": None,
+                    "stability_score": None,
+                    "rs_percentile": 0.0,
+                    "data_completeness": 0.0,
+                    "data_unavailable": True,
+                    "reason": "no_metrics_available",
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }
 
             # Compute weighted composite score with NORMALIZED weights
             # When metrics are missing, redistribute their weight to available metrics

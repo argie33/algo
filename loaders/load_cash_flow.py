@@ -12,7 +12,7 @@ import logging  # noqa: E402
 
 logger = logging.getLogger(__name__)
 import os  # noqa: E402
-from datetime import date  # noqa: E402
+from datetime import date, datetime  # noqa: E402
 from typing import Any, cast  # noqa: E402
 
 from loaders.runner import run_loader  # noqa: E402
@@ -257,7 +257,13 @@ class CashFlowLoader(OptimalLoader):
                 key = (symbol, fiscal_year, fiscal_quarter)
             if key not in seen:
                 seen[key] = row
-        return list(seen.values())
+
+        # Add created_at watermark for downstream loaders (growth_metrics, quality_metrics, etc.)
+        now = datetime.now().isoformat()
+        result = list(seen.values())
+        for row in result:
+            row["created_at"] = now
+        return result
 
     def _validate_row(self, row: dict[str, Any]) -> bool:
         if not super()._validate_row(row):

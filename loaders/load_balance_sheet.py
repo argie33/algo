@@ -11,7 +11,7 @@ or --period CLI flag for manual runs.
 import logging
 import os
 import sys
-from datetime import date
+from datetime import date, datetime
 from typing import Any, cast
 
 from loaders.runner import run_loader
@@ -250,7 +250,12 @@ class BalanceSheetLoader(OptimalLoader):
                 f"Balance sheet data completeness may be affected."
             )
 
-        return list(seen.values())
+        # Add created_at watermark for downstream loaders (growth_metrics, quality_metrics, etc.)
+        now = datetime.now().isoformat()
+        result = list(seen.values())
+        for row in result:
+            row["created_at"] = now
+        return result
 
     def _validate_row(self, row: dict[str, Any]) -> bool:
         if not super()._validate_row(row):

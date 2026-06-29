@@ -716,8 +716,17 @@ class OptimalLoader:
                 logger.info(f"[{self.table_name}] Cache invalidation successful")
                 return
             except ClientError as delete_err:
-                error_dict = delete_err.response.get("Error", {})
-                if error_dict.get("Code", "") in ("AccessDenied", "AccessDeniedException"):
+                # FAIL-FAST: Validate error response structure before checking code
+                error_dict = delete_err.response.get("Error")
+                if not error_dict:
+                    logger.error(
+                        f"[{self.table_name}] Cache invalidation failed: malformed AWS response (missing 'Error' key). "
+                        f"Response: {delete_err.response}. Cannot determine if retriable error."
+                    )
+                    raise RuntimeError(f"AWS DynamoDB error response structure invalid: {delete_err.response}") from delete_err
+
+                error_code = error_dict.get("Code")
+                if error_code in ("AccessDenied", "AccessDeniedException"):
                     logger.warning(
                         f"[{self.table_name}] Cache invalidation: No DynamoDB write access (permission denied). "
                         "Loader will continue, but Phase 1 may use stale data from previous run."
@@ -739,8 +748,17 @@ class OptimalLoader:
                 logger.warning(f"[{self.table_name}] Cache poisoned (set invalidation_failed=true) - Phase 1 will skip stale data")
                 return
             except ClientError as poison_err:
-                error_dict = poison_err.response.get("Error", {})
-                if error_dict.get("Code", "") in ("AccessDenied", "AccessDeniedException"):
+                # FAIL-FAST: Validate error response structure before checking code
+                error_dict = poison_err.response.get("Error")
+                if not error_dict:
+                    logger.error(
+                        f"[{self.table_name}] Cache poisoning failed: malformed AWS response (missing 'Error' key). "
+                        f"Response: {poison_err.response}. Cannot determine if retriable error."
+                    )
+                    raise RuntimeError(f"AWS DynamoDB error response structure invalid: {poison_err.response}") from poison_err
+
+                error_code = error_dict.get("Code")
+                if error_code in ("AccessDenied", "AccessDeniedException"):
                     logger.warning(
                         f"[{self.table_name}] Cache poisoning: No DynamoDB write access (permission denied). "
                         "Loader will continue, but Phase 1 may use stale data from previous run."

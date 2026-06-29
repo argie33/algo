@@ -14,7 +14,7 @@ import psycopg2  # noqa: E402
 
 logger = logging.getLogger(__name__)
 import os  # noqa: E402
-from datetime import date  # noqa: E402
+from datetime import date, datetime  # noqa: E402
 from typing import Any, cast  # noqa: E402
 
 from loaders.runner import run_loader  # noqa: E402
@@ -298,7 +298,12 @@ class IncomeStatementLoader(OptimalLoader):
                 f"Income statement data completeness may be affected."
             )
 
-        return list(seen.values())
+        # Add created_at watermark for downstream loaders (growth_metrics, quality_metrics, etc.)
+        now = datetime.now().isoformat()
+        result = list(seen.values())
+        for row in result:
+            row["created_at"] = now
+        return result
 
     def _validate_row(self, row: dict[str, Any]) -> bool:
         if not super()._validate_row(row):

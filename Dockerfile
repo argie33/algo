@@ -46,3 +46,5 @@ COPY migrations/ ./migrations/
 
 RUN useradd -r -u 1001 -g root appuser && chown -R appuser:root /app
 USER appuser
+
+ENTRYPOINT ["python3", "-u"]

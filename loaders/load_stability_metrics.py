@@ -100,18 +100,16 @@ class StabilityMetricsLoader(OptimalLoader):
                     f"[STABILITY_METRICS] Insufficient data for {symbol} "
                     f"({actual_rows}/30 days required) — metrics unavailable"
                 )
-                return [
-                    {
-                        "symbol": symbol,
-                        "volatility_30d": None,
-                        "volatility_60d": None,
-                        "volatility_252d": None,
-                        "beta": None,
-                        "data_unavailable": True,
-                        "reason": f"insufficient_price_history ({actual_rows}/30 days)",
-                        "updated_at": datetime.now(timezone.utc).isoformat(),
-                    }
-                ]
+                return {
+                    "symbol": symbol,
+                    "volatility_30d": None,
+                    "volatility_60d": None,
+                    "volatility_252d": None,
+                    "beta": None,
+                    "data_unavailable": True,
+                    "reason": f"insufficient_price_history ({actual_rows}/30 days)",
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }
 
             # Sort chronologically (oldest to newest)
             prices = sorted(
@@ -136,18 +134,16 @@ class StabilityMetricsLoader(OptimalLoader):
                     f"[STABILITY_METRICS] Cannot calculate returns for {symbol} "
                     f"(no valid price transitions found)"
                 )
-                return [
-                    {
-                        "symbol": symbol,
-                        "volatility_30d": None,
-                        "volatility_60d": None,
-                        "volatility_252d": None,
-                        "beta": None,
-                        "data_unavailable": True,
-                        "reason": "invalid_price_transitions",
-                        "updated_at": datetime.now(timezone.utc).isoformat(),
-                    }
-                ]
+                return {
+                    "symbol": symbol,
+                    "volatility_30d": None,
+                    "volatility_60d": None,
+                    "volatility_252d": None,
+                    "beta": None,
+                    "data_unavailable": True,
+                    "reason": "invalid_price_transitions",
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }
 
             # Calculate volatilities (annualized: sqrt(252) * daily_std)
             volatility_30d = self._calculate_volatility(returns[-30:]) if len(returns) >= 30 else None
@@ -172,18 +168,16 @@ class StabilityMetricsLoader(OptimalLoader):
                 f"[STABILITY_METRICS] Calculation error for {symbol} "
                 f"({type(e).__name__}: {e})"
             )
-            return [
-                {
-                    "symbol": symbol,
-                    "volatility_30d": None,
-                    "volatility_60d": None,
-                    "volatility_252d": None,
-                    "beta": None,
-                    "data_unavailable": True,
-                    "reason": f"calculation_error_{type(e).__name__.lower()}",
-                    "updated_at": datetime.now(timezone.utc).isoformat(),
-                }
-            ]
+            return {
+                "symbol": symbol,
+                "volatility_30d": None,
+                "volatility_60d": None,
+                "volatility_252d": None,
+                "beta": None,
+                "data_unavailable": True,
+                "reason": f"calculation_error_{type(e).__name__.lower()}",
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }
 
     @staticmethod
     def _calculate_volatility(returns: list[float]) -> float | None:
@@ -229,7 +223,10 @@ class StabilityMetricsLoader(OptimalLoader):
 
             # Validate value is not None
             if beta_raw is None:
-                logger.debug(f"[STABILITY_METRICS] Beta field is None for {symbol} (data unavailable from yfinance)")
+                logger.warning(
+                    f"[STABILITY_METRICS] Beta field is None for {symbol} (data unavailable from yfinance) — "
+                    "stability score will be incomplete"
+                )
                 return None
 
             # Convert to float and validate

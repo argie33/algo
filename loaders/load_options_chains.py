@@ -272,7 +272,7 @@ class OptionsLoader:
                         ) from e
 
         if inserted == 0:
-            logger.debug(f"[OPTIONS_CHAINS] No volume data inserted for {symbol} (all volumes zero or missing)")
+            logger.info(f"[OPTIONS_CHAINS] No volume data inserted for {symbol} (all volumes zero or missing)")
 
         return inserted
 
