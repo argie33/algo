@@ -95,6 +95,56 @@ Required:
 
 ---
 
+## Factor Scores Data Quality (AWS Metric Loaders)
+
+**Problem:** Factor scores showing 0's, NULL, or incomplete (data_completeness < 50%)
+
+**Root Cause:** Metric loaders timing out in AWS
+- Default 300s timeout insufficient for yfinance + SEC filing fetches
+- Rate limiting from parallel loading of 3000+ symbols
+- Batch size 1000 causes rate limit cascade, backoff increases execution time
+- VPC network latency and database connection pooling contention
+
+**Solution (Deployed):**
+- Metric loader timeout: 300s → 600s (10 minutes)
+- Batch size in AWS: 1000 → 100 (avoids rate limiting)
+- ECS task memory: 512MB → 1024MB (sufficient for batches)
+- Loader classification: CRITICAL (FARGATE resource guarantee, not SPOT)
+
+**Verify Fix Working:**
+```bash
+# Check metric loader completion (should be > 75% in last hour)
+SELECT table_name, completion_pct, last_updated 
+FROM data_loader_status 
+WHERE table_name IN ('quality_metrics', 'growth_metrics', 'value_metrics', 'positioning_metrics', 'stability_metrics')
+ORDER BY last_updated DESC;
+
+# Check factor scores calculated (should be 2000+ with avg 45-65)
+SELECT COUNT(*) as total, 
+       ROUND(AVG(composite_score), 2) as avg_score,
+       MIN(composite_score) as min_score,
+       MAX(composite_score) as max_score
+FROM stock_scores 
+WHERE composite_score > 0;
+```
+
+**Expected Results (Fixed):**
+- total: 2000+
+- avg_score: 45-65
+- min_score: > 0
+- max_score: 90-100
+
+**If Still Broken (< 500 scores):**
+1. Check CloudWatch: `/ecs/algo-cluster` — metric loader errors?
+2. Check data_loader_status: completion_pct for each metric table
+3. If < 70% completion: increase ECS memory to 2048MB, reduce parallelism to 2
+4. Monitor next loader run (EventBridge triggers every 5 min trading hours)
+5. Each loader needs ~10 min to complete; allow 60+ min for all 5 metrics + stock_scores
+
+**Auto-Recovery:** EventBridge trigger → Loader execution → Data loaded → Scores calculated
+
+---
+
 ## For Detailed Reference
 
 See:
