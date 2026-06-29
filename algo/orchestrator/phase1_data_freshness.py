@@ -75,19 +75,21 @@ def run(  # noqa: C901
             "and phase1_min_symbol_count thresholds. Config must be passed from algo_config table."
         )
 
-    min_coverage_pct = config.get("phase1_min_coverage_pct")
-    if min_coverage_pct is None:
+    try:
+        min_coverage_pct = config["phase1_min_coverage_pct"]
+    except KeyError as e:
         raise RuntimeError(
             "[PHASE 1] Config missing required key 'phase1_min_coverage_pct'. "
             "Cannot proceed without explicit data freshness threshold (no hardcoded fallback)."
-        )
+        ) from e
 
-    min_symbol_count = config.get("phase1_min_symbol_count")
-    if min_symbol_count is None:
+    try:
+        min_symbol_count = config["phase1_min_symbol_count"]
+    except KeyError as e:
         raise RuntimeError(
             "[PHASE 1] Config missing required key 'phase1_min_symbol_count'. "
             "Cannot proceed without explicit symbol count threshold (no hardcoded fallback)."
-        )
+        ) from e
 
     from datetime import datetime as dt
     from zoneinfo import ZoneInfo
@@ -210,16 +212,17 @@ def run(  # noqa: C901
             )
             patrol_warn_row = cur.fetchone()
             if patrol_warn_row is None:
-                patrol_warn_count = 0
-                patrol_warn_checks = 0
-            else:
-                if len(patrol_warn_row) < 2:
-                    raise RuntimeError(
-                        f"[PHASE1] DataPatrol query returned incomplete row: {patrol_warn_row} — "
-                        "expected (warning_count, check_count) tuple"
-                    )
-                patrol_warn_count = patrol_warn_row[0]
-                patrol_warn_checks = patrol_warn_row[1]
+                raise RuntimeError(
+                    "[PHASE 1] DataPatrol warning count query unexpectedly returned NULL. "
+                    "Database state invalid or query malformed."
+                )
+            if len(patrol_warn_row) < 2:
+                raise RuntimeError(
+                    f"[PHASE1] DataPatrol query returned incomplete row: {patrol_warn_row} — "
+                    "expected (warning_count, check_count) tuple"
+                )
+            patrol_warn_count = patrol_warn_row[0]
+            patrol_warn_checks = patrol_warn_row[1]
             if patrol_warn_count > 0:
                 logger.warning(
                     f"[PHASE 1] DataPatrol: {patrol_warn_count} warning(s) from {patrol_warn_checks} check(s) "
@@ -227,50 +230,32 @@ def run(  # noqa: C901
                 )
 
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-        # Check if this is a "table doesn't exist" error (first-run scenario).
-        # Even on first run, we should fail-closed for financial accuracy unless explicitly in dry-run.
-        is_missing_table = "data_patrol_log" in str(e).lower() or "undefined table" in str(e).lower()
-        if is_missing_table and not dry_run:
+        # DataPatrol check failed — FAIL-CLOSED instead of silently continuing
+        # Don't attempt fragile string pattern matching on error messages
+        error_str = str(e)[:100]
+        if not dry_run:
             logger.critical(
-                "[PHASE 1] DataPatrol log table missing (not yet initialized). "
-                "DataPatrol must be set up before trading. "
-                "Please initialize data_patrol infrastructure or run in dry-run mode."
+                f"[PHASE 1] DataPatrol check failed (cannot distinguish table-missing from other errors): {error_str}"
             )
             log_phase_result_fn(
                 1,
-                "data_patrol_not_initialized",
+                "data_patrol_check_error",
                 "halt",
-                "DataPatrol table missing — infrastructure not initialized",
+                f"DataPatrol check failed: {error_str}",
             )
             return PhaseResult(
                 1,
-                "data_patrol_not_initialized",
+                "data_patrol_check_error",
                 "halted",
                 {},
                 True,
-                "DataPatrol infrastructure not initialized. Cannot proceed without quality checks.",
-            )
-        elif is_missing_table and dry_run:
-            logger.warning(
-                "[PHASE 1] DataPatrol log table not yet available (dry-run). "
-                "Continuing with traditional freshness checks (production requires DataPatrol)."
+                f"DataPatrol check failed unexpectedly: {error_str}",
             )
         else:
-            # Unexpected database error — FAIL-CLOSED instead of silently continuing
-            logger.critical(f"[PHASE 1] DataPatrol check failed (unexpected error): {str(e)[:100]}")
-            log_phase_result_fn(
-                1,
-                "data_patrol_check_error",
-                "halt",
-                f"DataPatrol check failed: {str(e)[:100]}",
-            )
-            return PhaseResult(
-                1,
-                "data_patrol_check_error",
-                "halted",
-                {},
-                True,
-                f"DataPatrol check failed unexpectedly: {str(e)[:100]}",
+            # In dry-run, allow DataPatrol infrastructure absence
+            logger.warning(
+                f"[PHASE 1] DataPatrol check failed (dry-run mode — skipping): {error_str}. "
+                "Continuing with traditional freshness checks."
             )
 
     try:
@@ -281,12 +266,17 @@ def run(  # noqa: C901
             # stock_scores must be populated by its loader before Phase 5 can generate signals
             cur.execute("SELECT COUNT(*) FROM stock_scores")
             stock_scores_count_row = cur.fetchone()
-            if stock_scores_count_row is None or len(stock_scores_count_row) == 0:
+            if stock_scores_count_row is None:
                 raise RuntimeError(
-                    "[PHASE 1] Unexpected NULL/empty result from stock_scores COUNT query. "
-                    "Database integrity check failed."
+                    "[PHASE 1] stock_scores COUNT query returned NULL. "
+                    "Database connection or query malformed."
                 )
             stock_scores_count = stock_scores_count_row[0]
+            if not isinstance(stock_scores_count, int):
+                raise RuntimeError(
+                    f"[PHASE 1] stock_scores COUNT returned non-integer: {type(stock_scores_count)}. "
+                    "Data corruption or query error."
+                )
 
             if stock_scores_count == 0:
                 logger.critical(
@@ -311,8 +301,12 @@ def run(  # noqa: C901
             # Find reference date from price_daily (most reliable source)
             cur.execute("SELECT MAX(date) FROM price_daily")
             row = cur.fetchone()
-            max_date = row[0] if row and row[0] is not None else None
-
+            if row is None:
+                raise RuntimeError(
+                    "[PHASE 1] price_daily MAX(date) query returned NULL. "
+                    "Query malformed or database connection failed."
+                )
+            max_date = row[0]
             if max_date is None:
                 logger.critical("[PHASE 1] price_daily table is empty")
                 log_phase_result_fn(1, "price_data", "halt", "price_daily table is empty")
@@ -472,8 +466,19 @@ def run(  # noqa: C901
 
                 max_dates = {}
                 for row in cur.fetchall():
-                    row_dict = dict(row)
-                    max_dates[row_dict["tbl"]] = row_dict["max_dt"]
+                    if row is None or len(row) < 2:
+                        raise RuntimeError(
+                            f"[PHASE 1] Table freshness query returned incomplete row: {row}. "
+                            "Expected (table_name, max_date) tuple."
+                        )
+                    table_name_val = row[0]
+                    max_date_val = row[1]
+                    if table_name_val is None:
+                        raise RuntimeError(
+                            "[PHASE 1] Table freshness query returned NULL table name. "
+                            "Union query construction may be broken."
+                        )
+                    max_dates[table_name_val] = max_date_val
 
                 for table_name, description in date_checked_tables.items():
                     is_halt_table = table_name in halt_tables
