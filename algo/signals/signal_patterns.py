@@ -108,15 +108,16 @@ class SignalPatternsMixin:
                 if len(base_vols) >= self.LOOKBACK_BARS_SHORT
                 else 0
             )
+            # Volume dryup requires 50+ bars: don't use recent as fallback for prior (creates fake signal)
             if len(volumes) < 50:
                 logger.debug(
                     f"[SIGNAL_PATTERNS] Insufficient volume history for pattern ({len(volumes)}/50 bars). "
-                    f"Volume dryup detection unreliable with limited data."
+                    f"Volume dryup detection disabled — requires 50+ bars."
                 )
-                prior_vol = recent_vol
+                volume_dryup = None
             else:
                 prior_vol = sum(volumes[20:50]) / 30
-            volume_dryup = prior_vol > 0 and recent_vol < prior_vol * 0.8
+                volume_dryup = prior_vol > 0 and recent_vol < prior_vol * 0.8
 
             return {
                 "in_base": in_base,
@@ -481,9 +482,11 @@ class SignalPatternsMixin:
                 method = method + "_capped"
 
             if candidate >= entry_price:
-                candidate = entry_price * 0.93
-                method = "sanity_fallback_7pct"
-                reasoning = "7% sanity fallback (computed stop was >= entry)"
+                raise ValueError(
+                    f"[STOP_LOSS] Stop price ${candidate:.2f} >= entry ${entry_price:.2f} for {symbol} on {eval_date}. "
+                    f"Indicates corrupt data (base_type={base_type}, method={method}, atr={atr:.4f}). "
+                    f"Not using 7% fallback — fix underlying data."
+                )
 
             return {
                 "stop_price": round(candidate, 2),

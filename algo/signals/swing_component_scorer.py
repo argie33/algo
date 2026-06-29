@@ -384,9 +384,26 @@ class SwingComponentScorer:
             rev_growth = float(row[1])
             roe = float(row[2])
 
-            eps_pts = min(4, eps_growth / 50) if eps_growth > 0 else 0.0
-            rev_pts = min(3, rev_growth / 20) if rev_growth > 0 else 0.0
-            roe_pts = min(3, roe / 15) if roe > 0 else 0.0
+            # Negative fundamentals: red flags (declining earnings/revenue/ROE), not zero points
+            if eps_growth < 0:
+                raise ValueError(
+                    f"{symbol}: EPS declining ({eps_growth:.2f}%). "
+                    f"Negative earnings growth disqualifies for swing trading."
+                )
+            if rev_growth < 0:
+                raise ValueError(
+                    f"{symbol}: Revenue declining ({rev_growth:.2f}%). "
+                    f"Negative revenue growth indicates business contraction."
+                )
+            if roe < 0:
+                raise ValueError(
+                    f"{symbol}: ROE negative ({roe:.2f}%). "
+                    f"Negative ROE indicates shareholder value destruction."
+                )
+
+            eps_pts = min(4, eps_growth / 50)
+            rev_pts = min(3, rev_growth / 20)
+            roe_pts = min(3, roe / 15)
 
             pts = eps_pts + rev_pts + roe_pts
             return min(pts, self.W_FUNDAMENTALS), {

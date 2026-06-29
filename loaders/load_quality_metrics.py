@@ -28,9 +28,16 @@ logger = logging.getLogger(__name__)
 
 
 class QualityMetricsLoader(OptimalLoader):
+    """Quality metrics loader for real stocks only (not ETFs/bonds).
+
+    Quality metrics require SEC financial data (balance sheet, income statement),
+    which is only available for companies, not ETFs or bonds.
+    """
+
     table_name = "quality_metrics"
     primary_key = ("symbol",)
     watermark_field = "created_at"
+    exclude_etfs_from_symbols = True
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Compute quality metrics from balance sheet and income statement.

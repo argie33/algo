@@ -153,16 +153,18 @@ def enrich_technical_data(
 
                     if tech_row:
                         rsi, sma_50, sma_200, ema_21, atr, adx, mansfield_rs = tech_row
+                        # Direct assignment: no COALESCE fallback to stale data
+                        # If we have data for exact date match, use it; otherwise leave NULL
                         cur.execute(
                             """
                             UPDATE buy_sell_daily
-                            SET rsi = COALESCE(rsi, %s),
-                                sma_50 = COALESCE(sma_50, %s),
-                                sma_200 = COALESCE(sma_200, %s),
-                                ema_21 = COALESCE(ema_21, %s),
-                                atr = COALESCE(atr, %s),
-                                adx = COALESCE(adx, %s),
-                                mansfield_rs = COALESCE(mansfield_rs, %s)
+                            SET rsi = %s,
+                                sma_50 = %s,
+                                sma_200 = %s,
+                                ema_21 = %s,
+                                atr = %s,
+                                adx = %s,
+                                mansfield_rs = %s
                             WHERE id = %s
                         """,
                             (

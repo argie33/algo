@@ -55,15 +55,29 @@ class EarningsHistoryLoader(OptimalLoader):
                     eps_actual = row.get("Reported EPS")
                     surprise_pct = row.get("Surprise(%)")
 
-                    def _float(v: Any) -> float | None:
-                        try:
-                            import math
+                    def _float(v: Any, field_name: str = "value") -> float | None:
+                        """Convert value to float, fail-fast on corruption.
 
-                            f = float(v)
-                            return None if math.isnan(f) else round(f, 4)
-                        except (TypeError, ValueError) as e:
-                            logger.debug(f"[{symbol}] Could not convert {v!r} to float: {e}")
+                        Returns None only for legitimately missing data (None, empty string).
+                        Raises ValueError for malformed/corrupted data.
+                        """
+                        import math
+
+                        # Legitimately missing data
+                        if v is None or (isinstance(v, str) and v.strip() == ""):
                             return None
+
+                        # Corrupted/malformed data should fail-fast
+                        try:
+                            f = float(v)
+                            if math.isnan(f):
+                                return None
+                            return round(f, 4)
+                        except (TypeError, ValueError) as e:
+                            raise ValueError(
+                                f"[{symbol}] Malformed {field_name} value {v!r}: cannot convert to float. "
+                                f"Data corruption detected for earnings history."
+                            ) from e
 
                     # Derive quarter start date (the quarter in which earnings fall)
                     try:
@@ -85,9 +99,9 @@ class EarningsHistoryLoader(OptimalLoader):
                             "symbol": symbol,
                             "quarter": quarter_str,
                             "earnings_date": ed,
-                            "eps_estimate": _float(eps_est),
-                            "eps_actual": _float(eps_actual),
-                            "surprise_percent": _float(surprise_pct),
+                            "eps_estimate": _float(eps_est, "eps_estimate"),
+                            "eps_actual": _float(eps_actual, "eps_actual"),
+                            "surprise_percent": _float(surprise_pct, "surprise_pct"),
                         }
                     )
                 except (ValueError, ZeroDivisionError, TypeError) as e:

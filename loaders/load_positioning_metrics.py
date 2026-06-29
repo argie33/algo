@@ -30,11 +30,16 @@ logger = logging.getLogger(__name__)
 
 
 class PositioningMetricsLoader(OptimalLoader):
-    """Fetch positioning metrics from yfinance."""
+    """Fetch positioning metrics from yfinance for real stocks only (not ETFs).
+
+    Positioning data (institutional ownership, short interest) is collected for individual stocks.
+    ETFs don't have meaningful positioning metrics in the same way.
+    """
 
     table_name = "positioning_metrics"
     primary_key = ("symbol",)
     watermark_field = "created_at"
+    exclude_etfs_from_symbols = True
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Fetch positioning metrics for this symbol.

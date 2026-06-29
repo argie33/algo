@@ -21,9 +21,16 @@ logger = logging.getLogger(__name__)
 
 
 class GrowthMetricsLoader(OptimalLoader):
+    """Growth metrics loader for real stocks only (not ETFs/bonds).
+
+    Growth metrics are computed from annual income statement data, which is only available
+    for companies that file with the SEC. ETFs and bonds don't have financial statements.
+    """
+
     table_name = "growth_metrics"
     primary_key = ("symbol",)
     watermark_field = "created_at"
+    exclude_etfs_from_symbols = True
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]] | None:
         """Compute multi-year growth metrics from annual income statement.

@@ -226,7 +226,11 @@ class StockScoresLoader(OptimalLoader):
             ) from e
 
     def _get_quality_metrics(self, cur: Any, symbol: str) -> dict[str, Any] | None:
-        """Fetch quality metrics for symbol."""
+        """Fetch quality metrics for symbol.
+
+        Returns None only if data is explicitly unavailable (quality_metrics table
+        has no entry for this symbol). Raises on database errors.
+        """
         try:
             cur.execute(
                 "SELECT roe, roa, operating_margin, net_margin, debt_to_equity, current_ratio, quick_ratio FROM quality_metrics WHERE symbol = %s",
@@ -243,12 +247,19 @@ class StockScoresLoader(OptimalLoader):
                     "current_ratio": self._safe_float(row[5], f"{symbol}.current_ratio"),
                     "quick_ratio": self._safe_float(row[6], f"{symbol}.quick_ratio"),
                 }
+            # Explicitly log when quality data unavailable (optional enrichment)
+            import logging
+            logging.debug(f"[LOAD_STOCK_SCORES] No quality metrics available for {symbol} — will reduce score completeness")
             return None
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            raise RuntimeError(f"Operation failed: {e}") from e
+            raise RuntimeError(f"Database operation failed fetching quality metrics for {symbol}: {e}") from e
 
     def _get_growth_metrics(self, cur: Any, symbol: str) -> dict[str, Any] | None:
-        """Fetch growth metrics for symbol."""
+        """Fetch growth metrics for symbol.
+
+        Returns None only if data is explicitly unavailable (growth_metrics table
+        has no entry for this symbol). Raises on database errors.
+        """
         try:
             cur.execute(
                 "SELECT revenue_growth_1y, revenue_growth_3y, revenue_growth_5y, eps_growth_1y, eps_growth_3y, eps_growth_5y FROM growth_metrics WHERE symbol = %s",
@@ -264,9 +275,12 @@ class StockScoresLoader(OptimalLoader):
                     "eps_growth_3y": self._safe_float(row[4], f"{symbol}.eps_growth_3y"),
                     "eps_growth_5y": self._safe_float(row[5], f"{symbol}.eps_growth_5y"),
                 }
+            # Explicitly log when growth data unavailable (optional enrichment)
+            import logging
+            logging.debug(f"[LOAD_STOCK_SCORES] No growth metrics available for {symbol} — will reduce score completeness")
             return None
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            raise RuntimeError(f"Operation failed: {e}") from e
+            raise RuntimeError(f"Database operation failed fetching growth metrics for {symbol}: {e}") from e
 
     def _get_value_metrics(self, cur: Any, symbol: str) -> dict[str, Any] | None:
         """Fetch value metrics for symbol."""

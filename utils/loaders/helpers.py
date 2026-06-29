@@ -84,7 +84,7 @@ _cache_lock = threading.Lock()
 _CACHE_TTL_SECS = 300  # 5 minute cache
 
 
-def get_active_symbols(max_symbols: int | None = None, timeout_secs: int = 120) -> list[str]:
+def get_active_symbols(max_symbols: int | None = None, timeout_secs: int = 120, exclude_etfs: bool = False) -> list[str]:
     """Get list of active symbols (stocks and ETFs) from database with timeout protection.
 
     Used by: load_balance_sheet.py, loadbuyselldaily.py, load_cash_flow.py,
@@ -93,10 +93,13 @@ def get_active_symbols(max_symbols: int | None = None, timeout_secs: int = 120) 
 
     Originally defined identically in 19 different files. Consolidated 2026-05-18.
     FIXED 2026-06-07: Include ETFs (was filtering them out, breaking 95% validation)
+    FIXED 2026-06-28: Add exclude_etfs option for financial data loaders that need real stocks only
 
     Args:
         max_symbols: Limit results to N symbols (default: None = all)
         timeout_secs: Timeout for database query (default: 120 seconds for parallel batch execution)
+        exclude_etfs: If True, exclude ETFs and bonds (default: False, include all active symbols)
+                      Set to True for: income_statement, growth_metrics, quality_metrics, positioning_metrics
     """
 
     def timeout_handler(signum: int, frame: Any) -> None:
@@ -113,7 +116,7 @@ def get_active_symbols(max_symbols: int | None = None, timeout_secs: int = 120) 
         pass
 
     # Check cache first to reduce database load under parallelism
-    cache_key = "all_symbols"
+    cache_key = f"all_symbols:exclude_etfs={exclude_etfs}"
     with _cache_lock:
         if cache_key in _symbols_cache:
             cached_time, cached_symbols = _symbols_cache[cache_key]
@@ -129,7 +132,13 @@ def get_active_symbols(max_symbols: int | None = None, timeout_secs: int = 120) 
         def fetch_symbols() -> None:
             try:
                 with DatabaseContext("read") as cur:
-                    cur.execute("SELECT symbol FROM stock_symbols WHERE active = true ORDER BY symbol")
+                    if exclude_etfs:
+                        # For financial data loaders: only real stocks, exclude ETFs/bonds/CLOs
+                        sql = "SELECT symbol FROM stock_symbols WHERE active = true AND (etf IS NULL OR etf = 'N') ORDER BY symbol"
+                    else:
+                        # For price/market data loaders: include both stocks and ETFs
+                        sql = "SELECT symbol FROM stock_symbols WHERE active = true ORDER BY symbol"
+                    cur.execute(sql)
                     rows = cur.fetchall()
                     result["symbols"] = [row[0] for row in rows]
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:

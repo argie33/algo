@@ -402,7 +402,7 @@ class MarketHealthDailyLoader(OptimalLoader):
                         rate_30d_ago = float(r[0]) if r[0] is not None else None
                         break
 
-                # Classify environment
+                # Classify environment: requires 30+ days of history for trend comparison
                 if rate_30d_ago is not None:
                     if current_rate > rate_30d_ago * 1.05:
                         env = "tightening"
@@ -410,21 +410,18 @@ class MarketHealthDailyLoader(OptimalLoader):
                         env = "easing"
                     else:
                         env = "neutral"
+                    # Apply to all metrics
+                    for m in health_metrics:
+                        m["fed_rate_environment"] = env
+                    logger.info(f"Fed rate environment: {env} (current={current_rate}%, 30d_ago={rate_30d_ago}%)")
                 else:
-                    # If insufficient history, use absolute level
-                    if current_rate >= 5.0:
-                        env = "restrictive"
-                    elif current_rate >= 2.5:
-                        env = "neutral"
-                    elif current_rate > 0:
-                        env = "accommodative"
-                    else:
-                        env = "emergency"
-
-                # Apply to all metrics
-                for m in health_metrics:
-                    m["fed_rate_environment"] = env
-                logger.info(f"Fed rate environment: {env} (current={current_rate}%)")
+                    # Insufficient history: don't classify (don't mix stale trend with absolute levels)
+                    logger.warning(
+                        f"[MARKET_HEALTH] Fed rate environment skipped: <30 days history. "
+                        f"Cannot classify trend without baseline (current={current_rate}%)"
+                    )
+                    for m in health_metrics:
+                        m["fed_rate_environment"] = None
         except Exception as e:
             logger.warning(f"[MARKET_HEALTH] Fed rate enrichment unavailable: {e} (optional data skipped)")
 

@@ -54,16 +54,17 @@ class CreditSpreadsFetcher:
         Raises:
             RuntimeError: If data fetch fails
         """
+        # CRITICAL: No fallback for HY OAS — market exposure calculation depends on accurate spreads
         result = self.breaker.execute(
             fetch_func=lambda: self._fetch_from_fred(start, end),
             importance=DataImportance.CRITICAL,
-            fallback_value=None,
         )
 
         if result is None:
             raise RuntimeError(
                 "HY OAS data unavailable from FRED - circuit breaker failed. "
-                "Cannot proceed without credit spread data for systemic risk assessment."
+                "Cannot proceed without credit spread data for systemic risk assessment. "
+                "This is critical data with no fallback."
             )
 
         if not isinstance(result, dict):

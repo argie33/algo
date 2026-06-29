@@ -98,7 +98,14 @@ def _resolve_period(cli_arg: str | None) -> str:
 
 
 class IncomeStatementLoader(OptimalLoader):
+    """SEC EDGAR income statement loader for real stocks only (not ETFs/bonds).
+
+    Financial data from SEC EDGAR is only available for companies that file with the SEC.
+    ETFs, bonds, and other securities don't have income statements, so we exclude them.
+    """
+
     watermark_field = "fiscal_year"
+    exclude_etfs_from_symbols = True
 
     def __init__(self, period: str | None = None):
         period = _resolve_period(period)

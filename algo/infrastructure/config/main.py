@@ -1557,15 +1557,20 @@ class AlgoConfig:
                     f"vix_alert_threshold ({vix_alert}). Caution will trigger before alert."
                 )
 
-            # Drawdown thresholds: all should be negative and ordered
+            # Drawdown thresholds: halt_drawdown must be negative or zero (represents loss)
             halt_dd = float(self._config["halt_drawdown_pct"])
             r_at_minus_5 = float(self._config["risk_reduction_at_minus_5"])
             r_at_minus_10 = float(self._config["risk_reduction_at_minus_10"])
             r_at_minus_15 = float(self._config["risk_reduction_at_minus_15"])
             r_at_minus_20 = float(self._config["risk_reduction_at_minus_20"])
 
-            if halt_dd >= 0:
-                logger.warning(f"Config: halt_drawdown_pct ({halt_dd}) should be negative (represents downside loss)")
+            if halt_dd > 0:
+                raise RuntimeError(
+                    f"[CONFIG SAFETY GATE CORRUPTION] halt_drawdown_pct is positive ({halt_dd}). "
+                    f"This should be negative or zero (representing a loss threshold). "
+                    f"Positive value would halt trading at positive returns, disabling the drawdown protection. "
+                    f"Action: Fix halt_drawdown_pct in algo_config table (should be -5 to -20)."
+                )
 
             if not (r_at_minus_20 <= r_at_minus_15 <= r_at_minus_10 <= r_at_minus_5):
                 logger.warning(
@@ -1598,12 +1603,18 @@ class AlgoConfig:
             if base_risk > 5:
                 logger.warning(f"Config: base_risk_pct ({base_risk}) is very high (typical: 0.5-2%)")
 
-            # Daily/weekly loss caps should be positive
+            # Daily/weekly loss caps must be positive — zero values disable risk protection
             daily_loss = float(self._config["max_daily_loss_pct"])
             weekly_loss = float(self._config["max_weekly_loss_pct"])
 
             if daily_loss <= 0 or weekly_loss <= 0:
-                logger.warning(f"Config: Max loss caps should be positive (daily={daily_loss}, weekly={weekly_loss})")
+                raise RuntimeError(
+                    f"[CONFIG SAFETY GATE CORRUPTION] Critical risk parameters are zero or negative: "
+                    f"max_daily_loss_pct={daily_loss}, max_weekly_loss_pct={weekly_loss}. "
+                    f"This disables all daily and weekly loss protections. "
+                    f"Cannot start trading system with broken risk gates. "
+                    f"Action: Restore valid values in algo_config table."
+                )
 
             if daily_loss >= weekly_loss:
                 logger.warning(

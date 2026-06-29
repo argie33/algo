@@ -80,7 +80,9 @@ def run_loader(
             if args.symbols:
                 symbols = [s.strip().upper() for s in args.symbols.split(",")]
             else:
-                symbols = get_active_symbols(timeout_secs=60)
+                # Check if this loader needs real stocks only (exclude ETFs)
+                exclude_etfs = getattr(loader, 'exclude_etfs_from_symbols', False)
+                symbols = get_active_symbols(timeout_secs=60, exclude_etfs=exclude_etfs)
 
             if args.backfill_days:
                 stats = loader.run(

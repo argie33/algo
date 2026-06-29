@@ -291,8 +291,8 @@ class TestOptionsLoader:
 class TestSentimentLoaders:
     """Test sentiment loader consistency and graceful degradation"""
 
-    def test_aaii_sentiment_returns_none_on_unavailable_data(self):
-        """AAII sentiment should return None when data unavailable (optional enrichment)."""
+    def test_aaii_sentiment_returns_data_unavailable_on_network_error(self):
+        """AAII sentiment should return explicit data_unavailable marker when data unavailable (optional enrichment)."""
         from unittest.mock import patch
 
         import requests
@@ -306,8 +306,11 @@ class TestSentimentLoaders:
             mock_get.side_effect = requests.exceptions.Timeout("Connection timeout")
 
             result = loader.fetch_global(None)
-            # Should return None for optional enrichment, not raise
-            assert result is None, "AAII sentiment should return None when unavailable, not raise"
+            # Should return explicit data_unavailable marker for optional enrichment
+            assert isinstance(result, list), "AAII sentiment should return list"
+            assert len(result) == 1, "Expected single result"
+            assert result[0].get("data_unavailable") is True, "Should have data_unavailable=True"
+            assert "reason" in result[0], "Should include reason for unavailability"
 
     def test_sentiment_data_consistency_both_return_none(self):
         """AAII and Analyst sentiment loaders should both return None for optional data."""

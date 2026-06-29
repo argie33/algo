@@ -685,21 +685,20 @@ class SignalQualityScoresLoader(OptimalLoader):
 
                 # Distribution days and earnings proximity scores require external data
                 # If data unavailable, skip rather than using fake defaults
-                distribution_days_score = 0
-                earnings_proximity_score = 0
+                distribution_days_score = None
+                earnings_proximity_score = None
 
-                # Composite score
-                composite_sqs = (
-                    base_quality_score
-                    + volume_confirmation_score
-                    + trend_template_score
-                    + distance_from_high_score
-                    + institutional_ownership_score
-                    + market_stage_score
-                    + vcp_pattern_score
-                    + distribution_days_score
-                    + earnings_proximity_score
-                )
+                # Composite score: only include components with real data
+                score_components = [
+                    base_quality_score,
+                    volume_confirmation_score,
+                    trend_template_score,
+                    distance_from_high_score,
+                    institutional_ownership_score,
+                    market_stage_score,
+                    vcp_pattern_score,
+                ]
+                composite_sqs = sum(score_components)
                 unclamped_composite = int(composite_sqs)
                 if unclamped_composite > 100:
                     logger.warning(

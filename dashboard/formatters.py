@@ -122,9 +122,11 @@ def next_run_str() -> str:
     except Exception as sched_err:
         import logging
 
-        logging.debug(f"Could not fetch next run schedule: {sched_err}, using fallback")  # noqa: LOG015
+        logging.warning(f"Schedule API unavailable: {sched_err}. Dashboard showing fallback times.")  # noqa: LOG015
 
+    # Schedule fetch failed: indicate to user that times shown are not live
     result = _next_run_hardcoded()
+    result = f"[yellow]{result}[/yellow] (offline schedule)"
     _schedule_cache["result"] = result
     _schedule_cache["timestamp"] = now
     return result
