@@ -341,7 +341,10 @@ def _dispatch(
             logger.warning(f"Unauthorized algo patrol-log access attempt by {user_id}")
             raise_api_error(403, "forbidden", "Admin access required")
         limit = safe_limit(extract_param(params, "limit"), max_val=10000, default=100)
-        offset = safe_offset(extract_param(params, "offset") or "0")
+        offset_str = extract_param(params, "offset")
+        if offset_str is None:
+            offset_str = "0"
+        offset = safe_offset(offset_str)
         return _get_patrol_log(cur, limit, offset)
     elif path == "/api/algo/sector-rotation":
         days = safe_days(extract_param(params, "limit"), max_val=365, default=180)
@@ -399,7 +402,10 @@ def _dispatch(
         return _get_last_run(cur)
     elif path == "/api/algo/audit-log":
         limit = safe_limit(extract_param(params, "limit"), max_val=10000, default=100)
-        offset = safe_offset(extract_param(params, "offset") or "0")
+        offset_str = extract_param(params, "offset")
+        if offset_str is None:
+            offset_str = "0"
+        offset = safe_offset(offset_str)
         action_type = extract_param(params, "action_type")
         if action_type:
             action_type = action_type.lower()

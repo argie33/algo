@@ -450,6 +450,8 @@ def _handle_seasonality(cur: cursor) -> Any:
         dow_rows = cur.fetchall()
         for r in dow_rows:
             r_dict = dict(r)
+            if "day" not in r_dict or r_dict["day"] is None:
+                raise ValueError(f"[SEASONALITY] Day-of-week record missing 'day' field: {list(r_dict.keys())}")
             dow_data.append(r_dict)
             avg_ret = safe_float(r_dict.get("avg_return"), default=None)
             if avg_ret is not None:
@@ -565,8 +567,8 @@ def _handle_seasonality(cur: cursor) -> Any:
                 ),
             },
             "insights": {
-                "sell_in_may_effect": "May returns" if monthly_data else None,
-                "monday_effect": ("Historically, Mondays trend lower" if dow_data else None),
+                "sell_in_may_effect": "May seasonality indicates potential strength" if monthly_data else None,
+                "monday_effect": "Historical day-of-week effect data available" if dow_data else None,
             },
         },
     )
@@ -745,9 +747,12 @@ def _handle_naaim(cur: cursor) -> Any:
             bullish_val = r_dict.get("bullish")
             bearish_val = r_dict.get("bearish")
             date_val = r_dict.get("date")
+            if date_val is None:
+                logger.error(f"[NAAIM] Record missing date: {list(r_dict.keys())}")
+                raise_api_error(500, "data_integrity_error", "NAAIM record missing date field")
             history.append(
                 {
-                    "date": str(date_val) if date_val is not None else "",
+                    "date": str(date_val),
                     "value": (float(naaim_val) if naaim_val is not None else None),
                     "bullish_pct": (float(bullish_val) if bullish_val is not None else None),
                     "bearish_pct": (float(bearish_val) if bearish_val is not None else None),
@@ -1134,6 +1139,28 @@ def _get_correlation_matrix(cur: cursor) -> Any:
                     min_pair = [sym1, sym2]
                     break
 
+    # Validate correlation pair discovery
+    if max_corr is not None and max_pair is None:
+        logger.error(
+            f"[MARKET_CORRELATION] Max correlation {max_corr} identified but pair lookup failed. "
+            f"Data integrity error in correlation matrix computation."
+        )
+        raise_api_error(
+            500,
+            "correlation_computation_error",
+            "Max correlation pair computation failed—cannot verify data integrity"
+        )
+    if min_corr is not None and min_pair is None:
+        logger.error(
+            f"[MARKET_CORRELATION] Min correlation {min_corr} identified but pair lookup failed. "
+            f"Data integrity error in correlation matrix computation."
+        )
+        raise_api_error(
+            500,
+            "correlation_computation_error",
+            "Min correlation pair computation failed—cannot verify data integrity"
+        )
+
     avg_corr_val = round(avg_corr, 2) if avg_corr is not None else None
 
     if avg_corr_val is not None and avg_corr_val > 0.5:
@@ -1167,11 +1194,11 @@ def _get_correlation_matrix(cur: cursor) -> Any:
                 "avg_correlation": avg_corr_val,
                 "max_correlation": {
                     "value": round(max_corr, 2) if max_corr else None,
-                    "pair": max_pair if max_pair is not None else (logger.warning("[MARKET API] Max correlation pair not found—data incomplete"), [])[1],
+                    "pair": max_pair,
                 },
                 "min_correlation": {
                     "value": round(min_corr, 2) if min_corr else None,
-                    "pair": min_pair if min_pair is not None else (logger.warning("[MARKET API] Min correlation pair not found—data incomplete"), [])[1],
+                    "pair": min_pair,
                 },
             },
             "analysis": {
@@ -1409,16 +1436,22 @@ def _get_markets(cur: cursor) -> Any:
         sym = row["symbol"]
         if sym not in history:
             history[sym] = []
+        # Validate price data exists before adding to history
+        if row["close"] is None or row["close"] <= 0:
+            logger.warning(f"[MARKET_INDICES] Skipping {sym} on {row['date']}: invalid close price {row['close']}")
+            continue
+        if row["date"] is None:
+            logger.error(f"[MARKET_INDICES] Missing date for {sym}: cannot add to history without date")
+            raise ValueError(f"[MARKET_INDICES] {sym} history record missing required date field")
         history[sym].append(
             {
                 "date": str(row["date"]),
-                "close": float(row["close"]) if row["close"] else None,
+                "close": float(row["close"]),
             }
         )
 
     indices = []
     stale_alerts = []
-    fallback_symbols = []
 
     for row in latest:
         if "symbol" not in row or row["symbol"] is None:
@@ -1473,11 +1506,13 @@ def _get_markets(cur: cursor) -> Any:
             }
         )
 
+    if not indices:
+        raise_api_error(503, "no_data", "No valid index price data available for latest market indices")
+
     result = {
         "indices": indices,
         "history": history,
         "stale_alerts": stale_alerts,
-        "fallback_symbols": fallback_symbols if fallback_symbols else None,
     }
     return json_response(200, result)
 
