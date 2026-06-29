@@ -444,45 +444,10 @@ locals {
       description = "Economic metrics aggregation (CPI, SPY change, yield curve) - Daily 4:05am ET"
     }
 
-    # Financial statements — run Sunday night only (data changes quarterly, not daily)
-    # STAGGERED: 60-minute intervals to prevent concurrent SEC EDGAR rate limit cascades
-    # Each loader parallelism=1, 2 req/sec per task, max 1 concurrent = 2 req/sec total (safe)
-    "financials_annual_income" = {
-      schedule    = "cron(0 3 ? * MON *)"
-      description = "Annual income statements - Sunday 10:00pm ET"
-    }
-    "financials_annual_balance" = {
-      schedule    = "cron(0 4 ? * MON *)"
-      description = "Annual balance sheets - Sunday 11:00pm ET"
-    }
-    "financials_annual_cashflow" = {
-      schedule    = "cron(0 5 ? * MON *)"
-      description = "Annual cash flow - Monday 12:00am ET"
-    }
-    "financials_quarterly_income" = {
-      schedule    = "cron(0 6 ? * MON *)"
-      description = "Quarterly income statements - Monday 1:00am ET"
-    }
-    "financials_quarterly_balance" = {
-      schedule    = "cron(0 7 ? * MON *)"
-      description = "Quarterly balance sheets - Monday 2:00am ET"
-    }
-    "financials_quarterly_cashflow" = {
-      schedule    = "cron(0 8 ? * MON *)"
-      description = "Quarterly cash flow - Monday 3:00am ET"
-    }
-
-    # TTM loaders depend on quarterly data — run 1 hour after last quarterly (08:00 + 1h = 09:00)
-    # These are pure SQL aggregation (no SEC EDGAR), safe to run sequentially or even together
-    # Run at 09:00 and 10:00 to be conservative (1h buffer after quarterly_cashflow at 08:00)
-    "financials_ttm_income" = {
-      schedule    = "cron(0 9 ? * MON *)"
-      description = "TTM income statements - Monday 4:00am ET"
-    }
-    "financials_ttm_cashflow" = {
-      schedule    = "cron(0 10 ? * MON *)"
-      description = "TTM cash flow - Monday 5:00am ET"
-    }
+    # FIXED Issue #31: Financial data loaders now run via Step Functions pipeline at 4:05 PM ET daily
+    # (were running Monday-only via EventBridge, causing stale data Tue-Fri for quality/growth metrics)
+    # Task definitions remain in all_loaders; EventBridge rules below are DISABLED
+    # Removed from scheduled_loaders: financials_annual_*, financials_quarterly_*, financials_ttm_*
 
     # Computed metrics — run daily after market close (4pm ET) so issues can be fixed before next trading day
     # 21:00 UTC = 5pm EDT / 6pm EST (safe margin after 4pm market close)
