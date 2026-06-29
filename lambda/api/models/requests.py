@@ -6,12 +6,14 @@ from typing import Any, cast
 
 from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
+from ..security_validators import (
+    ValidationError,
+    validate_email,
+    validate_symbol,
+)
+
 logger = logging.getLogger(__name__)
 
-SYMBOL_PATTERN = r"^[A-Z0-9\-\^]{1,10}$"
-EMAIL_PATTERN = re.compile(
-    r"^[a-zA-Z0-9.!#$%&\'*+/=?^_`{|}~\-]+@[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*$"
-)
 XSS_PATTERNS = [
     r"<script",
     r"<iframe",
@@ -35,10 +37,11 @@ class TradePreviewRequest(BaseModel):
 
     @field_validator("symbol")
     @classmethod
-    def validate_symbol(cls, v: str) -> str:
-        if not re.match(r"^[A-Z0-9\-\^]{1,10}$", v.upper()):
-            raise ValueError("Symbol must be 1-10 alphanumeric characters, dashes, or carets")
-        return v.upper()
+    def validate_symbol_field(cls, v: str) -> str:
+        try:
+            return validate_symbol(v)
+        except ValidationError as e:
+            raise ValueError(str(e)) from None
 
     @field_validator("stop_loss_price")
     @classmethod
@@ -61,10 +64,11 @@ class ContactSubmissionRequest(BaseModel):
 
     @field_validator("email")
     @classmethod
-    def validate_email(cls, v: Any) -> str:
-        if not EMAIL_PATTERN.match(v):
-            raise ValueError("Invalid email format")
-        return cast(str, v)
+    def validate_email_field(cls, v: Any) -> str:
+        try:
+            return validate_email(v)
+        except ValidationError as e:
+            raise ValueError(str(e)) from None
 
     @field_validator("phone")
     @classmethod
@@ -129,10 +133,11 @@ class PreTradeImpactRequest(BaseModel):
 
     @field_validator("symbol")
     @classmethod
-    def validate_symbol(cls, v: str) -> str:
-        if not re.match(SYMBOL_PATTERN, v.upper()):
-            raise ValueError("Symbol must be 1-10 alphanumeric characters, dashes, or carets")
-        return v.upper()
+    def validate_symbol_field(cls, v: str) -> str:
+        try:
+            return validate_symbol(v)
+        except ValidationError as e:
+            raise ValueError(str(e)) from None
 
 
 class ManualTradeRequest(BaseModel):
@@ -147,10 +152,11 @@ class ManualTradeRequest(BaseModel):
 
     @field_validator("symbol")
     @classmethod
-    def validate_symbol(cls, v: str) -> str:
-        if not re.match(SYMBOL_PATTERN, v.upper()):
-            raise ValueError("Symbol must be 1-10 alphanumeric characters, dashes, or carets")
-        return v.upper()
+    def validate_symbol_field(cls, v: str) -> str:
+        try:
+            return validate_symbol(v)
+        except ValidationError as e:
+            raise ValueError(str(e)) from None
 
     @field_validator("trade_type")
     @classmethod

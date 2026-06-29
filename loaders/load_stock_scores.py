@@ -167,12 +167,12 @@ class StockScoresLoader(OptimalLoader):
 
             # Compute individual factor scores from REAL data only (no defaults)
             # Scoring functions return None if metrics dict exists but has all NULL values
-            quality_score = self._score_quality(quality)
-            growth_score = self._score_growth(growth)
-            value_score = self._score_value(value)
-            positioning_score = self._score_positioning(positioning)
-            stability_score = self._score_stability(stability)
-            momentum_score = self._score_momentum(momentum)
+            quality_score = self._score_quality(quality, symbol)
+            growth_score = self._score_growth(growth, symbol)
+            value_score = self._score_value(value, symbol)
+            positioning_score = self._score_positioning(positioning, symbol)
+            stability_score = self._score_stability(stability, symbol)
+            momentum_score = self._score_momentum(momentum, symbol)
 
             # Count data completeness: only non-None scores count as "real data"
             # (ignores empty rows with all NULLs which return None from scoring functions)
@@ -557,16 +557,15 @@ class StockScoresLoader(OptimalLoader):
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Database operation failed fetching momentum metrics for {symbol}: {e}") from e
 
-    def _score_quality(self, metrics: dict[str, Any] | None) -> float | dict[str, Any]:
-        """Score quality metrics on 0-100 scale. Returns marker if no real data."""
+    def _score_quality(self, metrics: dict[str, Any] | None, symbol: str) -> float | None:
+        """Score quality metrics on 0-100 scale. Returns None if no real data.
+
+        Internal function: caller (_compute_stock_score) explicitly handles None
+        and converts to data_unavailable markers at public API boundary.
+        """
         if not metrics:
-            logger.debug(f"[STOCK_SCORES] Quality metrics unavailable for {self.symbol}")
-            return {
-                "symbol": self.symbol,
-                "data_unavailable": True,
-                "reason": "no_quality_metrics",
-                "score_type": "quality"
-            }
+            logger.debug(f"[STOCK_SCORES] Quality metrics unavailable for {symbol}")
+            return None
 
         scores = []
 
@@ -611,28 +610,21 @@ class StockScoresLoader(OptimalLoader):
 
         if scores:
             return sum(scores) / len(scores)
-        logger.debug(f"[STOCK_SCORES] No quality metrics found to score for {self.symbol}")
-        return {
-            "symbol": self.symbol,
-            "data_unavailable": True,
-            "reason": "no_scoreable_quality_data",
-            "score_type": "quality"
-        }
+        logger.debug(f"[STOCK_SCORES] No quality metrics found to score for {symbol}")
+        return None
 
-    def _score_growth(self, metrics: dict[str, Any] | None) -> float | dict[str, Any]:
-        """Score growth metrics on 0-100 scale. Returns marker if no real data.
+    def _score_growth(self, metrics: dict[str, Any] | None, symbol: str) -> float | None:
+        """Score growth metrics on 0-100 scale. Returns None if no real data.
 
         Uses weighted blend: 1Y growth (60%) + 3Y CAGR (30%) + 5Y CAGR (10%).
         Longer-term growth signals more durable earnings quality.
+
+        Internal function: caller (_compute_stock_score) explicitly handles None
+        and converts to data_unavailable markers at public API boundary.
         """
         if not metrics:
-            logger.debug(f"[STOCK_SCORES] Growth metrics unavailable for {self.symbol}")
-            return {
-                "symbol": self.symbol,
-                "data_unavailable": True,
-                "reason": "no_growth_metrics",
-                "score_type": "growth"
-            }
+            logger.debug(f"[STOCK_SCORES] Growth metrics unavailable for {symbol}")
+            return None
 
         weighted_sum = 0.0
         total_weight = 0.0
@@ -678,28 +670,21 @@ class StockScoresLoader(OptimalLoader):
 
         if total_weight > 0:
             return weighted_sum / total_weight
-        logger.debug(f"[STOCK_SCORES] No growth metrics found to score for {self.symbol}")
-        return {
-            "symbol": self.symbol,
-            "data_unavailable": True,
-            "reason": "no_scoreable_growth_data",
-            "score_type": "growth"
-        }
+        logger.debug(f"[STOCK_SCORES] No growth metrics found to score for {symbol}")
+        return None
 
-    def _score_value(self, metrics: dict[str, Any] | None) -> float | dict[str, Any]:
-        """Score value metrics on 0-100 scale. Returns marker if no real data.
+    def _score_value(self, metrics: dict[str, Any] | None, symbol: str) -> float | None:
+        """Score value metrics on 0-100 scale. Returns None if no real data.
 
         Uses P/E (primary), P/B (secondary), FCF yield (secondary), dividend yield (bonus).
         Peak zone for growth stocks: P/E 15-30, P/B < 5, positive FCF yield.
+
+        Internal function: caller (_compute_stock_score) explicitly handles None
+        and converts to data_unavailable markers at public API boundary.
         """
         if not metrics:
-            logger.debug(f"[STOCK_SCORES] Value metrics unavailable for {self.symbol}")
-            return {
-                "symbol": self.symbol,
-                "data_unavailable": True,
-                "reason": "no_value_metrics",
-                "score_type": "value"
-            }
+            logger.debug(f"[STOCK_SCORES] Value metrics unavailable for {symbol}")
+            return None
 
         weighted_sum = 0.0
         total_weight = 0.0
@@ -748,24 +733,18 @@ class StockScoresLoader(OptimalLoader):
 
         if total_weight > 0:
             return weighted_sum / total_weight
-        logger.debug(f"[STOCK_SCORES] No value metrics found to score for {self.symbol}")
-        return {
-            "symbol": self.symbol,
-            "data_unavailable": True,
-            "reason": "no_scoreable_value_data",
-            "score_type": "value"
-        }
+        logger.debug(f"[STOCK_SCORES] No value metrics found to score for {symbol}")
+        return None
 
-    def _score_positioning(self, metrics: dict[str, Any] | None) -> float | dict[str, Any]:
-        """Score positioning metrics on 0-100 scale. Returns marker if no real data."""
+    def _score_positioning(self, metrics: dict[str, Any] | None, symbol: str) -> float | None:
+        """Score positioning metrics on 0-100 scale. Returns None if no real data.
+
+        Internal function: caller (_compute_stock_score) explicitly handles None
+        and converts to data_unavailable markers at public API boundary.
+        """
         if not metrics:
-            logger.debug(f"[STOCK_SCORES] Positioning metrics unavailable for {self.symbol}")
-            return {
-                "symbol": self.symbol,
-                "data_unavailable": True,
-                "reason": "no_positioning_metrics",
-                "score_type": "positioning"
-            }
+            logger.debug(f"[STOCK_SCORES] Positioning metrics unavailable for {symbol}")
+            return None
 
         weighted_sum = 0.0
         total_weight = 0.0
@@ -804,7 +783,7 @@ class StockScoresLoader(OptimalLoader):
 
         return weighted_sum / total_weight if total_weight > 0 else None
 
-    def _score_stability(self, metrics: dict[str, Any] | None) -> float | None:
+    def _score_stability(self, metrics: dict[str, Any] | None, symbol: str) -> float | None:
         """Score stability metrics on 0-100 scale. Returns None if no real data.
 
         Uses 12-month volatility (primary), beta vs market (secondary),
@@ -862,7 +841,7 @@ class StockScoresLoader(OptimalLoader):
 
         return weighted_sum / total_weight if total_weight > 0 else None
 
-    def _score_momentum(self, metrics: dict[str, Any] | None) -> float | None:
+    def _score_momentum(self, metrics: dict[str, Any] | None, symbol: str) -> float | None:
         """Score momentum metrics on 0-100 scale. Returns None if no real data.
 
         Weights favor recent momentum (1m/3m) over longer-term (12m) for swing trading.
