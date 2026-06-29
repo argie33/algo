@@ -102,11 +102,19 @@ class CashFlowLoader(OptimalLoader):
         try:
             cik = self._sec_client.symbol_to_cik(symbol)
         except ValueError as e:
+            logger.error(
+                "[CASH_FLOW] %s: CIK resolution failed in SEC ticker cache. Cannot fetch cash flow data.",
+                symbol
+            )
             raise RuntimeError(
                 f"[CASH_FLOW] {symbol}: CIK not found in SEC ticker cache. "
                 "Cannot fetch cash flow without SEC EDGAR CIK."
             ) from e
         if not cik:
+            logger.error(
+                "[CASH_FLOW] %s: CIK resolution returned empty/None. Cannot proceed without SEC EDGAR CIK.",
+                symbol
+            )
             raise RuntimeError(
                 f"[CASH_FLOW] CIK resolution failed for {symbol}. Cannot fetch cash flow data without SEC EDGAR CIK."
             )
@@ -114,6 +122,11 @@ class CashFlowLoader(OptimalLoader):
         try:
             rows = self._sec_client.get_cash_flow(symbol, period=self.period)
             if not rows:
+                logger.error(
+                    "[CASH_FLOW] %s: No %s cash flow data available in SEC EDGAR. "
+                    "Cannot proceed with financial analysis without cash flow fundamentals.",
+                    symbol, self.period
+                )
                 raise RuntimeError(
                     f"[CASH_FLOW] {symbol}: No {self.period} cash flow data in SEC EDGAR. "
                     "Cannot proceed without fundamental data."
@@ -121,6 +134,11 @@ class CashFlowLoader(OptimalLoader):
             logger.info("%s: Fetched %d %s cash flow row(s)", symbol, len(rows), self.period)
 
             if since is None:
+                logger.error(
+                    "[CASH_FLOW] %s: Incremental load called without 'since' parameter. "
+                    "Cannot load full historical data in incremental mode.",
+                    symbol
+                )
                 raise ValueError(
                     f"Cash flow loader for {symbol} requires 'since' parameter for incremental loading. "
                     f"Cannot load full historical data in incremental mode."
@@ -129,6 +147,11 @@ class CashFlowLoader(OptimalLoader):
             filtered = []
             for r in rows:
                 if "fiscal_year" not in r or r["fiscal_year"] is None:
+                    logger.error(
+                        "[CASH_FLOW] %s: Row missing required 'fiscal_year' field: %s. "
+                        "Cannot apply incremental watermark filter.",
+                        symbol, r
+                    )
                     raise ValueError(
                         f"Cash flow row missing required 'fiscal_year' field: {r}. "
                         f"Cannot filter incremental data without fiscal_year."
@@ -141,8 +164,19 @@ class CashFlowLoader(OptimalLoader):
                     f"{symbol}: Filtered {len(rows) - len(filtered)} row(s) with fiscal_year <= {since_year} "
                     f"(watermark incremental load — keeping {len(filtered)} newer rows)"
                 )
+            if not filtered:
+                logger.info(
+                    "[CASH_FLOW] %s: No new cash flow rows after incremental filter (since %s). "
+                    "All rows have fiscal_year <= %s.",
+                    symbol, since, since_year
+                )
             return filtered
         except (ValueError, ZeroDivisionError, TypeError) as e:
+            logger.error(
+                "[CASH_FLOW] %s: Failed to fetch/filter cash flow data: %s. "
+                "Cannot proceed without fundamental data.",
+                symbol, e
+            )
             raise RuntimeError(
                 f"[CASH_FLOW] Failed to fetch cash flow for {symbol}: {e}. Cannot proceed without fundamental data."
             ) from e
@@ -157,13 +191,13 @@ class CashFlowLoader(OptimalLoader):
         transformed = []
         for r in rows:
             row: dict[str, Any] = {}
-            capex = None
+            capex_value = None
             field_mapping = self._field_mapping
             for sec_field, value in r.items():
                 # Apply field mapping first
                 db_field = field_mapping.get(sec_field, sec_field)
                 if db_field == "capex":
-                    capex = value
+                    capex_value = value
                 elif db_field in self._schema_cols:
                     row[db_field] = value
             if "fiscal_quarter" in row and isinstance(row["fiscal_quarter"], str):
@@ -178,21 +212,48 @@ class CashFlowLoader(OptimalLoader):
             # Calculate free_cash_flow: OCF - CapEx (both required; omit FCF if capex missing)
             if "free_cash_flow" in self._schema_cols:
                 ocf = row.get("operating_cash_flow")
-                if ocf is not None and capex is not None:
-                    row["free_cash_flow"] = ocf - capex
+                if ocf is not None and capex_value is not None:
+                    row["free_cash_flow"] = ocf - capex_value
+                elif ocf is not None and capex_value is None:
+                    logger.warning(
+                        "[CASH_FLOW] Free cash flow cannot be calculated: capex missing for %s FY%s. "
+                        "Using only operating cash flow.",
+                        row.get("symbol"), row.get("fiscal_year")
+                    )
             transformed.append(row)
 
         seen = {}
         for row in transformed:
             key: tuple[Any, ...]
-            if self.period == "annual":
-                key = (row.get("symbol"), row.get("fiscal_year"))
-            else:
-                key = (
-                    row.get("symbol"),
-                    row.get("fiscal_year"),
-                    row.get("fiscal_quarter"),
+            # Validate required key fields before building key tuple
+            symbol = row.get("symbol")
+            fiscal_year = row.get("fiscal_year")
+            if symbol is None or fiscal_year is None:
+                logger.error(
+                    "[CASH_FLOW] Cannot build primary key: symbol=%s, fiscal_year=%s. "
+                    "Row missing required key fields: %s",
+                    symbol, fiscal_year, row
                 )
+                raise ValueError(
+                    f"Cash flow row missing required key fields. Symbol: {symbol}, Fiscal Year: {fiscal_year}. "
+                    f"Cannot deduplicate records without complete primary key."
+                )
+            if self.period == "annual":
+                key = (symbol, fiscal_year)
+            else:
+                fiscal_quarter = row.get("fiscal_quarter")
+                if fiscal_quarter is None:
+                    logger.error(
+                        "[CASH_FLOW] Cannot build quarterly key: symbol=%s, fiscal_year=%s, fiscal_quarter=%s. "
+                        "Quarterly record missing fiscal_quarter.",
+                        symbol, fiscal_year, fiscal_quarter
+                    )
+                    raise ValueError(
+                        f"Quarterly cash flow row missing fiscal_quarter for deduplication. "
+                        f"Symbol: {symbol}, Fiscal Year: {fiscal_year}. "
+                        f"Cannot build complete primary key."
+                    )
+                key = (symbol, fiscal_year, fiscal_quarter)
             if key not in seen:
                 seen[key] = row
         return list(seen.values())
@@ -216,16 +277,25 @@ class CashFlowLoader(OptimalLoader):
                 f"Quarterly data must include quarter information."
             )
 
-        # Reject rows where all key cash flow fields are NULL
+        # Validate key cash flow fields and log missing HIGH-priority financial data
         cash_fields = [
             "operating_cash_flow",
             "investing_cash_flow",
             "financing_cash_flow",
         ]
+        missing_fields = [field for field in cash_fields if row.get(field) is None]
+
         if all(row.get(field) is None for field in cash_fields):
             raise ValueError(
                 f"Cash flow row has all NULL cash flow fields: {row}. "
                 f"At least one of operating_cash_flow, investing_cash_flow, financing_cash_flow must be present."
+            )
+
+        if missing_fields:
+            logger.warning(
+                "[CASH_FLOW] Missing HIGH-priority financial data for %s FY%s: %s. "
+                "Proceeding with available cash flow data.",
+                row.get("symbol"), row.get("fiscal_year"), missing_fields
             )
 
         return True

@@ -27,13 +27,14 @@ class IndustryRankingLoader(OptimalLoader):
         """Compute industry rankings from stock scores and company profile data."""
         try:
             with DatabaseContext("read") as cur:
+                # VALIDATION: Ensure price data exists (required for industry ranking computation)
                 cur.execute("SELECT date FROM price_daily ORDER BY date DESC LIMIT 1")
                 row = cur.fetchone()
                 latest_date = row["date"] if row else None
 
                 if not latest_date:
                     raise ValueError(
-                        "No price data found in price_daily table. Required for industry ranking computation."
+                        "[CRITICAL] No price data found in price_daily table. Required for industry ranking computation."
                     )
 
                 # Rank industries by average composite score; pull historical ranks for comparison
@@ -94,24 +95,57 @@ class IndustryRankingLoader(OptimalLoader):
 
                 rows = cur.fetchall()
                 if not rows:
-                    logger.warning("No industry ranking data computed — check company_profile and stock_scores tables")
+                    logger.error(
+                        "No industry ranking data computed — company_profile or stock_scores empty. "
+                        "Returning explicit data_unavailable marker."
+                    )
                     return [{"data_unavailable": True, "reason": "no_ranking_data_computed"}]
 
-                return [
-                    {
+                # Validate and build results
+                results = []
+                for r in rows:
+                    # VALIDATION: Ensure required fields are present
+                    if r["industry"] is None or r["current_rank"] is None:
+                        logger.error(
+                            f"Skipping invalid industry ranking record: industry={r['industry']}, rank={r['current_rank']}"
+                        )
+                        continue
+
+                    # Convert momentum_score to float; mark as unavailable if null
+                    momentum_score = None
+                    if r["momentum_score"] is not None:
+                        try:
+                            momentum_score = float(r["momentum_score"])
+                        except (ValueError, TypeError) as e:
+                            logger.error(
+                                f"Failed to convert momentum_score for {r['industry']}: {e}. Skipping record."
+                            )
+                            continue
+
+                    results.append({
                         "industry": r["industry"],
                         "date_recorded": latest_date,
                         "current_rank": r["current_rank"],
-                        "momentum_score": (float(r["momentum_score"]) if r["momentum_score"] is not None else None),
-                        "rank_1w_ago": r["rank_1w_ago"],
-                        "rank_4w_ago": r["rank_4w_ago"],
-                        "rank_12w_ago": r["rank_12w_ago"],
-                    }
-                    for r in rows
-                ]
+                        "momentum_score": momentum_score,
+                        "rank_1w_ago": r["rank_1w_ago"],  # May be None if < 7 days of history
+                        "rank_4w_ago": r["rank_4w_ago"],  # May be None if < 28 days of history
+                        "rank_12w_ago": r["rank_12w_ago"],  # May be None if < 84 days of history
+                    })
 
-        except (ValueError, ZeroDivisionError, TypeError) as e:
-            raise RuntimeError(f"Operation failed: {e}") from e
+                if not results:
+                    logger.error(
+                        "All industry ranking records failed validation. Returning explicit data_unavailable marker."
+                    )
+                    return [{"data_unavailable": True, "reason": "all_records_failed_validation"}]
+
+                return results
+
+        except ValueError as e:
+            logger.error(f"[CRITICAL] Validation error in industry ranking computation: {e}")
+            raise RuntimeError(f"Validation failed: {e}") from e
+        except (ZeroDivisionError, TypeError) as e:
+            logger.error(f"[CRITICAL] Computation error in industry ranking: {e}")
+            raise RuntimeError(f"Computation failed: {e}") from e
 
 
 if __name__ == "__main__":

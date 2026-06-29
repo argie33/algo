@@ -24,8 +24,13 @@ class FearGreedIndexLoader(OptimalLoader):
     watermark_field = "date"
 
     def fetch_global(self, since: date | None) -> list[dict[str, Any]] | None:  # noqa: C901
-        """Fetch Fear & Greed Index from CNN."""
+        """Fetch Fear & Greed Index from CNN.
+
+        Returns list of fear/greed records on success.
+        Returns data_unavailable marker if CNN API cannot be reached or data is invalid.
+        """
         import time
+        from datetime import datetime as _dt
 
         # Set socket-level timeout to catch hanging connections early
         socket.setdefaulttimeout(30.0)
@@ -60,9 +65,18 @@ class FearGreedIndexLoader(OptimalLoader):
                 data = response.json()
 
                 if not data or ("fear_and_greed" not in data and "fear_and_greed_historical" not in data):
-                    raise RuntimeError(
+                    logger.error(
                         "Invalid Fear & Greed data format from CNN API. Response is missing expected data fields."
                     )
+                    return [
+                        {
+                            "date": _dt.utcnow().strftime("%Y-%m-%d"),
+                            "fear_greed_value": None,
+                            "fear_greed_label": None,
+                            "data_unavailable": True,
+                            "reason": "invalid_response_format",
+                        }
+                    ]
 
                 # CNN API two known formats:
                 # New: {"fear_and_greed": {...current dict[str, Any]...}, "fear_and_greed_historical": {"data": [{"x": ms_ts, "y": val, "rating": "..."}]}}
@@ -71,33 +85,67 @@ class FearGreedIndexLoader(OptimalLoader):
                 if isinstance(raw, dict):
                     historical = data.get("fear_and_greed_historical")
                     if historical is None:
-                        raise RuntimeError(
+                        logger.error(
                             "[FEAR_GREED] CNN API response missing fear_and_greed_historical field. "
                             "API response format may have changed."
                         )
+                        return [
+                            {
+                                "date": _dt.utcnow().strftime("%Y-%m-%d"),
+                                "fear_greed_value": None,
+                                "fear_greed_label": None,
+                                "data_unavailable": True,
+                                "reason": "missing_historical_field",
+                            }
+                        ]
                     historical_data = historical.get("data")
                     if historical_data is None:
-                        raise RuntimeError(
+                        logger.error(
                             "[FEAR_GREED] CNN API fear_and_greed_historical.data field missing or invalid. "
                             "Cannot extract historical Fear & Greed data from response."
                         )
+                        return [
+                            {
+                                "date": _dt.utcnow().strftime("%Y-%m-%d"),
+                                "fear_greed_value": None,
+                                "fear_greed_label": None,
+                                "data_unavailable": True,
+                                "reason": "missing_historical_data",
+                            }
+                        ]
                     entries = list(historical_data)
                     # Validate current reading score field
                     score = raw.get("score")
                     if score is None:
-                        raise RuntimeError(
+                        logger.error(
                             "[FEAR_GREED] CNN API current fear_and_greed missing required 'score' field. "
                             "Cannot assess market sentiment without this metric."
                         )
-
-                    from datetime import datetime as _dt
+                        return [
+                            {
+                                "date": _dt.utcnow().strftime("%Y-%m-%d"),
+                                "fear_greed_value": None,
+                                "fear_greed_label": None,
+                                "data_unavailable": True,
+                                "reason": "missing_current_score",
+                            }
+                        ]
 
                     rating = raw.get("rating")
                     if rating is None:
-                        raise RuntimeError(
+                        logger.error(
                             "[FEAR_GREED] CNN API entry missing required 'rating' field. "
                             "Sentiment classification is required for trading decisions."
                         )
+                        return [
+                            {
+                                "date": _dt.utcnow().strftime("%Y-%m-%d"),
+                                "fear_greed_value": None,
+                                "fear_greed_label": None,
+                                "data_unavailable": True,
+                                "reason": "missing_current_rating",
+                            }
+                        ]
 
                     entries.append(
                         {
@@ -110,10 +158,9 @@ class FearGreedIndexLoader(OptimalLoader):
                     entries = raw
 
                 rows: list[dict[str, Any]] = []
+                skipped_count = 0
                 for entry in entries:
                     try:
-                        from datetime import datetime as _dt
-
                         x_val = entry.get("x")
                         date_str = entry.get("_date")
                         if date_str is None:
@@ -123,23 +170,28 @@ class FearGreedIndexLoader(OptimalLoader):
                         elif date_str:
                             entry_date = str(date_str)[:10]
                         else:
-                            logger.debug(
+                            logger.warning(
                                 "Fear & Greed entry skipped — missing date field "
                                 f"(x={x_val}, _date={entry.get('_date')}, date={entry.get('date')})"
                             )
+                            skipped_count += 1
                             continue
                         value = entry.get("y")
                         if value is None:
-                            raise ValueError(
+                            logger.warning(
                                 f"[FEAR_GREED] Entry on {entry_date} missing required 'y' (value) field. "
                                 "Cannot use incomplete Fear & Greed data for sentiment analysis."
                             )
+                            skipped_count += 1
+                            continue
                         label = entry.get("rating")
                         if label is None:
-                            raise ValueError(
+                            logger.warning(
                                 f"[FEAR_GREED] Entry on {entry_date} missing required 'rating' (label) field. "
-                                "Sentiment classification is required; cannot default to 'Neutral'."
+                                "Sentiment classification is required."
                             )
+                            skipped_count += 1
+                            continue
                         rows.append(
                             {
                                 "date": entry_date,
@@ -148,7 +200,8 @@ class FearGreedIndexLoader(OptimalLoader):
                             }
                         )
                     except (ValueError, KeyError, TypeError, AttributeError) as e:
-                        logger.debug(f"Fear & Greed entry parsing error: {e}")
+                        logger.warning(f"Fear & Greed entry parsing error: {e}")
+                        skipped_count += 1
                         continue
 
                 # CNN API includes today's date in both fear_and_greed_historical
@@ -160,10 +213,26 @@ class FearGreedIndexLoader(OptimalLoader):
                 rows = list(seen.values())
 
                 if not rows:
-                    raise RuntimeError(
-                        "No valid Fear & Greed index entries parsed from CNN API response. "
-                        "All entries were rejected during parsing."
+                    logger.error(
+                        f"No valid Fear & Greed index entries parsed from CNN API response. "
+                        f"Processed {len(entries)} entries, {skipped_count} skipped due to missing required fields."
                     )
+                    return [
+                        {
+                            "date": _dt.utcnow().strftime("%Y-%m-%d"),
+                            "fear_greed_value": None,
+                            "fear_greed_label": None,
+                            "data_unavailable": True,
+                            "reason": "no_valid_entries",
+                        }
+                    ]
+
+                if skipped_count > 0:
+                    logger.warning(
+                        f"Fear & Greed loader: {skipped_count} entries skipped due to missing fields. "
+                        f"Returned {len(rows)} valid entries from {len(entries)} total."
+                    )
+
                 return rows
 
             except requests.exceptions.Timeout as e:
@@ -171,33 +240,88 @@ class FearGreedIndexLoader(OptimalLoader):
                     logger.warning(f"Fear & Greed timeout (attempt {attempt + 1}/3), retrying...")
                     time.sleep((attempt + 1) * 5)
                 else:
-                    raise RuntimeError(
+                    logger.error(
                         "Failed to fetch Fear & Greed index after 3 timeout attempts. CNN API is unreachable or slow."
-                    ) from e
+                    )
+                    return [
+                        {
+                            "date": _dt.utcnow().strftime("%Y-%m-%d"),
+                            "fear_greed_value": None,
+                            "fear_greed_label": None,
+                            "data_unavailable": True,
+                            "reason": "fetch_timeout",
+                        }
+                    ]
             except requests.exceptions.ConnectionError as e:
                 if attempt < 2:
                     logger.warning(f"Fear & Greed connection error (attempt {attempt + 1}/3), retrying...")
                     time.sleep((attempt + 1) * 5)
                 else:
-                    raise RuntimeError(
+                    logger.error(
                         "Failed to fetch Fear & Greed index after 3 connection errors. Cannot reach CNN API."
-                    ) from e
+                    )
+                    return [
+                        {
+                            "date": _dt.utcnow().strftime("%Y-%m-%d"),
+                            "fear_greed_value": None,
+                            "fear_greed_label": None,
+                            "data_unavailable": True,
+                            "reason": "connection_error",
+                        }
+                    ]
+            except requests.exceptions.HTTPError as e:
+                logger.error(
+                    f"[FEAR_GREED] HTTP error from CNN: {e}. Check CNN API status and rate limits."
+                )
+                return [
+                    {
+                        "date": _dt.utcnow().strftime("%Y-%m-%d"),
+                        "fear_greed_value": None,
+                        "fear_greed_label": None,
+                        "data_unavailable": True,
+                        "reason": "http_error",
+                    }
+                ]
             except (ValueError, KeyError, TypeError) as e:
-                raise RuntimeError(
+                logger.error(
                     f"[FEAR_GREED] Data format error parsing CNN response: {e}. "
                     "CNN API response format may have changed."
-                ) from e
-            except requests.exceptions.HTTPError as e:
-                raise RuntimeError(
-                    f"[FEAR_GREED] HTTP error from CNN: {e}. Check CNN API status and rate limits."
-                ) from e
-            except (requests.RequestException, requests.Timeout) as e:
-                raise RuntimeError(f"[FEAR_GREED] Unexpected error fetching Fear & Greed index: {e}.") from e
+                )
+                return [
+                    {
+                        "date": _dt.utcnow().strftime("%Y-%m-%d"),
+                        "fear_greed_value": None,
+                        "fear_greed_label": None,
+                        "data_unavailable": True,
+                        "reason": "parse_error",
+                    }
+                ]
+            except requests.RequestException as e:
+                logger.error(f"[FEAR_GREED] Unexpected error fetching Fear & Greed index: {e}.")
+                return [
+                    {
+                        "date": _dt.utcnow().strftime("%Y-%m-%d"),
+                        "fear_greed_value": None,
+                        "fear_greed_label": None,
+                        "data_unavailable": True,
+                        "reason": "unexpected_error",
+                    }
+                ]
 
-        raise RuntimeError(
+        # Final fallback after all retry attempts exhausted (CNN 418 blocking)
+        logger.error(
             "Failed to fetch Fear & Greed index after 3 attempts (CNN 418 block). "
             "CNN API is blocking requests (rate limit or access restriction)."
         )
+        return [
+            {
+                "date": _dt.utcnow().strftime("%Y-%m-%d"),
+                "fear_greed_value": None,
+                "fear_greed_label": None,
+                "data_unavailable": True,
+                "reason": "cnn_blocking_418",
+            }
+        ]
 
 
 if __name__ == "__main__":

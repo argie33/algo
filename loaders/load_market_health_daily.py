@@ -190,6 +190,7 @@ class MarketHealthDailyLoader(OptimalLoader):
             raise RuntimeError(msg)
 
         matched_count = 0
+        unmatched_dates = []
         for m in health_metrics:
             b = breadth.get(m["date"])
             if b is not None:
@@ -203,10 +204,23 @@ class MarketHealthDailyLoader(OptimalLoader):
                             f"All breadth metrics (advance/decline ratio, new highs/lows) are CRITICAL for market exposure scoring. "
                             f"Cannot proceed with incomplete breadth data. Check breadth fetcher implementation."
                         )
+                # Validate values are not None/empty
+                for field in required_fields:
+                    val = b[field]
+                    if val is None or (isinstance(val, float) and val != val):  # NaN check
+                        raise RuntimeError(
+                            f"[MARKET_HEALTH CRITICAL] Breadth data for {m['date']} has NULL/NaN value for '{field}'. "
+                            f"All breadth metrics must be valid numbers for market exposure scoring. "
+                            f"Check advance_decline_daily and technical_data_daily table data quality."
+                        )
                 m["advance_decline_ratio"] = b["advance_decline_ratio"]
                 m["new_highs_count"] = b["new_highs_count"]
                 m["new_lows_count"] = b["new_lows_count"]
+                m["breadth_data_available"] = True
                 matched_count += 1
+            else:
+                # Mark this date as missing breadth data (CRITICAL field)
+                unmatched_dates.append(m["date"])
 
         if matched_count == 0:
             msg = (
@@ -218,12 +232,16 @@ class MarketHealthDailyLoader(OptimalLoader):
             logger.error(msg)
             raise RuntimeError(msg)
 
-        if matched_count < len(health_metrics):
-            logger.warning(
-                f"[MARKET_HEALTH] Breadth enrichment: matched {matched_count}/{len(health_metrics)} dates. "
-                f"Some dates have missing breadth data ({len(health_metrics) - matched_count} unmatched). "
-                f"This may reduce market exposure scoring confidence."
+        if unmatched_dates:
+            msg = (
+                f"[MARKET_HEALTH CRITICAL] Breadth enrichment: matched {matched_count}/{len(health_metrics)} dates. "
+                f"Missing breadth data for {len(unmatched_dates)} critical date(s): "
+                f"{unmatched_dates[:5]}{'...' if len(unmatched_dates) > 5 else ''}. "
+                f"Breadth metrics are CRITICAL for market exposure scoring (16% of score). "
+                f"Cannot proceed without complete breadth data for all trading dates."
             )
+            logger.error(msg)
+            raise RuntimeError(msg)
 
     def _merge_vix_data(self, health_metrics: list[dict[str, Any]], start: date, end: date) -> None:
         """Merge VIX data into health metrics.
@@ -233,6 +251,7 @@ class MarketHealthDailyLoader(OptimalLoader):
         data corruption or loader failure. All trading dates MUST have valid VIX.
         FAIL-FAST: Raise error if any date missing or has NULL vix_close.
         FRESHNESS: Validate that vix_history table was updated recently before using data.
+        Validates against placeholder/fallback values (0, 0.0).
         """
         # Validate upstream data freshness before using it
         vix_freshness = DataAgeValidator.check("vix_history")
@@ -254,6 +273,7 @@ class MarketHealthDailyLoader(OptimalLoader):
         matched_count = 0
         missing_dates = []
         null_values = []
+        placeholder_values = []
 
         for m in health_metrics:
             if m["date"] not in vix:
@@ -274,9 +294,30 @@ class MarketHealthDailyLoader(OptimalLoader):
                 # VIX data may be raw value (backward compatibility)
                 vix_close = vix_data
 
+            # Check for NULL/None values
             if vix_close is None or vix_close == "":
                 null_values.append(m["date"])
                 continue
+
+            # Check for placeholder/fallback values (0, 0.0) which indicate missing data
+            if vix_close == 0 or vix_close == 0.0:
+                placeholder_values.append((m["date"], vix_close))
+                continue
+
+            # Validate VIX is in realistic range (VIX typically 5-100, occasionally beyond)
+            try:
+                vix_float = float(vix_close)
+                if vix_float < 0:
+                    raise RuntimeError(
+                        f"[MARKET_HEALTH CRITICAL] VIX value is negative for {m['date']}: {vix_float}. "
+                        f"VIX cannot be negative. Data corruption detected in vix_history. "
+                        f"Check VIX feed and fetcher validation."
+                    )
+            except (TypeError, ValueError) as e:
+                raise RuntimeError(
+                    f"[MARKET_HEALTH CRITICAL] VIX value cannot be converted to float for {m['date']}: {vix_close}. "
+                    f"Check vix_history data type and VIX fetcher."
+                ) from e
 
             m["vix_level"] = vix_close
             matched_count += 1
@@ -293,6 +334,14 @@ class MarketHealthDailyLoader(OptimalLoader):
                 "Data corruption detected. Check VIX feed and database."
             )
 
+        if placeholder_values:
+            raise RuntimeError(
+                f"[MARKET_HEALTH] CRITICAL: VIX has placeholder/fallback values (0.0) for {len(placeholder_values)} date(s): "
+                f"{placeholder_values[:5]}{'...' if len(placeholder_values) > 5 else ''}. "
+                "Placeholder data indicates missing values — cannot use fallback zeros for circuit breaker decisions. "
+                "Check vix_history loader and ensure real data is being loaded."
+            )
+
         if matched_count == 0:
             raise RuntimeError(
                 "[MARKET_HEALTH] CRITICAL: VIX data fetched but no valid vix_close values found for any trading date. "
@@ -307,34 +356,38 @@ class MarketHealthDailyLoader(OptimalLoader):
         Put/call ratio is OPTIONAL enrichment for market exposure scoring (8pt factor).
         Options sentiment (put/call) is useful for assessing market risk appetite, but
         market can function without it. Gracefully degrade if unavailable.
+
+        Marks data_unavailable when fetcher fails or returns None.
         """
         try:
             today_pc = self._put_call_fetcher.fetch(end)
         except Exception as e:
             logger.warning(f"[MARKET_HEALTH] Put/call ratio fetch failed for {end}: {e}. "
-                          f"Options sentiment is optional - continuing without it.")
+                          f"Options sentiment is optional - marking unavailable and continuing.")
             today_pc = None
 
         end_str = end.isoformat()
         matched_count = 0
-        if today_pc is not None:
+        if today_pc is not None and today_pc != 0.0:
             for m in health_metrics:
                 if m["date"] == end_str:
                     m["put_call_ratio"] = today_pc
                     m["put_call_ratio_available"] = True
+                    m["put_call_ratio_data_unavailable"] = False
                     matched_count += 1
                 # Note: Do NOT set put_call_ratio for historical dates
                 # Historical dates keep their existing put_call_ratio values (if any)
             logger.info(f"Put/call ratio: {today_pc:.3f} (matched {matched_count} rows)")
         else:
-            # Explicitly mark which date is missing put/call ratio (not just leave as None)
+            # Explicitly mark which date is missing put/call ratio with data_unavailable flag
             for m in health_metrics:
                 if m["date"] == end_str:
                     m["put_call_ratio"] = None
                     m["put_call_ratio_available"] = False
+                    m["put_call_ratio_data_unavailable"] = True
                     matched_count += 1
-            logger.warning(f"[MARKET_HEALTH] Put/call ratio unavailable for {end} — marked explicitly. "
-                          f"Options sentiment optional.")
+            logger.warning(f"[MARKET_HEALTH] Put/call ratio unavailable for {end} — marked explicitly as data_unavailable. "
+                          f"Options sentiment is optional enrichment.")
 
     def _merge_yield_curve_data(self, health_metrics: list[dict[str, Any]], start: date, end: date) -> None:
         """Merge yield curve slope into health metrics.
@@ -344,7 +397,7 @@ class MarketHealthDailyLoader(OptimalLoader):
         If data DOES exist, it must be complete (no forward-fill, no stale fallbacks).
         FRESHNESS: Validate upstream data is recent before using (don't accept week-old Treasury data).
 
-        On data unavailability: Log and return early (no error).
+        On data unavailability: Log and mark with data_unavailable flag.
         This allows market health metrics to continue without regime classification.
         """
         try:
@@ -353,20 +406,41 @@ class MarketHealthDailyLoader(OptimalLoader):
             if not econ_freshness["is_fresh"]:
                 logger.warning(
                     f"[MARKET_HEALTH] Yield curve source data is stale: {econ_freshness['message']}. "
-                    f"Market regime will skip yield curve inversion detection. Continuing with other metrics."
+                    f"Market regime will skip yield curve inversion detection. Marking data_unavailable and continuing."
                 )
+                # Mark all metrics as having unavailable yield curve data
+                for m in health_metrics:
+                    m["yield_curve_slope"] = None
+                    m["yield_curve_data_unavailable"] = True
+                    m["yield_curve_unavailable_reason"] = "source_data_stale"
                 return
 
             yield_curve = self._yield_curve_fetcher.fetch(start, end)
 
-            # YieldCurveFetcher now returns explicit data_unavailable flag
+            # YieldCurveFetcher returns explicit data_unavailable flag
             if yield_curve.get("data_unavailable"):
-                reason = yield_curve.get("reason", "Unknown")
-                logger.warning(f"[MARKET_HEALTH] Yield curve data unavailable ({reason}) - market regime will skip inversion detection")
+                reason = yield_curve.get("reason", "unknown")
+                logger.warning(
+                    f"[MARKET_HEALTH] Yield curve data unavailable ({reason}) - "
+                    f"marking data_unavailable and skipping inversion detection"
+                )
+                # Mark all metrics as having unavailable yield curve data
+                for m in health_metrics:
+                    m["yield_curve_slope"] = None
+                    m["yield_curve_data_unavailable"] = True
+                    m["yield_curve_unavailable_reason"] = reason
                 return
 
-            if not yield_curve:
-                logger.warning("[MARKET_HEALTH] Yield curve data empty - market regime will skip inversion detection")
+            if not yield_curve or len(yield_curve) == 0:
+                logger.warning(
+                    "[MARKET_HEALTH] Yield curve data empty (no dates returned) - "
+                    "marking data_unavailable and skipping inversion detection"
+                )
+                # Mark all metrics as having unavailable yield curve data
+                for m in health_metrics:
+                    m["yield_curve_slope"] = None
+                    m["yield_curve_data_unavailable"] = True
+                    m["yield_curve_unavailable_reason"] = "no_data_returned"
                 return
 
             matched_count = 0
@@ -377,6 +451,9 @@ class MarketHealthDailyLoader(OptimalLoader):
                 slope_data = yield_curve.get(m["date"])
                 if slope_data is None:
                     missing_dates.append(m["date"])
+                    # Explicitly mark as unavailable for this date
+                    m["yield_curve_data_unavailable"] = True
+                    m["yield_curve_unavailable_reason"] = "date_not_in_source"
                     continue
 
                 # CRITICAL: Validate yield_spread key exists in slope_data
@@ -392,42 +469,56 @@ class MarketHealthDailyLoader(OptimalLoader):
                 slope = slope_data["yield_spread"]
                 if slope is None or slope == "":
                     null_values.append(m["date"])
+                    # Explicitly mark as unavailable for this date
+                    m["yield_curve_data_unavailable"] = True
+                    m["yield_curve_unavailable_reason"] = "null_value_in_source"
                     continue
 
                 m["yield_curve_slope"] = slope
+                m["yield_curve_data_unavailable"] = False
+                m["yield_curve_unavailable_reason"] = None
                 matched_count += 1
 
             if missing_dates:
-                raise RuntimeError(
+                logger.warning(
                     f"[MARKET_HEALTH] Yield curve data incomplete: {len(missing_dates)} date(s) missing "
                     f"({missing_dates[:3]}{'...' if len(missing_dates) > 3 else ''}). "
-                    "Market regime detection requires complete yield curve data for inversion detection. "
-                    "Cannot proceed with incomplete Fed rate environment data."
+                    f"Partial data available ({matched_count}/{len(health_metrics)} dates). "
+                    f"Market regime detection will use available data and mark unavailable dates."
                 )
 
             if null_values:
-                raise RuntimeError(
+                logger.warning(
                     f"[MARKET_HEALTH] Yield curve has NULL values for {len(null_values)} date(s): "
                     f"({null_values[:3]}{'...' if len(null_values) > 3 else ''}). "
-                    "Cannot proceed without complete yield spread data — market regime detection requires valid inversion data."
+                    f"Partial data available ({matched_count}/{len(health_metrics)} dates). "
+                    f"These dates marked as data_unavailable."
                 )
 
             if matched_count > 0:
                 logger.info(f"Yield curve enrichment: matched {matched_count}/{len(health_metrics)} dates with valid yield_spread")
-            else:
-                logger.warning("Yield curve data available but no valid slopes found")
+            elif matched_count == 0:
+                logger.warning(
+                    "[MARKET_HEALTH] Yield curve data available but no valid slopes found for any date - "
+                    "all dates marked as data_unavailable"
+                )
         except Exception as e:
-            raise RuntimeError(
+            logger.warning(
                 f"[MARKET_HEALTH] Yield curve enrichment failed: {e}. "
-                "Market regime detection requires yield spread data for inversion signals. "
-                "Cannot proceed without valid yield curve data."
-            ) from e
+                f"Market regime detection will skip inversion signals. Marking data_unavailable and continuing."
+            )
+            # Mark all metrics as having unavailable yield curve data on exception
+            for m in health_metrics:
+                m["yield_curve_slope"] = None
+                m["yield_curve_data_unavailable"] = True
+                m["yield_curve_unavailable_reason"] = "fetcher_exception"
 
     def _merge_fed_rate_environment(self, health_metrics: list[dict[str, Any]], start: date, end: date) -> None:
         """Merge Fed rate environment classification into health metrics.
 
         Classifies Fed policy stance (tightening/neutral/easing) based on Fed funds rate trend.
-        Fed policy environment is required for accurate market regime detection.
+        Fed policy environment is optional enrichment for market regime detection.
+        Marks data_unavailable when data cannot be fetched or is insufficient.
         """
         try:
             with DatabaseContext("read") as cur:
@@ -444,24 +535,32 @@ class MarketHealthDailyLoader(OptimalLoader):
                 rows = cur.fetchall()
                 if not rows:
                     msg = (
-                        f"[MARKET_HEALTH CRITICAL] Fed funds rate data missing for {start} to {end}. "
-                        f"Fed policy environment is required for accurate market regime detection. "
-                        f"Cannot compute health metrics without Fed rate state (tightening/neutral/easing). "
-                        f"Check economic_data table for FEDFUNDS series."
+                        f"[MARKET_HEALTH] Fed funds rate data missing for {start} to {end}. "
+                        f"Fed policy environment optional enrichment unavailable. "
+                        f"Marking data_unavailable and continuing (check economic_data table for FEDFUNDS series)."
                     )
-                    logger.error(msg)
-                    raise ValueError(msg)
+                    logger.warning(msg)
+                    # Mark all metrics with data_unavailable for fed_rate_environment
+                    for m in health_metrics:
+                        m["fed_rate_environment"] = None
+                        m["fed_rate_data_unavailable"] = True
+                        m["fed_rate_unavailable_reason"] = "no_historical_data"
+                    return
 
                 # Get current and historical rates to determine trend
                 current_rate = float(rows[0][0]) if rows[0][0] is not None else None
                 if current_rate is None:
                     msg = (
-                        f"[MARKET_HEALTH CRITICAL] Fed funds rate is NULL for {start} to {end}. "
-                        f"Cannot proceed with missing Fed rate data. "
-                        f"Check economic_data table for FEDFUNDS series."
+                        f"[MARKET_HEALTH] Fed funds rate is NULL for current period {start} to {end}. "
+                        f"Fed policy environment unavailable. Marking data_unavailable and continuing."
                     )
-                    logger.error(msg)
-                    raise ValueError(msg)
+                    logger.warning(msg)
+                    # Mark all metrics with data_unavailable
+                    for m in health_metrics:
+                        m["fed_rate_environment"] = None
+                        m["fed_rate_data_unavailable"] = True
+                        m["fed_rate_unavailable_reason"] = "current_rate_null"
+                    return
 
                 # Get rate 30 days ago for trend
                 rate_30d_ago = None
@@ -479,20 +578,43 @@ class MarketHealthDailyLoader(OptimalLoader):
                         env = "easing"
                     else:
                         env = "neutral"
-                    # Apply to all metrics
+                    # Apply to all metrics with available data marker
                     for m in health_metrics:
                         m["fed_rate_environment"] = env
+                        m["fed_rate_data_unavailable"] = False
+                        m["fed_rate_unavailable_reason"] = None
                     logger.info(f"Fed rate environment: {env} (current={current_rate}%, 30d_ago={rate_30d_ago}%)")
                 else:
                     # Insufficient history: don't classify (don't mix stale trend with absolute levels)
                     logger.warning(
-                        f"[MARKET_HEALTH] Fed rate environment skipped: <30 days history. "
-                        f"Cannot classify trend without baseline (current={current_rate}%)"
+                        f"[MARKET_HEALTH] Fed rate environment skipped: <30 days history available. "
+                        f"Cannot classify trend without 30-day baseline (current={current_rate}%). "
+                        f"Marking data_unavailable for trend classification."
                     )
                     for m in health_metrics:
                         m["fed_rate_environment"] = None
+                        m["fed_rate_data_unavailable"] = True
+                        m["fed_rate_unavailable_reason"] = "insufficient_history"
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            logger.warning(
+                f"[MARKET_HEALTH] Fed rate enrichment database error: {e}. "
+                f"Fed policy environment optional enrichment unavailable. Marking data_unavailable and continuing."
+            )
+            # Mark all metrics with data_unavailable on database error
+            for m in health_metrics:
+                m["fed_rate_environment"] = None
+                m["fed_rate_data_unavailable"] = True
+                m["fed_rate_unavailable_reason"] = "database_error"
         except Exception as e:
-            logger.warning(f"[MARKET_HEALTH] Fed rate enrichment unavailable: {e} (optional data skipped)")
+            logger.warning(
+                f"[MARKET_HEALTH] Fed rate enrichment failed: {e}. "
+                f"Fed policy environment optional enrichment unavailable. Marking data_unavailable and continuing."
+            )
+            # Mark all metrics with data_unavailable on any exception
+            for m in health_metrics:
+                m["fed_rate_environment"] = None
+                m["fed_rate_data_unavailable"] = True
+                m["fed_rate_unavailable_reason"] = "enrichment_exception"
 
     def fetch_incremental(self, symbol: str = "SPY", since: date | None = None) -> list[dict[str, Any]]:
         """Fetch SPY price data and compute market health metrics."""
@@ -687,15 +809,24 @@ class MarketHealthDailyLoader(OptimalLoader):
                     "distribution_days_4w": dist_days_25d,
                     "distribution_days_20d": dist_days_20d,
                     "up_volume_percent": up_volume_pct,
-                    "advance_decline_ratio": None,  # filled from _merge_breadth_data
-                    "new_highs_count": None,  # filled from _merge_breadth_data
-                    "new_lows_count": None,  # filled from _merge_breadth_data
+                    # CRITICAL breadth data (filled from _merge_breadth_data, no fallback)
+                    "advance_decline_ratio": None,
+                    "new_highs_count": None,
+                    "new_lows_count": None,
                     "breadth_momentum_10d": float(row["breadth_10d"]),
                     "spy_change_pct": spy_change_pct,
-                    "vix_level": None,  # populated in fetch_incremental from _merge_vix_data
+                    # CRITICAL VIX data (filled from _merge_vix_data, must be present)
+                    "vix_level": None,
+                    # OPTIONAL enrichment data (marked as initially unavailable, may be filled by merge operations)
                     "put_call_ratio": None,
+                    "put_call_ratio_available": False,
+                    "put_call_ratio_data_unavailable": True,
                     "yield_curve_slope": None,
+                    "yield_curve_data_unavailable": True,
+                    "yield_curve_unavailable_reason": "not_yet_fetched",
                     "fed_rate_environment": None,
+                    "fed_rate_data_unavailable": True,
+                    "fed_rate_unavailable_reason": "not_yet_fetched",
                 }
             )
 

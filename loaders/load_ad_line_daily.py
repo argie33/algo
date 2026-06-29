@@ -34,6 +34,8 @@ class ADLineDailyLoader(OptimalLoader):
     def load_global(self) -> int:
         """Load advance-decline line direction (market-wide, not per-symbol).
 
+        Computes from trend_template_data SMA crossovers.
+
         Raises:
             RuntimeError: If underlying data unavailable or computation fails.
         """
@@ -47,6 +49,22 @@ class ADLineDailyLoader(OptimalLoader):
                     return 0
 
                 logger.info(f"[AD_LINE] Computing advance-decline line from {start} to {end}")
+
+                # Validate that trend_template_data has content for this date range
+                cur.execute(
+                    "SELECT COUNT(*) FROM trend_template_data WHERE date >= %s AND date <= %s",
+                    (start, end),
+                )
+                row = cur.fetchone()
+                if not row or row[0] == 0:
+                    logger.warning(
+                        f"[AD_LINE] trend_template_data is empty for {start} to {end}. "
+                        f"Signal score computation may not have completed yet."
+                    )
+                    raise RuntimeError(
+                        f"[AD_LINE CRITICAL] No trend data available for {start} to {end}. "
+                        f"trend_template_data must be populated by signal score loader first."
+                    )
 
                 # Get advance/decline counts from trend_template_data
                 cur.execute(
@@ -77,9 +95,13 @@ class ADLineDailyLoader(OptimalLoader):
 
                 rows = cur.fetchall()
                 if not rows or len(rows) == 0:
+                    logger.error(
+                        f"[AD_LINE] No advance-decline aggregates computed for {start} to {end}. "
+                        f"Check that trend_template_data has both advances and declines."
+                    )
                     raise RuntimeError(
-                        f"[AD_LINE CRITICAL] No advance-decline data available for {start} to {end}. "
-                        f"Check trend_template_data population (requires signal score computation)."
+                        f"[AD_LINE CRITICAL] Cannot compute advance-decline line for {start} to {end}. "
+                        f"Aggregation returned no results."
                     )
 
                 # Upsert into ad_line_daily
@@ -108,6 +130,10 @@ class ADLineDailyLoader(OptimalLoader):
         except RuntimeError:
             raise
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            logger.error(
+                f"[AD_LINE] Database error during computation: {e.__class__.__name__}: {e}. "
+                f"Cannot compute advance-decline line."
+            )
             raise RuntimeError(
                 f"[AD_LINE] Database error: {e}. "
                 f"Cannot compute advance-decline line without trend_template_data."
@@ -118,26 +144,53 @@ class ADLineDailyLoader(OptimalLoader):
         raise NotImplementedError("AD_LINE loader is market-wide only. Use load_global().")
 
     def _get_start_date(self, cur: Any) -> date:
-        """Get start date from watermark or default to recent backfill."""
+        """Get start date from watermark or default to recent backfill.
+
+        Raises:
+            RuntimeError: If watermark query fails and we cannot proceed.
+        """
         try:
             cur.execute("SELECT MAX(date) FROM ad_line_daily")
             row = cur.fetchone()
             if row and row[0] is not None:
                 # Start one day after last record
-                return row[0] + timedelta(days=1)
-        except (psycopg2.DatabaseError, psycopg2.OperationalError):
-            pass
+                start_date = row[0] + timedelta(days=1)
+                logger.info(f"[AD_LINE] Watermark found: resuming from {start_date}")
+                return start_date
 
-        # Default: last 30 days if table is empty
-        return date.today() - timedelta(days=30)
+            # Table is empty, use default backfill
+            default_start = date.today() - timedelta(days=30)
+            logger.info(f"[AD_LINE] No watermark found, starting backfill from {default_start}")
+            return default_start
+
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            logger.error(
+                f"[AD_LINE] Cannot retrieve watermark from ad_line_daily: {e}. "
+                f"Cannot determine safe restart point."
+            )
+            raise RuntimeError(
+                f"[AD_LINE] Failed to get watermark for restart: {e}"
+            ) from e
 
     def _get_end_date(self) -> date:
-        """Get end date (latest trading day in ET)."""
+        """Get end date (latest trading day in ET).
+
+        Walks backward from today until finding a trading day.
+
+        Raises:
+            RuntimeError: If no trading day found within lookback window.
+        """
         now_utc = datetime.now(timezone.utc)
         now_et = now_utc.astimezone(EASTERN_TZ)
         end = now_et.date()
 
-        from algo.infrastructure import MarketCalendar
+        try:
+            from algo.infrastructure import MarketCalendar
+        except ImportError as e:
+            logger.error(f"[AD_LINE] Cannot import MarketCalendar: {e}")
+            raise RuntimeError(
+                f"[AD_LINE] Missing MarketCalendar dependency: {e}"
+            ) from e
 
         max_iterations = 365
         iterations = 0
@@ -145,6 +198,16 @@ class ADLineDailyLoader(OptimalLoader):
             end = end - timedelta(days=1)
             iterations += 1
 
+        if iterations >= max_iterations:
+            logger.error(
+                f"[AD_LINE] Cannot find trading day within {max_iterations} days. "
+                f"Last checked: {end}. Possible calendar outage."
+            )
+            raise RuntimeError(
+                f"[AD_LINE] No trading day found within {max_iterations} days lookback"
+            )
+
+        logger.debug(f"[AD_LINE] End date (latest trading day): {end}")
         return end
 
 
