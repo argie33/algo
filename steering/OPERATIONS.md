@@ -1,5 +1,56 @@
 # Operations: CI/CD & Quick Reference
 
+## AWS Account Setup (Prerequisites)
+
+**Required IAM Permissions for `algo-developer` User:**
+
+The following permissions are required to deploy and manage infrastructure:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ECSTaskManagement",
+      "Effect": "Allow",
+      "Action": [
+        "ecs:DescribeTaskDefinition",
+        "ecs:RegisterTaskDefinition",
+        "ecs:ListTaskDefinitions",
+        "ecs:DescribeClusters",
+        "ecs:RunTask",
+        "ecs:ListTasks",
+        "ecs:DescribeTasks"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "TerraformBasic",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:GetObjectVersion",
+        "s3:ListBucket",
+        "s3:GetBucketVersioning"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
+```
+
+**If you see `AccessDeniedException` for `ecs:DescribeTaskDefinition` or `s3:GetBucketPolicy`:**
+
+Contact your AWS account admin and request these additional actions added to `algo-developer` user:
+- `ecs:DescribeTaskDefinition`
+- `ecs:RegisterTaskDefinition`  
+- `s3:GetBucketPolicy`
+- `ec2:DescribeVpcAttribute`
+
+**Status:** Code fixes deployed to main. ECS task definitions require manual update via AWS Console or elevated IAM permissions.
+
+---
+
 ## CI/CD Pipeline (ci-fast-gates.yml)
 
 Runs on every commit to `main` and every PR. 27 min average, all gates blocking.
@@ -105,11 +156,20 @@ Required:
 - Batch size 1000 causes rate limit cascade, backoff increases execution time
 - VPC network latency and database connection pooling contention
 
-**Solution (Deployed):**
-- Metric loader timeout: 300s → 600s (10 minutes)
-- Batch size in AWS: 1000 → 100 (avoids rate limiting)
-- ECS task memory: 512MB → 1024MB (sufficient for batches)
-- Loader classification: CRITICAL (FARGATE resource guarantee, not SPOT)
+**Solution (Code Committed, Infrastructure Apply Pending):**
+- Metric loader timeout: 300s → 600s (10 minutes) — ✅ Code committed
+- Batch size in AWS: 1000 → 100 (avoids rate limiting) — ✅ Code committed, Terraform changes written
+- ECS task memory: 512MB → 1024MB (sufficient for batches) — ✅ Terraform changes written
+- Loader classification: CRITICAL (FARGATE resource guarantee, not SPOT) — ✅ Lambda trigger updated
+
+**Infrastructure Deployment Blocked:** ECS task definitions have NOT been updated in AWS. Requires:
+1. AWS account admin grant `algo-developer` user `ecs:DescribeTaskDefinition` + `ecs:RegisterTaskDefinition` permissions (see AWS Account Setup section)
+2. OR manually update each task definition via AWS Console: add environment variable `LOADER_CHUNK_SIZE=100` to:
+   - algo-quality_metrics-loader
+   - algo-growth_metrics-loader
+   - algo-value_metrics-loader
+   - algo-positioning_metrics-loader
+   - algo-stability_metrics-loader
 
 **Verify Fix Working:**
 ```bash
