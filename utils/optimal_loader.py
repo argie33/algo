@@ -59,10 +59,20 @@ class OptimalLoader:
                     return
             except ValueError:
                 pass
+        # AWS environment: use smaller batch size to avoid yfinance rate limiting
+        # Local development: use larger batch size (no rate limits)
+        is_aws = bool(os.getenv("AWS_LAMBDA_FUNCTION_NAME") or os.getenv("AWS_EXECUTION_ENV"))
         memory_limit_mb = int(os.getenv("ECS_TASK_MEMORY_LIMIT", "512"))
         safe_rows = int((memory_limit_mb * 0.40 * 1024) / 1.5)
-        self.chunk_size = max(2_000, min(50_000, safe_rows))
+
+        if is_aws:
+            # AWS: reduce batch size to 100 to avoid yfinance rate limiting
+            self.chunk_size = max(100, min(500, safe_rows))
+        else:
+            # Local: use larger batches (no rate limit concerns)
+            self.chunk_size = max(2_000, min(50_000, safe_rows))
         self._bulk_insert_mgr.chunk_size = self.chunk_size
+        logger.info(f"[CONFIG] Batch size set to {self.chunk_size} (AWS={is_aws})")
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]] | None:
         raise NotImplementedError("Implement fetch_incremental or fetch_global")

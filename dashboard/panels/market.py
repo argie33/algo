@@ -131,10 +131,17 @@ def panel_market_full(mkt: Any, sentiment: Any = None) -> Panel:
             border_style="red",
             padding=(0, 1),
         )
-    dist = mkt.get("dist", "--")
-    stage = mkt.get("stage", "--")
+    dist = mkt.get("dist")
+    if dist is None:
+        dist = "--"
+    stage = mkt.get("stage")
+    if stage is None:
+        stage = "--"
     spy_chg = safe_float(mkt.get("spy_chg"), strict=False)
-    trend = mkt.get("trend", "")
+    trend = mkt.get("trend")
+    if trend is None:
+        logger.warning("[MARKET_PANEL] Market trend data missing from endpoint - may indicate incomplete regime calculation")
+        trend = ""
     try:
         halts = _get_market_halts(mkt, "Market panel")
     except (ValueError, RuntimeError) as e:
@@ -229,8 +236,13 @@ def panel_market_full(mkt: Any, sentiment: Any = None) -> Panel:
     if sentiment and not has_error(sentiment):
         fg_v = sentiment.get("fg")
         if fg_v is not None:
-            fg_lbl = (sentiment.get("label", ""))[:16]
-            fg_c = sentiment.get("color", "dim")
+            fg_lbl_raw = sentiment.get("label")
+            fg_lbl = (fg_lbl_raw if fg_lbl_raw is not None else "")[:16]
+            if fg_lbl_raw is None:
+                logger.debug("[MARKET_PANEL] Fear & Greed label missing from sentiment data")
+            fg_c = sentiment.get("color")
+            if fg_c is None:
+                fg_c = "dim"
             fg_bar = int(fg_v / 100 * 8)
             fg_bar_s = f"[{fg_c}]{'█' * fg_bar}[/][dim]{'░' * (8 - fg_bar)}[/]"
             lines.append(f"[dim]Fear & Greed:[/][{fg_c}]{fg_v:.0f}%  {fg_lbl}[/] {fg_bar_s}")
@@ -356,8 +368,13 @@ def panel_market_expanded(mkt: Any, sentiment: Any = None) -> Panel:
         fg_v = sentiment.get("fg")
         if fg_v is not None:
             rows.append(Rule(style="dim"))
-            fg_lbl = (sentiment.get("label", ""))[:22]
-            fg_c = sentiment.get("color", "dim")
+            fg_lbl_raw = sentiment.get("label")
+            fg_lbl = (fg_lbl_raw if fg_lbl_raw is not None else "")[:22]
+            if fg_lbl_raw is None:
+                logger.debug("[MARKET_PANEL] Fear & Greed label missing from sentiment data")
+            fg_c = sentiment.get("color")
+            if fg_c is None:
+                fg_c = "dim"
             fg_bar_f = int(fg_v / 100 * 24)
             fg_bar_s = f"[{fg_c}]{'█' * fg_bar_f}[/][dim]{'░' * (24 - fg_bar_f)}[/]"
             rows.append(Text.from_markup(f"  [dim]Fear & Greed:[/]  [{fg_c}]{fg_v:.0f}  {fg_lbl}[/]  {fg_bar_s}"))
@@ -400,9 +417,16 @@ def panel_header_market(
         vix_val = safe_float(mkt.get("vix"), strict=False)
         vix = f"{vix_val:.1f}" if vix_val is not None else "--"
         vc = DIM if vix_val is None else (R if vix_val >= 30 else (Y if vix_val >= 20 else G))
-        dist = str(mkt.get("dist", "--"))
-        stage = str(mkt.get("stage", "--"))
-        trend_raw = (mkt.get("trend", "")).upper()
+        dist_val = mkt.get("dist")
+        dist = str(dist_val if dist_val is not None else "--")
+        stage_val = mkt.get("stage")
+        stage = str(stage_val if stage_val is not None else "--")
+        trend_raw_val = mkt.get("trend")
+        if trend_raw_val is None:
+            logger.debug("[HEADER_MARKET] Market trend data missing from endpoint")
+            trend_raw = ""
+        else:
+            trend_raw = str(trend_raw_val).upper()
         trend_s = f"  [dim]Trend:[/][white]{trend_raw[:10]}[/]" if trend_raw else ""
         if not trend_raw:
             logger.debug("[MARKET_HEADER] Market trend not available - optional directional display skipped")

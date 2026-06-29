@@ -171,6 +171,10 @@ class PortfolioDataValidator:
 def validate_before_rendering(panel_name: str, data: dict[str, Any]) -> bool:
     """Validates panel data before rendering dashboard.
 
+    CRITICAL: Never silently default to empty collections. Missing positions/performance data
+    must be explicitly marked with _data_unavailable flag to avoid dashboard showing false "no positions"
+    state when API actually failed to return data.
+
     Raises RuntimeError if critical data missing/invalid.
     Returns True if data is acceptable (may have optional fields missing).
     """
@@ -180,17 +184,50 @@ def validate_before_rendering(panel_name: str, data: dict[str, Any]) -> bool:
             logger.error(f"[PORTFOLIO_PANEL] {msg}")
             raise RuntimeError(f"Portfolio panel cannot render: {msg}")
 
-        positions = data.get("positions", [])
-        is_valid, msg = PortfolioDataValidator.validate_position_data(positions)
-        if not is_valid:
-            logger.error(f"[PORTFOLIO_PANEL] {msg}")
-            raise RuntimeError(f"Portfolio panel cannot render: {msg}")
+        # CRITICAL: Must explicitly require positions field (no silent empty default)
+        # If data layer fails to return positions, must return explicit marker, not empty list
+        if "positions" not in data:
+            raise RuntimeError(
+                "[PORTFOLIO_PANEL] Positions field is missing from data. "
+                "Data layer must return explicit _data_unavailable marker if positions unavailable, "
+                "never silent omission."
+            )
+
+        positions = data.get("positions")
+        # Allow None if marked as unavailable, otherwise require list
+        if positions is None and not data.get("_data_unavailable"):
+            raise RuntimeError(
+                "[PORTFOLIO_PANEL] Positions is None and data not marked unavailable. "
+                "This indicates data layer error. Check position data API."
+            )
+
+        if positions:  # Only validate if positions list is non-empty
+            is_valid, msg = PortfolioDataValidator.validate_position_data(positions)
+            if not is_valid:
+                logger.error(f"[PORTFOLIO_PANEL] {msg}")
+                raise RuntimeError(f"Portfolio panel cannot render: {msg}")
 
     elif panel_name == "performance":
-        perf = data.get("performance", {})
-        is_valid, msg = PortfolioDataValidator.validate_performance_metrics(perf)
-        if not is_valid:
-            logger.warning(f"[PERFORMANCE_PANEL] {msg}")
-            # Performance issues are warnings, not errors (optional enrichment)
+        # CRITICAL: Must explicitly require performance field (no silent empty default)
+        if "performance" not in data:
+            raise RuntimeError(
+                "[PERFORMANCE_PANEL] Performance field is missing from data. "
+                "Data layer must return explicit _data_unavailable marker if performance unavailable, "
+                "never silent omission."
+            )
+
+        perf = data.get("performance")
+        # Allow None if marked as unavailable, otherwise require dict
+        if perf is None and not data.get("_data_unavailable"):
+            raise RuntimeError(
+                "[PERFORMANCE_PANEL] Performance is None and data not marked unavailable. "
+                "This indicates data layer error. Check performance data API."
+            )
+
+        if perf:  # Only validate if performance dict is non-empty
+            is_valid, msg = PortfolioDataValidator.validate_performance_metrics(perf)
+            if not is_valid:
+                logger.warning(f"[PERFORMANCE_PANEL] {msg}")
+                # Performance issues are warnings, not errors (optional enrichment)
 
     return True

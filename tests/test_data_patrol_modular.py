@@ -46,7 +46,7 @@ def test_patrol_config():
     assert config.get("nonexistent_key", 42) == 42
     staleness = config.get_staleness_windows()
     assert "price_daily" in staleness
-    assert staleness["price_daily"] == 7  # default
+    assert staleness["price_daily"] == 1  # from freshness_config: critical data, 1 day max age
     print("OK - PatrolConfig works correctly")
 
 

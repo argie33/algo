@@ -104,6 +104,8 @@ class TriggerLoadersHandler(LambdaHandler):
             return LambdaResponse.error("ECS_CLUSTER_ARN not configured", status_code=500)
 
         critical_loaders = {
+            # Metric loaders (required before stock_scores)
+            "quality_metrics", "growth_metrics", "value_metrics", "positioning_metrics", "stability_metrics",
             # Price data (fundamental for downstream processing)
             "stock_prices_daily", "price_daily", "price_weekly", "price_monthly",
             "etf_price_daily", "etf_price_weekly", "etf_price_monthly",
@@ -114,7 +116,18 @@ class TriggerLoadersHandler(LambdaHandler):
             # Portfolio and risk metrics
             "algo_metrics_daily", "algo_risk_daily", "economic_metrics_daily",
         }
+        # Use FARGATE for critical loaders (higher timeout, guaranteed resources)
         use_fargate = loader_name in critical_loaders
+
+        # Set environment variables for ECS task
+        environment_overrides = {
+            # Metric loaders need extended timeout (600s = 10 min for yfinance + SEC filings)
+            "LOADER_TIMEOUT_SEC": "600" if loader_name in {"quality_metrics", "growth_metrics", "value_metrics", "positioning_metrics", "stability_metrics"} else "300",
+            # Reduce batch size in AWS to avoid yfinance rate limiting
+            "LOADER_CHUNK_SIZE": "100",
+            # Increase memory limit flag for batch processing
+            "ECS_TASK_MEMORY_LIMIT": "1024" if loader_name in critical_loaders else "512",
+        }
 
         # Validate dependencies before triggering stock_scores
         if loader_name == "stock_scores":
@@ -128,6 +141,17 @@ class TriggerLoadersHandler(LambdaHandler):
         task_def = f"{project_name}-{loader_name}-loader"
         logger.info(f"Triggering loader: {loader_name} (task_def={task_def}, count={task_count})")
 
+        # Build container overrides to pass environment variables to ECS task
+        container_overrides = [
+            {
+                "name": f"{project_name}-{loader_name}-loader",
+                "environment": [
+                    {"name": k, "value": v}
+                    for k, v in environment_overrides.items()
+                ],
+            }
+        ]
+
         run_task_params: dict[str, Any] = {
             "cluster": cluster_arn,
             "taskDefinition": task_def,
@@ -139,6 +163,9 @@ class TriggerLoadersHandler(LambdaHandler):
                 }
             },
             "count": task_count,
+            "overrides": {
+                "containerOverrides": container_overrides,
+            },
         }
 
         if use_fargate:
@@ -151,18 +178,41 @@ class TriggerLoadersHandler(LambdaHandler):
         ecs = boto3.client("ecs", region_name=os.getenv("AWS_REGION", "us-east-1"))
         response = ecs.run_task(**run_task_params)
 
-        tasks = response.get("tasks", [])
-        if not tasks:
-            failures = response.get("failures", [])
+        # CRITICAL: Never silently default task/failure lists from ECS response
+        # If "tasks" field missing, ECS returned error response but we need to see it
+        tasks = response.get("tasks")
+        if tasks is None:
+            logger.error(
+                f"[TRIGGER_LOADER] ECS run_task response missing 'tasks' field. "
+                f"Response structure: {response.keys()}. This indicates ECS API error."
+            )
+            return LambdaResponse.error(
+                "ECS API error: missing 'tasks' field in response. Check AWS credentials and permissions.",
+                status_code=500,
+            )
+
+        if not tasks:  # tasks is empty list (no tasks started)
+            failures = response.get("failures")
+            if failures is None:
+                logger.error(
+                    f"[TRIGGER_LOADER] ECS run_task failed (empty tasks) but 'failures' field missing. "
+                    f"Response structure: {response.keys()}. Cannot determine failure reason."
+                )
+                return LambdaResponse.error(
+                    "ECS returned empty tasks list but no failure details. Check AWS CloudWatch logs.",
+                    status_code=500,
+                )
+
             error_reasons = []
-            if failures:
-                for f in failures:
-                    if isinstance(f, dict) and "reason" in f:
-                        error_reasons.append(f["reason"])
-                    else:
-                        error_reasons.append(f"Malformed failure object: {f}")
+            for f in failures:
+                if isinstance(f, dict) and "reason" in f:
+                    error_reasons.append(f["reason"])
+                else:
+                    error_reasons.append(f"Malformed failure object: {f}")
+
             if not error_reasons:
-                error_reasons = ["Unknown error"]
+                error_reasons = ["Unknown error - empty failures list"]
+
             return LambdaResponse.error(
                 f"Failed to start task: {', '.join(error_reasons)}",
                 status_code=500,

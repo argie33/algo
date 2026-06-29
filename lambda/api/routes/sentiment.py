@@ -339,10 +339,12 @@ def handle(
             rows = cur.fetchall()
             latest = DatabaseResultValidator.safe_get_first_row(rows, "analyst sentiment trends")
             if not latest:
+                logger.warning("[SENTIMENT] No analyst sentiment trends available - data unavailable")
                 return json_response(
                     200,
                     {
-                        "_data_unavailable": True,
+                        "data_unavailable": True,
+                        "reason": "Analyst sentiment trends not yet available",
                         "sentiment": None,
                         "priceTargets": [],
                     },

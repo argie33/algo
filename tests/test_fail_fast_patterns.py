@@ -57,7 +57,7 @@ class TestVIXFetcherFailFast:
             mock_db.return_value = mock_cursor
 
             # Should raise RuntimeError with CRITICAL message
-            with pytest.raises(RuntimeError, match=r"\[CRITICAL\].*VIX data unavailable"):
+            with pytest.raises(RuntimeError, match=r"\[CRITICAL\].*Failed to fetch VIX"):
                 fetcher._fetch_vix_data(date(2026, 1, 1), date(2026, 1, 31))
 
     def test_vix_no_data_raises(self):

@@ -309,16 +309,31 @@ def get_cached_response(endpoint: str, mark_stale: bool = False) -> dict[str, An
             logger.debug(f"No cached response found for {endpoint} - API response required")
             return None
     # Validate cache structure (fail-fast if corrupted)
-    if "data" not in cached:
-        raise RuntimeError(f"API cache corrupted for {endpoint}: missing 'data' key. Got keys: {list(cached.keys())}")
-    if "timestamp" not in cached:
+    # CRITICAL: Cache must have required fields, data must be dict, timestamp must be datetime
+    required_keys = {"data", "timestamp"}
+    cache_keys = set(cached.keys())
+    if not required_keys.issubset(cache_keys):
+        missing = required_keys - cache_keys
         raise RuntimeError(
-            f"API cache corrupted for {endpoint}: missing 'timestamp' key. Got keys: {list(cached.keys())}"
+            f"[CACHE_CORRUPTION] API cache corrupted for {endpoint}: missing required keys {missing}. "
+            f"Got keys: {list(cache_keys)}. Cannot use corrupted cache for finance data."
         )
+
     cached_data = cached["data"]
     timestamp = cached["timestamp"]
+
+    # Validate data type and timestamp format
     if not isinstance(cached_data, dict):
-        raise ValueError(f"API cache corrupted for {endpoint}: 'data' is not a dict, got {type(cached_data).__name__}")
+        raise ValueError(
+            f"[CACHE_CORRUPTION] API cache corrupted for {endpoint}: 'data' is not a dict, "
+            f"got {type(cached_data).__name__}. Cannot use corrupted cache for finance data."
+        )
+
+    if not isinstance(timestamp, datetime):
+        raise ValueError(
+            f"[CACHE_CORRUPTION] API cache corrupted for {endpoint}: 'timestamp' is not datetime, "
+            f"got {type(timestamp).__name__}. Cannot use corrupted cache - timestamp validation failed."
+        )
     age_seconds = (datetime.now(timezone.utc) - timestamp).total_seconds()
 
     if age_seconds > 1800:

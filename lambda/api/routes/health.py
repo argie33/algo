@@ -77,13 +77,27 @@ def _handle_basic(cur: cursor) -> Any:
 
     failed_routes = int(import_status["failed_routes"])
     if failed_routes > 0:
+        # CRITICAL: Never silently default to empty lists for failure data
+        # Missing failure lists indicates data layer error, not "no failures"
+        critical_failures = import_status.get("critical_failures")
+        failed_modules = import_status.get("failed_modules")
+
+        if critical_failures is None or failed_modules is None:
+            error_msg = (
+                f"[HEALTH] Import status degraded but failure details missing. "
+                f"critical_failures={critical_failures}, failed_modules={failed_modules}. "
+                f"Data layer error - cannot render complete health status."
+            )
+            logger.error(error_msg)
+            return error_response(503, "incomplete_failure_data", error_msg)
+
         health["api_route_imports"] = {
             "status": "degraded",
             "failed_count": import_status["failed_routes"],
-            "critical_failures": import_status.get("critical_failures", []),
-            "failed_modules": import_status.get("failed_modules", []),
+            "critical_failures": critical_failures,
+            "failed_modules": failed_modules,
         }
-        if import_status.get("critical_failures"):
+        if critical_failures:
             has_critical = True
     else:
         health["api_route_imports"] = {"status": "healthy", "failed_count": 0}
