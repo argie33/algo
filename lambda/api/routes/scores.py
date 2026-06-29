@@ -120,44 +120,49 @@ def _get_stock_scores(
             params_list.append(symbol.upper())
 
         query = f"""
-                WITH latest_d AS (
-                    SELECT date AS cur_date FROM price_daily ORDER BY date DESC LIMIT 1
+                WITH price_latest AS (
+                    SELECT DISTINCT ON (symbol) symbol, close, date
+                    FROM price_daily
+                    ORDER BY symbol, date DESC
                 ),
-                latest_prices AS (
-                    SELECT pd.symbol, pd.close AS current_close
-                    FROM price_daily pd, latest_d
-                    WHERE pd.date = latest_d.cur_date
+                price_prev AS (
+                    SELECT DISTINCT ON (symbol) symbol, close
+                    FROM price_daily
+                    WHERE date < (SELECT MAX(date) FROM price_daily)
+                    ORDER BY symbol, date DESC
                 ),
-                prev_prices AS (
-                    SELECT pd.symbol, pd.close AS prev_close
-                    FROM price_daily pd, latest_d
-                    WHERE pd.date = (
-                        SELECT date FROM price_daily WHERE date < latest_d.cur_date
-                        ORDER BY date DESC LIMIT 1
-                    )
+                tech_latest AS (
+                    SELECT DISTINCT ON (symbol) symbol, rsi_14, macd, sma_50, sma_200,
+                           roc_20d, roc_60d, roc_120d, roc_252d, date
+                    FROM technical_data_daily
+                    ORDER BY symbol, date DESC
+                ),
+                price_52w AS (
+                    SELECT symbol, MAX(high) AS high_52w
+                    FROM price_daily
+                    WHERE date >= CURRENT_DATE - INTERVAL '52 weeks'
+                    GROUP BY symbol
                 )
                 SELECT
                     sc.symbol,
                     COALESCE(ss.security_name, sc.symbol) AS company_name,
-                    -- CRITICAL FIX: Return NULL for missing sector (don't hide with 'Unknown')
                     cp.sector,
                     cp.industry,
                     sc.composite_score, sc.momentum_score, sc.quality_score,
                     sc.value_score, sc.growth_score, sc.positioning_score, sc.stability_score,
                     sc.rs_percentile, sc.data_completeness,
                     sc.updated_at AS last_updated,
-                    lp.current_close AS current_price,
-                    lp.current_close AS price,
-                    (lp.current_close IS NULL) AS _is_fallback,
+                    pl.close AS current_price,
+                    pl.close AS price,
+                    (pl.close IS NULL) AS _is_fallback,
                     (qm.symbol IS NULL OR qm.data_unavailable = TRUE OR (qm.roe IS NULL AND qm.operating_margin IS NULL AND qm.net_margin IS NULL)) AS _financial_data_unavailable,
                     (gm.symbol IS NULL OR gm.data_unavailable = TRUE) AS _growth_data_unavailable,
                     (pm.symbol IS NULL OR pm.data_unavailable = TRUE) AS _positioning_data_unavailable,
                     (sm.symbol IS NULL OR sm.data_unavailable = TRUE) AS _stability_data_unavailable,
                     ROUND(CASE
-                        WHEN pp.prev_close IS NOT NULL THEN ((lp.current_close - pp.prev_close) / NULLIF(pp.prev_close, 0)) * 100
+                        WHEN pp.close IS NOT NULL THEN ((pl.close - pp.close) / NULLIF(pp.close, 0)) * 100
                         ELSE NULL
                     END, 2) AS change_percent,
-                    -- Value metrics
                     vm.market_cap,
                     vm.pe_ratio AS trailing_pe,
                     vm.pb_ratio AS price_to_book,
@@ -167,7 +172,6 @@ def _get_stock_scores(
                     vm.fcf_yield AS fcf_yield_val,
                     vm.held_percent_insiders AS vm_held_insiders,
                     vm.held_percent_institutions AS vm_held_institutions,
-                    -- Quality metrics
                     qm.roe AS roe_pct,
                     qm.roa AS roa_val,
                     qm.debt_to_equity,
@@ -176,37 +180,32 @@ def _get_stock_scores(
                     qm.operating_margin AS operating_margin_val,
                     qm.net_margin AS net_margin_val,
                     qm.interest_coverage AS interest_coverage_val,
-                    -- Growth metrics
                     gm.revenue_growth_1y AS rev_growth_1y_val,
                     gm.eps_growth_1y AS eps_growth_1y_val,
                     gm.revenue_growth_3y AS rev_growth_3y_val,
                     gm.eps_growth_3y AS eps_growth_3y_val,
                     gm.revenue_growth_5y AS rev_growth_5y_val,
                     gm.eps_growth_5y AS eps_growth_5y_val,
-                    -- Stability metrics
                     sm.beta AS beta_val,
                     sm.volatility_252d AS volatility_12m_val,
                     sm.volatility_30d AS volatility_30d_val,
                     sm.volatility_60d AS volatility_60d_val,
                     sm.debt_to_assets AS debt_to_assets_val,
-                    -- Positioning metrics
                     pm.institutional_ownership AS inst_own_val,
                     pm.insider_ownership AS insider_own_val,
                     pm.short_interest_percent AS short_pct_val,
                     pm.shares_short_prior_month AS shares_short_prior_month_val,
                     pm.short_interest_trend AS short_interest_trend_val,
-                    -- Technical indicators
-                    tdd.rsi_14 AS tdd_rsi,
-                    tdd.macd AS tdd_macd,
-                    tdd.roc_20d AS tdd_roc_20d,
-                    tdd.roc_60d AS tdd_roc_60d,
-                    tdd.roc_120d AS tdd_roc_120d,
-                    tdd.roc_252d AS tdd_roc_252d,
-                    ROUND(CASE WHEN tdd.sma_50 > 0 THEN ((lp.current_close - tdd.sma_50) / tdd.sma_50 * 100) END, 2) AS price_vs_sma_50,
-                    ROUND(CASE WHEN tdd.sma_200 > 0 THEN ((lp.current_close - tdd.sma_200) / tdd.sma_200 * 100) END, 2) AS price_vs_sma_200,
-                    -- 52-week high from price history
-                    pw52.high_52w AS high_52w_val,
-                    ROUND(CASE WHEN pw52.high_52w > 0 THEN ((lp.current_close - pw52.high_52w) / pw52.high_52w * 100) END, 2) AS price_vs_52w_high_val
+                    tl.rsi_14 AS tdd_rsi,
+                    tl.macd AS tdd_macd,
+                    tl.roc_20d AS tdd_roc_20d,
+                    tl.roc_60d AS tdd_roc_60d,
+                    tl.roc_120d AS tdd_roc_120d,
+                    tl.roc_252d AS tdd_roc_252d,
+                    ROUND(CASE WHEN tl.sma_50 > 0 THEN ((pl.close - tl.sma_50) / tl.sma_50 * 100) END, 2) AS price_vs_sma_50,
+                    ROUND(CASE WHEN tl.sma_200 > 0 THEN ((pl.close - tl.sma_200) / tl.sma_200 * 100) END, 2) AS price_vs_sma_200,
+                    p52.high_52w AS high_52w_val,
+                    ROUND(CASE WHEN p52.high_52w > 0 THEN ((pl.close - p52.high_52w) / p52.high_52w * 100) END, 2) AS price_vs_52w_high_val
                 FROM stock_scores sc
                 JOIN stock_symbols ss ON ss.symbol = sc.symbol
                 LEFT JOIN company_profile cp ON cp.ticker = sc.symbol
@@ -215,23 +214,10 @@ def _get_stock_scores(
                 LEFT JOIN growth_metrics gm ON gm.symbol = sc.symbol
                 LEFT JOIN stability_metrics sm ON sm.symbol = sc.symbol
                 LEFT JOIN positioning_metrics pm ON pm.symbol = sc.symbol
-                LEFT JOIN latest_prices lp ON lp.symbol = sc.symbol
-                LEFT JOIN prev_prices pp ON pp.symbol = sc.symbol
-                LEFT JOIN LATERAL (
-                    SELECT td.rsi_14, td.macd,
-                           td.sma_50, td.sma_200,
-                           td.roc_20d, td.roc_60d,
-                           td.roc_120d, td.roc_252d
-                    FROM technical_data_daily td
-                    WHERE td.symbol = sc.symbol
-                    ORDER BY td.date DESC LIMIT 1
-                ) tdd ON true
-                LEFT JOIN LATERAL (
-                    SELECT MAX(ph.high) AS high_52w
-                    FROM price_daily ph
-                    WHERE ph.symbol = sc.symbol
-                      AND ph.date >= CURRENT_DATE - INTERVAL '52 weeks'
-                ) pw52 ON true
+                LEFT JOIN price_latest pl ON pl.symbol = sc.symbol
+                LEFT JOIN price_prev pp ON pp.symbol = sc.symbol
+                LEFT JOIN tech_latest tl ON tl.symbol = sc.symbol
+                LEFT JOIN price_52w p52 ON p52.symbol = sc.symbol
                 {where_clause}
                 ORDER BY {sort_col} {sort_direction}
                 LIMIT %s OFFSET %s
