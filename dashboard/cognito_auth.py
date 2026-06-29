@@ -202,34 +202,6 @@ class CognitoAuth:
         return self._auth_lost_time is not None
 
 
-def _get_or_create_test_user() -> tuple[str | None, str | None]:
-    """Try to get test user credentials from various sources."""
-    # Try environment variables
-    username = os.environ.get("COGNITO_TEST_USER_EMAIL")
-    password = os.environ.get("COGNITO_TEST_USER_PASSWORD")
-    if username and password:
-        return username, password
-
-    # Try loading from cache
-    token_file = os.path.expanduser("~/.algo/cognito_credentials.json")
-    if os.path.exists(token_file):
-        try:
-            with open(token_file) as f:
-                creds = json.load(f)
-                if "username" not in creds or "password" not in creds:
-                    raise ValueError(
-                        f"[COGNITO] Credentials file missing required fields. "
-                        f"Available: {list(creds.keys()) if isinstance(creds, dict) else 'not a dict'}. "
-                        f"File corrupted; delete and re-authenticate."
-                    )
-                return creds["username"], creds["password"]
-        except Exception as cred_err:
-            logger.debug(f"Could not load cached credentials: {cred_err}")
-
-    # Return None to signal no cached credentials available (user will be prompted)
-    return None, None
-
-
 def _get_aws_cfn_output(key: str) -> str | None:
     """Try to get Cognito credentials from AWS CloudFormation stack outputs."""
     try:
@@ -353,23 +325,14 @@ def get_cognito_auth(require_auth: bool = True, interactive: bool = True) -> Cog
     except Exception as e:
         logger.debug(f"[Cognito] Could not read from Secrets Manager: {e}")
 
-    # 4. Try credentials from saved file (non-interactive fallback)
-    saved_user, saved_pass = _get_or_create_test_user()
-    if saved_user and saved_pass:
-        if auth.authenticate(saved_user, saved_pass):
-            logger.info(f"[Cognito] Authenticated from saved credentials file: {saved_user}")
-            return auth
-        else:
-            logger.debug(f"[Cognito] Saved credentials invalid for {saved_user}")
-
-    # 5. Try interactive authentication
+    # 4. Try interactive authentication
     if interactive and sys.stdin.isatty():
         try:
             print("\n" + "=" * 60)
             print("Cognito Authentication Required")
             print("=" * 60)
             print("Set COGNITO_USERNAME + COGNITO_PASSWORD env vars to skip this prompt.")
-            username = input(f"Email [{saved_user}]: ").strip() or saved_user
+            username = input("Email: ").strip()
             password = input("Password: ").strip()
             # Type guard: ensure username and password are strings before authenticating
             if username and password:
@@ -386,7 +349,7 @@ def get_cognito_auth(require_auth: bool = True, interactive: bool = True) -> Cog
             logger.info("[Cognito] Authentication cancelled")
             return None
 
-    # 6. All auth methods failed
+    # 5. All auth methods failed
     if require_auth:
         msg = (
             "No credentials available — run deploy workflow to provision credentials in Secrets Manager, "

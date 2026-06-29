@@ -300,9 +300,14 @@ class MarketHealthDailyLoader(OptimalLoader):
         try:
             yield_curve = self._yield_curve_fetcher.fetch(start, end)
 
-            # YieldCurveFetcher returns {} on unavailability (optional enrichment)
+            # YieldCurveFetcher now returns explicit data_unavailable flag
+            if yield_curve.get("data_unavailable"):
+                reason = yield_curve.get("reason", "Unknown")
+                logger.warning(f"[MARKET_HEALTH] Yield curve data unavailable ({reason}) - market regime will skip inversion detection")
+                return
+
             if not yield_curve:
-                logger.debug("Yield curve data empty - market regime will skip inversion detection")
+                logger.warning("[MARKET_HEALTH] Yield curve data empty - market regime will skip inversion detection")
                 return
 
             matched_count = 0

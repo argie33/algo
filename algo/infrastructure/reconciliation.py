@@ -13,6 +13,7 @@ import requests
 from algo.infrastructure.alpaca_broker_adapter import AlpacaBrokerAdapter
 from algo.infrastructure.audit_logger import TradeAuditLogger
 from algo.infrastructure.broker_adapter import BrokerAdapter
+from algo.infrastructure.dry_run_adapters import DryRunBrokerAdapter
 from algo.infrastructure.position_analyzer import PositionAnalyzer
 from algo.reporting import notify
 from utils.db import DatabaseContext
@@ -72,46 +73,11 @@ class DailyReconciliation:
             # Only reach here if explicitly in dry-run mode
             logger.warning(
                 f"[DRY-RUN] Reconciliation broker adapter initialization failed: {e}. "
-                "Using mock broker for dry-run testing only."
+                "Using dry-run broker for testing only."
             )
-            # Create a mock broker that returns dummy data
-            class MockBrokerAdapter(BrokerAdapter):
-                """Mock broker for dry-run testing when explicitly enabled."""
-
-                @property
-                def alpaca_key(self) -> str | None:
-                    return None
-
-                @property
-                def alpaca_secret(self) -> str | None:
-                    return None
-
-                @property
-                def alpaca_base_url(self) -> str | None:
-                    return None
-
-                def fetch_account(self) -> dict[str, Any]:
-                    return {
-                        "portfolio_value": 100000.0,
-                        "cash": 50000.0,
-                        "equity": 50000.0,
-                    }
-
-                def fetch_portfolio_history(self) -> list[float]:
-                    return []
-
-                def fetch_closed_orders(self, since: Any | None = None) -> list[dict[str, Any]]:
-                    return []
-
-                def fetch_initial_capital(self) -> float | None:
-                    return None
-
-                def sync_positions(self, cur: Any) -> dict[str, Any]:
-                    return {"imported": 0, "updated": 0, "closed": 0}
-
-            self.broker = MockBrokerAdapter()
+            self.broker = DryRunBrokerAdapter()
             self.audit_logger = TradeAuditLogger()
-            self.trading_client = False  # Mock broker, no real credentials
+            self.trading_client = False  # Dry-run broker, no real credentials
 
     def run_daily_reconciliation(self, reconcile_date: Any = None, dry_run: bool = False) -> dict[str, Any]:  # noqa: C901
         """Run full daily reconciliation. If dry_run=True, skip Alpaca API calls and return mock data.

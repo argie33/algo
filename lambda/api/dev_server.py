@@ -54,7 +54,10 @@ def _load_db_credentials() -> dict[str, Any]:
         sm = boto3.client("secretsmanager")
         secret_arn = os.getenv("DB_SECRET_ARN", "algo/database")
         secret = sm.get_secret_value(SecretId=secret_arn)
-        creds = json.loads(secret.get("SecretString", "{}"))
+        secret_string = secret.get("SecretString")
+        if not secret_string:
+            raise ValueError("[CRITICAL] SecretString missing from AWS Secrets Manager response")
+        creds = json.loads(secret_string)
 
         host = creds.get("host")
         user = creds.get("username")

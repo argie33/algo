@@ -134,7 +134,13 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
 
         # Parse run_identifier from EventBridge Scheduler to determine run purpose
         # Issue #15: dry_run should be explicit; default based on run_identifier only if not specified
-        run_identifier = event.get("run_identifier", "")
+        run_identifier = event.get("run_identifier")
+        if not run_identifier:
+            raise ValueError(
+                "[CRITICAL] Missing 'run_identifier' in orchestration event. "
+                "Cannot execute trading algorithm without traceability identifier. "
+                f"Event keys: {list(event.keys())}"
+            )
 
         # Determine dry_run: explicit event value takes priority over run_identifier defaults
         dry_run_raw = event.get("dry_run")

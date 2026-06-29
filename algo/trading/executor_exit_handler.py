@@ -419,28 +419,57 @@ class ExitHandler:
         # TRANSACTION GUARD 3: Update algo_trades
         if full_exit:
             estimated_price = exit_price if is_estimated_price else None
-            cur.execute(
-                """UPDATE algo_trades
-                    SET exit_date = CURRENT_DATE,
-                        exit_time = CURRENT_TIMESTAMP,
-                        exit_price = %s,
-                        exit_reason = %s,
-                        exit_r_multiple = %s,
-                        profit_loss_dollars = %s,
-                        profit_loss_pct = %s,
-                        estimated_exit_price = %s,
-                        status = 'closed'
-                    WHERE trade_id = %s""",
-                (
-                    final_exit_price,
-                    exit_reason,
-                    r_multiple,
-                    pnl_dollars,
-                    pnl_pct,
-                    estimated_price,
-                    trade_id,
-                ),
-            )
+
+            # CRITICAL: Do NOT store P&L calculated from estimated prices
+            # P&L with synthetic prices corrupts circuit breaker decisions and performance metrics
+            # Only store actual P&L after reconciliation with real fills
+            if is_estimated_price:
+                logger.warning(
+                    f"[RECONCILIATION] Trade {trade_id} ({symbol}) marked closed with estimated exit price {exit_price}. "
+                    f"P&L calculation deferred until reconciliation with actual broker fills. "
+                    f"Status: PENDING_FILL_RECONCILIATION"
+                )
+                cur.execute(
+                    """UPDATE algo_trades
+                        SET exit_date = CURRENT_DATE,
+                            exit_time = CURRENT_TIMESTAMP,
+                            exit_price = %s,
+                            exit_reason = %s,
+                            estimated_exit_price = %s,
+                            status = 'closed',
+                            profit_loss_dollars = NULL,
+                            profit_loss_pct = NULL,
+                            exit_r_multiple = NULL
+                        WHERE trade_id = %s""",
+                    (
+                        final_exit_price,
+                        exit_reason,
+                        estimated_price,
+                        trade_id,
+                    ),
+                )
+            else:
+                # Real fill: store actual P&L
+                cur.execute(
+                    """UPDATE algo_trades
+                        SET exit_date = CURRENT_DATE,
+                            exit_time = CURRENT_TIMESTAMP,
+                            exit_price = %s,
+                            exit_reason = %s,
+                            exit_r_multiple = %s,
+                            profit_loss_dollars = %s,
+                            profit_loss_pct = %s,
+                            status = 'closed'
+                        WHERE trade_id = %s""",
+                    (
+                        final_exit_price,
+                        exit_reason,
+                        r_multiple,
+                        pnl_dollars,
+                        pnl_pct,
+                        trade_id,
+                    ),
+                )
             if cur.rowcount != 1:
                 raise DatabaseError(f"Trade update failed: expected 1 row updated, got {cur.rowcount}")
         else:
@@ -536,20 +565,28 @@ class ExitHandler:
         # Send notification (non-blocking failure)
         try:
             notif_service = TradeNotificationService()
+            if is_estimated_price:
+                message = f"{shares_to_exit:.2f}sh @ ${final_exit_price:.2f} (ESTIMATED) - {exit_reason} [P&L pending fill reconciliation]"
+                severity = "info"
+            else:
+                message = f"{shares_to_exit:.2f}sh @ ${final_exit_price:.2f} ({pnl_pct:+.2f}%, {r_multiple:+.2f}R) - {exit_reason}"
+                severity = "info" if pnl_dollars > 0 else "warning"
+
             notif_service._send_notification(
                 subject=f"EXIT: {symbol}",
-                message=f"{shares_to_exit:.2f}sh @ ${final_exit_price:.2f} ({pnl_pct:+.2f}%, {r_multiple:+.2f}R) - {exit_reason}",
+                message=message,
                 kind="trade_exit",
-                severity="info" if pnl_dollars > 0 else "warning",
+                severity=severity,
                 symbol=symbol,
                 details={
                     "exit_price": final_exit_price,
                     "shares": shares_to_exit,
-                    "pnl": f"{pnl_dollars:+.2f}",
-                    "pnl_pct": pnl_pct,
-                    "r_multiple": r_multiple,
+                    "pnl": f"{pnl_dollars:+.2f}" if not is_estimated_price else "PENDING",
+                    "pnl_pct": pnl_pct if not is_estimated_price else None,
+                    "r_multiple": r_multiple if not is_estimated_price else None,
                     "reason": exit_reason,
                     "trade_id": trade_id,
+                    "is_estimated_price": is_estimated_price,
                 },
             )
         except NotificationError as notif_e:
@@ -560,11 +597,13 @@ class ExitHandler:
             "success": True,
             "trade_id": trade_id,
             "shares_exited": shares_to_exit,
-            "profit_loss_dollars": pnl_dollars,
-            "profit_loss_pct": pnl_pct,
-            "r_multiple": r_multiple,
+            "profit_loss_dollars": None if is_estimated_price else pnl_dollars,
+            "profit_loss_pct": None if is_estimated_price else pnl_pct,
+            "r_multiple": None if is_estimated_price else r_multiple,
             "full_exit": full_exit,
+            "is_estimated_price": is_estimated_price,
             "message": (
-                f"Exited {shares_to_exit}sh of {symbol} @ ${final_exit_price:.2f} ({pnl_pct:+.2f}%, {r_multiple:+.2f}R)"
+                f"Exited {shares_to_exit}sh of {symbol} @ ${final_exit_price:.2f} - "
+                f"{'P&L PENDING fill reconciliation' if is_estimated_price else f'{pnl_pct:+.2f}%, {r_multiple:+.2f}R'}"
             ),
         }

@@ -302,12 +302,12 @@ class SignalMomentumMixin:
             for row in rows[1:3]:  # Skip today, check yesterday and day-2
                 _date, close, prev_close, vol, rn = row
                 if vol is None:
-                    logger.debug(f"[POCKET_PIVOT] Volume missing for {symbol} in historical check; skipping")
+                    logger.warning(f"[POCKET_PIVOT] Missing volume data for {symbol} in historical check - pattern skipped (signal quality impaired)")
                     continue
                 vol = float(vol)
                 prev_close = float(prev_close) if prev_close is not None else None
                 if close is None or not isinstance(close, (int, float)) or close <= 0:
-                    logger.debug(f"[POCKET_PIVOT] Historical close price invalid for {symbol}: {close}; skipping")
+                    logger.warning(f"[POCKET_PIVOT] Historical close price invalid for {symbol}: {close} - pattern skipped (signal quality impaired)")
                     continue
                 close = float(close)
                 if prev_close is not None and close > prev_close and vol >= max_down_vol and max_down_vol > 0:

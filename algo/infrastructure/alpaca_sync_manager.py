@@ -107,19 +107,21 @@ class AlpacaSyncManager:
                     "closed": 0,
                     "message": "No positions to sync",
                     "orphan_symbols": [],
+                    "_sync_skipped": False,
                 }
 
             logger.warning(
-                f"Position sync skipped (paper trading mode). Alpaca has {len(alpaca_positions)} positions. "
-                "Production implementation would: sync positions to DB, track closures, manage orphaned symbols."
+                f"[PAPER_TRADING] Position sync intentionally skipped. Alpaca has {len(alpaca_positions)} positions. "
+                "Production live-trading mode requires actual sync logic to update database."
             )
 
             return {
                 "imported": imported,
                 "updated": updated,
                 "closed": closed,
-                "message": f"Placeholder: Found {len(alpaca_positions)} positions in Alpaca (not synced)",
+                "message": f"[PAPER_TRADING] Found {len(alpaca_positions)} positions in Alpaca (sync skipped - paper trading mode)",
                 "orphan_symbols": orphan_symbols,
+                "_sync_skipped": True,
             }
         except (requests.RequestException, ValueError) as e:
             logger.error(f"Failed to fetch Alpaca positions for sync: {e}")

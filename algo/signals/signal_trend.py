@@ -147,10 +147,23 @@ class SignalTrendMixin:
                 (symbol, eval_date),
             )
             row = cur.fetchone()
-            if row and row[5] and (eval_date - row[5]).days <= 1:
+            if row and row[5]:
+                data_date = row[5]
+                age_days = (eval_date - data_date).days if hasattr(eval_date, 'toordinal') else 0
+
+                # CRITICAL: Trend template must be current (same trading day)
+                # Stale trend data from previous day violates signal freshness requirements
+                if age_days > 0:
+                    raise RuntimeError(
+                        f"[MINERVINI] Trend template data stale for {symbol}: "
+                        f"data from {data_date} but eval_date is {eval_date} ({age_days} day(s) old). "
+                        f"Cannot use previous day's trend for current trading decisions. "
+                        f"Require trend_template_data to be computed fresh for today (loader must run before signals)."
+                    )
+
                 if row[0] is None:
                     raise ValueError(
-                        f"CRITICAL: Minervini trend score is NULL for {symbol} on cached data. "
+                        f"CRITICAL: Minervini trend score is NULL for {symbol} on {data_date}. "
                         f"Trend template data is corrupt or incomplete."
                     )
                 score = int(row[0])
@@ -165,12 +178,11 @@ class SignalTrendMixin:
                     },
                 }
 
-            logger.warning(
-                f"[MINERVINI] trend_template_data unavailable or stale for {symbol}; "
-                f"computing Minervini score on-the-fly (slower, higher latency). "
-                f"This indicates either: (1) loader has not run today, (2) eval_date is stale"
+            raise RuntimeError(
+                f"[MINERVINI] Trend template data unavailable for {symbol} on {eval_date}. "
+                f"trend_template_data table missing or empty. Cannot compute signals without current trend data. "
+                f"Require load_trend_template_data loader to run before signal generation."
             )
-            return self._compute_minervini_from_prices(cur, symbol, eval_date)
 
         return cast(dict[str, Any], self._with_cursor(_fetch_trend))
 

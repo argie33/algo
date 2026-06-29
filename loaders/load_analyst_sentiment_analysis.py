@@ -144,9 +144,14 @@ class AnalystSentimentLoader(OptimalLoader):
                     logger.debug(f"[ANALYST_SENTIMENT] No analyst ratings found for {symbol}")
                     continue
 
+                # Extract date from index or use the recommendation date if available
+                row_date = idx if isinstance(idx, (datetime, date)) else date.today()
+                if isinstance(row_date, datetime):
+                    row_date = row_date.date()
+
                 results.append({
                     "symbol": symbol,
-                    "date": date.today(),  # Use current date for aggregated data
+                    "date": row_date,  # Use analyst data date (from yfinance index) not today's date
                     "analyst_count": total,
                     "bullish_count": bullish_count,
                     "bearish_count": bearish_count,

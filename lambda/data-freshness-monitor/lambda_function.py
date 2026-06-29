@@ -34,8 +34,14 @@ def _get_db_password() -> str:
             region_name=os.environ.get("AWS_REGION", "us-east-1"),
         )
         response = client.get_secret_value(SecretId=secret_arn)
-        return json.loads(response["SecretString"]).get("password", "")
-    return os.environ.get("DB_PASSWORD", "")
+        secret_dict = json.loads(response["SecretString"])
+        if "password" not in secret_dict:
+            raise ValueError("[CRITICAL] Database password missing from AWS Secrets Manager")
+        return secret_dict["password"]
+    db_password = os.environ.get("DB_PASSWORD")
+    if not db_password:
+        raise ValueError("[CRITICAL] DB_PASSWORD environment variable required when DATABASE_SECRET_ARN not set")
+    return db_password
 
 
 def _get_db_connection():

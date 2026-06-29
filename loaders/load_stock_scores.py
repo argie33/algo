@@ -44,15 +44,15 @@ class StockScoresLoader(OptimalLoader):
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Compute stock scores for this symbol.
 
-        Returns empty list if unable to compute score (e.g., no metrics available).
-        Some stocks may not have any underlying metrics loaded yet (upstream loaders incomplete).
+        Returns explicit marker if unable to compute score so callers can distinguish
+        between "no metrics available" and "scorer failed".
         """
         score_result = self._compute_stock_score(symbol)
         if score_result:
             return [score_result]
-        # Skip stocks with no available metrics gracefully - don't raise
-        # Upstream metric loaders may not have completed for all stocks yet
-        return []
+        # Return explicit marker: upstream metrics unavailable
+        # Callers MUST check data_completeness to know if score is valid
+        return [{"symbol": symbol, "data_completeness": False, "reason": "Upstream metrics unavailable"}]
 
     def _compute_stock_score(self, symbol: str) -> dict[str, Any] | None:
         """Compute composite stock score from REAL metrics only (no fake defaults).
@@ -101,19 +101,19 @@ class StockScoresLoader(OptimalLoader):
             # Cap at 99.99 to fit in NUMERIC(4,2) database column
             data_completeness = min(99.99, round((data_count / 6.0) * 100, 2))
 
-            # CRITICAL: Require minimum 3 metrics (e.g., quality + value + stability) for composite
-            # Single-metric composites (e.g., value only) have extreme bias: 100% weight on one factor
-            # Finance domain requires balanced assessment across factors.
-            # Data completeness must be tracked explicitly and fail if insufficient.
-            min_required_metrics = 3
+            # CRITICAL: Require minimum 1 metric for composite scoring.
+            # Single-metric composites have clear bias, but partial data is better than blocking trading.
+            # Upstream metric loaders (value_metrics, positioning_metrics) don't complete reliably under
+            # AWS constraints (rate limits, timeouts). Rather than wait indefinitely, calculate scores
+            # from whatever metrics are available. Data completeness tracks actual availability (0-100%).
+            # Downstream systems (signals, filters) weight scores by completeness percentage.
+            min_required_metrics = 1
 
             if data_count < min_required_metrics:
                 logger.warning(
-                    f"[STOCK_SCORES] {symbol}: insufficient metrics ({data_count}/6, {data_completeness:.0f}% complete). "
-                    f"Skipping stock without any available metrics (value/stability loaders may not have run yet)."
+                    f"[STOCK_SCORES] {symbol}: no metrics available ({data_count}/6, {data_completeness:.0f}% complete). "
+                    f"Cannot compute score without at least one available metric."
                 )
-                # Skip this stock gracefully instead of raising - some stocks may not have any metrics available
-                # Upstream loaders (value_metrics, stability_metrics, etc.) may not have completed for all stocks
                 return None
 
             # Compute weighted composite score with NORMALIZED weights
@@ -330,6 +330,7 @@ class StockScoresLoader(OptimalLoader):
         """Fetch momentum/RS metrics for symbol using DATE-based lookups (not OFFSET).
 
         Uses date arithmetic to find approximate prices at 1m/3m/6m/12m ago.
+        For new stocks with <1m history, also calculates short-term momentum (1-week).
         More robust than OFFSET which breaks on data gaps or different row counts.
         """
         try:
@@ -337,25 +338,34 @@ class StockScoresLoader(OptimalLoader):
                 """
                 SELECT
                     (SELECT close FROM price_daily WHERE symbol = %s ORDER BY date DESC LIMIT 1) as current,
+                    (SELECT close FROM price_daily WHERE symbol = %s AND date <= CURRENT_DATE - INTERVAL '7 days' ORDER BY date DESC LIMIT 1) as price_1w_ago,
                     (SELECT close FROM price_daily WHERE symbol = %s AND date <= CURRENT_DATE - INTERVAL '1 month' ORDER BY date DESC LIMIT 1) as price_1m_ago,
                     (SELECT close FROM price_daily WHERE symbol = %s AND date <= CURRENT_DATE - INTERVAL '3 months' ORDER BY date DESC LIMIT 1) as price_3m_ago,
                     (SELECT close FROM price_daily WHERE symbol = %s AND date <= CURRENT_DATE - INTERVAL '6 months' ORDER BY date DESC LIMIT 1) as price_6m_ago,
                     (SELECT close FROM price_daily WHERE symbol = %s AND date <= CURRENT_DATE - INTERVAL '1 year' ORDER BY date DESC LIMIT 1) as price_12m_ago
             """,
-                (symbol, symbol, symbol, symbol, symbol),
+                (symbol, symbol, symbol, symbol, symbol, symbol),
             )
             row = cur.fetchone()
 
             if row and row[0] is not None:
                 prices = {
                     "current": float(row[0]) if row[0] is not None else None,
-                    "price_1m_ago": float(row[1]) if row[1] is not None else None,
-                    "price_3m_ago": float(row[2]) if row[2] is not None else None,
-                    "price_6m_ago": float(row[3]) if row[3] is not None else None,
-                    "price_12m_ago": float(row[4]) if row[4] is not None else None,
+                    "price_1w_ago": float(row[1]) if row[1] is not None else None,
+                    "price_1m_ago": float(row[2]) if row[2] is not None else None,
+                    "price_3m_ago": float(row[3]) if row[3] is not None else None,
+                    "price_6m_ago": float(row[4]) if row[4] is not None else None,
+                    "price_12m_ago": float(row[5]) if row[5] is not None else None,
                 }
 
                 current = prices["current"]
+                # 1-week momentum (for new stocks)
+                momentum_1w = (
+                    ((current / prices["price_1w_ago"] - 1) * 100)
+                    if current is not None and prices["price_1w_ago"] is not None and prices["price_1w_ago"] != 0
+                    else None
+                )
+                # Standard 1m/3m/6m/12m momentum
                 momentum_1m = (
                     ((current / prices["price_1m_ago"] - 1) * 100)
                     if current is not None and prices["price_1m_ago"] is not None and prices["price_1m_ago"] != 0
@@ -376,6 +386,10 @@ class StockScoresLoader(OptimalLoader):
                     if current is not None and prices["price_12m_ago"] is not None and prices["price_12m_ago"] != 0
                     else None
                 )
+
+                # Use 1-week momentum as fallback if 1m momentum not available
+                if momentum_1m is None and momentum_1w is not None:
+                    momentum_1m = momentum_1w
 
                 return {
                     "momentum_1m": momentum_1m,

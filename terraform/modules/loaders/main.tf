@@ -625,10 +625,11 @@ locals {
     # Root cause: parallelism=6 created 6 concurrent threads fighting for yfinance API tokens
     # With shared NAT gateway IP across loaders, high parallelism triggered IP-level rate limiting
     # New strategy (parallelism=1): serial execution, predictable timing, no cascade failures
-    # Execution time: 5000 symbols / 30 batch_size * 2s interval = ~334s (5.5 min) still well within timeout
-    # FIXED 2026-06-21: Reduced timeout from 7200→1800s (2h→30m) to fail fast instead of masking failures
-    # This eliminates 429 errors completely while keeping execution < 10 min
-    "stock_prices_daily" = { cpu = 1024, memory = 2048, timeout = 1800, parallelism = 1 }
+    # CRITICAL FIX 2026-06-28: Increased timeout from 1800→5400s (30m→90m)
+    # Reason: yfinance rate limiting + 5000 symbols + DB writes = 60-90 min actual runtime
+    # Previous 30m timeout was premature failure, causing 24-30h data gaps
+    # 90m timeout accounts for rate-limit backoff + network delays without masking real failures
+    "stock_prices_daily" = { cpu = 1024, memory = 2048, timeout = 5400, parallelism = 1 }
 
     # Financial statements — reduce parallelism to 1 to prevent SEC EDGAR rate-limit cascade
     # FIXED 2026-06-21: Reduced timeout from 3600→1200s (1h→20m) to fail fast instead of masking failures

@@ -109,41 +109,47 @@ class TestYieldCurveFetcher:
     """Test YieldCurveFetcher.fetch() in loaders/market_health_fetchers.py"""
 
     def test_yield_curve_gracefully_degrades_on_circuit_breaker(self):
-        """Circuit breaker exhaustion should gracefully return empty dict (optional data)."""
+        """Circuit breaker exhaustion should return explicit data_unavailable flag (optional data)."""
         from loaders.market_health_fetchers import YieldCurveFetcher
 
         fetcher = YieldCurveFetcher()
         fetcher.breaker.execute = Mock(return_value=None)
 
         result = fetcher.fetch(date(2024, 1, 1), date(2024, 12, 31))
-        assert result == {}, "Optional enrichment should return empty dict on circuit breaker"
+        assert result.get("data_unavailable") is True
+        assert "reason" in result
+        assert "Circuit breaker" in result["reason"]
 
     def test_yield_curve_gracefully_degrades_on_invalid_response(self):
-        """Invalid response type should gracefully return empty dict (optional data)."""
+        """Invalid response type should return explicit data_unavailable flag (optional data)."""
         from loaders.market_health_fetchers import YieldCurveFetcher
 
         fetcher = YieldCurveFetcher()
         fetcher.breaker.execute = Mock(return_value="invalid string")
 
         result = fetcher.fetch(date(2024, 1, 1), date(2024, 12, 31))
-        assert result == {}, "Optional enrichment should return empty dict on invalid type"
+        assert result.get("data_unavailable") is True
+        assert "reason" in result
+        assert "Invalid response type" in result["reason"]
 
     def test_yield_curve_gracefully_degrades_on_error(self):
-        """Internal fetch errors should gracefully return empty dict (optional data)."""
+        """Internal fetch errors should return explicit data_unavailable flag (optional data)."""
         from loaders.market_health_fetchers import YieldCurveFetcher
 
         fetcher = YieldCurveFetcher()
         fetcher.breaker.execute = Mock(side_effect=Exception("API timeout"))
 
         result = fetcher.fetch(date(2024, 1, 1), date(2024, 12, 31))
-        assert result == {}, "Optional enrichment should return empty dict on error"
+        assert result.get("data_unavailable") is True
+        assert "reason" in result
+        assert "API timeout" in result["reason"]
 
 
 class TestBreadthFetcher:
-    """Test BreadthFetcher gracefully degrades"""
+    """Test BreadthFetcher fail-fast behavior"""
 
-    def test_breadth_fetcher_returns_empty_on_unavailable_data(self):
-        """Breadth fetcher should return empty dict when no data (optional enrichment)."""
+    def test_breadth_fetcher_fails_fast_on_unavailable_data(self):
+        """Breadth fetcher should fail fast when no data (CRITICAL for market health)."""
         from unittest.mock import MagicMock
 
         from loaders.market_health_fetchers import BreadthFetcher
@@ -154,8 +160,8 @@ class TestBreadthFetcher:
             mock_cursor.fetchall.return_value = []
             mock_db.return_value.__enter__.return_value = mock_cursor
 
-            result = fetcher.fetch(date(2024, 1, 1), date(2024, 12, 31))
-            assert result == {}, "Breadth fetcher should return empty dict when no data available"
+            with pytest.raises(RuntimeError, match="No advance/decline data available"):
+                fetcher.fetch(date(2024, 1, 1), date(2024, 12, 31))
 
 
 class TestAPIDataLayer:

@@ -200,11 +200,11 @@ class YieldCurveFetcher:
         """Fetch yield curve data with circuit breaker protection.
 
         IMPORTANT: This is OPTIONAL enrichment (not critical for trading).
-        Gracefully degrade to empty dict on failures instead of error markers.
-        Dashboard and algorithms must handle empty dicts gracefully.
+        Returns explicit data_unavailable flag on failures so callers can distinguish
+        between "no data available" and "fetcher failed".
 
         Returns:
-            dict with yield data keyed by date, or empty dict if data unavailable.
+            dict with yield data keyed by date, or marker dict with data_unavailable=True if data unavailable.
         """
         try:
             result = self.breaker.execute(
@@ -213,16 +213,17 @@ class YieldCurveFetcher:
                 fallback_value=None,
             )
             if result is None:
-                # Circuit breaker exhausted - gracefully return empty for optional data
-                return {}
+                logger.warning(f"[YIELD_CURVE] Circuit breaker exhausted for {start}:{end} — enrichment unavailable")
+                return {"data_unavailable": True, "reason": "Circuit breaker exhausted"}
             if not isinstance(result, dict):
-                # Invalid response type - gracefully return empty for optional data
-                return {}
-            # Check if result is empty dict without any data - acceptable for optional enrichment
+                logger.warning(f"[YIELD_CURVE] Invalid response type {type(result).__name__} for {start}:{end} — enrichment unavailable")
+                return {"data_unavailable": True, "reason": f"Invalid response type {type(result).__name__}"}
+            if result.get("data_unavailable"):
+                return result
             return result
-        except Exception:
-            # Exceptions in optional enrichment - gracefully return empty dict
-            return {}
+        except Exception as e:
+            logger.warning(f"[YIELD_CURVE] Fetch failed for {start}:{end}: {e} — enrichment unavailable")
+            return {"data_unavailable": True, "reason": f"Fetch error: {str(e)[:100]}"}
 
     def _fetch_yield_curve_data(self, start: date, end: date) -> dict[str, Any]:
         """Internal yield curve fetch implementation.

@@ -162,16 +162,14 @@ class MarketExposure:
 
                 now = datetime.now(EASTERN_TZ)
                 age = now - updated_at.replace(tzinfo=EASTERN_TZ) if not updated_at.tzinfo else now - updated_at
-                max_age = timedelta(hours=10)
+                max_age = timedelta(hours=2)
                 if age > max_age:
-                    msg = (
-                        f"CRITICAL: Cached market exposure is too old - computed {age.total_seconds()/3600:.1f}h ago, "
-                        f"exceeds {max_age.total_seconds()/3600:.0f}h limit. "
-                        f"Using such old data for position sizing violates risk management. "
-                        f"Forcing recomputation with fresher market data."
+                    raise RuntimeError(
+                        f"[MARKET_EXPOSURE] Cached market exposure is too old for position sizing: "
+                        f"computed {age.total_seconds()/3600:.1f}h ago, but require fresh data (< {max_age.total_seconds()/3600:.0f}h). "
+                        f"Market exposure changes rapidly during trading hours. "
+                        f"Cannot use stale data for position sizing - risk management requires current market state."
                     )
-                    logger.critical(msg)
-                    return None
 
             if halt_reasons_str:
                 try:
