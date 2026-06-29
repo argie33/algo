@@ -2661,20 +2661,12 @@ async function getMarketDataHandler(req, res) {
           `);
           const data = result.rows || [];
           if (data.length === 0) {
-            return {
-              _is_placeholder: true,
-              _error: "No AAII sentiment data available",
-              items: [],
-            };
+            throw new Error("No AAII sentiment data available");
           }
           return data;
         } catch (err) {
           console.warn("AAII sentiment data unavailable:", err.message);
-          return {
-            _is_placeholder: true,
-            _error: `AAII sentiment error: ${err.message}`,
-            items: [],
-          };
+          throw new Error("Optional data unavailable");
         }
       })(),
 
@@ -2689,20 +2681,12 @@ async function getMarketDataHandler(req, res) {
           `);
           const data = result.rows || [];
           if (data.length === 0) {
-            return {
-              _is_placeholder: true,
-              _error: "No Fear & Greed data available",
-              items: [],
-            };
+            throw new Error("No Fear & Greed data available");
           }
           return data;
         } catch (err) {
           console.warn("Fear & Greed index data unavailable:", err.message);
-          return {
-            _is_placeholder: true,
-            _error: `Fear & Greed error: ${err.message}`,
-            items: [],
-          };
+          throw new Error("Optional data unavailable");
         }
       })(),
 
@@ -2717,20 +2701,12 @@ async function getMarketDataHandler(req, res) {
           `);
           const data = result.rows || [];
           if (data.length === 0) {
-            return {
-              _is_placeholder: true,
-              _error: "No NAAIM data available",
-              items: [],
-            };
+            throw new Error("No NAAIM data available");
           }
           return data;
         } catch (err) {
           console.warn("NAAIM data unavailable:", err.message);
-          return {
-            _is_placeholder: true,
-            _error: `NAAIM error: ${err.message}`,
-            items: [],
-          };
+          throw new Error("Optional data unavailable");
         }
       })(),
 
@@ -2876,11 +2852,7 @@ router.get("/technicals", async (req, res) => {
         `);
         const data = result.rows || [];
         if (data.length === 0) {
-          return {
-            _is_placeholder: true,
-            _error: "No McClellan Oscillator data available",
-            items: [],
-          };
+          throw new Error("No McClellan Oscillator data available");
         }
         return data;
       })(),
@@ -2903,11 +2875,7 @@ router.get("/technicals", async (req, res) => {
           `);
 
           if (!result || !result.rows || result.rows.length === 0) {
-            return {
-              _is_placeholder: true,
-              _error: "Distribution days data not available",
-              items: [],
-            };
+            throw new Error("Distribution days data not available");
           }
 
           // Format response with index names
@@ -2940,10 +2908,7 @@ router.get("/technicals", async (req, res) => {
           return distributionData;
         } catch (error) {
           console.error("Error fetching distribution days:", error);
-          return {
-            _is_placeholder: true,
-            _error: "Distribution days fetch failed",
-          };
+          throw new Error("Distribution days fetch failed");
         }
       })(),
 
@@ -2960,10 +2925,7 @@ router.get("/technicals", async (req, res) => {
             AND close IS NOT NULL AND open IS NOT NULL
         `);
         if (!result.rows || result.rows.length === 0) {
-          return {
-            _is_placeholder: true,
-            _error: "Volatility data not available",
-          };
+          throw new Error("Volatility data not available");
         }
         return result.rows[0];
       })(),
@@ -2994,18 +2956,12 @@ router.get("/technicals", async (req, res) => {
             [latestTechDate || latestPriceDate, latestPriceDate]
           );
           if (!result.rows || result.rows.length === 0) {
-            return {
-              _is_placeholder: true,
-              _error: "Internals data not available",
-            };
+            throw new Error("Internals data not available");
           }
           return result.rows[0];
         } catch (e) {
           console.warn("Internals SMA query failed:", e.message);
-          return {
-            _is_placeholder: true,
-            _error: "Internals data query failed",
-          };
+          throw new Error("Internals data query failed");
         }
       })(),
     ]);
@@ -3084,11 +3040,7 @@ router.get("/sentiment", async (req, res) => {
         );
         const data = result.rows || [];
         if (data.length === 0) {
-          return {
-            _is_placeholder: true,
-            _error: "No AAII sentiment data available",
-            items: [],
-          };
+          throw new Error("No AAII sentiment data available");
         }
         return data;
       })(),
@@ -3110,11 +3062,7 @@ router.get("/sentiment", async (req, res) => {
         );
         const data = result.rows || [];
         if (data.length === 0) {
-          return {
-            _is_placeholder: true,
-            _error: "No Fear & Greed data available",
-            items: [],
-          };
+          throw new Error("No Fear & Greed data available");
         }
         return data;
       })(),
@@ -3137,11 +3085,7 @@ router.get("/sentiment", async (req, res) => {
         );
         const data = result.rows || [];
         if (data.length === 0) {
-          return {
-            _is_placeholder: true,
-            _error: "No NAAIM data available",
-            items: [],
-          };
+          throw new Error("No NAAIM data available");
         }
         return data;
       })(),
@@ -3403,10 +3347,7 @@ router.get("/technicals-fresh", async (req, res) => {
           `);
 
           if (!result || !result.rows || result.rows.length === 0) {
-            return {
-              _is_placeholder: true,
-              _error: "Distribution days data not available",
-            };
+            throw new Error("Distribution days data not available");
           }
 
           // Format response with index names
@@ -3439,10 +3380,7 @@ router.get("/technicals-fresh", async (req, res) => {
           return distributionData;
         } catch (error) {
           console.error("Error fetching distribution days:", error);
-          return {
-            _is_placeholder: true,
-            _error: "Distribution days fetch failed",
-          };
+          throw new Error("Distribution days fetch failed");
         }
       })(),
 
