@@ -198,7 +198,7 @@ class SignalsDailyLoader(OptimalLoader):
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(
                 f"[BATCH_CONTEXT] Failed to prepare batch context for buy_sell_daily: {e}. "
-                "Cannot proceed without shared batch data (end_date, price/tech coverage, symbol watermarks) from e."
+                "Cannot proceed without shared batch data (end_date, price/tech coverage, symbol watermarks)."
             ) from e
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:  # noqa: C901
@@ -232,11 +232,34 @@ class SignalsDailyLoader(OptimalLoader):
         if since is None:
             try:
                 # Try cache first (populated in _prepare_batch_context)
-                symbol_watermarks = self._batch_context.get("symbol_watermarks") if self._batch_context else None
-                max_date = symbol_watermarks.get(symbol) if symbol_watermarks else None
+                if not self._batch_context:
+                    logger.debug(
+                        f"[WATERMARK] {symbol}: Batch context not initialized - "
+                        "falling back to database query for watermark"
+                    )
+                    symbol_watermarks = None
+                else:
+                    symbol_watermarks = self._batch_context.get("symbol_watermarks")
+                    if symbol_watermarks is None:
+                        logger.debug(
+                            f"[WATERMARK] {symbol}: 'symbol_watermarks' missing from batch context - "
+                            "falling back to database query"
+                        )
+
+                max_date = None
+                if symbol_watermarks is not None and isinstance(symbol_watermarks, dict):
+                    max_date = symbol_watermarks.get(symbol)
+                    if max_date is None:
+                        logger.debug(
+                            f"[WATERMARK] {symbol}: Not found in cached symbol_watermarks - "
+                            "likely newly added symbol, querying database"
+                        )
 
                 # Cache miss: query database as fallback
                 if max_date is None:
+                    logger.debug(
+                        f"[WATERMARK] {symbol}: Querying database for watermark (cache miss)"
+                    )
                     with DatabaseContext("read") as cur:
                         cur.execute(
                             "SELECT MAX(date) FROM buy_sell_daily WHERE symbol = %s",
@@ -245,6 +268,14 @@ class SignalsDailyLoader(OptimalLoader):
                         row = cur.fetchone()
                         if row is not None and len(row) >= 1 and row[0] is not None:
                             max_date = row[0]
+                            logger.debug(
+                                f"[WATERMARK] {symbol}: Database query found max_date={max_date}"
+                            )
+                        else:
+                            logger.debug(
+                                f"[WATERMARK] {symbol}: No watermark in database - "
+                                "first run for this symbol"
+                            )
 
                 # Convert max_date to date if found
                 if max_date is not None:
@@ -254,7 +285,7 @@ class SignalsDailyLoader(OptimalLoader):
                         since = max_date.date()
                     else:
                         raise RuntimeError(
-                            f"[BUY_SELL_DAILY] Unexpected date type from database: {type(max_date).__name__}. "
+                            f"[BUY_SELL_DAILY] {symbol}: Unexpected date type from watermark: {type(max_date).__name__}. "
                             f"Expected date or datetime, got: {max_date}. "
                             f"Database query may be returning wrong type or corrupted data."
                         )
@@ -406,6 +437,10 @@ class SignalsDailyLoader(OptimalLoader):
                 )
                 row = cur.fetchone()
                 if row is None or len(row) < 1 or row[0] is None:
+                    logger.debug(
+                        f"[DATA_AGE] {symbol}: No data in {source_table} - "
+                        "data unavailable for age calculation"
+                    )
                     return None
                 max_date_val = row[0]
                 if isinstance(max_date_val, date) and not isinstance(max_date_val, datetime):
@@ -416,27 +451,49 @@ class SignalsDailyLoader(OptimalLoader):
                     try:
                         max_date = date.fromisoformat(max_date_val)
                     except ValueError as e:
-                        raise RuntimeError(f"Invalid date format in buy_sell_daily: {max_date_val!r}") from e
+                        raise RuntimeError(
+                            f"[DATA_AGE] {symbol}: Invalid date format in {source_table}: {max_date_val!r}. "
+                            "Cannot calculate data age without valid date."
+                        ) from e
                 else:
                     raise RuntimeError(
-                        f"Unexpected type for buy_sell_daily date: {type(max_date_val).__name__}. "
-                        f"Expected date or string, got {max_date_val!r}"
+                        f"[DATA_AGE] {symbol}: Unexpected type for {source_table} date: {type(max_date_val).__name__}. "
+                        f"Expected date or string, got {max_date_val!r}. Database query may return corrupted data."
                     )
                 # FIX: Use ET date, not system date (AWS runs in UTC but trading is ET-based)
                 today_et = datetime.now(EASTERN_TZ).date()
                 age_days = (today_et - max_date).days
                 return age_days
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            raise RuntimeError(f"Operation failed: {e}") from e
-        return None
+            raise RuntimeError(
+                f"[DATA_AGE] {symbol}: Failed to calculate data age from {source_table}: {e}. "
+                "Cannot verify data freshness without source table access."
+            ) from e
 
     def get_tech_data_age(self) -> float | None:
         """Return current batch tech_data_age for signal generation.
 
         Facade elimination: public getter for _batch_context['tech_data_age']
         used by SignalsDailyLoaderFacade to eliminate private member access.
+
+        Returns:
+            Age in days (float), or None if batch context unavailable.
+            Explicitly logs when batch context is missing (data unavailable).
         """
-        return self._batch_context.get("tech_data_age") if self._batch_context else None
+        if not self._batch_context:
+            logger.debug(
+                "[TECH_DATA_AGE] Batch context not initialized - "
+                "tech data age unavailable"
+            )
+            return None
+
+        tech_data_age = self._batch_context.get("tech_data_age")
+        if tech_data_age is None:
+            logger.debug(
+                "[TECH_DATA_AGE] 'tech_data_age' not in batch context - "
+                "technical data freshness unavailable"
+            )
+        return tech_data_age
 
     def _log_rejection_if_available(self, symbol: str, signal_date: date, reason: str) -> None:
         """Log signal rejection to signal_rejection_log for observability (non-fatal)."""
@@ -516,7 +573,22 @@ class SignalsDailyLoader(OptimalLoader):
         SELL: Low < recent_swing_low (stop loss trigger)
         """
         handler = BuySignalGenerationHandler(self)
-        tech_data_age = self._batch_context.get("tech_data_age") if self._batch_context else None
+
+        # Validate and retrieve tech_data_age with explicit logging
+        if not self._batch_context:
+            logger.warning(
+                f"[SIGNAL_GEN] {symbol}: Batch context not initialized - "
+                "tech data age unavailable for signal generation"
+            )
+            tech_data_age = None
+        else:
+            tech_data_age = self._batch_context.get("tech_data_age")
+            if tech_data_age is None:
+                logger.warning(
+                    f"[SIGNAL_GEN] {symbol}: 'tech_data_age' missing from batch context - "
+                    "cannot assess data freshness for signal generation"
+                )
+
         return handler.run(symbol, rows, tech_data_age)
 
     # Columns with DECIMAL(8,4) precision - max 9999.9999

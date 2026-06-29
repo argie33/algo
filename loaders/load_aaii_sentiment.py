@@ -9,7 +9,7 @@ import time
 import zipfile
 from datetime import date, datetime
 from io import BytesIO
-from typing import Any
+from typing import Any, cast
 
 import pandas as pd
 import requests
@@ -57,7 +57,7 @@ class AAIISentimentLoader(OptimalLoader):
             File content bytes if successful, None on failure
         """
         if not HAS_PLAYWRIGHT:
-            logger.debug("Playwright not available for Incapsula bypass")
+            logger.warning("[AAII_SENTIMENT] Playwright not installed - cannot use hybrid bot protection bypass")
             return None
 
         try:
@@ -105,11 +105,15 @@ class AAIISentimentLoader(OptimalLoader):
 
                     # Set all cookies from Playwright
                     for cookie in cookies:
-                        session.cookies.set(
-                            cookie['name'],
-                            cookie['value'],
-                            domain=cookie.get('domain')
-                        )
+                        cookie_name = cookie.get('name')
+                        cookie_value = cookie.get('value')
+                        cookie_domain = cookie.get('domain')
+
+                        if not cookie_name or not cookie_value:
+                            logger.warning(f"[AAII_SENTIMENT] Skipping invalid cookie: name={cookie_name}, value present={bool(cookie_value)}")
+                            continue
+
+                        session.cookies.set(cookie_name, cookie_value, domain=cookie_domain)
 
                     # Use Chrome-like headers
                     session.headers.update({
@@ -124,17 +128,20 @@ class AAIISentimentLoader(OptimalLoader):
 
                     if response.status_code == 200 and len(response.content) > 100000:
                         logger.info(f"Successfully fetched {len(response.content)} bytes via hybrid approach")
-                        return response.content
+                        return cast(bytes, response.content)
 
                 except Exception as e:
-                    logger.debug(f"Hybrid fetch error: {e}")
+                    logger.warning(f"[AAII_SENTIMENT] Playwright page fetch failed: {type(e).__name__}: {str(e)[:100]}")
                 finally:
-                    page.close()
-                    context.close()
-                    browser.close()
+                    try:
+                        page.close()
+                        context.close()
+                        browser.close()
+                    except Exception as cleanup_err:
+                        logger.warning(f"[AAII_SENTIMENT] Error closing Playwright resources: {cleanup_err}")
 
         except Exception as e:
-            logger.debug(f"Playwright hybrid fetch failed: {e}")
+            logger.warning(f"[AAII_SENTIMENT] Playwright hybrid fetch failed: {type(e).__name__}: {str(e)[:100]}")
 
         return None
 
@@ -181,16 +188,16 @@ class AAIISentimentLoader(OptimalLoader):
 
                 # Validate file size
                 if len(file_content) < 1000:
-                    raise ValueError(f"Response too small ({len(file_content)} bytes)")
+                    raise ValueError(f"[AAII_SENTIMENT] Response too small ({len(file_content)} bytes) - invalid Excel file")
 
                 # Validate Excel structure (basic check for ZIP signature)
                 if file_content.startswith(b"PK"):  # XLSX
                     try:
                         with zipfile.ZipFile(BytesIO(file_content), "r") as zf:
                             if len(zf.namelist()) > 10000:
-                                raise ValueError("Excel file has suspicious structure")
+                                raise ValueError("[AAII_SENTIMENT] Excel file has suspicious structure (>10000 entries)")
                     except zipfile.BadZipFile:
-                        logger.warning("File looks like XLSX but ZIP parse failed, trying as XLS")
+                        logger.warning("[AAII_SENTIMENT] File looks like XLSX but ZIP parse failed, attempting XLS parser")
 
                 # Parse Excel with correct skiprows for AAII format
                 logger.debug("Parsing Excel file...")
@@ -207,7 +214,7 @@ class AAIISentimentLoader(OptimalLoader):
                 required_cols = ["Date", "Bullish", "Neutral", "Bearish"]
                 missing = [c for c in required_cols if c not in df.columns]
                 if missing:
-                    raise ValueError(f"Missing columns: {missing}")
+                    raise ValueError(f"[AAII_SENTIMENT] Missing required columns: {missing}. Found columns: {list(df.columns)}")
 
                 df = df[required_cols]
 
@@ -221,14 +228,16 @@ class AAIISentimentLoader(OptimalLoader):
                     # Check for unparseable values (excluding NaN which is expected for some rows)
                     bad = before[(df[col].isna()) & (before.notna()) & (before != "nan") & (before != "NaN")]
                     if len(bad) > 10:  # Allow some NaN but not too many
-                        raise ValueError(f"{col} has {len(bad)} unparseable values")
+                        sample_bad = bad.head(5).tolist()
+                        raise ValueError(f"[AAII_SENTIMENT] {col} has {len(bad)} unparseable values (samples: {sample_bad})")
 
                 # Parse and validate dates
                 df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
                 before = df["Date"].copy()
                 bad_dates = before[df["Date"].isna() & before.notna()]
                 if len(bad_dates) > 10:  # Allow some parsing issues
-                    raise ValueError(f"Date column has {len(bad_dates)} unparseable values")
+                    sample_bad_dates = bad_dates.head(5).tolist()
+                    raise ValueError(f"[AAII_SENTIMENT] Date column has {len(bad_dates)} unparseable values (samples: {sample_bad_dates})")
 
                 # Remove rows with missing dates or sentiment data
                 df = df.dropna(subset=["Date"])
@@ -251,10 +260,10 @@ class AAIISentimentLoader(OptimalLoader):
                     })
 
                 if not rows:
-                    logger.warning("No sentiment data parsed from Excel file")
+                    logger.error("[AAII_SENTIMENT] No sentiment data parsed from Excel file - all rows filtered out")
                     return [{
                         "data_unavailable": True,
-                        "reason": "No sentiment data in parsed Excel file",
+                        "reason": "No sentiment data in parsed Excel file - all rows filtered out due to missing values",
                         "created_at": datetime.now().isoformat(),
                     }]
 
@@ -262,31 +271,37 @@ class AAIISentimentLoader(OptimalLoader):
                 return rows
 
             except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
-                logger.warning(f"Attempt {attempt} network error: {e}")
+                error_type = type(e).__name__
+                logger.warning(f"[AAII_SENTIMENT] Attempt {attempt} network error ({error_type}): {str(e)[:100]}")
                 if attempt >= 2:
+                    logger.error("[AAII_SENTIMENT] Failed to fetch AAII sentiment after all network attempts")
                     return [{
                         "data_unavailable": True,
-                        "reason": f"Network error: {str(e)[:100]}",
+                        "reason": f"Network error ({error_type}): {str(e)[:100]}",
                         "created_at": datetime.now().isoformat(),
                     }]
             except (ValueError, json.JSONDecodeError, zipfile.BadZipFile, KeyError, AttributeError, TypeError) as e:
-                logger.warning(f"Attempt {attempt} format error: {e}")
+                error_type = type(e).__name__
+                logger.warning(f"[AAII_SENTIMENT] Attempt {attempt} format/parsing error ({error_type}): {str(e)[:100]}")
                 if attempt >= 2:
+                    logger.error("[AAII_SENTIMENT] Failed to parse AAII sentiment data after all attempts")
                     return [{
                         "data_unavailable": True,
-                        "reason": f"Data format error: {str(e)[:100]}",
+                        "reason": f"Data format error ({error_type}): {str(e)[:100]}",
                         "created_at": datetime.now().isoformat(),
                     }]
             except Exception as e:
-                logger.error(f"Attempt {attempt} unexpected error: {e}")
+                error_type = type(e).__name__
+                logger.error(f"[AAII_SENTIMENT] Attempt {attempt} unexpected error ({error_type}): {str(e)[:100]}")
                 if attempt >= 2:
+                    logger.error("[AAII_SENTIMENT] Failed to fetch AAII sentiment due to unexpected error")
                     return [{
                         "data_unavailable": True,
-                        "reason": f"Unexpected error: {str(e)[:100]}",
+                        "reason": f"Unexpected error ({error_type}): {str(e)[:100]}",
                         "created_at": datetime.now().isoformat(),
                     }]
 
-        logger.warning("Failed to fetch AAII sentiment after all attempts")
+        logger.error("[AAII_SENTIMENT] Exhausted all download attempts - returning data unavailable marker")
         return [{
             "data_unavailable": True,
             "reason": "Failed to fetch AAII sentiment after all attempts",
