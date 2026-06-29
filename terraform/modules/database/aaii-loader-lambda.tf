@@ -15,8 +15,7 @@ resource "aws_lambda_function" "aaii_loader" {
   runtime             = "python3.12"
   timeout             = 60
   source_code_hash    = filebase64sha256("${path.module}/aaii_loader.zip")
-
-  layers = var.psycopg2_layer_arn != "" ? [var.psycopg2_layer_arn] : []
+  layers              = try([aws_lambda_layer_version.psycopg2[0].arn], [])
 
   vpc_config {
     subnet_ids         = var.private_subnet_ids
@@ -33,7 +32,10 @@ resource "aws_lambda_function" "aaii_loader" {
     }
   }
 
-  depends_on = [aws_iam_role_policy_attachment.aaii_loader_vpc]
+  depends_on = [
+    aws_iam_role_policy_attachment.aaii_loader_vpc,
+    aws_lambda_layer_version.psycopg2
+  ]
 }
 
 # IAM role for AAII Loader Lambda
