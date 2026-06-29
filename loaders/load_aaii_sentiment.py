@@ -6,7 +6,7 @@ import logging
 import socket
 import sys
 import zipfile
-from datetime import date
+from datetime import date, datetime
 from io import BytesIO
 from typing import Any
 
@@ -161,10 +161,13 @@ class AAIISentimentLoader(OptimalLoader):
 
                 if not rows:
                     logger.warning(
-                        "[AAII_SENTIMENT] No sentiment data parsed from AAII Excel file. "
-                        "AAII sentiment is optional enrichment; returning None to allow trading to proceed."
+                        "[AAII_SENTIMENT] No sentiment data parsed from AAII Excel file."
                     )
-                    return None
+                    return [{
+                        "data_unavailable": True,
+                        "reason": "No sentiment data parsed from AAII Excel file",
+                        "created_at": datetime.now().isoformat(),
+                    }]
                 return rows
 
             except (
@@ -180,10 +183,13 @@ class AAIISentimentLoader(OptimalLoader):
                     time.sleep(wait_time)
                 else:
                     logger.warning(
-                        f"[AAII] Failed after 3 attempts: Cannot reach AAII server. {e}. "
-                        "AAII sentiment is optional enrichment; returning None to allow trading to proceed."
+                        f"[AAII] Failed after 3 attempts: Cannot reach AAII server. {e}"
                     )
-                    return None
+                    return [{
+                        "data_unavailable": True,
+                        "reason": f"Cannot reach AAII server after 3 attempts: {str(e)[:100]}",
+                        "created_at": datetime.now().isoformat(),
+                    }]
             except (json.JSONDecodeError, zipfile.BadZipFile) as e:
                 logger.warning(f"Download attempt {attempt} data format error: {e}")
                 if attempt < 3:
@@ -194,10 +200,13 @@ class AAIISentimentLoader(OptimalLoader):
                     time.sleep(wait_time)
                 else:
                     logger.warning(
-                        f"[AAII] Failed after 3 attempts: Invalid Excel data format. {e}. "
-                        "AAII sentiment is optional enrichment; returning None to allow trading to proceed."
+                        f"[AAII] Failed after 3 attempts: Invalid Excel data format. {e}"
                     )
-                    return None
+                    return [{
+                        "data_unavailable": True,
+                        "reason": f"Invalid Excel data format after 3 attempts: {str(e)[:100]}",
+                        "created_at": datetime.now().isoformat(),
+                    }]
             except ValueError as e:
                 logger.warning(f"Download attempt {attempt} data format error: {e}")
                 if attempt < 3:

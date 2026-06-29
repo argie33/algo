@@ -37,7 +37,7 @@ Run:
 import logging
 import socket
 import sys
-from datetime import date
+from datetime import date, datetime
 from typing import Any
 
 import requests
@@ -85,7 +85,12 @@ class AnalystSentimentLoader(OptimalLoader):
 
         if not ticker:
             logger.debug(f"[ANALYST_SENTIMENT] No ticker available for {symbol} — likely no analyst coverage")
-            return None
+            return [{
+                "symbol": symbol,
+                "data_unavailable": True,
+                "reason": "No ticker available from yfinance (no analyst coverage or API issue)",
+                "created_at": datetime.now().isoformat(),
+            }]
 
         try:
             recs = ticker.recommendations
@@ -98,7 +103,12 @@ class AnalystSentimentLoader(OptimalLoader):
 
         if recs is None or recs.empty:
             logger.debug(f"[ANALYST_SENTIMENT] No analyst recommendations for {symbol} — no coverage available")
-            return None
+            return [{
+                "symbol": symbol,
+                "data_unavailable": True,
+                "reason": "No analyst recommendations available (no coverage)",
+                "created_at": datetime.now().isoformat(),
+            }]
 
         # Handle two yfinance response formats:
         # 1. Old format: Individual recommendation rows with 'To Grade' field (indexed by date)
@@ -166,7 +176,12 @@ class AnalystSentimentLoader(OptimalLoader):
                 return results
             else:
                 logger.debug(f"[ANALYST_SENTIMENT] No sentiment data for {symbol}")
-                return None
+                return [{
+                    "symbol": symbol,
+                    "data_unavailable": True,
+                    "reason": "No analyst sentiment records extracted from yfinance",
+                    "created_at": datetime.now().isoformat(),
+                }]
 
         elif "To Grade" in recs.columns:
             # Old yfinance API format: individual recommendation rows
@@ -217,15 +232,25 @@ class AnalystSentimentLoader(OptimalLoader):
                 return results
             else:
                 logger.debug(f"[ANALYST_SENTIMENT] No sentiment data aggregated for {symbol}")
-                return None
+                return [{
+                    "symbol": symbol,
+                    "data_unavailable": True,
+                    "reason": "No analyst sentiment records aggregated from yfinance",
+                    "created_at": datetime.now().isoformat(),
+                }]
         else:
             # Unknown format
             logger.error(
                 f"[ANALYST_SENTIMENT] yfinance response format unknown for {symbol}. "
                 f"Expected 'To Grade' column (old format) or 'strongBuy'/'buy'/'hold'/'sell'/'strongSell' columns (new format). "
-                f"Got columns: {list(recs.columns)}. Returning None (optional enrichment)."
+                f"Got columns: {list(recs.columns)}."
             )
-            return None
+            return [{
+                "symbol": symbol,
+                "data_unavailable": True,
+                "reason": f"yfinance response format unknown. Got columns: {list(recs.columns)}",
+                "created_at": datetime.now().isoformat(),
+            }]
 
     def transform(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         return rows

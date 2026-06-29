@@ -124,18 +124,20 @@ def check_data_freshness() -> tuple[str, list[dict[str, Any]]]:
     Returns: (status, stale_tables)
       status: 'healthy' | 'degraded' | 'unhealthy'
       stale_tables: [{'table': 'name', 'age_hours': 25.5}, ...]
+
+    CRITICAL: Detects stale data that causes trading halts and dashboard failures.
     """
     try:
         conn = get_db_connection()
         cur = conn.cursor()
 
         critical_tables = {
-            "price_daily": "Daily stock prices",
-            "buy_sell_daily": "Buy/sell signals",
-            "technical_data_daily": "Technical indicators",
-            "sector_ranking": "Sector rankings",
-            "algo_trades": "Executed trades",
-            "broker_portfolio": "Current positions",
+            "price_daily": "Daily stock prices (blocks all downstream loaders)",
+            "buy_sell_daily": "Buy/sell signals (blocks Phase 5 entry generation)",
+            "technical_data_daily": "Technical indicators (depends on price_daily)",
+            "sector_ranking": "Sector rankings (affects position sizing)",
+            "algo_trades": "Executed trades (portfolio reconciliation)",
+            "broker_portfolio": "Current positions (Phase 9 reconciliation)",
         }
 
         stale_tables = []
@@ -146,45 +148,88 @@ def check_data_freshness() -> tuple[str, list[dict[str, Any]]]:
                 # Find the most recent timestamp in the table
                 assert_safe_table(table_name)
                 cur.execute(f"""
-                    SELECT MAX(created_at) as max_date FROM {table_name}
+                    SELECT MAX(created_at) as max_date, COUNT(*) as row_count FROM {table_name}
                     LIMIT 1
                 """)
 
                 row = cur.fetchone()
-                if row and row[0] is not None:
-                    max_date = row[0]
-                    if max_date.tzinfo is None:
-                        max_date = max_date.replace(tzinfo=timezone.utc)
+                max_date, row_count = row if row else (None, 0)
 
+                # CRITICAL: Missing data is worse than stale data (missing = pipeline failed)
+                if row_count == 0:
+                    logger.error(
+                        f"[DATA_STALENESS] CRITICAL: Table '{table_name}' is EMPTY. "
+                        f"Description: {description}. "
+                        f"This indicates the data loader has never run or failed completely."
+                    )
+                    stale_tables.append(
+                        {
+                            "table": table_name,
+                            "description": description,
+                            "status": "EMPTY",
+                            "problem": "No data loaded - loader may have never run",
+                        }
+                    )
+                elif max_date:
+                    max_date = max_date.replace(tzinfo=timezone.utc) if max_date.tzinfo is None else max_date
                     age_hours = (now - max_date).total_seconds() / 3600
 
                     # Alert if data is >24 hours old
                     if age_hours > 24:
+                        logger.error(
+                            f"[DATA_STALENESS] Table '{table_name}' is STALE: {age_hours:.1f}h old. "
+                            f"Description: {description}. "
+                            f"Last update: {max_date.isoformat()}. "
+                            f"Rows: {row_count}. "
+                            f"This will cause trading halts and incomplete dashboard data."
+                        )
                         stale_tables.append(
                             {
                                 "table": table_name,
                                 "description": description,
                                 "age_hours": round(age_hours, 1),
                                 "last_update": max_date.isoformat(),
+                                "row_count": row_count,
+                                "status": "STALE",
                             }
+                        )
+                    else:
+                        # Log freshness for monitoring (info level, not error)
+                        logger.info(
+                            f"[DATA_FRESHNESS_OK] Table '{table_name}': {age_hours:.1f}h old, "
+                            f"{row_count} rows, last update {max_date.isoformat()}"
                         )
 
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                logger.warning(f"Could not check {table_name}: {e}")
+                logger.error(f"[DATA_STALENESS_CHECK_FAILED] Could not check {table_name}: {e}")
+                stale_tables.append(
+                    {
+                        "table": table_name,
+                        "description": description,
+                        "status": "CHECK_FAILED",
+                        "problem": f"Database error: {str(e)[:50]}",
+                    }
+                )
 
         cur.close()
         conn.close()
 
         if not stale_tables:
+            logger.info("[DATA_FRESHNESS] All critical tables are fresh and healthy")
             return "healthy", []
 
         # CRITICAL: ANY stale critical table is unhealthy (not degraded).
         # Even one stale table means data pipeline has failed — that's a critical issue.
+        critical_count = sum(1 for t in stale_tables if t.get("status") in ["EMPTY", "CHECK_FAILED"])
+        logger.error(
+            f"[DATA_STALENESS_ALERT] {len(stale_tables)} critical tables are stale/empty. "
+            f"{critical_count} are critical failures. This will halt trading and break dashboard."
+        )
         return "unhealthy", stale_tables
 
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-        logger.error(f"Data freshness check failed: {e}")
-        return "unhealthy", [{"problem": f"Freshness check error: {str(e)[:50]}"}]
+        logger.error(f"[DATA_FRESHNESS_CHECK_FAILED] Data freshness check failed: {e}")
+        return "unhealthy", [{"problem": f"Freshness check error: {str(e)[:50]}", "status": "CHECK_FAILED"}]
 
 
 def send_metric(metric_name: str, value: float, unit: str = "None", dimensions: dict[str, str] | None = None) -> None:
