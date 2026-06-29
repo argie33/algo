@@ -313,11 +313,16 @@ class PriceTransformer:
             tracker: Optional DataProvenanceTracker for recording errors
 
         Raises:
-            ValueError: If date range extraction or trading day precomputation fails
+            ValueError: If date range extraction, trading day precomputation, or no valid price data provided fails
         """
         if not rows:
-            logger.warning("No price data rows provided to validate_and_transform(). Returning empty result.")
-            return []
+            error_msg = (
+                "[PRICE_TRANSFORMER] No price data rows provided to validate_and_transform(). "
+                "Cannot compute trading day filtering without any price data. "
+                "Price data fetch may have failed or returned empty result."
+            )
+            logger.error(error_msg)
+            raise ValueError(error_msg)
 
         min_row_date, max_row_date = self._extract_date_range(rows)
         if min_row_date is None or max_row_date is None:

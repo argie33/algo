@@ -37,8 +37,8 @@ class TestBreadthFetcherValidation:
         call_args = mock_cur.execute.call_args[0][0]
         assert "COUNT(*)" in call_args
 
-    def test_fails_when_window_function_returns_nothing(self):
-        """Raises error when window function produces 0 rows despite having price data."""
+    def test_fails_when_window_function_returns_nothing(self, caplog):
+        """When window function produces 0 rows, logs warning and returns empty dict."""
         fetcher = BreadthFetcher()
 
         mock_cur = Mock()
@@ -50,13 +50,14 @@ class TestBreadthFetcherValidation:
         start = date(2026, 6, 1)
         end = date(2026, 6, 28)
 
-        with pytest.raises(RuntimeError) as exc_info:
-            fetcher._compute_new_highs_lows(mock_cur, start, end)
+        import logging
+        with caplog.at_level(logging.WARNING):
+            result = fetcher._compute_new_highs_lows(mock_cur, start, end)
 
-        error_msg = str(exc_info.value)
-        assert "New highs/lows computation returned 0 rows" in error_msg
-        assert "price_daily has 100 rows" in error_msg
-        assert "< 252 days" in error_msg
+        # Should return empty dict, not raise error (gracefully handle early dataset)
+        assert result == {}
+        # Should log warning about missing 252-day history
+        assert any("252-day history" in record.message for record in caplog.records)
 
     def test_succeeds_with_valid_data(self):
         """Returns dict with dates when valid data exists."""

@@ -120,19 +120,33 @@ def _aggregate_concepts(
     try:
         all_facts = client.get_company_facts(cik)
     except FileNotFoundError:
-        return []
+        error_msg = (
+            f"[SEC_STATEMENTS] No XBRL filings found for {symbol} (CIK {cik}). "
+            f"Company may be an ETF, special-purpose vehicle, or investment trust. "
+            f"Cannot fetch SEC financial data without XBRL filings."
+        )
+        logger.warning(error_msg)
+        raise RuntimeError(error_msg)
 
     # Extract concepts from all_facts (us-gaap taxonomy).
     # Some entities (ETFs, foreign filers) have CIKs but report under IFRS
-    # or a non-US-GAAP taxonomy — return empty for those too.
+    # or a non-US-GAAP taxonomy — fail fast for those.
     facts = all_facts.get("facts")
     if facts is None:
-        logger.debug(f"SEC API returned no 'facts' in company filings for CIK {cik}")
-        return []
+        error_msg = (
+            f"[SEC_STATEMENTS] SEC API returned no 'facts' for {symbol} (CIK {cik}). "
+            f"Cannot compute financial metrics without SEC filing data."
+        )
+        logger.warning(error_msg)
+        raise RuntimeError(error_msg)
     us_gaap_facts = facts.get("us-gaap")
     if not us_gaap_facts:
-        logger.debug(f"SEC API has no US-GAAP facts for CIK {cik} (possibly IFRS filer)")
-        return []
+        error_msg = (
+            f"[SEC_STATEMENTS] SEC API has no US-GAAP facts for {symbol} (CIK {cik}). "
+            f"Company may be IFRS filer. Cannot compute US financial metrics."
+        )
+        logger.warning(error_msg)
+        raise RuntimeError(error_msg)
     rows: dict[Any, dict[str, Any]] = {}
     fp_filter = "FY" if period == "annual" else ("Q1", "Q2", "Q3", "Q4")
 

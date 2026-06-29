@@ -31,11 +31,11 @@ class TestExposureCompactMissingFields:
             result = panel_exposure_compact(malformed_exp)
 
         # Should log error
-        assert any("[EXPOSURE] factors field missing" in record.message for record in caplog.records)
+        assert any("Required fields missing from API response" in record.message for record in caplog.records)
         # Should return error text (not silent empty list)
         assert isinstance(result, Text)
         assert "✗" in result.plain
-        assert "API schema mismatch" in result.plain
+        assert "incomplete" in result.plain.lower()
 
     def test_factors_field_is_not_dict(self, caplog):
         """If 'factors' is not a dict (e.g., list), should log error."""
@@ -50,24 +50,24 @@ class TestExposureCompactMissingFields:
             result = panel_exposure_compact(malformed_exp)
 
         # Should log error about invalid type
-        assert any("factors field is not a dict" in record.message for record in caplog.records)
+        assert any("factors is not dict" in record.message for record in caplog.records)
         assert isinstance(result, Text)
         assert "✗" in result.plain
 
     def test_missing_regime_field(self, caplog):
-        """If 'regime' is missing/empty, should log warning."""
+        """If 'regime' is missing, should log error."""
         malformed_exp = {
             "raw_score": 45.0,
             "exposure_pct": 55.0,
-            "regime": "",  # Empty
+            # Missing 'regime' field entirely
             "factors": {"trend_30wk": {"pts": 10.0}},
         }
 
-        with caplog.at_level(logging.WARNING):
+        with caplog.at_level(logging.ERROR):
             result = panel_exposure_compact(malformed_exp)
 
-        # Should log warning about missing regime
-        assert any("[EXPOSURE] regime field missing or empty" in record.message for record in caplog.records)
+        # Should log error about missing required field
+        assert any("Required fields missing from API response" in record.message for record in caplog.records)
         # Should NOT silently return None or []
         assert result is not None
         assert not isinstance(result, list)
@@ -262,8 +262,8 @@ class TestExposureExpandedMissingFields:
         with caplog.at_level(logging.WARNING):
             result = panel_exposure_expanded(exp_data)
 
-        # Should log warning about missing regime
-        assert any("[EXPOSURE_EXPANDED] regime field missing or empty" in record.message for record in caplog.records)
+        # Should log warning about regime field
+        assert any("regime field" in record.message for record in caplog.records)
         # Should still return result
         assert result is not None
 

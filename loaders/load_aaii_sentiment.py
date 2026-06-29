@@ -139,15 +139,20 @@ class AAIISentimentLoader(OptimalLoader):
                         logger.info(f"Successfully fetched {len(response.content)} bytes via hybrid approach")
                         return cast(bytes, response.content)
                     else:
-                        logger.warning(
+                        error_msg = (
                             f"[AAII_SENTIMENT] Invalid response: status={response.status_code}, "
-                            f"size={len(response.content)} bytes"
+                            f"size={len(response.content)} bytes. Cannot fetch market sentiment data."
                         )
-                        return None
+                        logger.error(error_msg)
+                        raise RuntimeError(error_msg)
 
+                except RuntimeError:
+                    # Re-raise our own error messages
+                    raise
                 except Exception as e:
-                    logger.warning(f"[AAII_SENTIMENT] Playwright page fetch failed: {type(e).__name__}: {str(e)[:100]}")
-                    return None
+                    error_msg = f"[AAII_SENTIMENT] Playwright page fetch failed: {type(e).__name__}: {str(e)[:100]}. Cannot fetch market sentiment data."
+                    logger.error(error_msg)
+                    raise RuntimeError(error_msg) from e
                 finally:
                     try:
                         page.close()
@@ -167,7 +172,7 @@ class AAIISentimentLoader(OptimalLoader):
             )
             raise RuntimeError(error_msg) from e
 
-    def fetch_global(self, since: date | None) -> list[dict[str, Any]] | None:  # noqa: C901
+    def fetch_global(self, since: date | None) -> list[dict[str, Any]] | dict[str, Any]:
         """Fetch AAII sentiment data from Excel file.
 
         Uses hybrid Playwright+requests approach to bypass Imperva bot protection.
@@ -204,8 +209,7 @@ class AAIISentimentLoader(OptimalLoader):
                 else:
                     logger.info("Download attempt 2/2: Hybrid Playwright+requests approach")
                     file_content = self._fetch_with_playwright_hybrid(aaii_url)
-                    if not file_content:
-                        raise ValueError("Playwright hybrid fetch returned no data")
+                    # _fetch_with_playwright_hybrid raises RuntimeError if fetch fails (no silent None)
 
                 # Validate file size
                 if len(file_content) < 1000:
