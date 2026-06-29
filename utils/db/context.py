@@ -248,22 +248,45 @@ class DatabaseContext:
         self.enable_correlation_tracking = enable_correlation_tracking
         self.correlation_id = correlation_id
         if correlation_id is None and enable_correlation_tracking:
-            self.correlation_id = self._get_loader_correlation_id()
+            cid_result = self._get_loader_correlation_id()
+            # Only set correlation_id if it's a string (not a marker dict)
+            if isinstance(cid_result, str):
+                self.correlation_id = cid_result
+            # else: unavailable marker or None, skip tracing
         self.conn: Any = None
         self.cur: Any = None
         self._externally_managed = False  # Track if connection is from pooled context
 
     @staticmethod
-    def _get_loader_correlation_id() -> str | None:
-        """Auto-retrieve correlation_id from context (loaders only)."""
+    def _get_loader_correlation_id() -> str | dict[str, Any]:
+        """Auto-retrieve correlation_id from context (loaders only).
+
+        Returns:
+            - Correlation ID string if available
+            - Marker dict if unavailable:
+              {
+                  'data_unavailable': True,
+                  'reason': 'correlation_id_unavailable'
+              }
+        """
         try:
             from utils.infrastructure import get_correlation_id
 
             cid: str | None = get_correlation_id()
-            return cid if cid else None
+            if cid:
+                return cid
+            # Return marker dict if no correlation_id in context (optional tracing)
+            logger.debug("Correlation_id unavailable - optional tracing disabled")
+            return {
+                "data_unavailable": True,
+                "reason": "correlation_id_unavailable"
+            }
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.warning(f"Failed to get correlation ID for tracing: {e}")
-            return None
+            return {
+                "data_unavailable": True,
+                "reason": "correlation_id_fetch_error"
+            }
 
     def __enter__(self) -> _ErrorLoggedCursor:
         """Enter context - get database connection.

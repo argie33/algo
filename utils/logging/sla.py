@@ -30,8 +30,8 @@ class SLAMonitor:
     ]
 
     @classmethod
-    def get_current_sla_window(cls) -> dict[str, Any] | None:
-        """Get current SLA window if in one, None otherwise.
+    def get_current_sla_window(cls) -> dict[str, Any]:
+        """Get current SLA window if in one, otherwise return unavailable marker.
 
         Returns:
             {
@@ -44,7 +44,11 @@ class SLAMonitor:
                 'percent_complete': 10,
                 'is_critical': False (True if >80% elapsed)
             }
-            or None if not in any SLA window
+            or marker dict if not in any SLA window:
+            {
+                'data_unavailable': True,
+                'reason': 'not_in_sla_window'
+            }
         """
         now = datetime.now(cls.EASTERN_TZ)
         current_hour = now.hour
@@ -83,24 +87,31 @@ class SLAMonitor:
                     "is_critical": percent > 80,  # Flag if >80% of budget used
                 }
 
-        return None
+        return {
+            "data_unavailable": True,
+            "reason": "not_in_sla_window"
+        }
 
     @classmethod
-    def log_sla_status(cls, operation_name: str, elapsed_sec: float | None = None) -> dict[str, Any] | None:
-        """Log current SLA status. Returns SLA info or None if not in window.
+    def log_sla_status(cls, operation_name: str, elapsed_sec: float | None = None) -> dict[str, Any]:
+        """Log current SLA status. Returns SLA info or unavailable marker if not in window.
 
         Args:
             operation_name: Name of operation (for logging context)
             elapsed_sec: Time elapsed for this operation (optional)
 
         Returns:
-            SLA window dict with status, or None if not in SLA window
+            SLA window dict with status, or marker dict if not in SLA window:
+            {
+                'data_unavailable': True,
+                'reason': 'not_in_sla_window'
+            }
         """
         sla = cls.get_current_sla_window()
 
-        if not sla:
-            logger.debug(f"[{operation_name}] Not in any SLA window")
-            return None
+        if sla.get("data_unavailable"):
+            logger.warning(f"[{operation_name}] Not in any SLA window")
+            return sla
 
         status = "🔴 CRITICAL" if sla["is_critical"] else "🟡 WARNING" if sla["remaining_minutes"] < 10 else "🟢 OK"
 
