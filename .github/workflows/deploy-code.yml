@@ -578,7 +578,11 @@ jobs:
           db_host = db_creds.get('host', 'localhost')
           db_port = db_creds.get('port', 5432)
           db_name = db_creds.get('dbname', 'stocks')
-          db_password = db_creds.get('password', '')
+
+          if 'password' not in db_creds or not db_creds['password']:
+            print(f"ERROR: Database password missing from Secrets Manager secret '{secret_id}'")
+            exit(1)
+          db_password = db_creds['password']
 
           # Retrieve Alpaca configuration
           print("Retrieving Alpaca configuration...")
@@ -589,11 +593,17 @@ jobs:
               capture_output=True, text=True, check=True)
             alpaca_creds = json.loads(result.stdout.strip())
           except Exception as e:
-            print(f"WARNING: Could not retrieve algo/alpaca secret: {e}")
-            alpaca_creds = {}
+            print(f"ERROR: Could not retrieve algo/alpaca secret: {e}")
+            exit(1)
 
-          alpaca_api_key = alpaca_creds.get('api_key', '')
-          alpaca_api_secret = alpaca_creds.get('api_secret', '')
+          if 'api_key' not in alpaca_creds or not alpaca_creds['api_key']:
+            print(f"ERROR: Alpaca API key missing from Secrets Manager secret 'algo/alpaca'")
+            exit(1)
+          if 'api_secret' not in alpaca_creds or not alpaca_creds['api_secret']:
+            print(f"ERROR: Alpaca API secret missing from Secrets Manager secret 'algo/alpaca'")
+            exit(1)
+          alpaca_api_key = alpaca_creds['api_key']
+          alpaca_api_secret = alpaca_creds['api_secret']
 
           # Retrieve alert configuration (optional - from Secrets Manager)
           print("Checking for alert configuration...")

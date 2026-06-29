@@ -86,8 +86,16 @@ jobs:
           db_host = env_vars.get('DB_HOST', '')
           db_port = env_vars.get('DB_PORT', '5432')
           db_name = env_vars.get('DB_NAME', 'algo')
-          db_secret_arn = env_vars.get('DB_SECRET_ARN', '')
-          algo_secrets_arn = env_vars.get('ALGO_SECRETS_ARN', '')
+
+          if 'DB_SECRET_ARN' not in env_vars or not env_vars['DB_SECRET_ARN']:
+            print("ERROR: DB_SECRET_ARN not configured in Lambda environment — deployment cannot proceed")
+            exit(1)
+          db_secret_arn = env_vars['DB_SECRET_ARN']
+
+          if 'ALGO_SECRETS_ARN' not in env_vars or not env_vars['ALGO_SECRETS_ARN']:
+            print("ERROR: ALGO_SECRETS_ARN not configured in Lambda environment — deployment cannot proceed")
+            exit(1)
+          algo_secrets_arn = env_vars['ALGO_SECRETS_ARN']
 
           print(f"  Role ARN: {role}")
           print(f"  Subnets: {subnet_ids}")

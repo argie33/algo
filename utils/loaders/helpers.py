@@ -8,6 +8,7 @@ Functions that were defined identically in 19+ loader files, now centralized her
 import logging
 import os
 import signal
+import sys
 import threading
 import time
 from typing import Any, cast
@@ -107,15 +108,15 @@ def get_active_symbols(
     def timeout_handler(signum: int, frame: Any) -> None:
         raise TimeoutError(f"get_active_symbols() exceeded {timeout_secs}s timeout")
 
-    # Set alarm signal only on Unix-like systems
+    # Set alarm signal only on Unix-like systems (not Windows)
     old_handler: Any = None
-    try:
-        if hasattr(signal, "SIGALRM"):
+    if sys.platform != "win32":
+        try:
             old_handler = signal.signal(signal.SIGALRM, timeout_handler)  # type: ignore[attr-defined]
             signal.alarm(timeout_secs)  # type: ignore[attr-defined]
-    except (AttributeError, ValueError):
-        # signal.SIGALRM not available on Windows, use threading timeout instead
-        pass
+        except (AttributeError, ValueError):
+            # signal.SIGALRM not available on this platform, use threading timeout instead
+            pass
 
     # Check cache first to reduce database load under parallelism
     cache_key = f"all_symbols:exclude_etfs={exclude_etfs}"
@@ -178,11 +179,10 @@ def get_active_symbols(
         return symbols
     finally:
         # Cancel alarm (only on Unix/Linux where SIGALRM is available)
-        if old_handler is not None:
+        if old_handler is not None and sys.platform != "win32":
             try:
-                if hasattr(signal, "SIGALRM"):
-                    signal.alarm(0)  # type: ignore[attr-defined]
-                    signal.signal(signal.SIGALRM, old_handler)  # type: ignore[attr-defined]
+                signal.alarm(0)  # type: ignore[attr-defined]
+                signal.signal(signal.SIGALRM, old_handler)  # type: ignore[attr-defined]
             except (AttributeError, ValueError):
                 pass
 

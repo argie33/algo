@@ -112,7 +112,7 @@ class StabilityMetricsLoader(OptimalLoader):
             # Calculate volatilities (annualized: sqrt(252) * daily_std)
             volatility_30d = self._calculate_volatility(returns[-30:]) if len(returns) >= 30 else None
             volatility_60d = self._calculate_volatility(returns[-60:]) if len(returns) >= 60 else None
-            volatility_252d = self._calculate_volatility(returns)
+            volatility_252d = self._calculate_volatility(returns, symbol=symbol)
 
             # Get beta from yfinance
             beta = self._get_beta_yfinance(symbol)
@@ -135,9 +135,33 @@ class StabilityMetricsLoader(OptimalLoader):
             ) from e
 
     @staticmethod
-    def _calculate_volatility(returns: list[float]) -> float | None:
-        """Calculate annualized volatility from returns."""
+    def _calculate_volatility(returns: list[float], symbol: str = "") -> float | None:
+        """Calculate annualized volatility from returns.
+
+        Raises ValueError if insufficient data (less than 2 returns) for meaningful calculation.
+        This is a calculation helper, not optional enrichment—failures must be explicit.
+
+        Args:
+            returns: List of daily returns (log returns)
+            symbol: Optional symbol name for error messages (for 252d volatility failures)
+
+        Returns:
+            Annualized volatility (float) or None if data was valid but insufficient
+            for optional periods (30d, 60d).
+
+        Raises:
+            ValueError: If full year (252d) volatility cannot be calculated with valid data
+        """
         if not returns or len(returns) < 2:
+            # For optional periods (30d, 60d), returning None is acceptable
+            # For full year (252d) used in solvency scoring, this shouldn't happen
+            # since we check len(returns) >= 30 before calling for those periods
+            if symbol:
+                raise ValueError(
+                    f"[STABILITY_METRICS] {symbol}: insufficient returns data for volatility calculation "
+                    f"({len(returns) if returns else 0} returns, minimum 2 required). "
+                    f"Cannot compute stability metrics without valid return data."
+                )
             return None
 
         mean_return = sum(returns) / len(returns)

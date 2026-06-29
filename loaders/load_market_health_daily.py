@@ -56,7 +56,7 @@ class MarketHealthDailyLoader(OptimalLoader):
         """Fetch VIX data with circuit breaker protection."""
         return self._vix_fetcher.fetch(start, end)
 
-    def fetch_put_call_with_breaker(self, eval_date: date) -> float | None:
+    def fetch_put_call_with_breaker(self, eval_date: date) -> dict[str, Any] | float:
         """Fetch put/call ratio with circuit breaker protection."""
         return self._put_call_fetcher.fetch(eval_date)
 
@@ -366,9 +366,16 @@ class MarketHealthDailyLoader(OptimalLoader):
         """
         for attempt in range(max_retries):
             try:
-                ratio = self._put_call_fetcher.fetch(end_date)
-                # Success: return the ratio (may be None from fetcher, which we handle)
-                return ratio, None
+                result = self._put_call_fetcher.fetch(end_date)
+                # Check if result is a dict with "data_unavailable" key
+                if isinstance(result, dict) and result.get("data_unavailable"):
+                    reason = result.get("reason")
+                    return None, reason
+                # If it's a float, return it as the ratio
+                if isinstance(result, float):
+                    return result, None
+                # Shouldn't reach here, but handle unexpected types defensively
+                return None, "unexpected_return_type"
             except (ConnectionError, TimeoutError) as e:
                 # Transient errors: retry with backoff
                 if attempt < max_retries - 1:
@@ -1055,43 +1062,44 @@ def _write_vix_family_prices(start: date, end: date) -> int:
                 for idx, row in df.iterrows():
                     d = idx.date() if hasattr(idx, "date") else date.fromisoformat(str(idx)[:10])
 
-                    def _v(col: str, row: Any = row, sym: str = sym, d: date = d) -> float | None:
+                    def _v(col: str, row: Any = row, sym: str = sym, d: date = d) -> float:
                         val: Any = row.get(col) if hasattr(row, "get") else row[col]
                         if val is None:
-                            return None
+                            raise RuntimeError(
+                                f"[MARKET_HEALTH] Missing {col} data for {sym} on {d} — "
+                                "cannot compute market health metrics without complete OHLCV data"
+                            )
                         if hasattr(val, "__len__"):
                             try:
                                 val = val.iloc[0] if len(val) else None
                             except (IndexError, AttributeError):
                                 val = None
+                        if val is None:
+                            raise RuntimeError(
+                                f"[MARKET_HEALTH] Empty {col} data for {sym} on {d} — "
+                                "cannot compute market health metrics without complete OHLCV data"
+                            )
                         try:
                             f = float(val)
                             if f != f:  # NaN check
-                                return None
+                                raise RuntimeError(
+                                    f"[MARKET_HEALTH] Invalid {col}={val!r} (NaN) for {sym} on {d} — "
+                                    "cannot compute market health metrics with NaN values"
+                                )
                             return round(f, 4)
+                        except RuntimeError:
+                            raise
                         except (TypeError, ValueError) as e:
                             raise RuntimeError(
                                 f"[PRICE_EXTRACTION] Failed to parse {col}={val!r} for {sym}: {e}"
                             ) from e
 
                     close = _v("Close")
-                    if close is None:
-                        raise RuntimeError(
-                            f"[MARKET_HEALTH] Missing close price for {sym} on {d} — "
-                            "cannot compute market health metrics without OHLCV data"
-                        )
 
                     open_val = _v("Open")
                     high_val = _v("High")
                     low_val = _v("Low")
-                    volume_val = _v("Volume")
-
-                    if volume_val is None:
-                        raise RuntimeError(
-                            f"[MARKET_HEALTH] Missing volume data for {sym} on {d} — "
-                            "market health calculation requires complete OHLCV data"
-                        )
-                    volume_val = int(volume_val)
+                    volume_val = int(_v("Volume"))
 
                     records.append(
                         (

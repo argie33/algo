@@ -292,6 +292,41 @@ class StockScoresLoader(OptimalLoader):
                 f"Error: {e}"
             ) from e
 
+    # ARCHITECTURAL PATTERN: Internal Scoring Pipeline
+    # ====================================================
+    # The following _get_* and _score_* methods are INTERNAL PLUMBING that feeds into
+    # _compute_stock_score() → fetch_incremental() public API.
+    #
+    # INTERNAL FUNCTIONS (None returns):
+    # - All 6 _get_*() methods return None when data table has no entry for the symbol
+    # - All 6 _score_*() methods return None if their metrics dict is empty/all-NULL
+    # - None returns are EXPLICITLY HANDLED by _compute_stock_score() via:
+    #   * Line 168: real_scores = [s for s in all_scores if s is not None]
+    #   * Lines 208-215: score_availability dict with `is not None` checks
+    #   * Lines 234-239: None guards for each clamped score
+    #   * Lines 244-259: ValueError raised if weight>0 but value is None (fail-fast)
+    #   * Line 178-184: RuntimeError raised if data_count < 3 (hard threshold)
+    #
+    # PUBLIC API (Exceptions, not None):
+    # - fetch_incremental() (line 107-121) raises RuntimeError if _compute_stock_score()
+    #   returns falsy (line 115-120). No silent degradation—caller gets immediate feedback.
+    # - This enforces fail-fast semantics at the boundary.
+    #
+    # PHILOSOPHY (from CLAUDE.md):
+    # - data_unavailable dicts are for OPTIONAL ENRICHMENT at the LOADER-LEVEL (public outputs)
+    # - Example: load_value_metrics.py fetch_incremental() returns dict with data_unavailable=True
+    # - None returns in internal scoring helpers are appropriate because:
+    #   1. They are never exposed externally (only _compute_stock_score sees them)
+    #   2. They are explicitly handled by their sole caller (fail-fast enforcement)
+    #   3. Missing financial data is logged at WARNING level (high-priority data visibility)
+    #   4. Weight validation (line 244-259) prevents silent score degradation
+    #
+    # DECISION: Keep None returns in internal functions. They are part of a fail-fast
+    # public API that raises exceptions. Refactoring to data_unavailable dicts would
+    # add 50+ lines of boilerplate with zero operational benefit since all None returns
+    # are already explicitly handled and logged at appropriate levels.
+    # ====================================================
+
     def _get_quality_metrics(self, cur: Any, symbol: str) -> dict[str, Any] | None:
         """Fetch quality metrics for symbol.
 

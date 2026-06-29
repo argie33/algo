@@ -154,30 +154,34 @@ class PutCallRatioFetcher:
         # Default to transient for unknown errors (better to retry than silently fail)
         return True
 
-    def fetch(self, eval_date: date) -> float:
+    def fetch(self, eval_date: date) -> dict[str, Any] | float:
         """Fetch put/call ratio with exponential backoff retry and circuit breaker protection.
 
         Returns:
             float: Put/call ratio if successful
+            dict: With data_unavailable marker if fetch fails or data is invalid
+                {"data_unavailable": True, "reason": str, "eval_date": str}
 
-        Raises:
-            RuntimeError: If all retries exhausted or data unavailable
+        Per CLAUDE.md governance: Optional enrichment must return explicit data_unavailable
+        markers instead of raising exceptions, enabling graceful degradation.
         """
         # Attempt direct fetch with retries first (before circuit breaker check)
         result = self._fetch_with_retries(eval_date)
 
         if result is None:
-            raise RuntimeError(
-                f"[PUT_CALL_RATIO] {eval_date}: unable to fetch put/call ratio after {self.MAX_RETRIES} retries. "
-                f"Cannot compute market sentiment without options data."
-            )
+            return {
+                "data_unavailable": True,
+                "reason": "unable to fetch after retries",
+                "eval_date": str(eval_date),
+            }
 
         # Validate result type
         if not isinstance(result, float):
-            raise RuntimeError(
-                f"[PUT_CALL_RATIO] {eval_date}: fetch returned unexpected type {type(result).__name__}. "
-                f"Expected float, got {result!r}."
-            )
+            return {
+                "data_unavailable": True,
+                "reason": "invalid response type",
+                "eval_date": str(eval_date),
+            }
 
         return result
 
@@ -188,21 +192,20 @@ class PutCallRatioFetcher:
             float: Put/call ratio if successful
             None: If all retries exhausted
         """
-        last_exception = None
+        last_error_reason = "unknown error"
 
         for attempt in range(1, self.MAX_RETRIES + 1):
             try:
                 return self._fetch_put_call_ratio(eval_date)
             except Exception as e:
-                last_exception = e
                 is_transient = self._is_transient_error(e)
 
                 if not is_transient:
                     # Permanent error - don't retry
-                    logger.warning(
+                    last_error_reason = f"permanent {type(e).__name__}: {str(e)[:100]}"
+                    logger.error(
                         f"[PUT_CALL_RATIO] Permanent error on attempt {attempt}/{self.MAX_RETRIES} for {eval_date}: "
-                        f"{type(e).__name__}: {str(e)[:100]}. "
-                        f"Will not retry."
+                        f"{last_error_reason}. Will not retry."
                     )
                     return None
 
@@ -216,18 +219,17 @@ class PutCallRatioFetcher:
                     )
                     time.sleep(backoff)
                 else:
-                    logger.warning(
+                    last_error_reason = f"transient {type(e).__name__} after {self.MAX_RETRIES} retries"
+                    logger.error(
                         f"[PUT_CALL_RATIO] Transient error on attempt {attempt}/{self.MAX_RETRIES} for {eval_date}: "
-                        f"{type(e).__name__}: {str(e)[:100]}. "
-                        f"No retries remaining."
+                        f"{type(e).__name__}: {str(e)[:100]}. No retries remaining."
                     )
 
         # All retries exhausted
-        if last_exception:
-            logger.error(
-                f"[PUT_CALL_RATIO] All {self.MAX_RETRIES} retries failed for {eval_date}. "
-                f"Final error: {type(last_exception).__name__}: {str(last_exception)[:100]}"
-            )
+        logger.error(
+            f"[PUT_CALL_RATIO] All {self.MAX_RETRIES} retries failed for {eval_date}. "
+            f"Reason: {last_error_reason}"
+        )
         return None
 
     def _fetch_put_call_ratio(self, eval_date: date) -> float | None:
@@ -397,21 +399,20 @@ class YieldCurveFetcher:
             dict: Yield curve data if successful (may be empty dict if no data for period)
             None: If all retries exhausted
         """
-        last_exception = None
+        last_error_reason = "unknown error"
 
         for attempt in range(1, self.MAX_RETRIES + 1):
             try:
                 return self._fetch_yield_curve_data(start, end)
             except Exception as e:
-                last_exception = e
                 is_transient = self._is_transient_error(e)
 
                 if not is_transient:
                     # Permanent error - don't retry (e.g., no data available)
-                    logger.warning(
+                    last_error_reason = f"permanent {type(e).__name__}: {str(e)[:100]}"
+                    logger.error(
                         f"[YIELD_CURVE] Permanent error on attempt {attempt}/{self.MAX_RETRIES} for {start}:{end}: "
-                        f"{type(e).__name__}: {str(e)[:100]}. "
-                        f"Will not retry."
+                        f"{last_error_reason}. Will not retry."
                     )
                     return None
 
@@ -425,19 +426,17 @@ class YieldCurveFetcher:
                     )
                     time.sleep(backoff)
                 else:
-                    logger.warning(
+                    last_error_reason = f"transient {type(e).__name__} after {self.MAX_RETRIES} retries"
+                    logger.error(
                         f"[YIELD_CURVE] Transient error on attempt {attempt}/{self.MAX_RETRIES} for {start}:{end}: "
-                        f"{type(e).__name__}: {str(e)[:100]}. "
-                        f"No retries remaining."
+                        f"{type(e).__name__}: {str(e)[:100]}. No retries remaining."
                     )
 
         # All retries exhausted
-        if last_exception:
-            logger.critical(
-                f"[YIELD_CURVE] All {self.MAX_RETRIES} retries failed for {start}:{end}. "
-                f"Final error: {type(last_exception).__name__}: {str(last_exception)[:100]}. "
-                f"Yield curve enrichment unavailable."
-            )
+        logger.critical(
+            f"[YIELD_CURVE] All {self.MAX_RETRIES} retries failed for {start}:{end}. "
+            f"Reason: {last_error_reason}. Yield curve enrichment unavailable."
+        )
         return None
 
     def _fetch_yield_curve_data(self, start: date, end: date) -> dict[str, Any]:

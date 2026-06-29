@@ -190,11 +190,61 @@ After each fix:
 
 ---
 
+## CRITICAL NEW VIOLATIONS FOUND (2026-06-29)
+
+### GitHub Workflow Credential Bypass Risks
+
+These violations allow authentication to be silently bypassed:
+
+#### 1. `.github/workflows/deploy-code.yml:581` - DB Password Empty Default
+```python
+db_password = db_creds.get('password', '')
+```
+**Risk**: Missing DB password → authentication bypassed → connection fails silently
+**Fix**: `if 'password' not in db_creds: raise ValueError("[CRITICAL] DB password missing")`
+
+#### 2. `.github/workflows/deploy-code.yml:595-596` - Alpaca API Credentials Empty Default
+```python
+alpaca_api_key = alpaca_creds.get('api_key', '')
+alpaca_api_secret = alpaca_creds.get('api_secret', '')
+```
+**Risk**: Missing Alpaca credentials → trading connection fails → orders don't execute
+**Fix**: Validate both fields exist before proceeding
+
+#### 3. `.github/workflows/check-morning-prep-status.yml:83` - DB Password Empty Default
+```bash
+DB_PASSWORD=$(echo "$SECRET" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('password',''))")
+```
+**Risk**: Same as #1 but in different workflow
+**Fix**: Validate password before using
+
+#### 4. `.github/workflows/deploy-staging.yml:89-90` - AWS ARN Empty Defaults
+```python
+db_secret_arn = env_vars.get('DB_SECRET_ARN', '')
+algo_secrets_arn = env_vars.get('ALGO_SECRETS_ARN', '')
+```
+**Risk**: Lambda cannot find secrets → deployments fail silently
+**Fix**: Validate ARNs are configured before deployment
+
+---
+
 ## Next Steps
 
-1. Start with load_stock_scores.py (affects position sizing)
-2. Move to dashboard fetchers (affects display & decision-making)
-3. Work through remaining loaders systematically
-4. Update test suite to verify fail-fast behavior
-5. Add pre-commit hook to prevent new .get() fallbacks
+1. **IMMEDIATE**: Fix all 4 GitHub workflow credential violations
+2. **TODAY**: Run comprehensive audit of dashboard and API routes for similar patterns
+3. **THIS WEEK**: Fix all loader fail-fast violations identified in original audit
+4. **THIS WEEK**: Eliminate any faker/mock data patterns
+5. **POST-FIX**: Add pre-commit hook to prevent new `.get(credential, '')` patterns
+
+---
+
+## Audit Progress
+
+| Component | Status | Issues Found | Severity |
+|-----------|--------|--------------|----------|
+| GitHub Workflows | 🔴 CRITICAL | 4 violations | Credentials bypassed |
+| Loaders | 🟡 PARTIAL | ~80+ instances | Data degradation |
+| Dashboard | 🟡 PARTIAL | ~40+ instances | Display issues |
+| Lambda API | ⏳ TODO | TBD | Pending scan |
+| Algorithm | ⏳ TODO | TBD | Pending scan |
 

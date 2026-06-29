@@ -80,10 +80,10 @@ jobs:
             DB_USER="stocks"
           fi
 
-          DB_PASSWORD=$(echo "$SECRET" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('password',''))" 2>&1) || DB_PASSWORD=""
-          if [[ "$DB_PASSWORD" == *"Traceback"* ]] || [[ "$DB_PASSWORD" == *"JSONDecodeError"* ]]; then
-            echo "[ERROR] Failed to parse DB_PASSWORD from secret"
-            DB_PASSWORD=""
+          DB_PASSWORD=$(echo "$SECRET" | python3 -c "import sys,json; d=json.load(sys.stdin); p=d.get('password'); sys.exit(0 if p else 1); print(p)" 2>&1)
+          if [ $? -ne 0 ] || [ -z "$DB_PASSWORD" ]; then
+            echo "[CRITICAL] Database password missing or empty in Secrets Manager secret"
+            exit 1
           fi
 
           DB_NAME=$(echo "$SECRET" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('dbname','algo'))" 2>&1) || DB_NAME="algo"

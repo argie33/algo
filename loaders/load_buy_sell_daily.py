@@ -430,8 +430,8 @@ class SignalsDailyLoader(OptimalLoader):
                 )
                 row = cur.fetchone()
                 if row is None or len(row) < 1 or row[0] is None:
-                    logger.debug(
-                        f"[DATA_AGE] {symbol}: No data in {source_table} - data unavailable for age calculation"
+                    logger.warning(
+                        f"[DATA_AGE] {symbol}: No data in {source_table} - cannot calculate signal data freshness"
                     )
                     return None
                 max_date_val = row[0]
