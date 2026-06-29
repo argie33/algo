@@ -50,6 +50,36 @@ See **`steering/LINT_POLICY.md`** for lint/code-quality discipline.
 - **Pattern**: Optional loaders (AAII sentiment, stock scores, etc.) return dict with `data_unavailable` flag
 - **Implementation**: All 20+ loaders use explicit unavailability markers instead of None returns
 
+## Dashboard Data Access Pattern (Fail-Fast in UI Layer)
+
+**Dashboard panels** (render UI elements and display data):
+- ❌ **Never** use defensive `.get()` chains: `data.get("x", {}).get("y", 0)`
+- ✅ **Always** use error_boundary pattern:
+  ```python
+  from dashboard.error_boundary import has_error
+  from dashboard.panels.data_extractors import safe_extract, safe_get_dict, safe_get_list
+
+  def render_panel(data):
+      # 1. Check for error once at entry point
+      if has_error(data):
+          return error_panel(data)
+      
+      # 2. For critical fields, validate presence
+      result = safe_extract(data, "total", "symbols", defaults={"symbols": []})
+      total = result["total"]  # Guaranteed safe
+      
+      # 3. For optional fields, use safe accessors
+      scores = safe_get_dict(data.get("scores"))  # Returns None if missing, raises if error
+      if scores:
+          display_scores(scores)
+  ```
+- **Rationale**: Dashboard error_boundary pattern (check error once → direct access → optional accessors) prevents defensive `.get()` chains that hide missing data visibility
+- **Key Helpers**:
+  - `safe_extract()`: Validates required fields present or use defaults
+  - `safe_get_dict()`, `safe_get_list()`: For optional nested data (returns None if missing, raises if corrupted)
+- **Pre-Commit Guard**: `check-dashboard-get-pattern.py` flags functions with 5+ `.get()` calls without `has_error()` check
+- **Location**: `dashboard/panels/data_extractors.py` has complete pattern implementation
+
 ## Logging Discipline (Missing Data Visibility)
 
 **Financial data** missing (HIGH priority):
