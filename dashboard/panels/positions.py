@@ -78,10 +78,19 @@ from ..utilities import (
     description="Positions",
 )
 def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extended: bool = False) -> Any:
-    """Display open positions table. Normalizes input from {"items": [...]} format."""
+    """Display open positions table. Normalizes input from {"items": [...]} format.
+
+    Data Contract:
+    - Expects pos as dict with {"items": [position_dicts]} or list of positions
+    - Error handling via "_error" field (hard errors)
+    - Optional data unavailability via "_data_unavailable" flag (graceful degradation)
+    - Each position dict requires: symbol, current_price, avg_entry_price, position_value
+    - Optional fields: weinstein_stage, swing_score, sector, company_name/name
+    """
     # Issue 3.1 FIX: Use unified normalization function
     pos_items, pos_timestamp, has_err = normalize_positions_data(pos)
     if has_err:
+        # Hard error: data layer returned explicit error marker
         err_msg = pos.get("_error") if isinstance(pos, dict) else None
         if err_msg is None:
             raise RuntimeError(
@@ -104,11 +113,15 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
             padding=(0, 1),
         )
 
-    is_placeholder = isinstance(pos, dict) and pos.get("_data_unavailable", False)
-    if is_placeholder:
+    # Check for graceful degradation: optional data unavailability marker
+    is_data_unavailable = isinstance(pos, dict) and pos.get("_data_unavailable", False)
+    if is_data_unavailable:
+        # Optional data marked unavailable by loader (e.g., missing enrichment)
+        reason = pos.get("reason", "unknown reason")
+        logger.warning(f"Positions data marked unavailable: {reason}")
         return Panel(
-            Text.from_markup("[red]✗ POSITIONS DATA UNAVAILABLE[/]\nCannot display real position data — API or data layer error. Check logs."),
-            title="[bold red]POSITIONS (DATA ERROR)[/]",
+            Text.from_markup("[red]✗ POSITIONS DATA UNAVAILABLE[/]\nOptional position enrichment unavailable. Check logs for details."),
+            title="[bold red]POSITIONS (DATA UNAVAILABLE)[/]",
             border_style="red",
             padding=(0, 1),
         )
@@ -139,25 +152,44 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
         t.add_column("Sector", style="dim", no_wrap=True, max_width=12)
     invalid_count = 0
     for p in pos_items:
+        # Validate position dict structure
         if not isinstance(p, dict):
             invalid_count += 1
             logger.error(f"panel_positions: invalid position (not a dict): {type(p).__name__}")
             continue
+
+        # Extract and validate critical fields (required for display)
+        symbol = p.get("symbol")
+        if not symbol:
+            invalid_count += 1
+            logger.error("panel_positions: position missing required 'symbol' field")
+            continue
+
+        # Extract numeric fields (high-priority data)
         entry = safe_float(p.get("avg_entry_price"), default=None)
         price = safe_float(p.get("current_price"), default=None)
         pval = safe_float(p.get("position_value"), default=None)
         stop = safe_float(p.get("stop_loss_price"), default=None)
         pnl = safe_float(p.get("unrealized_pnl_pct"), default=None)
+
+        # Log if critical numeric fields are missing
+        if entry is None:
+            logger.debug(f"panel_positions[{symbol}]: missing avg_entry_price")
+        if price is None:
+            logger.debug(f"panel_positions[{symbol}]: missing current_price")
+        if pval is None:
+            logger.debug(f"panel_positions[{symbol}]: missing position_value")
+
+        # Extract optional enrichment fields (low-priority data)
         days = p.get("days_since_entry", "--")
-        stg = p.get("weinstein_stage")
-        swg = p.get("swing_score")
-        sec = (p.get("sector", "--"))[:12]
-        rmul = safe_float(p.get("r_multiple"), default=None)
-        dist = safe_float(p.get("distance_to_stop_pct"), default=None)
-        t1pct = safe_float(p.get("distance_to_t1_pct"), default=None)
-        pc = G if (pnl is not None and pnl >= 0) else R
-        rc = G if (rmul is not None and rmul >= 0) else R
-        dc = R if (dist is not None and dist < 3) else (Y if (dist is not None and dist < 5) else "white")
+        stg = p.get("weinstein_stage")  # Optional: Weinstein stage (may be unavailable)
+        swg = p.get("swing_score")  # Optional: swing score (may be unavailable)
+        sec = (p.get("sector") or "--")[:12]  # Optional: sector enrichment
+        rmul = safe_float(p.get("r_multiple"), default=None)  # Optional: risk multiple
+        dist = safe_float(p.get("distance_to_stop_pct"), default=None)  # Optional: distance metric
+        t1pct = safe_float(p.get("distance_to_t1_pct"), default=None)  # Optional: target distance
+
+        # Extract display name (either company_name or generic name field)
         company_name_val = p.get("company_name", "")
         name_val = p.get("name", "")
         if company_name_val:
@@ -167,8 +199,15 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
         else:
             name = ""
         name = name[:16]
+
+        # Determine row styling based on metrics
+        pc = G if (pnl is not None and pnl >= 0) else R
+        rc = G if (rmul is not None and rmul >= 0) else R
+        dc = R if (dist is not None and dist < 3) else (Y if (dist is not None and dist < 5) else "white")
+
+        # Build table row
         row = [
-            p.get("symbol", "--"),
+            symbol,
             Text(name, style="dim"),
             fmt_money_short(pval) if pval is not None else "--",
             f"${entry:.2f}" if entry is not None else "--",

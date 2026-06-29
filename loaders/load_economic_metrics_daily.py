@@ -48,7 +48,10 @@ class EconomicMetricsDailyLoader(OptimalLoader):
     def fetch_global(self, since: date | None) -> list[dict[str, Any]] | None:  # noqa: C901
         """Compute daily economic metrics from source data.
 
-        Metrics:
+        All metrics are CRITICAL—function raises RuntimeError if any metric unavailable.
+        No partial/degraded mode, no silent returns.
+
+        Metrics (REQUIRED):
         - cpi_yoy_pct: Year-over-year CPI change (%)
         - spy_price_change_pct: SPY daily price change (%)
         - yield_curve_slope_10y2y: 10Y - 2Y yield spread
@@ -58,166 +61,233 @@ class EconomicMetricsDailyLoader(OptimalLoader):
             report_date = now_et.date()
 
             with DatabaseContext("read") as cur:
-                # 1. Compute CPI YoY
-                cpi_yoy = None
-                cpi_error = None
-                try:
-                    cur.execute("""
-                        SELECT value FROM economic_data
-                        WHERE series_id='CPIAUCSL'
-                        ORDER BY date DESC LIMIT 1
-                    """)
-                    cpi_cur_row = cur.fetchone()
-                    if cpi_cur_row is None:
-                        cpi_error = "no_current_cpi_data"
-                        cpi_cur = None
-                    else:
-                        cpi_val = cpi_cur_row.get("value")
-                        cpi_cur = float(cpi_val) if cpi_val is not None else None
+                # 1. Compute CPI YoY (CRITICAL: inflation environment)
+                cpi_yoy = self._compute_cpi_yoy(cur)
 
-                    if cpi_cur is not None:
-                        # Get CPI from 1 year ago
-                        cur.execute("""
-                            SELECT value FROM economic_data
-                            WHERE series_id='CPIAUCSL'
-                              AND date <= CURRENT_DATE - 365
-                            ORDER BY date DESC LIMIT 1
-                        """)
-                        cpi_yoy_row = cur.fetchone()
-                        if cpi_yoy_row is None:
-                            cpi_error = "no_historical_cpi_data"
-                            cpi_prev = None
-                        else:
-                            cpi_prev_val = cpi_yoy_row.get("value")
-                            cpi_prev = float(cpi_prev_val) if cpi_prev_val is not None else None
+                # 2. Compute SPY daily price change (CRITICAL: market regime)
+                spy_price_change = self._compute_spy_price_change(cur)
 
-                        if cpi_prev is not None and cpi_prev > 0:
-                            cpi_yoy = round((cpi_cur - cpi_prev) / cpi_prev * 100, 2)
-                        elif cpi_prev == 0:
-                            cpi_error = "prev_cpi_zero"
-                    else:
-                        cpi_error = "no_current_cpi"
-                except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                    cpi_error = f"cpi_error:{type(e).__name__}"
-                    raise RuntimeError(
-                        f"[ECONOMIC_METRICS] CPI YoY calculation failed: {e}. "
-                        "CPI is critical for market regime detection and cannot be skipped."
-                    ) from e
-
-                # 2. Compute SPY daily price change
-                spy_price_change = None
-                spy_error = None
-                try:
-                    cur.execute("""
-                        SELECT close, date FROM price_daily
-                        WHERE symbol='SPY'
-                        ORDER BY date DESC LIMIT 2
-                    """)
-                    spy_rows = cur.fetchall()
-                    if spy_rows is None:
-                        spy_rows = []
-
-                    if len(spy_rows) >= 2:
-                        cur_close = spy_rows[0].get("close")
-                        prev_close = spy_rows[1].get("close")
-
-                        if cur_close is None or prev_close is None:
-                            spy_error = f"null_prices:cur={cur_close},prev={prev_close}"
-                        else:
-                            cur_price = float(cur_close)
-                            prev_price = float(prev_close)
-
-                            if prev_price <= 0:
-                                spy_error = f"invalid_prev_price:{prev_price}"
-                            else:
-                                spy_price_change = round((cur_price - prev_price) / prev_price * 100, 2)
-                    else:
-                        spy_error = f"insufficient_data:{len(spy_rows)}"
-                except (ValueError, ZeroDivisionError, TypeError) as e:
-                    spy_error = f"spy_error:{type(e).__name__}"
-                    raise RuntimeError(
-                        f"[ECONOMIC_METRICS] SPY price change calculation failed: {e}. "
-                        "SPY price data is critical for market regime detection and cannot be skipped."
-                    ) from e
-
-                # 3. Compute yield curve slope (10Y - 2Y)
-                ycs_10y2y = None
-                ycs_error = None
-                try:
-                    cur.execute("""
-                        SELECT DISTINCT ON (series_id) series_id, value FROM economic_data
-                        WHERE series_id IN ('DGS10', 'DGS2')
-                        ORDER BY series_id, date DESC
-                    """)
-                    ycs_rows = cur.fetchall()
-                    if ycs_rows is None:
-                        raise RuntimeError(
-                            "Yield curve spread query returned None—database error or connection lost. "
-                            "Cannot compute economic metrics without yield curve data."
-                        )
-
-                    # Each series_id appears once (most recent date)
-                    dgs10 = None
-                    dgs2 = None
-                    for row in ycs_rows:
-                        if row.get("series_id") == "DGS10":
-                            val = row.get("value")
-                            dgs10 = float(val) if val is not None else None
-                        elif row.get("series_id") == "DGS2":
-                            val = row.get("value")
-                            dgs2 = float(val) if val is not None else None
-
-                    if dgs10 is not None and dgs2 is not None:
-                        ycs_10y2y = round(dgs10 - dgs2, 3)
-                    else:
-                        ycs_error = f"missing_data:DGS10={dgs10},DGS2={dgs2}"
-                except (ValueError, ZeroDivisionError, TypeError) as e:
-                    ycs_error = f"ycs_error:{type(e).__name__}"
-                    raise RuntimeError(
-                        f"[ECONOMIC_METRICS] Yield curve slope calculation failed: {e}. "
-                        "Yield curve data is critical for market regime detection and cannot be skipped."
-                    ) from e
-
-                # Yield curve slope is CRITICAL for market regime detection
-                if ycs_10y2y is None:
-                    raise RuntimeError(
-                        f"[ECONOMIC_METRICS] Yield curve slope unavailable ({ycs_error}). "
-                        "Yield curve is critical for market regime detection and cannot be skipped."
-                    )
-
-                # CPI is CRITICAL for understanding inflation environment
-                if cpi_yoy is None:
-                    raise RuntimeError(
-                        f"[ECONOMIC_METRICS] CPI YoY unavailable ({cpi_error}). "
-                        "CPI is critical for understanding inflation and cost of capital."
-                    )
-
-                # SPY price change is CRITICAL for market regime detection
-                if spy_price_change is None:
-                    raise RuntimeError(
-                        f"[ECONOMIC_METRICS] SPY price change unavailable ({spy_error}). "
-                        "SPY daily change is critical for market regime classification and cannot be skipped. "
-                        "Ensure SPY prices are loaded in price_daily before computing economic metrics."
-                    )
+                # 3. Compute yield curve slope (CRITICAL: market regime)
+                ycs_10y2y = self._compute_yield_curve_slope(cur)
 
                 result = {
                     "report_date": report_date,
                     "cpi_yoy_pct": cpi_yoy,
-                    "cpi_yoy_error": cpi_error,
                     "spy_price_change_pct": spy_price_change,
-                    "spy_price_change_error": spy_error,
                     "yield_curve_slope_10y2y": ycs_10y2y,
-                    "yield_curve_slope_error": ycs_error,
                     "updated_at": datetime.now(ET),
                 }
 
-                logger.info(f"Economic metrics: CPI_YoY={cpi_yoy}% SPY_chg={spy_price_change}% YCS={ycs_10y2y}")
+                logger.info(
+                    f"Economic metrics: CPI_YoY={cpi_yoy}% SPY_chg={spy_price_change}% YCS={ycs_10y2y}"
+                )
 
                 return [result]
 
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(
                 f"[ECONOMIC_METRICS] Failed to compute daily metrics: {e}. Cannot proceed without macro indicators."
+            ) from e
+
+    def _compute_cpi_yoy(self, cur: Any) -> float:
+        """Compute CPI year-over-year percentage change (CRITICAL metric).
+
+        Raises RuntimeError if CPI data unavailable—this is a critical market regime indicator.
+        """
+        try:
+            # Get current CPI value
+            cur.execute("""
+                SELECT value FROM economic_data
+                WHERE series_id = 'CPIAUCSL'
+                ORDER BY date DESC LIMIT 1
+            """)
+            cpi_cur_row = cur.fetchone()
+            if cpi_cur_row is None:
+                raise RuntimeError(
+                    "[ECONOMIC_METRICS] Current CPI data not found. "
+                    "Ensure CPIAUCSL series is loaded in economic_data table."
+                )
+
+            # Validate row structure and extract value
+            if "value" not in cpi_cur_row:
+                raise RuntimeError(
+                    "[ECONOMIC_METRICS] CPI row missing 'value' column from economic_data query."
+                )
+            cpi_cur_val = cpi_cur_row["value"]
+            if cpi_cur_val is None:
+                raise RuntimeError(
+                    "[ECONOMIC_METRICS] Current CPI value is NULL in database."
+                )
+            cpi_cur = float(cpi_cur_val)
+
+            # Get CPI from 1 year ago
+            cur.execute("""
+                SELECT value FROM economic_data
+                WHERE series_id = 'CPIAUCSL'
+                  AND date <= CURRENT_DATE - 365
+                ORDER BY date DESC LIMIT 1
+            """)
+            cpi_prev_row = cur.fetchone()
+            if cpi_prev_row is None:
+                raise RuntimeError(
+                    "[ECONOMIC_METRICS] Historical CPI data (1 year ago) not found. "
+                    "Insufficient price history for YoY calculation."
+                )
+
+            # Validate row structure and extract value
+            if "value" not in cpi_prev_row:
+                raise RuntimeError(
+                    "[ECONOMIC_METRICS] Historical CPI row missing 'value' column."
+                )
+            cpi_prev_val = cpi_prev_row["value"]
+            if cpi_prev_val is None:
+                raise RuntimeError(
+                    "[ECONOMIC_METRICS] Historical CPI value is NULL in database."
+                )
+            cpi_prev = float(cpi_prev_val)
+
+            # Validate divisor
+            if cpi_prev <= 0:
+                raise RuntimeError(
+                    f"[ECONOMIC_METRICS] Invalid historical CPI value for YoY calc: {cpi_prev}. "
+                    "CPI values must be positive."
+                )
+
+            return round((cpi_cur - cpi_prev) / cpi_prev * 100, 2)
+
+        except (ValueError, TypeError) as e:
+            raise RuntimeError(
+                f"[ECONOMIC_METRICS] CPI YoY calculation failed: {e}. "
+                "Ensure CPI values are numeric in economic_data table."
+            ) from e
+
+    def _compute_spy_price_change(self, cur: Any) -> float:
+        """Compute SPY daily price change percentage (CRITICAL metric).
+
+        Requires 2 most recent trading days. Raises RuntimeError if unavailable.
+        """
+        try:
+            cur.execute("""
+                SELECT close, date FROM price_daily
+                WHERE symbol = 'SPY'
+                ORDER BY date DESC LIMIT 2
+            """)
+            spy_rows = cur.fetchall()
+
+            if spy_rows is None or len(spy_rows) < 2:
+                raise RuntimeError(
+                    f"[ECONOMIC_METRICS] Insufficient SPY price data. "
+                    f"Need 2 days, found {len(spy_rows) if spy_rows else 0}. "
+                    "Ensure SPY is loaded in price_daily before computing economic metrics."
+                )
+
+            # Validate row structure for most recent close
+            if "close" not in spy_rows[0]:
+                raise RuntimeError(
+                    "[ECONOMIC_METRICS] SPY row missing 'close' column from price_daily query."
+                )
+            cur_close = spy_rows[0]["close"]
+            if cur_close is None:
+                raise RuntimeError(
+                    "[ECONOMIC_METRICS] Current SPY close price is NULL in database."
+                )
+
+            # Validate row structure for previous close
+            if "close" not in spy_rows[1]:
+                raise RuntimeError(
+                    "[ECONOMIC_METRICS] SPY historical row missing 'close' column."
+                )
+            prev_close = spy_rows[1]["close"]
+            if prev_close is None:
+                raise RuntimeError(
+                    "[ECONOMIC_METRICS] Previous SPY close price is NULL in database."
+                )
+
+            # Convert and validate
+            cur_price = float(cur_close)
+            prev_price = float(prev_close)
+
+            if prev_price <= 0:
+                raise RuntimeError(
+                    f"[ECONOMIC_METRICS] Invalid previous SPY price: {prev_price}. "
+                    "SPY prices must be positive."
+                )
+
+            return round((cur_price - prev_price) / prev_price * 100, 2)
+
+        except (ValueError, TypeError) as e:
+            raise RuntimeError(
+                f"[ECONOMIC_METRICS] SPY price change calculation failed: {e}. "
+                "Ensure SPY prices are numeric in price_daily table."
+            ) from e
+
+    def _compute_yield_curve_slope(self, cur: Any) -> float:
+        """Compute yield curve slope: 10Y - 2Y spread (CRITICAL metric).
+
+        Raises RuntimeError if either yield rate unavailable.
+        """
+        try:
+            cur.execute("""
+                SELECT DISTINCT ON (series_id) series_id, value FROM economic_data
+                WHERE series_id IN ('DGS10', 'DGS2')
+                ORDER BY series_id, date DESC
+            """)
+            ycs_rows = cur.fetchall()
+
+            if ycs_rows is None:
+                raise RuntimeError(
+                    "[ECONOMIC_METRICS] Yield curve query returned None—database error or connection lost."
+                )
+
+            # Extract yields by series_id
+            dgs10 = None
+            dgs2 = None
+            for row in ycs_rows:
+                # Validate row structure
+                if "series_id" not in row or "value" not in row:
+                    raise RuntimeError(
+                        "[ECONOMIC_METRICS] Yield curve row missing 'series_id' or 'value' columns."
+                    )
+
+                series_id = row["series_id"]
+                val = row["value"]
+
+                if val is None:
+                    raise RuntimeError(
+                        f"[ECONOMIC_METRICS] Yield curve value for {series_id} is NULL in database."
+                    )
+
+                try:
+                    val_float = float(val)
+                except (ValueError, TypeError) as e:
+                    raise RuntimeError(
+                        f"[ECONOMIC_METRICS] Invalid yield value for {series_id}: {val}. "
+                        "Yield values must be numeric."
+                    ) from e
+
+                if series_id == "DGS10":
+                    dgs10 = val_float
+                elif series_id == "DGS2":
+                    dgs2 = val_float
+
+            # Validate both yields present
+            if dgs10 is None:
+                raise RuntimeError(
+                    "[ECONOMIC_METRICS] 10-year yield (DGS10) not found in economic_data. "
+                    "Ensure DGS10 series is loaded."
+                )
+            if dgs2 is None:
+                raise RuntimeError(
+                    "[ECONOMIC_METRICS] 2-year yield (DGS2) not found in economic_data. "
+                    "Ensure DGS2 series is loaded."
+                )
+
+            return round(dgs10 - dgs2, 3)
+
+        except (ValueError, TypeError) as e:
+            raise RuntimeError(
+                f"[ECONOMIC_METRICS] Yield curve slope calculation failed: {e}. "
+                "Ensure yield values are numeric in economic_data table."
             ) from e
 
 
