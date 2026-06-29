@@ -54,7 +54,8 @@ class OrchestratorPhaseExecutor:
         self.phases: dict[int | str, PhaseDefinition] = {}
         self.phase_results: dict[int | str, PhaseResult] = {}
         self.execution_order: list[int | str] = []
-        self.skip_phases = set(skip_phases or [])
+        # CRITICAL: Explicit None check for skip_phases (not or [])
+        self.skip_phases = set(skip_phases) if skip_phases is not None else set()
 
     def register_phase(self, definition: PhaseDefinition) -> None:
         """Register a phase for execution.

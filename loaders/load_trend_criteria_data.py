@@ -110,15 +110,13 @@ class TrendCriteriaLoader(OptimalLoader):
             start = since - timedelta(days=300)
 
         rows = self._fetch_price_daily(symbol, start, end)
-        # Require at least 20 days of price data for trend analysis
-        # Shorter history means insufficient lookback for reliable trend detection
+        # CRITICAL: Fail fast if insufficient data. Require at least 20 days for trend analysis
         if not rows or len(rows) < 20:
-            logger.info(
+            raise RuntimeError(
                 f"[TrendCriteria] {symbol}: Insufficient price data ({len(rows) if rows else 0} rows, need >= 20). "
-                f"Trend criteria unavailable — require 20+ trading days for reliable analysis."
+                f"Cannot compute trend criteria with < 20 trading days. "
+                f"Check price_daily loader and market calendar configuration."
             )
-            # Return explicit marker instead of empty list (which looks like "no trends found")
-            return [{"symbol": symbol, "data_unavailable": True, "reason": "Insufficient price history (< 20 days)"}]
 
         results = self._compute_trend_criteria(symbol, rows)
         if since is not None:

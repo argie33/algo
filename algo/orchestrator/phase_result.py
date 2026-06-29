@@ -33,10 +33,10 @@ class PhaseResult:
         self.phase_num = phase_num or phase_number
         self.phase_name = phase_name
         self.status = status
-        self.data = data or {}
+        self.data = data if data is not None else {}
         self.halted = is_error if is_error is not None else halted
         self.error = error
-        self.dependencies = dependencies or []
+        self.dependencies = dependencies if dependencies is not None else []
 
     # Support accessing phase_number as an alias for phase_num
     @property
