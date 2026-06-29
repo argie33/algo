@@ -31,15 +31,15 @@ def fetch_financial_data_from_source(
         symbol: Optional symbol for logging context
 
     Returns:
-        List of dicts with "date" and "value" keys, or empty list if fetch fails
+        List of dicts with "date" and "value" keys, or explicit data_unavailable marker
     """
     try:
         logger.info(f"[{source_name}] Fetching data{' for ' + symbol if symbol else ''}...")
         raw_data = fetch_func()
 
         if raw_data is None or (isinstance(raw_data, (list, dict)) and len(raw_data) == 0):
-            logger.debug(f"[{source_name}] Returned no data{' for ' + symbol if symbol else ''}")
-            return []
+            logger.warning(f"[{source_name}] Returned no data{' for ' + symbol if symbol else ''}")
+            return [{"data_unavailable": True, "reason": f"{source_name}_returned_empty_data"}]
 
         rows = parse_func(raw_data)
 
@@ -58,17 +58,17 @@ def fetch_financial_data_from_source(
             f"[CRITICAL] {source_name} fetch failed: required library not available: {e}. "
             f"Dependency error, not a transient API failure."
         )
-        return []
+        return [{"data_unavailable": True, "reason": f"import_error: {str(e)[:50]}"}]
     except Exception as e:
         logger.warning(f"[{source_name}] Failed to fetch{' for ' + symbol if symbol else ''}: {e}")
-        return []
+        return [{"data_unavailable": True, "reason": f"{source_name}_fetch_error: {str(e)[:50]}"}]
 
 
 def fetch_dxy_from_iex() -> list[dict[str, Any]]:
     """Fetch ICE DXY from IEX Cloud API with retry logic for transient errors.
 
     Returns:
-        list: [{"date": "2026-06-29", "value": 101.13}, ...] or empty list if unavailable
+        list: [{"date": "2026-06-29", "value": 101.13}, ...] or data_unavailable marker
     """
     import requests
 
@@ -76,8 +76,8 @@ def fetch_dxy_from_iex() -> list[dict[str, Any]]:
 
     iex_key = get_api_key("algo/iex_cloud", "IEX_API_KEY", required=False)
     if not iex_key:
-        logger.debug("[IEX] API key not configured")
-        return []
+        logger.warning("[IEX] DXY API key not configured")
+        return [{"data_unavailable": True, "reason": "iex_api_key_not_configured"}]
 
     url = "https://cloud.iexapis.com/stable/stock/DXY/chart/1y"
     max_retries = 4
@@ -103,14 +103,14 @@ def fetch_dxy_from_iex() -> list[dict[str, Any]]:
                     logger.error(
                         f"[IEX] DXY fetch failed after {max_retries} retries on {resp.status_code}: {resp.reason}"
                     )
-                    return []
+                    return [{"data_unavailable": True, "reason": f"iex_http_error_{resp.status_code}"}]
 
             resp.raise_for_status()
 
             data = resp.json()
             if not data or not isinstance(data, list):
                 logger.warning("[IEX] DXY API returned empty data")
-                return []
+                return [{"data_unavailable": True, "reason": "iex_returned_empty_data"}]
 
             rows = []
             for item in data:
@@ -133,7 +133,7 @@ def fetch_dxy_from_iex() -> list[dict[str, Any]]:
                 continue
             else:
                 logger.error(f"[IEX] DXY fetch timeout after {max_retries} retries")
-                return []
+                return [{"data_unavailable": True, "reason": "iex_timeout"}]
         except requests.exceptions.ConnectionError as e:
             if attempt < max_retries - 1:
                 wait_time = base_delay * (2**attempt) + random.uniform(0, 1)
@@ -145,16 +145,16 @@ def fetch_dxy_from_iex() -> list[dict[str, Any]]:
                 continue
             else:
                 logger.error(f"[IEX] DXY fetch connection error after {max_retries} retries: {e}")
-                return []
+                return [{"data_unavailable": True, "reason": "iex_connection_error"}]
         except requests.exceptions.HTTPError as e:
             logger.error(f"[IEX] DXY fetch HTTP error: {e}")
-            return []
+            return [{"data_unavailable": True, "reason": f"iex_http_error: {str(e)[:30]}"}]
         except Exception as e:
             logger.error(f"[IEX] DXY fetch failed unexpectedly: {e}")
-            return []
+            return [{"data_unavailable": True, "reason": f"iex_unexpected_error: {str(e)[:30]}"}]
 
     logger.error("[IEX] DXY fetch exhausted all retries")
-    return []
+    return [{"data_unavailable": True, "reason": "iex_exhausted_retries"}]
 
 
 def fetch_dxy_from_yahoo() -> list[dict[str, Any]]:
@@ -163,7 +163,7 @@ def fetch_dxy_from_yahoo() -> list[dict[str, Any]]:
     NOTE: As of 2026-06-29, Yahoo Finance's ^DXY ticker is unavailable ("possibly delisted").
 
     Returns:
-        list: [{"date": "2026-06-29", "value": 101.13}, ...] or empty list if unavailable
+        list: [{"date": "2026-06-29", "value": 101.13}, ...] or data_unavailable marker
     """
     import yfinance as yf
 
@@ -173,7 +173,8 @@ def fetch_dxy_from_yahoo() -> list[dict[str, Any]]:
     dxy = yf.download("^DXY", start=start_date, end=end_date, progress=False)
 
     if dxy is None or len(dxy) == 0:
-        return []
+        logger.warning("[Yahoo] DXY data unavailable (ticker possibly delisted)")
+        return [{"data_unavailable": True, "reason": "yahoo_dxy_unavailable"}]
 
     rows = []
     for idx, row in dxy.iterrows():
