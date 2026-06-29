@@ -203,10 +203,16 @@ class FetcherValidator:
         if max_age_seconds is not None and timestamp_field:
             # Timestamp field MUST be present and non-None when freshness validation is enabled
             if timestamp_field not in response:
-                return False, f"{source_name}: Freshness validation enabled but required timestamp field '{timestamp_field}' is missing"
+                return (
+                    False,
+                    f"{source_name}: Freshness validation enabled but required timestamp field '{timestamp_field}' is missing",
+                )
             timestamp = response[timestamp_field]  # Explicit access
             if timestamp is None:
-                return False, f"{source_name}: Freshness validation enabled but timestamp field '{timestamp_field}' is None"
+                return (
+                    False,
+                    f"{source_name}: Freshness validation enabled but timestamp field '{timestamp_field}' is None",
+                )
             fresh, error_msg = FetcherValidator.check_freshness(timestamp, max_age_seconds)
             if not fresh:
                 return False, error_msg

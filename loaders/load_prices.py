@@ -714,7 +714,9 @@ class PriceLoader(OptimalLoader):
             is_rate_limit = "429" in last_error_lower or "too many" in last_error_lower or "rate" in last_error_lower
             root_cause = "yfinance rate limiting" if is_rate_limit else "yfinance API lag/unavailability"
         else:
-            logger.warning(f"[{self._correlation_id}] last_error_msg is None - cannot determine root cause for market close timeout")
+            logger.warning(
+                f"[{self._correlation_id}] last_error_msg is None - cannot determine root cause for market close timeout"
+            )
             root_cause = "unknown error (no message provided)"
 
         error_msg = (
@@ -953,8 +955,7 @@ class PriceLoader(OptimalLoader):
             metrics.flush()
         except Exception as metric_err:
             logger.warning(
-                "[AUDIT_TRAIL] Could not publish rate limit metric: %s. "
-                "This breaks audit trail.",
+                "[AUDIT_TRAIL] Could not publish rate limit metric: %s. This breaks audit trail.",
                 metric_err,
             )
 
@@ -1027,8 +1028,7 @@ class PriceLoader(OptimalLoader):
                 # CRITICAL: No results returned for chunk - this is a failure
                 failed_chunks.append(chunk)
                 logger.error(
-                    f"[RATE_LIMIT] Chunk {chunk[:5]} returned None results. "
-                    f"Cannot proceed with incomplete price data."
+                    f"[RATE_LIMIT] Chunk {chunk[:5]} returned None results. Cannot proceed with incomplete price data."
                 )
             else:
                 results.update(chunk_results)
@@ -1534,7 +1534,7 @@ class PriceLoader(OptimalLoader):
         if failed_batches:
             failed_count = sum(len(batch) for batch, _ in failed_batches)
             batch_summary = "; ".join(
-                f"Batch {i+1}: {len(b)} symbols, error={err}" for i, (b, err) in enumerate(failed_batches[:5])
+                f"Batch {i + 1}: {len(b)} symbols, error={err}" for i, (b, err) in enumerate(failed_batches[:5])
             )
             if len(failed_batches) > 5:
                 batch_summary += f"; ... and {len(failed_batches) - 5} more batches failed"
@@ -1615,8 +1615,7 @@ class PriceLoader(OptimalLoader):
                 m.flush()
             except Exception as metric_err:
                 logger.warning(
-                    "[AUDIT_TRAIL] Could not publish timeout metric: %s. "
-                    "This breaks audit trail.",
+                    "[AUDIT_TRAIL] Could not publish timeout metric: %s. This breaks audit trail.",
                     metric_err,
                 )
 
@@ -1673,8 +1672,7 @@ class PriceLoader(OptimalLoader):
                 m.flush()
             except (ValueError, ZeroDivisionError, TypeError) as metric_err:
                 logger.warning(
-                    "[AUDIT_TRAIL] Could not publish circuit breaker metric: %s. "
-                    "This breaks audit trail.",
+                    "[AUDIT_TRAIL] Could not publish circuit breaker metric: %s. This breaks audit trail.",
                     metric_err,
                 )
 
@@ -1768,7 +1766,9 @@ class PriceLoader(OptimalLoader):
                 raise RuntimeError(f"[{self.table_name}] Load stats incomplete: 'symbols_total' not tracked.")
             symbols_total = self._stats["symbols_total"]
             if not isinstance(symbols_total, int):
-                raise RuntimeError(f"[{self.table_name}] Load stats corrupt: 'symbols_total' is {type(symbols_total).__name__}, expected int")
+                raise RuntimeError(
+                    f"[{self.table_name}] Load stats corrupt: 'symbols_total' is {type(symbols_total).__name__}, expected int"
+                )
             symbols_expected = symbols_total
             if "symbols_processed" not in self._stats:
                 raise RuntimeError(f"[{self.table_name}] Load stats incomplete: 'symbols_processed' not tracked.")
@@ -1796,7 +1796,9 @@ class PriceLoader(OptimalLoader):
                 raise RuntimeError(f"[{self.table_name}] Load stats incomplete: 'start_time' not tracked.")
             start_time = self._stats["start_time"]
             if start_time is None:
-                raise RuntimeError(f"[{self.table_name}] Load stats corrupt: 'start_time' is None, cannot record execution time.")
+                raise RuntimeError(
+                    f"[{self.table_name}] Load stats corrupt: 'start_time' is None, cannot record execution time."
+                )
 
             with DatabaseContext("write") as cur:
                 cur.execute(
@@ -2268,7 +2270,9 @@ def main() -> int:
             )
             row = _cur.fetchone()
             if row is None:
-                raise RuntimeError("[CRITICAL] Advisory lock query returned no rows - database connection may be corrupted")
+                raise RuntimeError(
+                    "[CRITICAL] Advisory lock query returned no rows - database connection may be corrupted"
+                )
             acquired = row[0]
         if not acquired:
             logger.warning("[MAIN] Skipping: another stock_prices_daily instance already running (advisory lock held)")

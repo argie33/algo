@@ -44,7 +44,7 @@ def check_get_patterns_with_defaults(filepath: str) -> list[str]:
     problem_patterns = [
         (r'\.get\s*\(\s*["\'][\w_]+["\']\s*,\s*0(?:\.\d+)?\s*\)', "numeric default (hides missing price data)"),
         (r'\.get\s*\(\s*["\'][\w_]+["\']\s*,\s*\{\s*\}\s*\)', "dict default (hides missing record)"),
-        (r'\.get\s*\(\s*["\'][\w_]+["\']\s*,\s*""\s*\)', 'empty string default (hides missing data)'),
+        (r'\.get\s*\(\s*["\'][\w_]+["\']\s*,\s*""\s*\)', "empty string default (hides missing data)"),
     ]
 
     for i, line in enumerate(lines, 1):

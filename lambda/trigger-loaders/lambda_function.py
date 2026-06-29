@@ -53,14 +53,14 @@ class TriggerLoadersHandler(LambdaHandler):
                         return (
                             False,
                             f"Metric loader {table_name} status unclear (completion_pct is NULL). "
-                            f"Wait for loader to complete before triggering stock_scores."
+                            f"Wait for loader to complete before triggering stock_scores.",
                         )
 
                     if completion_pct < min_coverage_pct:
                         return (
                             False,
                             f"Metric loader {table_name} only {completion_pct:.1f}% complete. "
-                            f"Wait for >= {min_coverage_pct}% completion before triggering stock_scores."
+                            f"Wait for >= {min_coverage_pct}% completion before triggering stock_scores.",
                         )
 
             return True, ""
@@ -78,7 +78,9 @@ class TriggerLoadersHandler(LambdaHandler):
         loader_name = event.get("loader_name")
         if not loader_name:
             path_params = event.get("pathParameters")
-            loader_name = path_params.get("loader") if path_params is not None and isinstance(path_params, dict) else None
+            loader_name = (
+                path_params.get("loader") if path_params is not None and isinstance(path_params, dict) else None
+            )
 
         if not loader_name:
             return LambdaResponse.validation_error("loader_name", "loader_name is required")
@@ -105,16 +107,31 @@ class TriggerLoadersHandler(LambdaHandler):
 
         critical_loaders = {
             # Metric loaders (required before stock_scores)
-            "quality_metrics", "growth_metrics", "value_metrics", "positioning_metrics", "stability_metrics",
+            "quality_metrics",
+            "growth_metrics",
+            "value_metrics",
+            "positioning_metrics",
+            "stability_metrics",
             # Price data (fundamental for downstream processing)
-            "stock_prices_daily", "price_daily", "price_weekly", "price_monthly",
-            "etf_price_daily", "etf_price_weekly", "etf_price_monthly",
+            "stock_prices_daily",
+            "price_daily",
+            "price_weekly",
+            "price_monthly",
+            "etf_price_daily",
+            "etf_price_weekly",
+            "etf_price_monthly",
             # Market and regime (trading decisions)
-            "market_health_daily", "market_exposure_daily",
+            "market_health_daily",
+            "market_exposure_daily",
             # Signals and scoring (position sizing)
-            "signals_daily", "stock_scores", "swing_trader_scores", "technical_data_daily",
+            "signals_daily",
+            "stock_scores",
+            "swing_trader_scores",
+            "technical_data_daily",
             # Portfolio and risk metrics
-            "algo_metrics_daily", "algo_risk_daily", "economic_metrics_daily",
+            "algo_metrics_daily",
+            "algo_risk_daily",
+            "economic_metrics_daily",
         }
         # Use FARGATE for critical loaders (higher timeout, guaranteed resources)
         use_fargate = loader_name in critical_loaders
@@ -122,7 +139,10 @@ class TriggerLoadersHandler(LambdaHandler):
         # Set environment variables for ECS task
         environment_overrides = {
             # Metric loaders need extended timeout (600s = 10 min for yfinance + SEC filings)
-            "LOADER_TIMEOUT_SEC": "600" if loader_name in {"quality_metrics", "growth_metrics", "value_metrics", "positioning_metrics", "stability_metrics"} else "300",
+            "LOADER_TIMEOUT_SEC": "600"
+            if loader_name
+            in {"quality_metrics", "growth_metrics", "value_metrics", "positioning_metrics", "stability_metrics"}
+            else "300",
             # Reduce batch size in AWS to avoid yfinance rate limiting
             "LOADER_CHUNK_SIZE": "100",
             # Increase memory limit flag for batch processing
@@ -133,10 +153,7 @@ class TriggerLoadersHandler(LambdaHandler):
         if loader_name == "stock_scores":
             is_valid, error_msg = self._validate_stock_scores_dependencies()
             if not is_valid:
-                return LambdaResponse.validation_error(
-                    "stock_scores",
-                    f"Cannot trigger stock_scores: {error_msg}"
-                )
+                return LambdaResponse.validation_error("stock_scores", f"Cannot trigger stock_scores: {error_msg}")
 
         task_def = f"{project_name}-{loader_name}-loader"
         logger.info(f"Triggering loader: {loader_name} (task_def={task_def}, count={task_count})")
@@ -145,10 +162,7 @@ class TriggerLoadersHandler(LambdaHandler):
         container_overrides = [
             {
                 "name": f"{project_name}-{loader_name}-loader",
-                "environment": [
-                    {"name": k, "value": v}
-                    for k, v in environment_overrides.items()
-                ],
+                "environment": [{"name": k, "value": v} for k, v in environment_overrides.items()],
             }
         ]
 

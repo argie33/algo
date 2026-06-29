@@ -181,7 +181,7 @@ class SignalOptionsMixin:
                     "underpriced": False,
                     "bonus_pts": 0.0,
                     "data_unavailable": True,
-                    "reason": "options_chains data not found"
+                    "reason": "options_chains data not found",
                 }
 
             current_iv, days_to_exp = float(iv_row[0]), float(iv_row[1])

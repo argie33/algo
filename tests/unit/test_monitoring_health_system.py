@@ -33,10 +33,10 @@ class TestHealthPanelBasics:
 
         panel = HealthPanel()
 
-        if hasattr(panel, 'get_status'):
+        if hasattr(panel, "get_status"):
             status = panel.get_status()
             assert status is not None
-        elif hasattr(panel, 'status'):
+        elif hasattr(panel, "status"):
             assert panel.status is not None
 
     def test_health_panel_reports_components(self):
@@ -45,10 +45,10 @@ class TestHealthPanelBasics:
 
         panel = HealthPanel()
 
-        if hasattr(panel, 'get_components'):
+        if hasattr(panel, "get_components"):
             components = panel.get_components()
             assert isinstance(components, (dict, list))
-        elif hasattr(panel, 'components'):
+        elif hasattr(panel, "components"):
             assert panel.components is not None
 
 
@@ -68,8 +68,8 @@ class TestPipelineHealthMonitoring:
 
         monitor = PipelineHealthMonitor()
 
-        if hasattr(monitor, 'check_loader_staleness'):
-            stale = monitor.check_loader_staleness('buy_sell_daily', hours_threshold=4)
+        if hasattr(monitor, "check_loader_staleness"):
+            stale = monitor.check_loader_staleness("buy_sell_daily", hours_threshold=4)
             assert isinstance(stale, bool)
 
     def test_pipeline_health_tracks_run_times(self):
@@ -78,8 +78,8 @@ class TestPipelineHealthMonitoring:
 
         monitor = PipelineHealthMonitor()
 
-        if hasattr(monitor, 'get_last_run_time'):
-            last_run = monitor.get_last_run_time('price_daily')
+        if hasattr(monitor, "get_last_run_time"):
+            last_run = monitor.get_last_run_time("price_daily")
             assert last_run is None or isinstance(last_run, datetime)
 
     def test_pipeline_health_detects_missing_data(self):
@@ -88,8 +88,8 @@ class TestPipelineHealthMonitoring:
 
         monitor = PipelineHealthMonitor()
 
-        if hasattr(monitor, 'check_data_available'):
-            available = monitor.check_data_available('stock_scores')
+        if hasattr(monitor, "check_data_available"):
+            available = monitor.check_data_available("stock_scores")
             assert isinstance(available, bool)
 
 
@@ -109,7 +109,7 @@ class TestConnectionMonitoring:
 
         monitor = ConnectionMonitor()
 
-        if hasattr(monitor, 'check_database'):
+        if hasattr(monitor, "check_database"):
             connected = monitor.check_database()
             assert isinstance(connected, bool)
 
@@ -119,7 +119,7 @@ class TestConnectionMonitoring:
 
         monitor = ConnectionMonitor()
 
-        if hasattr(monitor, 'is_connected'):
+        if hasattr(monitor, "is_connected"):
             assert isinstance(monitor.is_connected(), bool)
 
     def test_connection_monitor_tracks_failures(self):
@@ -128,7 +128,7 @@ class TestConnectionMonitoring:
 
         monitor = ConnectionMonitor()
 
-        if hasattr(monitor, 'get_failure_count'):
+        if hasattr(monitor, "get_failure_count"):
             failures = monitor.get_failure_count()
             assert isinstance(failures, int)
             assert failures >= 0
@@ -152,7 +152,7 @@ class TestPositionAggregation:
         config = {"halt_flag_count_for_early_exit": 3}
         aggregator = PositionAggregator(config)
 
-        if hasattr(aggregator, 'get_total_value'):
+        if hasattr(aggregator, "get_total_value"):
             total = aggregator.get_total_value()
             assert isinstance(total, (int, float))
 
@@ -163,7 +163,7 @@ class TestPositionAggregation:
         config = {"halt_flag_count_for_early_exit": 3}
         aggregator = PositionAggregator(config)
 
-        if hasattr(aggregator, 'get_sector_breakdown'):
+        if hasattr(aggregator, "get_sector_breakdown"):
             breakdown = aggregator.get_sector_breakdown()
             assert isinstance(breakdown, dict)
 
@@ -186,12 +186,12 @@ class TestAuditManager:
         config = {}
         manager = AuditManager(config)
 
-        if hasattr(manager, 'log_trade'):
+        if hasattr(manager, "log_trade"):
             trade = {
-                'symbol': 'AAPL',
-                'action': 'entry',
-                'quantity': 100,
-                'price': 150.0,
+                "symbol": "AAPL",
+                "action": "entry",
+                "quantity": 100,
+                "price": 150.0,
             }
             manager.log_trade(trade)
             # Should not raise
@@ -203,7 +203,7 @@ class TestAuditManager:
         config = {}
         manager = AuditManager(config)
 
-        if hasattr(manager, 'log_halt'):
+        if hasattr(manager, "log_halt"):
             manager.log_halt("Circuit breaker L2")
             # Should not raise
 
@@ -214,7 +214,7 @@ class TestAuditManager:
         config = {}
         manager = AuditManager(config)
 
-        if hasattr(manager, 'get_history'):
+        if hasattr(manager, "get_history"):
             history = manager.get_history()
             assert isinstance(history, (list, dict)) or history is not None
 
@@ -239,7 +239,7 @@ class TestDataPatrolBase:
         config = PatrolConfig()
         patrol = DataPatrol(config)
 
-        if hasattr(patrol, 'run'):
+        if hasattr(patrol, "run"):
             result = patrol.run()
             assert result is not None
 
@@ -251,7 +251,7 @@ class TestDataPatrolBase:
         config = PatrolConfig()
         patrol = DataPatrol(config)
 
-        if hasattr(patrol, 'get_issues'):
+        if hasattr(patrol, "get_issues"):
             issues = patrol.get_issues()
             assert isinstance(issues, (list, dict))
 
@@ -316,7 +316,7 @@ class TestAlertTriggering:
         panel = HealthPanel()
 
         # Simulate stale data detection
-        if hasattr(panel, 'check_freshness'):
+        if hasattr(panel, "check_freshness"):
             stale = panel.check_freshness()
             if stale:
                 # Alert should have been triggered
@@ -328,7 +328,7 @@ class TestAlertTriggering:
 
         monitor = ConnectionMonitor()
 
-        if hasattr(monitor, 'is_connected'):
+        if hasattr(monitor, "is_connected"):
             connected = monitor.is_connected()
             # If not connected, alert should be triggered
             assert isinstance(connected, bool)
@@ -340,7 +340,7 @@ class TestAlertTriggering:
         config = {"halt_flag_count_for_early_exit": 3}
         aggregator = PositionAggregator(config)
 
-        if hasattr(aggregator, 'check_limits'):
+        if hasattr(aggregator, "check_limits"):
             within_limits = aggregator.check_limits()
             # If not within limits, alert should trigger
             assert isinstance(within_limits, bool)
@@ -355,7 +355,7 @@ class TestHealthMetrics:
 
         panel = HealthPanel()
 
-        if hasattr(panel, 'calculate_health_score'):
+        if hasattr(panel, "calculate_health_score"):
             score = panel.calculate_health_score()
             assert isinstance(score, (int, float))
             assert 0 <= score <= 100
@@ -366,9 +366,9 @@ class TestHealthMetrics:
 
         panel = HealthPanel()
 
-        if hasattr(panel, 'aggregate_status'):
+        if hasattr(panel, "aggregate_status"):
             status = panel.aggregate_status()
-            assert status in ['healthy', 'degraded', 'critical', 'unknown']
+            assert status in ["healthy", "degraded", "critical", "unknown"]
 
     def test_historical_health_tracking(self):
         """Test that health metrics are tracked over time."""
@@ -376,7 +376,7 @@ class TestHealthMetrics:
 
         panel = HealthPanel()
 
-        if hasattr(panel, 'get_history'):
+        if hasattr(panel, "get_history"):
             history = panel.get_history()
             assert isinstance(history, (list, dict))
 
@@ -391,10 +391,10 @@ class TestMonitoringIntegration:
         panel = HealthPanel()
 
         checks = []
-        if hasattr(panel, 'get_status'):
-            checks.append(('status', panel.get_status()))
-        if hasattr(panel, 'get_components'):
-            checks.append(('components', panel.get_components()))
+        if hasattr(panel, "get_status"):
+            checks.append(("status", panel.get_status()))
+        if hasattr(panel, "get_components"):
+            checks.append(("components", panel.get_components()))
 
         # At least one check should have run
         assert len(checks) > 0
@@ -407,9 +407,10 @@ class TestMonitoringIntegration:
 
         # Monitoring should be async and not block
         import time
+
         start = time.time()
 
-        if hasattr(panel, 'get_status'):
+        if hasattr(panel, "get_status"):
             panel.get_status()
 
         elapsed = time.time() - start
@@ -424,9 +425,9 @@ class TestMonitoringIntegration:
 
         # Even if one check fails, others should continue
         try:
-            if hasattr(panel, 'run_checks'):
+            if hasattr(panel, "run_checks"):
                 panel.run_checks()
-            elif hasattr(panel, 'get_status'):
+            elif hasattr(panel, "get_status"):
                 panel.get_status()
         except Exception:
             # Monitoring failure should not crash system
@@ -442,11 +443,11 @@ class TestMonitoringDataIntegrity:
 
         panel = HealthPanel()
 
-        if hasattr(panel, 'get_metrics'):
+        if hasattr(panel, "get_metrics"):
             metrics = panel.get_metrics()
-            for metric in (metrics if isinstance(metrics, list) else [metrics]):
+            for metric in metrics if isinstance(metrics, list) else [metrics]:
                 if isinstance(metric, dict):
-                    assert 'timestamp' in metric or 'time' in metric or True
+                    assert "timestamp" in metric or "time" in metric or True
 
     def test_metrics_values_are_valid(self):
         """Test that metric values are not corrupted."""
@@ -454,7 +455,7 @@ class TestMonitoringDataIntegrity:
 
         panel = HealthPanel()
 
-        if hasattr(panel, 'get_status'):
+        if hasattr(panel, "get_status"):
             status = panel.get_status()
             # Status should be a string or dict, not None
             assert status is not None

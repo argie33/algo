@@ -35,7 +35,7 @@ class TestMoneyFormatting:
         result = fmt_money(1000000)
         assert result is not None
         # Should compact large values
-        assert 'M' in result or '1' in result
+        assert "M" in result or "1" in result
 
     def test_fmt_money_short(self):
         """Test short money formatting."""
@@ -133,28 +133,28 @@ class TestBarFormatting:
         assert result is not None
         assert isinstance(result, str)
         # Should contain filled bars
-        assert '█' in result or '░' in result
+        assert "█" in result or "░" in result
 
     def test_hbar_full(self):
         """Test horizontal bar at 100%."""
         from dashboard.formatters import hbar
 
         result = hbar(100, 100)
-        assert '█' in result
+        assert "█" in result
 
     def test_hbar_empty(self):
         """Test horizontal bar at 0%."""
         from dashboard.formatters import hbar
 
         result = hbar(0, 100)
-        assert '░' in result
+        assert "░" in result
 
     def test_hbar_none(self):
         """Test hbar with None values."""
         from dashboard.formatters import hbar
 
         result = hbar(None, 100)
-        assert '✗' in result
+        assert "✗" in result
 
     def test_exp_bar(self):
         """Test exponential bar."""
@@ -169,7 +169,7 @@ class TestBarFormatting:
         from dashboard.formatters import exp_bar
 
         result = exp_bar(None)
-        assert '✗' in result
+        assert "✗" in result
 
     def test_mini_bar(self):
         """Test mini bar."""
@@ -184,7 +184,7 @@ class TestBarFormatting:
         from dashboard.formatters import mini_bar
 
         result = mini_bar(None, 10)
-        assert '✗' in result
+        assert "✗" in result
 
 
 class TestSparklineFormatting:
@@ -215,7 +215,7 @@ class TestSparklineFormatting:
 
         result = sparkline([])
         assert result is not None
-        assert 'no' in result.lower() or 'data' in result.lower()
+        assert "no" in result.lower() or "data" in result.lower()
 
     def test_sparkline_single(self):
         """Test sparkline with single value."""

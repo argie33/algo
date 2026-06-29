@@ -888,11 +888,7 @@ class TestRequestValidationWithMalformedData:
     def test_contact_submission_message_as_dict(self):
         """message as dict should be rejected."""
         with pytest.raises(ValidationError):
-            ContactSubmissionRequest(
-                email="test@example.com",
-                subject="Test",
-                message={"text": "Test"}
-            )
+            ContactSubmissionRequest(email="test@example.com", subject="Test", message={"text": "Test"})
 
     def test_manual_trade_symbol_as_none(self):
         """ManualTradeRequest with symbol as None should be rejected."""
@@ -912,18 +908,12 @@ class TestRequestValidationWithMalformedData:
     def test_pre_trade_impact_entry_price_negative(self):
         """PreTradeImpactRequest with negative entry_price should be rejected."""
         with pytest.raises(ValidationError):
-            PreTradeImpactRequest(
-                symbol="AAPL",
-                entry_price=-150.0
-            )
+            PreTradeImpactRequest(symbol="AAPL", entry_price=-150.0)
 
     def test_pre_trade_impact_position_dollars_as_string(self):
         """PreTradeImpactRequest with position_dollars as valid numeric string."""
         # Pydantic coerces valid numeric strings
-        req = PreTradeImpactRequest(
-            symbol="AAPL",
-            position_dollars="50000.0"
-        )
+        req = PreTradeImpactRequest(symbol="AAPL", position_dollars="50000.0")
         assert req.position_dollars == 50000.0
 
     def test_verify_user_email_malformed(self):

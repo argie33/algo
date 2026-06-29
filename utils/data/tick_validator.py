@@ -174,7 +174,7 @@ class TickValidator:
         if low <= 0:
             self.errors.append(f"Low price is invalid ({low}): cannot calculate spread percent")
         else:
-            spread_pct = ((high - low) / low * 100)
+            spread_pct = (high - low) / low * 100
             if spread_pct > 50:
                 # More than 50% spread = likely bad data
                 self.errors.append(f"spread > 50%: {spread_pct:.1f}%")

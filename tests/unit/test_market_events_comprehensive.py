@@ -261,8 +261,10 @@ class TestCheckMarketCircuitBreaker:
             return mock_context
 
         mock_executor.return_value = mock_context
-        mock_context.submit.side_effect = [MagicMock(result=lambda t: fetch_quotes()),
-                                           MagicMock(result=lambda t: fetch_bars())]
+        mock_context.submit.side_effect = [
+            MagicMock(result=lambda t: fetch_quotes()),
+            MagicMock(result=lambda t: fetch_bars()),
+        ]
 
         handler = MarketEventHandler({})
 
@@ -696,9 +698,11 @@ class TestRunPreMarketChecks:
         handler = MarketEventHandler({})
 
         # Mock the actual methods since ThreadPoolExecutor is hard to mock
-        with patch.object(handler, "check_early_close", return_value=False), \
-             patch.object(handler, "check_market_circuit_breaker", return_value=None), \
-             patch.object(handler, "check_after_hours_window", return_value=False):
+        with (
+            patch.object(handler, "check_early_close", return_value=False),
+            patch.object(handler, "check_market_circuit_breaker", return_value=None),
+            patch.object(handler, "check_after_hours_window", return_value=False),
+        ):
             result = handler.run_pre_market_checks()
 
         assert "timestamp" in result
@@ -727,9 +731,11 @@ class TestRunPreMarketChecks:
         }
 
         # Mock the actual methods
-        with patch.object(handler, "check_early_close", return_value=False), \
-             patch.object(handler, "check_market_circuit_breaker", return_value=cb_result), \
-             patch.object(handler, "check_after_hours_window", return_value=False):
+        with (
+            patch.object(handler, "check_early_close", return_value=False),
+            patch.object(handler, "check_market_circuit_breaker", return_value=cb_result),
+            patch.object(handler, "check_after_hours_window", return_value=False),
+        ):
             result = handler.run_pre_market_checks()
 
         assert "timestamp" in result

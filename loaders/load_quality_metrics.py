@@ -72,7 +72,9 @@ class QualityMetricsLoader(OptimalLoader):
         # If no income statement, return explicit data_unavailable record
         # (many stocks lack SEC filings: micro-caps, OTC, ADRs, new IPOs - about 55% of universe)
         if not income_row:
-            logger.info(f"[QUALITY_METRICS] [SEC_DATA_UNAVAILABLE] {symbol}: no SEC filing data (micro-cap, OTC, ADR, or new IPO)")
+            logger.info(
+                f"[QUALITY_METRICS] [SEC_DATA_UNAVAILABLE] {symbol}: no SEC filing data (micro-cap, OTC, ADR, or new IPO)"
+            )
             return [
                 {
                     "symbol": symbol,
@@ -91,7 +93,9 @@ class QualityMetricsLoader(OptimalLoader):
 
         metrics = self._compute_metrics(symbol, income_row, balance_row)
         if not metrics:
-            logger.warning(f"[QUALITY_METRICS] Failed to compute metrics for {symbol} (check logs for calculation errors)")
+            logger.warning(
+                f"[QUALITY_METRICS] Failed to compute metrics for {symbol} (check logs for calculation errors)"
+            )
             return [
                 {
                     "symbol": symbol,

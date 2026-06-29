@@ -132,7 +132,9 @@ class CoverageChecker(BaseCheck):
                     table_name = row_dict["table_name"]
                     cnt = row_dict["cnt"]
                     if cnt is None:
-                        raise ValueError(f"COUNT(DISTINCT symbol) returned NULL for {table_name} — table may be empty or query failed")
+                        raise ValueError(
+                            f"COUNT(DISTINCT symbol) returned NULL for {table_name} — table may be empty or query failed"
+                        )
                     results_by_table[table_name] = int(cnt)
 
                 # Verify all critical tables are represented

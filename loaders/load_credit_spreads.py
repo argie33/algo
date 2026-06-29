@@ -111,7 +111,9 @@ class CreditSpreadsFetcher:
                         continue
 
                     if not obs_value or obs_value == ".":
-                        logger.warning(f"[CREDIT_SPREADS] WARN: FRED observation {obs_date} has missing/invalid value: {obs_value}")
+                        logger.warning(
+                            f"[CREDIT_SPREADS] WARN: FRED observation {obs_date} has missing/invalid value: {obs_value}"
+                        )
                         skipped_count += 1
                         continue
 
@@ -137,7 +139,7 @@ class CreditSpreadsFetcher:
             # Warn if significant percentage of observations were skipped
             if skipped_count > 0 and (skipped_count / total_count) > 0.1:
                 logger.error(
-                    f"[CREDIT_SPREADS] ERROR: {skipped_count/total_count*100:.1f}% of FRED observations invalid. "
+                    f"[CREDIT_SPREADS] ERROR: {skipped_count / total_count * 100:.1f}% of FRED observations invalid. "
                     f"Market exposure calculation depends on accurate credit spreads — data quality degraded."
                 )
 
@@ -146,8 +148,7 @@ class CreditSpreadsFetcher:
 
         except requests.RequestException as e:
             raise RuntimeError(
-                f"FRED API request failed: {e}. "
-                f"Cannot fetch HY OAS data for systemic stress assessment."
+                f"FRED API request failed: {e}. Cannot fetch HY OAS data for systemic stress assessment."
             ) from e
         except Exception as e:
             raise RuntimeError(f"Unexpected error fetching FRED data: {e}") from e

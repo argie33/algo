@@ -180,9 +180,7 @@ class MetricsCalculator:
             max_dd = 0.0
             for value in portfolio_values:
                 if not isinstance(value, (int, float)):
-                    raise ValueError(
-                        f"Portfolio value must be numeric, got {type(value).__name__}: {value}"
-                    )
+                    raise ValueError(f"Portfolio value must be numeric, got {type(value).__name__}: {value}")
                 # Initialize peak on first iteration
                 if peak is None:
                     peak = value

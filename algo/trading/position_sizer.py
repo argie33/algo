@@ -416,7 +416,9 @@ class PositionSizer:
                 return Decimal(0)
             if total is None:
                 # This should never happen if our integrity check passed
-                raise ValueError(f"SUM(position_value) returned NULL for {total_open} open positions — database corruption")
+                raise ValueError(
+                    f"SUM(position_value) returned NULL for {total_open} open positions — database corruption"
+                )
             return Decimal(str(total))
 
         try:
@@ -606,9 +608,7 @@ class PositionSizer:
 
         min_risk_val = self.config.get("min_risk_pct_floor")
         if min_risk_val is None:
-            raise ValueError(
-                "CRITICAL: min_risk_pct_floor config missing. Cannot enforce minimum position risk floor."
-            )
+            raise ValueError("CRITICAL: min_risk_pct_floor config missing. Cannot enforce minimum position risk floor.")
         min_risk_floor = Decimal(str(min_risk_val)) / Decimal(100)
         has_safety_reduction = exposure_mult < 0.8 or vix_mult < 1.0 or risk_adjustment < 1.0
         if adjusted_risk_pct < min_risk_floor and not has_safety_reduction:
@@ -648,9 +648,7 @@ class PositionSizer:
         max_position_value = portfolio_value * max_position_pct
 
         if position_value > max_position_value:
-            shares = int(
-                (max_position_value / Decimal(str(entry_price))).quantize(Decimal(1), rounding=ROUND_HALF_UP)
-            )
+            shares = int((max_position_value / Decimal(str(entry_price))).quantize(Decimal(1), rounding=ROUND_HALF_UP))
             position_value = Decimal(shares) * Decimal(str(entry_price))
             risk_dollars = risk_per_share * Decimal(shares)
 
@@ -683,14 +681,9 @@ class PositionSizer:
         total_invested = Decimal(str(active_position_value)) + position_value
         max_inv_val = self.config.get("max_total_invested_pct")
         if max_inv_val is None:
-            raise ValueError(
-                "CRITICAL: max_total_invested_pct config missing. Cannot enforce total investment limit."
-            )
+            raise ValueError("CRITICAL: max_total_invested_pct config missing. Cannot enforce total investment limit.")
         max_invested_pct = Decimal(str(max_inv_val))
-        if (
-            portfolio_value > 0
-            and (total_invested / Decimal(str(portfolio_value)) * Decimal(100)) > max_invested_pct
-        ):
+        if portfolio_value > 0 and (total_invested / Decimal(str(portfolio_value)) * Decimal(100)) > max_invested_pct:
             return {
                 "shares": 0,
                 "position_size_pct": 0,

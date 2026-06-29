@@ -38,7 +38,7 @@ class TestHaltFlagManager:
         log_fn = MagicMock()
         manager = HaltFlagManager(alerts, log_fn)
 
-        if hasattr(manager, 'set_halt'):
+        if hasattr(manager, "set_halt"):
             manager.set_halt("Test halt reason")
             assert manager.is_halted() is True
 
@@ -48,7 +48,7 @@ class TestHaltFlagManager:
         log_fn = MagicMock()
         manager = HaltFlagManager(alerts, log_fn)
 
-        if hasattr(manager, 'set_halt') and hasattr(manager, 'clear_halt'):
+        if hasattr(manager, "set_halt") and hasattr(manager, "clear_halt"):
             manager.set_halt("Test halt")
             manager.clear_halt()
             assert manager.is_halted() is False
@@ -59,8 +59,8 @@ class TestHaltFlagManager:
         log_fn = MagicMock()
         manager = HaltFlagManager(alerts, log_fn)
 
-        if hasattr(manager, 'should_trade'):
-            if hasattr(manager, 'set_halt'):
+        if hasattr(manager, "should_trade"):
+            if hasattr(manager, "set_halt"):
                 manager.set_halt("Market halt")
             should_trade = manager.should_trade() if callable(manager.should_trade) else not manager.is_halted()
             assert should_trade is False
@@ -71,7 +71,7 @@ class TestHaltFlagManager:
         log_fn = MagicMock()
         manager = HaltFlagManager(alerts, log_fn)
 
-        if hasattr(manager, 'set_halt'):
+        if hasattr(manager, "set_halt"):
             manager.set_halt("Critical error detected")
             # Alert or log should have been called
             assert alerts is not None
@@ -89,12 +89,12 @@ class TestExecutionTracker:
         """Test that execution tracker records trade executions."""
         tracker = ExecutionTracker()
 
-        if hasattr(tracker, 'record_execution'):
+        if hasattr(tracker, "record_execution"):
             execution = {
-                'symbol': 'AAPL',
-                'quantity': 100,
-                'price': 150.0,
-                'timestamp': datetime.now(timezone.utc),
+                "symbol": "AAPL",
+                "quantity": 100,
+                "price": 150.0,
+                "timestamp": datetime.now(timezone.utc),
             }
             tracker.record_execution(execution)
             # Should not raise
@@ -103,7 +103,7 @@ class TestExecutionTracker:
         """Test that execution tracker maintains execution state."""
         tracker = ExecutionTracker()
 
-        if hasattr(tracker, 'get_state'):
+        if hasattr(tracker, "get_state"):
             state = tracker.get_state()
             assert isinstance(state, dict) or state is not None
 
@@ -111,7 +111,7 @@ class TestExecutionTracker:
         """Test that tracker detects when execution is incomplete."""
         tracker = ExecutionTracker()
 
-        if hasattr(tracker, 'is_partial'):
+        if hasattr(tracker, "is_partial"):
             partial = tracker.is_partial()
             assert isinstance(partial, bool)
 
@@ -119,18 +119,18 @@ class TestExecutionTracker:
         """Test that all executions are timestamped."""
         tracker = ExecutionTracker()
 
-        if hasattr(tracker, 'record_execution'):
+        if hasattr(tracker, "record_execution"):
             execution = {
-                'symbol': 'MSFT',
-                'quantity': 50,
-                'price': 300.0,
+                "symbol": "MSFT",
+                "quantity": 50,
+                "price": 300.0,
             }
             tracker.record_execution(execution)
 
-            if hasattr(tracker, 'get_last_execution'):
+            if hasattr(tracker, "get_last_execution"):
                 last = tracker.get_last_execution()
                 if last:
-                    assert 'timestamp' in last or 'time' in last or True
+                    assert "timestamp" in last or "time" in last or True
 
 
 class TestOrchestrationPhaseContract:
@@ -146,7 +146,7 @@ class TestOrchestrationPhaseContract:
             status="completed",
             data={"result": "success"},
             is_error=False,
-            error=None
+            error=None,
         )
 
         assert result.phase_number == 1
@@ -163,7 +163,7 @@ class TestOrchestrationPhaseContract:
             status="halted",
             data={},
             is_error=True,
-            error="Circuit breaker triggered"
+            error="Circuit breaker triggered",
         )
 
         assert result.is_error is True
@@ -181,7 +181,7 @@ class TestOrchestrationPhaseContract:
             status="completed",
             data={"positions": 5, "margin": 10000},
             is_error=False,
-            error=None
+            error=None,
         )
 
         # Should be JSON serializable
@@ -200,12 +200,7 @@ class TestOrchestrationErrorPropagation:
         from algo.orchestrator.phase_result import PhaseResult
 
         error_result = PhaseResult(
-            phase_number=1,
-            phase_name="data_freshness",
-            status="halted",
-            data={},
-            is_error=True,
-            error="Data not fresh"
+            phase_number=1, phase_name="data_freshness", status="halted", data={}, is_error=True, error="Data not fresh"
         )
 
         # Next phase should check this and not execute
@@ -218,12 +213,7 @@ class TestOrchestrationErrorPropagation:
 
         original_error = "Critical: Cannot connect to database"
         result = PhaseResult(
-            phase_number=1,
-            phase_name="test",
-            status="halted",
-            data={},
-            is_error=True,
-            error=original_error
+            phase_number=1, phase_name="test", status="halted", data={}, is_error=True, error=original_error
         )
 
         assert result.error == original_error
@@ -233,8 +223,8 @@ class TestOrchestrationErrorPropagation:
         from algo.orchestrator.phase_error_handling import ErrorCategory
 
         # Should have error categories for different failure types
-        assert hasattr(ErrorCategory, 'DATA_INVALID') or hasattr(ErrorCategory, 'INVALID_DATA')
-        assert hasattr(ErrorCategory, 'DATABASE_ERROR') or hasattr(ErrorCategory, 'DB_ERROR')
+        assert hasattr(ErrorCategory, "DATA_INVALID") or hasattr(ErrorCategory, "INVALID_DATA")
+        assert hasattr(ErrorCategory, "DATABASE_ERROR") or hasattr(ErrorCategory, "DB_ERROR")
 
 
 class TestOrchestrationStateTransitions:
@@ -257,12 +247,7 @@ class TestOrchestrationStateTransitions:
 
         # Phase 2 result
         phase2_result = PhaseResult(
-            phase_number=2,
-            phase_name="circuit_breaker",
-            status="completed",
-            data={},
-            is_error=False,
-            error=None
+            phase_number=2, phase_name="circuit_breaker", status="completed", data={}, is_error=False, error=None
         )
 
         # Phase 3 should only execute if phase 2 succeeded
@@ -279,7 +264,7 @@ class TestOrchestrationStateTransitions:
             status="halted",
             data={},
             is_error=True,
-            error="Position limits exceeded"
+            error="Position limits exceeded",
         )
 
         # All subsequent phases (4-9) should not execute
@@ -319,7 +304,7 @@ class TestOrchestrationConcurrency:
         results = []
 
         def check_halt():
-            if hasattr(manager, 'is_halted'):
+            if hasattr(manager, "is_halted"):
                 result = manager.is_halted()
                 results.append(result)
 
@@ -344,12 +329,7 @@ class TestOrchestrationDataIntegrity:
         # Phase 1 output
         phase1_data = {"market_regime": "uptrend", "exposure_pct": 100}
         phase1_result = PhaseResult(
-            phase_number=1,
-            phase_name="test",
-            status="completed",
-            data=phase1_data,
-            is_error=False,
-            error=None
+            phase_number=1, phase_name="test", status="completed", data=phase1_data, is_error=False, error=None
         )
 
         # Phase 2 should receive this data
@@ -367,7 +347,7 @@ class TestOrchestrationDataIntegrity:
             status="completed",
             data=bad_data,
             is_error=False,
-            error=None
+            error=None,
         )
 
         # Should detect null value
@@ -387,7 +367,7 @@ class TestOrchestrationExitConditions:
             status="halted",
             data={"level": 3, "pct_down": 20.5},
             is_error=True,
-            error="Circuit breaker L3 (20%+ down)"
+            error="Circuit breaker L3 (20%+ down)",
         )
 
         assert halt_result.status == "halted"
@@ -403,7 +383,7 @@ class TestOrchestrationExitConditions:
             status="halted",
             data={},
             is_error=True,
-            error="No fresh data available"
+            error="No fresh data available",
         )
 
         assert halt_result.is_error is True
@@ -418,7 +398,7 @@ class TestOrchestrationExitConditions:
             status="halted",
             data={"positions": 15},
             is_error=True,
-            error="Max positions (15) reached"
+            error="Max positions (15) reached",
         )
 
         assert halt_result.is_error is True
@@ -434,7 +414,7 @@ class TestOrchestrationLogging:
         log_fn = MagicMock()
         manager = HaltFlagManager(alerts, log_fn)
 
-        if hasattr(manager, 'set_halt'):
+        if hasattr(manager, "set_halt"):
             manager.set_halt("Emergency halt")
             # Log function should have been called
             assert log_fn.called or alerts.called or True
@@ -443,17 +423,10 @@ class TestOrchestrationLogging:
         """Test that phase results are timestamped."""
         from algo.orchestrator.phase_result import PhaseResult
 
-        result = PhaseResult(
-            phase_number=1,
-            phase_name="test",
-            status="completed",
-            data={},
-            is_error=False,
-            error=None
-        )
+        result = PhaseResult(phase_number=1, phase_name="test", status="completed", data={}, is_error=False, error=None)
 
         # Should have timestamp or created_at
-        assert hasattr(result, 'timestamp') or hasattr(result, 'created_at') or True
+        assert hasattr(result, "timestamp") or hasattr(result, "created_at") or True
 
 
 class TestOrchestrationRecovery:
@@ -469,7 +442,7 @@ class TestOrchestrationRecovery:
             status="failed",
             data={},
             is_error=True,
-            error="Transient DB error"
+            error="Transient DB error",
         )
 
         # Should be able to retry on transient errors
@@ -485,7 +458,7 @@ class TestOrchestrationRecovery:
             status="halted",
             data={},
             is_error=True,
-            error="Data validation failed (no buy_sell_daily signals)"
+            error="Data validation failed (no buy_sell_daily signals)",
         )
 
         # Should not retry on data validation errors

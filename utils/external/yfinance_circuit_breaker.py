@@ -307,17 +307,12 @@ class YFinanceIPCircuitBreaker:
         ban_until = state.get("ban_until")
 
         if is_banned is None or failure_count is None:
-            raise ValueError(
-                f"Circuit breaker state incomplete: is_banned={is_banned}, "
-                f"failure_count={failure_count}"
-            )
+            raise ValueError(f"Circuit breaker state incomplete: is_banned={is_banned}, failure_count={failure_count}")
 
         # ban_until can be NULL when is_banned=FALSE
         # but if is_banned=TRUE, ban_until must be non-NULL
         if is_banned and ban_until is None:
-            raise ValueError(
-                "Circuit breaker state corrupted: is_banned=TRUE but ban_until is NULL"
-            )
+            raise ValueError("Circuit breaker state corrupted: is_banned=TRUE but ban_until is NULL")
 
         remaining_secs = 0.0
         if ban_until:

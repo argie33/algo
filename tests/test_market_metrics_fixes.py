@@ -110,26 +110,26 @@ class TestDashboardMetricsDisplay:
         nh = None
 
         # Simulate the dashboard display logic
-        nh_display = nh or '--'
+        nh_display = nh or "--"
 
-        assert nh_display == '--'
-        assert str(nh_display) == '--'
+        assert nh_display == "--"
+        assert str(nh_display) == "--"
 
     def test_placeholder_shown_when_nl_is_none(self):
         """Dashboard shows '--' when new_lows is None."""
         nl = None
 
-        nl_display = nl or '--'
+        nl_display = nl or "--"
 
-        assert nl_display == '--'
+        assert nl_display == "--"
 
     def test_actual_values_shown_when_available(self):
         """Dashboard shows actual counts when available."""
         nh = 150
         nl = 50
 
-        nh_display = nh or '--'
-        nl_display = nl or '--'
+        nh_display = nh or "--"
+        nl_display = nl or "--"
 
         assert nh_display == 150
         assert nl_display == 50
@@ -139,11 +139,11 @@ class TestDashboardMetricsDisplay:
         nh = None
         nl = None
 
-        nh_display = nh or '--'
-        nl_display = nl or '--'
+        nh_display = nh or "--"
+        nl_display = nl or "--"
 
-        assert nh_display == '--'
-        assert nl_display == '--'
+        assert nh_display == "--"
+        assert nl_display == "--"
 
 
 class TestBreadthFetcherFetch:

@@ -268,7 +268,7 @@ class ExposurePolicy:
         if risk_per_share <= 0:
             logger.error(f"CRITICAL: Invalid risk/reward setup for {symbol}: entry={entry_price}, stop={init_stop}")
             return {"passed": False, "reason": "Invalid stop loss configuration (stop >= entry)"}
-        r_mult = ((cur_price_float - entry_price) / risk_per_share)
+        r_mult = (cur_price_float - entry_price) / risk_per_share
 
         # 1. CORRECTION TIER + force_exit_negative_r: cut losers
         if "force_exit_negative_r" not in tier:
@@ -382,9 +382,7 @@ if __name__ == "__main__":
     logger.info(f"Regime:   {active['regime']}")
     if active.get("halt_reasons"):
         logger.info(f"HALT:     {active['halt_reasons']}")
-    logger.info(
-        f"\nActive Tier: {active['tier']['name']} ({active['tier']['min_pct']}-{active['tier']['max_pct']}%)"
-    )
+    logger.info(f"\nActive Tier: {active['tier']['name']} ({active['tier']['min_pct']}-{active['tier']['max_pct']}%)")
     logger.info(f"  {active['tier']['description']}")
     logger.info("\nEntry Constraints:")
     constraints = p.get_entry_constraints()

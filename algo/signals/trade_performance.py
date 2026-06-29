@@ -136,7 +136,11 @@ class SignalTradePerformancePopulator:
                             component_scores[comp_name] = normalized_score
 
                             # Track for IC calculation
-                            if comp_name in component_returns and exit_r_multiple is not None and normalized_score is not None:
+                            if (
+                                comp_name in component_returns
+                                and exit_r_multiple is not None
+                                and normalized_score is not None
+                            ):
                                 component_returns[comp_name].append((normalized_score, float(exit_r_multiple)))
 
                     # Insert into signal_trade_performance (only columns that exist in schema)

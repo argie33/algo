@@ -117,20 +117,20 @@ class IndustryRankingLoader(OptimalLoader):
                         try:
                             momentum_score = float(r["momentum_score"])
                         except (ValueError, TypeError) as e:
-                            logger.error(
-                                f"Failed to convert momentum_score for {r['industry']}: {e}. Skipping record."
-                            )
+                            logger.error(f"Failed to convert momentum_score for {r['industry']}: {e}. Skipping record.")
                             continue
 
-                    results.append({
-                        "industry": r["industry"],
-                        "date_recorded": latest_date,
-                        "current_rank": r["current_rank"],
-                        "momentum_score": momentum_score,
-                        "rank_1w_ago": r["rank_1w_ago"],  # May be None if < 7 days of history
-                        "rank_4w_ago": r["rank_4w_ago"],  # May be None if < 28 days of history
-                        "rank_12w_ago": r["rank_12w_ago"],  # May be None if < 84 days of history
-                    })
+                    results.append(
+                        {
+                            "industry": r["industry"],
+                            "date_recorded": latest_date,
+                            "current_rank": r["current_rank"],
+                            "momentum_score": momentum_score,
+                            "rank_1w_ago": r["rank_1w_ago"],  # May be None if < 7 days of history
+                            "rank_4w_ago": r["rank_4w_ago"],  # May be None if < 28 days of history
+                            "rank_12w_ago": r["rank_12w_ago"],  # May be None if < 84 days of history
+                        }
+                    )
 
                 if not results:
                     logger.error(

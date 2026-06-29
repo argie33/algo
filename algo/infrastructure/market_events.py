@@ -77,8 +77,10 @@ class MarketEventHandler:
             if "status" not in data or data["status"] is None:
                 raise ValueError(f"Missing required 'status' field in market event response for {symbol}")
             if "tradable" not in data or data["tradable"] is None:
-                raise ValueError(f"Missing required 'tradable' field in market event response for {symbol}. "
-                                f"API response structure may have changed or symbol data is incomplete.")
+                raise ValueError(
+                    f"Missing required 'tradable' field in market event response for {symbol}. "
+                    f"API response structure may have changed or symbol data is incomplete."
+                )
             status = data["status"].upper()
             tradable = data["tradable"]
 
@@ -121,8 +123,7 @@ class MarketEventHandler:
             # If credentials not configured (e.g., paper trading mode), skip the check and return None
             if not self.alpaca_key or not self.alpaca_secret:
                 logger.warning(
-                    "[MARKET_CIRCUIT_BREAKER] Alpaca credentials not configured. "
-                    "Market circuit breaker check skipped."
+                    "[MARKET_CIRCUIT_BREAKER] Alpaca credentials not configured. Market circuit breaker check skipped."
                 )
                 return None
 
@@ -494,9 +495,7 @@ class MarketEventHandler:
                             "action": "HALT_ALL_ENTRIES",
                             "timestamp": datetime.now(timezone.utc).isoformat(),
                         }
-                        result["alerts"].append(
-                            "⚠ CIRCUIT_BREAKER CHECK FAILED - Assuming Level 3 halt (conservative)"
-                        )
+                        result["alerts"].append("⚠ CIRCUIT_BREAKER CHECK FAILED - Assuming Level 3 halt (conservative)")
                     elif check_name == "after_hours_window":
                         result["checks"][check_name] = True
                         result["alerts"].append(

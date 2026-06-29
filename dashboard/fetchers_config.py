@@ -25,10 +25,6 @@ def clear_data_status_cache() -> None:
         _data_status_cache.clear()
 
 
-
-
-
-
 def _get_data_status_cached() -> dict[str, Any]:
     """Issue 2.2 FIX: Unified fetch for /api/algo/data-status endpoint.
 
@@ -43,11 +39,7 @@ def _get_data_status_cached() -> dict[str, Any]:
     import time as time_module
 
     now = time_module.time()
-    if (
-        "result" in _data_status_cache
-        and "_time" in _data_status_cache
-        and (now - _data_status_cache["_time"]) < 60
-    ):
+    if "result" in _data_status_cache and "_time" in _data_status_cache and (now - _data_status_cache["_time"]) < 60:
         return cast(dict[str, Any], _data_status_cache["result"])
 
     with _data_status_lock:
@@ -102,9 +94,8 @@ def fetch_run(c: None) -> dict[str, Any]:
         # Contract specifies 'started_at', not 'run_at'.
         started_at = inner.get("started_at")
         if not started_at:
-            error_msg = (
-                "Last-run API response missing required 'started_at' field. "
-                "Available keys: " + str(list(inner.keys()))
+            error_msg = "Last-run API response missing required 'started_at' field. Available keys: " + str(
+                list(inner.keys())
             )
             logger.error(error_msg)
             record_data_quality_issue("run", "critical_field", "missing_started_at")
@@ -367,7 +358,9 @@ def fetch_health(c: None) -> dict[str, Any]:
             )
         summary = inner.get("summary")
         if summary is not None and not isinstance(summary, dict):
-            logger.debug(f"Health API summary field has unexpected type {type(summary).__name__}, treating as unavailable")
+            logger.debug(
+                f"Health API summary field has unexpected type {type(summary).__name__}, treating as unavailable"
+            )
             summary = None
 
         # Extract optional enrichment fields with explicit logging
@@ -431,10 +424,7 @@ def fetch_circuit(c: None) -> dict[str, Any]:
 
             # Current value field (REQUIRED: current)
             if "current" not in r:
-                error_msg = (
-                    f"Circuit breaker {label}: missing required field 'current'. "
-                    f"Available: {list(r.keys())}"
-                )
+                error_msg = f"Circuit breaker {label}: missing required field 'current'. Available: {list(r.keys())}"
                 logger.error(error_msg)
                 record_data_quality_issue("cb", "validation", "missing_current", label)
                 return FetcherValidator.build_error_response(error_msg)
@@ -447,10 +437,7 @@ def fetch_circuit(c: None) -> dict[str, Any]:
 
             # Threshold field (REQUIRED: threshold)
             if "threshold" not in r:
-                error_msg = (
-                    f"Circuit breaker {label}: missing required field 'threshold'. "
-                    f"Available: {list(r.keys())}"
-                )
+                error_msg = f"Circuit breaker {label}: missing required field 'threshold'. Available: {list(r.keys())}"
                 logger.error(error_msg)
                 record_data_quality_issue("cb", "validation", "missing_threshold", label)
                 return FetcherValidator.build_error_response(error_msg)
@@ -463,10 +450,7 @@ def fetch_circuit(c: None) -> dict[str, Any]:
 
             # Triggered field (REQUIRED: triggered)
             if "triggered" not in r:
-                error_msg = (
-                    f"Circuit breaker {label}: missing required field 'triggered'. "
-                    f"Available: {list(r.keys())}"
-                )
+                error_msg = f"Circuit breaker {label}: missing required field 'triggered'. Available: {list(r.keys())}"
                 logger.error(error_msg)
                 record_data_quality_issue("cb", "validation", "missing_triggered", label)
                 return FetcherValidator.build_error_response(error_msg)

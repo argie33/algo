@@ -15,7 +15,7 @@ class TestPanelModulesExist:
         from dashboard.panels import panel_base
 
         assert panel_base is not None
-        assert hasattr(panel_base, 'PanelBase')
+        assert hasattr(panel_base, "PanelBase")
 
     def test_portfolio_panel_imports(self):
         """Test portfolio panel module imports."""
@@ -94,20 +94,20 @@ class TestPanelBaseAbstract:
         from dashboard.panels.panel_base import PanelBase
 
         # Check that format_content is abstract
-        assert hasattr(PanelBase, 'format_content')
-        assert getattr(PanelBase.format_content, '__isabstractmethod__', False)
+        assert hasattr(PanelBase, "format_content")
+        assert getattr(PanelBase.format_content, "__isabstractmethod__", False)
 
     def test_panel_base_has_validate_inputs(self):
         """Test PanelBase has validate_inputs method."""
         from dashboard.panels.panel_base import PanelBase
 
-        assert hasattr(PanelBase, 'validate_inputs')
+        assert hasattr(PanelBase, "validate_inputs")
 
     def test_panel_base_has_render(self):
         """Test PanelBase has render method."""
         from dashboard.panels.panel_base import PanelBase
 
-        assert hasattr(PanelBase, 'render')
+        assert hasattr(PanelBase, "render")
 
 
 class TestCompactPanelBase:

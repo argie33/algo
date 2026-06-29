@@ -109,7 +109,9 @@ class SignalQualityScoresLoader(OptimalLoader):
                 )
                 cur_row = cur.fetchone()
                 if cur_row is None or cur_row[0] is None:
-                    raise ValueError(f"Signal count query returned NULL for {end} — cannot determine signal availability for batch validation")
+                    raise ValueError(
+                        f"Signal count query returned NULL for {end} — cannot determine signal availability for batch validation"
+                    )
                 actual_symbols = int(cur_row[0])
 
                 cur.execute("SELECT symbol, MAX(date) FROM signal_quality_scores GROUP BY symbol")
@@ -424,8 +426,10 @@ class SignalQualityScoresLoader(OptimalLoader):
 
             try:
                 result = load_vcp_patterns()
-                logger.info(f"[VCP] Auto-populated: {result.get('patterns_found', 0)} patterns found, "
-                            f"{result.get('symbols_processed', 0)} symbols processed")
+                logger.info(
+                    f"[VCP] Auto-populated: {result.get('patterns_found', 0)} patterns found, "
+                    f"{result.get('symbols_processed', 0)} symbols processed"
+                )
             except Exception as e:
                 logger.warning(f"[VCP] Auto-population failed: {e} - proceeding without VCP patterns")
 

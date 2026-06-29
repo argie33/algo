@@ -100,7 +100,9 @@ class VectorizedSwingScoresLoader:
                 )
 
             # STEP 5: Compute scores for ALL symbols vectorized
-            scores_df = self._compute_all_scores_vectorized(symbols, signal_scores, technical_data, trend_data, sector_data)
+            scores_df = self._compute_all_scores_vectorized(
+                symbols, signal_scores, technical_data, trend_data, sector_data
+            )
 
             if scores_df.empty:
                 raise RuntimeError(
@@ -250,7 +252,9 @@ class VectorizedSwingScoresLoader:
                     raise ValueError(f"{symbol}: trend data missing required 'minervini_trend_score' field")
                 minervini = trend["minervini_trend_score"]
                 if not pd.notna(minervini):
-                    raise ValueError(f"{symbol}: minervini_trend_score is NaN on {date} — required for trend-based scoring")
+                    raise ValueError(
+                        f"{symbol}: minervini_trend_score is NaN on {date} — required for trend-based scoring"
+                    )
                 minervini = float(minervini)
 
                 # Skip stocks with insufficient trend strength (gate: minervini >= 5)
@@ -268,7 +272,9 @@ class VectorizedSwingScoresLoader:
                     raise ValueError(f"{symbol}: trend data missing required 'weinstein_stage' field")
                 weinstein = trend["weinstein_stage"]
                 if not pd.notna(weinstein):
-                    raise ValueError(f"{symbol}: weinstein_stage is NaN on {date} — required for market stage filtering")
+                    raise ValueError(
+                        f"{symbol}: weinstein_stage is NaN on {date} — required for market stage filtering"
+                    )
                 weinstein = int(weinstein)
                 if weinstein != 2:
                     logger.debug(f"{symbol}: stage={weinstein} != 2, skipping (not uptrend)")
@@ -349,9 +355,7 @@ class VectorizedSwingScoresLoader:
                 # Use trend_template_data date (guaranteed non-None by line 243 validation).
                 # No fallback chain — trend data is required upstream.
                 if "date" not in trend or trend["date"] is None:
-                    raise ValueError(
-                        f"{symbol}: trend_template_data missing required 'date' field on required date"
-                    )
+                    raise ValueError(f"{symbol}: trend_template_data missing required 'date' field on required date")
                 score_date = trend["date"]
                 results.append(
                     {
@@ -452,7 +456,9 @@ class VectorizedSwingScoresLoader:
                         "trend": float(row["trend_score"]) if not pd.isna(row["trend_score"]) else None,
                         "momentum": float(row["momentum_score"]) if not pd.isna(row["momentum_score"]) else None,
                         "volume": float(row["volume_score"]) if not pd.isna(row["volume_score"]) else None,
-                        "fundamentals": float(row["fundamentals_score"]) if not pd.isna(row["fundamentals_score"]) else None,
+                        "fundamentals": float(row["fundamentals_score"])
+                        if not pd.isna(row["fundamentals_score"])
+                        else None,
                         "sector": float(row["sector_score"]) if not pd.isna(row["sector_score"]) else None,
                         "multi_tf": float(row["multi_tf_score"]) if not pd.isna(row["multi_tf_score"]) else None,
                     }

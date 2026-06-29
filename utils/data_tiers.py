@@ -25,17 +25,13 @@ CRITICAL_DATA: set[str] = {
     "etf_price_daily",
     "etf_price_weekly",
     "etf_price_monthly",
-
     # Technical indicators: Required for Minervini/Weinstein signal generation (Phase 5, Phase 7)
     "technical_data_daily",
-
     # Volatility & scoring: Required for signal ranking and position sizing
     "swing_trader_scores",
-
     # Market regime: Required for position sizing constraints (Phase 3b, Phase 5)
     "market_health_daily",
     "market_exposure_daily",
-
     # Earnings dates: Required for 7-day blackout window gating (Phase 5)
     "earnings_calendar",
 }
@@ -51,32 +47,23 @@ CRITICAL_DATA: set[str] = {
 AUXILIARY_DATA: set[str] = {
     # Sector rotation: Used for portfolio balance hints (Phase 3b is not strict)
     "sector_ranking",
-
     # Trend criteria: Optional filter for signal generation (Phase 5 can work without it)
     "trend_template_data",
-
     # Growth metrics: Enriches signal quality but not required for entry
     "growth_metrics",
-
     # Value metrics: Used for quality filters but not blocking
     "value_metrics",
-
     # Positioning: Institutional money flow enrichment (optional)
     "positioning_metrics",
-
     # Sentiment: Analyst sentiment (nice-to-have quality metric)
     "analyst_sentiment_analysis",
-
     # Quality/stability: Risk enrichment (not required for base logic)
     "stability_metrics",
-
     # Economic data: Macro context (optional for regime understanding)
     "economic_metrics_daily",
-
     # VIX/breadth: Market health enrichment (market_health_daily is critical, these are supplementary)
     "aaii_sentiment",
     "fear_greed_index",
-
     # Scores & signals: Orchestrator-generated outputs (Phase 5/7 will regenerate)
     "stock_scores",
     "buy_sell_daily",
@@ -88,6 +75,7 @@ ORCHESTRATOR_GENERATED: set[str] = {
     "stock_scores",  # Phase 5 output
     "buy_sell_daily",  # Phase 5 output
 }
+
 
 # Analysis helpers
 def is_critical(table_name: str) -> bool:

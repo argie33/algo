@@ -224,8 +224,7 @@ class OptionsLoader:
                         inserted += 1
                     except Exception as e:
                         raise RuntimeError(
-                            f"[OPTIONS_CHAINS] Database insert failed for call option {symbol} "
-                            f"strike={strike}: {e}"
+                            f"[OPTIONS_CHAINS] Database insert failed for call option {symbol} strike={strike}: {e}"
                         ) from e
 
         # Process puts
@@ -267,8 +266,7 @@ class OptionsLoader:
                         inserted += 1
                     except Exception as e:
                         raise RuntimeError(
-                            f"[OPTIONS_CHAINS] Database insert failed for put option {symbol} "
-                            f"strike={strike}: {e}"
+                            f"[OPTIONS_CHAINS] Database insert failed for put option {symbol} strike={strike}: {e}"
                         ) from e
 
         if inserted == 0:
@@ -316,15 +314,11 @@ class OptionsLoader:
                 iv_values.extend(iv_col.dropna().tolist())
 
             except requests.Timeout as e:
-                raise RuntimeError(
-                    f"[IV_HISTORY] Timeout fetching IV for {symbol} expiration {exp_str}: {e}"
-                ) from e
+                raise RuntimeError(f"[IV_HISTORY] Timeout fetching IV for {symbol} expiration {exp_str}: {e}") from e
             except ValueError:
                 raise
             except Exception as e:
-                raise RuntimeError(
-                    f"[IV_HISTORY] Failed to fetch IV for {symbol} expiration {exp_str}: {e}"
-                ) from e
+                raise RuntimeError(f"[IV_HISTORY] Failed to fetch IV for {symbol} expiration {exp_str}: {e}") from e
 
         if not iv_values:
             raise RuntimeError(
@@ -410,13 +404,9 @@ class OptionsLoader:
                     ),
                 )
             except Exception as e:
-                raise RuntimeError(
-                    f"[IV_HISTORY] Database update failed for {symbol}: {e}"
-                ) from e
+                raise RuntimeError(f"[IV_HISTORY] Database update failed for {symbol}: {e}") from e
         except Exception as e:
-            raise RuntimeError(
-                f"[IV_HISTORY] Database insert failed for {symbol}: {e}"
-            ) from e
+            raise RuntimeError(f"[IV_HISTORY] Database insert failed for {symbol}: {e}") from e
 
         return 1
 
@@ -464,8 +454,7 @@ def main() -> None:
             sys.exit(1)
 
         if result.get("data_unavailable"):
-            logger.warning(f"Options data unavailable: {result.get('reason', 'unknown')}. "
-                          f"Details: {result}")
+            logger.warning(f"Options data unavailable: {result.get('reason', 'unknown')}. Details: {result}")
             sys.exit(1)
 
         logger.info(f"Success: {result}")

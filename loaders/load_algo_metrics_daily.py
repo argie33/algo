@@ -85,9 +85,7 @@ class AlgoMetricsDailyLoader(OptimalLoader):
                     try:
                         avg_signal_score = float(score)
                         if avg_signal_score < 0 or avg_signal_score > 100:
-                            raise ValueError(
-                                f"avg_signal_score must be 0-100, got {avg_signal_score}"
-                            )
+                            raise ValueError(f"avg_signal_score must be 0-100, got {avg_signal_score}")
                     except (ValueError, TypeError) as e:
                         raise ValueError(f"avg_signal_score must be numeric, got {score}") from e
 

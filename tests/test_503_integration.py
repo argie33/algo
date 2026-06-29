@@ -120,11 +120,7 @@ def test_exp_factors_skips_retry_on_503():
         try:
             res = fn(None)
             # With our fix: skip retry for optional fetchers on 503
-            if (
-                name not in critical_fetchers
-                and isinstance(res, dict)
-                and res.get("_is_transient_503")
-            ):
+            if name not in critical_fetchers and isinstance(res, dict) and res.get("_is_transient_503"):
                 return name, res  # No retry, return immediately
             return name, res
         except Exception as e:

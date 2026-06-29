@@ -362,7 +362,6 @@ class ValueAtRisk:
                 if snapshot_date:
                     from datetime import date
 
-
                     today = date.today()
                     age_days = (today - snapshot_date).days
                     if age_days > 1:  # Allow up to 1 day old for post-market calculations
@@ -481,9 +480,7 @@ class ValueAtRisk:
                         m_rets = spy_returns[-n:]
                         s_mean = Decimal(str(sum(s_rets) / n))
                         m_mean = Decimal(str(sum(m_rets) / n))
-                        cov = Decimal(
-                            str(sum((s_rets[i] - s_mean) * (m_rets[i] - m_mean) for i in range(n)) / n)
-                        )
+                        cov = Decimal(str(sum((s_rets[i] - s_mean) * (m_rets[i] - m_mean) for i in range(n)) / n))
                         var = Decimal(str(sum((r - m_mean) ** 2 for r in m_rets) / n))
                         if var <= 0:
                             raise ValueError(

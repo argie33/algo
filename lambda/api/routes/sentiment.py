@@ -287,7 +287,9 @@ def handle(  # noqa: C901
                 "neutralPercent": np_,
                 "avgPriceTarget": (float(latest["target_price"]) if latest.get("target_price") is not None else None),
                 "priceTargetVsCurrent": (
-                    float(latest["upside_downside_percent"]) if latest.get("upside_downside_percent") is not None else None
+                    float(latest["upside_downside_percent"])
+                    if latest.get("upside_downside_percent") is not None
+                    else None
                 ),
                 "consensus": (
                     (
@@ -414,7 +416,9 @@ def handle(  # noqa: C901
                 "neutralPercent": np_,
                 "avgPriceTarget": (float(latest["target_price"]) if latest.get("target_price") is not None else None),
                 "priceTargetVsCurrent": (
-                    float(latest["upside_downside_percent"]) if latest.get("upside_downside_percent") is not None else None
+                    float(latest["upside_downside_percent"])
+                    if latest.get("upside_downside_percent") is not None
+                    else None
                 ),
                 "sentiment": (
                     (
@@ -460,7 +464,9 @@ def handle(  # noqa: C901
                 """)
             row = cur.fetchone()
             if not row:
-                return error_response(503, "no_data", "Sentiment data not available — fear_greed_index table empty or data not loaded")
+                return error_response(
+                    503, "no_data", "Sentiment data not available — fear_greed_index table empty or data not loaded"
+                )
             if row["fear_greed_value"] is None:
                 raise RuntimeError(
                     "Default sentiment endpoint requires fear_greed_value but data is NULL. "

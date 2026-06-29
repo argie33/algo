@@ -246,7 +246,7 @@ def _get_stock_scores(
             filter_rate = prices_missing_count / len(items) if len(items) > 0 else 0
             if filter_rate > 0.5:
                 logger.warning(
-                    f"Scores endpoint: {prices_missing_count}/{len(items)} scores ({filter_rate*100:.1f}%) "
+                    f"Scores endpoint: {prices_missing_count}/{len(items)} scores ({filter_rate * 100:.1f}%) "
                     f"have missing price data. Data quality is degraded."
                 )
             else:

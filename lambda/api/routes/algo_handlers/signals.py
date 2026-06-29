@@ -76,7 +76,7 @@ def _calculate_pre_trade_impact(cur: cursor, body: dict[str, Any]) -> Any:
                 400,
                 "missing_position_size",
                 "Pre-trade impact requires either position_dollars or position_pct. "
-                "Cannot default to implicit 0.75% — caller must explicitly specify intended position size."
+                "Cannot default to implicit 0.75% — caller must explicitly specify intended position size.",
             )
 
         if not entry_price or entry_price <= 0:
@@ -86,7 +86,7 @@ def _calculate_pre_trade_impact(cur: cursor, body: dict[str, Any]) -> Any:
         actual_dollars = shares * entry_price
         if portfolio_value <= 0:
             return error_response(503, "service_unavailable", "Portfolio value invalid")
-        pct_of_portfolio = (actual_dollars / portfolio_value * 100)
+        pct_of_portfolio = actual_dollars / portfolio_value * 100
 
         # Symbol sector
         cur.execute(
@@ -118,7 +118,9 @@ def _calculate_pre_trade_impact(cur: cursor, body: dict[str, Any]) -> Any:
                     try:
                         sector_val = float(sector_val_raw)
                         if sector_val < 0:
-                            logger.warning(f"Sector {sr['sector']} has negative exposure ({sector_val}) — data corruption")
+                            logger.warning(
+                                f"Sector {sr['sector']} has negative exposure ({sector_val}) — data corruption"
+                            )
                             continue
                     except (ValueError, TypeError) as e:
                         return error_response(503, "data_format_error", f"Sector exposure not numeric: {e}")
@@ -131,10 +133,14 @@ def _calculate_pre_trade_impact(cur: cursor, body: dict[str, Any]) -> Any:
 
         # CRITICAL: Sector exposure must be known or explicitly 'Unknown', never silent 0.0
         if sector is None:
-            return error_response(400, "sector_unknown", f"Cannot size position for {symbol}: sector not found in company_profile")
+            return error_response(
+                400, "sector_unknown", f"Cannot size position for {symbol}: sector not found in company_profile"
+            )
         if sector not in sector_exposure:
             # 'Unknown' sector should exist from COALESCE in query, but validate it
-            return error_response(503, "sector_exposure_incomplete", f"Sector exposure missing for '{sector}'. Database query incomplete.")
+            return error_response(
+                503, "sector_exposure_incomplete", f"Sector exposure missing for '{sector}'. Database query incomplete."
+            )
 
         current_sector_dollars = sector_exposure[sector]  # Explicit access, no fallback to 0.0
         projected_sector_dollars = current_sector_dollars + actual_dollars
@@ -232,7 +238,7 @@ def _calculate_trade_preview(cur: cursor, body: dict[str, Any]) -> Any:
         shares = int(position_dollars / entry_price)
         if portfolio_value <= 0:
             return error_response(503, "service_unavailable", "Portfolio value invalid")
-        pct_of_portfolio = (shares * entry_price / portfolio_value * 100)
+        pct_of_portfolio = shares * entry_price / portfolio_value * 100
         total_risk_amount = (risk_amount * shares) if risk_amount else None
 
         targets = {}
@@ -353,7 +359,9 @@ def _get_rejection_funnel(cur: cursor) -> Any:  # noqa: C901
             pct = round((count / initial_count * 100), 2)
             rejected = prior - count
             if prior <= 0:
-                raise ValueError(f"CRITICAL: Prior count is zero/negative ({prior}) for stage {stage} — cannot calculate rejection %")
+                raise ValueError(
+                    f"CRITICAL: Prior count is zero/negative ({prior}) for stage {stage} — cannot calculate rejection %"
+                )
             rej_pct = round((rejected / prior * 100), 2)
             return {
                 "stage": stage,

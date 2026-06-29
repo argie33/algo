@@ -51,7 +51,9 @@ class CredentialsProvider:
             if not api_url:
                 api_url = secret.get("dashboard_api_url")
                 if api_url:
-                    logger.warning("[CREDS] Using fallback key 'dashboard_api_url' for API URL (primary 'api_url' missing)")
+                    logger.warning(
+                        "[CREDS] Using fallback key 'dashboard_api_url' for API URL (primary 'api_url' missing)"
+                    )
             if not api_url:
                 raise RuntimeError(
                     f"dashboard_api_url not found in {secret_name}. "
@@ -68,7 +70,9 @@ class CredentialsProvider:
             if not client_id:
                 client_id = secret.get("cognito_client_id")
                 if client_id:
-                    logger.warning("[CREDS] Using fallback key 'cognito_client_id' for client ID (primary 'cognito_user_pool_client_id' missing)")
+                    logger.warning(
+                        "[CREDS] Using fallback key 'cognito_client_id' for client ID (primary 'cognito_user_pool_client_id' missing)"
+                    )
             if not client_id:
                 raise RuntimeError(
                     f"cognito_client_id not found in {secret_name}. "
@@ -219,10 +223,8 @@ class CredentialsProvider:
             return bool(parsed.scheme and parsed.netloc)
         except Exception as e:
             logger.error(
-                f"URL validation failed for API endpoint: {e}. "
-                f"Cannot validate API URL format — check configuration."
+                f"URL validation failed for API endpoint: {e}. Cannot validate API URL format — check configuration."
             )
             raise RuntimeError(
-                f"URL validation failed: {e}. "
-                "API endpoint configuration is invalid. Cannot proceed."
+                f"URL validation failed: {e}. API endpoint configuration is invalid. Cannot proceed."
             ) from e

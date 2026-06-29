@@ -21,29 +21,17 @@ class TestMockDataDetection:
 
     def test_detector_identifies_mock_data_markers(self):
         """Verify TestDataDetector finds all mock data markers."""
-        mock_obj = {
-            "value": 100,
-            "_is_mock_data": True,
-            "symbol": "SPY"
-        }
+        mock_obj = {"value": 100, "_is_mock_data": True, "symbol": "SPY"}
         assert TestDataDetector.is_test_data(mock_obj)
 
     def test_detector_ignores_real_data(self):
         """Verify TestDataDetector accepts real data without markers."""
-        real_obj = {
-            "value": 100,
-            "symbol": "SPY",
-            "price": 450.23
-        }
+        real_obj = {"value": 100, "symbol": "SPY", "price": 450.23}
         assert not TestDataDetector.is_test_data(real_obj)
 
     def test_detector_gets_markers(self):
         """Verify TestDataDetector extracts marker list."""
-        mock_obj = {
-            "_is_mock_data": True,
-            "_is_testing_only": True,
-            "value": 100
-        }
+        mock_obj = {"_is_mock_data": True, "_is_testing_only": True, "value": 100}
         markers = TestDataDetector.get_test_data_markers(mock_obj)
         assert "_is_mock_data" in markers
         assert "_is_testing_only" in markers
@@ -107,10 +95,7 @@ class TestPositionSizerSafeguards:
 
     def test_position_sizer_rejects_mock_portfolio(self):
         """Verify PositionSizerSpecialist rejects mock data in portfolio value."""
-        config = {
-            "base_risk_pct": 2.0,
-            "max_position_size_pct": 10.0
-        }
+        config = {"base_risk_pct": 2.0, "max_position_size_pct": 10.0}
         sizer = PositionSizerSpecialist(config)
 
         # Create a dict wrapper with mock data marker (TestDataDetector checks dict)
@@ -119,27 +104,20 @@ class TestPositionSizerSafeguards:
         # For now, we test by mocking what would trigger it
         from unittest.mock import patch
 
-        with patch('utils.test_data_detector.TestDataDetector.assert_not_test_data') as mock_assert:
+        with patch("utils.test_data_detector.TestDataDetector.assert_not_test_data") as mock_assert:
             mock_assert.side_effect = RuntimeError("TEST_DATA_DETECTED_IN_PRODUCTION: mock detected")
             with pytest.raises(RuntimeError, match="TEST_DATA_DETECTED_IN_PRODUCTION"):
                 sizer.calculate_shares(
-                    portfolio_value=Decimal("100000.0"),
-                    entry_price=Decimal("100.0"),
-                    stop_loss=Decimal("95.0")
+                    portfolio_value=Decimal("100000.0"), entry_price=Decimal("100.0"), stop_loss=Decimal("95.0")
                 )
 
     def test_position_sizer_accepts_real_portfolio(self):
         """Verify PositionSizerSpecialist works with real data."""
-        config = {
-            "base_risk_pct": 2.0,
-            "max_position_size_pct": 10.0
-        }
+        config = {"base_risk_pct": 2.0, "max_position_size_pct": 10.0}
         sizer = PositionSizerSpecialist(config)
 
         shares = sizer.calculate_shares(
-            portfolio_value=Decimal("100000.0"),
-            entry_price=Decimal("100.0"),
-            stop_loss=Decimal("95.0")
+            portfolio_value=Decimal("100000.0"), entry_price=Decimal("100.0"), stop_loss=Decimal("95.0")
         )
         assert shares > 0
 
@@ -180,6 +158,7 @@ class TestPreCommitHooks:
     def test_block_seed_prices_script_exists(self):
         """Verify block_seed_prices.py script exists."""
         import pathlib
+
         hook_path = pathlib.Path("scripts/block_seed_prices.py")
         assert hook_path.exists(), "block_seed_prices.py hook not found"
 
@@ -187,9 +166,10 @@ class TestPreCommitHooks:
         """Verify block_seed_prices.py can be imported."""
         import sys
         from pathlib import Path
+
         script_path = Path("scripts/block_seed_prices.py")
-        spec = __import__('importlib').util.spec_from_file_location("block_seed_prices", script_path)
-        module = __import__('importlib').util.module_from_spec(spec)
+        spec = __import__("importlib").util.spec_from_file_location("block_seed_prices", script_path)
+        module = __import__("importlib").util.module_from_spec(spec)
         assert module is not None
 
 
@@ -199,12 +179,14 @@ class TestTestDataRegistry:
     def test_registry_lists_dry_run_broker(self):
         """Verify registry includes dry run broker entry point."""
         from tests.test_utilities.test_data_registry import TestDataRegistry
+
         all_entries = TestDataRegistry.get_all_test_entry_points()
         assert "dry_run_broker" in all_entries
 
     def test_registry_shows_hardened_entries(self):
         """Verify registry marks entries as hardened."""
         from tests.test_utilities.test_data_registry import TestDataRegistry
+
         dry_run = TestDataRegistry.get_entry_point("dry_run_broker")
         assert dry_run is not None
         assert "HARDENED" in dry_run.get("safety_status", "")

@@ -49,7 +49,9 @@ class VectorizedSignalGenerator:
                 )
                 row = cur.fetchone()
                 if row is None or row[0] is None:
-                    raise ValueError(f"Symbol count query returned NULL for {eval_date} — cannot determine price data availability")
+                    raise ValueError(
+                        f"Symbol count query returned NULL for {eval_date} — cannot determine price data availability"
+                    )
                 symbol_count = int(row[0])
                 price_date = eval_date
 

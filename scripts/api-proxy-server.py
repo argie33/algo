@@ -123,7 +123,9 @@ class _APIHandler(BaseHTTPRequestHandler):
         try:
             open("C:\\Users\\arger\\AppData\\Local\\Temp\\proxy_calling_handler.txt", "w").write(f"path={path}")
             result = _handler(event, _MockContext())
-            open("C:\\Users\\arger\\AppData\\Local\\Temp\\proxy_handler_returned.txt", "w").write(f"status={result.get('statusCode')}")
+            open("C:\\Users\\arger\\AppData\\Local\\Temp\\proxy_handler_returned.txt", "w").write(
+                f"status={result.get('statusCode')}"
+            )
         except Exception as exc:
             logger.error(f"Handler raised: {exc}", exc_info=True)
             result = {"statusCode": 500, "body": json.dumps({"error": str(exc)})}

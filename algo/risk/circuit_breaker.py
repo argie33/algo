@@ -427,7 +427,9 @@ class CircuitBreaker:
             return {"halted": False, "reason": "Insufficient closed trades (< 10)"}
 
         if row[0] is None or row[1] is None:
-            logger.critical("Circuit breaker win/loss counts missing from database — cannot evaluate win-rate threshold")
+            logger.critical(
+                "Circuit breaker win/loss counts missing from database — cannot evaluate win-rate threshold"
+            )
             return {"halted": True, "reason": "Trade count data unavailable — halting as safety precaution"}
         wins = int(row[0])
         losses = int(row[1])
@@ -442,7 +444,12 @@ class CircuitBreaker:
         win_rate = wins / decisive_trades * 100.0
         win_rate_val = self._get_required_config("min_win_rate_pct", "in win rate check")
         threshold = float(win_rate_val)
-        if not isinstance(threshold, float) or (threshold != threshold) or threshold == float("inf") or threshold == float("-inf"):  # NaN/Inf check
+        if (
+            not isinstance(threshold, float)
+            or (threshold != threshold)
+            or threshold == float("inf")
+            or threshold == float("-inf")
+        ):  # NaN/Inf check
             logger.critical("CRITICAL: min_win_rate_pct is invalid (NaN/Inf) — circuit breaker cannot function")
             return {"halted": True, "reason": "CRITICAL: min_win_rate_pct invalid (NaN/Inf)"}
         return {
@@ -467,7 +474,10 @@ class CircuitBreaker:
                 f"[TOTAL_RISK_CHECK] {missing_stops_count} open positions have NULL current_stop_price. "
                 "Cannot calculate risk with missing current stops. Halting to prevent blind risk-taking."
             )
-            return {"halted": True, "reason": f"{missing_stops_count} positions missing current stops — fail-closed halt"}
+            return {
+                "halted": True,
+                "reason": f"{missing_stops_count} positions missing current stops — fail-closed halt",
+            }
 
         cur.execute(
             """
@@ -489,7 +499,10 @@ class CircuitBreaker:
                 f"[TOTAL_RISK_CHECK] {position_count} open positions exist but risk calculation returned NULL. "
                 "Missing or corrupted entry_price or stop_price data detected. Halting to prevent blind trading."
             )
-            return {"halted": True, "reason": f"Risk calculation failed on {position_count} positions — data corruption"}
+            return {
+                "halted": True,
+                "reason": f"Risk calculation failed on {position_count} positions — data corruption",
+            }
 
         # If no positions, risk is legitimately 0; if positions exist and calculation succeeded, use result
         total_open_risk = _float(total_open_risk_raw, 0.0, context="total_open_risk")
@@ -682,16 +695,22 @@ class CircuitBreaker:
             return {"halted": False, "reason": "Insufficient history"}
         cur_val, week_ago_val = float(row[0]), float(row[1])
         if week_ago_val <= 0:
-            logger.critical(f"CRITICAL: Week-ago portfolio value invalid ({week_ago_val}) — cannot calculate weekly return")
+            logger.critical(
+                f"CRITICAL: Week-ago portfolio value invalid ({week_ago_val}) — cannot calculate weekly return"
+            )
             return {"halted": True, "reason": "CRITICAL: Portfolio history data invalid"}
         weekly = (cur_val - week_ago_val) / week_ago_val * 100.0
         max_weekly_val = self._get_required_config("max_weekly_loss_pct", "in weekly loss check")
         try:
             threshold = -float(max_weekly_val)
-            if threshold == 0 or (threshold != threshold) or threshold == float("inf") or threshold == float("-inf"):  # NaN/Inf check
+            if (
+                threshold == 0 or (threshold != threshold) or threshold == float("inf") or threshold == float("-inf")
+            ):  # NaN/Inf check
                 raise ValueError(f"max_weekly_loss_pct invalid ({max_weekly_val})")
         except (ValueError, TypeError) as e:
-            logger.critical(f"CRITICAL: max_weekly_loss_pct configuration invalid — cannot enforce weekly loss limit: {e}")
+            logger.critical(
+                f"CRITICAL: max_weekly_loss_pct configuration invalid — cannot enforce weekly loss limit: {e}"
+            )
             return {"halted": True, "reason": "CRITICAL: max_weekly_loss_pct configuration invalid"}
         return {
             "halted": weekly <= threshold,

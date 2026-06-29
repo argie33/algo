@@ -257,7 +257,7 @@ class MarketFactorCalculator:
                 )
 
             most_recent_date = price_row[0]
-            age = eval_date - most_recent_date if hasattr(eval_date, '__sub__') else 0
+            age = eval_date - most_recent_date if hasattr(eval_date, "__sub__") else 0
             if age and age.days > 0:
                 raise RuntimeError(
                     f"[SELLING_PRESSURE CRITICAL] SPY price data is stale: from {most_recent_date}, "
@@ -451,8 +451,7 @@ class MarketFactorCalculator:
             except Exception as cleanup_err:
                 logger.error(f"Savepoint cleanup failed (ad_line): {cleanup_err}", exc_info=True)
             raise RuntimeError(
-                f"[AD_LINE CRITICAL] A/D line query failed: {e}. "
-                f"Cannot proceed without breadth confirmation."
+                f"[AD_LINE CRITICAL] A/D line query failed: {e}. Cannot proceed without breadth confirmation."
             ) from e
 
     def credit_spread(self, eval_date: Any, cur: Any) -> dict[str, Any]:
@@ -530,8 +529,7 @@ class MarketFactorCalculator:
             except Exception as cleanup_err:
                 logger.error(f"Savepoint cleanup failed (aaii): {cleanup_err}", exc_info=True)
             raise RuntimeError(
-                f"[AAII CRITICAL] AAII sentiment query failed: {e}. "
-                f"Cannot proceed without contrarian sentiment data."
+                f"[AAII CRITICAL] AAII sentiment query failed: {e}. Cannot proceed without contrarian sentiment data."
             ) from e
 
     def naaim(self, eval_date: Any, cur: Any) -> dict[str, Any]:
@@ -565,6 +563,5 @@ class MarketFactorCalculator:
             except Exception as cleanup_err:
                 logger.error(f"Savepoint cleanup failed (naaim): {cleanup_err}", exc_info=True)
             raise RuntimeError(
-                f"[NAAIM CRITICAL] NAAIM query failed: {e}. "
-                f"Cannot proceed without professional positioning data."
+                f"[NAAIM CRITICAL] NAAIM query failed: {e}. Cannot proceed without professional positioning data."
             ) from e

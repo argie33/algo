@@ -573,16 +573,24 @@ class DataSourceRouter:
                             return cal
                         df = cal
                 except (requests.Timeout, requests.ConnectionError) as e:
-                    logger.warning(f"[EARNINGS_DATES] API timeout/connection error for ticker.calendar ({symbol}): {e} (transient, will retry)")
-                    raise TransientAPIError(f"yfinance API timeout/connection fetching earnings calendar for {symbol}") from e
+                    logger.warning(
+                        f"[EARNINGS_DATES] API timeout/connection error for ticker.calendar ({symbol}): {e} (transient, will retry)"
+                    )
+                    raise TransientAPIError(
+                        f"yfinance API timeout/connection fetching earnings calendar for {symbol}"
+                    ) from e
                 except Exception as e:
                     logger.warning(f"[EARNINGS_DATES] ticker.calendar unavailable for {symbol} (falling back): {e}")
 
                 try:
                     df = ticker.earnings_dates
                 except (requests.Timeout, requests.ConnectionError) as e:
-                    logger.warning(f"[EARNINGS_DATES] API timeout/connection error for ticker.earnings_dates ({symbol}): {e} (transient, will retry)")
-                    raise TransientAPIError(f"yfinance API timeout/connection fetching earnings dates for {symbol}") from e
+                    logger.warning(
+                        f"[EARNINGS_DATES] API timeout/connection error for ticker.earnings_dates ({symbol}): {e} (transient, will retry)"
+                    )
+                    raise TransientAPIError(
+                        f"yfinance API timeout/connection fetching earnings dates for {symbol}"
+                    ) from e
                 except Exception as e:
                     logger.warning(f"[EARNINGS_DATES] ticker.earnings_dates unavailable for {symbol} (skipping): {e}")
 

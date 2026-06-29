@@ -110,30 +110,22 @@ class AlgoConfig:
             "Minimum data completeness % (Minervini standard)",
             "Filter Thresholds",
         ),
-        "min_stock_price": ("5.0", "float", "Minimum stock price $",
-            "Filter Thresholds"
-        ),
+        "min_stock_price": ("5.0", "float", "Minimum stock price $", "Filter Thresholds"),
         "min_signal_quality_score": (
             "60",
             "int",
             "Minimum SQS 0-100 (signal quality gate)",
             "Filter Thresholds",
         ),
-        "min_volume_ma_50d": ("300000", "int", "Minimum 50-day avg volume",
-            "Filter Thresholds"
-        ),
+        "min_volume_ma_50d": ("300000", "int", "Minimum 50-day avg volume", "Filter Thresholds"),
         "min_avg_daily_dollar_volume": (
             "500000",
             "float",
             "Minimum daily dollar volume for liquidity gate",
             "Filter Thresholds",
         ),
-        "require_stock_stage_2": ("true", "bool", "Require Stage 2 trend template",
-            "Filter Thresholds"
-        ),
-        "max_stop_distance_pct": ("12.0", "float", "Max stop distance % from entry",
-            "Filter Thresholds"
-        ),
+        "require_stock_stage_2": ("true", "bool", "Require Stage 2 trend template", "Filter Thresholds"),
+        "max_stop_distance_pct": ("12.0", "float", "Max stop distance % from entry", "Filter Thresholds"),
         "max_positions_per_sector": (
             "10",
             "int",
@@ -404,9 +396,7 @@ class AlgoConfig:
             "Entry Quality Gates",
         ),
         "require_weekly_stage_2": ("false", "bool", "Require weekly chart Stage 2", "Entry Quality Gates"),
-        "min_rs_line_slope_days": ("10", "int", "Days for RS line slope check",
-            "Signal Quality Thresholds"
-        ),
+        "min_rs_line_slope_days": ("10", "int", "Days for RS line slope check", "Signal Quality Thresholds"),
         "max_rs_pct_from_60d_high": (
             "15.0",
             "float",
@@ -433,12 +423,8 @@ class AlgoConfig:
             "Exit Rules",
         ),
         "t1_target_r_multiple": ("1.5", "float", "Tier 1 profit target R-mult", "Exit Rules"),
-        "t2_target_r_multiple": ("3.0", "float", "Tier 2 profit target R-mult",
-            "Signal Quality Thresholds"
-        ),
-        "t3_target_r_multiple": ("4.0", "float", "Tier 3 profit target R-mult",
-            "Signal Quality Thresholds"
-        ),
+        "t2_target_r_multiple": ("3.0", "float", "Tier 2 profit target R-mult", "Signal Quality Thresholds"),
+        "t3_target_r_multiple": ("4.0", "float", "Tier 3 profit target R-mult", "Signal Quality Thresholds"),
         # Imported Position Defaults (when ATR calculation fails)
         "imported_position_default_stop_loss_pct": (
             "5.0",
@@ -465,12 +451,8 @@ class AlgoConfig:
             "Exit Rules",
         ),
         "min_hold_days": ("1", "int", "Minimum days to hold", "Exit Rules"),
-        "max_hold_days": ("20", "int", "Max days to hold position",
-            "Exit Strategy"
-        ),
-        "exit_on_distribution_day": ("true", "bool", "Exit on market distribution",
-            "Exit Strategy"
-        ),
+        "max_hold_days": ("20", "int", "Max days to hold position", "Exit Strategy"),
+        "exit_on_distribution_day": ("true", "bool", "Exit on market distribution", "Exit Strategy"),
         "exit_on_rs_line_break_50dma": (
             "true",
             "bool",
@@ -497,12 +479,8 @@ class AlgoConfig:
             "Exit Rules",
         ),
         "eight_week_rule_window_days": ("21", "int", "Days to check for 20%+ gain", "Exit Rules"),
-        "chandelier_atr_mult": ("3.0", "float", "ATR multiplier for chandelier stop",
-            "Exit Strategy"
-        ),
-        "move_be_at_r": ("1.0", "float", "R-multiple to trigger breakeven stop raise",
-            "Exit Strategy"
-        ),
+        "chandelier_atr_mult": ("3.0", "float", "ATR multiplier for chandelier stop", "Exit Strategy"),
+        "move_be_at_r": ("1.0", "float", "R-multiple to trigger breakeven stop raise", "Exit Strategy"),
         # Drawdown Re-engagement (Sprint 3)
         "re_engage_recovery_pct": (
             "8.0",
@@ -519,15 +497,9 @@ class AlgoConfig:
         ),
         # Circuit Breaker Thresholds (CB)
         "max_daily_loss_pct": ("2.0", "float", "Max daily loss % before halt", "Risk Management"),
-        "max_consecutive_losses": ("3", "int", "Max consecutive losing trades",
-            "Risk Limits"
-        ),
-        "min_win_rate_pct": ("40.0", "float", "Min win rate % to trade",
-            "Risk Limits"
-        ),
-        "max_total_risk_pct": ("4.0", "float", "Max total open risk %",
-            "Risk Limits"
-        ),
+        "max_consecutive_losses": ("3", "int", "Max consecutive losing trades", "Risk Limits"),
+        "min_win_rate_pct": ("40.0", "float", "Min win rate % to trade", "Risk Limits"),
+        "max_total_risk_pct": ("4.0", "float", "Max total open risk %", "Risk Limits"),
         "min_risk_pct_floor": (
             "0.10",
             "float",
@@ -535,12 +507,8 @@ class AlgoConfig:
             "Risk Management",
         ),
         "max_weekly_loss_pct": ("5.0", "float", "Max weekly loss % before halt", "Risk Management"),
-        "max_data_staleness_days": ("3", "int", "Max data age in days",
-            "Data Quality"
-        ),
-        "daily_profit_cap_pct": ("2.0", "float", "Daily profit cap %",
-            "Position Sizing"
-        ),
+        "max_data_staleness_days": ("3", "int", "Max data age in days", "Data Quality"),
+        "daily_profit_cap_pct": ("2.0", "float", "Daily profit cap %", "Position Sizing"),
         "sector_drawdown_halt_pct": (
             "-12.0",
             "float",
@@ -549,9 +517,7 @@ class AlgoConfig:
         ),
         # Position Monitoring & Re-entry
         "position_halt_flag_count": ("2", "int", "Flags to propose early exit", "Position Monitoring"),
-        "max_reentries_per_name": ("2", "int", "Max times to re-enter same symbol",
-            "Position Sizing"
-        ),
+        "max_reentries_per_name": ("2", "int", "Max times to re-enter same symbol", "Position Sizing"),
         "min_days_before_reentry_same_symbol": (
             "5",
             "int",
@@ -585,18 +551,10 @@ class AlgoConfig:
             "Liquidity Requirements",
         ),
         "min_daily_volume_shares": ("500000", "int", "Minimum daily volume shares", "Liquidity Requirements"),
-        "max_spread_pct": ("0.5", "float", "Maximum bid-ask spread %",
-            "Liquidity Requirements"
-        ),
-        "min_market_cap_millions": ("300.0", "float", "Minimum market cap $M",
-            "Liquidity Requirements"
-        ),
-        "min_float_millions": ("50.0", "float", "Minimum float shares $M",
-            "Liquidity Requirements"
-        ),
-        "max_short_interest_pct": ("30.0", "float", "Maximum short interest %",
-            "Liquidity Requirements"
-        ),
+        "max_spread_pct": ("0.5", "float", "Maximum bid-ask spread %", "Liquidity Requirements"),
+        "min_market_cap_millions": ("300.0", "float", "Minimum market cap $M", "Liquidity Requirements"),
+        "min_float_millions": ("50.0", "float", "Minimum float shares $M", "Liquidity Requirements"),
+        "max_short_interest_pct": ("30.0", "float", "Maximum short interest %", "Liquidity Requirements"),
         # Advanced Filters
         "block_days_before_earnings": (
             "5",
@@ -618,15 +576,9 @@ class AlgoConfig:
             "Advanced Filters",
         ),
         "min_adv_shares": ("50000", "int", "Minimum average daily volume (shares)", "Liquidity Requirements"),
-        "min_adv_dollars": ("500000", "float", "Minimum average daily dollar volume",
-            "Liquidity Requirements"
-        ),
-        "min_order_size_dollars": ("100.0", "float", "Minimum order size in dollars",
-            "Liquidity Requirements"
-        ),
-        "phase1_min_coverage_pct": ("75", "int", "Phase 1: Minimum data coverage %",
-            "Liquidity Requirements"
-        ),
+        "min_adv_dollars": ("500000", "float", "Minimum average daily dollar volume", "Liquidity Requirements"),
+        "min_order_size_dollars": ("100.0", "float", "Minimum order size in dollars", "Liquidity Requirements"),
+        "phase1_min_coverage_pct": ("75", "int", "Phase 1: Minimum data coverage %", "Liquidity Requirements"),
         "phase1_min_symbol_count": (
             "5000",
             "int",
@@ -641,15 +593,9 @@ class AlgoConfig:
         ),
         # Swing Trader Score Weights (Minervini Research-Weighted Composite)
         "swing_weight_setup": ("25", "int", "Swing score: Setup quality weight %", "Scoring Weights"),
-        "swing_weight_trend": ("20", "int", "Swing score: Trend quality weight %",
-            "Scoring Weights"
-        ),
-        "swing_weight_momentum": ("20", "int", "Swing score: Momentum/RS weight %",
-            "Scoring Weights"
-        ),
-        "swing_weight_volume": ("12", "int", "Swing score: Volume weight %",
-            "Scoring Weights"
-        ),
+        "swing_weight_trend": ("20", "int", "Swing score: Trend quality weight %", "Scoring Weights"),
+        "swing_weight_momentum": ("20", "int", "Swing score: Momentum/RS weight %", "Scoring Weights"),
+        "swing_weight_volume": ("12", "int", "Swing score: Volume weight %", "Scoring Weights"),
         "swing_weight_fundamentals": (
             "10",
             "int",
@@ -793,12 +739,8 @@ class AlgoConfig:
         ),
         # Execution Mode
         "execution_mode": ("auto", "string", "paper|dry|review|auto", "Execution Mode"),
-        "alpaca_paper_trading": ("false", "bool", "Use Alpaca paper account",
-            "Execution Mode"
-        ),
-        "max_trades_per_day": ("5", "int", "Max new trades per day",
-            "Execution Mode"
-        ),
+        "alpaca_paper_trading": ("false", "bool", "Use Alpaca paper account", "Execution Mode"),
+        "max_trades_per_day": ("5", "int", "Max new trades per day", "Execution Mode"),
         "default_portfolio_value": (
             "100000.0",
             "float",
@@ -807,12 +749,8 @@ class AlgoConfig:
         ),
         # Feature Flags
         "enable_algo": ("true", "bool", "Enable algo trading", "Feature Flags"),
-        "enable_backtesting": ("false", "bool", "Enable backtest mode",
-            "Feature Flags"
-        ),
-        "verbose_logging": ("true", "bool", "Detailed logging",
-            "Feature Flags"
-        ),
+        "enable_backtesting": ("false", "bool", "Enable backtest mode", "Feature Flags"),
+        "verbose_logging": ("true", "bool", "Detailed logging", "Feature Flags"),
         # Network Configuration
         "api_request_timeout_seconds": (
             "5",
@@ -924,14 +862,42 @@ class AlgoConfig:
         ),
         # Data Patrol Staleness Thresholds (days; see data_patrol_config.py for usage)
         "patrol_staleness_price": ("7", "int", "Days before price_daily considered stale", "Data Patrol Configuration"),
-        "patrol_staleness_technical_data": ("7", "int", "Days before technical_data_daily considered stale",
-            "Data Patrol Configuration"
+        "patrol_staleness_technical_data": (
+            "7",
+            "int",
+            "Days before technical_data_daily considered stale",
+            "Data Patrol Configuration",
         ),
-        "patrol_staleness_fundamentals": ("60", "int", "Days before fundamentals (quarterly data) considered stale", "Data Patrol Configuration"),
-        "patrol_staleness_growth_metrics": ("30", "int", "Days before growth_metrics considered stale", "Data Patrol Configuration"),
-        "patrol_staleness_stock_scores": ("7", "int", "Days before stock_scores considered stale", "Data Patrol Configuration"),
-        "patrol_staleness_aaii_sentiment": ("7", "int", "Days before aaii_sentiment considered stale", "Data Patrol Configuration"),
-        "patrol_staleness_earnings_history": ("120", "int", "Days before earnings_history considered stale", "Data Patrol Configuration"),
+        "patrol_staleness_fundamentals": (
+            "60",
+            "int",
+            "Days before fundamentals (quarterly data) considered stale",
+            "Data Patrol Configuration",
+        ),
+        "patrol_staleness_growth_metrics": (
+            "30",
+            "int",
+            "Days before growth_metrics considered stale",
+            "Data Patrol Configuration",
+        ),
+        "patrol_staleness_stock_scores": (
+            "7",
+            "int",
+            "Days before stock_scores considered stale",
+            "Data Patrol Configuration",
+        ),
+        "patrol_staleness_aaii_sentiment": (
+            "7",
+            "int",
+            "Days before aaii_sentiment considered stale",
+            "Data Patrol Configuration",
+        ),
+        "patrol_staleness_earnings_history": (
+            "120",
+            "int",
+            "Days before earnings_history considered stale",
+            "Data Patrol Configuration",
+        ),
         # Data Patrol Volume Thresholds
         "patrol_high_volume_threshold": (
             "100000000",
@@ -952,18 +918,63 @@ class AlgoConfig:
             "Data Patrol",
         ),
         # Data Patrol Quality Thresholds
-        "patrol_max_null_pct_threshold": ("5.0", "float", "Max allowed null % in a data table", "Data Patrol Configuration"),
-        "patrol_max_daily_move_pct": ("0.5", "float", "Flag OHLC rows with daily move > N * 100%", "Data Patrol Configuration"),
-        "patrol_max_daily_move_count": ("10", "int", "Max allowed extreme daily moves per run", "Data Patrol Configuration"),
+        "patrol_max_null_pct_threshold": (
+            "5.0",
+            "float",
+            "Max allowed null % in a data table",
+            "Data Patrol Configuration",
+        ),
+        "patrol_max_daily_move_pct": (
+            "0.5",
+            "float",
+            "Flag OHLC rows with daily move > N * 100%",
+            "Data Patrol Configuration",
+        ),
+        "patrol_max_daily_move_count": (
+            "10",
+            "int",
+            "Max allowed extreme daily moves per run",
+            "Data Patrol Configuration",
+        ),
         # Data Patrol Coverage Thresholds
-        "patrol_price_daily_14d_min": ("40000", "int", "Min rows in price_daily over last 14 days", "Data Patrol Configuration"),
-        "patrol_buy_sell_daily_14d_min": ("800", "int", "Min rows in buy_sell_daily over last 14 days", "Data Patrol Configuration"),
-        "patrol_coverage_ratio_min": ("0.8", "float", "Min coverage ratio (0-1) for data completeness check", "Data Patrol Configuration"),
-        "patrol_min_coverage_ratio": ("80.0", "float", "Min coverage ratio % (0-100) for universe coverage", "Data Patrol Configuration"),
-        "patrol_min_universe_pct": ("80.0", "float", "Min % of active universe that must have data", "Data Patrol Configuration"),
+        "patrol_price_daily_14d_min": (
+            "40000",
+            "int",
+            "Min rows in price_daily over last 14 days",
+            "Data Patrol Configuration",
+        ),
+        "patrol_buy_sell_daily_14d_min": (
+            "800",
+            "int",
+            "Min rows in buy_sell_daily over last 14 days",
+            "Data Patrol Configuration",
+        ),
+        "patrol_coverage_ratio_min": (
+            "0.8",
+            "float",
+            "Min coverage ratio (0-1) for data completeness check",
+            "Data Patrol Configuration",
+        ),
+        "patrol_min_coverage_ratio": (
+            "80.0",
+            "float",
+            "Min coverage ratio % (0-100) for universe coverage",
+            "Data Patrol Configuration",
+        ),
+        "patrol_min_universe_pct": (
+            "80.0",
+            "float",
+            "Min % of active universe that must have data",
+            "Data Patrol Configuration",
+        ),
         # Signal and Loader Thresholds
         "signal_max_data_age_days": ("3", "int", "Max data age in days for signal generation", "Signal Generation"),
-        "stale_loader_threshold_minutes": ("30", "int", "Loader heartbeat age (minutes) before marking stale", "Signal Generation"),
+        "stale_loader_threshold_minutes": (
+            "30",
+            "int",
+            "Loader heartbeat age (minutes) before marking stale",
+            "Signal Generation",
+        ),
         # Swing Score Grade Thresholds
         "swing_score_excellent_threshold": ("85", "int", "Swing score >= this = Excellent/A+", "Swing Trader Scoring"),
         "swing_score_good_threshold": ("75", "int", "Swing score >= this = Good/A", "Swing Trader Scoring"),
@@ -1454,7 +1465,7 @@ class AlgoConfig:
         if total_sources > 0 and (default_sources / total_sources) > 0.75:
             logger.critical(
                 f"[CONFIG WARNING] PARTIAL database load failure: {default_sources}/{total_sources} configs "
-                f"still at defaults ({(default_sources/total_sources)*100:.0f}%). "
+                f"still at defaults ({(default_sources / total_sources) * 100:.0f}%). "
                 f"Database may be slow/degraded. Verify algo_config table has all required values."
             )
 

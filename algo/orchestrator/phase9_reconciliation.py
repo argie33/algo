@@ -132,7 +132,9 @@ def _audit_exit_prices_step(
             if status != "OK":
                 msg = stale_audit.get("message")
                 if msg is None:
-                    raise ValueError(f"Exit price audit status '{status}' but message missing. Keys: {list(stale_audit.keys())}")
+                    raise ValueError(
+                        f"Exit price audit status '{status}' but message missing. Keys: {list(stale_audit.keys())}"
+                    )
                 logger.warning(f"[PHASE 7 AUDIT] Stale estimated prices detected: {msg}")
                 log_phase_result_fn(9, "exit_reconciliation_audit", "warn", msg)
             else:
@@ -247,9 +249,17 @@ def _generate_daily_report(run_date: _date, log_phase_result_fn: Callable[..., A
         if not report or "portfolio" not in report:
             raise ValueError("Daily report generated but missing portfolio data")
         portfolio_data = report.get("portfolio")
-        if portfolio_data is None or "current_value" not in portfolio_data or portfolio_data.get("current_value") is None:
+        if (
+            portfolio_data is None
+            or "current_value" not in portfolio_data
+            or portfolio_data.get("current_value") is None
+        ):
             raise ValueError("Portfolio data missing current_value")
-        if portfolio_data is None or "daily_pnl_pct" not in portfolio_data or portfolio_data.get("daily_pnl_pct") is None:
+        if (
+            portfolio_data is None
+            or "daily_pnl_pct" not in portfolio_data
+            or portfolio_data.get("daily_pnl_pct") is None
+        ):
             raise ValueError("Portfolio data missing daily_pnl_pct")
 
         # Log to algo_audit_log for historical tracking
@@ -561,7 +571,7 @@ def _record_closed_positions_exits(
                             logger.error(f"CRITICAL: Trade {symbol} has invalid entry_price ({entry_price}), skipping")
                             continue
                         pnl = (exit_price - entry_price) * quantity
-                        pnl_pct = ((exit_price - entry_price) / entry_price * 100)
+                        pnl_pct = (exit_price - entry_price) / entry_price * 100
 
                         try:
                             write_cursor.execute(

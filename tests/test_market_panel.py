@@ -52,9 +52,7 @@ class TestMarketPanelValidation:
 
         # STRONG ASSERTION: Verify error panel with validation message
         text = render_panel_to_text(panel)
-        assert "CRITICAL DATA MISSING" in text, (
-            "Should show critical data error, got:\n" + text
-        )
+        assert "CRITICAL DATA MISSING" in text, "Should show critical data error, got:\n" + text
         assert "VIX or SPY" in text, "Error should mention which fields"
 
     def test_panel_market_full_missing_critical_spy(self):
@@ -69,9 +67,7 @@ class TestMarketPanelValidation:
 
         # STRONG ASSERTION: Verify error detection
         text = render_panel_to_text(panel)
-        assert "CRITICAL DATA MISSING" in text, (
-            "Should reject missing critical SPY, got:\n" + text
-        )
+        assert "CRITICAL DATA MISSING" in text, "Should reject missing critical SPY, got:\n" + text
 
     def test_panel_market_full_vix_as_string_coerced(self):
         """VIX as string - safe_float should coerce it."""
@@ -118,9 +114,7 @@ class TestMarketPanelValidation:
 
         # Should detect invalid type
         text = render_panel_to_text(panel)
-        assert "CRITICAL DATA MISSING" in text, (
-            "Should reject list for SPY, got:\n" + text
-        )
+        assert "CRITICAL DATA MISSING" in text, "Should reject list for SPY, got:\n" + text
 
     def test_panel_market_full_pct_as_string_allowed(self):
         """Pct (exposure) is optional - string is coercible."""
@@ -136,9 +130,7 @@ class TestMarketPanelValidation:
         # Should render successfully
         text = assert_panel_renders_without_crash(panel, "Should handle string pct")
         # Should show market panel (not error)
-        assert "MARKET" in text and "CRITICAL" not in text, (
-            "Should succeed with coercible pct, got:\n" + text
-        )
+        assert "MARKET" in text and "CRITICAL" not in text, "Should succeed with coercible pct, got:\n" + text
 
     def test_panel_market_full_pct_none_allowed(self):
         """Pct can be None (optional field)."""
@@ -152,9 +144,7 @@ class TestMarketPanelValidation:
 
         # Should render with N/A for pct
         text = assert_panel_renders_without_crash(panel, "Should handle None pct")
-        assert "N/A" in text or "--" in text or "MARKET" in text, (
-            "Should show market data without pct, got:\n" + text
-        )
+        assert "N/A" in text or "--" in text or "MARKET" in text, "Should show market data without pct, got:\n" + text
 
     def test_panel_market_full_upvol_none_allowed(self):
         """Optional upvol can be None."""
@@ -224,10 +214,12 @@ class TestMarketExpandedPanelValidation:
     def test_panel_market_expanded_nh_nl_calculation_safe_with_strings(self):
         """NH-NL calculation should handle type coercion."""
         mkt = TestDataFactory.well_formed_market_data()
-        mkt.update({
-            "nh": "500",  # String instead of int
-            "nl": [100],  # List instead of int (can't coerce)
-        })
+        mkt.update(
+            {
+                "nh": "500",  # String instead of int
+                "nl": [100],  # List instead of int (can't coerce)
+            }
+        )
         panel = panel_market_expanded(mkt=mkt)
 
         # Should render (safe_int handles strings, returns None for lists)
@@ -238,10 +230,12 @@ class TestMarketExpandedPanelValidation:
     def test_panel_market_expanded_breadth_momentum_coercion_safe(self):
         """Breadth momentum/PCR comparisons should use safe_float."""
         mkt = TestDataFactory.well_formed_market_data()
-        mkt.update({
-            "bmom": "0.75",  # String - should coerce
-            "pcr": [0.8],  # List - cannot coerce, shows as N/A
-        })
+        mkt.update(
+            {
+                "bmom": "0.75",  # String - should coerce
+                "pcr": [0.8],  # List - cannot coerce, shows as N/A
+            }
+        )
         panel = panel_market_expanded(mkt=mkt)
 
         # Should handle both gracefully
@@ -482,4 +476,3 @@ class TestMarketPanelOutputFormat:
         text = render_panel_to_text(panel)
         # Timestamp should appear
         assert "12:30" in text, "Should include timestamp"
-

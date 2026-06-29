@@ -237,7 +237,9 @@ def send_metric(metric_name: str, value: float, unit: str = "None", dimensions: 
     try:
         metric_dims = []
         if dimensions is None:
-            logger.warning(f"[HEALTH_MONITOR] Metric '{metric_name}' published without dimensions. Monitoring may lack context.")
+            logger.warning(
+                f"[HEALTH_MONITOR] Metric '{metric_name}' published without dimensions. Monitoring may lack context."
+            )
         else:
             metric_dims = [{"Name": k, "Value": v} for k, v in dimensions.items()]
 

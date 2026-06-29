@@ -104,11 +104,11 @@ def handle(
                     f"({log_entry.get('statusCode')}): {log_entry.get('errorMessage')}"
                 )
             else:
-                error_detail = log_entry.get('errorMessage')
+                error_detail = log_entry.get("errorMessage")
                 if error_detail is None:
-                    error_detail = log_entry.get('message')
+                    error_detail = log_entry.get("message")
                 if error_detail is None:
-                    error_detail = '[ERROR MESSAGE MISSING]'
+                    error_detail = "[ERROR MESSAGE MISSING]"
                 message = (
                     f"{log_entry.get('level', 'LOG')}: {log_entry.get('component', '?')}/"
                     f"{log_entry.get('operation', '?')} - "

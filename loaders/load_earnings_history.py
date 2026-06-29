@@ -172,8 +172,7 @@ class EarningsHistoryLoader(OptimalLoader):
             )
         if not symbol:
             raise ValueError(
-                "Missing or empty required field 'symbol'. "
-                "Earnings row cannot be inserted without a valid symbol."
+                "Missing or empty required field 'symbol'. Earnings row cannot be inserted without a valid symbol."
             )
 
         return True

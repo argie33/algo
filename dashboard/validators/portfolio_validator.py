@@ -63,8 +63,7 @@ class PortfolioDataValidator:
         if pv is not None and pv <= 0:
             return (
                 False,
-                f"Portfolio value {pv} is invalid (must be positive). "
-                f"Data corruption detected.",
+                f"Portfolio value {pv} is invalid (must be positive). Data corruption detected.",
             )
 
         cash = portfolio.get("total_cash")
@@ -123,8 +122,7 @@ class PortfolioDataValidator:
         if invalid_positions:
             return (
                 False,
-                f"Invalid position data: {'; '.join(invalid_positions)}. "
-                f"Positions must have all required fields.",
+                f"Invalid position data: {'; '.join(invalid_positions)}. Positions must have all required fields.",
             )
 
         return True, "All positions valid"
@@ -161,8 +159,7 @@ class PortfolioDataValidator:
         if issues:
             return (
                 False,
-                f"Performance metrics out of range: {'; '.join(issues)}. "
-                f"Check data source for corruption.",
+                f"Performance metrics out of range: {'; '.join(issues)}. Check data source for corruption.",
             )
 
         return True, "Performance metrics valid"

@@ -88,8 +88,11 @@ class TestExposureCompactMissingFields:
             panel_exposure_compact(exp_data)
 
         # Should log debug for missing factors
-        assert any("factor" in record.message and "not in response" in record.message
-                   for record in caplog.records if record.levelno == logging.DEBUG)
+        assert any(
+            "factor" in record.message and "not in response" in record.message
+            for record in caplog.records
+            if record.levelno == logging.DEBUG
+        )
 
 
 class TestExposureCompactInvalidFactorData:
@@ -110,8 +113,11 @@ class TestExposureCompactInvalidFactorData:
             result = panel_exposure_compact(exp_data)
 
         # Should log warning about invalid factor type
-        assert any("factor" in record.message and "invalid type" in record.message
-                   for record in caplog.records if record.levelno == logging.WARNING)
+        assert any(
+            "factor" in record.message and "invalid type" in record.message
+            for record in caplog.records
+            if record.levelno == logging.WARNING
+        )
         # Should still return a result (not crash or return None/[])
         assert result is not None
 
@@ -133,7 +139,9 @@ class TestExposureCompactInvalidFactorData:
             result = panel_exposure_compact(exp_data)
 
         # Should log debug about missing pts
-        assert any("missing pts field" in record.message for record in caplog.records if record.levelno == logging.DEBUG)
+        assert any(
+            "missing pts field" in record.message for record in caplog.records if record.levelno == logging.DEBUG
+        )
         # Should show the reason in the UI (not generic "N/A")
         assert result is not None
 
@@ -157,8 +165,11 @@ class TestExposureCompactOptionalFactors:
             result = panel_exposure_compact(exp_data)
 
         # Should log at DEBUG (not silent)
-        assert any("sector_rotation" in record.message and "not available" in record.message
-                   for record in caplog.records if record.levelno == logging.DEBUG)
+        assert any(
+            "sector_rotation" in record.message and "not available" in record.message
+            for record in caplog.records
+            if record.levelno == logging.DEBUG
+        )
         assert result is not None
 
     def test_sector_rotation_invalid_type(self, caplog):
@@ -177,8 +188,11 @@ class TestExposureCompactOptionalFactors:
             result = panel_exposure_compact(exp_data)
 
         # Should log about invalid type
-        assert any("sector_rotation" in record.message and "invalid type" in record.message
-                   for record in caplog.records if record.levelno == logging.DEBUG)
+        assert any(
+            "sector_rotation" in record.message and "invalid type" in record.message
+            for record in caplog.records
+            if record.levelno == logging.DEBUG
+        )
         assert result is not None
 
 
@@ -343,8 +357,11 @@ class TestExposureExpandedOptionalAdjustments:
             result = panel_exposure_expanded(exp_data)
 
         # Should log error about missing pts
-        assert any("sector_rotation" in record.message and "missing 'pts' field" in record.message
-                   for record in caplog.records if record.levelno == logging.ERROR)
+        assert any(
+            "sector_rotation" in record.message and "missing 'pts' field" in record.message
+            for record in caplog.records
+            if record.levelno == logging.ERROR
+        )
         # Should return a Panel (not crash)
         assert isinstance(result, Panel)
 
@@ -367,8 +384,11 @@ class TestExposureExpandedOptionalAdjustments:
             result = panel_exposure_expanded(exp_data)
 
         # Should log error about missing pts
-        assert any("economic_overlay" in record.message and "missing 'pts' field" in record.message
-                   for record in caplog.records if record.levelno == logging.ERROR)
+        assert any(
+            "economic_overlay" in record.message and "missing 'pts' field" in record.message
+            for record in caplog.records
+            if record.levelno == logging.ERROR
+        )
         # Should return a Panel
         assert isinstance(result, Panel)
 

@@ -209,6 +209,7 @@ class SecEdgarClient:
                         "form": entry.get("form"),
                     }
                 )
+
         # Sort by fiscal year, filed date — both required for correct financial statement ordering
         def sort_key(r: dict[str, Any]) -> tuple[int | float, str]:
             year = r.get("fiscal_year")
@@ -226,6 +227,7 @@ class SecEdgarClient:
                     f"Check SEC data source or API response."
                 )
             return (int(year), filed)
+
         results.sort(key=sort_key)
         return results
 

@@ -68,7 +68,9 @@ class AnalystRatingsLoader(OptimalLoader):
         try:
             upgrades_downgrades = ticker.upgrades_downgrades
         except requests.Timeout as e:
-            logger.warning(f"[ANALYST_RATINGS] Timeout fetching upgrades/downgrades for {symbol} (transient, will retry): {e}")
+            logger.warning(
+                f"[ANALYST_RATINGS] Timeout fetching upgrades/downgrades for {symbol} (transient, will retry): {e}"
+            )
             raise TransientAPIError(f"Timeout fetching upgrades/downgrades for {symbol}") from e
         except requests.ConnectionError as e:
             logger.warning(f"[ANALYST_RATINGS] Connection error for {symbol} (transient, will retry): {e}")
@@ -83,7 +85,9 @@ class AnalystRatingsLoader(OptimalLoader):
         if upgrades_downgrades.empty:
             logger.info(f"[ANALYST_RATINGS] No upgrade/downgrade history for {symbol} — data unavailable")
             # Return explicit marker instead of empty list (which looks like "no ratings found")
-            return [{"symbol": symbol, "data_unavailable": True, "reason": "No analyst upgrade/downgrade history available"}]
+            return [
+                {"symbol": symbol, "data_unavailable": True, "reason": "No analyst upgrade/downgrade history available"}
+            ]
 
         results = []
 
@@ -138,11 +142,13 @@ class AnalystRatingsLoader(OptimalLoader):
         # If all records were skipped due to validation failures, return explicit marker
         if not results:
             logger.warning(f"[ANALYST_RATINGS] All records skipped for {symbol} (all records missing required fields)")
-            return [{
-                "symbol": symbol,
-                "data_unavailable": True,
-                "reason": "All analyst upgrade/downgrade records missing required fields (Firm, Rating, Action)"
-            }]
+            return [
+                {
+                    "symbol": symbol,
+                    "data_unavailable": True,
+                    "reason": "All analyst upgrade/downgrade records missing required fields (Firm, Rating, Action)",
+                }
+            ]
 
         return results
 

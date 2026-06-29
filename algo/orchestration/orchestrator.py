@@ -446,9 +446,7 @@ class Orchestrator:
                                 f"Loader execution tracking may be corrupted."
                             )
                         age_hours = (now_utc - last_updated).total_seconds() / 3600
-                        logger.warning(
-                            f"[LOADER HEALTH] {table_name} is STALE (last run {age_hours:.1f}h ago)"
-                        )
+                        logger.warning(f"[LOADER HEALTH] {table_name} is STALE (last run {age_hours:.1f}h ago)")
                     elif not is_complete:
                         if completion_pct is None:
                             logger.warning(
@@ -781,7 +779,9 @@ class Orchestrator:
         Returns:
             OrchestratorPhaseExecutor ready to execute all phases.
         """
-        executor = OrchestratorPhaseExecutor(config=self.config, halt_check_fn=self.halt_manager.check_halt_flag, skip_phases=skip_phases)
+        executor = OrchestratorPhaseExecutor(
+            config=self.config, halt_check_fn=self.halt_manager.check_halt_flag, skip_phases=skip_phases
+        )
 
         # Wire phase executor functions from registry
         phase_executors: dict[int | str, Any] = {
@@ -1029,15 +1029,25 @@ class Orchestrator:
             # On non-trading days, skip broker reconciliation and all trading phases, but run metrics
             skip_phases = None
             if not is_trading_day:
-                logger.info("Non-trading day: skipping broker sync (phase 4) and trading phases (5-8), will run data checks (1-3) + metrics (9)")
-                skip_phases = [4, 5, 6, 7, 8]  # Skip broker reconciliation, position adjustments, signal gen, entry/exit execution
+                logger.info(
+                    "Non-trading day: skipping broker sync (phase 4) and trading phases (5-8), will run data checks (1-3) + metrics (9)"
+                )
+                skip_phases = [
+                    4,
+                    5,
+                    6,
+                    7,
+                    8,
+                ]  # Skip broker reconciliation, position adjustments, signal gen, entry/exit execution
 
             logger.info("\n[PROACTIVE WAIT] Waiting for critical loaders to complete before Phase 1...")
             loaders_ready = self._wait_for_critical_loaders_proactive(max_wait_seconds=300)
             if loaders_ready:
                 logger.info("[OK] All critical loaders completed before Phase 1")
             else:
-                logger.warning("[WARNING] Critical loaders did not complete within timeout. Phase 1 will check data freshness.")
+                logger.warning(
+                    "[WARNING] Critical loaders did not complete within timeout. Phase 1 will check data freshness."
+                )
 
             self.executor = self._setup_executor(skip_phases=skip_phases)
             with TimeBlock("orchestrator_executor"):

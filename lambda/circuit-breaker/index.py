@@ -106,7 +106,9 @@ def get_portfolio_pnl(max_attempts: int = 3):
             if row is None:
                 raise RuntimeError("Circuit breaker: Cannot query portfolio positions from database")
             if row[0] is None or row[1] is None:
-                raise RuntimeError(f"Circuit breaker: Portfolio data unavailable: total_equity={row[0]}, current_pnl={row[1]} (no open positions or data missing)")
+                raise RuntimeError(
+                    f"Circuit breaker: Portfolio data unavailable: total_equity={row[0]}, current_pnl={row[1]} (no open positions or data missing)"
+                )
             total_equity = float(row[0])
             current_pnl = float(row[1])
 
@@ -120,7 +122,9 @@ def get_portfolio_pnl(max_attempts: int = 3):
             """)
             session_row = cur.fetchone()
             if session_row is None:
-                raise RuntimeError("Circuit breaker: Session opening P&L snapshot not found (market may not have opened yet)")
+                raise RuntimeError(
+                    "Circuit breaker: Session opening P&L snapshot not found (market may not have opened yet)"
+                )
             if session_row[0] is None:
                 raise RuntimeError("Circuit breaker: Session opening P&L value is NULL (data quality issue)")
             open_pnl = float(session_row[0])

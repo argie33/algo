@@ -308,10 +308,7 @@ class IncomeStatementLoader(OptimalLoader):
     def _validate_row(self, row: dict[str, Any]) -> bool:
         if not super()._validate_row(row):
             symbol = row.get("symbol", "UNKNOWN")
-            logger.warning(
-                f"[{self.table_name}] Row failed parent validation for symbol '{symbol}'. "
-                f"Row: {row}."
-            )
+            logger.warning(f"[{self.table_name}] Row failed parent validation for symbol '{symbol}'. Row: {row}.")
             return False
 
         fy = row.get("fiscal_year")

@@ -219,12 +219,8 @@ def print_last_run(last_run: dict[str, Any], verbose: bool) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="Check dashboard health and diagnose orchestrator issues"
-    )
-    parser.add_argument(
-        "--verbose", action="store_true", help="Show detailed diagnostics"
-    )
+    parser = argparse.ArgumentParser(description="Check dashboard health and diagnose orchestrator issues")
+    parser.add_argument("--verbose", action="store_true", help="Show detailed diagnostics")
     parser.add_argument(
         "--clear-halt",
         action="store_true",

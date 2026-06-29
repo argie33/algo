@@ -268,8 +268,7 @@ def run(  # noqa: C901
             stock_scores_count_row = cur.fetchone()
             if stock_scores_count_row is None:
                 raise RuntimeError(
-                    "[PHASE 1] stock_scores COUNT query returned NULL. "
-                    "Database connection or query malformed."
+                    "[PHASE 1] stock_scores COUNT query returned NULL. Database connection or query malformed."
                 )
             stock_scores_count = stock_scores_count_row[0]
             if not isinstance(stock_scores_count, int):

@@ -145,22 +145,26 @@ class DataPatrol:
                     self.results.extend(results)
                 except Exception as e:
                     logger.error(f"Checker {checker.__class__.__name__} failed: {e}", exc_info=True)
-                    self.results.append(CheckResult(
-                        check_name="checker_execution",
-                        severity=ERROR,
-                        target_table="patrol",
-                        message=f"{checker.__class__.__name__} failed: {e}",
-                    ))
+                    self.results.append(
+                        CheckResult(
+                            check_name="checker_execution",
+                            severity=ERROR,
+                            target_table="patrol",
+                            message=f"{checker.__class__.__name__} failed: {e}",
+                        )
+                    )
 
             cur.close()
         except Exception as e:
             logger.error(f"Data patrol execution failed: {e}", exc_info=True)
-            self.results.append(CheckResult(
-                check_name="patrol_execution",
-                severity=ERROR,
-                target_table="patrol",
-                message=f"Patrol execution failed: {e}",
-            ))
+            self.results.append(
+                CheckResult(
+                    check_name="patrol_execution",
+                    severity=ERROR,
+                    target_table="patrol",
+                    message=f"Patrol execution failed: {e}",
+                )
+            )
         finally:
             if conn:
                 conn.close()

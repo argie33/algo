@@ -286,9 +286,7 @@ class PositionMonitor:
                 """)
                 count_row = cur.fetchone()
                 if count_row is None:
-                    raise PositionValidationError(
-                        "Query for open positions returned None — database error"
-                    )
+                    raise PositionValidationError("Query for open positions returned None — database error")
                 position_count = count_row[0]
                 pos_value_sum = count_row[1] if len(count_row) > 1 else None
 
@@ -978,9 +976,7 @@ class PositionMonitor:
             )
             row = cur.fetchone()
             if row is None or len(row) < 1 or row[0] is None:
-                raise ValueError(
-                    f"Earnings data unavailable for {symbol}: no calendar, estimates, or history found"
-                )
+                raise ValueError(f"Earnings data unavailable for {symbol}: no calendar, estimates, or history found")
 
             last_report = row[0]
             month = last_report.month
@@ -1070,9 +1066,7 @@ class PositionMonitor:
                     f"Cannot persist review for position {rec['position_id']}: current_price missing or None"
                 )
             if "quantity" not in rec or rec["quantity"] is None:
-                raise ValueError(
-                    f"Cannot persist review for position {rec['position_id']}: quantity missing or None"
-                )
+                raise ValueError(f"Cannot persist review for position {rec['position_id']}: quantity missing or None")
 
             try:
                 current_price = float(rec["current_price"])
@@ -1084,9 +1078,7 @@ class PositionMonitor:
             try:
                 quantity = float(rec["quantity"])
             except (ValueError, TypeError) as e:
-                raise ValueError(
-                    f"Invalid quantity {rec['quantity']} for position {rec['position_id']}: {e}"
-                ) from e
+                raise ValueError(f"Invalid quantity {rec['quantity']} for position {rec['position_id']}: {e}") from e
 
             # CRITICAL: avg_entry_price must exist and be positive for PnL calculation
             if "avg_entry_price" not in rec or rec["avg_entry_price"] is None:

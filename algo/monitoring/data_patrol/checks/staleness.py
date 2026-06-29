@@ -216,14 +216,22 @@ class StalenessChecker(BaseCheck):
                 try:
                     cur.execute(f"ROLLBACK TO SAVEPOINT {sp}")
                 except Exception as rollback_err:
-                    logger.error(f"CRITICAL: ROLLBACK TO SAVEPOINT {sp} failed: {rollback_err}. Connection corrupted—data patrol must halt.")
-                    raise RuntimeError(f"Database connection corrupted during staleness check rollback: {rollback_err}") from rollback_err
+                    logger.error(
+                        f"CRITICAL: ROLLBACK TO SAVEPOINT {sp} failed: {rollback_err}. Connection corrupted—data patrol must halt."
+                    )
+                    raise RuntimeError(
+                        f"Database connection corrupted during staleness check rollback: {rollback_err}"
+                    ) from rollback_err
             finally:
                 try:
                     cur.execute(f"RELEASE SAVEPOINT {sp}")
                 except Exception as release_err:
-                    logger.error(f"CRITICAL: RELEASE SAVEPOINT {sp} failed: {release_err}. Connection corrupted—data patrol must halt.")
-                    raise RuntimeError(f"Database connection corrupted during staleness check cleanup: {release_err}") from release_err
+                    logger.error(
+                        f"CRITICAL: RELEASE SAVEPOINT {sp} failed: {release_err}. Connection corrupted—data patrol must halt."
+                    )
+                    raise RuntimeError(
+                        f"Database connection corrupted during staleness check cleanup: {release_err}"
+                    ) from release_err
 
         # Alert on stale critical signals
         if stale_critical_signals:
@@ -232,7 +240,11 @@ class StalenessChecker(BaseCheck):
             try:
                 notify_signal_staleness(stale_critical_signals)
             except Exception as e:
-                logger.critical(f"CRITICAL: Stale signal notification FAILED for {stale_critical_signals}: {e}. Operators unaware of stale signals.")
-                raise RuntimeError(f"Stale signal notification failed—halting data patrol. Stale signals must be reported immediately: {stale_critical_signals}") from e
+                logger.critical(
+                    f"CRITICAL: Stale signal notification FAILED for {stale_critical_signals}: {e}. Operators unaware of stale signals."
+                )
+                raise RuntimeError(
+                    f"Stale signal notification failed—halting data patrol. Stale signals must be reported immediately: {stale_critical_signals}"
+                ) from e
 
         return self.results

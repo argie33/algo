@@ -135,8 +135,7 @@ class ADLineDailyLoader(OptimalLoader):
                 f"Cannot compute advance-decline line."
             )
             raise RuntimeError(
-                f"[AD_LINE] Database error: {e}. "
-                f"Cannot compute advance-decline line without trend_template_data."
+                f"[AD_LINE] Database error: {e}. Cannot compute advance-decline line without trend_template_data."
             ) from e
 
     def run(self, symbols: list[str], **kwargs: Any) -> dict[str, Any]:
@@ -165,12 +164,9 @@ class ADLineDailyLoader(OptimalLoader):
 
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.error(
-                f"[AD_LINE] Cannot retrieve watermark from ad_line_daily: {e}. "
-                f"Cannot determine safe restart point."
+                f"[AD_LINE] Cannot retrieve watermark from ad_line_daily: {e}. Cannot determine safe restart point."
             )
-            raise RuntimeError(
-                f"[AD_LINE] Failed to get watermark for restart: {e}"
-            ) from e
+            raise RuntimeError(f"[AD_LINE] Failed to get watermark for restart: {e}") from e
 
     def _get_end_date(self) -> date:
         """Get end date (latest trading day in ET).
@@ -188,9 +184,7 @@ class ADLineDailyLoader(OptimalLoader):
             from algo.infrastructure import MarketCalendar
         except ImportError as e:
             logger.error(f"[AD_LINE] Cannot import MarketCalendar: {e}")
-            raise RuntimeError(
-                f"[AD_LINE] Missing MarketCalendar dependency: {e}"
-            ) from e
+            raise RuntimeError(f"[AD_LINE] Missing MarketCalendar dependency: {e}") from e
 
         max_iterations = 365
         iterations = 0
@@ -203,9 +197,7 @@ class ADLineDailyLoader(OptimalLoader):
                 f"[AD_LINE] Cannot find trading day within {max_iterations} days. "
                 f"Last checked: {end}. Possible calendar outage."
             )
-            raise RuntimeError(
-                f"[AD_LINE] No trading day found within {max_iterations} days lookback"
-            )
+            raise RuntimeError(f"[AD_LINE] No trading day found within {max_iterations} days lookback")
 
         logger.debug(f"[AD_LINE] End date (latest trading day): {end}")
         return end

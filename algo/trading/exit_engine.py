@@ -96,11 +96,17 @@ class PositionContext:
         self.active_stop = active_stop
         self.init_stop = init_stop
         if t1_price is None:
-            raise ValueError(f"CRITICAL: {symbol} position loaded without T1 target price. Cannot execute position without exit plan.")
+            raise ValueError(
+                f"CRITICAL: {symbol} position loaded without T1 target price. Cannot execute position without exit plan."
+            )
         if t2_price is None:
-            raise ValueError(f"CRITICAL: {symbol} position loaded without T2 target price. Cannot execute position without exit plan.")
+            raise ValueError(
+                f"CRITICAL: {symbol} position loaded without T2 target price. Cannot execute position without exit plan."
+            )
         if t3_price is None:
-            raise ValueError(f"CRITICAL: {symbol} position loaded without T3 target price. Cannot execute position without exit plan.")
+            raise ValueError(
+                f"CRITICAL: {symbol} position loaded without T3 target price. Cannot execute position without exit plan."
+            )
         self.t1_price = t1_price
         self.t2_price = t2_price
         self.t3_price = t3_price
@@ -1089,9 +1095,7 @@ class ExitEngine:
             )
 
         pullback_pct = float(
-            ((recent_high - cur_close) / recent_high * Decimal(100)).quantize(
-                Decimal("0.01"), rounding=ROUND_HALF_UP
-            )
+            ((recent_high - cur_close) / recent_high * Decimal(100)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         )
 
         if pullback_pct >= 2.0:
@@ -1366,7 +1370,9 @@ class ExitEngine:
         row = cur.fetchone()
 
         if row is None:
-            raise ValueError(f"Cannot evaluate Minervini break for {symbol}: technical_data_daily missing for {current_date}")
+            raise ValueError(
+                f"Cannot evaluate Minervini break for {symbol}: technical_data_daily missing for {current_date}"
+            )
 
         sma_50, ema_21, vol, avg_vol_50 = row
 

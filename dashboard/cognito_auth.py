@@ -185,7 +185,9 @@ class CognitoAuth:
                 raise RuntimeError(f"JWT payload is not valid base64 or JSON: {e}") from e
 
             if "exp" not in payload_json or "sub" not in payload_json:
-                raise RuntimeError(f"JWT payload missing required claims: exp={('exp' in payload_json)}, sub={('sub' in payload_json)}")
+                raise RuntimeError(
+                    f"JWT payload missing required claims: exp={('exp' in payload_json)}, sub={('sub' in payload_json)}"
+                )
 
             # Validate signature is present and valid base64
             try:

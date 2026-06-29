@@ -359,26 +359,31 @@ def _get_candidates_from_buysell(
 
             # Composite score guaranteed by JOIN (stock_scores inner join)
             if r[1] is None:
-                raise ValueError(f"[PHASE 7] {symbol}: composite_score is NULL — "
-                                "stock_scores join guarantees non-null composite_score")
+                raise ValueError(
+                    f"[PHASE 7] {symbol}: composite_score is NULL — "
+                    "stock_scores join guarantees non-null composite_score"
+                )
             composite = float(r[1])
 
             # Close guaranteed by LATERAL price_daily join
             if r[6] is None:
-                raise ValueError(f"[PHASE 7] {symbol}: close price is NULL — "
-                                "price_daily lateral join guarantees latest close")
+                raise ValueError(
+                    f"[PHASE 7] {symbol}: close price is NULL — price_daily lateral join guarantees latest close"
+                )
             close = float(r[6])
 
             # Signal strength guaranteed by WHERE clause (bsd.strength IS NOT NULL)
             if r[15] is None:
-                raise ValueError(f"[PHASE 7] {symbol}: signal_strength is NULL — "
-                                "WHERE clause guarantees non-null strength")
+                raise ValueError(
+                    f"[PHASE 7] {symbol}: signal_strength is NULL — WHERE clause guarantees non-null strength"
+                )
             raw_strength = float(r[15])
 
             # Swing score guaranteed by INNER JOIN with IS NOT NULL check
             if r[19] is None:
-                raise ValueError(f"[PHASE 7] {symbol}: swing_score is NULL — "
-                                "INNER JOIN with IS NOT NULL guarantee violated")
+                raise ValueError(
+                    f"[PHASE 7] {symbol}: swing_score is NULL — INNER JOIN with IS NOT NULL guarantee violated"
+                )
             swing_score = float(r[19])
 
             swing_components = r[20]  # Part of swing_trader_scores join
@@ -391,8 +396,9 @@ def _get_candidates_from_buysell(
 
             # CRITICAL: Core signal quality metrics should be present
             # If >2 of these are missing, signal is incomplete
-            missing_scores = sum([quality_score is None, growth_score is None,
-                                momentum_score is None, rs_percentile is None])
+            missing_scores = sum(
+                [quality_score is None, growth_score is None, momentum_score is None, rs_percentile is None]
+            )
             if missing_scores > 2:
                 logger.warning(
                     f"[SIGNAL_QUALITY] {symbol}: Signal generated with incomplete scoring "
@@ -430,10 +436,7 @@ def _get_candidates_from_buysell(
             )
 
         # Count swing_scores that are valid and positive (None indicates failed gate)
-        swing_score_positive = sum(
-            1 for c in candidates
-            if c.get("swing_score") is not None and c["swing_score"] > 0
-        )
+        swing_score_positive = sum(1 for c in candidates if c.get("swing_score") is not None and c["swing_score"] > 0)
         logger.info(
             f"[PHASE 7] {len(candidates)} candidates from buy_sell_daily + stock_scores + swing_trader_scores "
             f"(swing_scores: {swing_score_positive} valid+positive, lookback: {lookback_date} to {run_date}, "
@@ -591,7 +594,9 @@ def run(
     # Fails fast if ANY dependency is unavailable, preventing silent degradation
     ok, dep_error = _check_critical_dependencies(run_date, log_phase_result_fn)
     if not ok:
-        return PhaseResult(7, "signal_generation", "halted", {"qualified_trades": [], "liquidity_passed": 0}, True, dep_error)
+        return PhaseResult(
+            7, "signal_generation", "halted", {"qualified_trades": [], "liquidity_passed": 0}, True, dep_error
+        )
 
     # Halt flag check before generating signals
     if check_halt_flag and check_halt_flag():
@@ -657,7 +662,9 @@ def run(
             )
         logger.warning(f"[PHASE 7] {reason}")
         log_phase_result_fn(7, "signal_generation", "halt", reason)
-        return PhaseResult(7, "signal_generation", "halted", {"qualified_trades": [], "liquidity_passed": 0}, True, reason)
+        return PhaseResult(
+            7, "signal_generation", "halted", {"qualified_trades": [], "liquidity_passed": 0}, True, reason
+        )
 
     # Primary: buy_sell_daily pivot-breakout BUY signals filtered by stock_scores ranking.
     # buy_sell_daily is REQUIRED (loaded by EOD pipeline at 4:05 PM ET before orchestrator runs).

@@ -53,7 +53,7 @@ def _get_algo_evaluate(cur: cursor) -> Any:
                 503,
                 "no_data",
                 "Signal data not yet available. Swing trader scores have not been computed. "
-                "Check that orchestrator Phase 7 (Signal Generation & Ranking) has completed."
+                "Check that orchestrator Phase 7 (Signal Generation & Ranking) has completed.",
             )
 
         # Current portfolio positions and constraints
@@ -107,7 +107,7 @@ def _get_algo_evaluate(cur: cursor) -> Any:
                 503,
                 "no_data",
                 "Portfolio snapshot not yet available. Algo has not generated a portfolio snapshot yet. "
-                "Check that orchestrator has run at least once to generate algo_portfolio_snapshots."
+                "Check that orchestrator has run at least once to generate algo_portfolio_snapshots.",
             )
 
         # Fail-fast: critical fields must be present
@@ -126,7 +126,7 @@ def _get_algo_evaluate(cur: cursor) -> Any:
                 503,
                 "incomplete_data",
                 f"Portfolio health metrics incomplete: {', '.join(missing)}. "
-                f"Check that algo_portfolio_snapshots table has complete data."
+                f"Check that algo_portfolio_snapshots table has complete data.",
             )
 
         today_return = risk_row.get("today_return_pct")

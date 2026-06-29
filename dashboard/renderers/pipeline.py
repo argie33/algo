@@ -151,7 +151,17 @@ def render_dashboard_body(outer: Layout, ctx: DashboardContext, compact: bool) -
         else Panel("[red]Circuit breakers unavailable[/]", border_style="red")
     )
     health_panel = (
-        safe_render(panel_algo_health, ctx.run, ctx.activity, ctx.health, ctx.notifs, ctx.algo_metrics, ctx.audit, ctx.exec_hist, risk=ctx.risk)
+        safe_render(
+            panel_algo_health,
+            ctx.run,
+            ctx.activity,
+            ctx.health,
+            ctx.notifs,
+            ctx.algo_metrics,
+            ctx.audit,
+            ctx.exec_hist,
+            risk=ctx.risk,
+        )
         if not (has_error(ctx.run) or has_error(ctx.health))
         else Panel("[red]Health data unavailable[/]", border_style="red")
     )
@@ -204,7 +214,9 @@ def render_dashboard_body(outer: Layout, ctx: DashboardContext, compact: bool) -
     )
 
 
-def render_expanded_view(view_mode: str, ctx: DashboardContext, hdr_panel: Panel, exp_panel: Panel, mascot_panel: Panel, compact: bool) -> Layout | None:  # noqa: C901
+def render_expanded_view(
+    view_mode: str, ctx: DashboardContext, hdr_panel: Panel, exp_panel: Panel, mascot_panel: Panel, compact: bool
+) -> Layout | None:  # noqa: C901
     """Render expanded detail view for given mode."""
     if view_mode == "normal":
         return None
@@ -214,7 +226,9 @@ def render_expanded_view(view_mode: str, ctx: DashboardContext, hdr_panel: Panel
     match view_mode:
         case "circuit":
             if has_error(ctx.cb):
-                return _expanded_layout(*_exp_top, Panel("[red]Circuit breaker data unavailable[/]", border_style="red"))
+                return _expanded_layout(
+                    *_exp_top, Panel("[red]Circuit breaker data unavailable[/]", border_style="red")
+                )
             return _expanded_layout(*_exp_top, panel_circuit_expanded(ctx.cb))
         case "exposure":
             if has_error(ctx.exp_factors):
@@ -232,7 +246,9 @@ def render_expanded_view(view_mode: str, ctx: DashboardContext, hdr_panel: Panel
             elif isinstance(ctx.pos, dict) and "items" in ctx.pos:
                 _pos_items = ctx.pos["items"]
             else:
-                return _expanded_layout(*_exp_top, Panel("[red]Positions data structure invalid[/]", border_style="red"))
+                return _expanded_layout(
+                    *_exp_top, Panel("[red]Positions data structure invalid[/]", border_style="red")
+                )
             hint = Text.from_markup("[dim]press [/][bold cyan]p[/][dim] to return to dashboard[/]")
             return _expanded_layout(
                 *_exp_top,
@@ -255,9 +271,13 @@ def render_expanded_view(view_mode: str, ctx: DashboardContext, hdr_panel: Panel
         case "health":
             if has_error(ctx.run) or has_error(ctx.health):
                 return _expanded_layout(*_exp_top, Panel("[red]Health data unavailable[/]", border_style="red"))
-            return panel_algo_health_expanded(ctx.run, ctx.activity, ctx.health, ctx.notifs, ctx.algo_metrics, ctx.audit, ctx.exec_hist, risk=ctx.risk)
+            return panel_algo_health_expanded(
+                ctx.run, ctx.activity, ctx.health, ctx.notifs, ctx.algo_metrics, ctx.audit, ctx.exec_hist, risk=ctx.risk
+            )
         case "sectors":
-            return _expanded_layout(*_exp_top, panel_sectors_expanded(ctx.srank, ctx.pos, ctx.port, ctx.sec_rot, ctx.irank))
+            return _expanded_layout(
+                *_exp_top, panel_sectors_expanded(ctx.srank, ctx.pos, ctx.port, ctx.sec_rot, ctx.irank)
+            )
         case "trades":
             if has_error(ctx.trades):
                 return _expanded_layout(*_exp_top, Panel("[red]Trade history unavailable[/]", border_style="red"))
@@ -267,7 +287,12 @@ def render_expanded_view(view_mode: str, ctx: DashboardContext, hdr_panel: Panel
                 return _expanded_layout(*_exp_top, Panel("[red]Economic data unavailable[/]", border_style="red"))
             return _expanded_layout(*_exp_top, panel_economic_expanded(ctx.eco, ctx.econ_cal))
         case "portfolio":
-            return _expanded_layout(*_exp_top, panel_portfolio_perf_expanded(ctx.port, ctx.cfg, risk=ctx.risk, perf=ctx.perf, perf_anl=ctx.perf_anl, pos=ctx.pos))
+            return _expanded_layout(
+                *_exp_top,
+                panel_portfolio_perf_expanded(
+                    ctx.port, ctx.cfg, risk=ctx.risk, perf=ctx.perf, perf_anl=ctx.perf_anl, pos=ctx.pos
+                ),
+            )
         case "errors":
             error_panel_exp = error_summary_panel_expanded(ctx.data)
             return _expanded_layout(*_exp_top, error_panel_exp) if error_panel_exp else None

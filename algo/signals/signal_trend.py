@@ -149,7 +149,7 @@ class SignalTrendMixin:
             row = cur.fetchone()
             if row and row[5]:
                 data_date = row[5]
-                age_days = (eval_date - data_date).days if hasattr(eval_date, 'toordinal') else 0
+                age_days = (eval_date - data_date).days if hasattr(eval_date, "toordinal") else 0
 
                 # CRITICAL: Trend template must be current (same trading day)
                 # Stale trend data from previous day violates signal freshness requirements

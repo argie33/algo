@@ -135,7 +135,7 @@ def handle(
             if not body:
                 return error_response(400, "missing_body", "Request body required for email verification")
             result = _verify_user_email(dict(body))
-            username = body.get('username', 'unknown')
+            username = body.get("username", "unknown")
             _audit_log_admin_action(
                 cur,
                 user_id,
@@ -263,9 +263,7 @@ def _get_system_health(cur: cursor) -> Any:
             )
         last_price_date = price_dict["date"]
         if last_price_date is None:
-            raise RuntimeError(
-                "[HEALTH] Latest price_daily row has NULL date. Database corruption detected."
-            )
+            raise RuntimeError("[HEALTH] Latest price_daily row has NULL date. Database corruption detected.")
 
     if last_price_date:
         last_price_date_typed: date = last_price_date
@@ -367,15 +365,12 @@ def _get_database_stats(cur: cursor) -> Any:
     table_count_dict = safe_json_serialize(dict(table_count_row))
     if "table_count" not in table_count_dict:
         raise RuntimeError(
-            "[HEALTH] Table count query row missing 'table_count' field. "
-            "Query result structure corrupted."
+            "[HEALTH] Table count query row missing 'table_count' field. Query result structure corrupted."
         )
 
     table_count_value = table_count_dict["table_count"]
     if table_count_value is None:
-        raise RuntimeError(
-            "[HEALTH] Table count query returned NULL. Cannot determine if database has tables."
-        )
+        raise RuntimeError("[HEALTH] Table count query returned NULL. Cannot determine if database has tables.")
 
     stats["table_count"] = table_count_value
 

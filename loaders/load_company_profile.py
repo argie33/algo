@@ -41,9 +41,7 @@ class CompanyProfileLoader(OptimalLoader):
                 f"[COMPANY_PROFILE] {symbol}: Failed to fetch ticker object. "
                 "Cannot retrieve company profile without valid yfinance ticker."
             )
-            raise RuntimeError(
-                f"[COMPANY_PROFILE] {symbol}: Failed to fetch ticker object"
-            )
+            raise RuntimeError(f"[COMPANY_PROFILE] {symbol}: Failed to fetch ticker object")
         try:
             info = ticker.info
             if not info or not isinstance(info, dict):
@@ -51,9 +49,7 @@ class CompanyProfileLoader(OptimalLoader):
                     f"[COMPANY_PROFILE] {symbol}: ticker.info returned {type(info).__name__} or empty. "
                     "Expected dict[str, Any] from yfinance."
                 )
-                raise RuntimeError(
-                    f"[COMPANY_PROFILE] {symbol}: ticker.info invalid or empty"
-                )
+                raise RuntimeError(f"[COMPANY_PROFILE] {symbol}: ticker.info invalid or empty")
 
             # REQUIRED: Company name - fail fast if missing
             if info.get("longName"):
@@ -66,9 +62,7 @@ class CompanyProfileLoader(OptimalLoader):
                     f"[COMPANY_PROFILE] {symbol}: Missing company name (longName/shortName). "
                     "Company name is required for profile storage."
                 )
-                raise RuntimeError(
-                    f"[COMPANY_PROFILE] {symbol}: Missing company name (longName/shortName)"
-                )
+                raise RuntimeError(f"[COMPANY_PROFILE] {symbol}: Missing company name (longName/shortName)")
 
             # REQUIRED: Exchange - fail fast if missing
             exchange = info.get("exchange")
@@ -77,9 +71,7 @@ class CompanyProfileLoader(OptimalLoader):
                     f"[COMPANY_PROFILE] {symbol}: Missing exchange from yfinance. "
                     "Exchange is required for routing and compliance validation."
                 )
-                raise RuntimeError(
-                    f"[COMPANY_PROFILE] {symbol}: Missing exchange classification"
-                )
+                raise RuntimeError(f"[COMPANY_PROFILE] {symbol}: Missing exchange classification")
 
             # REQUIRED: Sector - fail fast if missing
             sector = info.get("sector")
@@ -88,9 +80,7 @@ class CompanyProfileLoader(OptimalLoader):
                     f"[COMPANY_PROFILE] {symbol}: Missing sector from yfinance. "
                     "Sector is required for position sizing and concentration checks."
                 )
-                raise RuntimeError(
-                    f"[COMPANY_PROFILE] {symbol}: Missing sector classification"
-                )
+                raise RuntimeError(f"[COMPANY_PROFILE] {symbol}: Missing sector classification")
 
             # REQUIRED: Industry - fail fast if missing
             industry = info.get("industry")
@@ -99,9 +89,7 @@ class CompanyProfileLoader(OptimalLoader):
                     f"[COMPANY_PROFILE] {symbol}: Missing industry from yfinance. "
                     "Industry is required for sector analysis and clustering."
                 )
-                raise RuntimeError(
-                    f"[COMPANY_PROFILE] {symbol}: Missing industry classification"
-                )
+                raise RuntimeError(f"[COMPANY_PROFILE] {symbol}: Missing industry classification")
 
             # OPTIONAL: Market cap - log if missing but do not fail
             market_cap = info.get("marketCap")
@@ -145,9 +133,7 @@ class CompanyProfileLoader(OptimalLoader):
                 f"[COMPANY_PROFILE] {symbol}: Type error during profile fetch: {type(e).__name__}: {e}. "
                 "Cannot proceed without valid sector/industry/exchange data."
             )
-            raise RuntimeError(
-                f"[COMPANY_PROFILE] {symbol}: Type error during profile parsing"
-            ) from e
+            raise RuntimeError(f"[COMPANY_PROFILE] {symbol}: Type error during profile parsing") from e
 
 
 if __name__ == "__main__":

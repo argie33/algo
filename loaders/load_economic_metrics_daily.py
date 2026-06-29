@@ -78,9 +78,7 @@ class EconomicMetricsDailyLoader(OptimalLoader):
                     "updated_at": datetime.now(ET),
                 }
 
-                logger.info(
-                    f"Economic metrics: CPI_YoY={cpi_yoy}% SPY_chg={spy_price_change}% YCS={ycs_10y2y}"
-                )
+                logger.info(f"Economic metrics: CPI_YoY={cpi_yoy}% SPY_chg={spy_price_change}% YCS={ycs_10y2y}")
 
                 return [result]
 
@@ -110,14 +108,10 @@ class EconomicMetricsDailyLoader(OptimalLoader):
 
             # Validate row structure and extract value
             if "value" not in cpi_cur_row:
-                raise RuntimeError(
-                    "[ECONOMIC_METRICS] CPI row missing 'value' column from economic_data query."
-                )
+                raise RuntimeError("[ECONOMIC_METRICS] CPI row missing 'value' column from economic_data query.")
             cpi_cur_val = cpi_cur_row["value"]
             if cpi_cur_val is None:
-                raise RuntimeError(
-                    "[ECONOMIC_METRICS] Current CPI value is NULL in database."
-                )
+                raise RuntimeError("[ECONOMIC_METRICS] Current CPI value is NULL in database.")
             cpi_cur = float(cpi_cur_val)
 
             # Get CPI from 1 year ago
@@ -136,14 +130,10 @@ class EconomicMetricsDailyLoader(OptimalLoader):
 
             # Validate row structure and extract value
             if "value" not in cpi_prev_row:
-                raise RuntimeError(
-                    "[ECONOMIC_METRICS] Historical CPI row missing 'value' column."
-                )
+                raise RuntimeError("[ECONOMIC_METRICS] Historical CPI row missing 'value' column.")
             cpi_prev_val = cpi_prev_row["value"]
             if cpi_prev_val is None:
-                raise RuntimeError(
-                    "[ECONOMIC_METRICS] Historical CPI value is NULL in database."
-                )
+                raise RuntimeError("[ECONOMIC_METRICS] Historical CPI value is NULL in database.")
             cpi_prev = float(cpi_prev_val)
 
             # Validate divisor
@@ -183,25 +173,17 @@ class EconomicMetricsDailyLoader(OptimalLoader):
 
             # Validate row structure for most recent close
             if "close" not in spy_rows[0]:
-                raise RuntimeError(
-                    "[ECONOMIC_METRICS] SPY row missing 'close' column from price_daily query."
-                )
+                raise RuntimeError("[ECONOMIC_METRICS] SPY row missing 'close' column from price_daily query.")
             cur_close = spy_rows[0]["close"]
             if cur_close is None:
-                raise RuntimeError(
-                    "[ECONOMIC_METRICS] Current SPY close price is NULL in database."
-                )
+                raise RuntimeError("[ECONOMIC_METRICS] Current SPY close price is NULL in database.")
 
             # Validate row structure for previous close
             if "close" not in spy_rows[1]:
-                raise RuntimeError(
-                    "[ECONOMIC_METRICS] SPY historical row missing 'close' column."
-                )
+                raise RuntimeError("[ECONOMIC_METRICS] SPY historical row missing 'close' column.")
             prev_close = spy_rows[1]["close"]
             if prev_close is None:
-                raise RuntimeError(
-                    "[ECONOMIC_METRICS] Previous SPY close price is NULL in database."
-                )
+                raise RuntimeError("[ECONOMIC_METRICS] Previous SPY close price is NULL in database.")
 
             # Convert and validate
             cur_price = float(cur_close)
@@ -209,8 +191,7 @@ class EconomicMetricsDailyLoader(OptimalLoader):
 
             if prev_price <= 0:
                 raise RuntimeError(
-                    f"[ECONOMIC_METRICS] Invalid previous SPY price: {prev_price}. "
-                    "SPY prices must be positive."
+                    f"[ECONOMIC_METRICS] Invalid previous SPY price: {prev_price}. SPY prices must be positive."
                 )
 
             return round((cur_price - prev_price) / prev_price * 100, 2)
@@ -245,24 +226,19 @@ class EconomicMetricsDailyLoader(OptimalLoader):
             for row in ycs_rows:
                 # Validate row structure
                 if "series_id" not in row or "value" not in row:
-                    raise RuntimeError(
-                        "[ECONOMIC_METRICS] Yield curve row missing 'series_id' or 'value' columns."
-                    )
+                    raise RuntimeError("[ECONOMIC_METRICS] Yield curve row missing 'series_id' or 'value' columns.")
 
                 series_id = row["series_id"]
                 val = row["value"]
 
                 if val is None:
-                    raise RuntimeError(
-                        f"[ECONOMIC_METRICS] Yield curve value for {series_id} is NULL in database."
-                    )
+                    raise RuntimeError(f"[ECONOMIC_METRICS] Yield curve value for {series_id} is NULL in database.")
 
                 try:
                     val_float = float(val)
                 except (ValueError, TypeError) as e:
                     raise RuntimeError(
-                        f"[ECONOMIC_METRICS] Invalid yield value for {series_id}: {val}. "
-                        "Yield values must be numeric."
+                        f"[ECONOMIC_METRICS] Invalid yield value for {series_id}: {val}. Yield values must be numeric."
                     ) from e
 
                 if series_id == "DGS10":
@@ -278,8 +254,7 @@ class EconomicMetricsDailyLoader(OptimalLoader):
                 )
             if dgs2 is None:
                 raise RuntimeError(
-                    "[ECONOMIC_METRICS] 2-year yield (DGS2) not found in economic_data. "
-                    "Ensure DGS2 series is loaded."
+                    "[ECONOMIC_METRICS] 2-year yield (DGS2) not found in economic_data. Ensure DGS2 series is loaded."
                 )
 
             return round(dgs10 - dgs2, 3)

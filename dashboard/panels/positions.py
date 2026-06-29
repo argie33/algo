@@ -122,7 +122,9 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
         reason = pos.get("reason", "unknown reason")
         logger.warning(f"Positions data marked unavailable: {reason}")
         return Panel(
-            Text.from_markup("[red]✗ POSITIONS DATA UNAVAILABLE[/]\nOptional position enrichment unavailable. Check logs for details."),
+            Text.from_markup(
+                "[red]✗ POSITIONS DATA UNAVAILABLE[/]\nOptional position enrichment unavailable. Check logs for details."
+            ),
             title="[bold red]POSITIONS (DATA UNAVAILABLE)[/]",
             border_style="red",
             padding=(0, 1),
@@ -209,9 +211,15 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
         stg = p.get("weinstein_stage")  # Optional: Weinstein stage (may be unavailable)
         swg = p.get("swing_score")  # Optional: swing score (may be unavailable)
         sec = (p.get("sector") or "--")[:12]  # Optional: sector enrichment
-        rmul = safe_float(p.get("r_multiple"), default=None, field_name=f"{symbol}.r_multiple")  # Optional: risk multiple
-        dist = safe_float(p.get("distance_to_stop_pct"), default=None, field_name=f"{symbol}.distance_to_stop_pct")  # Optional: distance metric
-        t1pct = safe_float(p.get("distance_to_t1_pct"), default=None, field_name=f"{symbol}.distance_to_t1_pct")  # Optional: target distance
+        rmul = safe_float(
+            p.get("r_multiple"), default=None, field_name=f"{symbol}.r_multiple"
+        )  # Optional: risk multiple
+        dist = safe_float(
+            p.get("distance_to_stop_pct"), default=None, field_name=f"{symbol}.distance_to_stop_pct"
+        )  # Optional: distance metric
+        t1pct = safe_float(
+            p.get("distance_to_t1_pct"), default=None, field_name=f"{symbol}.distance_to_t1_pct"
+        )  # Optional: target distance
 
         # Extract display name — NO SECONDARY FALLBACK (remove name field secondary source)
         # Use only company_name if available, don't fall back to generic name field

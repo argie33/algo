@@ -30,9 +30,7 @@ class TestPanelWithMalformedRiskData:
         run = {"success": True, "halted": False, "errored": False, "run_id": "test"}
 
         # Should not raise TypeError
-        panel = panel_algo_health(
-            run=run, act=None, hlth=None, notifs=[], risk=malformed_risk
-        )
+        panel = panel_algo_health(run=run, act=None, hlth=None, notifs=[], risk=malformed_risk)
         assert panel is not None
 
     def test_beta_as_list_instead_of_float(self):
@@ -45,9 +43,7 @@ class TestPanelWithMalformedRiskData:
         }
         run = {"success": True, "halted": False, "errored": False, "run_id": "test"}
 
-        panel = panel_algo_health(
-            run=run, act=None, hlth=None, notifs=[], risk=malformed_risk
-        )
+        panel = panel_algo_health(run=run, act=None, hlth=None, notifs=[], risk=malformed_risk)
         assert panel is not None
 
     def test_conc5_as_string_instead_of_float(self):
@@ -60,9 +56,7 @@ class TestPanelWithMalformedRiskData:
         }
         run = {"success": True, "halted": False, "errored": False, "run_id": "test"}
 
-        panel = panel_algo_health(
-            run=run, act=None, hlth=None, notifs=[], risk=malformed_risk
-        )
+        panel = panel_algo_health(run=run, act=None, hlth=None, notifs=[], risk=malformed_risk)
         assert panel is not None
 
     def test_svar_as_dict_instead_of_float(self):
@@ -76,9 +70,7 @@ class TestPanelWithMalformedRiskData:
         }
         run = {"success": True, "halted": False, "errored": False, "run_id": "test"}
 
-        panel = panel_algo_health(
-            run=run, act=None, hlth=None, notifs=[], risk=malformed_risk
-        )
+        panel = panel_algo_health(run=run, act=None, hlth=None, notifs=[], risk=malformed_risk)
         assert panel is not None
 
 
@@ -97,8 +89,7 @@ class TestBuildResultsPanelWithMalformedData:
         run = {"success": True, "halted": False, "errored": False, "run_id": "test"}
 
         panel = _build_results_panel(
-            run=run, act=None, algo_metrics=[], exec_hist=[],
-            risk=corrupted_risk, notifs=[], audit=[]
+            run=run, act=None, algo_metrics=[], exec_hist=[], risk=corrupted_risk, notifs=[], audit=[]
         )
         assert panel is not None
 
@@ -196,10 +187,10 @@ class TestComparisonSafetyPatterns:
         from dashboard.data_validation import safe_float
 
         values = [
-            {"key": 10},      # number
-            {"key": "10"},    # string
-            {"key": [10]},    # list
-            {"key": None},    # None
+            {"key": 10},  # number
+            {"key": "10"},  # string
+            {"key": [10]},  # list
+            {"key": None},  # None
             {"key": {"v": 10}},  # dict
         ]
 

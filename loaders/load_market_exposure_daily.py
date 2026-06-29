@@ -74,6 +74,7 @@ def main() -> int:
         # CRITICAL: Only compute market exposure for trading days
         # Loading on weekend/holiday should not create entries for non-trading days (corrupts position sizing logic)
         from algo.infrastructure import MarketCalendar
+
         if not MarketCalendar.is_trading_day(latest_date):
             logger.error(
                 f"[MARKET_EXPOSURE LOADER CRITICAL] Latest price_daily date {latest_date} is not a trading day. "
@@ -96,7 +97,15 @@ def main() -> int:
         # CRITICAL: Validate result structure - compute() either succeeds with full dict or raises error
         # No "success" field exists; validation is fail-fast via exception
         try:
-            required_fields = ["eval_date", "regime", "exposure_pct", "raw_score", "halt_reasons", "distribution_days", "factors"]
+            required_fields = [
+                "eval_date",
+                "regime",
+                "exposure_pct",
+                "raw_score",
+                "halt_reasons",
+                "distribution_days",
+                "factors",
+            ]
             missing_fields = [f for f in required_fields if f not in result]
             if missing_fields:
                 msg = (
@@ -113,7 +122,12 @@ def main() -> int:
                 return 1
 
             # Validate critical field types
-            if not isinstance(result["regime"], str) or result["regime"] not in ["confirmed_uptrend", "uptrend_under_pressure", "caution", "correction"]:
+            if not isinstance(result["regime"], str) or result["regime"] not in [
+                "confirmed_uptrend",
+                "uptrend_under_pressure",
+                "caution",
+                "correction",
+            ]:
                 raise ValueError(f"Invalid regime value: {result.get('regime')}")
             if not isinstance(result["exposure_pct"], (int, float)) or not (0 <= result["exposure_pct"] <= 100):
                 raise ValueError(f"Invalid exposure_pct: {result.get('exposure_pct')}")

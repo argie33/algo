@@ -509,18 +509,14 @@ def _get_yield_curve_full(cur: cursor) -> Any:  # noqa: C901
 
         if bamlh is None:
             raise RuntimeError(
-                "CRITICAL: High-yield credit spreads (BAMLH0A0HYM2) unavailable - "
-                "required for risk assessment"
+                "CRITICAL: High-yield credit spreads (BAMLH0A0HYM2) unavailable - required for risk assessment"
             )
         if bamlc is None:
             raise RuntimeError(
-                "CRITICAL: Investment-grade credit spreads (BAMLC0A0CM) unavailable - "
-                "required for risk assessment"
+                "CRITICAL: Investment-grade credit spreads (BAMLC0A0CM) unavailable - required for risk assessment"
             )
         if vixcls is None:
-            raise RuntimeError(
-                "CRITICAL: VIX volatility data (VIXCLS) unavailable - required for position sizing"
-            )
+            raise RuntimeError("CRITICAL: VIX volatility data (VIXCLS) unavailable - required for position sizing")
 
         credit_history = {
             "BAMLH0A0HYM2": bamlh,

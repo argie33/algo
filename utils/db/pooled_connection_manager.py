@@ -246,9 +246,7 @@ class PoolSemaphore:
 # Global pool semaphore - enforces max concurrent loaders
 # Dynamically scale based on ECS task parallelism: allow up to 60 concurrent loaders
 # RDS max_connections=200, minus 20 for API/orchestrator/internal = 180 available
-_pool_semaphore = PoolSemaphore(
-    max_concurrent=int(os.getenv("LOADER_POOL_MAX_CONCURRENT", "60")), timeout_sec=30
-)
+_pool_semaphore = PoolSemaphore(max_concurrent=int(os.getenv("LOADER_POOL_MAX_CONCURRENT", "60")), timeout_sec=30)
 
 
 class PooledConnectionManager:

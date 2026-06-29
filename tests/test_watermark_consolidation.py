@@ -210,7 +210,6 @@ class TestWatermarkValidationWithMalformedData:
         except (TypeError, ValueError):
             pass
 
-
     def test_freshness_rules_dict_integrity(self):
         """Test that FRESHNESS_RULES dict is properly formed."""
         for table_name, rule in FRESHNESS_RULES.items():

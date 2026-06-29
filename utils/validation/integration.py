@@ -79,7 +79,9 @@ def initialize_validators() -> None:
     # Copy all validators from default registry to global registry
     for validator_name, validator in default_registry._validators.items():
         # Explicit metadata access - don't silently fall back to empty string
-        metadata = default_registry._metadata.get(validator_name) if validator_name in default_registry._metadata else {}
+        metadata = (
+            default_registry._metadata.get(validator_name) if validator_name in default_registry._metadata else {}
+        )
         description = metadata.get("description") if isinstance(metadata, dict) and "description" in metadata else ""
         if not description:
             logger.debug(f"No description found for validator '{validator_name}', using empty string")

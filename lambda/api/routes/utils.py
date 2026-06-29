@@ -110,9 +110,7 @@ def safe_limit(limit_str: str | None, max_val: int = 5000, default: int | None =
         if default is not None:
             # EXPLICIT: Validate default is within acceptable range
             if default < 1 or default > max_val:
-                logger.warning(
-                    f"[SAFE_LIMIT] Provided default {default} out of range [1, {max_val}], clamping"
-                )
+                logger.warning(f"[SAFE_LIMIT] Provided default {default} out of range [1, {max_val}], clamping")
             return min(max(default, 1), max_val)
         raise_api_error(400, "BadRequest", "limit parameter is required")
         return max_val  # unreachable
@@ -165,9 +163,7 @@ def safe_days(days_str: str | None, max_val: int = 365, default: int | None = No
         if default is not None:
             # EXPLICIT: Validate default is within acceptable range
             if default < 1 or default > max_val:
-                logger.warning(
-                    f"[SAFE_DAYS] Provided default {default} out of range [1, {max_val}], clamping"
-                )
+                logger.warning(f"[SAFE_DAYS] Provided default {default} out of range [1, {max_val}], clamping")
             return min(max(default, 1), max_val)
         raise_api_error(400, "BadRequest", "days parameter is required")
         return max_val  # unreachable
@@ -616,9 +612,7 @@ def check_data_freshness(
             if config.data_freshness_max_hours is None:
                 raise ValueError("data_freshness_max_hours is None in config")
             warning_days = max(1, int(config.data_freshness_max_hours / 24))
-            logger.debug(
-                f"[DATA_FRESHNESS] Using config default: {config.data_freshness_max_hours}h → {warning_days}d"
-            )
+            logger.debug(f"[DATA_FRESHNESS] Using config default: {config.data_freshness_max_hours}h → {warning_days}d")
         except (AttributeError, TypeError, ValueError) as e:
             logger.error(f"[DATA_FRESHNESS] Failed to load warning_days from config: {e}")
             raise ValueError(f"Cannot determine warning_days threshold: {e}") from e
@@ -649,9 +643,7 @@ def check_data_freshness(
 
         max_date_value = result.get("max")
         if max_date_value is None:
-            logger.warning(
-                f"[DATA_FRESHNESS] No rows in {table_name} (max({date_column}) is None)"
-            )
+            logger.warning(f"[DATA_FRESHNESS] No rows in {table_name} (max({date_column}) is None)")
             return {
                 "data_age_days": None,
                 "is_stale": True,

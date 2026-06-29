@@ -87,11 +87,7 @@ class TestDataRegistry:
         Returns:
             List of test-only entry point names
         """
-        return [
-            name
-            for name, details in TestDataRegistry.TEST_ENTRY_POINTS.items()
-            if details.get("test_only", False)
-        ]
+        return [name for name, details in TestDataRegistry.TEST_ENTRY_POINTS.items() if details.get("test_only", False)]
 
     @staticmethod
     def get_entry_point_markers(name: str) -> list[str]:

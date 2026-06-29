@@ -145,7 +145,7 @@ class BulkInsertManager:
         if symbol and new_watermark and watermark_mgr:
             try:
                 # Support both Watermark and WatermarkManager classes
-                if hasattr(watermark_mgr, 'advance_watermark'):
+                if hasattr(watermark_mgr, "advance_watermark"):
                     success = watermark_mgr.advance_watermark(
                         new_watermark=new_watermark,
                         symbol=symbol,

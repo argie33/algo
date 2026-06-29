@@ -127,10 +127,7 @@ class TestUnwrapWithMalformedData:
 
     def test_nested_dict_is_string(self):
         """If nested dict is string, accessing its fields crashes."""
-        response = {
-            "statusCode": 200,
-            "data": {"portfolio": "not_a_dict"}
-        }
+        response = {"statusCode": 200, "data": {"portfolio": "not_a_dict"}}
         unwrapped = _unwrap_api_response(response)
         # This preserves the malformed structure
         # Downstream code should handle or this should be caught earlier

@@ -27,13 +27,11 @@ class TestBreadthFetcherNewHighsLows:
         # Mock cursor with 2 dates of data
         mock_cursor = MagicMock()
         mock_cursor.fetchall.return_value = [
-            (date(2024, 1, 1), 5, 2),   # date, new_highs, new_lows
+            (date(2024, 1, 1), 5, 2),  # date, new_highs, new_lows
             (date(2024, 1, 2), 3, 4),
         ]
 
-        result = fetcher._compute_new_highs_lows(
-            mock_cursor, date(2024, 1, 1), date(2024, 1, 31)
-        )
+        result = fetcher._compute_new_highs_lows(mock_cursor, date(2024, 1, 1), date(2024, 1, 31))
 
         assert isinstance(result, dict), "Should return a dict"
         assert "2024-01-01" in result, "Should have ISO date keys"
@@ -50,9 +48,7 @@ class TestBreadthFetcherNewHighsLows:
         mock_cursor.fetchone.return_value = (100,)
         mock_cursor.fetchall.return_value = []
 
-        result = fetcher._compute_new_highs_lows(
-            mock_cursor, date(2024, 1, 1), date(2024, 1, 31)
-        )
+        result = fetcher._compute_new_highs_lows(mock_cursor, date(2024, 1, 1), date(2024, 1, 31))
 
         assert result == {}, "Should return empty dict when no data"
 
@@ -68,9 +64,7 @@ class TestBreadthFetcherNewHighsLows:
             (date(2024, 1, 2), 3, None),
         ]
 
-        result = fetcher._compute_new_highs_lows(
-            mock_cursor, date(2024, 1, 1), date(2024, 1, 31)
-        )
+        result = fetcher._compute_new_highs_lows(mock_cursor, date(2024, 1, 1), date(2024, 1, 31))
 
         assert result["2024-01-01"] == (0, 2), "NULL highs should be 0"
         assert result["2024-01-02"] == (3, 0), "NULL lows should be 0"
@@ -84,12 +78,10 @@ class TestBreadthFetcherNewHighsLows:
         # Some databases return date objects, some strings
         mock_cursor.fetchall.return_value = [
             (date(2024, 1, 1), 5, 2),  # date object with isoformat()
-            ("2024-01-02", 3, 4),       # string directly
+            ("2024-01-02", 3, 4),  # string directly
         ]
 
-        result = fetcher._compute_new_highs_lows(
-            mock_cursor, date(2024, 1, 1), date(2024, 1, 31)
-        )
+        result = fetcher._compute_new_highs_lows(mock_cursor, date(2024, 1, 1), date(2024, 1, 31))
 
         # Both should work and produce ISO format keys
         assert "2024-01-01" in result
@@ -198,9 +190,9 @@ class TestBreadthFetcherFullIntegration:
             mock_cursor = MagicMock()
             mock_cursor.fetchall.side_effect = [
                 [
-                    (date(2024, 1, 1), 100, 50),   # Valid
-                    (date(2024, 1, 2), 100, 0),    # Zero declines - skip
-                    (date(2024, 1, 3), 100, -5),   # Negative declines - skip
+                    (date(2024, 1, 1), 100, 50),  # Valid
+                    (date(2024, 1, 2), 100, 0),  # Zero declines - skip
+                    (date(2024, 1, 3), 100, -5),  # Negative declines - skip
                 ],
                 [],  # No new highs/lows for any date
             ]
@@ -225,7 +217,7 @@ class TestBreadthFetcherFullIntegration:
             mock_cursor = MagicMock()
             mock_cursor.fetchall.side_effect = [
                 [
-                    (date(2024, 1, 1), None, 50),   # NULL advances - skip
+                    (date(2024, 1, 1), None, 50),  # NULL advances - skip
                     (date(2024, 1, 2), 100, None),  # NULL declines - skip
                 ],
                 [],
@@ -393,8 +385,8 @@ class TestBreadthFetcherEdgeCases:
 
             assert len(result) == 3
             assert result["2024-01-01"]["advance_decline_ratio"] == 2.0
-            assert result["2024-01-02"]["advance_decline_ratio"] == round(110/45, 3)
-            assert result["2024-01-03"]["advance_decline_ratio"] == round(95/55, 3)
+            assert result["2024-01-02"]["advance_decline_ratio"] == round(110 / 45, 3)
+            assert result["2024-01-03"]["advance_decline_ratio"] == round(95 / 55, 3)
 
 
 if __name__ == "__main__":

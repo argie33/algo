@@ -257,9 +257,7 @@ class FearGreedIndexLoader(OptimalLoader):
                     logger.warning(f"Fear & Greed connection error (attempt {attempt + 1}/3), retrying...")
                     time.sleep((attempt + 1) * 5)
                 else:
-                    logger.error(
-                        "Failed to fetch Fear & Greed index after 3 connection errors. Cannot reach CNN API."
-                    )
+                    logger.error("Failed to fetch Fear & Greed index after 3 connection errors. Cannot reach CNN API.")
                     return [
                         {
                             "date": _dt.utcnow().strftime("%Y-%m-%d"),
@@ -270,9 +268,7 @@ class FearGreedIndexLoader(OptimalLoader):
                         }
                     ]
             except requests.exceptions.HTTPError as e:
-                logger.error(
-                    f"[FEAR_GREED] HTTP error from CNN: {e}. Check CNN API status and rate limits."
-                )
+                logger.error(f"[FEAR_GREED] HTTP error from CNN: {e}. Check CNN API status and rate limits.")
                 return [
                     {
                         "date": _dt.utcnow().strftime("%Y-%m-%d"),

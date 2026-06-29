@@ -267,7 +267,9 @@ def _get_signals_etf(cur: cursor, limit: int = 500) -> Any:
                 f"No ETF market signals available. "
                 f"ETF price_daily or trend_template_data pipeline may not have run. {freshness_detail}",
             )
-        etf_signals_result = list_response([safe_json_serialize(dict(s)) for s in signals], data_freshness=etf_freshness)
+        etf_signals_result = list_response(
+            [safe_json_serialize(dict(s)) for s in signals], data_freshness=etf_freshness
+        )
         is_valid, error_msg = ResponseValidator.validate_endpoint_response("sig", etf_signals_result)
         if not is_valid:
             logger.error(f"Endpoint response validation failed: {error_msg}")

@@ -262,7 +262,9 @@ class AlignmentChecker(BaseCheck):
             """)
             row = cur.fetchone()
             if row is None or row[0] is None:
-                raise ValueError("Cross-alignment baseline query returned NULL — cannot determine symbol count for coverage validation")
+                raise ValueError(
+                    "Cross-alignment baseline query returned NULL — cannot determine symbol count for coverage validation"
+                )
             baseline = int(row[0])
             if baseline == 0:
                 raise ValueError("price_daily has 0 symbols on latest date — loader failure or data corruption")
@@ -330,12 +332,16 @@ class AlignmentChecker(BaseCheck):
             # Verify all expected tables are in the results
             missing_from_union = [tbl for tbl, _, _, _ in checks if tbl not in counts_by_table]
             if missing_from_union:
-                raise ValueError(f"Cross-alignment union query missing tables: {missing_from_union} — UNION may have failed")
+                raise ValueError(
+                    f"Cross-alignment union query missing tables: {missing_from_union} — UNION may have failed"
+                )
 
             for tbl, _where, min_ratio, sev in checks:
                 try:
                     if tbl not in counts_by_table:
-                        raise ValueError(f"Table {tbl} missing from cross-alignment results — cannot determine coverage")
+                        raise ValueError(
+                            f"Table {tbl} missing from cross-alignment results — cannot determine coverage"
+                        )
                     count = counts_by_table[tbl]
                     ratio = count / baseline
                     if ratio < min_ratio:

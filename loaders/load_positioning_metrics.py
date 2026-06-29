@@ -71,7 +71,9 @@ class PositioningMetricsLoader(OptimalLoader):
             ]
         except Exception as e:
             # Unexpected errors (database errors, network issues, bugs) should surface immediately
-            logger.error(f"[POSITIONING_METRICS] Unexpected error for {symbol} (not data unavailability): {type(e).__name__}: {e}")
+            logger.error(
+                f"[POSITIONING_METRICS] Unexpected error for {symbol} (not data unavailability): {type(e).__name__}: {e}"
+            )
             raise
 
     @staticmethod
@@ -114,7 +116,9 @@ class PositioningMetricsLoader(OptimalLoader):
             try:
                 info = ticker.info
             except requests.Timeout as e:
-                logger.warning(f"[POSITIONING_METRICS] Timeout accessing ticker.info for {symbol} (transient, will retry): {e}")
+                logger.warning(
+                    f"[POSITIONING_METRICS] Timeout accessing ticker.info for {symbol} (transient, will retry): {e}"
+                )
                 raise TransientAPIError(f"Timeout accessing ticker.info for {symbol}") from e
             except requests.ConnectionError as e:
                 logger.warning(f"[POSITIONING_METRICS] Connection error for {symbol} (transient, will retry): {e}")

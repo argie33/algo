@@ -76,7 +76,9 @@ from ..utilities import (
 from ._helpers import _error_panel
 
 
-def _calculate_adjusted_win_rate(perf: dict[str, Any] | None, pos: dict[str, Any] | None) -> tuple[float | None, int, int]:
+def _calculate_adjusted_win_rate(
+    perf: dict[str, Any] | None, pos: dict[str, Any] | None
+) -> tuple[float | None, int, int]:
     """E10 Fix: Include losing open positions in win rate calculation.
 
     Win rate should reflect all active positions (closed + open losses), not just closed trades.
@@ -705,12 +707,12 @@ def panel_portfolio_perf_expanded(  # noqa: C901
         exp2 = safe_float(perf_anl.get("expectancy"), default=None)
         maxdd2 = safe_float(perf_anl.get("maxdd"), default=None)
         sharpe_style = (
-            G if (sharpe252 is not None and sharpe252 >= 1)
+            G
+            if (sharpe252 is not None and sharpe252 >= 1)
             else (Y if (sharpe252 is not None and sharpe252 >= 0) else R)
         )
         sortino_style = (
-            G if (sortino is not None and sortino >= 1.5)
-            else (Y if (sortino is not None and sortino >= 0) else R)
+            G if (sortino is not None and sortino >= 1.5) else (Y if (sortino is not None and sortino >= 0) else R)
         )
         anl.add_row(
             "Sharpe (252d):",
@@ -725,13 +727,9 @@ def panel_portfolio_perf_expanded(  # noqa: C901
             ),
         )
         calmar_style = (
-            G if (calmar is not None and calmar >= 0.5)
-            else (Y if (calmar is not None and calmar >= 0) else R)
+            G if (calmar is not None and calmar >= 0.5) else (Y if (calmar is not None and calmar >= 0) else R)
         )
-        wr50_style = (
-            G if (wr50 is not None and wr50 >= 50)
-            else (Y if (wr50 is not None and wr50 >= 42) else R)
-        )
+        wr50_style = G if (wr50 is not None and wr50 >= 50) else (Y if (wr50 is not None and wr50 >= 42) else R)
         anl.add_row(
             "Calmar:",
             Text(
@@ -755,8 +753,15 @@ def panel_portfolio_perf_expanded(  # noqa: C901
             # CRITICAL: Only set color for maxdd if value is not None (don't default to 0 which hides missing data)
             maxdd_abs = abs(maxdd2) if maxdd2 is not None else None
             maxdd_style = (
-                R if (maxdd2 is not None and maxdd_abs is not None and maxdd_abs >= 15)
-                else (Y if (maxdd2 is not None and maxdd_abs is not None and maxdd_abs >= 5) else "dim" if maxdd2 is None else G)
+                R
+                if (maxdd2 is not None and maxdd_abs is not None and maxdd_abs >= 15)
+                else (
+                    Y
+                    if (maxdd2 is not None and maxdd_abs is not None and maxdd_abs >= 5)
+                    else "dim"
+                    if maxdd2 is None
+                    else G
+                )
             )
             anl.add_row(
                 "Expectancy:",
@@ -845,7 +850,9 @@ def panel_portfolio_perf_expanded(  # noqa: C901
             else:
                 pv_total = float(pv_total_val)
                 if pv_total <= 0:
-                    rows.append(Text("[red]Portfolio value must be positive for concentration calculation[/]", style="dim"))
+                    rows.append(
+                        Text("[red]Portfolio value must be positive for concentration calculation[/]", style="dim")
+                    )
                 else:
                     conc_rows: list[tuple[float, Any, float | None, float | None]] = []
                     for p in pos_items:

@@ -66,17 +66,11 @@ def get_price_coverage(cur: cursor) -> Any:
 
         if sp500_total is None or sp500_total <= 0:
             return error_response(
-                503,
-                "configuration_error",
-                "SP500 symbol target count missing or zero — configuration required"
+                503, "configuration_error", "SP500 symbol target count missing or zero — configuration required"
             )
 
         if not total_rows:
-            return error_response(
-                503,
-                "no_data",
-                "No price rows available in last 7 days — data loading required"
-            )
+            return error_response(503, "no_data", "No price rows available in last 7 days — data loading required")
 
         days_stale = (_date.today() - latest_date).days if latest_date else None
         zero_vol_pct = (zero_vol / total_rows * 100) if total_rows else None
@@ -89,7 +83,9 @@ def get_price_coverage(cur: cursor) -> Any:
             "coverage_pct": coverage_pct,
             "latest_date": str(latest_date) if latest_date else None,
             "days_stale": days_stale,
-            "status": "fresh" if (days_stale is not None and days_stale <= 1) else ("stale" if days_stale is not None else None),
+            "status": "fresh"
+            if (days_stale is not None and days_stale <= 1)
+            else ("stale" if days_stale is not None else None),
             "data_quality": {
                 "zero_volume_pct": round(zero_vol_pct, 2) if zero_vol_pct is not None else None,
                 "invalid_price_pct": round(invalid_pct, 2) if invalid_pct is not None else None,

@@ -547,7 +547,9 @@ def _get_algo_portfolio(cur: cursor) -> Any:
         if isinstance(created_at, datetime) and isinstance(now_utc_db, datetime):
             data_age_seconds = int((now_utc_db - created_at).total_seconds())
         else:
-            logger.error(f"CRITICAL: Time mismatch - now_utc_db={type(now_utc_db).__name__}, created_at={type(created_at).__name__}")
+            logger.error(
+                f"CRITICAL: Time mismatch - now_utc_db={type(now_utc_db).__name__}, created_at={type(created_at).__name__}"
+            )
             return error_response(503, "data_corruption", "Cannot calculate portfolio age - type mismatch")
 
         response_data = {

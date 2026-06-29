@@ -29,6 +29,7 @@ class ReloadManager:
 
     def spawn_reload(self, on_complete: Callable[[dict[str, Any]], None]) -> threading.Thread:
         """Spawn a reload thread."""
+
         def reload_task() -> None:
             try:
                 t0 = time.monotonic()

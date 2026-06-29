@@ -533,7 +533,7 @@ def run(
         # These are OPTIONAL (Phase 5 may not have computed all values if data was unavailable)
         sma_50 = sig.get("sma_50")  # None if Phase 5 marked data_unavailable
         atr_14 = sig.get("atr_14")  # None if Phase 5 marked data_unavailable
-        close = sig.get("close")    # None if Phase 5 marked data_unavailable
+        close = sig.get("close")  # None if Phase 5 marked data_unavailable
 
         symbols_with_precomputed[symbol] = {
             "sma_50": sma_50,
@@ -711,8 +711,8 @@ def run(
 
                 continue
 
-            composite_score = signal.get('composite_score')
-            rs_pct = signal.get('rs_percentile')
+            composite_score = signal.get("composite_score")
+            rs_pct = signal.get("rs_percentile")
             if composite_score is None:
                 raise RuntimeError(
                     f"[PHASE 8] Signal for {symbol} missing required 'composite_score' field — "

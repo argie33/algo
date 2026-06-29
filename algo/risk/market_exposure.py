@@ -165,7 +165,7 @@ class MarketExposure:
                 if age > max_age:
                     raise RuntimeError(
                         f"[MARKET_EXPOSURE] Cached market exposure is too old for position sizing: "
-                        f"computed {age.total_seconds()/3600:.1f}h ago, but require fresh data (< {max_age.total_seconds()/3600:.0f}h). "
+                        f"computed {age.total_seconds() / 3600:.1f}h ago, but require fresh data (< {max_age.total_seconds() / 3600:.0f}h). "
                         f"Market exposure changes rapidly during trading hours. "
                         f"Cannot use stale data for position sizing - risk management requires current market state."
                     )
@@ -292,7 +292,9 @@ class MarketExposure:
             if cached:
                 return cached
 
-        logger.info(f"[MARKET_EXPOSURE] Computing market exposure for {eval_date} (12 sequential queries, using calculator methods)")
+        logger.info(
+            f"[MARKET_EXPOSURE] Computing market exposure for {eval_date} (12 sequential queries, using calculator methods)"
+        )
         with DatabaseContext("read") as cur:
             # Per-query timeout: 45s. Breadth queries use pre-computed sma_50/sma_200 from
             # technical_data_daily (fast indexed lookup). 45s x 12 = 540s max, fits in Lambda
@@ -420,7 +422,9 @@ class MarketExposure:
                 "max": self.W_PUT_CALL,
             }
             score += pc_pts
-            logger.info(f"[PUT_CALL_RATIO] Value: {pc.get('value')}, Score: {pc.get('score'):.1f}, Points: {pc_pts:.1f}/{self.W_PUT_CALL}")
+            logger.info(
+                f"[PUT_CALL_RATIO] Value: {pc.get('value')}, Score: {pc.get('score'):.1f}, Points: {pc_pts:.1f}/{self.W_PUT_CALL}"
+            )
             logger.debug(f"  Put/call ratio: {pc_pts:.1f} pts")
 
             # --- 8. New highs vs new lows ---
@@ -441,7 +445,9 @@ class MarketExposure:
             avail_max += ad_avail
             factors["ad_line"] = {**ad, "pts": round(ad_pts, 1), "max": self.W_AD_LINE}
             score += ad_pts
-            logger.info(f"[AD_LINE] Direction: {ad.get('direction')}, Score: {ad.get('score'):.1f}, Points: {ad_pts:.1f}/{self.W_AD_LINE}")
+            logger.info(
+                f"[AD_LINE] Direction: {ad.get('direction')}, Score: {ad.get('score'):.1f}, Points: {ad_pts:.1f}/{self.W_AD_LINE}"
+            )
             logger.debug(f"  A/D line: {ad_pts:.1f} pts")
 
             # --- 10. Credit spreads (HY OAS - credit leads equity) ---
@@ -454,7 +460,9 @@ class MarketExposure:
                 "max": self.W_CREDIT_SPREAD,
             }
             score += cs_pts
-            logger.info(f"[CREDIT_SPREAD] Value: {cs.get('value')} bps, Score: {cs.get('score'):.1f}, Points: {cs_pts:.1f}/{self.W_CREDIT_SPREAD}")
+            logger.info(
+                f"[CREDIT_SPREAD] Value: {cs.get('value')} bps, Score: {cs.get('score'):.1f}, Points: {cs_pts:.1f}/{self.W_CREDIT_SPREAD}"
+            )
             logger.debug(f"  Credit spreads: {cs_pts:.1f} pts")
 
             # --- 11. AAII sentiment (contrarian at extremes only) ---
@@ -652,7 +660,9 @@ class MarketExposure:
             else:
                 regime = "correction"
 
-            logger.info(f"[MARKET_EXPOSURE_FINAL] exposure_pct={final}%, regime={regime}, raw_score={score:.1f}, factors_computed=12")
+            logger.info(
+                f"[MARKET_EXPOSURE_FINAL] exposure_pct={final}%, regime={regime}, raw_score={score:.1f}, factors_computed=12"
+            )
 
             # CRITICAL: distribution_days is required for position sizing hard vetoes
             # Never default to 0 - missing data must be detected as error, not assumed "clean market"
@@ -871,7 +881,7 @@ class MarketExposure:
         for i in range(len(price_list)):
             if i + 150 <= len(price_list):
                 # Calculate 150-day SMA: average of closes from day i to day i+149
-                sma_150_val = sum(float(p[1]) for p in price_list[i:i+150]) / 150.0
+                sma_150_val = sum(float(p[1]) for p in price_list[i : i + 150]) / 150.0
                 rows.append((price_list[i][0], float(price_list[i][1]), sma_150_val))
             else:
                 # Not enough history for full 150-day SMA

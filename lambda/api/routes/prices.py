@@ -228,16 +228,16 @@ def handle(  # noqa: C901
                 if not rows:
                     # Symbol not found in either table OR no data for requested date range
                     # Check if symbol exists at all (distinguishes 'symbol not loaded' from 'no data for dates')
-                    check_query = psycopg2.sql.SQL(
-                        "SELECT COUNT(*) FROM {} WHERE symbol = %s"
-                    ).format(psycopg2.sql.Identifier(table_name))
+                    check_query = psycopg2.sql.SQL("SELECT COUNT(*) FROM {} WHERE symbol = %s").format(
+                        psycopg2.sql.Identifier(table_name)
+                    )
                     cur.execute(check_query, (symbol,))
                     stock_row = cur.fetchone()
                     stock_count = stock_row[0] if stock_row else 0
 
-                    check_etf_query = psycopg2.sql.SQL(
-                        "SELECT COUNT(*) FROM {} WHERE symbol = %s"
-                    ).format(psycopg2.sql.Identifier(etf_table_name))
+                    check_etf_query = psycopg2.sql.SQL("SELECT COUNT(*) FROM {} WHERE symbol = %s").format(
+                        psycopg2.sql.Identifier(etf_table_name)
+                    )
                     cur.execute(check_etf_query, (symbol,))
                     etf_row = cur.fetchone()
                     etf_count = etf_row[0] if etf_row else 0

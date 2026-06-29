@@ -235,7 +235,7 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
     freshness = check_data_freshness(cur, "algo_positions", "updated_at", warning_days=1)
     stale_alerts = []
     if freshness.get("is_stale"):
-        age_days = freshness.get('data_age_days')
+        age_days = freshness.get("data_age_days")
         age_display = f"{age_days}d old" if age_days is not None else "age unknown"
         stale_alerts.append(f"Position data {age_display}")
 
@@ -975,7 +975,9 @@ def _get_dashboard_signals(cur: cursor) -> Any:
                 return None
 
         qualifying_buy_count = sum(
-            1 for s in buy_sigs if (
+            1
+            for s in buy_sigs
+            if (
                 _try_float(s.get("signal_quality_score")) is not None
                 and _try_float(s.get("signal_quality_score")) >= 70
             )

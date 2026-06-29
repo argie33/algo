@@ -51,9 +51,7 @@ class TestVIXFetcherFailFast:
         # Mock database failure
         with patch("utils.db.context.DatabaseContext") as mock_db:
             mock_cursor = MagicMock()
-            mock_cursor.__enter__.side_effect = (
-                psycopg2.OperationalError("Database connection lost")
-            )
+            mock_cursor.__enter__.side_effect = psycopg2.OperationalError("Database connection lost")
             mock_db.return_value = mock_cursor
 
             # Should raise RuntimeError with CRITICAL message
@@ -292,10 +290,7 @@ class TestHaltFlagManagerFailFast:
                 # When missing reason, should fail-closed by returning True (halt=active)
                 assert result is True
                 # Verify CRITICAL error was logged (not silent fallback)
-                assert any(
-                    "CRITICAL" in str(call)
-                    for call in mock_logger.critical.call_args_list
-                )
+                assert any("CRITICAL" in str(call) for call in mock_logger.critical.call_args_list)
 
 
 if __name__ == "__main__":

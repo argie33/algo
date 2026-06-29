@@ -25,10 +25,6 @@ def clear_markets_cache() -> None:
         _markets_cache.clear()
 
 
-
-
-
-
 def _get_markets_cached() -> dict[str, Any]:
     """Unified fetch for /api/algo/markets endpoint (cached, no stale fallback).
 
@@ -41,19 +37,11 @@ def _get_markets_cached() -> dict[str, Any]:
     returns error dict instead.
     """
     now = __import__("time").time()
-    if (
-        "result" in _markets_cache
-        and "_time" in _markets_cache
-        and (now - _markets_cache["_time"]) < 60
-    ):
+    if "result" in _markets_cache and "_time" in _markets_cache and (now - _markets_cache["_time"]) < 60:
         return cast(dict[str, Any], _markets_cache["result"])
 
     with _markets_lock:
-        if (
-            "result" in _markets_cache
-            and "_time" in _markets_cache
-            and (now - _markets_cache["_time"]) < 60
-        ):
+        if "result" in _markets_cache and "_time" in _markets_cache and (now - _markets_cache["_time"]) < 60:
             return cast(dict[str, Any], _markets_cache["result"])
 
         try:
@@ -445,7 +433,9 @@ def fetch_sector_rotation(c: None) -> dict[str, Any]:
             return FetcherValidator.build_error_response(error_msg)
 
         if not items:
-            error_msg = "Sector rotation data unavailable: 'items' array is empty. Cannot proceed without rotation signal."
+            error_msg = (
+                "Sector rotation data unavailable: 'items' array is empty. Cannot proceed without rotation signal."
+            )
             logger.error(error_msg)
             record_data_quality_issue("sec_rot", "validation", "empty_items_array")
             return FetcherValidator.build_error_response(error_msg)

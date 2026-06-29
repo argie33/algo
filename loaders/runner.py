@@ -81,7 +81,7 @@ def run_loader(
                 symbols = [s.strip().upper() for s in args.symbols.split(",")]
             else:
                 # Check if this loader needs real stocks only (exclude ETFs)
-                exclude_etfs = getattr(loader, 'exclude_etfs_from_symbols', False)
+                exclude_etfs = getattr(loader, "exclude_etfs_from_symbols", False)
                 symbols = get_active_symbols(timeout_secs=60, exclude_etfs=exclude_etfs)
 
             if args.backfill_days:
@@ -108,18 +108,13 @@ def run_loader(
                 )
             fail_rate = symbols_failed / max(len(symbols), 1)
             if fail_rate > 0.05:
-                logger.error(
-                    f"Too many failures: {symbols_failed}/{len(symbols)} ({fail_rate * 100:.1f}%)"
-                )
+                logger.error(f"Too many failures: {symbols_failed}/{len(symbols)} ({fail_rate * 100:.1f}%)")
                 return 1
 
             return 0
     except Exception as e:
-        loader_name = loader_class.table_name if hasattr(loader_class, 'table_name') else loader_class.__name__
-        logger.error(
-            f"[LOADER FATAL] {loader_name} loader crashed: {type(e).__name__}: {str(e)[:500]}",
-            exc_info=True
-        )
+        loader_name = loader_class.table_name if hasattr(loader_class, "table_name") else loader_class.__name__
+        logger.error(f"[LOADER FATAL] {loader_name} loader crashed: {type(e).__name__}: {str(e)[:500]}", exc_info=True)
         return 1
     finally:
         loader.close()

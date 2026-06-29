@@ -293,7 +293,5 @@ def test_error_message_fallback_for_missing_error_details():
     panel = error_summary_panel(data_good_error)
     assert panel is not None, "Should render error panel for valid _error"
     rendered = str(panel.renderable)
-    assert "Market API timeout" in rendered, (
-        f"Should preserve error message, got: {rendered}"
-    )
+    assert "Market API timeout" in rendered, f"Should preserve error message, got: {rendered}"
     print("OK error message is preserved when provided")

@@ -236,14 +236,12 @@ class LoaderConfigManager:
                     loader_name_attr = item.get("loader_name")
                     if loader_name_attr is None:
                         raise ValueError(
-                            "[CONFIG_LOADER] CRITICAL: Missing 'loader_name' attribute. "
-                            f"Available: {list(item.keys())}"
+                            f"[CONFIG_LOADER] CRITICAL: Missing 'loader_name' attribute. Available: {list(item.keys())}"
                         )
                     parallelism_attr = item.get("parallelism")
                     if parallelism_attr is None:
                         raise ValueError(
-                            "[CONFIG_LOADER] CRITICAL: Missing 'parallelism' attribute. "
-                            f"Available: {list(item.keys())}"
+                            f"[CONFIG_LOADER] CRITICAL: Missing 'parallelism' attribute. Available: {list(item.keys())}"
                         )
                     enabled_attr = item.get("enabled")
                     if enabled_attr is None:
@@ -257,9 +255,7 @@ class LoaderConfigManager:
                         "updated_at": updated_at_attr.get("S", "") if updated_at_attr else "",
                     }
                 except (KeyError, ValueError, TypeError) as e:
-                    raise RuntimeError(
-                        f"[CONFIG_LOADER] CRITICAL: Failed to parse DynamoDB config: {e}"
-                    ) from e
+                    raise RuntimeError(f"[CONFIG_LOADER] CRITICAL: Failed to parse DynamoDB config: {e}") from e
             return None
         except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e

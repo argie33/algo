@@ -240,8 +240,7 @@ class PriceFetcher:
             )
         if not result:
             raise RuntimeError(
-                f"Batch fetch returned empty dict for {len(symbols)} symbols. "
-                "No price data available. Cannot proceed."
+                f"Batch fetch returned empty dict for {len(symbols)} symbols. No price data available. Cannot proceed."
             )
 
         self._record_successful_fetch()
@@ -340,7 +339,9 @@ class PriceFetcher:
                 result = fetch_batch()
 
             if result is None:
-                raise RuntimeError("Circuit breaker returned None for price batch fetch. Cannot proceed without price data.")
+                raise RuntimeError(
+                    "Circuit breaker returned None for price batch fetch. Cannot proceed without price data."
+                )
         except RuntimeError as e:
             error_str = str(e).lower()
             if any(x in error_str for x in ["circuit", "breaker", "open", "unavailable"]):

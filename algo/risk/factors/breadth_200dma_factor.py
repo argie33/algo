@@ -59,7 +59,9 @@ class Breadth200DMAFactor(MarketFactorStrategy):
 
             above, total = int(row[0]), int(row[1])
             if total <= 0:
-                raise ValueError(f"Breadth 200-DMA factor: No stocks available to calculate participation ({total} total)")
+                raise ValueError(
+                    f"Breadth 200-DMA factor: No stocks available to calculate participation ({total} total)"
+                )
             pct = above / total * 100.0
 
             # Linear: 30% → 0, 55% → 50, 80% → 100

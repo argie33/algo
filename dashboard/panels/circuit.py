@@ -158,15 +158,13 @@ def panel_circuit(cb: Any) -> Panel:  # noqa: C901
                 thr_f = safe_float(thr, default=None)
                 thr_s = "--" if thr_f is None else f"{thr_f:.0f}"
                 cur_s = "--" if cur is None else str(cur)
-                unit_raw = br.get('u')
+                unit_raw = br.get("u")
                 if unit_raw is None:
                     logger.debug("[CIRCUIT] Breaker %s missing unit field 'u'", lbl_s)
                     unit_display = "[yellow]?[/]"
                 else:
                     unit_display = str(unit_raw)
-                return (
-                    f"[{R if fired else 'dim'}]{lbl_s}:[/]{cur_s}{unit_display}[dim]/{thr_s}{unit_display}[/]"
-                )
+                return f"[{R if fired else 'dim'}]{lbl_s}:[/]{cur_s}{unit_display}[dim]/{thr_s}{unit_display}[/]"
             try:
                 thr_f = safe_float(thr, 0.0, strict=True, field_name="circuit_breaker_threshold")
                 cur_f = safe_float(cur, 0.0, strict=True, field_name="circuit_breaker_current")
@@ -187,7 +185,7 @@ def panel_circuit(cb: Any) -> Panel:  # noqa: C901
                 if cur_f is not None and cur_f != int(cur_f)
                 else (f"{int(cur_f)}" if cur_f is not None else "0")
             )
-            unit_str = br.get('u')
+            unit_str = br.get("u")
             if unit_str is None:
                 logger.debug("[CIRCUIT] Breaker %s missing unit for display", lbl_s)
                 unit_str = ""
@@ -267,7 +265,9 @@ def panel_circuit_expanded(cb: Any) -> Panel:  # noqa: C901
 
     bs = cb.get("bs")
     if bs is None:
-        logger.warning("[CIRCUIT_EXPANDED] Missing breaker list 'bs' - no individual breaker data available (data_unavailable)")
+        logger.warning(
+            "[CIRCUIT_EXPANDED] Missing breaker list 'bs' - no individual breaker data available (data_unavailable)"
+        )
         rows.append(Text("breaker list data_unavailable", style="dim"))
     elif not isinstance(bs, list):
         logger.error("[CIRCUIT_EXPANDED] Breaker list 'bs' is not a list: got %s", type(bs).__name__)

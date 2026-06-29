@@ -62,10 +62,10 @@ class StockScoresLoader(OptimalLoader):
             with DatabaseContext("read") as cur:
                 metric_tables = {
                     "quality_metrics": 0.75,  # Require 75% coverage for SEC filings
-                    "growth_metrics": 0.75,   # Require 75% coverage for SEC filings
-                    "value_metrics": 0.80,    # Require 80% (less dependent on financials)
+                    "growth_metrics": 0.75,  # Require 75% coverage for SEC filings
+                    "value_metrics": 0.80,  # Require 80% (less dependent on financials)
                     "positioning_metrics": 0.70,  # Require 70% (many don't have short interest data)
-                    "stability_metrics": 0.85,    # Require 85% (computed from price data, nearly complete)
+                    "stability_metrics": 0.85,  # Require 85% (computed from price data, nearly complete)
                 }
 
                 for table_name, min_coverage in metric_tables.items():
@@ -328,7 +328,9 @@ class StockScoresLoader(OptimalLoader):
                 }
             # CRITICAL: Quality metrics are HIGH-priority financial data (SEC filings)
             # Logging at WARNING to ensure ops visibility of degraded scoring
-            logger.warning(f"[LOAD_STOCK_SCORES] No quality metrics available for {symbol} — score completeness will be reduced")
+            logger.warning(
+                f"[LOAD_STOCK_SCORES] No quality metrics available for {symbol} — score completeness will be reduced"
+            )
             return None
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Database operation failed fetching quality metrics for {symbol}: {e}") from e
@@ -356,7 +358,9 @@ class StockScoresLoader(OptimalLoader):
                 }
             # CRITICAL: Growth metrics are HIGH-priority financial data (SEC filings)
             # Logging at WARNING to ensure ops visibility of degraded scoring
-            logger.warning(f"[LOAD_STOCK_SCORES] No growth metrics available for {symbol} — score completeness will be reduced")
+            logger.warning(
+                f"[LOAD_STOCK_SCORES] No growth metrics available for {symbol} — score completeness will be reduced"
+            )
             return None
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Database operation failed fetching growth metrics for {symbol}: {e}") from e
@@ -384,7 +388,9 @@ class StockScoresLoader(OptimalLoader):
                 }
             # CRITICAL: Value metrics are HIGH-priority financial data (market pricing)
             # Logging at WARNING to ensure ops visibility of degraded scoring
-            logger.warning(f"[LOAD_STOCK_SCORES] No value metrics available for {symbol} — score completeness will be reduced")
+            logger.warning(
+                f"[LOAD_STOCK_SCORES] No value metrics available for {symbol} — score completeness will be reduced"
+            )
             return None
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Database operation failed fetching value metrics for {symbol}: {e}") from e
@@ -409,7 +415,9 @@ class StockScoresLoader(OptimalLoader):
                 }
             # Positioning metrics are optional enrichment (institutional ownership, short interest)
             # Debug level acceptable for optional data
-            logger.debug(f"[LOAD_STOCK_SCORES] No positioning metrics available for {symbol} — will reduce score completeness")
+            logger.debug(
+                f"[LOAD_STOCK_SCORES] No positioning metrics available for {symbol} — will reduce score completeness"
+            )
             return None
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Database operation failed fetching positioning metrics for {symbol}: {e}") from e
@@ -435,7 +443,9 @@ class StockScoresLoader(OptimalLoader):
                 }
             # CRITICAL: Stability metrics are HIGH-priority financial data (volatility, beta)
             # Logging at WARNING to ensure ops visibility of degraded scoring
-            logger.warning(f"[LOAD_STOCK_SCORES] No stability metrics available for {symbol} — score completeness will be reduced")
+            logger.warning(
+                f"[LOAD_STOCK_SCORES] No stability metrics available for {symbol} — score completeness will be reduced"
+            )
             return None
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Database operation failed fetching stability metrics for {symbol}: {e}") from e
@@ -831,12 +841,14 @@ class StockScoresLoader(OptimalLoader):
 
                 metric_coverage = cur.fetchall()
                 if not metric_coverage:
-                    logger.warning("[STOCK_SCORES] No upstream metric loader status found. Metrics may not be populated yet.")
+                    logger.warning(
+                        "[STOCK_SCORES] No upstream metric loader status found. Metrics may not be populated yet."
+                    )
                     return
 
                 # Require at least 90% coverage on critical metric loaders
                 min_coverage_pct = 90.0
-                critical_metric_loaders = ['value_metrics', 'stability_metrics']
+                critical_metric_loaders = ["value_metrics", "stability_metrics"]
 
                 for table_name, completion_pct, symbols_loaded, symbol_count in metric_coverage:
                     if completion_pct is None:

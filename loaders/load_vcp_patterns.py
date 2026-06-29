@@ -68,9 +68,7 @@ class VCPPatternsLoader:
                 )
 
             # Get all unique dates from technical_data_daily
-            cur.execute(
-                "SELECT DISTINCT date FROM technical_data_daily WHERE atr_14 IS NOT NULL ORDER BY date"
-            )
+            cur.execute("SELECT DISTINCT date FROM technical_data_daily WHERE atr_14 IS NOT NULL ORDER BY date")
             dates = [row[0] for row in cur.fetchall()]
 
             if not dates:
@@ -86,10 +84,7 @@ class VCPPatternsLoader:
             logger.info(f"[VCP_LOADER] Processing VCP patterns for {len(dates)} dates")
 
             # Get all symbols with technical data
-            cur.execute(
-                "SELECT DISTINCT symbol FROM technical_data_daily "
-                "WHERE atr_14 IS NOT NULL ORDER BY symbol"
-            )
+            cur.execute("SELECT DISTINCT symbol FROM technical_data_daily WHERE atr_14 IS NOT NULL ORDER BY symbol")
             symbols = [row[0] for row in cur.fetchall()]
 
             # Process each date for all symbols

@@ -66,7 +66,9 @@ class DataCompletenessHandler(LambdaHandler):
             )
             row = cursor.fetchone()
             if row is None or row[0] is None:
-                raise ValueError(f"Today's symbol count returned NULL for {max_date} — cannot validate data completeness")
+                raise ValueError(
+                    f"Today's symbol count returned NULL for {max_date} — cannot validate data completeness"
+                )
             symbols_today = int(row[0])
 
             cursor.execute(

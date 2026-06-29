@@ -65,28 +65,18 @@ class NAAIMExposureLoader(OptimalLoader):
                     "NAAIM page contains no data tables. "
                     "Website format may have changed or data is temporarily unavailable."
                 )
-                return [
-                    {
-                        "data_unavailable": True,
-                        "reason": "no_data_tables_found"
-                    }
-                ]
+                return [{"data_unavailable": True, "reason": "no_data_tables_found"}]
 
             df = tables[0]
 
             # Skip header row if first row contains 'Date' column name
-            if len(df) > 0 and 'Date' in df.iloc[0].values:
+            if len(df) > 0 and "Date" in df.iloc[0].values:
                 logger.info("Skipping header row from HTML table parsing")
                 df = df.iloc[1:].reset_index(drop=True)
 
             if len(df) == 0:
                 logger.warning("NAAIM table is empty after header skipping")
-                return [
-                    {
-                        "data_unavailable": True,
-                        "reason": "no_rows_in_table"
-                    }
-                ]
+                return [{"data_unavailable": True, "reason": "no_rows_in_table"}]
 
             if len(df.columns) < 3:
                 raise RuntimeError(
@@ -158,16 +148,8 @@ class NAAIMExposureLoader(OptimalLoader):
 
             # If no valid rows found, return explicit marker
             if not rows:
-                logger.warning(
-                    "NAAIM table parsed but contains no valid sentiment data "
-                    "(all rows have null metrics)"
-                )
-                return [
-                    {
-                        "data_unavailable": True,
-                        "reason": "no_valid_sentiment_records"
-                    }
-                ]
+                logger.warning("NAAIM table parsed but contains no valid sentiment data (all rows have null metrics)")
+                return [{"data_unavailable": True, "reason": "no_valid_sentiment_records"}]
 
             return rows
 

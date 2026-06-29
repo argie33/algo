@@ -47,7 +47,9 @@ class StabilityMetricsLoader(OptimalLoader):
         try:
             metrics = self._compute_stability_metrics(symbol)
             if not metrics:
-                logger.info(f"[STABILITY_METRICS] Insufficient data for {symbol} (< 30 days price history) — metrics unavailable")
+                logger.info(
+                    f"[STABILITY_METRICS] Insufficient data for {symbol} (< 30 days price history) — metrics unavailable"
+                )
                 return [
                     {
                         "symbol": symbol,
@@ -68,7 +70,9 @@ class StabilityMetricsLoader(OptimalLoader):
                 f"Cannot compute stability metrics without price history access."
             ) from e
         except Exception as e:
-            logger.error(f"[STABILITY_METRICS] Unexpected error computing metrics for {symbol}: {type(e).__name__}: {e}")
+            logger.error(
+                f"[STABILITY_METRICS] Unexpected error computing metrics for {symbol}: {type(e).__name__}: {e}"
+            )
             raise
 
     def _compute_stability_metrics(self, symbol: str) -> dict[str, Any] | None:
@@ -131,8 +135,7 @@ class StabilityMetricsLoader(OptimalLoader):
 
             if not returns:
                 logger.warning(
-                    f"[STABILITY_METRICS] Cannot calculate returns for {symbol} "
-                    f"(no valid price transitions found)"
+                    f"[STABILITY_METRICS] Cannot calculate returns for {symbol} (no valid price transitions found)"
                 )
                 return {
                     "symbol": symbol,
@@ -164,10 +167,7 @@ class StabilityMetricsLoader(OptimalLoader):
             }
 
         except (ValueError, ZeroDivisionError, TypeError) as e:
-            logger.warning(
-                f"[STABILITY_METRICS] Calculation error for {symbol} "
-                f"({type(e).__name__}: {e})"
-            )
+            logger.warning(f"[STABILITY_METRICS] Calculation error for {symbol} ({type(e).__name__}: {e})")
             return {
                 "symbol": symbol,
                 "volatility_30d": None,

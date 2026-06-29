@@ -234,8 +234,8 @@ class ParallelismValidator:
         failures = []
         for name, r in results.items():
             if not r["test_passed"]:
-                issues = r.get('issues_found')
-                issues_str = '; '.join(issues) if issues else ""
+                issues = r.get("issues_found")
+                issues_str = "; ".join(issues) if issues else ""
                 failures.append(f"{name}: {issues_str}")
 
         return {

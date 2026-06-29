@@ -117,10 +117,14 @@ class MarketConstituentsLoader(OptimalLoader):
                     russell_set = set(russell_symbols)
                     logger.info(f"Fetched {len(russell_set)} Russell 2000 constituents")
                 else:
-                    logger.warning("[MARKET_CONSTITUENTS] Russell 2000 fetch returned empty list. Continuing without Russell 2000 data.")
+                    logger.warning(
+                        "[MARKET_CONSTITUENTS] Russell 2000 fetch returned empty list. Continuing without Russell 2000 data."
+                    )
                     russell_set = set()
             except Exception as e:
-                logger.warning(f"[MARKET_CONSTITUENTS] Failed to fetch Russell 2000 ({e}). Continuing without Russell 2000 data.")
+                logger.warning(
+                    f"[MARKET_CONSTITUENTS] Failed to fetch Russell 2000 ({e}). Continuing without Russell 2000 data."
+                )
                 russell_set = set()
 
             # Enrich base symbols with index membership flags
@@ -187,8 +191,7 @@ class MarketConstituentsLoader(OptimalLoader):
                 nas_text = requests.get(NASDAQ_URL, timeout=15).text
             except requests.exceptions.Timeout as e:
                 raise RuntimeError(
-                    "[MARKET_CONSTITUENTS] NASDAQ symbols fetch timeout. "
-                    "Wikipedia API is unreachable or slow."
+                    "[MARKET_CONSTITUENTS] NASDAQ symbols fetch timeout. Wikipedia API is unreachable or slow."
                 ) from e
 
             logger.debug("Downloading OTHER list")
@@ -196,8 +199,7 @@ class MarketConstituentsLoader(OptimalLoader):
                 oth_text = requests.get(OTHER_URL, timeout=15).text
             except requests.exceptions.Timeout as e:
                 raise RuntimeError(
-                    "[MARKET_CONSTITUENTS] Other symbols fetch timeout. "
-                    "NASDAQ API is unreachable or slow."
+                    "[MARKET_CONSTITUENTS] Other symbols fetch timeout. NASDAQ API is unreachable or slow."
                 ) from e
 
             rows = []
@@ -208,9 +210,7 @@ class MarketConstituentsLoader(OptimalLoader):
                 for r in reader:
                     # CRITICAL: Symbol is required — explicit validation, no defaults
                     if "Symbol" not in r or not r["Symbol"]:
-                        logger.debug(
-                            "[MARKET_CONSTITUENTS] Skipping row with missing or empty 'Symbol' field."
-                        )
+                        logger.debug("[MARKET_CONSTITUENTS] Skipping row with missing or empty 'Symbol' field.")
                         continue
                     sym = r["Symbol"].strip()
                     if sym.startswith("File Creation Time"):
@@ -258,9 +258,7 @@ class MarketConstituentsLoader(OptimalLoader):
                     # Market Category: G=Global Market, Q=NASDAQ, S=NYSE MKT
                     exchange_field = "Listing Exchange" if "Listing Exchange" in r else "Market Category"
                     if exchange_field not in r or not r[exchange_field]:
-                        logger.warning(
-                            f"[MARKET_CONSTITUENTS] Symbol {sym} missing exchange field. Skipping."
-                        )
+                        logger.warning(f"[MARKET_CONSTITUENTS] Symbol {sym} missing exchange field. Skipping.")
                         continue
                     market_cat = r[exchange_field].upper().strip()
                     # Map Market Category to exchange code
@@ -327,13 +325,11 @@ class MarketConstituentsLoader(OptimalLoader):
 
         except requests.exceptions.Timeout as e:
             raise RuntimeError(
-                "[MARKET_CONSTITUENTS] S&P 500 fetch timeout. "
-                "Wikipedia API is unreachable or slow."
+                "[MARKET_CONSTITUENTS] S&P 500 fetch timeout. Wikipedia API is unreachable or slow."
             ) from e
         except Exception as e:
             raise RuntimeError(
-                f"[MARKET_CONSTITUENTS] Failed to fetch S&P 500: {e}. "
-                "Cannot load S&P 500 constituent data."
+                f"[MARKET_CONSTITUENTS] Failed to fetch S&P 500: {e}. Cannot load S&P 500 constituent data."
             ) from e
 
     def _fetch_russell2000_symbols(self) -> list[str]:
@@ -364,7 +360,9 @@ class MarketConstituentsLoader(OptimalLoader):
 
                 tables = pd.read_html(StringIO(response.text))
                 if not tables:
-                    logger.debug(f"[MARKET_CONSTITUENTS] No tables found at Russell 2000 source ({url_index}/{len(urls)}). Attempting next source.")
+                    logger.debug(
+                        f"[MARKET_CONSTITUENTS] No tables found at Russell 2000 source ({url_index}/{len(urls)}). Attempting next source."
+                    )
                     continue
 
                 for table in tables:
@@ -372,10 +370,14 @@ class MarketConstituentsLoader(OptimalLoader):
                         if col in table.columns:
                             symbols: list[str] = table[col].str.strip().tolist()
                             if symbols:
-                                logger.info(f"Successfully fetched Russell 2000 data from source {url_index}/{len(urls)} using column '{col}': {len(symbols)} constituents")
+                                logger.info(
+                                    f"Successfully fetched Russell 2000 data from source {url_index}/{len(urls)} using column '{col}': {len(symbols)} constituents"
+                                )
                                 return symbols
 
-                logger.debug(f"[MARKET_CONSTITUENTS] No valid symbol column found at source {url_index}/{len(urls)}. Attempting next source.")
+                logger.debug(
+                    f"[MARKET_CONSTITUENTS] No valid symbol column found at source {url_index}/{len(urls)}. Attempting next source."
+                )
 
             except requests.exceptions.Timeout as e:
                 logger.debug(

@@ -145,7 +145,7 @@ class SignalPatternsMixin:
             logger.error(
                 f"[BASE_DETECTION] Data error in base_detection({symbol}): {e}. "
                 f"Missing or invalid price/technical data — cannot determine base status.",
-                exc_info=True
+                exc_info=True,
             )
             raise RuntimeError(
                 f"[BASE_DETECTION] Base pattern detection failed for {symbol}: {e}. "
@@ -153,8 +153,7 @@ class SignalPatternsMixin:
             ) from e
         except (RuntimeError, AttributeError, KeyError) as e:
             logger.error(
-                f"[BASE_DETECTION] Unexpected error in base_detection({symbol}): {type(e).__name__}: {e}",
-                exc_info=True
+                f"[BASE_DETECTION] Unexpected error in base_detection({symbol}): {type(e).__name__}: {e}", exc_info=True
             )
             raise  # Re-raise to propagate code bugs/configuration issues
 
@@ -254,7 +253,7 @@ class SignalPatternsMixin:
                     "type": "no_base",
                     "quality": "D",
                     "data_unavailable": True,
-                    "reason": "insufficient_price_history"
+                    "reason": "insufficient_price_history",
                 }
 
             highs = [float(r[1]) for r in rows]
@@ -267,7 +266,7 @@ class SignalPatternsMixin:
                 "weeks_in_base": "weeks in base duration",
                 "pivot_high": "pivot high price",
                 "breakout_imminent": "breakout imminent flag",
-                "volume_dryup": "volume dry-up indicator"
+                "volume_dryup": "volume dry-up indicator",
             }
             missing_fields = [field for field in required_fields if field not in base_info or base_info[field] is None]
             if missing_fields:
@@ -562,7 +561,9 @@ class SignalPatternsMixin:
 
             ranges_pct = [(h - low) / low * 100.0 for h, low in zip(highs, lows, strict=False) if low > 0]
             if not ranges_pct:
-                raise ValueError(f"[3WT_PATTERN] No valid range data for {symbol} (all lows <= 0); cannot calculate volatility")
+                raise ValueError(
+                    f"[3WT_PATTERN] No valid range data for {symbol} (all lows <= 0); cannot calculate volatility"
+                )
             avg_range = sum(ranges_pct) / len(ranges_pct)
             is_quiet = avg_range <= 6.0
 
@@ -681,10 +682,6 @@ class SignalPatternsMixin:
                     "consolidation_weeks": best_htf["cons_weeks"],
                     "pivot_high": round(best_htf["pivot_high"], 2),
                 }
-            return {
-                "is_ht": False,
-                "data_unavailable": True,
-                "reason": "insufficient_htf_pattern_data"
-            }
+            return {"is_ht": False, "data_unavailable": True, "reason": "insufficient_htf_pattern_data"}
 
         return cast(dict[str, Any], self._with_cursor(_analyze_htf))

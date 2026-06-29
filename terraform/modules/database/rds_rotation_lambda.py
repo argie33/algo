@@ -151,7 +151,9 @@ def handler(event: Any, context: Any) -> dict[str, Any]:
             # Using a fallback port masks configuration errors and can break rotations
             db_port = current_secret.get("port")
             if not db_port:
-                raise ValueError("[RDS_ROTATION] Database port not found in secret — cannot proceed with password rotation")
+                raise ValueError(
+                    "[RDS_ROTATION] Database port not found in secret — cannot proceed with password rotation"
+                )
 
             update_rds_password(
                 host=current_secret["host"],

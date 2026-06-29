@@ -101,12 +101,15 @@ class ValueMetricsLoader(OptimalLoader):
         Stale cached data masks real price discovery and risks incorrect valuations.
         """
         import time
+
         start_time = time.time()
         try:
             ticker = get_ticker(symbol)
             if not ticker:
                 elapsed = time.time() - start_time
-                logger.info(f"[VALUE_METRICS] Ticker not found for {symbol} — metrics unavailable (total: {elapsed:.1f}s)")
+                logger.info(
+                    f"[VALUE_METRICS] Ticker not found for {symbol} — metrics unavailable (total: {elapsed:.1f}s)"
+                )
                 return [
                     {
                         "symbol": symbol,
@@ -275,11 +278,15 @@ class ValueMetricsLoader(OptimalLoader):
             ]
         except (requests.Timeout, requests.ConnectionError) as e:
             elapsed = time.time() - start_time
-            logger.warning(f"[VALUE_METRICS] API timeout/connection error for {symbol} (transient, will retry) after {elapsed:.1f}s: {e}")
+            logger.warning(
+                f"[VALUE_METRICS] API timeout/connection error for {symbol} (transient, will retry) after {elapsed:.1f}s: {e}"
+            )
             raise TransientAPIError(f"yfinance timeout fetching value metrics for {symbol}") from e
         except Exception as e:
             elapsed = time.time() - start_time
-            logger.error(f"[VALUE_METRICS] Unexpected error for {symbol} (not data unavailability) after {elapsed:.1f}s: {type(e).__name__}: {e}")
+            logger.error(
+                f"[VALUE_METRICS] Unexpected error for {symbol} (not data unavailability) after {elapsed:.1f}s: {type(e).__name__}: {e}"
+            )
             raise
 
     def pre_run(self) -> None:

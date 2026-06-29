@@ -327,8 +327,7 @@ class ExitHandler:
 
             if exit_order_result is None or "success" not in exit_order_result:
                 raise RuntimeError(
-                    "[CRITICAL] Exit order result is None or missing 'success' field. "
-                    "Cannot proceed with exit."
+                    "[CRITICAL] Exit order result is None or missing 'success' field. Cannot proceed with exit."
                 )
             if exit_order_result["success"]:
                 actual_fill_price = exit_order_result.get("filled_price")
@@ -400,7 +399,9 @@ class ExitHandler:
         r_multiple = float((Decimal(str(final_exit_price)) - Decimal(str(entry_price))) / risk_per_share)
         pnl_per_share = Decimal(str(final_exit_price)) - Decimal(str(entry_price))
         pnl_dollars = float((pnl_per_share * Decimal(str(shares_to_exit))).quantize(Decimal("0.01"), ROUND_HALF_UP))
-        pnl_pct = float((pnl_per_share / Decimal(str(entry_price)) * Decimal(100)).quantize(Decimal("0.01"), ROUND_HALF_UP))
+        pnl_pct = float(
+            (pnl_per_share / Decimal(str(entry_price)) * Decimal(100)).quantize(Decimal("0.01"), ROUND_HALF_UP)
+        )
 
         # Validate P&L calculations for NaN and invalid types
         if not isinstance(pnl_dollars, (int, float)):

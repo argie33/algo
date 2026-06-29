@@ -397,8 +397,7 @@ class SwingComponentScorer:
                 )
             if roe < 0:
                 raise ValueError(
-                    f"{symbol}: ROE negative ({roe:.2f}%). "
-                    f"Negative ROE indicates shareholder value destruction."
+                    f"{symbol}: ROE negative ({roe:.2f}%). Negative ROE indicates shareholder value destruction."
                 )
 
             eps_pts = min(4, eps_growth / 50)

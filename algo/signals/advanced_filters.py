@@ -456,7 +456,9 @@ class AdvancedFilters:
                 score += 1.0
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             # Weekly data missing or unavailable — signal quality impaired
-            logger.warning(f"[SIGNAL_QUALITY] Weekly alignment data unavailable for {symbol}: {e} (signal bonus not applied)")
+            logger.warning(
+                f"[SIGNAL_QUALITY] Weekly alignment data unavailable for {symbol}: {e} (signal bonus not applied)"
+            )
 
         return min(score, FilterRegistry.get_weight("momentum_price_trend"))
 

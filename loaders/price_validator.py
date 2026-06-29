@@ -209,7 +209,9 @@ class PriceValidator:
         # For daily prices, market close data is mandatory (fail-fast on stale data)
         if interval == "1d" and check_market_close:
             if not self._check_market_close_available():
-                msg = "[MARKET_CLOSE] Daily price loader requires market close data. Data appears stale. Cannot proceed."
+                msg = (
+                    "[MARKET_CLOSE] Daily price loader requires market close data. Data appears stale. Cannot proceed."
+                )
                 logger.error(msg)
                 raise RuntimeError(msg)
 

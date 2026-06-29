@@ -114,6 +114,7 @@ class ExecutionConfig:
             RuntimeError: If attempting to use default portfolio value in production (non-dry-run) mode
         """
         import logging
+
         value = self.get("default_portfolio_value")
         if value is None:
             # Only allow hardcoded default in dry-run/paper modes, not production

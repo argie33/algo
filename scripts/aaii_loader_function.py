@@ -12,23 +12,18 @@ def lambda_handler(event, context):
     """
     try:
         # Get DB credentials from environment
-        db_host = os.environ.get('DB_HOST')
-        db_port = int(os.environ.get('DB_PORT', '5432'))
-        db_user = os.environ.get('DB_USER')
-        db_password = os.environ.get('DB_PASSWORD')
-        db_name = os.environ.get('DB_NAME')
+        db_host = os.environ.get("DB_HOST")
+        db_port = int(os.environ.get("DB_PORT", "5432"))
+        db_user = os.environ.get("DB_USER")
+        db_password = os.environ.get("DB_PASSWORD")
+        db_name = os.environ.get("DB_NAME")
 
         if not all([db_host, db_user, db_password, db_name]):
             raise ValueError("Missing required database credentials")
 
         # Connect to RDS
         conn = psycopg2.connect(
-            host=db_host,
-            port=db_port,
-            user=db_user,
-            password=db_password,
-            database=db_name,
-            connect_timeout=10
+            host=db_host, port=db_port, user=db_user, password=db_password, database=db_name, connect_timeout=10
         )
         cursor = conn.cursor()
 
@@ -58,11 +53,14 @@ def lambda_handler(event, context):
                 bearish = 45.0 - ((records_inserted + 10) % 15)
 
                 try:
-                    cursor.execute("""
+                    cursor.execute(
+                        """
                         INSERT INTO aaii_sentiment (date, bullish, neutral, bearish)
                         VALUES (%s, %s, %s, %s)
                         ON CONFLICT (date) DO NOTHING
-                    """, (current_date.date(), bullish, neutral, bearish))
+                    """,
+                        (current_date.date(), bullish, neutral, bearish),
+                    )
                     records_inserted += 1
                 except psycopg2.IntegrityError:
                     # Record already exists, skip but still count
@@ -74,14 +72,8 @@ def lambda_handler(event, context):
         cursor.close()
         conn.close()
 
-        return {
-            'statusCode': 200,
-            'body': json.dumps(f'SUCCESS: {records_inserted} records loaded')
-        }
+        return {"statusCode": 200, "body": json.dumps(f"SUCCESS: {records_inserted} records loaded")}
 
     except Exception as e:
         print(f"ERROR: {e!s}")
-        return {
-            'statusCode': 500,
-            'body': json.dumps(f'ERROR: {e!s}')
-        }
+        return {"statusCode": 500, "body": json.dumps(f"ERROR: {e!s}")}

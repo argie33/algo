@@ -122,7 +122,9 @@ class LoaderInfrastructure:
                         self._heartbeat_exception = e
                     self._heartbeat_running = False
 
-        self._heartbeat_thread = threading.Thread(target=heartbeat_worker, daemon=True, name=f"heartbeat-{self.table_name}")
+        self._heartbeat_thread = threading.Thread(
+            target=heartbeat_worker, daemon=True, name=f"heartbeat-{self.table_name}"
+        )
         self._heartbeat_thread.start()
 
     def stop_heartbeat(self) -> None:

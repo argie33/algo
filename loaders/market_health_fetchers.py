@@ -37,7 +37,9 @@ class VIXFetcher:
             fallback_value=None,
         )
         if result is None:
-            raise RuntimeError("VIX data unavailable - circuit breaker failed. Cannot proceed without VIX data for market halt decisions.")
+            raise RuntimeError(
+                "VIX data unavailable - circuit breaker failed. Cannot proceed without VIX data for market halt decisions."
+            )
         if not isinstance(result, dict):
             raise RuntimeError(f"VIX fetch returned invalid data type {type(result).__name__} — expected dict")
         return result
@@ -128,25 +130,25 @@ class PutCallRatioFetcher:
         error_type = type(exc).__name__
 
         # Check for HTTP error codes in exception message
-        if '503' in error_str or '502' in error_str or '504' in error_str:
+        if "503" in error_str or "502" in error_str or "504" in error_str:
             return True
 
         # Network/connection errors are transient
-        if error_type in ('ConnectionError', 'TimeoutError', 'Timeout'):
+        if error_type in ("ConnectionError", "TimeoutError", "Timeout"):
             return True
 
-        if 'timeout' in error_str or 'connection' in error_str or 'reset' in error_str:
+        if "timeout" in error_str or "connection" in error_str or "reset" in error_str:
             return True
 
         # Check for permanent errors (don't retry)
-        if '404' in error_str or '401' in error_str or '403' in error_str:
+        if "404" in error_str or "401" in error_str or "403" in error_str:
             return False
 
         # Validation/structural errors are permanent
-        if error_type in ('ValueError', 'KeyError', 'AttributeError'):
+        if error_type in ("ValueError", "KeyError", "AttributeError"):
             return False
 
-        if 'no options' in error_str or 'empty' in error_str or 'invalid' in error_str:
+        if "no options" in error_str or "empty" in error_str or "invalid" in error_str:
             return False
 
         # Default to transient for unknown errors (better to retry than silently fail)
@@ -243,7 +245,7 @@ class PutCallRatioFetcher:
             spx_options = yfinance.Ticker("^SPX")
 
             # Get available expiration dates
-            if not hasattr(spx_options, 'options') or not spx_options.options:
+            if not hasattr(spx_options, "options") or not spx_options.options:
                 raise RuntimeError(f"[PUT_CALL_FETCHER] No options expirations available for ^SPX on {eval_date}")
 
             expirations = spx_options.options
@@ -252,6 +254,7 @@ class PutCallRatioFetcher:
 
             # Convert expirations to dates
             from datetime import datetime
+
             exp_dates = []
             for exp_str in expirations:
                 try:
@@ -289,17 +292,13 @@ class PutCallRatioFetcher:
             total_puts = float(options_chain.puts["openInterest"].sum())
 
             if total_calls == 0:
-                raise RuntimeError(
-                    f"[PUT_CALL_FETCHER] No call volume for {closest_exp}. Cannot calculate ratio."
-                )
+                raise RuntimeError(f"[PUT_CALL_FETCHER] No call volume for {closest_exp}. Cannot calculate ratio.")
 
             ratio = float(total_puts / total_calls)
             logger.debug(f"[PUT_CALL_FETCHER] Put/call ratio for {eval_date} (using {closest_exp}): {ratio:.3f}")
             return ratio
         except Exception as e:
-            raise RuntimeError(
-                f"[PUT_CALL_FETCHER] Fetch failed for {eval_date}: {e}"
-            ) from e
+            raise RuntimeError(f"[PUT_CALL_FETCHER] Fetch failed for {eval_date}: {e}") from e
 
 
 class YieldCurveFetcher:
@@ -341,27 +340,27 @@ class YieldCurveFetcher:
         error_type = type(exc).__name__
 
         # Check for HTTP error codes in exception message
-        if '503' in error_str or '502' in error_str or '504' in error_str:
+        if "503" in error_str or "502" in error_str or "504" in error_str:
             return True
 
         # Network/connection errors are transient
-        if error_type in ('ConnectionError', 'TimeoutError', 'Timeout'):
+        if error_type in ("ConnectionError", "TimeoutError", "Timeout"):
             return True
 
-        if 'timeout' in error_str or 'connection' in error_str or 'reset' in error_str:
+        if "timeout" in error_str or "connection" in error_str or "reset" in error_str:
             return True
 
         # Database connection issues are transient
-        if 'connection' in error_str or 'EOF' in error_str:
+        if "connection" in error_str or "EOF" in error_str:
             return True
 
         # Check for permanent errors (don't retry)
         # "no data" or "empty" indicate permanent absence, not transient failure
-        if 'no data' in error_str or 'empty' in error_str or 'not found' in error_str:
+        if "no data" in error_str or "empty" in error_str or "not found" in error_str:
             return False
 
         # Validation/structural errors are permanent
-        if error_type in ('ValueError', 'KeyError', 'AttributeError'):
+        if error_type in ("ValueError", "KeyError", "AttributeError"):
             return False
 
         # Default to transient for unknown errors (better to retry than silently fail)
@@ -390,7 +389,9 @@ class YieldCurveFetcher:
 
         # Validate result type
         if not isinstance(result, dict):
-            logger.warning(f"[YIELD_CURVE] Invalid response type {type(result).__name__} for {start}:{end} — enrichment unavailable")
+            logger.warning(
+                f"[YIELD_CURVE] Invalid response type {type(result).__name__} for {start}:{end} — enrichment unavailable"
+            )
             return {"data_unavailable": True, "reason": f"Invalid response type {type(result).__name__}"}
 
         if result.get("data_unavailable"):
@@ -491,14 +492,14 @@ class YieldCurveFetcher:
             else:
                 # CRITICAL: Yield curve is critical market data per CLAUDE.md governance
                 # Missing data must be visible to ops for market stress calculations
-                logger.error(f"[YIELD_CURVE] CRITICAL: No yield data available for date range {start}:{end} — market stress calculations may be incomplete")
+                logger.error(
+                    f"[YIELD_CURVE] CRITICAL: No yield data available for date range {start}:{end} — market stress calculations may be incomplete"
+                )
 
             return result
         except Exception as e:
             # Re-raise with context for retry handler to evaluate transience
-            raise RuntimeError(
-                f"[YIELD_CURVE] Fetch failed for {start}:{end}: {e}"
-            ) from e
+            raise RuntimeError(f"[YIELD_CURVE] Fetch failed for {start}:{end}: {e}") from e
 
 
 class BreadthFetcher:

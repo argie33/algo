@@ -37,8 +37,7 @@ class IdempotentCheckHandler(CheckResultHandler):
                 )
             if not error_msg:
                 raise ValueError(
-                    "Duplicate trade detected but error_msg missing. "
-                    "Cannot proceed without validation context."
+                    "Duplicate trade detected but error_msg missing. Cannot proceed without validation context."
                 )
             return (
                 True,
@@ -80,8 +79,7 @@ class FingerprintCheckHandler(CheckResultHandler):
                 )
             if not error_msg:
                 raise ValueError(
-                    "Fingerprint duplicate detected but error_msg missing. "
-                    "Cannot proceed without validation context."
+                    "Fingerprint duplicate detected but error_msg missing. Cannot proceed without validation context."
                 )
             return (
                 True,

@@ -95,8 +95,7 @@ class PriceTransformer:
             return int(value)
         except (ValueError, TypeError) as e:
             raise ValueError(
-                f"Cannot convert volume '{value}' ({type(value).__name__}) to int: {e}. "
-                f"OHLCV data corruption detected."
+                f"Cannot convert volume '{value}' ({type(value).__name__}) to int: {e}. OHLCV data corruption detected."
             ) from e
 
     def transform_batch(self, rows: list[dict[str, Any]], symbol: str) -> list[dict[str, Any]]:

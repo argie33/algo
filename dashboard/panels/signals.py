@@ -145,7 +145,9 @@ def _build_signal_header(sig_data: dict[str, Any], scores_data: dict[str, Any] |
         logger.error(f"_build_signal_header: extract_signal_overview failed - {e}")
         return rows, 0, 0
     if has_error(overview):
-        logger.error(f"_build_signal_header: overview extraction produced error - {overview.get('_error', 'unknown error')}")
+        logger.error(
+            f"_build_signal_header: overview extraction produced error - {overview.get('_error', 'unknown error')}"
+        )
         return rows, 0, 0
 
     raw_val = safe_get_field(overview, "n")
@@ -155,7 +157,9 @@ def _build_signal_header(sig_data: dict[str, Any], scores_data: dict[str, Any] |
     raw = int(raw_val)
     total_val = safe_get_field(overview, "total")
     if total_val is None or not isinstance(total_val, (int, float)):
-        logger.warning(f"_build_signal_header: total screened 'total' missing or invalid, got {type(total_val).__name__}")
+        logger.warning(
+            f"_build_signal_header: total screened 'total' missing or invalid, got {type(total_val).__name__}"
+        )
         return rows, 0, 0
     total = int(total_val)
     ds = _format_signal_date(safe_get_field(overview, "date"))
@@ -221,7 +225,9 @@ def _build_grade_radar(sig_data: dict[str, Any]) -> list[Text]:
         logger.error(f"_build_grade_radar: extract_signal_overview failed - {e}")
         return rows
     if has_error(overview):
-        logger.error(f"_build_grade_radar: overview extraction produced error - {overview.get('_error', 'unknown error')}")
+        logger.error(
+            f"_build_grade_radar: overview extraction produced error - {overview.get('_error', 'unknown error')}"
+        )
         return rows
     top_a = safe_get_list(safe_get_field(overview, "top_a", []))
     near = safe_get_list(safe_get_field(overview, "near", []))
@@ -265,7 +271,9 @@ def _build_funnel_row(sig_eval_data: dict[str, Any] | None) -> list[Text]:
         logger.debug("_build_funnel_row: sig_eval_data is None (optional field)")
         return rows
     if has_error(sig_eval_data):
-        logger.warning(f"_build_funnel_row: sig_eval_data contains error - {sig_eval_data.get('_error', 'unknown error')}")
+        logger.warning(
+            f"_build_funnel_row: sig_eval_data contains error - {sig_eval_data.get('_error', 'unknown error')}"
+        )
         return rows
     if not isinstance(sig_eval_data, dict):
         logger.error(f"_build_funnel_row: sig_eval_data is not dict, got {type(sig_eval_data).__name__}")
@@ -331,7 +339,9 @@ def _build_buy_signals_table(
     """
     rows: list[Text | Table | Rule] = []
     if not isinstance(scored_with_signals, list):
-        logger.error(f"_build_buy_signals_table: scored_with_signals is not list, got {type(scored_with_signals).__name__}")
+        logger.error(
+            f"_build_buy_signals_table: scored_with_signals is not list, got {type(scored_with_signals).__name__}"
+        )
         return rows
     if not scored_with_signals:
         logger.debug("_build_buy_signals_table: scored_with_signals is empty (no active signals)")
@@ -405,7 +415,9 @@ def _build_buy_signals_table(
             else (CY if (swing_score is not None and swing_score >= 70) else Y)
         )
         rr_c: str = (
-            G if rr_ratio is not None and rr_ratio > 1.5 else (Y if rr_ratio is not None and rr_ratio > 1 else (CY if rr_ratio is not None else DIM))
+            G
+            if rr_ratio is not None and rr_ratio > 1.5
+            else (Y if rr_ratio is not None and rr_ratio > 1 else (CY if rr_ratio is not None else DIM))
         )
 
         price_f: float | None = safe_float(price)

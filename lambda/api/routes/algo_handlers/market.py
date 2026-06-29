@@ -395,7 +395,9 @@ def _normalize_exposure(exp: dict) -> Any:
         if exposure_pct < 0 or exposure_pct > 100:
             raise ValueError(f"exposure_pct {exposure_pct} outside valid range [0,100]")
     except (TypeError, ValueError) as e:
-        raise ValueError(f"exposure_pct type/range validation failed: {e} (got {type(exposure_pct_raw).__name__}: {exposure_pct_raw})") from e
+        raise ValueError(
+            f"exposure_pct type/range validation failed: {e} (got {type(exposure_pct_raw).__name__}: {exposure_pct_raw})"
+        ) from e
 
     # Validate regime is not "unknown" or empty string
     regime = exp.get("regime")
@@ -855,16 +857,25 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
         response["data"]["vix_level"] = float(vix_level) if vix_level is not None else None
 
         # Add breadth indicators at top level (ADR, new highs, new lows)
-        response["data"]["adr"] = (float(market_health.get("advance_decline_ratio"))
-                                   if market_health.get("advance_decline_ratio") is not None else None)
-        response["data"]["nh"] = (int(market_health.get("new_highs_count"))
-                                  if market_health.get("new_highs_count") is not None else None)
-        response["data"]["nl"] = (int(market_health.get("new_lows_count"))
-                                  if market_health.get("new_lows_count") is not None else None)
-        response["data"]["pcr"] = (float(market_health.get("put_call_ratio"))
-                                   if market_health.get("put_call_ratio") is not None else None)
-        response["data"]["ycs"] = (float(market_health.get("yield_curve_slope"))
-                                   if market_health.get("yield_curve_slope") is not None else None)
+        response["data"]["adr"] = (
+            float(market_health.get("advance_decline_ratio"))
+            if market_health.get("advance_decline_ratio") is not None
+            else None
+        )
+        response["data"]["nh"] = (
+            int(market_health.get("new_highs_count")) if market_health.get("new_highs_count") is not None else None
+        )
+        response["data"]["nl"] = (
+            int(market_health.get("new_lows_count")) if market_health.get("new_lows_count") is not None else None
+        )
+        response["data"]["pcr"] = (
+            float(market_health.get("put_call_ratio")) if market_health.get("put_call_ratio") is not None else None
+        )
+        response["data"]["ycs"] = (
+            float(market_health.get("yield_curve_slope"))
+            if market_health.get("yield_curve_slope") is not None
+            else None
+        )
         response["data"]["fed"] = market_health.get("fed_rate_environment")
 
         # Validate market response against contract schema

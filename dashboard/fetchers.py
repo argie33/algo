@@ -134,7 +134,18 @@ def _execute_fetcher_batch(
     """Execute a batch of fetchers with thread pool and timeout handling."""
     out = {}
     critical_fetchers = {
-        "run", "cfg", "mkt", "port", "perf", "pos", "trades", "sig", "health", "cb", "risk", "exp_factors"
+        "run",
+        "cfg",
+        "mkt",
+        "port",
+        "perf",
+        "pos",
+        "trades",
+        "sig",
+        "health",
+        "cb",
+        "risk",
+        "exp_factors",
     }
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
         items = {k: v for k, v in FETCHERS.items() if k in fetcher_set}
@@ -308,10 +319,7 @@ def load_all() -> dict[str, Any]:
             try:
                 result = fn(None)
                 # If result is a dict with _is_transient_503, retry up to 3 times with backoff
-                if (
-                    isinstance(result, dict)
-                    and result.get("_is_transient_503")
-                ):
+                if isinstance(result, dict) and result.get("_is_transient_503"):
                     # Check if we have retries left for 503 errors
                     meta = FETCHER_METADATA.get(name)
                     endpoint = meta.get("endpoint", "unknown endpoint") if meta else "unknown endpoint"

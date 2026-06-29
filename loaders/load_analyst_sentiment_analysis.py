@@ -93,25 +93,29 @@ class AnalystSentimentLoader(OptimalLoader):
 
         if not ticker:
             logger.info(f"[ANALYST_SENTIMENT] No ticker available for {symbol} — likely no analyst coverage")
-            return [{
-                "symbol": symbol,
-                "date": date.today(),
-                "analyst_count": None,
-                "bullish_count": None,
-                "bearish_count": None,
-                "neutral_count": None,
-                "target_price": None,
-                "current_price": None,
-                "upside_downside_percent": None,
-                "data_unavailable": True,
-                "reason": "No ticker available from yfinance (no analyst coverage or API issue)",
-                "created_at": datetime.now().isoformat(),
-            }]
+            return [
+                {
+                    "symbol": symbol,
+                    "date": date.today(),
+                    "analyst_count": None,
+                    "bullish_count": None,
+                    "bearish_count": None,
+                    "neutral_count": None,
+                    "target_price": None,
+                    "current_price": None,
+                    "upside_downside_percent": None,
+                    "data_unavailable": True,
+                    "reason": "No ticker available from yfinance (no analyst coverage or API issue)",
+                    "created_at": datetime.now().isoformat(),
+                }
+            ]
 
         try:
             recs = ticker.recommendations
         except (TimeoutError, requests.Timeout) as e:
-            logger.warning(f"[ANALYST_SENTIMENT] Timeout fetching recommendations for {symbol} (transient, will retry): {e}")
+            logger.warning(
+                f"[ANALYST_SENTIMENT] Timeout fetching recommendations for {symbol} (transient, will retry): {e}"
+            )
             raise TransientAPIError(f"Timeout fetching recommendations for {symbol}") from e
         except requests.ConnectionError as e:
             logger.warning(f"[ANALYST_SENTIMENT] Connection error for {symbol} (transient, will retry): {e}")
@@ -119,27 +123,29 @@ class AnalystSentimentLoader(OptimalLoader):
 
         if recs is None or recs.empty:
             logger.info(f"[ANALYST_SENTIMENT] No analyst recommendations for {symbol} — no coverage available")
-            return [{
-                "symbol": symbol,
-                "date": date.today(),
-                "analyst_count": None,
-                "bullish_count": None,
-                "bearish_count": None,
-                "neutral_count": None,
-                "target_price": None,
-                "current_price": None,
-                "upside_downside_percent": None,
-                "data_unavailable": True,
-                "reason": "No analyst recommendations available (no coverage)",
-                "created_at": datetime.now().isoformat(),
-            }]
+            return [
+                {
+                    "symbol": symbol,
+                    "date": date.today(),
+                    "analyst_count": None,
+                    "bullish_count": None,
+                    "bearish_count": None,
+                    "neutral_count": None,
+                    "target_price": None,
+                    "current_price": None,
+                    "upside_downside_percent": None,
+                    "data_unavailable": True,
+                    "reason": "No analyst recommendations available (no coverage)",
+                    "created_at": datetime.now().isoformat(),
+                }
+            ]
 
         # Handle two yfinance response formats:
         # 1. Old format: Individual recommendation rows with 'To Grade' field (indexed by date)
         # 2. New format: Aggregated counts (strongBuy, buy, hold, sell, strongSell columns)
 
         # Check for new format (aggregated counts)
-        if all(col in recs.columns for col in ['strongBuy', 'buy', 'hold', 'sell', 'strongSell']):
+        if all(col in recs.columns for col in ["strongBuy", "buy", "hold", "sell", "strongSell"]):
             # New yfinance API format: aggregated recommendation counts
             logger.debug(f"[ANALYST_SENTIMENT] Using new yfinance aggregated format for {symbol}")
             results: list[dict[str, Any]] = []
@@ -147,7 +153,7 @@ class AnalystSentimentLoader(OptimalLoader):
             for idx, row in recs.iterrows():
                 # CRITICAL: Validate all required fields are present and numeric
                 # Missing data indicates incomplete API response — skip rather than defaulting to 0
-                required_fields = ['strongBuy', 'buy', 'hold', 'sell', 'strongSell']
+                required_fields = ["strongBuy", "buy", "hold", "sell", "strongSell"]
                 missing_fields = [f for f in required_fields if f not in row or row[f] is None]
                 if missing_fields:
                     logger.warning(
@@ -157,11 +163,11 @@ class AnalystSentimentLoader(OptimalLoader):
                     continue
 
                 try:
-                    strong_buy = int(row['strongBuy'])
-                    buy = int(row['buy'])
-                    hold = int(row['hold'])
-                    sell = int(row['sell'])
-                    strong_sell = int(row['strongSell'])
+                    strong_buy = int(row["strongBuy"])
+                    buy = int(row["buy"])
+                    hold = int(row["hold"])
+                    sell = int(row["sell"])
+                    strong_sell = int(row["strongSell"])
                 except (ValueError, TypeError) as e:
                     logger.warning(
                         f"[ANALYST_SENTIMENT] Skipping row for {symbol} (idx={idx}): "
@@ -183,38 +189,42 @@ class AnalystSentimentLoader(OptimalLoader):
                 if isinstance(row_date, datetime):
                     row_date = row_date.date()
 
-                results.append({
-                    "symbol": symbol,
-                    "date": row_date,  # Use analyst data date (from yfinance index) not today's date
-                    "analyst_count": total,
-                    "bullish_count": bullish_count,
-                    "bearish_count": bearish_count,
-                    "neutral_count": neutral_count,
-                    "target_price": None,  # yfinance aggregated format does not provide target price
-                    "current_price": None,  # yfinance aggregated format does not provide current price
-                    "upside_downside_percent": None,  # yfinance aggregated format does not provide upside/downside
-                    "data_unavailable": False,
-                })
+                results.append(
+                    {
+                        "symbol": symbol,
+                        "date": row_date,  # Use analyst data date (from yfinance index) not today's date
+                        "analyst_count": total,
+                        "bullish_count": bullish_count,
+                        "bearish_count": bearish_count,
+                        "neutral_count": neutral_count,
+                        "target_price": None,  # yfinance aggregated format does not provide target price
+                        "current_price": None,  # yfinance aggregated format does not provide current price
+                        "upside_downside_percent": None,  # yfinance aggregated format does not provide upside/downside
+                        "data_unavailable": False,
+                    }
+                )
 
             if results:
                 logger.debug(f"[ANALYST_SENTIMENT] Parsed {len(results)} records for {symbol}")
                 return results
             else:
                 logger.info(f"[ANALYST_SENTIMENT] No sentiment data for {symbol}")
-                return [{
-                    "symbol": symbol,
-                    "date": date.today(),
-                    "analyst_count": None,
-                    "bullish_count": None,
-                    "bearish_count": None,
-                    "neutral_count": None,
-                    "target_price": None,
-                    "current_price": None,
-                    "upside_downside_percent": None,
-                    "data_unavailable": True,
-                    "reason": "No analyst sentiment records extracted from yfinance",
-                    "created_at": datetime.now().isoformat(),
-                }]
+                return [
+                    {
+                        "symbol": symbol,
+                        "date": date.today(),
+                        "analyst_count": None,
+                        "bullish_count": None,
+                        "bearish_count": None,
+                        "neutral_count": None,
+                        "target_price": None,
+                        "current_price": None,
+                        "upside_downside_percent": None,
+                        "data_unavailable": True,
+                        "reason": "No analyst sentiment records extracted from yfinance",
+                        "created_at": datetime.now().isoformat(),
+                    }
+                ]
 
         elif "To Grade" in recs.columns:
             # Old yfinance API format: individual recommendation rows
@@ -266,7 +276,31 @@ class AnalystSentimentLoader(OptimalLoader):
                 return results
             else:
                 logger.info(f"[ANALYST_SENTIMENT] No sentiment data aggregated for {symbol}")
-                return [{
+                return [
+                    {
+                        "symbol": symbol,
+                        "date": date.today(),
+                        "analyst_count": None,
+                        "bullish_count": None,
+                        "bearish_count": None,
+                        "neutral_count": None,
+                        "target_price": None,
+                        "current_price": None,
+                        "upside_downside_percent": None,
+                        "data_unavailable": True,
+                        "reason": "No analyst sentiment records aggregated from yfinance",
+                        "created_at": datetime.now().isoformat(),
+                    }
+                ]
+        else:
+            # Unknown format
+            logger.error(
+                f"[ANALYST_SENTIMENT] yfinance response format unknown for {symbol}. "
+                f"Expected 'To Grade' column (old format) or 'strongBuy'/'buy'/'hold'/'sell'/'strongSell' columns (new format). "
+                f"Got columns: {list(recs.columns)}."
+            )
+            return [
+                {
                     "symbol": symbol,
                     "date": date.today(),
                     "analyst_count": None,
@@ -277,30 +311,10 @@ class AnalystSentimentLoader(OptimalLoader):
                     "current_price": None,
                     "upside_downside_percent": None,
                     "data_unavailable": True,
-                    "reason": "No analyst sentiment records aggregated from yfinance",
+                    "reason": f"yfinance response format unknown. Got columns: {list(recs.columns)}",
                     "created_at": datetime.now().isoformat(),
-                }]
-        else:
-            # Unknown format
-            logger.error(
-                f"[ANALYST_SENTIMENT] yfinance response format unknown for {symbol}. "
-                f"Expected 'To Grade' column (old format) or 'strongBuy'/'buy'/'hold'/'sell'/'strongSell' columns (new format). "
-                f"Got columns: {list(recs.columns)}."
-            )
-            return [{
-                "symbol": symbol,
-                "date": date.today(),
-                "analyst_count": None,
-                "bullish_count": None,
-                "bearish_count": None,
-                "neutral_count": None,
-                "target_price": None,
-                "current_price": None,
-                "upside_downside_percent": None,
-                "data_unavailable": True,
-                "reason": f"yfinance response format unknown. Got columns: {list(recs.columns)}",
-                "created_at": datetime.now().isoformat(),
-            }]
+                }
+            ]
 
     def transform(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         return rows

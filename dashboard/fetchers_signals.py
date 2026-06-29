@@ -14,10 +14,6 @@ ET = ZoneInfo("America/New_York")
 logger = logging.getLogger(__name__)
 
 
-
-
-
-
 def fetch_signals(c: None) -> dict[str, Any]:
     """Fetch dashboard signals from API. Fail-fast: error only on failure."""
     from dashboard.error_boundary import has_error
@@ -91,7 +87,9 @@ def fetch_signals(c: None) -> dict[str, Any]:
                 logger.info(f"Total signal count derived from n ({total}). API 'total' field was missing.")
             elif buy_sigs:
                 total = len(buy_sigs)
-                logger.info(f"Total signal count derived from buy_sigs array ({total}). API 'total' and 'n' fields were missing.")
+                logger.info(
+                    f"Total signal count derived from buy_sigs array ({total}). API 'total' and 'n' fields were missing."
+                )
             else:
                 raise ValueError(
                     "CRITICAL: Signal response missing 'total' field and cannot derive from n or buy_sigs. "
@@ -140,13 +138,17 @@ def fetch_signal_eval(c: None) -> dict[str, Any]:
         # Parse errors must raise exceptions, never silently default to None.
         try:
             return {
-                "total": safe_int(result.get("total"), default=None, strict=True) if result.get("total") is not None else None,
+                "total": safe_int(result.get("total"), default=None, strict=True)
+                if result.get("total") is not None
+                else None,
                 "t1": safe_int(result.get("t1"), default=None, strict=True) if result.get("t1") is not None else None,
                 "t2": safe_int(result.get("t2"), default=None, strict=True) if result.get("t2") is not None else None,
                 "t3": safe_int(result.get("t3"), default=None, strict=True) if result.get("t3") is not None else None,
                 "t4": safe_int(result.get("t4"), default=None, strict=True) if result.get("t4") is not None else None,
                 "t5": safe_int(result.get("t5"), default=None, strict=True) if result.get("t5") is not None else None,
-                "avg_score": safe_float(result.get("avg_score"), default=None, strict=True) if result.get("avg_score") is not None else None,
+                "avg_score": safe_float(result.get("avg_score"), default=None, strict=True)
+                if result.get("avg_score") is not None
+                else None,
                 "date": result.get("signal_date"),
                 "rejected": result.get("rejected"),
             }

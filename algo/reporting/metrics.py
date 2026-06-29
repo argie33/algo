@@ -27,13 +27,9 @@ class MetricsPublisher:
 
                 self._client = boto3.client("cloudwatch", region_name=REGION)
             except ImportError as e:
-                raise RuntimeError(
-                    f"Failed to import boto3 for CloudWatch client: {e}"
-                ) from e
+                raise RuntimeError(f"Failed to import boto3 for CloudWatch client: {e}") from e
             except Exception as e:
-                raise RuntimeError(
-                    f"Failed to initialize CloudWatch client (region={REGION}): {e}"
-                ) from e
+                raise RuntimeError(f"Failed to initialize CloudWatch client (region={REGION}): {e}") from e
         return self._client
 
     def _emit(
@@ -107,22 +103,16 @@ class MetricsPublisher:
             ValueError: If phase_results is not a dict or missing required structure
         """
         if not isinstance(phase_results, dict):
-            raise ValueError(
-                f"phase_results must be a dict, got {type(phase_results).__name__}"
-            )
+            raise ValueError(f"phase_results must be a dict, got {type(phase_results).__name__}")
 
         self._emit("OrchestratorSuccess", 1 if success else 0)
         self._emit("OrchestratorFailure", 0 if success else 1)
 
         for phase_num, result in phase_results.items():
             if not isinstance(result, dict):
-                raise ValueError(
-                    f"phase_results[{phase_num}] must be dict, got {type(result).__name__}"
-                )
+                raise ValueError(f"phase_results[{phase_num}] must be dict, got {type(result).__name__}")
             if "status" not in result:
-                raise ValueError(
-                    f"phase_results[{phase_num}] missing 'status' key. Got: {list(result.keys())}"
-                )
+                raise ValueError(f"phase_results[{phase_num}] missing 'status' key. Got: {list(result.keys())}")
 
             phase_ok = result.get("status") in ("success", "halt")
             self._emit(
@@ -238,17 +228,11 @@ class MetricsPublisher:
 
         # Validate types
         if not isinstance(rows_inserted, (int, float)):
-            raise ValueError(
-                f"Loader stats 'rows_inserted' must be numeric, got {type(rows_inserted).__name__}"
-            )
+            raise ValueError(f"Loader stats 'rows_inserted' must be numeric, got {type(rows_inserted).__name__}")
         if not isinstance(symbols_failed, (int, float)):
-            raise ValueError(
-                f"Loader stats 'symbols_failed' must be numeric, got {type(symbols_failed).__name__}"
-            )
+            raise ValueError(f"Loader stats 'symbols_failed' must be numeric, got {type(symbols_failed).__name__}")
         if not isinstance(duration_sec, (int, float)):
-            raise ValueError(
-                f"Loader stats 'duration_sec' must be numeric, got {type(duration_sec).__name__}"
-            )
+            raise ValueError(f"Loader stats 'duration_sec' must be numeric, got {type(duration_sec).__name__}")
 
         self._emit(
             "LoaderRowsInserted",

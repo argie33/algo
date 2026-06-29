@@ -51,7 +51,7 @@ def check_strict_conversion(filepath: str) -> list[str]:
 
     for i, line in enumerate(lines, 1):
         # Match calls to safe_float, safe_int, safe_bool
-        match = re.search(r'\b(safe_float|safe_int|safe_bool)\s*\(', line)
+        match = re.search(r"\b(safe_float|safe_int|safe_bool)\s*\(", line)
         if not match:
             continue
 
@@ -59,15 +59,15 @@ def check_strict_conversion(filepath: str) -> list[str]:
 
         # Extract the call expression (from first paren to matching close paren)
         # This is a simplified check—if line contains both open and close, check it
-        if '(' in line and ')' in line:
-            call_start = line.find(func_name + '(')
-            call_end = line.rfind(')')
+        if "(" in line and ")" in line:
+            call_start = line.find(func_name + "(")
+            call_end = line.rfind(")")
 
             if call_start >= 0 and call_end > call_start:
-                call_expr = line[call_start:call_end + 1]
+                call_expr = line[call_start : call_end + 1]
 
                 # Check if strict=True is present in the call
-                if 'strict=True' not in call_expr and 'strict = True' not in call_expr:
+                if "strict=True" not in call_expr and "strict = True" not in call_expr:
                     # Special case: allow no-arg calls like safe_float(v, default=None) in display-only code
                     # But flag them anyway since they're in finance paths
                     violations.append(

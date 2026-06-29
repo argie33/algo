@@ -76,6 +76,7 @@ class DailyReconciliation:
             )
             # Import test adapter from test utilities (signals test-only usage)
             from tests.test_utilities import DryRunBrokerAdapter
+
             self.broker = DryRunBrokerAdapter()
             self.audit_logger = TradeAuditLogger()
             self.trading_client = False  # Dry-run broker, no real credentials
@@ -216,6 +217,7 @@ class DailyReconciliation:
                     logger.info("\n1b3. Pending Reconciliations:")
                     logger.info(f"   {pending_result['message']}")
                     from dashboard.data_validation import safe_int
+
                     if "stuck_count" not in pending_result:
                         raise RuntimeError(
                             "[RECONCILIATION_DATA_QUALITY] pending_count > 0 but stuck_count key missing from result. "
@@ -352,7 +354,9 @@ class DailyReconciliation:
                 position_values = [p[4] for p in positions if p[4] is not None]
                 if len(position_values) < len(positions):
                     excluded_count = len(positions) - len(position_values)
-                    logger.critical(f"CRITICAL: {excluded_count}/{len(positions)} positions have NULL position_value in reconciliation")
+                    logger.critical(
+                        f"CRITICAL: {excluded_count}/{len(positions)} positions have NULL position_value in reconciliation"
+                    )
                     raise ValueError(
                         f"CRITICAL: {excluded_count}/{len(positions)} positions have NULL position_value in reconciliation. "
                         f"Cannot calculate concentration risk without complete position data."
@@ -364,8 +368,12 @@ class DailyReconciliation:
                     )
                 largest_position_dec = Decimal(str(max(position_values)))
                 if total_equity_dec <= 0:
-                    logger.critical(f"CRITICAL: Total equity invalid ({total_equity_dec}) for concentration calculation")
-                    raise ValueError(f"CRITICAL: Total equity invalid ({total_equity_dec}) — cannot calculate concentration")
+                    logger.critical(
+                        f"CRITICAL: Total equity invalid ({total_equity_dec}) for concentration calculation"
+                    )
+                    raise ValueError(
+                        f"CRITICAL: Total equity invalid ({total_equity_dec}) — cannot calculate concentration"
+                    )
                 max_concentration_dec = largest_position_dec / total_equity_dec * Decimal(100)
 
                 if not positions or len(positions) == 0:
@@ -450,7 +458,9 @@ class DailyReconciliation:
 
                 # Validate PnL values (null if no closed trades or all NULL)
                 if realized_pnl_today is None or cumulative_pnl is None:
-                    raise ValueError(f"PnL values missing from database: today={realized_pnl_today}, cumulative={cumulative_pnl}")
+                    raise ValueError(
+                        f"PnL values missing from database: today={realized_pnl_today}, cumulative={cumulative_pnl}"
+                    )
                 win_count = int(win_count)
                 loss_count = int(loss_count)
                 realized_pnl_today = float(realized_pnl_today)
@@ -724,7 +734,9 @@ class DailyReconciliation:
                             f"stop_loss_price ({stop_loss_price}) >= entry_price ({entry_price}). "
                             f"Cannot compute R-multiple with invalid stop price."
                         )
-                    exit_r_multiple = float(((filled_dec - entry_dec) / Decimal(str(risk))).quantize(Decimal("0.01"), ROUND_HALF_UP))
+                    exit_r_multiple = float(
+                        ((filled_dec - entry_dec) / Decimal(str(risk))).quantize(Decimal("0.01"), ROUND_HALF_UP)
+                    )
 
                     # Check if this trade had an estimated exit price (Phase 4 pre-market exit)
                     cur.execute(
@@ -744,9 +756,7 @@ class DailyReconciliation:
                             )
                         else:
                             variance_pct = (filled_price - estimated_price) / estimated_price * 100.0
-                            reconciliation_note = (
-                                f"Actual: ${filled_price:.2f} vs Estimated: ${estimated_price:.2f} ({variance_pct:+.2f}%)"
-                            )
+                            reconciliation_note = f"Actual: ${filled_price:.2f} vs Estimated: ${estimated_price:.2f} ({variance_pct:+.2f}%)"
 
                     cur.execute(
                         """

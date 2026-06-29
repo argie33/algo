@@ -48,8 +48,7 @@ class PositionSizerSpecialist:
             RuntimeError: If test/mock data markers detected in portfolio_value
         """
         TestDataDetector.assert_not_test_data(
-            {"portfolio_value": portfolio_value},
-            location="PositionSizerSpecialist.calculate_shares"
+            {"portfolio_value": portfolio_value}, location="PositionSizerSpecialist.calculate_shares"
         )
         risk_amount = float(portfolio_value) * (self.base_risk_pct / 100)
         price_diff = float(entry_price) - float(stop_loss)

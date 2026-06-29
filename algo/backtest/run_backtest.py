@@ -429,7 +429,9 @@ def run_backtest(  # noqa: C901
         "max_drawdown_pct": round(max_dd_pct, 4),
         "sharpe_ratio": sharpe,
         "win_rate_pct": round(win_rate_pct, 4) if win_rate_pct is not None else None,
-        "profit_factor": (round(profit_factor, 4) if profit_factor != float("inf") else 9999.0) if profit_factor is not None else None,
+        "profit_factor": (round(profit_factor, 4) if profit_factor != float("inf") else 9999.0)
+        if profit_factor is not None
+        else None,
         "total_trades": total_trades,
         "winning_trades": win_count,
         "losing_trades": loss_count,

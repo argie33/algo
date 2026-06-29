@@ -39,6 +39,7 @@ class TimeoutHTTPAdapter(HTTPAdapter):  # type: ignore
             kwargs["timeout"] = self.timeout
         return super().send(request, **kwargs)
 
+
 # Global per-process rate limiter: enforces minimum interval between requests
 # This is a BACKUP to the shared circuit breaker (PostgreSQL-based).
 # CRITICAL: Each ECS task runs loaders with parallelism up to 3, so this per-process
@@ -176,11 +177,7 @@ class YFinanceWrapper:
             except Exception as e:
                 error_str = str(e).lower()
 
-                is_timeout_error = (
-                    isinstance(e, requests.Timeout)
-                    or "timeout" in error_str
-                    or "timed out" in error_str
-                )
+                is_timeout_error = isinstance(e, requests.Timeout) or "timeout" in error_str or "timed out" in error_str
 
                 is_rate_limit_error = (
                     "invalid crumb" in error_str

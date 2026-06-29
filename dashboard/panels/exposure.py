@@ -238,12 +238,18 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
         if isinstance(sr_raw, dict):
             sr = sr_raw
         else:
-            logger.debug("[EXPOSURE] sector_rotation not available or invalid type: %s", type(sr_raw).__name__ if sr_raw is not None else "None")
+            logger.debug(
+                "[EXPOSURE] sector_rotation not available or invalid type: %s",
+                type(sr_raw).__name__ if sr_raw is not None else "None",
+            )
         eco_raw = factors.get("economic_overlay")
         if isinstance(eco_raw, dict):
             eco = eco_raw
         else:
-            logger.debug("[EXPOSURE] economic_overlay not available or invalid type: %s", type(eco_raw).__name__ if eco_raw is not None else "None")
+            logger.debug(
+                "[EXPOSURE] economic_overlay not available or invalid type: %s",
+                type(eco_raw).__name__ if eco_raw is not None else "None",
+            )
 
     sr_pen = None
     eco_pen = None
@@ -267,12 +273,15 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
                 logger.error("[EXPOSURE] economic_overlay pts conversion failed: %s", e)
     if sr_pen is not None and sr_pen < 0 and sr:
         sig = sr.get("signal")
-        sig_display = (sig.replace("_", " ")[:18] if isinstance(sig, str) else "")
+        sig_display = sig.replace("_", " ")[:18] if isinstance(sig, str) else ""
         items.append(f"[dim]Sector Rotation:[/] [{R}]{sr_pen:+.0f}[/] [dim]{sig_display}[/]")
     if eco_pen is not None and eco_pen < 0 and eco:
         eco_err = eco.get("error")
-        eco_err_display = (eco_err[:18] if isinstance(eco_err, str) else "")
-        items.append(f"[dim]Economic Overlay:[/] [{R}]{eco_pen:+.0f}[/]" + (f" [dim]{eco_err_display}[/]" if eco_err_display else ""))
+        eco_err_display = eco_err[:18] if isinstance(eco_err, str) else ""
+        items.append(
+            f"[dim]Economic Overlay:[/] [{R}]{eco_pen:+.0f}[/]"
+            + (f" [dim]{eco_err_display}[/]" if eco_err_display else "")
+        )
 
     for a, b in zip(items[::2], [*items[1::2], ""], strict=False):
         tbl.add_row(Text.from_markup(a), Text.from_markup(b))
@@ -324,11 +333,13 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
         if epct is None:
             logger.warning("[EXPOSURE_EXPANDED] exposure_pct field missing")
             missing_fields.append("exposure_pct")
-        rows.append(Text.from_markup(
-            f"[yellow]⚠ Exposure data incomplete[/]\n"
-            f"[dim]Missing required fields: {', '.join(missing_fields)}\n"
-            f"Available: {', '.join(list(exp_f.keys()))}[/]"
-        ))
+        rows.append(
+            Text.from_markup(
+                f"[yellow]⚠ Exposure data incomplete[/]\n"
+                f"[dim]Missing required fields: {', '.join(missing_fields)}\n"
+                f"Available: {', '.join(list(exp_f.keys()))}[/]"
+            )
+        )
         return Panel(
             Group(*cast(list[ConsoleRenderable | RichCast | str], rows)),
             title="[bold blue]EXPOSURE SCORE - EXPANDED[/]  [dim][x] return[/]",
@@ -409,7 +420,9 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
         else:
             f = factors[key]
             if not isinstance(f, dict):
-                logger.warning("[EXPOSURE_EXPANDED] factor %s has invalid type: %s, expected dict", key, type(f).__name__)
+                logger.warning(
+                    "[EXPOSURE_EXPANDED] factor %s has invalid type: %s, expected dict", key, type(f).__name__
+                )
                 f = {}
 
         pts_raw = f.get("pts") if f else None
@@ -477,7 +490,11 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
         elif key == "new_highs_lows":
             nh_val = f.get("new_highs")
             nl_val = f.get("new_lows")
-            if nh_val is None or nl_val is None or not (isinstance(nh_val, (int, float)) and isinstance(nl_val, (int, float))):
+            if (
+                nh_val is None
+                or nl_val is None
+                or not (isinstance(nh_val, (int, float)) and isinstance(nl_val, (int, float)))
+            ):
                 val_s = "[red]✗ Missing new highs/lows data[/]"
             else:
                 nh = int(nh_val)
@@ -489,7 +506,7 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
             val_s = f"{v:.2f}% OAS" if v is not None else "--"
         elif key == "ad_line":
             rel = f.get("relation")
-            rel_display = (rel.replace("_", " ")[:16] if isinstance(rel, str) else "--")
+            rel_display = rel.replace("_", " ")[:16] if isinstance(rel, str) else "--"
             val_s = rel_display
         elif key == "aaii_sentiment":
             bull = f.get("bullish_pct")
@@ -501,7 +518,7 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
         elif key == "distribution_days":
             cnt = f.get("count")
             rg = f.get("regime")
-            rg_display = (rg[:10] if isinstance(rg, str) else "?")
+            rg_display = rg[:10] if isinstance(rg, str) else "?"
             val_s = f"{cnt}d / {rg_display}" if cnt is not None else "--"
 
         tbl.add_row(
@@ -523,19 +540,27 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
         if isinstance(sr_raw, dict):
             sr = sr_raw
         else:
-            logger.debug("[EXPOSURE_EXPANDED_ADJ] sector_rotation not available or invalid type: %s", type(sr_raw).__name__ if sr_raw is not None else "None")
+            logger.debug(
+                "[EXPOSURE_EXPANDED_ADJ] sector_rotation not available or invalid type: %s",
+                type(sr_raw).__name__ if sr_raw is not None else "None",
+            )
         eco_raw = factors.get("economic_overlay")
         if isinstance(eco_raw, dict):
             eco = eco_raw
         else:
-            logger.debug("[EXPOSURE_EXPANDED_ADJ] economic_overlay not available or invalid type: %s", type(eco_raw).__name__ if eco_raw is not None else "None")
+            logger.debug(
+                "[EXPOSURE_EXPANDED_ADJ] economic_overlay not available or invalid type: %s",
+                type(eco_raw).__name__ if eco_raw is not None else "None",
+            )
 
     sr_pen = None
     eco_pen = None
     if sr:
         sr_pts_raw = sr.get("pts")
         if sr_pts_raw is None:
-            logger.error("[EXPOSURE_EXPANDED_ADJ] sector_rotation factor present but missing 'pts' field — cannot calculate adjustment")
+            logger.error(
+                "[EXPOSURE_EXPANDED_ADJ] sector_rotation factor present but missing 'pts' field — cannot calculate adjustment"
+            )
         else:
             try:
                 sr_pen = safe_float(sr_pts_raw, strict=True, field_name="sector_rotation_pts")
@@ -544,7 +569,9 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
     if eco:
         eco_pts_raw = eco.get("pts")
         if eco_pts_raw is None:
-            logger.error("[EXPOSURE_EXPANDED_ADJ] economic_overlay factor present but missing 'pts' field — cannot calculate adjustment")
+            logger.error(
+                "[EXPOSURE_EXPANDED_ADJ] economic_overlay factor present but missing 'pts' field — cannot calculate adjustment"
+            )
         else:
             try:
                 eco_pen = safe_float(eco_pts_raw, strict=True, field_name="economic_overlay_pts")
@@ -555,15 +582,17 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
         rows.append(Text.from_markup("[dim bold]ADJUSTMENTS[/]"))
         if sr_pen is not None and sr:
             sig = sr.get("signal")
-            sig_display = (sig.replace("_", " ") if isinstance(sig, str) else "")
+            sig_display = sig.replace("_", " ") if isinstance(sig, str) else ""
             sc = R if sr_pen < 0 else G
-            rows.append(Text.from_markup(f"  [dim]Sector Rotation:[/] [{sc}]{sr_pen:+.0f} pts[/]  [dim]{sig_display}[/]"))
+            rows.append(
+                Text.from_markup(f"  [dim]Sector Rotation:[/] [{sc}]{sr_pen:+.0f} pts[/]  [dim]{sig_display}[/]")
+            )
         elif sr:
             logger.debug("[EXPOSURE_EXPANDED_ADJ] sector_rotation present but pts field missing")
             rows.append(Text.from_markup("  [dim]Sector Rotation:[/] [red]✗ pts calculation failed[/]"))
         if eco_pen is not None and eco:
             eco_err = eco.get("error")
-            eco_err_display = (eco_err[:30] if isinstance(eco_err, str) else "")
+            eco_err_display = eco_err[:30] if isinstance(eco_err, str) else ""
             ec = R if eco_pen < 0 else G
             rows.append(
                 Text.from_markup(

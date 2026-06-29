@@ -40,10 +40,7 @@ def assert_panel_error(panel_text: str, context: str = "") -> None:
     error_indicators = ["validation failed", "ERROR", "⚠", "✗", "critical", "missing"]
     has_error = any(indicator in panel_text.lower() for indicator in error_indicators)
 
-    assert has_error, (
-        f"Expected error indicators in panel. {context}\n"
-        f"Panel content:\n{panel_text}"
-    )
+    assert has_error, f"Expected error indicators in panel. {context}\nPanel content:\n{panel_text}"
 
 
 def assert_panel_success(panel_text: str, expected_content: str | list[str] | None = None, context: str = "") -> None:
@@ -60,10 +57,7 @@ def assert_panel_success(panel_text: str, expected_content: str | list[str] | No
     error_indicators = ["validation failed", "ERROR", "⚠ N/A", "CRITICAL DATA MISSING"]
     has_error = any(indicator in panel_text for indicator in error_indicators)
 
-    assert not has_error, (
-        f"Expected success state but found error. {context}\n"
-        f"Panel content:\n{panel_text}"
-    )
+    assert not has_error, f"Expected success state but found error. {context}\nPanel content:\n{panel_text}"
 
     if expected_content:
         if isinstance(expected_content, str):
@@ -71,8 +65,7 @@ def assert_panel_success(panel_text: str, expected_content: str | list[str] | No
 
         for expected_str in expected_content:
             assert expected_str in panel_text, (
-                f"Expected '{expected_str}' in panel. {context}\n"
-                f"Panel content:\n{panel_text}"
+                f"Expected '{expected_str}' in panel. {context}\nPanel content:\n{panel_text}"
             )
 
 
@@ -91,9 +84,7 @@ def assert_panel_renders_without_crash(panel: Any, context: str = "") -> str:
     """
     try:
         text = render_panel_to_text(panel)
-        assert text is not None and len(text) > 0, (
-            f"Panel rendered to empty string. {context}"
-        )
+        assert text is not None and len(text) > 0, f"Panel rendered to empty string. {context}"
         return text
     except Exception as e:
         raise AssertionError(f"Panel failed to render. {context}\nError: {e}") from e
@@ -122,19 +113,13 @@ def assert_numeric_value_in_range(
         assert allow_none, f"Value is None but not allowed. {context}"
         return
 
-    assert isinstance(value, (int, float)), (
-        f"Value {value} is not numeric. {context}"
-    )
+    assert isinstance(value, (int, float)), f"Value {value} is not numeric. {context}"
 
     if min_val is not None:
-        assert value >= min_val, (
-            f"Value {value} is below minimum {min_val}. {context}"
-        )
+        assert value >= min_val, f"Value {value} is below minimum {min_val}. {context}"
 
     if max_val is not None:
-        assert value <= max_val, (
-            f"Value {value} is above maximum {max_val}. {context}"
-        )
+        assert value <= max_val, f"Value {value} is above maximum {max_val}. {context}"
 
 
 class TestDataFactory:

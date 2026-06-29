@@ -53,7 +53,9 @@ class GrowthMetricsLoader(OptimalLoader):
             )
 
             if not rows or len(rows) < 1:
-                logger.info(f"[GROWTH_METRICS] No annual income statement data for {symbol} (new stock/no financials yet)")
+                logger.info(
+                    f"[GROWTH_METRICS] No annual income statement data for {symbol} (new stock/no financials yet)"
+                )
                 return [
                     {
                         "symbol": symbol,
@@ -112,7 +114,9 @@ class GrowthMetricsLoader(OptimalLoader):
             Raises ValueError if inputs are malformed (fail-fast on data corruption).
         """
         if not latest or len(latest) != 3:
-            raise ValueError(f"[GROWTH_METRICS] Malformed latest data for {symbol}: expected (year, revenue, eps), got {latest}")
+            raise ValueError(
+                f"[GROWTH_METRICS] Malformed latest data for {symbol}: expected (year, revenue, eps), got {latest}"
+            )
         if not all_years or not isinstance(all_years, list):
             raise ValueError(f"[GROWTH_METRICS] Malformed all_years for {symbol}: expected list, got {type(all_years)}")
 
@@ -159,14 +163,8 @@ class GrowthMetricsLoader(OptimalLoader):
 
         # Check if we actually have any real data (not all NULL)
         # Explicitly check that computed growth metrics exist and are not None
-        has_revenue_growth = any(
-            metrics.get(f"revenue_growth_{y}y") is not None
-            for y in [1, 3, 5]
-        )
-        has_eps_growth = any(
-            metrics.get(f"eps_growth_{y}y") is not None
-            for y in [1, 3, 5]
-        )
+        has_revenue_growth = any(metrics.get(f"revenue_growth_{y}y") is not None for y in [1, 3, 5])
+        has_eps_growth = any(metrics.get(f"eps_growth_{y}y") is not None for y in [1, 3, 5])
 
         if has_revenue_growth or has_eps_growth:
             metrics["data_unavailable"] = False

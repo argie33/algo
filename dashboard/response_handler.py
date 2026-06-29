@@ -18,16 +18,16 @@ logger = logging.getLogger(__name__)
 # Critical fetchers whose errors should cause 503 response
 # These are fetchers required for core dashboard functionality
 CRITICAL_FETCHERS = {
-    "run",      # Last algo run status
-    "cfg",      # Algo configuration
-    "mkt",      # Market data
-    "port",     # Portfolio data
-    "perf",     # Performance data
-    "pos",      # Positions
-    "trades",   # Recent trades
-    "sig",      # Signals
-    "health",   # Health check
-    "cb",       # Circuit breaker status
+    "run",  # Last algo run status
+    "cfg",  # Algo configuration
+    "mkt",  # Market data
+    "port",  # Portfolio data
+    "perf",  # Performance data
+    "pos",  # Positions
+    "trades",  # Recent trades
+    "sig",  # Signals
+    "health",  # Health check
+    "cb",  # Circuit breaker status
 }
 
 

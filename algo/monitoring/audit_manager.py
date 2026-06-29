@@ -164,9 +164,7 @@ class AuditManager:
                     f"Database error: {e}"
                 ) from e
             except Exception as e:
-                raise RuntimeError(
-                    f"CRITICAL: Audit log failed for {symbol} exit recommendation: {e}"
-                ) from e
+                raise RuntimeError(f"CRITICAL: Audit log failed for {symbol} exit recommendation: {e}") from e
 
     def get_position_history(self, symbol: str, lookback_days: int = 30, cur: Any = None) -> list[dict[str, Any]]:
         """Retrieve recent position review history.

@@ -227,8 +227,7 @@ def cache_response(endpoint: str, data: dict[str, Any]) -> None:
     """
     if not isinstance(data, dict):
         raise ValueError(
-            f"Cannot cache non-dict API response for {endpoint}: "
-            f"got {type(data).__name__}. API response must be dict."
+            f"Cannot cache non-dict API response for {endpoint}: got {type(data).__name__}. API response must be dict."
         )
     if "_error" in data:
         raise ValueError(f"Cannot cache error response for {endpoint}: {data.get('_error')}")
@@ -275,9 +274,7 @@ def get_cache_age_seconds(data: dict[str, Any]) -> int | None:
 
     age = data.get("_cache_age_seconds")
     if not isinstance(age, int):
-        raise ValueError(
-            f"Cache age corrupted: _cache_age_seconds is {type(age).__name__}, expected int. Value: {age}"
-        )
+        raise ValueError(f"Cache age corrupted: _cache_age_seconds is {type(age).__name__}, expected int. Value: {age}")
     return age
 
 

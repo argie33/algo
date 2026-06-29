@@ -721,7 +721,9 @@ def validate_bearer_token(token: str | None) -> tuple:
                     return (False, None, "Token has been revoked")
             except (ImportError, AttributeError) as e:
                 # Blocklist module unavailable — FAIL CLOSED: revocation cannot be verified
-                logger.critical(f"[TOKEN_REVOCATION_FAILED] Blocklist module import failed: {e}. Rejecting token to prevent bypass.")
+                logger.critical(
+                    f"[TOKEN_REVOCATION_FAILED] Blocklist module import failed: {e}. Rejecting token to prevent bypass."
+                )
                 return (False, None, "Token revocation verification failed (security check unavailable)")
             except Exception as e:
                 # Blocklist service unreachable or error — fail secure by rejecting token
@@ -878,7 +880,6 @@ def require_auth(event: dict[str, Any], path: str) -> tuple[bool, bool, str | No
     # SECURITY FIX: Strategy and trading endpoints require authentication
     PUBLIC_PREFIXES = {  # noqa: N806
         # DEBUG: Added equity-curve and histogram endpoints
-
         "/api/health",  # Basic health check (no auth required for uptime monitoring)
         # /api/health/detailed and /api/health/pipeline intentionally require authentication
         # (they expose DB table names, loader names, row counts, freshness ages).
@@ -968,7 +969,9 @@ def require_auth(event: dict[str, Any], path: str) -> tuple[bool, bool, str | No
         return False
 
     is_public = any(matches_prefix(path, prefix) for prefix in PUBLIC_PREFIXES)
-    logger.info(f"[AUTH_CHECK] path={path}, is_public={is_public}, in_prefixes={'/api/algo/equity-curve' in PUBLIC_PREFIXES}")
+    logger.info(
+        f"[AUTH_CHECK] path={path}, is_public={is_public}, in_prefixes={'/api/algo/equity-curve' in PUBLIC_PREFIXES}"
+    )
     if is_public:
         return (False, True, None, None)  # No auth required, so authorized
 
@@ -1160,7 +1163,9 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
 
         # Check authorization for protected endpoints
         requires_auth, is_authorized, auth_error, jwt_claims = require_auth(event, path)
-        logger.info(f"[REQUIRE_AUTH] path={path}, requires_auth={requires_auth}, is_authorized={is_authorized}, error={auth_error}")
+        logger.info(
+            f"[REQUIRE_AUTH] path={path}, requires_auth={requires_auth}, is_authorized={is_authorized}, error={auth_error}"
+        )
 
         if requires_auth and not is_authorized:
             cors_headers = get_cors_headers(event)
@@ -1361,7 +1366,9 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
                 if error_msg is None:
                     error_msg = response.get("error")
                 if error_msg is None:
-                    error_msg = f"Error response missing 'message' and 'error' fields. Response keys: {list(response.keys())}"
+                    error_msg = (
+                        f"Error response missing 'message' and 'error' fields. Response keys: {list(response.keys())}"
+                    )
                 log_api_request(event, status, error_msg=str(error_msg))
 
             return {"statusCode": status, "headers": headers, "body": body}

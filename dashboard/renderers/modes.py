@@ -1,6 +1,5 @@
 """Mode-specific rendering orchestration."""
 
-
 from rich.layout import Layout
 
 from dashboard.core import DashboardContext, ViewMode

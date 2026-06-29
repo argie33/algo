@@ -24,9 +24,7 @@ class FinanceValidationError(RuntimeError):
     """Raised when critical financial data is missing, invalid, or inaccessible."""
 
 
-def strict_get_dict(
-    data: dict[str, Any] | None, key: str, source: str = ""
-) -> Any:
+def strict_get_dict(data: dict[str, Any] | None, key: str, source: str = "") -> Any:
     """Retrieve required dict key. Fail-fast if missing or data is None.
 
     Args:
@@ -56,15 +54,12 @@ def strict_get_dict(
     value = data[key]
     if value is None:
         raise FinanceValidationError(
-            f"[{source}] Key '{key}' is None (not missing). "
-            "Database returned null for required field."
+            f"[{source}] Key '{key}' is None (not missing). Database returned null for required field."
         )
     return value
 
 
-def strict_get_list(
-    data: list[Any] | None, source: str = ""
-) -> list[Any]:
+def strict_get_list(data: list[Any] | None, source: str = "") -> list[Any]:
     """Validate list is not None. Fail-fast if None.
 
     Args:
@@ -81,15 +76,12 @@ def strict_get_list(
     """
     if data is None:
         raise FinanceValidationError(
-            f"[{source}] Cannot iterate: data is None. "
-            "This indicates upstream pipeline failure, not empty result set."
+            f"[{source}] Cannot iterate: data is None. This indicates upstream pipeline failure, not empty result set."
         )
     return data
 
 
-def strict_get_float(
-    value: float | str | None, source: str = "", context: str = ""
-) -> float:
+def strict_get_float(value: float | str | None, source: str = "", context: str = "") -> float:
     """Parse and validate float value. Fail-fast if None, invalid, or zero.
 
     Args:
@@ -106,17 +98,11 @@ def strict_get_float(
         price = strict_get_float(row["close"], source="close_price", context=f"symbol={sym}")
     """
     if value is None:
-        raise FinanceValidationError(
-            f"[{source}] Value is None. {context}. "
-            "Missing required numeric data."
-        )
+        raise FinanceValidationError(f"[{source}] Value is None. {context}. Missing required numeric data.")
     try:
         fv = float(value)
     except (ValueError, TypeError) as e:
-        raise FinanceValidationError(
-            f"[{source}] Cannot parse as float: {value!r}. {context}. "
-            f"Error: {e}"
-        ) from e
+        raise FinanceValidationError(f"[{source}] Cannot parse as float: {value!r}. {context}. Error: {e}") from e
 
     if fv == 0:
         raise FinanceValidationError(
@@ -126,15 +112,12 @@ def strict_get_float(
         )
     if fv < 0 and source not in ("delta", "pnl", "return", "change"):
         raise FinanceValidationError(
-            f"[{source}] Value is negative: {fv}. {context}. "
-            "Prices/quantities should not be negative."
+            f"[{source}] Value is negative: {fv}. {context}. Prices/quantities should not be negative."
         )
     return fv
 
 
-def strict_get_int(
-    value: int | str | None, source: str = "", context: str = "", allow_zero: bool = False
-) -> int:
+def strict_get_int(value: int | str | None, source: str = "", context: str = "", allow_zero: bool = False) -> int:
     """Parse and validate integer value. Fail-fast if None or invalid.
 
     Args:
@@ -147,27 +130,18 @@ def strict_get_int(
         FinanceValidationError: If value is None or not an integer
     """
     if value is None:
-        raise FinanceValidationError(
-            f"[{source}] Value is None. {context}. Missing required integer data."
-        )
+        raise FinanceValidationError(f"[{source}] Value is None. {context}. Missing required integer data.")
     try:
         iv = int(value)
     except (ValueError, TypeError) as e:
-        raise FinanceValidationError(
-            f"[{source}] Cannot parse as int: {value!r}. {context}. "
-            f"Error: {e}"
-        ) from e
+        raise FinanceValidationError(f"[{source}] Cannot parse as int: {value!r}. {context}. Error: {e}") from e
 
     if iv < 0:
         raise FinanceValidationError(
-            f"[{source}] Value is negative: {iv}. {context}. "
-            "Counts/quantities should not be negative."
+            f"[{source}] Value is negative: {iv}. {context}. Counts/quantities should not be negative."
         )
     if iv == 0 and not allow_zero:
-        raise FinanceValidationError(
-            f"[{source}] Value is zero. {context}. "
-            "If zero is expected, set allow_zero=True."
-        )
+        raise FinanceValidationError(f"[{source}] Value is zero. {context}. If zero is expected, set allow_zero=True.")
     return iv
 
 
@@ -182,14 +156,10 @@ def require_non_empty_dict(data: dict[str, Any] | None, source: str = "") -> dic
         FinanceValidationError: If None or empty
     """
     if data is None:
-        raise FinanceValidationError(
-            f"[{source}] Data dict is None. "
-            "Upstream loader must return valid data structure."
-        )
+        raise FinanceValidationError(f"[{source}] Data dict is None. Upstream loader must return valid data structure.")
     if not data:
         raise FinanceValidationError(
-            f"[{source}] Data dict is empty. "
-            "Upstream loader returned empty result (not failure or missing data)."
+            f"[{source}] Data dict is empty. Upstream loader returned empty result (not failure or missing data)."
         )
     return data
 
@@ -205,21 +175,13 @@ def require_non_empty_list(data: list[Any] | None, source: str = "") -> list[Any
         FinanceValidationError: If None or empty
     """
     if data is None:
-        raise FinanceValidationError(
-            f"[{source}] Data list is None. "
-            "Upstream pipeline failed to return valid list."
-        )
+        raise FinanceValidationError(f"[{source}] Data list is None. Upstream pipeline failed to return valid list.")
     if not data:
-        raise FinanceValidationError(
-            f"[{source}] Data list is empty. "
-            "Upstream query/calculation returned no results."
-        )
+        raise FinanceValidationError(f"[{source}] Data list is empty. Upstream query/calculation returned no results.")
     return data
 
 
-def validate_before_trade(
-    value: Any, field_name: str, validator: Callable[[Any], bool]
-) -> Any:
+def validate_before_trade(value: Any, field_name: str, validator: Callable[[Any], bool]) -> Any:
     """Generic validator for trade-critical values. Raise on validation failure.
 
     Args:

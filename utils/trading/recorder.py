@@ -171,7 +171,7 @@ class TradeRecorder:
                         f"Cannot record trade P&L: entry price is invalid ({entry_price}). "
                         f"Trade records must have valid entry prices for P&L calculation."
                     )
-                pnl_pct = ((exit_price - entry_price) / entry_price * 100)
+                pnl_pct = (exit_price - entry_price) / entry_price * 100
 
                 # Update trade record (most recent entry for this symbol)
                 cursor.execute(

@@ -284,7 +284,9 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
                             try:
                                 live.update(error_panel)
                             except Exception as panel_error:
-                                logger.error(f"Failed to render error panel: {type(panel_error).__name__}: {panel_error}")
+                                logger.error(
+                                    f"Failed to render error panel: {type(panel_error).__name__}: {panel_error}"
+                                )
                     time.sleep(0.25)
             except KeyboardInterrupt:
                 pass
@@ -373,7 +375,9 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
                             try:
                                 live.update(render_error_panel(e, recovery.get_recovery_status()))
                             except Exception as panel_error:
-                                logger.error(f"Failed to render error panel: {type(panel_error).__name__}: {panel_error}")
+                                logger.error(
+                                    f"Failed to render error panel: {type(panel_error).__name__}: {panel_error}"
+                                )
 
                     should_reload = controller.should_reload(current_last_load, interval, is_loading)
                     try:

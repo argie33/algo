@@ -17,10 +17,6 @@ ET = ZoneInfo("America/New_York")
 logger = logging.getLogger(__name__)
 
 
-
-
-
-
 def fetch_portfolio(c: None) -> dict[str, Any]:
     """Fetch portfolio snapshot from API. Fails clean if unavailable.
 
@@ -258,9 +254,15 @@ def fetch_perf(c: None) -> dict[str, Any]:
         # Comprehensive validation using FetcherValidator
         # No freshness check: data is pre-computed daily (no "timestamp" field in response)
         required_fields = [
-            "total_trades", "winning_trades", "losing_trades",
-            "win_rate_pct", "total_pnl_dollars", "sharpe_annualized",
-            "max_drawdown_pct", "avg_win_pct", "avg_loss_pct"
+            "total_trades",
+            "winning_trades",
+            "losing_trades",
+            "win_rate_pct",
+            "total_pnl_dollars",
+            "sharpe_annualized",
+            "max_drawdown_pct",
+            "avg_win_pct",
+            "avg_loss_pct",
         ]
         valid, validation_error = FetcherValidator.validate_response(
             response=perf,
@@ -286,7 +288,9 @@ def fetch_perf(c: None) -> dict[str, Any]:
         equity_vals = safe_get_list(equity_vals_raw)
         if not isinstance(equity_vals, list):
             logger.error(f"Invalid equity_vals type {type(equity_vals_raw).__name__}, expected list")
-            return FetcherValidator.build_error_response(f"Invalid equity_vals type: expected list, got {type(equity_vals_raw).__name__}")
+            return FetcherValidator.build_error_response(
+                f"Invalid equity_vals type: expected list, got {type(equity_vals_raw).__name__}"
+            )
 
         recent_rets_raw = perf.get("recent_rets")
         if recent_rets_raw is None:
@@ -295,7 +299,9 @@ def fetch_perf(c: None) -> dict[str, Any]:
         recent_rets = safe_get_list(recent_rets_raw)
         if not isinstance(recent_rets, list):
             logger.error(f"Invalid recent_rets type {type(recent_rets_raw).__name__}, expected list")
-            return FetcherValidator.build_error_response(f"Invalid recent_rets type: expected list, got {type(recent_rets_raw).__name__}")
+            return FetcherValidator.build_error_response(
+                f"Invalid recent_rets type: expected list, got {type(recent_rets_raw).__name__}"
+            )
 
         def _f(v: object) -> float | None:
             if v is None:
@@ -310,18 +316,14 @@ def fetch_perf(c: None) -> dict[str, Any]:
         unrealized_pnl = perf.get("unrealized_pnl")
         if unrealized_pnl is None:
             logger.debug("Performance data missing 'unrealized_pnl' field (optional enrichment)")
-            unrealized_pnl = {
-                "data_unavailable": True,
-                "reason": "not_in_performance_response"
-            }
+            unrealized_pnl = {"data_unavailable": True, "reason": "not_in_performance_response"}
 
         # CRITICAL: open_losses_count is REQUIRED. No fallback to alternative fields.
         # Missing field indicates API schema mismatch — fail-fast.
         open_losses_count = perf.get("open_losses_count")
         if open_losses_count is None:
             raise ValueError(
-                "Performance data missing required field 'open_losses_count'. "
-                "Available: " + str(list(perf.keys()))
+                "Performance data missing required field 'open_losses_count'. Available: " + str(list(perf.keys()))
             )
         open_count = open_losses_count
 

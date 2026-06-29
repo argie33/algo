@@ -90,7 +90,7 @@ class DailyFinanceReport:
             if prior_value is None or prior_value <= 0:
                 daily_pnl_pct = None
             else:
-                daily_pnl_pct = ((current_value - prior_value) / prior_value * 100)
+                daily_pnl_pct = (current_value - prior_value) / prior_value * 100
 
             # YTD P&L (simplified)
             cur.execute(
@@ -104,7 +104,7 @@ class DailyFinanceReport:
             if ytd_start is None or ytd_start <= 0:
                 ytd_pnl_pct = None
             else:
-                ytd_pnl_pct = ((current_value - ytd_start) / ytd_start * 100)
+                ytd_pnl_pct = (current_value - ytd_start) / ytd_start * 100
 
             return {
                 "current_value": round(current_value, 2),

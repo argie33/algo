@@ -203,8 +203,7 @@ def _wrap_response(response: Any) -> Any:
             return response
     except (ValueError, TypeError) as e:
         raise RuntimeError(
-            f"[API_RESPONSE] Invalid statusCode value '{status_code}' (must be integer). "
-            f"Response: {response}"
+            f"[API_RESPONSE] Invalid statusCode value '{status_code}' (must be integer). Response: {response}"
         ) from e
 
     # Fix double-nested data issue: if data contains only a 'data' field (or data + extra fields), unwrap it
@@ -339,7 +338,9 @@ def route_request(
             try:
                 logger.debug(f"[ROUTE_REQUEST] Calling public handler for {path} (prefix {prefix})")
                 response = handler.handle(cur, path, method, params, body, jwt_claims=jwt_claims)
-                logger.debug(f"[ROUTE_REQUEST] Public handler succeeded for {path}, status={response.get('statusCode')}")
+                logger.debug(
+                    f"[ROUTE_REQUEST] Public handler succeeded for {path}, status={response.get('statusCode')}"
+                )
                 return _add_cors_headers(_wrap_response(response))
             except Exception as e:
                 logger.error(
@@ -495,13 +496,15 @@ def _format_handler_error(e: Exception) -> dict[str, Any]:
     # CRITICAL DIAGNOSTIC: Log full exception details for debugging
     # Include all attributes of the exception to understand its structure
     exception_attrs = {}
-    for attr in ['args', 'pgcode', 'pgerror', 'cursor', 'filename', 'lineno', 'msg']:
+    for attr in ["args", "pgcode", "pgerror", "cursor", "filename", "lineno", "msg"]:
         if hasattr(e, attr):
             try:
                 val = getattr(e, attr)
                 exception_attrs[attr] = str(val)[:200]
             except Exception as attr_err:
-                logger.warning(f"[EXCEPTION_LOGGING] Failed to stringify exception attr '{attr}': {type(attr_err).__name__}")
+                logger.warning(
+                    f"[EXCEPTION_LOGGING] Failed to stringify exception attr '{attr}': {type(attr_err).__name__}"
+                )
                 exception_attrs[attr] = f"<{type(attr_err).__name__}>"
 
     logger.error(

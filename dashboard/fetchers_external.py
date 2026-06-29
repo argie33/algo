@@ -12,10 +12,6 @@ from .utilities import CY, G, R, Y
 logger = logging.getLogger(__name__)
 
 
-
-
-
-
 def fetch_economic_pulse(c: None) -> dict[str, Any]:  # noqa: C901
     """Fetch economic macro indicators. Fail-fast: error only on failure.
 
@@ -425,10 +421,7 @@ def fetch_activity(c: None) -> dict[str, Any]:
             logger.debug("[FETCH] No run_id found in activity details - run_id will be None")
 
         # Extract phase events
-        phases = [
-            i for i in items
-            if i.get("action_type") and str(i.get("action_type")).startswith("phase_")
-        ]
+        phases = [i for i in items if i.get("action_type") and str(i.get("action_type")).startswith("phase_")]
 
         return {
             "run_id": run_id,

@@ -257,9 +257,7 @@ class SignalsDailyLoader(OptimalLoader):
 
                 # Cache miss: query database as fallback
                 if max_date is None:
-                    logger.debug(
-                        f"[WATERMARK] {symbol}: Querying database for watermark (cache miss)"
-                    )
+                    logger.debug(f"[WATERMARK] {symbol}: Querying database for watermark (cache miss)")
                     with DatabaseContext("read") as cur:
                         cur.execute(
                             "SELECT MAX(date) FROM buy_sell_daily WHERE symbol = %s",
@@ -268,14 +266,9 @@ class SignalsDailyLoader(OptimalLoader):
                         row = cur.fetchone()
                         if row is not None and len(row) >= 1 and row[0] is not None:
                             max_date = row[0]
-                            logger.debug(
-                                f"[WATERMARK] {symbol}: Database query found max_date={max_date}"
-                            )
+                            logger.debug(f"[WATERMARK] {symbol}: Database query found max_date={max_date}")
                         else:
-                            logger.debug(
-                                f"[WATERMARK] {symbol}: No watermark in database - "
-                                "first run for this symbol"
-                            )
+                            logger.debug(f"[WATERMARK] {symbol}: No watermark in database - first run for this symbol")
 
                 # Convert max_date to date if found
                 if max_date is not None:
@@ -384,7 +377,7 @@ class SignalsDailyLoader(OptimalLoader):
                         f"{symbol}: technical_data_daily incomplete for {end}: "
                         f"Only {tech_coverage:.1f}% coverage (need >= {min_tech_coverage:.1f}%). "
                         f"{tech_coverage_symbols}/{price_coverage_symbols} price symbols have technical data. "
-                        f"Cannot generate reliable signals with {100-tech_coverage:.1f}% missing technical indicators. "
+                        f"Cannot generate reliable signals with {100 - tech_coverage:.1f}% missing technical indicators. "
                         f"({tech_coverage:.1f}%, required >= 70%). "
                         "Cannot generate buy/sell signals without sufficient technical data coverage."
                     )
@@ -438,8 +431,7 @@ class SignalsDailyLoader(OptimalLoader):
                 row = cur.fetchone()
                 if row is None or len(row) < 1 or row[0] is None:
                     logger.debug(
-                        f"[DATA_AGE] {symbol}: No data in {source_table} - "
-                        "data unavailable for age calculation"
+                        f"[DATA_AGE] {symbol}: No data in {source_table} - data unavailable for age calculation"
                     )
                     return None
                 max_date_val = row[0]
@@ -481,18 +473,12 @@ class SignalsDailyLoader(OptimalLoader):
             Explicitly logs when batch context is missing (data unavailable).
         """
         if not self._batch_context:
-            logger.debug(
-                "[TECH_DATA_AGE] Batch context not initialized - "
-                "tech data age unavailable"
-            )
+            logger.debug("[TECH_DATA_AGE] Batch context not initialized - tech data age unavailable")
             return None
 
         tech_data_age = self._batch_context.get("tech_data_age")
         if tech_data_age is None:
-            logger.debug(
-                "[TECH_DATA_AGE] 'tech_data_age' not in batch context - "
-                "technical data freshness unavailable"
-            )
+            logger.debug("[TECH_DATA_AGE] 'tech_data_age' not in batch context - technical data freshness unavailable")
         return tech_data_age
 
     def _log_rejection_if_available(self, symbol: str, signal_date: date, reason: str) -> None:

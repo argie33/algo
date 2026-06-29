@@ -84,7 +84,9 @@ _cache_lock = threading.Lock()
 _CACHE_TTL_SECS = 300  # 5 minute cache
 
 
-def get_active_symbols(max_symbols: int | None = None, timeout_secs: int = 120, exclude_etfs: bool = False) -> list[str]:
+def get_active_symbols(
+    max_symbols: int | None = None, timeout_secs: int = 120, exclude_etfs: bool = False
+) -> list[str]:
     """Get list of active symbols (stocks and ETFs) from database with timeout protection.
 
     Used by: load_balance_sheet.py, loadbuyselldaily.py, load_cash_flow.py,

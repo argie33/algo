@@ -270,7 +270,9 @@ class OrchestratorPhaseExecutor:
                     self.phase_results[phase_num] = result
                     continue
                 else:
-                    logger.info(f"Phase {phase_num} ({phase_def.phase_name}) running despite skip request (always_run=True)")
+                    logger.info(
+                        f"Phase {phase_num} ({phase_def.phase_name}) running despite skip request (always_run=True)"
+                    )
 
             # Skip non-always_run phases after a halt (they will fail dep checks anyway)
             if halted and not phase_def.always_run:

@@ -489,11 +489,7 @@ def _handle_seasonality(cur: cursor) -> Any:
                         ),
                         "win_rate_pct": (
                             round(
-                                (
-                                    float(best_month.get("winning_years"))
-                                    / float(best_month.get("years_counted"))
-                                    * 100
-                                ),
+                                (float(best_month.get("winning_years")) / float(best_month.get("years_counted")) * 100),
                                 1,
                             )
                             if best_month
@@ -1146,9 +1142,7 @@ def _get_correlation_matrix(cur: cursor) -> Any:  # noqa: C901
             f"Data integrity error in correlation matrix computation."
         )
         raise_api_error(
-            500,
-            "correlation_computation_error",
-            "Max correlation pair computation failed—cannot verify data integrity"
+            500, "correlation_computation_error", "Max correlation pair computation failed—cannot verify data integrity"
         )
     if min_corr is not None and min_pair is None:
         logger.error(
@@ -1156,9 +1150,7 @@ def _get_correlation_matrix(cur: cursor) -> Any:  # noqa: C901
             f"Data integrity error in correlation matrix computation."
         )
         raise_api_error(
-            500,
-            "correlation_computation_error",
-            "Min correlation pair computation failed—cannot verify data integrity"
+            500, "correlation_computation_error", "Min correlation pair computation failed—cannot verify data integrity"
         )
 
     avg_corr_val = round(avg_corr, 2) if avg_corr is not None else None
@@ -1479,7 +1471,9 @@ def _get_markets(cur: cursor) -> Any:
             continue
         price = float(row["close"])
         if row["prev_close"] is None or row["prev_close"] <= 0:
-            logger.warning(f"Market API indices: Invalid prev_close for {symbol}: {row['prev_close']}; cannot calculate change")
+            logger.warning(
+                f"Market API indices: Invalid prev_close for {symbol}: {row['prev_close']}; cannot calculate change"
+            )
             continue
         prev_price = float(row["prev_close"])
         change = price - prev_price

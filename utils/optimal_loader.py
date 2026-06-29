@@ -167,7 +167,9 @@ class OptimalLoader:
                     )
                     time.sleep(delay)
                 else:
-                    logger.error(f"[{self.table_name}] {symbol}: All {max_attempts} attempts failed due to transient errors: {e}")
+                    logger.error(
+                        f"[{self.table_name}] {symbol}: All {max_attempts} attempts failed due to transient errors: {e}"
+                    )
             except Exception as e:
                 logger.error(f"[{self.table_name}] {symbol}: Failed to fetch (non-transient error): {e}")
                 raise RuntimeError(f"[{self.table_name}] {symbol}: Failed to fetch: {e}") from e
@@ -180,8 +182,7 @@ class OptimalLoader:
         if rows is None or not rows:
             # No new data since watermark—expected for incremental loads
             logger.debug(
-                f"[{self.table_name}] {symbol}: No new data since watermark "
-                f"(previous={previous_date}), skipping"
+                f"[{self.table_name}] {symbol}: No new data since watermark (previous={previous_date}), skipping"
             )
             self._stats.increment("symbols_skipped_by_watermark")
             return 0
@@ -235,13 +236,9 @@ class OptimalLoader:
         """
         for key in self.primary_key:
             if key not in row:
-                raise ValueError(
-                    f"[{self.table_name}] Row missing required primary key field '{key}'"
-                )
+                raise ValueError(f"[{self.table_name}] Row missing required primary key field '{key}'")
             if row[key] is None:
-                raise ValueError(
-                    f"[{self.table_name}] Row has NULL value for required primary key field '{key}'"
-                )
+                raise ValueError(f"[{self.table_name}] Row has NULL value for required primary key field '{key}'")
         return True
 
     def _prepare_batch_context(self) -> None:
@@ -454,7 +451,9 @@ class OptimalLoader:
         for i, symbol in enumerate(symbols, 1):
             elapsed_batch = time.time() - batch_start
             if elapsed_batch > max_batch_time:
-                logger.critical(f"[{self.table_name}] HARD LIMIT: Batch exceeded {max_batch_time}s SLA after {i}/{len(symbols)} symbols. Halting.")
+                logger.critical(
+                    f"[{self.table_name}] HARD LIMIT: Batch exceeded {max_batch_time}s SLA after {i}/{len(symbols)} symbols. Halting."
+                )
                 raise RuntimeError(f"Loader exceeded hard SLA limit ({max_batch_time}s) after {i} symbols")
             if self._infrastructure.check_shutdown_requested():
                 logger.warning(f"[{self.table_name}] Graceful shutdown - stopping after {i - 1} symbols")
@@ -464,14 +463,20 @@ class OptimalLoader:
                     with DatabaseContext("read") as cur:
                         cur.execute("SELECT 1")
                 except Exception as health_err:
-                    logger.critical(f"[{self.table_name}] Database health check failed at symbol {i}/{len(symbols)}: {health_err}")
-                    raise RuntimeError(f"[{self.table_name}] Database health check failed—connection unreliable. Halting loader.") from health_err
+                    logger.critical(
+                        f"[{self.table_name}] Database health check failed at symbol {i}/{len(symbols)}: {health_err}"
+                    )
+                    raise RuntimeError(
+                        f"[{self.table_name}] Database health check failed—connection unreliable. Halting loader."
+                    ) from health_err
             try:
                 symbol_start = time.time()
                 self.load_symbol(symbol)
                 symbol_elapsed = time.time() - symbol_start
                 if symbol_elapsed > per_symbol_timeout:
-                    logger.warning(f"[{self.table_name}] {symbol}: Slow symbol took {symbol_elapsed:.1f}s (threshold {per_symbol_timeout}s)")
+                    logger.warning(
+                        f"[{self.table_name}] {symbol}: Slow symbol took {symbol_elapsed:.1f}s (threshold {per_symbol_timeout}s)"
+                    )
                 self._stats.increment("symbols_processed")
             except Exception as e:
                 self._stats.increment("symbols_failed")
@@ -481,7 +486,9 @@ class OptimalLoader:
                 logger.info(f"  Progress: {i}/{len(symbols)}")
 
         if failed_symbols:
-            raise RuntimeError(f"[{self.table_name}] {len(failed_symbols)} symbols failed—incomplete dataset. Failed: {failed_symbols[:10]}{'...' if len(failed_symbols) > 10 else ''}")
+            raise RuntimeError(
+                f"[{self.table_name}] {len(failed_symbols)} symbols failed—incomplete dataset. Failed: {failed_symbols[:10]}{'...' if len(failed_symbols) > 10 else ''}"
+            )
 
     def _run_parallel(self, symbols: list[str], workers: int) -> None:
         from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
@@ -499,7 +506,9 @@ class OptimalLoader:
             while pending_futures:
                 elapsed_batch = time.time() - batch_start
                 if elapsed_batch > max_batch_time:
-                    logger.critical(f"[{self.table_name}] HARD LIMIT: Batch exceeded {max_batch_time}s SLA. Killing all workers.")
+                    logger.critical(
+                        f"[{self.table_name}] HARD LIMIT: Batch exceeded {max_batch_time}s SLA. Killing all workers."
+                    )
                     for f in pending_futures:
                         f.cancel()
                     self._stats.increment("symbols_failed", len(pending_futures))
@@ -515,11 +524,7 @@ class OptimalLoader:
                 # Wait for the next future to complete, with a short polling timeout
                 # to detect stalled workers every 5 seconds
                 try:
-                    done_futures, pending_futures = wait(
-                        pending_futures,
-                        timeout=5.0,
-                        return_when=FIRST_COMPLETED
-                    )
+                    done_futures, pending_futures = wait(pending_futures, timeout=5.0, return_when=FIRST_COMPLETED)
                 except Exception as e:
                     logger.error(f"[{self.table_name}] Wait failed: {e}")
                     break
@@ -723,7 +728,9 @@ class OptimalLoader:
                         f"[{self.table_name}] Cache invalidation failed: malformed AWS response (missing 'Error' key). "
                         f"Response: {delete_err.response}. Cannot determine if retriable error."
                     )
-                    raise RuntimeError(f"AWS DynamoDB error response structure invalid: {delete_err.response}") from delete_err
+                    raise RuntimeError(
+                        f"AWS DynamoDB error response structure invalid: {delete_err.response}"
+                    ) from delete_err
 
                 error_code = error_dict.get("Code")
                 if error_code in ("AccessDenied", "AccessDeniedException"):
@@ -745,7 +752,9 @@ class OptimalLoader:
                         ":now": Decimal(str(time.time())),
                     },
                 )
-                logger.warning(f"[{self.table_name}] Cache poisoned (set invalidation_failed=true) - Phase 1 will skip stale data")
+                logger.warning(
+                    f"[{self.table_name}] Cache poisoned (set invalidation_failed=true) - Phase 1 will skip stale data"
+                )
                 return
             except ClientError as poison_err:
                 # FAIL-FAST: Validate error response structure before checking code
@@ -755,7 +764,9 @@ class OptimalLoader:
                         f"[{self.table_name}] Cache poisoning failed: malformed AWS response (missing 'Error' key). "
                         f"Response: {poison_err.response}. Cannot determine if retriable error."
                     )
-                    raise RuntimeError(f"AWS DynamoDB error response structure invalid: {poison_err.response}") from poison_err
+                    raise RuntimeError(
+                        f"AWS DynamoDB error response structure invalid: {poison_err.response}"
+                    ) from poison_err
 
                 error_code = error_dict.get("Code")
                 if error_code in ("AccessDenied", "AccessDeniedException"):

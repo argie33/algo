@@ -92,7 +92,9 @@ def _get_market_halts(mkt_data: dict[str, Any], panel_name: str) -> list[Any]:
             f"[{panel_name}] Halt validation produced non-list result after safe_get_list check. "
             f"This indicates a data contract violation. Got type {type(halts).__name__}: {halts}"
         )
-        raise RuntimeError(f"{panel_name}: halts data type contract violation (expected list, got {type(halts).__name__})")
+        raise RuntimeError(
+            f"{panel_name}: halts data type contract violation (expected list, got {type(halts).__name__})"
+        )
     return halts
 
 
@@ -124,9 +126,7 @@ def panel_market_full(mkt: Any, sentiment: Any = None) -> Panel:  # noqa: C901
         error_msg = f"Critical market fields missing: {', '.join(missing_fields)} (VIX or SPY required)"
         logger.error(f"[MARKET_PANEL] {error_msg} - market regime rendering not possible")
         return Panel(
-            Text.from_markup(
-                f"[red]{error_msg}[/]\n[dim]Market data pipeline incomplete or failed validation.[/]"
-            ),
+            Text.from_markup(f"[red]{error_msg}[/]\n[dim]Market data pipeline incomplete or failed validation.[/]"),
             title="[bold red]MARKET (CRITICAL DATA MISSING)[/]",
             border_style="red",
             padding=(0, 1),
@@ -140,7 +140,9 @@ def panel_market_full(mkt: Any, sentiment: Any = None) -> Panel:  # noqa: C901
     spy_chg = safe_float(mkt.get("spy_chg"), strict=False)
     trend = mkt.get("trend")
     if trend is None:
-        logger.warning("[MARKET_PANEL] Market trend data missing from endpoint - may indicate incomplete regime calculation")
+        logger.warning(
+            "[MARKET_PANEL] Market trend data missing from endpoint - may indicate incomplete regime calculation"
+        )
         trend = ""
     try:
         halts = _get_market_halts(mkt, "Market panel")
@@ -321,7 +323,11 @@ def panel_market_expanded(mkt: Any, sentiment: Any = None) -> Panel:
     nh_s = str(nh) if nh is not None else "--"
     nl_s = str(nl) if nl is not None else "--"
     nhnl = (nh - nl) if (nh is not None and nl is not None) else None
-    nhnl_c = (G if (nhnl is not None and nhnl >= 50) else (Y if (nhnl is not None and nhnl >= 0) else R)) if nhnl is not None else DIM
+    nhnl_c = (
+        (G if (nhnl is not None and nhnl >= 50) else (Y if (nhnl is not None and nhnl >= 0) else R))
+        if nhnl is not None
+        else DIM
+    )
     nhnl_s = f"{sign(nhnl)}{nhnl}" if nhnl is not None else "--"
     bmc = DIM if bmom is None else (G if bmom >= 0.5 else (Y if bmom >= 0 else R))
     bmom_s = f"{bmom:.3f}" if bmom is not None else "--"
@@ -433,7 +439,9 @@ def panel_header_market(  # noqa: C901
         spy_raw = safe_float(mkt.get("spy"), strict=False)
         spy_chg = safe_float(mkt.get("spy_chg"), strict=False)
         spy_chg_s = (
-            f" [{G if (spy_chg is not None and spy_chg >= 0) else R}]{sign(spy_chg)}{spy_chg:.1f}%[/]" if spy_chg is not None else ""
+            f" [{G if (spy_chg is not None and spy_chg >= 0) else R}]{sign(spy_chg)}{spy_chg:.1f}%[/]"
+            if spy_chg is not None
+            else ""
         )
         spy_s = f"  SPY:[white]${spy_raw:.2f}[/]{spy_chg_s}" if spy_raw else ""
         rows.append(
@@ -451,7 +459,11 @@ def panel_header_market(  # noqa: C901
         if upvol is not None:
             uvc = G if upvol >= 60 else (Y if upvol >= 50 else R)
             nhnl = (nh - nl) if (nh is not None and nl is not None) else None
-            nhnl_c = (G if (nhnl is not None and nhnl >= 50) else (Y if (nhnl is not None and nhnl >= 0) else R)) if nhnl is not None else DIM
+            nhnl_c = (
+                (G if (nhnl is not None and nhnl >= 50) else (Y if (nhnl is not None and nhnl >= 0) else R))
+                if nhnl is not None
+                else DIM
+            )
             adr_s = f"  [dim]Adv/Dec:[/][white]{adr:.1f}[/]" if adr is not None else ""
             nhnl_s = f"[dim]New Hi-Lo:[/][{nhnl_c}]{sign(nhnl)}{int(nhnl)}[/]" if nhnl is not None else ""
             rows.append(

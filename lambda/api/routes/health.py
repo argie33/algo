@@ -69,8 +69,7 @@ def _handle_basic(cur: cursor) -> Any:
     # C-4 FIX: Report API route import failures in health check (FAIL FAST)
     if "failed_routes" not in import_status or import_status["failed_routes"] is None:
         error_msg = (
-            "[HEALTH CRITICAL] API route import status unavailable. "
-            "Cannot report health without knowing route status."
+            "[HEALTH CRITICAL] API route import status unavailable. Cannot report health without knowing route status."
         )
         logger.error(error_msg)
         return error_response(503, "route_import_status_unavailable", error_msg)
@@ -114,6 +113,7 @@ def _handle_basic(cur: cursor) -> Any:
         # the full table, timing out on every health request.
         try:
             from utils.infrastructure import MarketCalendar
+
             market_cal = MarketCalendar()
             market_is_open = market_cal.is_market_open(datetime.now(timezone.utc))
 
@@ -148,8 +148,7 @@ def _handle_basic(cur: cursor) -> Any:
                 else:
                     # No signal data available — cannot verify freshness
                     error_msg = (
-                        "[HEALTH CRITICAL] Signal data unavailable. "
-                        "Cannot assess signal freshness for health status."
+                        "[HEALTH CRITICAL] Signal data unavailable. Cannot assess signal freshness for health status."
                     )
                     logger.error(error_msg)
                     has_critical = True
@@ -268,7 +267,7 @@ def _handle_cognito(cur: cursor) -> Any:
                 return error_response(
                     503,
                     "cognito_configuration_error",
-                    f"Cognito pool API returned invalid response type {type(pool_response).__name__} — cannot validate authentication configuration"
+                    f"Cognito pool API returned invalid response type {type(pool_response).__name__} — cannot validate authentication configuration",
                 )
 
             pool_data = pool_response.get("UserPool")
@@ -276,7 +275,7 @@ def _handle_cognito(cur: cursor) -> Any:
                 return error_response(
                     503,
                     "cognito_configuration_error",
-                    f"Cognito pool API missing 'UserPool' field in response — response keys: {list(pool_response.keys())}"
+                    f"Cognito pool API missing 'UserPool' field in response — response keys: {list(pool_response.keys())}",
                 )
 
             # List app clients in this user pool
@@ -287,7 +286,7 @@ def _handle_cognito(cur: cursor) -> Any:
                 return error_response(
                     503,
                     "cognito_configuration_error",
-                    f"Cognito clients API returned invalid response type {type(apps_response).__name__} — cannot validate application configuration"
+                    f"Cognito clients API returned invalid response type {type(apps_response).__name__} — cannot validate application configuration",
                 )
 
             clients = apps_response.get("UserPoolClients")
@@ -295,7 +294,7 @@ def _handle_cognito(cur: cursor) -> Any:
                 return error_response(
                     503,
                     "cognito_configuration_error",
-                    f"Cognito clients API missing 'UserPoolClients' field in response — response keys: {list(apps_response.keys())}"
+                    f"Cognito clients API missing 'UserPoolClients' field in response — response keys: {list(apps_response.keys())}",
                 )
 
             # Validate clients is a list
@@ -303,7 +302,7 @@ def _handle_cognito(cur: cursor) -> Any:
                 return error_response(
                     503,
                     "cognito_configuration_error",
-                    f"Cognito 'UserPoolClients' has invalid type {type(clients).__name__}, expected list — configuration may be corrupted"
+                    f"Cognito 'UserPoolClients' has invalid type {type(clients).__name__}, expected list — configuration may be corrupted",
                 )
 
             # Find matching client

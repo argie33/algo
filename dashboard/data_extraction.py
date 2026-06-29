@@ -174,9 +174,7 @@ class DashboardDataExtractor:
             # Notifications are optional - return empty list only if explicitly missing
             return []
         if not isinstance(notifs, list):
-            raise DataExtractionError(
-                f"Expected notifications to be list, got {type(notifs).__name__}: {notifs!r}"
-            )
+            raise DataExtractionError(f"Expected notifications to be list, got {type(notifs).__name__}: {notifs!r}")
         return notifs
 
     def risk(self) -> dict[str, Any]:

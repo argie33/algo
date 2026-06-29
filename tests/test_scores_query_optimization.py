@@ -38,12 +38,7 @@ def test_query_optimization():
 
     # Test 2: Verify new CTEs are in place
     print("[2] Checking for optimized CTEs...")
-    required_ctes = [
-        "price_latest",
-        "price_prev",
-        "tech_latest",
-        "price_52w"
-    ]
+    required_ctes = ["price_latest", "price_prev", "tech_latest", "price_52w"]
 
     for cte_name in required_ctes:
         if f"{cte_name} AS" in source:
@@ -72,7 +67,7 @@ def test_query_optimization():
         "change_percent",
         "price_vs_sma_50",
         "price_vs_sma_200",
-        "price_vs_52w_high_val"
+        "price_vs_52w_high_val",
     ]
 
     missing_fields = []
@@ -89,7 +84,7 @@ def test_query_optimization():
 
     # Test 5: Verify query timeout is reasonable
     print("[5] Checking query timeout setting...")
-    timeout_match = re.search(r'timeout_sec=(\d+)', source)
+    timeout_match = re.search(r"timeout_sec=(\d+)", source)
     if timeout_match:
         timeout = int(timeout_match.group(1))
         print(f"    Query timeout: {timeout} seconds")
@@ -191,6 +186,7 @@ def main():
     except Exception as e:
         print(f"[ERROR] Error during verification: {e}")
         import traceback
+
         traceback.print_exc()
         return 1
 

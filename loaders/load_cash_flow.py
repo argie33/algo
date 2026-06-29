@@ -104,8 +104,7 @@ class CashFlowLoader(OptimalLoader):
             cik = self._sec_client.symbol_to_cik(symbol)
         except ValueError as e:
             logger.error(
-                "[CASH_FLOW] %s: CIK resolution failed in SEC ticker cache. Cannot fetch cash flow data.",
-                symbol
+                "[CASH_FLOW] %s: CIK resolution failed in SEC ticker cache. Cannot fetch cash flow data.", symbol
             )
             raise RuntimeError(
                 f"[CASH_FLOW] {symbol}: CIK not found in SEC ticker cache. "
@@ -113,8 +112,7 @@ class CashFlowLoader(OptimalLoader):
             ) from e
         if not cik:
             logger.error(
-                "[CASH_FLOW] %s: CIK resolution returned empty/None. Cannot proceed without SEC EDGAR CIK.",
-                symbol
+                "[CASH_FLOW] %s: CIK resolution returned empty/None. Cannot proceed without SEC EDGAR CIK.", symbol
             )
             raise RuntimeError(
                 f"[CASH_FLOW] CIK resolution failed for {symbol}. Cannot fetch cash flow data without SEC EDGAR CIK."
@@ -126,7 +124,8 @@ class CashFlowLoader(OptimalLoader):
                 logger.error(
                     "[CASH_FLOW] %s: No %s cash flow data available in SEC EDGAR. "
                     "Cannot proceed with financial analysis without cash flow fundamentals.",
-                    symbol, self.period
+                    symbol,
+                    self.period,
                 )
                 raise RuntimeError(
                     f"[CASH_FLOW] {symbol}: No {self.period} cash flow data in SEC EDGAR. "
@@ -138,7 +137,7 @@ class CashFlowLoader(OptimalLoader):
                 logger.error(
                     "[CASH_FLOW] %s: Incremental load called without 'since' parameter. "
                     "Cannot load full historical data in incremental mode.",
-                    symbol
+                    symbol,
                 )
                 raise ValueError(
                     f"Cash flow loader for {symbol} requires 'since' parameter for incremental loading. "
@@ -151,7 +150,8 @@ class CashFlowLoader(OptimalLoader):
                     logger.error(
                         "[CASH_FLOW] %s: Row missing required 'fiscal_year' field: %s. "
                         "Cannot apply incremental watermark filter.",
-                        symbol, r
+                        symbol,
+                        r,
                     )
                     raise ValueError(
                         f"Cash flow row missing required 'fiscal_year' field: {r}. "
@@ -169,14 +169,16 @@ class CashFlowLoader(OptimalLoader):
                 logger.info(
                     "[CASH_FLOW] %s: No new cash flow rows after incremental filter (since %s). "
                     "All rows have fiscal_year <= %s.",
-                    symbol, since, since_year
+                    symbol,
+                    since,
+                    since_year,
                 )
             return filtered
         except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.error(
-                "[CASH_FLOW] %s: Failed to fetch/filter cash flow data: %s. "
-                "Cannot proceed without fundamental data.",
-                symbol, e
+                "[CASH_FLOW] %s: Failed to fetch/filter cash flow data: %s. Cannot proceed without fundamental data.",
+                symbol,
+                e,
             )
             raise RuntimeError(
                 f"[CASH_FLOW] Failed to fetch cash flow for {symbol}: {e}. Cannot proceed without fundamental data."
@@ -219,7 +221,8 @@ class CashFlowLoader(OptimalLoader):
                     logger.warning(
                         "[CASH_FLOW] Free cash flow cannot be calculated: capex missing for %s FY%s. "
                         "Using only operating cash flow.",
-                        row.get("symbol"), row.get("fiscal_year")
+                        row.get("symbol"),
+                        row.get("fiscal_year"),
                     )
             transformed.append(row)
 
@@ -233,7 +236,9 @@ class CashFlowLoader(OptimalLoader):
                 logger.error(
                     "[CASH_FLOW] Cannot build primary key: symbol=%s, fiscal_year=%s. "
                     "Row missing required key fields: %s",
-                    symbol, fiscal_year, row
+                    symbol,
+                    fiscal_year,
+                    row,
                 )
                 raise ValueError(
                     f"Cash flow row missing required key fields. Symbol: {symbol}, Fiscal Year: {fiscal_year}. "
@@ -247,7 +252,9 @@ class CashFlowLoader(OptimalLoader):
                     logger.error(
                         "[CASH_FLOW] Cannot build quarterly key: symbol=%s, fiscal_year=%s, fiscal_quarter=%s. "
                         "Quarterly record missing fiscal_quarter.",
-                        symbol, fiscal_year, fiscal_quarter
+                        symbol,
+                        fiscal_year,
+                        fiscal_quarter,
                     )
                     raise ValueError(
                         f"Quarterly cash flow row missing fiscal_quarter for deduplication. "
@@ -302,7 +309,9 @@ class CashFlowLoader(OptimalLoader):
             logger.warning(
                 "[CASH_FLOW] Missing HIGH-priority financial data for %s FY%s: %s. "
                 "Proceeding with available cash flow data.",
-                row.get("symbol"), row.get("fiscal_year"), missing_fields
+                row.get("symbol"),
+                row.get("fiscal_year"),
+                missing_fields,
             )
 
         return True

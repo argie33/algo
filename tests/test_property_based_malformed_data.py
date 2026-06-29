@@ -42,11 +42,13 @@ class TestPortfolioValidatorWithMalformedData:
         wrong_types = [[], {}, "invalid", True, False]
         for wrong_type in wrong_types:
             try:
-                result = validate_portfolio_response({
-                    "total_portfolio_value": wrong_type,
-                    "total_cash": 50000.0,
-                    "position_count": 5,
-                })
+                result = validate_portfolio_response(
+                    {
+                        "total_portfolio_value": wrong_type,
+                        "total_cash": 50000.0,
+                        "position_count": 5,
+                    }
+                )
                 assert result is None or isinstance(result, dict)
             except (TypeError, ValueError, ResponseValidationError):
                 pass
@@ -54,19 +56,21 @@ class TestPortfolioValidatorWithMalformedData:
     def test_with_extreme_numeric_values(self):
         """Portfolio validator should handle extreme values."""
         extreme_values = [
-            float('inf'),
-            -float('inf'),
-            float('nan'),
+            float("inf"),
+            -float("inf"),
+            float("nan"),
             999999999999,
             -999999999999,
         ]
         for value in extreme_values:
             try:
-                result = validate_portfolio_response({
-                    "total_portfolio_value": value,
-                    "total_cash": 50000.0,
-                    "position_count": 5,
-                })
+                result = validate_portfolio_response(
+                    {
+                        "total_portfolio_value": value,
+                        "total_cash": 50000.0,
+                        "position_count": 5,
+                    }
+                )
                 assert result is None or isinstance(result, dict)
             except (TypeError, ValueError, ResponseValidationError):
                 pass
@@ -74,11 +78,13 @@ class TestPortfolioValidatorWithMalformedData:
     def test_with_empty_strings(self):
         """Portfolio validator should handle empty strings."""
         try:
-            result = validate_portfolio_response({
-                "total_portfolio_value": "",
-                "total_cash": "",
-                "position_count": "",
-            })
+            result = validate_portfolio_response(
+                {
+                    "total_portfolio_value": "",
+                    "total_cash": "",
+                    "position_count": "",
+                }
+            )
             assert result is None or isinstance(result, dict)
         except (TypeError, ValueError, ResponseValidationError):
             pass
@@ -109,15 +115,17 @@ class TestConfigValidatorWithMalformedData:
         """Config validator should handle negative threshold values."""
         for value in [-100, -10, -1]:
             try:
-                result = validate_config_response({
-                    "min_signal_quality_score": value,
-                    "min_swing_score": value,
-                    "min_completeness_score": value,
-                    "min_volume_ma_50d": 100000,
-                    "min_avg_daily_dollar_volume": 500000.0,
-                    "earnings_blackout_days_before": value,
-                    "earnings_blackout_days_after": value,
-                })
+                result = validate_config_response(
+                    {
+                        "min_signal_quality_score": value,
+                        "min_swing_score": value,
+                        "min_completeness_score": value,
+                        "min_volume_ma_50d": 100000,
+                        "min_avg_daily_dollar_volume": 500000.0,
+                        "earnings_blackout_days_before": value,
+                        "earnings_blackout_days_after": value,
+                    }
+                )
                 # Should validate or reject gracefully
                 assert result is None or isinstance(result, dict)
             except (TypeError, ValueError, ResponseValidationError):
@@ -126,15 +134,17 @@ class TestConfigValidatorWithMalformedData:
     def test_with_zero_values(self):
         """Config validator should handle zero values."""
         try:
-            result = validate_config_response({
-                "min_signal_quality_score": 0,
-                "min_swing_score": 0.0,
-                "min_completeness_score": 0,
-                "min_volume_ma_50d": 0,
-                "min_avg_daily_dollar_volume": 0.0,
-                "earnings_blackout_days_before": 0,
-                "earnings_blackout_days_after": 0,
-            })
+            result = validate_config_response(
+                {
+                    "min_signal_quality_score": 0,
+                    "min_swing_score": 0.0,
+                    "min_completeness_score": 0,
+                    "min_volume_ma_50d": 0,
+                    "min_avg_daily_dollar_volume": 0.0,
+                    "earnings_blackout_days_before": 0,
+                    "earnings_blackout_days_after": 0,
+                }
+            )
             # Might accept zero or reject
             assert result is None or isinstance(result, dict)
         except (TypeError, ValueError, ResponseValidationError):
@@ -142,17 +152,19 @@ class TestConfigValidatorWithMalformedData:
 
     def test_with_extreme_float_values(self):
         """Config validator should handle extreme float values."""
-        for value in [float('inf'), float('nan')]:
+        for value in [float("inf"), float("nan")]:
             try:
-                result = validate_config_response({
-                    "min_signal_quality_score": value,
-                    "min_swing_score": value,
-                    "min_completeness_score": value,
-                    "min_volume_ma_50d": 100000,
-                    "min_avg_daily_dollar_volume": 500000.0,
-                    "earnings_blackout_days_before": 7,
-                    "earnings_blackout_days_after": 3,
-                })
+                result = validate_config_response(
+                    {
+                        "min_signal_quality_score": value,
+                        "min_swing_score": value,
+                        "min_completeness_score": value,
+                        "min_volume_ma_50d": 100000,
+                        "min_avg_daily_dollar_volume": 500000.0,
+                        "earnings_blackout_days_before": 7,
+                        "earnings_blackout_days_after": 3,
+                    }
+                )
                 assert result is None or isinstance(result, dict)
             except (TypeError, ValueError, ResponseValidationError, OverflowError):
                 # OverflowError acceptable for infinity values
@@ -161,15 +173,17 @@ class TestConfigValidatorWithMalformedData:
     def test_with_mixed_type_fields(self):
         """Config validator should handle wrong field types."""
         try:
-            result = validate_config_response({
-                "min_signal_quality_score": "60",  # String instead of int
-                "min_swing_score": [55.0],  # List instead of float
-                "min_completeness_score": {"value": 70},  # Dict instead of int
-                "min_volume_ma_50d": 100000,
-                "min_avg_daily_dollar_volume": 500000.0,
-                "earnings_blackout_days_before": 7,
-                "earnings_blackout_days_after": 3,
-            })
+            result = validate_config_response(
+                {
+                    "min_signal_quality_score": "60",  # String instead of int
+                    "min_swing_score": [55.0],  # List instead of float
+                    "min_completeness_score": {"value": 70},  # Dict instead of int
+                    "min_volume_ma_50d": 100000,
+                    "min_avg_daily_dollar_volume": 500000.0,
+                    "earnings_blackout_days_before": 7,
+                    "earnings_blackout_days_after": 3,
+                }
+            )
             assert result is None or isinstance(result, dict)
         except (TypeError, ValueError, ResponseValidationError):
             pass
@@ -201,11 +215,13 @@ class TestValidatorGeneralRobustness:
     def test_validators_with_very_large_dict(self):
         """Validators should handle large dictionaries."""
         large_dict = {f"field_{i}": i for i in range(1000)}
-        large_dict.update({
-            "total_portfolio_value": 100000.0,
-            "total_cash": 50000.0,
-            "position_count": 5,
-        })
+        large_dict.update(
+            {
+                "total_portfolio_value": 100000.0,
+                "total_cash": 50000.0,
+                "position_count": 5,
+            }
+        )
 
         try:
             result = validate_portfolio_response(large_dict)

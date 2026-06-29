@@ -66,7 +66,9 @@ class EarningsCalendarLoader(OptimalLoader):
             try:
                 ticker = get_ticker(symbol)
                 if not ticker:
-                    logger.warning(f"[EARNINGS_CALENDAR] {symbol}: Failed to create ticker object (attempt {attempt + 1}/{max_retries})")
+                    logger.warning(
+                        f"[EARNINGS_CALENDAR] {symbol}: Failed to create ticker object (attempt {attempt + 1}/{max_retries})"
+                    )
                     if not self._track_symbol_failure(symbol):
                         error_msg = f"[EARNINGS_CALENDAR] {symbol}: Exceeded max retries ({max_retries}) for ticker creation. Cannot load earnings without valid ticker."
                         logger.error(error_msg)
@@ -158,7 +160,9 @@ class EarningsCalendarLoader(OptimalLoader):
                                     "fiscal_period": None,
                                 }
                             )
-                            logger.debug(f"[EARNINGS_CALENDAR] {symbol}: Found earnings date {ed_date} with EPS={eps_estimate}, Revenue={revenue_estimate}")
+                            logger.debug(
+                                f"[EARNINGS_CALENDAR] {symbol}: Found earnings date {ed_date} with EPS={eps_estimate}, Revenue={revenue_estimate}"
+                            )
 
                     if not results:
                         raise ValueError(
@@ -187,7 +191,9 @@ class EarningsCalendarLoader(OptimalLoader):
             except (ConnectionError, TimeoutError) as e:
                 is_timeout = isinstance(e, TimeoutError)
                 error_type = "timeout" if is_timeout else "connection"
-                logger.warning(f"[EARNINGS_CALENDAR] {symbol}: {error_type.upper()} error (attempt {attempt + 1}/{max_retries}): {e}")
+                logger.warning(
+                    f"[EARNINGS_CALENDAR] {symbol}: {error_type.upper()} error (attempt {attempt + 1}/{max_retries}): {e}"
+                )
                 if not self._track_symbol_failure(symbol):
                     error_msg = f"[EARNINGS_CALENDAR] {symbol}: Exceeded max retries ({max_retries}) for {error_type} errors. Cannot fetch earnings data."
                     logger.error(error_msg)
@@ -200,7 +206,9 @@ class EarningsCalendarLoader(OptimalLoader):
                 error_msg = str(e).lower()
                 is_rate_limit = "429" in error_msg or "rate" in error_msg or "too many" in error_msg
                 if is_rate_limit:
-                    logger.warning(f"[EARNINGS_CALENDAR] {symbol}: Rate limit error (attempt {attempt + 1}/{max_retries}): {e}")
+                    logger.warning(
+                        f"[EARNINGS_CALENDAR] {symbol}: Rate limit error (attempt {attempt + 1}/{max_retries}): {e}"
+                    )
                     if not self._track_symbol_failure(symbol):
                         error_msg_str = f"[EARNINGS_CALENDAR] {symbol}: Exceeded max retries ({max_retries}) for rate limit errors. Cannot load earnings data."
                         logger.error(error_msg_str)

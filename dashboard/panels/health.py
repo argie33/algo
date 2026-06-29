@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 PHASE_SUCCESS_STATES = ("success", "completed", "ok")
 PHASE_HALTED_STATES = ("halt", "halted", "warn", "degraded", "skipped")
 
+
 # Phase status determination strategy (replaces long if/elif chains)
 def _get_phase_status_badge(run: dict[str, Any] | None) -> str:
     """Determine run status badge from run object. Eliminates if/elif chains (OO abuser pattern)."""
@@ -69,9 +70,7 @@ def _fmt_age(r: dict[str, Any]) -> str:
         try:
             ah_f = safe_float(ah, 0.0, strict=True, field_name="age_hours")
             return (
-                f"{ah_f:.0f}h"
-                if ah_f is not None and ah_f < 24
-                else (f"{ah_f / 24:.1f}d" if ah_f is not None else "?")
+                f"{ah_f:.0f}h" if ah_f is not None and ah_f < 24 else (f"{ah_f / 24:.1f}d" if ah_f is not None else "?")
             )
         except (StrictValidationError, ValueError, TypeError):
             return "?"
@@ -280,11 +279,12 @@ def _build_freshness_panel(hlth_items: list[Any], ready_to_trade: bool | None) -
         # CRITICAL: Explicit None check instead of OR fallback
         # Critical table name missing should be logged, not silently fallback
         def get_crit_table_name(r: dict[str, Any]) -> str:
-            tbl_val = r.get('tbl')
+            tbl_val = r.get("tbl")
             if tbl_val is None:
                 logger.warning(f"[HEALTH] Critical table missing 'tbl' field. Keys: {list(r.keys())}")
-                return 'unknown'
+                return "unknown"
             return str(tbl_val)
+
         crit_names = "  ".join(f"[bold white]{get_crit_table_name(r)[:18]}[/]" for r in crit_stale)
         left_rows.append(Text.from_markup(f"[bold {R}]⚠ CRIT STALE:[/]  {crit_names}"))
 
@@ -385,9 +385,7 @@ def _format_orch_config_string(cfg_params: dict[str, Any]) -> str:
 
     min_score_f = safe_float(cfg_params.get("min_score"), default=None)
     score_s = (
-        f"[dim]min score ≥[/][white]{cfg_params['min_score']}[/]"
-        if min_score_f is not None and min_score_f > 0
-        else ""
+        f"[dim]min score ≥[/][white]{cfg_params['min_score']}[/]" if min_score_f is not None and min_score_f > 0 else ""
     )
     max_n = cfg_params.get("max_pos_n")
     slots_s = f"[dim]max [/][white]{max_n}[/][dim] positions[/]" if max_n is not None and max_n else ""
@@ -523,7 +521,9 @@ def panel_orch(run: dict[str, Any] | None, cfg: dict[str, Any], risk: dict[str, 
                 else:
                     fallback_short = base.replace("phase_", "P")[:9]
                     if base not in ("", "unknown"):
-                        logger.debug(f"[HEALTH] Phase '{base}' not in PHASE_NAMES, using generated short: {fallback_short}")
+                        logger.debug(
+                            f"[HEALTH] Phase '{base}' not in PHASE_NAMES, using generated short: {fallback_short}"
+                        )
                     short = fallback_short
                 ps_raw = p.get("status")
                 if ps_raw is None:
@@ -791,11 +791,12 @@ def _format_data_health_summary(hlth_items: list[Any]) -> list[Text]:
             # CRITICAL: Explicit None check instead of OR fallback
             # Missing critical table name is a data integrity issue
             def get_safe_crit_table(r: dict[str, Any]) -> str:
-                tbl = r.get('tbl')
+                tbl = r.get("tbl")
                 if tbl is None:
                     logger.warning(f"[HEALTH] Critical table missing 'tbl' field. Keys: {list(r.keys())}")
-                    return 'unknown'
+                    return "unknown"
                 return str(tbl)
+
             crit_parts = "  ".join(f"[{G}]OK[/][dim]{get_safe_crit_table(r)[:13]}[/]" for r in crit)
             rows.append(Text.from_markup(f"  {crit_parts}"))
     else:
@@ -877,9 +878,9 @@ def _format_loader_status(loader: list[Any]) -> list[Text]:
     # CRITICAL: Explicit status check instead of implicit OR fallback
     # Missing status should be detected as error state, not silently bypassed
     problem_loader = [
-        r for r in valid_loader
-        if (r.get("status") is not None and r.get("status") in LOADER_STATUS_ERROR)
-        or r.get("status") == "unknown"
+        r
+        for r in valid_loader
+        if (r.get("status") is not None and r.get("status") in LOADER_STATUS_ERROR) or r.get("status") == "unknown"
     ]
     running_loader = [r for r in valid_loader if r.get("status") == LOADER_STATUS_LOADING]
     ok_count = len(valid_loader) - len(problem_loader) - len(running_loader)
@@ -1037,7 +1038,10 @@ def _format_audit_log_summary(audit: list[Any]) -> list[Text]:
         if a.get("action_type")
         # CRITICAL: Explicit None check instead of OR fallback with str()
         # Missing action_type should trigger validation, not silent fallback
-        and any(k in (str(a.get("action_type")) if a.get("action_type") is not None else "") for k in ("entry", "exit", "halt", "resume", "circuit"))
+        and any(
+            k in (str(a.get("action_type")) if a.get("action_type") is not None else "")
+            for k in ("entry", "exit", "halt", "resume", "circuit")
+        )
     ][:3]
 
     if not notable:
@@ -1333,9 +1337,7 @@ def _format_run_history_summary(valid_hist: list[Any] | None) -> list[Text]:
     badges = []
     for r in valid_hist[:7]:
         s = _get_status_safe(r)
-        badges.append(
-            f"[{G}]OK[/]" if s in PHASE_SUCCESS_STATES else (f"[{Y}]~[/]" if s == "halted" else f"[{R}]X[/]")
-        )
+        badges.append(f"[{G}]OK[/]" if s in PHASE_SUCCESS_STATES else (f"[{Y}]~[/]" if s == "halted" else f"[{R}]X[/]"))
 
     wc = G if n_ok == total_h else (Y if n_ok > 0 else R)
     rows.append(
@@ -1887,8 +1889,11 @@ def panel_status(  # noqa: C901
             for a in valid_audit
             if a.get("action_type")
             # CRITICAL: Explicit None check instead of OR fallback with str()
-        # Missing action_type should trigger validation, not silent fallback
-        and any(k in (str(a.get("action_type")) if a.get("action_type") is not None else "") for k in ("entry", "exit", "halt", "resume", "circuit"))
+            # Missing action_type should trigger validation, not silent fallback
+            and any(
+                k in (str(a.get("action_type")) if a.get("action_type") is not None else "")
+                for k in ("entry", "exit", "halt", "resume", "circuit")
+            )
         ][:3]
         if notable:
             rows.append(Rule(style="dim"))

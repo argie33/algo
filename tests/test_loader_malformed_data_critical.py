@@ -34,13 +34,13 @@ class TestAlgoMetricsDailyLoaderValidation:
         malformed_row = (
             date(2026, 6, 23),  # trading_date
             None,  # total_actions - NULL (invalid)
-            5,     # entries
-            2,     # exits
+            5,  # entries
+            2,  # exits
             75.5,  # avg_signal_score
         )
 
         loader = AlgoMetricsDailyLoader()
-        with patch('loaders.load_algo_metrics_daily.DatabaseContext') as mock_db:
+        with patch("loaders.load_algo_metrics_daily.DatabaseContext") as mock_db:
             mock_db.return_value.__enter__.return_value.fetchone.return_value = malformed_row
 
             # VALIDATION: Loader should raise error on NULL required field
@@ -59,7 +59,7 @@ class TestAlgoMetricsDailyLoaderValidation:
         )
 
         loader = AlgoMetricsDailyLoader()
-        with patch('loaders.load_algo_metrics_daily.DatabaseContext') as mock_db:
+        with patch("loaders.load_algo_metrics_daily.DatabaseContext") as mock_db:
             mock_db.return_value.__enter__.return_value.fetchone.return_value = malformed_row
 
             # VALIDATION: Loader should reject non-numeric score
@@ -78,7 +78,7 @@ class TestAlgoMetricsDailyLoaderValidation:
         )
 
         loader = AlgoMetricsDailyLoader()
-        with patch('loaders.load_algo_metrics_daily.DatabaseContext') as mock_db:
+        with patch("loaders.load_algo_metrics_daily.DatabaseContext") as mock_db:
             mock_db.return_value.__enter__.return_value.fetchone.return_value = malformed_row
 
             # VALIDATION: Loader should reject negative values
@@ -92,12 +92,12 @@ class TestAlgoMetricsDailyLoaderValidation:
             date(2026, 6, 23),
             10,  # total_actions
             20,  # entries - MORE THAN TOTAL (invalid)
-            5,   # exits
+            5,  # exits
             75.5,
         )
 
         loader = AlgoMetricsDailyLoader()
-        with patch('loaders.load_algo_metrics_daily.DatabaseContext') as mock_db:
+        with patch("loaders.load_algo_metrics_daily.DatabaseContext") as mock_db:
             mock_db.return_value.__enter__.return_value.fetchone.return_value = malformed_row
 
             # VALIDATION: Loader should reject logically inconsistent data
@@ -109,20 +109,20 @@ class TestAlgoMetricsDailyLoaderValidation:
         # Database returns NULL score when no signals on that day
         valid_row = (
             date(2026, 6, 23),
-            0,     # total_actions - no actions
-            0,     # entries
-            0,     # exits
+            0,  # total_actions - no actions
+            0,  # entries
+            0,  # exits
             None,  # avg_signal_score - NULL (valid when no signals)
         )
 
         loader = AlgoMetricsDailyLoader()
-        with patch('loaders.load_algo_metrics_daily.DatabaseContext') as mock_db:
+        with patch("loaders.load_algo_metrics_daily.DatabaseContext") as mock_db:
             mock_db.return_value.__enter__.return_value.fetchone.return_value = valid_row
 
             result = loader.fetch_global(since=None)
             # Should handle NULL score
             assert result is not None
-            assert result[0]['avg_signal_score'] is None
+            assert result[0]["avg_signal_score"] is None
 
     def test_loader_rejects_non_date_value(self):
         """Should reject non-date trading_date value."""
@@ -136,13 +136,13 @@ class TestAlgoMetricsDailyLoaderValidation:
         )
 
         loader = AlgoMetricsDailyLoader()
-        with patch('loaders.load_algo_metrics_daily.DatabaseContext') as mock_db:
+        with patch("loaders.load_algo_metrics_daily.DatabaseContext") as mock_db:
             mock_db.return_value.__enter__.return_value.fetchone.return_value = malformed_row
 
             # Should validate type
             result = loader.fetch_global(since=None)
             # Verify date is actually a date object
-            assert isinstance(result[0]['date'], date) or isinstance(result[0]['date'], str)
+            assert isinstance(result[0]["date"], date) or isinstance(result[0]["date"], str)
 
 
 class TestLoaderOutputDataValidation:
@@ -159,7 +159,7 @@ class TestLoaderOutputDataValidation:
         )
 
         loader = AlgoMetricsDailyLoader()
-        with patch('loaders.load_algo_metrics_daily.DatabaseContext') as mock_db:
+        with patch("loaders.load_algo_metrics_daily.DatabaseContext") as mock_db:
             mock_db.return_value.__enter__.return_value.fetchone.return_value = valid_row
 
             result = loader.fetch_global(since=None)
@@ -169,7 +169,7 @@ class TestLoaderOutputDataValidation:
             assert len(result) > 0
 
             output = result[0]
-            required_fields = ['date', 'total_actions', 'entries', 'exits', 'avg_signal_score']
+            required_fields = ["date", "total_actions", "entries", "exits", "avg_signal_score"]
             for field in required_fields:
                 assert field in output, f"Missing required field: {field}"
 
@@ -184,19 +184,22 @@ class TestLoaderOutputDataValidation:
         )
 
         loader = AlgoMetricsDailyLoader()
-        with patch('loaders.load_algo_metrics_daily.DatabaseContext') as mock_db:
+        with patch("loaders.load_algo_metrics_daily.DatabaseContext") as mock_db:
             mock_db.return_value.__enter__.return_value.fetchone.return_value = valid_row
 
             result = loader.fetch_global(since=None)
             output = result[0]
 
             # STRONG ASSERTION: Verify field types
-            assert isinstance(output['date'], date), f"date should be date object, got {type(output['date'])}"
-            assert isinstance(output['total_actions'], int), f"total_actions should be int, got {type(output['total_actions'])}"
-            assert isinstance(output['entries'], int), f"entries should be int, got {type(output['entries'])}"
-            assert isinstance(output['exits'], int), f"exits should be int, got {type(output['exits'])}"
-            assert output['avg_signal_score'] is None or isinstance(output['avg_signal_score'], float), \
+            assert isinstance(output["date"], date), f"date should be date object, got {type(output['date'])}"
+            assert isinstance(output["total_actions"], int), (
+                f"total_actions should be int, got {type(output['total_actions'])}"
+            )
+            assert isinstance(output["entries"], int), f"entries should be int, got {type(output['entries'])}"
+            assert isinstance(output["exits"], int), f"exits should be int, got {type(output['exits'])}"
+            assert output["avg_signal_score"] is None or isinstance(output["avg_signal_score"], float), (
                 f"avg_signal_score should be float or None, got {type(output['avg_signal_score'])}"
+            )
 
     def test_loader_output_value_ranges(self):
         """Loader output should have valid value ranges."""
@@ -209,22 +212,24 @@ class TestLoaderOutputDataValidation:
         )
 
         loader = AlgoMetricsDailyLoader()
-        with patch('loaders.load_algo_metrics_daily.DatabaseContext') as mock_db:
+        with patch("loaders.load_algo_metrics_daily.DatabaseContext") as mock_db:
             mock_db.return_value.__enter__.return_value.fetchone.return_value = valid_row
 
             result = loader.fetch_global(since=None)
             output = result[0]
 
             # STRONG ASSERTION: Verify value ranges
-            assert output['total_actions'] >= 0, "total_actions should be non-negative"
-            assert output['entries'] >= 0, "entries should be non-negative"
-            assert output['exits'] >= 0, "exits should be non-negative"
-            assert output['entries'] + output['exits'] <= output['total_actions'], \
+            assert output["total_actions"] >= 0, "total_actions should be non-negative"
+            assert output["entries"] >= 0, "entries should be non-negative"
+            assert output["exits"] >= 0, "exits should be non-negative"
+            assert output["entries"] + output["exits"] <= output["total_actions"], (
                 "entries + exits should not exceed total_actions"
+            )
 
-            if output['avg_signal_score'] is not None:
-                assert 0 <= output['avg_signal_score'] <= 100, \
+            if output["avg_signal_score"] is not None:
+                assert 0 <= output["avg_signal_score"] <= 100, (
                     f"avg_signal_score should be 0-100, got {output['avg_signal_score']}"
+                )
 
 
 class TestLoaderErrorHandling:
@@ -233,7 +238,7 @@ class TestLoaderErrorHandling:
     def test_loader_with_database_connection_error(self):
         """Should raise clear error when database connection fails."""
         loader = AlgoMetricsDailyLoader()
-        with patch('loaders.load_algo_metrics_daily.DatabaseContext') as mock_db:
+        with patch("loaders.load_algo_metrics_daily.DatabaseContext") as mock_db:
             mock_db.return_value.__enter__.side_effect = RuntimeError("Connection refused")
 
             # Should raise clear error, not crash silently
@@ -243,7 +248,7 @@ class TestLoaderErrorHandling:
     def test_loader_with_no_data_for_date(self):
         """Should raise clear error when no data for date."""
         loader = AlgoMetricsDailyLoader()
-        with patch('loaders.load_algo_metrics_daily.DatabaseContext') as mock_db:
+        with patch("loaders.load_algo_metrics_daily.DatabaseContext") as mock_db:
             mock_db.return_value.__enter__.return_value.fetchone.return_value = None
 
             # Should raise clear error, not return empty list
@@ -261,12 +266,12 @@ class TestLoaderErrorHandling:
         )
 
         loader = AlgoMetricsDailyLoader()
-        with patch('loaders.load_algo_metrics_daily.DatabaseContext') as mock_db:
+        with patch("loaders.load_algo_metrics_daily.DatabaseContext") as mock_db:
             mock_db.return_value.__enter__.return_value.fetchone.return_value = valid_row
 
             result = loader.fetch_global(since=None)
             assert result is not None
-            assert result[0]['total_actions'] == 0
+            assert result[0]["total_actions"] == 0
 
 
 class TestLoaderDocumentation:
@@ -291,7 +296,7 @@ class TestLoaderRealWorldScenarios:
         """Scenario: Late-day trade doesn't appear in audit log yet."""
         # No data for today (late night query before trades processed)
         loader = AlgoMetricsDailyLoader()
-        with patch('loaders.load_algo_metrics_daily.DatabaseContext') as mock_db:
+        with patch("loaders.load_algo_metrics_daily.DatabaseContext") as mock_db:
             mock_db.return_value.__enter__.return_value.fetchone.return_value = None
 
             # Should fail-fast, not hang or retry infinitely
@@ -310,7 +315,7 @@ class TestLoaderRealWorldScenarios:
         )
 
         loader = AlgoMetricsDailyLoader()
-        with patch('loaders.load_algo_metrics_daily.DatabaseContext') as mock_db:
+        with patch("loaders.load_algo_metrics_daily.DatabaseContext") as mock_db:
             mock_db.return_value.__enter__.return_value.fetchone.return_value = malformed_row
 
             # Should raise clear error (not silent default)
@@ -329,11 +334,10 @@ class TestLoaderRealWorldScenarios:
         )
 
         loader = AlgoMetricsDailyLoader()
-        with patch('loaders.load_algo_metrics_daily.DatabaseContext') as mock_db:
+        with patch("loaders.load_algo_metrics_daily.DatabaseContext") as mock_db:
             mock_db.return_value.__enter__.return_value.fetchone.return_value = valid_row
 
             result = loader.fetch_global(since=None)
             # Should handle extreme values
-            assert result[0]['total_actions'] == 10000
-            assert result[0]['entries'] + result[0]['exits'] == 10000
-
+            assert result[0]["total_actions"] == 10000
+            assert result[0]["entries"] + result[0]["exits"] == 10000

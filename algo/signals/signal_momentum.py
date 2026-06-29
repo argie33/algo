@@ -266,8 +266,7 @@ class SignalMomentumMixin:
             rows = cur.fetchall()
             if not rows:
                 raise ValueError(
-                    f"[POCKET_PIVOT] No price history for {symbol}. "
-                    f"Cannot evaluate pocket pivot without price data."
+                    f"[POCKET_PIVOT] No price history for {symbol}. Cannot evaluate pocket pivot without price data."
                 )
 
             # Find max down-day volume in lookback window

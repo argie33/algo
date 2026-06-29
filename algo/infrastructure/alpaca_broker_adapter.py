@@ -73,7 +73,8 @@ class AlpacaBrokerAdapter(BrokerAdapter):
                     if equity_val is None:
                         logger.error(
                             "CRITICAL: Alpaca /v2/account response missing both 'portfolio_value' and 'equity' fields. "
-                            "Response keys: %s", list(data.keys())
+                            "Response keys: %s",
+                            list(data.keys()),
                         )
                         raise ValueError(
                             "Alpaca /v2/account response missing both 'portfolio_value' and 'equity' fields. "
@@ -85,7 +86,8 @@ class AlpacaBrokerAdapter(BrokerAdapter):
                             "CRITICAL: Alpaca /v2/account response missing 'portfolio_value' field. "
                             "Found 'equity' field instead, but these fields may have different meanings. "
                             "Cannot silently swap without verifying API compatibility. "
-                            "Response keys: %s", list(data.keys())
+                            "Response keys: %s",
+                            list(data.keys()),
                         )
                         raise ValueError(
                             "Alpaca /v2/account response missing 'portfolio_value' field and only 'equity' available. "

@@ -232,7 +232,7 @@ def get_success_rate(days: int = 7) -> dict[str, Any]:
                     "period_days": days,
                 }
 
-            for status_key in ['success', 'halted', 'error']:
+            for status_key in ["success", "halted", "error"]:
                 if status_key not in stats:
                     raise ValueError(f"Missing '{status_key}' count in orchestrator stats — data incomplete")
 
