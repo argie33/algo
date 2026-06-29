@@ -2338,37 +2338,10 @@ def main() -> int:
                 "Audit trail integrity is mandatory for Phase 7 reconciliation."
             ) from log_err
 
-    # Essential symbols that must be present in price_daily regardless of what stock_symbols contains.
-    # stock_symbols excludes ETFs, so these never appear via get_active_symbols().
-    # SPY is required by: load_technical_data_daily (Mansfield RS), load_seasonality,
-    #   load_market_health_daily breadth check, and algo_market_exposure yield-curve factor.
-    # GLD/TLT are used by the correlation matrix endpoint and macro regime logic.
-    essential_stock_price_daily = ["SPY", "QQQ", "IWM", "DIA", "GLD", "TLT"]
-
-    # Sector ETFs: required by load_sector_performance (YTD returns), SectorHeatMap,
-    # and the prices route /api/prices/history/{etf} called by the frontend.
-    # These land in etf_price_daily (the prices route falls back to this table).
-    essential_etf_symbols = [
-        "SPY",
-        "QQQ",
-        "IWM",
-        "DIA",  # Index ETFs -" IndicesStrip sparklines
-        "XLK",
-        "XLF",
-        "XLV",
-        "XLY",
-        "XLC",  # Sector ETFs -" SectorHeatMap + sector_performance
-        "XLI",
-        "XLP",
-        "XLE",
-        "XLU",
-        "XLRE",
-        "XLB",
-        "GLD",
-        "TLT",
-        "IVV",
-        "VXX",  # Macro ETFs - correlation matrix
-    ]
+    # Load essential symbols from configuration (centralized to prevent inconsistencies)
+    from utils.market_symbols_config import MarketSymbolsConfig
+    essential_stock_price_daily = MarketSymbolsConfig.get_essential_stocks()
+    essential_etf_symbols = MarketSymbolsConfig.get_essential_etf_symbols()
 
     # CREATIVE FIX #5: Interval staggering with time delays
     # Instead of loading 1d, 1wk, 1mo sequentially (causing API load spike),

@@ -207,7 +207,12 @@ def _next_run_from_schedule(schedule: list[dict[str, Any]]) -> str:
 
 
 def _next_run_hardcoded() -> str:
-    """Fallback: Calculate next run using hardcoded schedule (9:30 AM, 1 PM, 3 PM, 5:30 PM ET)."""
+    """Fallback: Calculate next run using configured schedule when API unavailable.
+
+    Uses default schedule from MarketSymbolsConfig (configurable via algo_config table).
+    """
+    from utils.market_symbols_config import MarketSymbolsConfig
+
     now = datetime.now(ET)
     wd = now.weekday()
     t = now.hour * 60 + now.minute
@@ -227,15 +232,43 @@ def _next_run_hardcoded() -> str:
             d += timedelta(days=1)
         return d
 
+    # Get schedule from configuration (or defaults if not configured)
+    schedule = MarketSymbolsConfig.get_orchestrator_schedule()
+    if not schedule:
+        # Safety fallback if config is empty
+        schedule = [{"hour": 2, "minute": 0}, {"hour": 9, "minute": 30}]
+
+    # Find next scheduled run
     if wd < 5:
-        if t < 120:
-            return f"prep {fmt(now.replace(hour=2, minute=0, second=0, microsecond=0))}"
-        if t < 570:
-            return f"orch {fmt(now.replace(hour=9, minute=30, second=0, microsecond=0))}"
-        tgt = next_wkd(now).replace(hour=2, minute=0, second=0, microsecond=0)
-        return f"prep {fmt(tgt)}"
-    tgt = next_wkd(now).replace(hour=2, minute=0, second=0, microsecond=0)
-    return f"prep {fmt(tgt)}"
+        # Weekday: find next run today
+        today_runs = []
+        for run in schedule:
+            run_hour = run.get("hour", 9)
+            run_minute = run.get("minute", 30)
+            run_t = run_hour * 60 + run_minute
+            if run_t > t:
+                run_dt = now.replace(hour=run_hour, minute=run_minute, second=0, microsecond=0)
+                today_runs.append((run_t, run_dt))
+
+        if today_runs:
+            next_run_dt = sorted(today_runs)[0][1]
+            run_type = "orch" if next_run_dt.hour >= 9 else "prep"
+            return f"{run_type} {fmt(next_run_dt)}"
+
+    # No run today (or past market close on weekday) - show first run tomorrow
+    if schedule:
+        first_run = schedule[0]
+        tgt = next_wkd(now).replace(
+            hour=first_run.get("hour", 2),
+            minute=first_run.get("minute", 0),
+            second=0,
+            microsecond=0,
+        )
+        run_type = "prep" if tgt.hour < 9 else "orch"
+        return f"{run_type} {fmt(tgt)}"
+
+    # Absolute fallback (should never reach here)
+    return "schedule unavailable"
 
 
 def hbar(cur: Any, thr: Any, w: int = 6) -> str:

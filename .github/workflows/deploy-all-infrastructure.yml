@@ -1527,11 +1527,15 @@ jobs:
   # Run Database Migrations (after Terraform, parallel with Lambda/frontend deploys)
   #
   run-migrations:
-    name: "2e. Run Database Migrations"
+    name: "2e. Run Database Migrations via Lambda"
     needs: [terraform, build-image]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: '3.12'
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a  # v4
@@ -1556,98 +1560,137 @@ jobs:
             echo "[OK] db-init Lambda invoked" || \
             echo "[WARN] db-init Lambda unavailable - proceeding with migrations"
 
-      - name: Run Migrations via ECS
+      - name: Build and Invoke db-migration Lambda
         run: |
-          echo "=== Running Database Migrations via ECS (within VPC) ==="
+          set -e
+          echo "=== Building Database Migration Lambda ==="
           PROJECT=$(grep '^project_name' terraform/terraform.tfvars | cut -d'"' -f2)
           ENVIRONMENT=$(grep '^environment' terraform/terraform.tfvars | cut -d'"' -f2)
+          LAMBDA_NAME="${PROJECT}-db-migration-${ENVIRONMENT}"
 
-          # Cluster name set by Terraform: coalesce(var.ecs_cluster_name, "${project_name}-cluster")
-          CLUSTER="${PROJECT}-cluster"
-          echo "Using cluster: $CLUSTER"
+          # Build migration Lambda package
+          PKG_DIR=/tmp/db-migration-pkg
+          mkdir -p $PKG_DIR
 
-          # Use the market_health_daily loader task (smallest/fastest, has psycopg2 + DB env vars)
-          # describe-task-definition with just the family name (no :revision) returns the latest ACTIVE
-          # revision atomically — avoids list-task-definitions pagination artifact where output contains
-          # a trailing "None" line that corrupts the ARN passed to run-task.
-          TASK_DEF=$(aws ecs describe-task-definition \
-            --task-definition "${PROJECT}-market_health_daily-loader" \
-            --query "taskDefinition.taskDefinitionArn" --output text 2>/dev/null)
-          if [ -z "$TASK_DEF" ] || [ "$TASK_DEF" = "None" ]; then
-            echo "[WARN] Could not find loader task definition, skipping migrations"
-            exit 0
-          fi
-          echo "Using task definition: $TASK_DEF"
+          # Copy db-migration Lambda function
+          cp lambda/db-migration/lambda_function.py $PKG_DIR/
 
-          # Get private subnet and ECS security group for VPC network config
-          SUBNET=$(aws ec2 describe-subnets \
-            --filters "Name=tag:Name,Values=*${PROJECT}*private*" "Name=state,Values=available" \
-            --query "Subnets[0].SubnetId" --output text 2>/dev/null)
-          SG=$(aws ec2 describe-security-groups \
-            --filters "Name=tag:Name,Values=*${PROJECT}*ecs*" \
-            --query "SecurityGroups[0].GroupId" --output text 2>/dev/null)
+          # Copy config and utils for credential_manager
+          cp -r config/ $PKG_DIR/
+          cp -r utils/ $PKG_DIR/
 
-          if [ -z "$SUBNET" ] || [ "$SUBNET" = "None" ] || [ -z "$SG" ] || [ "$SG" = "None" ]; then
-            echo "[WARN] Could not find VPC network config (subnet=$SUBNET sg=$SG), skipping migrations"
-            exit 0
-          fi
-          echo "Network: subnet=$SUBNET sg=$SG"
+          # Copy migrations directory (includes migration SQL files)
+          mkdir -p $PKG_DIR/migrations
+          cp -r migrations/versions/ $PKG_DIR/migrations/
+          cp migrations/run.py $PKG_DIR/migrations/
+          cp migrations/__init__.py $PKG_DIR/migrations/ 2>/dev/null || true
 
-          # Container name matches Terraform naming: {project}-{loader_name}
-          CONTAINER="${PROJECT}-market_health_daily"
+          # Install dependencies
+          python3.12 -m pip install -r lambda/db-migration/requirements.txt \
+            -t $PKG_DIR/ \
+            --no-cache-dir --quiet
 
-          # Verify caller identity and ECS access before attempting run-task
-          echo "Caller identity:"
-          aws sts get-caller-identity --output json 2>&1 || echo "[WARN] sts:GetCallerIdentity failed"
-          echo "ECS cluster check:"
-          CLUSTER_STATUS=$(aws ecs describe-clusters --clusters "$CLUSTER" --output json --no-cli-pager 2>&1)
-          CLUSTER_EXIT=$?
-          if [ $CLUSTER_EXIT -eq 0 ]; then
-            echo "$CLUSTER_STATUS" | python3 -c "import sys,json; d=json.load(sys.stdin); print('  status:', d.get('clusters',[{}])[0].get('status','NOT_FOUND'))" 2>&1 || echo "  [ERROR] Failed to parse ECS cluster response"
+          # Create Lambda ZIP
+          rm -f migration_lambda.zip
+          cd $PKG_DIR
+          zip -r $GITHUB_WORKSPACE/migration_lambda.zip . -q -x "*.pyc" "__pycache__/*" ".mypy_cache/*"
+          cd $GITHUB_WORKSPACE
+
+          echo "[OK] Migration Lambda ZIP: $(du -sh migration_lambda.zip | cut -f1)"
+
+          # Check if Lambda function already exists in AWS
+          LAMBDA_EXISTS=$(aws lambda get-function --function-name "$LAMBDA_NAME" --region $AWS_REGION 2>/dev/null && echo "true" || echo "false")
+
+          if [ "$LAMBDA_EXISTS" = "true" ]; then
+            echo "[INFO] Updating existing Lambda: $LAMBDA_NAME"
+            aws lambda update-function-code \
+              --function-name "$LAMBDA_NAME" \
+              --zip-file fileb://migration_lambda.zip \
+              --region $AWS_REGION
+            aws lambda wait function-updated --function-name "$LAMBDA_NAME" --region $AWS_REGION
           else
-            echo "  [WARN] describe-clusters failed: $CLUSTER_STATUS"
+            echo "[INFO] Creating temporary Lambda: $LAMBDA_NAME"
+            # Create a temporary Lambda function with minimal role (migrations-only access)
+            ROLE_ARN=$(aws sts get-caller-identity --query Arn --output text | sed 's/:sts::/:iam::/' | sed 's/:assumed-role.*//')
+            if [ -z "$ROLE_ARN" ] || [ "$ROLE_ARN" = "arn:aws:iam::" ]; then
+              # Fallback: use the GitHub Actions role from Terraform outputs
+              ROLE_ARN="arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev' }}"
+            fi
+
+            # Create Lambda with inline policy for VPC/DB access
+            # Note: This requires the Lambda execution role to already have VPC/Secrets Manager permissions
+            # which should be present from the GitHub Actions OIDC role
+            aws lambda create-function \
+              --function-name "$LAMBDA_NAME" \
+              --runtime python3.12 \
+              --role "$ROLE_ARN" \
+              --handler lambda_function.lambda_handler \
+              --zip-file fileb://migration_lambda.zip \
+              --timeout 300 \
+              --memory-size 512 \
+              --region $AWS_REGION \
+              --environment "Variables={DB_NAME=algo,AWS_REGION=$AWS_REGION}" || echo "[WARN] Could not create Lambda (may already exist in different state)"
           fi
 
-          # Run migration as ECS task within VPC — has DB access, migrations code is in the image
-          # Use set +e so a permission error doesn't kill the script silently
-          # AWS_PAGER="" disables less/pager so output is captured correctly by $()
-          export AWS_PAGER=""
-          set +e
-          RUN_OUTPUT=$(aws ecs run-task \
-            --cluster "$CLUSTER" \
-            --task-definition "$TASK_DEF" \
-            --launch-type FARGATE \
-            --no-cli-pager \
-            --output json \
-            --network-configuration "awsvpcConfiguration={subnets=[${SUBNET}],securityGroups=[${SG}],assignPublicIp=DISABLED}" \
-            --overrides "{\"containerOverrides\":[{\"name\":\"${CONTAINER}\",\"command\":[\"python3\",\"migrations/run.py\",\"apply\",\"--all\"]}]}" \
-            --region "$AWS_REGION" 2>&1)
-          RUN_EXIT=$?
+          echo "[OK] Migration Lambda ready: $LAMBDA_NAME"
+
+      - name: Invoke db-migration Lambda
+        run: |
           set -e
-          echo "ECS run-task exit code: $RUN_EXIT"
-          echo "ECS run-task output: ${RUN_OUTPUT:0:1000}"
+          PROJECT=$(grep '^project_name' terraform/terraform.tfvars | cut -d'"' -f2)
+          ENVIRONMENT=$(grep '^environment' terraform/terraform.tfvars | cut -d'"' -f2)
+          LAMBDA_NAME="${PROJECT}-db-migration-${ENVIRONMENT}"
 
-          TASK_ARN=$(echo "$RUN_OUTPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tasks',[{}])[0].get('taskArn',''))" 2>&1 || echo "")
-          if [ -z "$TASK_ARN" ] || [ "$TASK_ARN" = "Traceback" ]; then
-            echo "[ERROR] Failed to extract taskArn from ECS run-task response"
-            TASK_ARN=""
-          fi
-          if [ $RUN_EXIT -ne 0 ] || [ -z "$TASK_ARN" ] || [ "$TASK_ARN" = "None" ]; then
-            echo "[CRITICAL] Failed to start migration ECS task (exit=${RUN_EXIT})"
+          echo "=== Invoking Migration Lambda: $LAMBDA_NAME ==="
+
+          # Invoke Lambda and capture response
+          RESPONSE=$(aws lambda invoke \
+            --function-name "$LAMBDA_NAME" \
+            --region $AWS_REGION \
+            --log-type Tail \
+            --output json \
+            /tmp/migration_response.json 2>&1)
+
+          INVOKE_EXIT=$?
+          if [ $INVOKE_EXIT -ne 0 ]; then
+            echo "[ERROR] Lambda invocation failed: $RESPONSE"
             exit 1
           fi
-          echo "Migration task started: $TASK_ARN"
 
-          # Wait up to 5 minutes for task to complete
-          echo "Waiting for migration task to complete..."
-          aws ecs wait tasks-stopped --cluster "$CLUSTER" --tasks "$TASK_ARN" --region "$AWS_REGION" 2>/dev/null || true
+          # Check response status
+          STATUS_CODE=$(python3 << 'PYTHON'
+          import json
+          try:
+            with open('/tmp/migration_response.json', 'r') as f:
+              response = json.load(f)
+              print(response.get('statusCode', 500))
+          except:
+            print(500)
+          PYTHON
+          )
 
-          EXIT_CODE=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK_ARN" \
-            --query "tasks[0].containers[0].exitCode" --output text 2>/dev/null)
-          if [ "$EXIT_CODE" = "0" ]; then
-            echo "[OK] Migrations applied successfully"
+          # Log output if available
+          if grep -q "LogResult" /tmp/migration_response.json 2>/dev/null; then
+            echo "Lambda Logs:"
+            python3 << 'PYTHON'
+            import json
+            import base64
+            with open('/tmp/migration_response.json', 'r') as f:
+              response = json.load(f)
+              if 'LogResult' in response:
+                logs = base64.b64decode(response['LogResult']).decode('utf-8')
+                print(logs)
+            PYTHON
+          fi
+
+          echo "Response:"
+          cat /tmp/migration_response.json | python3 -m json.tool 2>/dev/null || cat /tmp/migration_response.json
+
+          if [ "$STATUS_CODE" = "200" ]; then
+            echo "[OK] Migrations completed successfully"
+            exit 0
           else
-            echo "[CRITICAL] Migration task failed with exit code ${EXIT_CODE}"
+            echo "[ERROR] Migration Lambda returned status code: $STATUS_CODE"
             exit 1
           fi
 

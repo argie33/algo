@@ -154,31 +154,30 @@ class PutCallRatioFetcher:
         # Default to transient for unknown errors (better to retry than silently fail)
         return True
 
-    def fetch(self, eval_date: date) -> float | None:
+    def fetch(self, eval_date: date) -> float:
         """Fetch put/call ratio with exponential backoff retry and circuit breaker protection.
 
         Returns:
             float: Put/call ratio if successful
-            None: If all retries exhausted or permanent error encountered
+
+        Raises:
+            RuntimeError: If all retries exhausted or data unavailable
         """
         # Attempt direct fetch with retries first (before circuit breaker check)
         result = self._fetch_with_retries(eval_date)
 
         if result is None:
-            # All retries exhausted - log and return None
-            logger.warning(
-                f"[PUT_CALL_RATIO] All retries exhausted for {eval_date}. "
-                f"Options sentiment enrichment unavailable (will be marked data_unavailable)."
+            raise RuntimeError(
+                f"[PUT_CALL_RATIO] {eval_date}: unable to fetch put/call ratio after {self.MAX_RETRIES} retries. "
+                f"Cannot compute market sentiment without options data."
             )
-            return None
 
         # Validate result type
         if not isinstance(result, float):
-            logger.warning(
-                f"[PUT_CALL_RATIO] Fetch returned unexpected type {type(result).__name__}. "
+            raise RuntimeError(
+                f"[PUT_CALL_RATIO] {eval_date}: fetch returned unexpected type {type(result).__name__}. "
                 f"Expected float, got {result!r}."
             )
-            return None
 
         return result
 
@@ -367,33 +366,27 @@ class YieldCurveFetcher:
     def fetch(self, start: date, end: date) -> dict[str, Any]:
         """Fetch yield curve data with exponential backoff retry and circuit breaker protection.
 
-        IMPORTANT: This is OPTIONAL enrichment (not critical for trading).
-        Returns explicit data_unavailable flag on failures so callers can distinguish
-        between "no data available" and "fetcher failed".
-
         Returns:
-            dict with yield data keyed by date, or marker dict with data_unavailable=True if data unavailable.
+            dict with yield data keyed by date
+
+        Raises:
+            RuntimeError: If data unavailable after retries or invalid response type
         """
         # Attempt direct fetch with retries first (before circuit breaker check)
         result = self._fetch_with_retries(start, end)
 
         if result is None:
-            # All retries exhausted
-            logger.warning(
-                f"[YIELD_CURVE] All retries exhausted for {start}:{end}. "
-                f"Yield curve enrichment unavailable (will be marked data_unavailable)."
+            raise RuntimeError(
+                f"[YIELD_CURVE] {start}:{end}: unable to fetch yield curve data after {self.MAX_RETRIES} retries. "
+                f"Cannot compute market stress metrics without yield curve data."
             )
-            return {"data_unavailable": True, "reason": "All retries exhausted"}
 
         # Validate result type
         if not isinstance(result, dict):
-            logger.warning(
-                f"[YIELD_CURVE] Invalid response type {type(result).__name__} for {start}:{end} — enrichment unavailable"
+            raise RuntimeError(
+                f"[YIELD_CURVE] {start}:{end}: fetch returned unexpected type {type(result).__name__}. "
+                f"Expected dict, got {result!r}."
             )
-            return {"data_unavailable": True, "reason": f"Invalid response type {type(result).__name__}"}
-
-        if result.get("data_unavailable"):
-            return result
 
         return result
 

@@ -12,7 +12,7 @@ market_index_symbols, market_index_names, essential_stocks).
 
 import json
 import logging
-from typing import Any
+from typing import Any, cast
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +44,13 @@ class MarketSymbolsConfig:
         "GLD", "TLT", "IVV", "VXX",  # Macro ETFs
     ]
 
+    # Default orchestrator schedule (fallback when API unavailable)
+    # Format: list of {hour: int, minute: int} dicts, in execution order
+    DEFAULT_ORCHESTRATOR_SCHEDULE = [
+        {"hour": 2, "minute": 0},  # Prep phase
+        {"hour": 9, "minute": 30},  # Orchestration phase (market open)
+    ]
+
     # Cache to avoid repeated database hits during the same request
     _cache: dict[str, Any] = {}
 
@@ -54,7 +61,7 @@ class MarketSymbolsConfig:
         Returns configured symbols from database, or hardcoded defaults if config missing.
         """
         if "etf_symbols" in MarketSymbolsConfig._cache:
-            return MarketSymbolsConfig._cache["etf_symbols"]
+            return cast(list[str], MarketSymbolsConfig._cache["etf_symbols"])
 
         # In a real implementation, this would fetch from the database
         # For now, return the hardcoded defaults
@@ -70,7 +77,7 @@ class MarketSymbolsConfig:
         Returns configured symbols from database, or hardcoded defaults if config missing.
         """
         if "index_symbols" in MarketSymbolsConfig._cache:
-            return MarketSymbolsConfig._cache["index_symbols"]
+            return cast(list[str], MarketSymbolsConfig._cache["index_symbols"])
 
         # In a real implementation, this would fetch from the database
         # For now, return the hardcoded defaults
@@ -86,7 +93,7 @@ class MarketSymbolsConfig:
         Returns configured mapping from database, or hardcoded defaults if config missing.
         """
         if "index_names" in MarketSymbolsConfig._cache:
-            return MarketSymbolsConfig._cache["index_names"]
+            return cast(dict[str, str], MarketSymbolsConfig._cache["index_names"])
 
         # In a real implementation, this would fetch from the database
         # For now, return the hardcoded defaults
@@ -107,7 +114,7 @@ class MarketSymbolsConfig:
         Returns configured symbols from database, or hardcoded defaults if config missing.
         """
         if "essential_stocks" in MarketSymbolsConfig._cache:
-            return MarketSymbolsConfig._cache["essential_stocks"]
+            return cast(list[str], MarketSymbolsConfig._cache["essential_stocks"])
 
         # In a real implementation, this would fetch from the database
         # For now, return the hardcoded defaults
@@ -129,7 +136,7 @@ class MarketSymbolsConfig:
         Returns configured symbols from database, or hardcoded defaults if config missing.
         """
         if "essential_etf_symbols" in MarketSymbolsConfig._cache:
-            return MarketSymbolsConfig._cache["essential_etf_symbols"]
+            return cast(list[str], MarketSymbolsConfig._cache["essential_etf_symbols"])
 
         # In a real implementation, this would fetch from the database
         # For now, return the hardcoded defaults
@@ -142,6 +149,23 @@ class MarketSymbolsConfig:
     def clear_cache() -> None:
         """Clear the in-memory cache (used in tests or when config changes)."""
         MarketSymbolsConfig._cache.clear()
+
+    @staticmethod
+    def get_orchestrator_schedule() -> list[dict[str, int]]:
+        """Get default orchestrator schedule (fallback when API unavailable).
+
+        Returns:
+            List of schedule entries, each with 'hour' and 'minute' keys
+        """
+        if "orchestrator_schedule" in MarketSymbolsConfig._cache:
+            return cast(list[dict[str, int]], MarketSymbolsConfig._cache["orchestrator_schedule"])
+
+        # In a real implementation, this would fetch from the database
+        # For now, return the hardcoded defaults
+        # TODO: Add database fetch from algo_config where key='orchestrator_schedule'
+        schedule = MarketSymbolsConfig.DEFAULT_ORCHESTRATOR_SCHEDULE
+        MarketSymbolsConfig._cache["orchestrator_schedule"] = schedule
+        return schedule
 
     @staticmethod
     def get_index_name(symbol: str) -> str:
