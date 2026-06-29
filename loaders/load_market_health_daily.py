@@ -288,7 +288,9 @@ class MarketHealthDailyLoader(OptimalLoader):
             # CRITICAL: Validate VIX data structure - don't silently default to None
             if isinstance(vix_data, dict):
                 if "vix_close" not in vix_data:
-                    logger.warning(f"[MARKET_HEALTH] VIX data structure invalid for critical date {m['date']}: missing 'vix_close' key")
+                    logger.warning(
+                        f"[MARKET_HEALTH] VIX data structure invalid for critical date {m['date']}: missing 'vix_close' key"
+                    )
                     raise RuntimeError(
                         f"[MARKET_HEALTH CRITICAL] VIX data for {m['date']} missing 'vix_close' key. "
                         f"VIX fetcher returned invalid data structure. "
@@ -577,7 +579,9 @@ class MarketHealthDailyLoader(OptimalLoader):
                 # CRITICAL: Validate yield_spread key exists in slope_data
                 # Don't silently default to None if key is missing
                 if not isinstance(slope_data, dict) or "yield_spread" not in slope_data:
-                    logger.warning(f"[MARKET_HEALTH] Yield curve data structure invalid for {m['date']}: missing 'yield_spread' key")
+                    logger.warning(
+                        f"[MARKET_HEALTH] Yield curve data structure invalid for {m['date']}: missing 'yield_spread' key"
+                    )
                     raise RuntimeError(
                         f"[MARKET_HEALTH CRITICAL] Yield curve data for {m['date']} missing 'yield_spread' key. "
                         f"Yield curve fetcher returned invalid data structure. "

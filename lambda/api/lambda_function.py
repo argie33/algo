@@ -57,6 +57,7 @@ logger.setLevel(logging.INFO)
 # Apply critical database migrations on Lambda cold start
 try:
     import schema_manager
+
     success, msg = schema_manager.apply_critical_migrations()
     if success:
         logger.info(f"[STARTUP] Schema migrations applied: {msg}")
@@ -64,6 +65,7 @@ try:
         logger.warning(f"[STARTUP] Schema migration issue: {msg}")
 except Exception as e:
     logger.warning(f"[STARTUP] Failed to apply schema migrations on startup: {e}")
+
 
 def fetch_cloudfront_domain_from_secrets() -> tuple[str | None, str | None]:
     """Fetch CloudFront domain from AWS Secrets Manager (thread-safe with TTL).
