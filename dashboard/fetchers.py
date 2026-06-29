@@ -286,11 +286,14 @@ def load_all() -> dict[str, Any]:
         blocking others. If fetcher exceeds timeout, immediately return error instead of
         waiting for global batch timeout.
 
-        Issue #41 FIX: Skip retry for transient 503 errors on optional fetchers to avoid
-        cascading delays when API is under load. Critical fetchers still retry since they're required.
+        Issue #41 FIX (UPDATED): Retry on transient 503 errors with exponential backoff (1s, 2s, 4s).
+        For both critical and optional fetchers, retry up to 3 times before returning error.
+        Only return 503 result after all retries are exhausted.
         """
         start_time = time.monotonic()
-        is_critical = name in critical_fetchers
+        # Specific retry config for 503 errors: 3 retries with exponential backoff
+        retry_503_max_retries = 3
+        retry_503_backoffs = [1.0, 2.0, 4.0]  # Fixed backoff delays for 503
 
         for attempt in range(max_retries + 1):
             # Check if per-fetcher timeout has been exceeded
@@ -304,15 +307,31 @@ def load_all() -> dict[str, Any]:
 
             try:
                 result = fn(None)
-                # If result is a dict with _is_transient_503 and we're optional, return immediately
-                # to avoid cascading delays when API is under load (mkt/exp_factors 503 scenario)
+                # If result is a dict with _is_transient_503, retry up to 3 times with backoff
                 if (
-                    not is_critical
-                    and isinstance(result, dict)
+                    isinstance(result, dict)
                     and result.get("_is_transient_503")
                 ):
-                    logger.warning(f"Fetcher {name} got transient 503, returning for optional fetcher (no retry)")
-                    return name, result
+                    # Check if we have retries left for 503 errors
+                    meta = FETCHER_METADATA.get(name)
+                    endpoint = meta.get("endpoint", "unknown endpoint") if meta else "unknown endpoint"
+
+                    if attempt < retry_503_max_retries:
+                        backoff = retry_503_backoffs[attempt]
+                        logger.warning(
+                            f"Fetcher {name} ({endpoint}) got 503 Service Unavailable, "
+                            f"retry {attempt + 1}/{retry_503_max_retries} (backoff {backoff:.1f}s)"
+                        )
+                        time.sleep(backoff)
+                        continue
+                    else:
+                        # All retries exhausted, return the 503 error
+                        logger.error(
+                            f"Fetcher {name} ({endpoint}) got 503 Service Unavailable, "
+                            f"all {retry_503_max_retries} retries exhausted"
+                        )
+                        return name, result
+
                 return name, result
             except Exception as e:
                 if attempt < max_retries:
