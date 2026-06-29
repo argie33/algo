@@ -15,7 +15,7 @@ PHASE_HALTED_STATES = ("halt", "halted", "warn", "degraded", "skipped")
 def _get_phase_status_badge(run: dict[str, Any] | None) -> str:
     """Determine run status badge from run object. Eliminates if/elif chains (OO abuser pattern)."""
     if not run or not isinstance(run, dict):
-        return ""
+        return "[dim]—[/]"
     success = run.get("success")
     halted = run.get("halted")
     errored = run.get("errored")
@@ -96,7 +96,7 @@ def _fmt_updated(r: dict[str, Any]) -> str:
     # CRITICAL: Explicit None check instead of OR fallback
     # Timestamp missing should not silently default to empty string
     if lat is None:
-        return ""
+        return "—"
     return str(lat)[:5]
 
 
@@ -407,17 +407,17 @@ def _extract_orch_risk_metrics_string(risk: dict[str, Any] | None) -> str:
     from ..utilities import R
 
     if not risk or has_error(risk):
-        return ""
+        return f"\n[{R}][error] Risk data unavailable[/]"
     risk_dict = safe_get_dict(risk)
     if not risk_dict:
-        return ""
+        return f"\n[{R}][N/A] Risk metrics not available[/]"
     var95_check = risk_dict.get("var95")
     if var95_check is None:
-        return ""
+        return f"\n[{R}]⚠ Risk data missing VaR95 metric[/]"
     try:
         var95_check_f = float(var95_check)
         if var95_check_f <= 0 or not isinstance(risk_dict, dict):
-            return ""
+            return f"\n[{R}][error] Risk metrics invalid[/]"
         risk_metrics = extract_risk_metrics(risk_dict)
         var95_val = safe_float(risk_metrics.get("var95"), default=None)
         beta_val = safe_float(risk_metrics.get("beta"), default=None)
@@ -446,7 +446,7 @@ def _extract_orch_risk_metrics_string(risk: dict[str, Any] | None) -> str:
             f"\n[dim]Stressed VaR:[/][{R}]{float(svar_val):.2f}%[/]"
             if svar_val is not None and float(svar_val) > 0
             else ""
-        )
+        )  # Empty string here is intentional - no need to show marker when optional field missing
         return (
             f"\n[dim]VaR 95%:[/][{var_c}]{var95_val:.2f}%[/]"
             f"  [dim]CVaR 95%:[/][{var_c}]{cvar95_val:.2f}%[/]"
@@ -455,7 +455,7 @@ def _extract_orch_risk_metrics_string(risk: dict[str, Any] | None) -> str:
         )
     except (KeyError, ValueError, TypeError) as e:
         logger.warning(f"Risk metrics extraction failed: {e}")
-        return ""
+        return f"\n[{R}][error] Risk calculation failed[/]"
 
 
 def panel_orch(run: dict[str, Any] | None, cfg: dict[str, Any], risk: dict[str, Any] | None = None) -> Panel:  # noqa: C901 - risk metrics validation requires multi-layer safety checks
