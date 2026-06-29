@@ -582,7 +582,7 @@ def _record_closed_positions_exits(
                                 WHERE trade_id = (
                                     SELECT trade_id FROM algo_trades
                                     WHERE symbol = %s AND exit_date IS NULL
-                                    ORDER BY entry_date DESC LIMIT 1
+                                    ORDER BY trade_date DESC LIMIT 1
                                 )
                             """,
                                 (
