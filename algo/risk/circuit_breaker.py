@@ -134,6 +134,23 @@ class CircuitBreaker:
 
         with DatabaseContext("write") as cur:
             try:
+                # Remove stale positions with no algo trade association before checking risk.
+                # A prior sync bug inserted rows using Alpaca's asset_id as position_id,
+                # giving them NULL current_stop_price and no trade_ids_arr. These orphans
+                # trip the total_risk check even though they aren't real algo positions.
+                cur.execute("""
+                    DELETE FROM algo_positions
+                    WHERE status = 'open'
+                      AND current_stop_price IS NULL
+                      AND (trade_ids_arr IS NULL OR array_length(trade_ids_arr, 1) IS NULL)
+                """)
+                orphans_removed = cur.rowcount
+                if orphans_removed > 0:
+                    logger.warning(
+                        f"[CIRCUIT_BREAKER] Removed {orphans_removed} orphan position(s) "
+                        "with no trade associations before risk checks"
+                    )
+
                 results: dict[str, Any] = {
                     "halted": False,
                     "halt_reasons": [],
