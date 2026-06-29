@@ -339,11 +339,12 @@ class TradeAuditLogger:
                 cur.execute(
                     """
                     INSERT INTO algo_audit_log (
-                        action_type, symbol, actor, details
-                    ) VALUES (%s, %s, %s, %s)
+                        action_type, action_date, symbol, actor, details
+                    ) VALUES (%s, %s, %s, %s, %s)
                     """,
                     (
                         "PORTFOLIO_SNAPSHOT",
+                        snapshot_date,
                         str(snapshot_date),
                         "reconciliation",
                         json.dumps({"message": audit_msg}),
@@ -373,8 +374,8 @@ class TradeAuditLogger:
                 cur.execute(
                     """
                     INSERT INTO algo_audit_log (
-                        action_type, symbol, actor, details
-                    ) VALUES (%s, %s, %s, %s)
+                        action_type, action_date, symbol, actor, details
+                    ) VALUES (%s, CURRENT_TIMESTAMP, %s, %s, %s)
                     """,
                     (
                         "POSITION_RECONCILIATION",
