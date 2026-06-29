@@ -239,6 +239,21 @@ class MarketHealthDailyLoader(OptimalLoader):
             raise RuntimeError(msg)
 
         if unmatched_dates:
+            # Special case: If only today's date is missing breadth data, skip it (technical data may not be ready yet)
+            # This allows market health to complete for previous dates and retry today on the next run
+            today_str = datetime.now(EASTERN_TZ).date().isoformat()
+            if len(unmatched_dates) == 1 and unmatched_dates[0] == today_str:
+                logger.warning(
+                    f"[MARKET_HEALTH] Breadth data unavailable for today ({today_str}) - "
+                    f"technical data may still be processing. Skipping today, will be included in next run."
+                )
+                # Remove today from health_metrics so it won't be inserted
+                health_metrics[:] = [m for m in health_metrics if m["date"] != today_str]
+                if not health_metrics:
+                    logger.warning("[MARKET_HEALTH] All dates removed (only today was computed). No data to insert.")
+                return
+
+            # For historical dates, breadth data MUST be available
             msg = (
                 f"[MARKET_HEALTH CRITICAL] Breadth enrichment: matched {matched_count}/{len(health_metrics)} dates. "
                 f"Missing breadth data for {len(unmatched_dates)} critical date(s): "
