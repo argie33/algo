@@ -99,12 +99,20 @@ class TickerCache:
                 raise RuntimeError(f"SEC ticker cache unavailable after {max_retries} retries: {e}") from e
 
             try:
-                if resp.status_code in (429, 403):
+                # Retry on transient server errors: 429, 403, 502, 503, 504
+                if resp.status_code in (429, 403, 502, 503, 504):
                     if attempt < max_retries - 1:
                         base_wait = 4 * (2**attempt)
                         jitter = random.uniform(0, base_wait * 0.3)
                         wait_time = base_wait + jitter
-                        status_name = "rate limited (429)" if resp.status_code == 429 else "forbidden (403)"
+                        status_names = {
+                            429: "rate limited (429)",
+                            403: "forbidden (403)",
+                            502: "bad gateway (502)",
+                            503: "service unavailable (503)",
+                            504: "gateway timeout (504)",
+                        }
+                        status_name = status_names.get(resp.status_code, f"transient {resp.status_code}")
                         logger.warning(
                             f"SEC ticker endpoint {status_name}. Retry in {wait_time:.1f}s (attempt {attempt + 1}/{max_retries})"
                         )
@@ -112,7 +120,7 @@ class TickerCache:
                         continue
                     else:
                         raise RuntimeError(
-                            f"SEC ticker cache failed after {max_retries} retries: {resp.status_code} {resp.reason}"
+                            f"SEC ticker cache failed after {max_retries} retries on transient error {resp.status_code} {resp.reason}"
                         )
 
                 resp.raise_for_status()
@@ -124,7 +132,7 @@ class TickerCache:
                 logger.info(f"SEC ticker cache refreshed: {len(mapping)} symbols")
                 return mapping
             except requests.HTTPError as e:
-                if resp.status_code not in (429, 403):
+                if resp.status_code not in (429, 403, 502, 503, 504):
                     raise RuntimeError(f"SEC ticker cache request failed: {e}") from e
 
         raise RuntimeError("SEC ticker cache refresh exhausted all retries")

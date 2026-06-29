@@ -58,7 +58,9 @@ class StockScoresLoader(OptimalLoader):
         Raises RuntimeError if critical metric loaders haven't populated data yet.
         Prevents silent score computation failure when metrics are missing due to loader timeouts.
         """
-        try:
+        from utils.db.error_handlers import handle_db_errors
+
+        with handle_db_errors("validate_upstream_metrics"):
             with DatabaseContext("read") as cur:
                 metric_tables = {
                     "quality_metrics": 0.75,  # Require 75% coverage for SEC filings
@@ -99,10 +101,6 @@ class StockScoresLoader(OptimalLoader):
                     f"All upstream metric loaders have sufficient coverage (>={min(metric_tables.values()):.0%}). "
                     f"Proceeding with stock score computation."
                 )
-        except RuntimeError:
-            raise
-        except Exception as e:
-            logger.warning(f"[STOCK_SCORES] Pre-flight validation skipped due to query error: {e}")
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Compute stock scores for this symbol. Returns data_unavailable dict if unable to compute.

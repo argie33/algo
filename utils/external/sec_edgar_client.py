@@ -126,11 +126,12 @@ class SecEdgarClient:
         return self._get_json(url)
 
     def _get_json(self, url: str) -> dict[str, Any]:
-        """Fetch JSON from SEC API with retry logic for rate limiting & 403 errors.
+        """Fetch JSON from SEC API with retry logic for transient errors.
 
-        With 8+ parallel ECS tasks hitting the 10 req/sec SEC limit, we need
-        much longer backoff times to avoid cascading failures. Also handles
-        403 Forbidden errors with exponential backoff (likely temporary throttling).
+        Retries on transient errors (429, 403, 502, 503, 504) with exponential backoff.
+        With 8+ parallel ECS tasks hitting the 10 req/sec SEC limit, we need longer
+        backoff times to avoid cascading failures. Server errors (502, 503, 504) are
+        treated as transient per HTTP standards - retry with exponential backoff.
         """
         max_retries = 8
         for attempt in range(max_retries):
@@ -140,31 +141,42 @@ class SecEdgarClient:
             except (requests.ConnectionError, requests.Timeout) as e:
                 if attempt < max_retries - 1:
                     wait_time = 4 * (2**attempt) + random.uniform(0, 2)
-                    logger.warning(f"SEC API network error for {url}: {e}. Retry in {wait_time:.1f}s")
+                    logger.warning(f"SEC API network error for {url}: {e}. Retry in {wait_time:.1f}s (attempt {attempt + 1}/{max_retries})")
                     time.sleep(wait_time)
                     continue
                 raise RuntimeError(f"SEC API network error after {max_retries} retries: {e}") from e
 
-            # 404 means the data doesn't exist
+            # 404 means the data doesn't exist - permanent error, don't retry
             if resp.status_code == 404:
                 raise FileNotFoundError(f"SEC filing not found: {url}")
 
-            # Handle 429 (rate limit) and 403 (forbidden/throttle) with exponential backoff
-            if resp.status_code in (429, 403):
+            # Handle transient server errors with exponential backoff:
+            # 429 = Rate limit, 403 = Forbidden/Throttle, 502 = Bad Gateway,
+            # 503 = Service Unavailable, 504 = Gateway Timeout
+            if resp.status_code in (429, 403, 502, 503, 504):
                 if attempt < max_retries - 1:
                     base_wait = 4 * (2**attempt)
                     jitter = random.uniform(0, base_wait * 0.3)
                     wait_time = base_wait + jitter
-                    status_name = "rate limited (429)" if resp.status_code == 429 else "forbidden (403)"
-                    logger.debug(
+                    status_names = {
+                        429: "rate limited (429)",
+                        403: "forbidden (403)",
+                        502: "bad gateway (502)",
+                        503: "service unavailable (503)",
+                        504: "gateway timeout (504)",
+                    }
+                    status_name = status_names.get(resp.status_code, f"transient {resp.status_code}")
+                    logger.warning(
                         f"SEC API {status_name} for {url}. Retry in {wait_time:.1f}s (attempt {attempt + 1}/{max_retries})"
                     )
                     time.sleep(wait_time)
                     continue
                 else:
-                    raise RuntimeError(f"SEC API failed after {max_retries} retries: {resp.status_code} {resp.reason}")
+                    raise RuntimeError(
+                        f"SEC API failed after {max_retries} retries on transient error {resp.status_code} {resp.reason}: {url}"
+                    )
 
-            # Other HTTP errors
+            # Other HTTP errors (2xx/3xx/4xx except 404)
             try:
                 resp.raise_for_status()
                 return cast(dict[str, Any], resp.json())

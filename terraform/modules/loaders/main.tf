@@ -307,29 +307,16 @@ resource "aws_cloudwatch_event_rule" "scheduled_loader" {
 
 locals {
   all_loaders = {
-    "market_constituents" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
-    // parallelism=1 for yfinance (IP-level rate limiting with shared NAT gateway)
-    "stock_prices_daily"            = { cpu = 1024, memory = 2048, timeout = 5400, parallelism = 1 }
-    "financials_annual_income"      = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
-    "financials_annual_balance"     = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
-    "financials_annual_cashflow"    = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
-    "financials_quarterly_income"   = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
-    "financials_quarterly_balance"  = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
-    "financials_quarterly_cashflow" = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
-    "financials_ttm_income"         = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
-    "financials_ttm_cashflow"       = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
-    "growth_metrics"                = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
-    "quality_metrics"               = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
-    "value_metrics"                 = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
-    "positioning_metrics"           = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 2 }
-    "stability_metrics"             = { cpu = 1024, memory = 2048, timeout = 1800, parallelism = 2 }
-    "stock_scores"                  = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
-    "signal_quality_scores"         = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
-    "technical_data_daily"          = { cpu = 2048, memory = 4096, timeout = 2400, parallelism = 1 }
-    "market_exposure_daily"         = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
-    "swing_trader_scores"           = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 1 }
-    "compute_circuit_breakers"      = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
-    "compute_performance_metrics"   = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
+    "stock_prices_daily" = { cpu = 1024, memory = 2048, timeout = 5400, parallelism = 1 }
+    "technical_data_daily" = { cpu = 2048, memory = 4096, timeout = 2400, parallelism = 1 }
+    "swing_trader_scores" = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 1 }
+    "market_exposure_daily" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
+    "growth_metrics" = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
+    "quality_metrics" = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
+    "value_metrics" = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
+    "positioning_metrics" = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 2 }
+    "stability_metrics" = { cpu = 1024, memory = 2048, timeout = 1800, parallelism = 2 }
+    "stock_scores" = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
   }
   default_loaders = local.all_loaders
 
@@ -337,8 +324,6 @@ locals {
   critical_loaders = toset([
     "stock_prices_daily",
     "stock_scores",
-    "signal_quality_scores",
-    # Metrics loaders: long-running yfinance API calls; Spot interruptions prevent completion
     "growth_metrics",
     "quality_metrics",
     "value_metrics",
@@ -347,7 +332,7 @@ locals {
   ])
 }
 
-# ECS Task Definitions for all 33 data loaders
+# ECS Task Definitions for 10 production data loaders
 # NOTE: CPU/memory in container definition are removed - only task-level values matter for Fargate
 resource "aws_ecs_task_definition" "loader" {
   for_each = local.all_loaders
