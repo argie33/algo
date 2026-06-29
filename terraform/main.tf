@@ -97,6 +97,7 @@ module "database" {
   aws_account_id                  = local.aws_account_id
   vpc_id                          = module.vpc.vpc_id
   private_subnet_ids              = module.vpc.private_subnet_ids
+  public_subnet_ids               = module.vpc.public_subnet_ids
   rds_security_group_id           = module.vpc.rds_security_group_id
   db_instance_class               = var.rds_instance_class
   db_allocated_storage            = var.rds_allocated_storage

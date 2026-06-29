@@ -173,6 +173,12 @@ variable "private_subnet_ids" {
   }
 }
 
+variable "public_subnet_ids" {
+  description = "Public subnet IDs for RDS in dev (CI/CD accessibility)"
+  type        = list(string)
+  default     = []
+}
+
 variable "rds_security_group_id" {
   description = "Security group ID for RDS"
   type        = string

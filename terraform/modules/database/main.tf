@@ -54,8 +54,9 @@ resource "aws_kms_alias" "rds" {
 
 resource "aws_db_subnet_group" "main" {
   name        = "${var.project_name}-db-subnet-group"
-  description = "Private subnet group for ${var.project_name} RDS"
-  subnet_ids  = var.private_subnet_ids
+  description = "Subnet group for ${var.project_name} RDS (public for dev CI/CD, private for prod)"
+  # Use public subnets for dev (GitHub Actions CI/CD), private for prod security
+  subnet_ids  = var.environment == "dev" && length(var.public_subnet_ids) > 0 ? var.public_subnet_ids : var.private_subnet_ids
   tags        = var.common_tags
 
   # Prevent accidental deletion
