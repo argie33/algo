@@ -1,10 +1,14 @@
 # Codebase Governance (Quick Reference)
 
-See **`steering/GOVERNANCE.md`** for complete architecture, standards, and safety configuration.
+**Complete steering suite in `steering/`:**
+- `GOVERNANCE.md` — Architecture, safety rules, system map
+- `OPERATIONS.md` — CI/CD, hotload config, circuit breaker monitoring, troubleshooting
+- `DATA_LOADERS.md` — Loader pipeline, parallelism tuning, freshness thresholds
+- `DEPLOYMENT.md` — Full deployment (code, infrastructure, migrations)
+- `API_ARCHITECTURE.md` — Exception hierarchy, error patterns, validation
+- `LINT_POLICY.md` — Type safety, linting enforcement
 
-See **`steering/OPERATIONS.md`** for CI/CD procedures, deployments, and troubleshooting.
-
-See **`steering/LINT_POLICY.md`** for lint/code-quality discipline.
+**Start here:** GOVERNANCE.md + OPERATIONS.md cover 80% of needs. Use others for deep dives.
 
 ## Quick Start
 
