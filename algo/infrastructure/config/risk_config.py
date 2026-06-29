@@ -78,7 +78,10 @@ class RiskConfig:
         return self.parent.set(key, value, value_type, description, changed_by)
 
     def get_base_risk(self) -> float:
-        """Get base risk % per trade."""
+        """Get base risk % per trade.
+
+        Default is defensive (0.75 = 75%) but always validated by PositionSizer at init.
+        """
         return cast(float, self.get("base_risk_pct", 0.75))
 
     def get_position_sizing_config(self) -> dict[str, Any]:
