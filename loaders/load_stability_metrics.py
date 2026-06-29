@@ -163,6 +163,17 @@ class StabilityMetricsLoader(OptimalLoader):
             # Get beta from yfinance
             beta = self._get_beta_yfinance(symbol)
 
+            # Mark data unavailable if key metrics missing (optional enrichment with incomplete data)
+            has_volatility_252d = volatility_252d is not None
+            has_beta = beta is not None
+            data_unavailable = not (has_volatility_252d and has_beta)
+
+            if data_unavailable:
+                logger.debug(
+                    f"[STABILITY_METRICS] {symbol}: incomplete metrics "
+                    f"(vol_252d={has_volatility_252d}, beta={has_beta})"
+                )
+
             return {
                 "symbol": symbol,
                 "volatility_30d": round(volatility_30d, 4) if volatility_30d else None,
@@ -170,7 +181,7 @@ class StabilityMetricsLoader(OptimalLoader):
                 "volatility_252d": (round(volatility_252d, 4) if volatility_252d else None),
                 "beta": round(beta, 4) if beta else None,
                 "created_at": datetime.now(timezone.utc).isoformat(),
-                "data_unavailable": False,
+                "data_unavailable": data_unavailable,
             }
 
         except RuntimeError as e:
@@ -242,14 +253,14 @@ class StabilityMetricsLoader(OptimalLoader):
 
             # Validate 'beta' field exists explicitly (not using .get() default)
             if "beta" not in info:
-                logger.debug(f"[STABILITY_METRICS] {symbol}: beta field missing from yfinance data")
+                logger.warning(f"[STABILITY_METRICS] {symbol}: beta field missing from yfinance data (market risk metric unavailable)")
                 return None
 
             beta_raw = info["beta"]
 
             # Validate value is not None
             if beta_raw is None:
-                logger.debug(f"[STABILITY_METRICS] {symbol}: beta field is None (unavailable from yfinance)")
+                logger.warning(f"[STABILITY_METRICS] {symbol}: beta field is None (unavailable from yfinance, market risk metric missing)")
                 return None
 
             # Convert to float and validate
@@ -265,10 +276,10 @@ class StabilityMetricsLoader(OptimalLoader):
 
             return beta
         except (ValueError, TypeError) as e:
-            logger.debug(f"[STABILITY_METRICS] {symbol}: failed to parse beta ({type(e).__name__}: {e})")
+            logger.warning(f"[STABILITY_METRICS] {symbol}: failed to parse beta ({type(e).__name__}: {e}), market risk metric unavailable")
             return None
         except ZeroDivisionError as e:
-            logger.debug(f"[STABILITY_METRICS] {symbol}: division error parsing beta: {e}")
+            logger.warning(f"[STABILITY_METRICS] {symbol}: division error parsing beta: {e}, market risk metric unavailable")
             return None
         except Exception as e:
             logger.warning(
