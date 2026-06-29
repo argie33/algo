@@ -1083,26 +1083,6 @@ class PositionMonitor:
             except (ValueError, TypeError) as e:
                 raise ValueError(f"Invalid quantity {rec['quantity']} for position {rec['position_id']}: {e}") from e
 
-            # CRITICAL: avg_entry_price must exist and be positive for PnL calculation
-            if "avg_entry_price" not in rec or rec["avg_entry_price"] is None:
-                raise ValueError(
-                    f"[POSITION MONITOR CRITICAL] Position {rec['position_id']} missing avg_entry_price. "
-                    f"Cannot compute unrealized P&L without entry cost basis."
-                )
-            try:
-                avg_entry = float(rec["avg_entry_price"])
-            except (ValueError, TypeError) as e:
-                raise ValueError(
-                    f"[POSITION MONITOR CRITICAL] Position {rec['position_id']} has invalid avg_entry_price={rec['avg_entry_price']}: {e}. "
-                    f"Cannot compute unrealized P&L with corrupted entry data."
-                ) from e
-
-            if avg_entry <= 0:
-                raise ValueError(
-                    f"[POSITION MONITOR CRITICAL] Position {rec['position_id']} has non-positive avg_entry_price={avg_entry}. "
-                    f"Cannot compute unrealized P&L with invalid cost basis."
-                )
-
             cur.execute(
                 """
                 UPDATE algo_positions
