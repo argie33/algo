@@ -9,10 +9,13 @@ This design eliminates the Shotgun Surgery pattern where phase changes required
 touching multiple methods in the Orchestrator class.
 """
 
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 
 from algo.orchestrator.phase_result import PhaseResult
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -133,11 +136,13 @@ class PhaseRegistry:
             phase_num: Phase identifier to find
 
         Returns:
-            PhaseRegistryEntry if found, None otherwise
+            PhaseRegistryEntry: if phase is registered
+            None: if phase_num not found in registry (invalid phase number)
         """
         for phase in cls.PHASES:
             if phase.phase_num == phase_num:
                 return phase
+        logger.debug(f"Phase {phase_num} not found in registry")
         return None
 
     @classmethod

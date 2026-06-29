@@ -376,8 +376,8 @@ class DatabaseResultValidator:
         return True
 
     @staticmethod
-    def safe_get_first_row(rows: list[Any] | None, context: str = "database query") -> Any | None:
-        """Safely get first row from query results. Returns None if rows are empty or None.
+    def safe_get_first_row(rows: list[Any] | None, context: str = "database query") -> Any:
+        """Safely get first row from query results. Returns marker dict if rows are empty or None.
 
         ALWAYS USE THIS instead of rows[0] to prevent IndexError.
 
@@ -386,14 +386,14 @@ class DatabaseResultValidator:
             context: Operation name for logging
 
         Returns:
-            First row or None if empty/unavailable
+            First row if available, or marker dict with data_unavailable=True
         """
         if rows is None:
             logger.warning(f"{context}: fetchall() returned None")
-            return None
+            return {"data_unavailable": True, "reason": "fetchall_returned_none", "context": context}
         if len(rows) == 0:
             logger.debug(f"{context}: fetchall() returned empty list")
-            return None
+            return {"data_unavailable": True, "reason": "fetchall_returned_empty_list", "context": context}
         return rows[0]
 
 

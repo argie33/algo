@@ -76,6 +76,13 @@ class SignalTrendMixin:
             )
 
         def _sma(arr: Any, n: int) -> float | None:
+            """
+            Calculate simple moving average.
+
+            Returns:
+                float: The SMA value if sufficient data available
+                None: If array has fewer than n elements (insufficient historical data)
+            """
             if len(arr) < n:
                 return None
             return float(np.mean(arr[-n:]))

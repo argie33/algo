@@ -872,6 +872,11 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
         response["data"]["pcr"] = (
             float(market_health.get("put_call_ratio")) if market_health.get("put_call_ratio") is not None else None
         )
+        response["data"]["bmom"] = (
+            float(market_health.get("breadth_momentum_10d"))
+            if market_health.get("breadth_momentum_10d") is not None
+            else None
+        )
         response["data"]["ycs"] = (
             float(market_health.get("yield_curve_slope"))
             if market_health.get("yield_curve_slope") is not None

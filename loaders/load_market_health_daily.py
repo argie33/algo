@@ -223,6 +223,7 @@ class MarketHealthDailyLoader(OptimalLoader):
                 matched_count += 1
             else:
                 # Mark this date as missing breadth data (CRITICAL field)
+                logger.warning(f"[MARKET_HEALTH] Breadth data missing for critical date {m['date']}")
                 unmatched_dates.append(m["date"])
 
         if matched_count == 0:
@@ -279,6 +280,7 @@ class MarketHealthDailyLoader(OptimalLoader):
 
         for m in health_metrics:
             if m["date"] not in vix:
+                logger.warning(f"[MARKET_HEALTH] VIX data missing for critical date {m['date']}")
                 missing_dates.append(m["date"])
                 continue
 
@@ -286,6 +288,7 @@ class MarketHealthDailyLoader(OptimalLoader):
             # CRITICAL: Validate VIX data structure - don't silently default to None
             if isinstance(vix_data, dict):
                 if "vix_close" not in vix_data:
+                    logger.warning(f"[MARKET_HEALTH] VIX data structure invalid for critical date {m['date']}: missing 'vix_close' key")
                     raise RuntimeError(
                         f"[MARKET_HEALTH CRITICAL] VIX data for {m['date']} missing 'vix_close' key. "
                         f"VIX fetcher returned invalid data structure. "
@@ -298,11 +301,13 @@ class MarketHealthDailyLoader(OptimalLoader):
 
             # Check for NULL/None values
             if vix_close is None or vix_close == "":
+                logger.warning(f"[MARKET_HEALTH] VIX close value is NULL for critical date {m['date']}")
                 null_values.append(m["date"])
                 continue
 
             # Check for placeholder/fallback values (0, 0.0) which indicate missing data
             if vix_close == 0 or vix_close == 0.0:
+                logger.warning(f"[MARKET_HEALTH] VIX has placeholder value (0.0) for critical date {m['date']}")
                 raise RuntimeError(
                     f"[MARKET_HEALTH CRITICAL] VIX has placeholder/fallback value (0.0) for {m['date']}: {vix_close}. "
                     "Cannot use fallback zeros for circuit breaker decisions. Check vix_history loader."
@@ -312,12 +317,14 @@ class MarketHealthDailyLoader(OptimalLoader):
             try:
                 vix_float = float(vix_close)
                 if vix_float < 0:
+                    logger.warning(f"[MARKET_HEALTH] VIX value negative for critical date {m['date']}: {vix_float}")
                     raise RuntimeError(
                         f"[MARKET_HEALTH CRITICAL] VIX value is negative for {m['date']}: {vix_float}. "
                         f"VIX cannot be negative. Data corruption detected in vix_history. "
                         f"Check VIX feed and fetcher validation."
                     )
             except (TypeError, ValueError) as e:
+                logger.warning(f"[MARKET_HEALTH] VIX conversion failed for critical date {m['date']}: {vix_close}")
                 raise RuntimeError(
                     f"[MARKET_HEALTH CRITICAL] VIX value cannot be converted to float for {m['date']}: {vix_close}. "
                     f"Check vix_history data type and VIX fetcher."
@@ -560,6 +567,7 @@ class MarketHealthDailyLoader(OptimalLoader):
             for m in health_metrics:
                 slope_data = yield_curve.get(m["date"])
                 if slope_data is None:
+                    logger.warning(f"[MARKET_HEALTH] Yield curve data missing for date {m['date']}")
                     missing_dates.append(m["date"])
                     # Explicitly mark as unavailable for this date
                     m["yield_curve_data_unavailable"] = True
@@ -569,6 +577,7 @@ class MarketHealthDailyLoader(OptimalLoader):
                 # CRITICAL: Validate yield_spread key exists in slope_data
                 # Don't silently default to None if key is missing
                 if not isinstance(slope_data, dict) or "yield_spread" not in slope_data:
+                    logger.warning(f"[MARKET_HEALTH] Yield curve data structure invalid for {m['date']}: missing 'yield_spread' key")
                     raise RuntimeError(
                         f"[MARKET_HEALTH CRITICAL] Yield curve data for {m['date']} missing 'yield_spread' key. "
                         f"Yield curve fetcher returned invalid data structure. "
@@ -578,6 +587,7 @@ class MarketHealthDailyLoader(OptimalLoader):
 
                 slope = slope_data["yield_spread"]
                 if slope is None or slope == "":
+                    logger.warning(f"[MARKET_HEALTH] Yield curve spread is NULL for date {m['date']}")
                     null_values.append(m["date"])
                     # Explicitly mark as unavailable for this date
                     m["yield_curve_data_unavailable"] = True
@@ -733,7 +743,7 @@ class MarketHealthDailyLoader(OptimalLoader):
                     f"[MARKET_HEALTH] Fed funds rate is NULL for current period {start} to {end}. "
                     f"Fed policy environment unavailable. Marking data_unavailable and continuing."
                 )
-                logger.warning(msg)
+                logger.warning(f"[MARKET_HEALTH] Fed rate NULL check: {msg}")
                 # Mark all metrics with data_unavailable
                 for m in health_metrics:
                     m["fed_rate_environment"] = None
@@ -893,15 +903,16 @@ class MarketHealthDailyLoader(OptimalLoader):
         skipped_rows = []
         for idx, row in df.iterrows():
             if not pd.notna(row["close"]) or row["close"] <= 0:
+                logger.debug(f"[MARKET_HEALTH] Row {idx}: invalid close price {row.get('close')}")
                 if "date" not in row or row.get("date") is None:
                     raise ValueError(
                         "[MARKET_HEALTH_CRITICAL] Market health row missing required 'date' field. "
                         "Cannot process market data without date. Row keys: " + str(list(row.index.tolist()))
                     )
                 row_date = row["date"]
-                logger.error(
+                logger.warning(
                     f"[MARKET_HEALTH_DATA_GAP] Invalid close price for {row_date}: {row['close']}. "
-                    f"Skipping row - this creates gap in distribution day counts and market health metrics."
+                    f"Critical price data unavailable. Skipping row - this creates gap in distribution day counts and market health metrics."
                 )
                 skipped_rows.append(row_date)
                 continue
@@ -914,7 +925,7 @@ class MarketHealthDailyLoader(OptimalLoader):
             # Only store rows with valid SMA data for circuit breaker decisions.
             if not sma_200:
                 logger.debug(
-                    f"Skipping row {row.get('date', 'unknown')}: SMA_200 not yet computed (insufficient history)"
+                    f"[MARKET_HEALTH] Skipping row {row.get('date', 'unknown')}: SMA_200 not yet computed (insufficient history)"
                 )
                 skipped_rows.append(row.get("date", "unknown"))
                 continue
@@ -1049,13 +1060,13 @@ def _write_vix_family_prices(start: date, end: date) -> int:
             try:
                 ticker = YFinanceWrapper.get_ticker(sym)
                 if not ticker:
-                    logger.warning(f"Could not get ticker for {sym}")
+                    logger.warning(f"[MARKET_HEALTH] Ticker data unavailable for index {sym}")
                     failed_symbols[sym] = "Ticker unavailable"
                     continue
 
                 df = ticker.history(start=start, end=end, interval="1d", auto_adjust=True)
                 if df is None or df.empty:
-                    logger.warning(f"No data for {sym}")
+                    logger.warning(f"[MARKET_HEALTH] Price history empty for index {sym}")
                     failed_symbols[sym] = "Empty data"
                     continue
 
@@ -1065,6 +1076,7 @@ def _write_vix_family_prices(start: date, end: date) -> int:
                     def _v(col: str, row: Any = row, sym: str = sym, d: date = d) -> float:
                         val: Any = row.get(col) if hasattr(row, "get") else row[col]
                         if val is None:
+                            logger.warning(f"[MARKET_HEALTH] Missing {col} for {sym} on {d}")
                             raise RuntimeError(
                                 f"[MARKET_HEALTH] Missing {col} data for {sym} on {d} — "
                                 "cannot compute market health metrics without complete OHLCV data"
@@ -1075,6 +1087,7 @@ def _write_vix_family_prices(start: date, end: date) -> int:
                             except (IndexError, AttributeError):
                                 val = None
                         if val is None:
+                            logger.warning(f"[MARKET_HEALTH] Empty {col} for {sym} on {d}")
                             raise RuntimeError(
                                 f"[MARKET_HEALTH] Empty {col} data for {sym} on {d} — "
                                 "cannot compute market health metrics without complete OHLCV data"
@@ -1082,6 +1095,7 @@ def _write_vix_family_prices(start: date, end: date) -> int:
                         try:
                             f = float(val)
                             if f != f:  # NaN check
+                                logger.warning(f"[MARKET_HEALTH] NaN detected in {col} for {sym} on {d}")
                                 raise RuntimeError(
                                     f"[MARKET_HEALTH] Invalid {col}={val!r} (NaN) for {sym} on {d} — "
                                     "cannot compute market health metrics with NaN values"
@@ -1090,6 +1104,7 @@ def _write_vix_family_prices(start: date, end: date) -> int:
                         except RuntimeError:
                             raise
                         except (TypeError, ValueError) as e:
+                            logger.warning(f"[MARKET_HEALTH] Price conversion failed for {col} {sym} {d}: {val!r}")
                             raise RuntimeError(
                                 f"[PRICE_EXTRACTION] Failed to parse {col}={val!r} for {sym}: {e}"
                             ) from e

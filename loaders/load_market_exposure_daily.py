@@ -63,6 +63,7 @@ def main() -> int:
                 latest_date = result[0]
 
         if not latest_date:
+            logger.warning("[MARKET_EXPOSURE] No SPY price data available — critical data for market exposure computation missing")
             logger.error("No price data available for SPY — cannot compute market exposure")
             with DatabaseContext("write") as cur:
                 cur.execute(

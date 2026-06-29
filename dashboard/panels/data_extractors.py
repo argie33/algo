@@ -8,9 +8,12 @@ Pattern:
   4. Use .get() ONLY for truly optional fields
 """
 
+import logging
 from typing import Any
 
 from ..error_boundary import has_error
+
+logger = logging.getLogger(__name__)
 
 
 def safe_extract(data: dict[str, Any], *keys: str, defaults: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -49,10 +52,16 @@ def safe_extract(data: dict[str, Any], *keys: str, defaults: dict[str, Any] | No
 def safe_get_dict(data: Any) -> dict[str, Any] | None:
     """Get dict from data if not error. Returns None if data is None (optional field).
 
-    Fail-fast: Raises if data is error dict or is invalid type (not None or dict).
-    Use for optional dict fields. For critical dicts that must exist, check for None explicitly.
+    Returns:
+        dict: validated non-error dict
+        None: if data is None (optional field not present)
+
+    Raises:
+        TypeError: if data is not dict, list, or None
+        ValueError: if data is error dict
     """
     if data is None:
+        logger.debug("safe_get_dict: data is None (optional field not present)")
         return None
     if not isinstance(data, dict):
         raise TypeError(f"Expected dict but got {type(data).__name__}")
@@ -62,12 +71,18 @@ def safe_get_dict(data: Any) -> dict[str, Any] | None:
 
 
 def safe_get_list(data: Any) -> list[Any] | None:
-    """Get list from data if not error. Returns None if data is None (optional field).
+    """Get list from data if not error. Returns None if data is None or dict without list (optional field).
 
-    Fail-fast: Raises if data is error dict or is invalid type (not None, list, or dict with error).
-    Use for optional list fields. For critical lists that must exist, check for None explicitly.
+    Returns:
+        list: extracted list from data or data.items or data.data
+        None: if data is None or dict without list/items/data fields (optional field not present)
+
+    Raises:
+        TypeError: if data is not dict, list, or None
+        ValueError: if data is error dict
     """
     if data is None:
+        logger.debug("safe_get_list: data is None (optional field not present)")
         return None
     if isinstance(data, list):
         return data
@@ -78,6 +93,7 @@ def safe_get_list(data: Any) -> list[Any] | None:
             return data["items"]
         if "data" in data and isinstance(data["data"], list):
             return data["data"]
+        logger.debug("safe_get_list: dict has no items/data list field (optional field not present)")
         return None
     raise TypeError(f"Expected dict or list but got {type(data).__name__}")
 

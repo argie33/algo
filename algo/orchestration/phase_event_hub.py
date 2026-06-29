@@ -202,7 +202,8 @@ class PhaseEventHub:
             phase_num: Phase number
 
         Returns:
-            Current PhaseStatus or None if phase has not completed yet
+            Current PhaseStatus if phase has completed with valid status
+            None: if no completion event found in history (phase not yet completed)
 
         Raises ValueError if phase exists with invalid status string.
         """
@@ -218,6 +219,7 @@ class PhaseEventHub:
                             f"Phase {phase_num} has invalid status '{status_str}' in event history. "
                             f"Valid statuses: {', '.join(s.value for s in PhaseStatus)}"
                         ) from e
+        logger.debug(f"[PHASE_EVENT_HUB] No completion event found for phase {phase_num} (not yet completed)")
         return None
 
     def clear_history(self) -> None:

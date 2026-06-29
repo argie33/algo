@@ -98,10 +98,15 @@ def is_data_stale(data: Any) -> bool:
 def get_error_message_plain(data: Any) -> str | None:
     """Extract error message from data without Rich formatting.
 
-    Always returns explicit error message or raises on invalid state.
-    Validates: error message must exist and be valid when _error marker present.
+    Returns:
+        str: error message if _error marker present in dict
+        None: if data is not a dict or has no _error marker (no error state)
+
+    Raises:
+        ValueError: if _error marker present but message is empty/None (invalid state)
     """
     if not isinstance(data, dict):
+        logger.debug("Data is not a dict (no error to extract)")
         return None
 
     # Fail-fast: if _error marker present, message MUST be valid
@@ -112,6 +117,7 @@ def get_error_message_plain(data: Any) -> str | None:
             raise ValueError("[CRITICAL] _error marker present but message is empty/None")
         return str(error_msg)
 
+    logger.debug("Data is dict but has no error marker")
     return None
 
 
@@ -119,11 +125,17 @@ def get_error_message(data: Any) -> str | None:
     """Extract error message from data with Rich markup formatting.
 
     Distinguishes between stale data and hard errors for better visibility.
-    Validates: if _stale_cache present, it must be boolean True.
-    Raises if stale data marker present but error message missing.
+
+    Returns:
+        str: formatted error message with Rich markup if error/stale marker present
+        None: if no error state detected (normal data, no error marker)
+
+    Raises:
+        ValueError: if error/stale markers present but message is empty/None (invalid state)
     """
     plain_msg = get_error_message_plain(data)
     if plain_msg is None:
+        logger.debug("No error message found (plain_msg is None)")
         return None
 
     if is_data_stale(data):

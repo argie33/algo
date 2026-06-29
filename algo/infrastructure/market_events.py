@@ -51,7 +51,8 @@ class MarketEventHandler:
         """Check if symbol is currently halted from trading.
 
         Returns:
-            dict with halt_status, reason if halted, else None
+            dict with halt_status, reason if halted (halted=True, status, tradable fields)
+            None: if symbol is tradable and not halted (normal trading state)
 
         """
         try:
@@ -93,6 +94,7 @@ class MarketEventHandler:
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
 
+            logger.debug(f"[HALT_CHECK] {symbol} is tradable and active (no halt)")
             return None
 
         except requests.RequestException as e:
@@ -115,7 +117,8 @@ class MarketEventHandler:
         safer than halting the algorithm when credentials are just not configured.
 
         Returns:
-            dict with level, % down, timestamp if triggered, else None
+            dict with level, % down, timestamp if triggered (level 1-3)
+            None: if market is within normal ranges or credentials not configured (no circuit breaker active)
 
         """
         try:
@@ -217,6 +220,7 @@ class MarketEventHandler:
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
 
+            logger.debug(f"[CIRCUIT_BREAKER] Market within normal ranges (down {pct_down:.2f}%, threshold 7%)")
             return None
 
         except (RuntimeError, TypeError, ValueError) as e:
@@ -399,7 +403,8 @@ class MarketEventHandler:
         """Check if symbol is delisted or about to be delisted.
 
         Returns:
-            dict with delisting info if delisted, else None
+            dict with delisting info (delisted=True, status, action fields) if delisted
+            None: if symbol is active and not delisted (normal state)
 
         """
         try:
@@ -444,6 +449,7 @@ class MarketEventHandler:
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
 
+            logger.debug(f"[DELISTING_CHECK] {symbol} is active (status={status}, not delisted)")
             return None
 
         except (RuntimeError, TypeError, ValueError, KeyError) as e:

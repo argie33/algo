@@ -118,10 +118,12 @@ class FetcherValidator:
         Example: extract_field(data, "portfolio.total_value")
 
         Returns:
-            (value: Any, error_message: str|None)
+            (value, error_message) tuple where:
+            - value: field value if found (or None if field is None/missing for optional fields)
+            - error_message: None if successful, str if error occurred
 
-        For optional fields (required=False), returns (None, None) when field is missing,
-        but logs at DEBUG level to maintain visibility of data extraction patterns.
+        For optional fields (required=False), returns (None, None) when field is missing or None,
+        with DEBUG logging to maintain visibility of data extraction patterns.
         """
         if not isinstance(data, dict):
             return None, f"Expected dict, got {type(data).__name__}"
@@ -144,6 +146,7 @@ class FetcherValidator:
             return None, f"Field {field_path} is None"
         if not required and current is None:
             logger.debug(f"Optional field is None: {field_path}")
+            return None, None
         return current, None
 
     @staticmethod

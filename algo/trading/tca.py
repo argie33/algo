@@ -129,12 +129,15 @@ class TCAEngine:
         """Check if slippage exceeds alert thresholds.
 
         Returns:
-            dict with severity, message if alert triggered, else None
+            dict with severity, message if alert triggered (adverse slippage >= 100 bps)
+            None: if slippage is favorable or below threshold (no alert needed)
         """
         # Only alert on adverse slippage (positive for buy)
         if side == "BUY" and slippage_bps <= 0:
+            logger.debug(f"[TCA] {symbol} favorable slippage on BUY: {slippage_bps:.1f} bps")
             return None  # Favorable, no alert
         if side == "SELL" and slippage_bps <= 0:
+            logger.debug(f"[TCA] {symbol} favorable slippage on SELL: {slippage_bps:.1f} bps")
             return None  # Favorable, no alert
 
         abs_slippage = abs(float(slippage_bps))
@@ -152,6 +155,7 @@ class TCAEngine:
                 "slippage_bps": slippage_bps,
             }
 
+        logger.debug(f"[TCA] {symbol} slippage {abs_slippage:.1f} bps below threshold (no alert)")
         return None
 
     def daily_report(self, report_date: date | None = None) -> dict[str, Any]:

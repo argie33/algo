@@ -205,8 +205,8 @@ def timeout_context(
     old_handler = None
     try:
         if hasattr(signal, "SIGALRM"):
-            old_handler = signal.signal(signal.SIGALRM, timeout_handler)  # type: ignore[attr-defined]
-            signal.alarm(timeout_sec)  # type: ignore[attr-defined]
+            old_handler = signal.signal(signal.SIGALRM, timeout_handler)  # type: ignore[attr-defined,unused-ignore]
+            signal.alarm(timeout_sec)  # type: ignore[attr-defined,unused-ignore]
     except (AttributeError, ValueError):
         # Windows or already set
         pass
@@ -217,11 +217,15 @@ def timeout_context(
         # Cancel alarm
         try:
             if hasattr(signal, "SIGALRM"):
-                signal.alarm(0)  # type: ignore[attr-defined]
+                signal.alarm(0)  # type: ignore[attr-defined,unused-ignore]
                 if old_handler:
-                    signal.signal(signal.SIGALRM, old_handler)  # type: ignore[attr-defined]
-        except (AttributeError, ValueError):
-            pass
+                    signal.signal(signal.SIGALRM, old_handler)  # type: ignore[attr-defined,unused-ignore]
+        except (AttributeError, ValueError) as cleanup_err:
+            # Log platform-specific signal issues instead of silently ignoring
+            logger.debug(
+                f"[TIMEOUT] Failed to cancel alarm for '{operation}': {cleanup_err}. "
+                "Platform may not support signal.SIGALRM (e.g., Windows). Continuing anyway."
+            )
 
         elapsed = time.time() - start_time
         if elapsed > timeout_sec * 0.9:

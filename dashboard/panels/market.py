@@ -164,15 +164,9 @@ def panel_market_full(mkt: Any, sentiment: Any = None) -> Panel:  # noqa: C901
         logger.warning("[MARKET_PANEL] New Highs/Lows data missing - market breadth data incomplete")
     pcr = safe_float(mkt.get("pcr"), strict=False)
 
-    # CRITICAL: Put/call ratio is essential for market sentiment analysis
+    # Put/call ratio is useful enrichment but optional - missing it shouldn't block rendering
     if pcr is None:
-        logger.error("[MARKET_PANEL] Put/call ratio missing from market data - cannot render accurate market sentiment")
-        return Panel(
-            Text.from_markup("[red]Put/call ratio unavailable - market sentiment data incomplete[/]"),
-            title="[bold blue]MARKET (SENTIMENT DATA MISSING)[/]",
-            border_style="red",
-            padding=(0, 1),
-        )
+        logger.debug("[MARKET_PANEL] Put/call ratio missing from market data - optional enrichment unavailable")
     bmom = safe_float(mkt.get("bmom"), strict=False)
     fed = mkt.get("fed")
     # Exposure data may not be available in some market regimes (optional)
@@ -217,8 +211,10 @@ def panel_market_full(mkt: Any, sentiment: Any = None) -> Panel:  # noqa: C901
         )
     ycs = safe_float(mkt.get("ycs"), strict=False)
     bmom_pcr = []
-    # pcr is guaranteed to be not None at this point (checked above)
-    bmom_pcr.append(f"[dim]Put/Call:[/][{pcr_c}]{pcr:.3f}[/]")
+    if pcr is not None:
+        bmom_pcr.append(f"[dim]Put/Call:[/][{pcr_c}]{pcr:.3f}[/]")
+    else:
+        logger.debug("[MARKET_PANEL] Put/call ratio not available - optional enrichment incomplete")
     if bmom is not None:
         bmc = G if bmom >= 0.5 else (Y if bmom >= 0 else R)
         bmom_pcr.append(f"[dim]Breadth Momentum:[/][{bmc}]{bmom:.2f}[/]")

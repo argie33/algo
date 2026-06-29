@@ -37,13 +37,15 @@ def check_idempotency_key(cur: Any, idempotency_key: str, endpoint: str, timeout
         timeout_sec: Query timeout in seconds
 
     Returns:
-        Cached response dict if found, None if cache miss (legitimate)
+        dict: Cached response if found in idempotency key table
+        None: if cache miss (key not found, empty key, or invalid cached response)
 
     Raises:
         RuntimeError: If idempotency infrastructure unavailable (table missing or DB connection failure).
                      Raising prevents silent duplicate trade risk from looking like a cache miss.
     """
     if not idempotency_key:
+        logger.debug("check_idempotency_key called with empty key (cache miss expected)")
         return None
 
     try:
@@ -75,6 +77,7 @@ def check_idempotency_key(cur: Any, idempotency_key: str, endpoint: str, timeout
                     e,
                 )
                 return None
+        logger.debug(f"No idempotency cache entry found for endpoint={endpoint}, key={idempotency_key[:16]}...")
         return None
     except (
         psycopg2.errors.UndefinedTable,  # pylint: disable=no-member

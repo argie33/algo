@@ -61,13 +61,18 @@ def get_recent_runs(days: int = 7, limit: int | None = None) -> list[dict[str, A
         return []
 
 
-def get_run_details(run_id: str) -> dict[str, Any] | None:
+def get_run_details(run_id: str) -> dict[str, Any]:
     """Get full details of a specific run, including phase-by-phase results.
 
     Args:
         run_id: The RUN-* ID to fetch
 
-    Returns: Full execution record with phase details, or None if not found
+    Returns: Full execution record with phase details, or marker dict if not found:
+        {
+            'data_unavailable': True,
+            'reason': 'run_not_found',
+            'requested_run_id': run_id
+        }
     """
     try:
         with DatabaseContext("read") as cur:
@@ -83,7 +88,12 @@ def get_run_details(run_id: str) -> dict[str, Any] | None:
             )
             row = cur.fetchone()
             if not row:
-                return None
+                logger.warning(f"Orchestrator run {run_id} not found in execution log")
+                return {
+                    "data_unavailable": True,
+                    "reason": "run_not_found",
+                    "requested_run_id": run_id
+                }
 
             phase_results: list[Any] = []
             try:
@@ -346,10 +356,10 @@ if __name__ == "__main__":
         elif sys.argv[1] == "details":
             if len(sys.argv) > 2:
                 details = get_run_details(sys.argv[2])
-                if details:
-                    logger.info(json.dumps(details, indent=2))
+                if details.get("data_unavailable"):
+                    logger.info(f"Run {sys.argv[2]} not found: {details.get('reason')}")
                 else:
-                    logger.info(f"Run {sys.argv[2]} not found")
+                    logger.info(json.dumps(details, indent=2))
             else:
                 logger.info("Usage: python orchestrator_query.py details <RUN_ID>")
         else:

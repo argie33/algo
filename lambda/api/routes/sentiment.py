@@ -215,7 +215,7 @@ def handle(  # noqa: C901
                 timeout_sec=3,
             )
             latest = DatabaseResultValidator.safe_get_first_row(rows, "analyst sentiment metrics")
-            if not latest:
+            if isinstance(latest, dict) and latest.get("data_unavailable"):
                 return error_response(
                     503,
                     "service_unavailable",
@@ -340,7 +340,7 @@ def handle(  # noqa: C901
             )
             rows = cur.fetchall()
             latest = DatabaseResultValidator.safe_get_first_row(rows, "analyst sentiment trends")
-            if not latest:
+            if isinstance(latest, dict) and latest.get("data_unavailable"):
                 logger.warning("[SENTIMENT] No analyst sentiment trends available - data unavailable")
                 return json_response(
                     200,

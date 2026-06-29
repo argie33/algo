@@ -183,6 +183,7 @@ def _compute_drawdown(cur: Any) -> float:
     """)
     row = cur.fetchone()
     if not row or row["peak"] is None or row["current"] is None:
+        logger.warning("[CIRCUIT_BREAKER] Portfolio snapshot data unavailable for drawdown calculation (CB1)")
         raise ValueError("Portfolio snapshot data unavailable for drawdown calculation")
     peak = float(row["peak"])
     current = float(row["current"])
@@ -205,6 +206,7 @@ def _compute_daily_loss(cur: Any, today: date) -> float:
     )
     row = cur.fetchone()
     if not row or row["daily_return_pct"] is None:
+        logger.warning(f"[CIRCUIT_BREAKER] Portfolio snapshot unavailable on or before {today} (CB2)")
         raise ValueError(f"Portfolio snapshot unavailable on or before {today}")
     daily = float(row["daily_return_pct"])
     loss = abs(min(0, daily))
@@ -221,6 +223,7 @@ def _compute_consecutive_losses(cur: Any) -> int:
     """)
     rows = cur.fetchall()
     if not rows:
+        logger.warning("[CIRCUIT_BREAKER] No closed trades available for consecutive loss calculation (CB3)")
         raise ValueError("No closed trades available for consecutive loss calculation")
     streak = 0
     for row in rows:
@@ -241,6 +244,7 @@ def _compute_vix_level(cur: Any) -> float | None:
     """)
     row = cur.fetchone()
     if not row or row["vix_level"] is None:
+        logger.warning("[CIRCUIT_BREAKER] VIX level not available in market_health_daily (CB4)")
         raise ValueError(
             "VIX level not available in market_health_daily - circuit breaker CB4 metric cannot be computed"
         )
@@ -294,6 +298,7 @@ def _compute_market_stage(cur: Any) -> int:
     """)
     row = cur.fetchone()
     if not row or row["market_stage"] is None:
+        logger.warning("[CIRCUIT_BREAKER] Market stage not available in market_health_daily (CB6)")
         raise ValueError(
             "Market stage not available in market_health_daily — "
             "Phase X market exposure detection must populate market_health_daily before circuit breaker metrics. "
@@ -368,6 +373,7 @@ def _compute_open_risk(cur: Any) -> float:
     """)
     port_row = cur.fetchone()
     if not port_row or port_row["total_portfolio_value"] is None:
+        logger.warning("[CIRCUIT_BREAKER] Portfolio value unavailable for risk calculation (CB7)")
         raise ValueError("Portfolio value unavailable for risk calculation")
     port_val = float(port_row["total_portfolio_value"])
 

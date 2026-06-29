@@ -63,7 +63,12 @@ def render_error_panel(e: Exception, recovery_status: str | None = None) -> Pane
 
 
 def check_auth_lost() -> Panel | None:
-    """Check if authentication was lost and return error panel if needed."""
+    """Check if authentication was lost and return error panel if needed.
+
+    Returns:
+        Panel: Error panel if authentication has been lost
+        None: If authentication is still valid (no error panel needed)
+    """
     from dashboard.api_data_layer import get_cognito_auth
 
     auth = get_cognito_auth()
@@ -216,7 +221,7 @@ def render_dashboard_body(outer: Layout, ctx: DashboardContext, compact: bool) -
 
 def render_expanded_view(
     view_mode: str, ctx: DashboardContext, hdr_panel: Panel, exp_panel: Panel, mascot_panel: Panel, compact: bool
-) -> Layout | None:  # noqa: C901
+) -> Layout | None:
     """Render expanded detail view for given mode."""
     if view_mode == "normal":
         return None

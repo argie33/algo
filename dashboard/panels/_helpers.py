@@ -176,6 +176,10 @@ def _error_panel(data_name: str, data: Any, title: str, border: str = "magenta")
     """Create a panel showing granular error info for failed data sources.
 
     Checks for both hard errors (_error) and stale data (_stale_cache) using error_boundary.
+
+    Returns:
+        Panel: Error panel if data is empty or has errors
+        None: If data exists and has no errors (no panel needed)
     """
     if not data:
         return Panel(

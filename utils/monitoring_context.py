@@ -59,6 +59,11 @@ class TimeBlock:
         return self
 
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        """Exit context manager: log timing, record metrics, raise if configured.
+
+        Returns:
+            None: Always returns None to not suppress any exceptions that occurred in the with block
+        """
         self.end_time = time.time()
         self.duration_ms = (self.end_time - self.start_time) * 1000
 

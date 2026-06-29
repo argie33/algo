@@ -30,7 +30,7 @@ class MetricsCalculator:
         total_trades: int | None,
         wins: int | None,
         losses: int | None,
-    ) -> float | None:
+    ) -> float | dict[str, Any]:
         """Calculate win rate percentage from trade counts.
 
         Formula: (wins / total_trades) * 100
@@ -42,22 +42,34 @@ class MetricsCalculator:
             (Breakeven trades (= 0) excluded from denominator)
 
         Returns:
-            Win rate as percentage (0-100), or None if insufficient data
+            Win rate as percentage (0-100), or marker dict if insufficient data:
+            {
+                'data_unavailable': True,
+                'reason': 'insufficient_trades' | 'missing_win_count'
+            }
 
         Data Requirements:
             - Minimum 1 trade to calculate
             - Includes both closed trades AND open trades with unrealized P&L
 
         Edge Cases:
-            - If total_trades is None or 0, returns None
+            - If total_trades is None or 0, returns unavailable marker
             - If wins is None, raises ValueError (cannot calculate without win count)
         """
         if total_trades is None or total_trades <= 0:
-            return None
+            logger.warning(f"Cannot calculate win rate: insufficient trades (total_trades={total_trades})")
+            return {
+                "data_unavailable": True,
+                "reason": "insufficient_trades"
+            }
         if wins is None:
             raise ValueError("Cannot calculate win rate: wins count is None")
         if wins < 0 or wins > total_trades:
-            return None
+            logger.warning(f"Cannot calculate win rate: invalid win count (wins={wins}, total={total_trades})")
+            return {
+                "data_unavailable": True,
+                "reason": "invalid_trade_counts"
+            }
         wr = (wins / total_trades) * 100
         return round(wr, 2)
 
@@ -258,7 +270,7 @@ class MetricsCalculator:
     def calculate_profit_factor(
         total_wins_dollars: float | None,
         total_losses_dollars: float | None,
-    ) -> float | None:
+    ) -> float | dict[str, Any]:
         """Calculate profit factor (total wins / total losses in dollars).
 
         Formula: sum(positive P&L) / sum(abs(negative P&L))
@@ -268,7 +280,11 @@ class MetricsCalculator:
             total_losses_dollars: Sum of absolute value of negative profit_loss_dollars
 
         Returns:
-            Profit factor (float), float('inf') if perfect record, or None if no losses
+            Profit factor (float), float('inf') if perfect record, or marker dict:
+            {
+                'data_unavailable': True,
+                'reason': 'missing_data' | 'no_trades'
+            }
 
         Data Requirements:
             - Must have at least one winning trade and one losing trade
@@ -276,12 +292,19 @@ class MetricsCalculator:
 
         Edge Cases:
             - If total_losses_dollars = 0 and total_wins_dollars > 0: returns inf
-            - If total_losses_dollars = 0 and total_wins_dollars = 0: returns None
+            - If total_losses_dollars = 0 and total_wins_dollars = 0: returns unavailable marker
             - If total_losses_dollars > 0 but total_wins_dollars = 0: returns 0
             - Breakeven trades (= 0) excluded from both numerator and denominator
         """
         if total_losses_dollars is None or total_wins_dollars is None:
-            return None
+            logger.warning(
+                f"Cannot calculate profit factor: missing data "
+                f"(wins={total_wins_dollars}, losses={total_losses_dollars})"
+            )
+            return {
+                "data_unavailable": True,
+                "reason": "missing_data"
+            }
 
         total_losses = float(total_losses_dollars)
         total_wins = float(total_wins_dollars)
@@ -289,7 +312,11 @@ class MetricsCalculator:
         if total_losses < 1e-6:  # Essentially zero
             if total_wins > 1e-6:
                 return float("inf")  # Perfect record (only wins, no losses)
-            return None  # No trades or all breakeven
+            logger.warning("Cannot calculate profit factor: no trades or all breakeven")
+            return {
+                "data_unavailable": True,
+                "reason": "no_trades"
+            }
 
         pf = total_wins / total_losses
         return round(pf, 3)
@@ -434,7 +461,7 @@ class MetricsValidator:
 
 
 # Convenience functions for direct use
-def calculate_win_rate(*args: Any, **kwargs: Any) -> float | None:
+def calculate_win_rate(*args: Any, **kwargs: Any) -> float | dict[str, Any]:
     """See MetricsCalculator.calculate_win_rate"""
     return MetricsCalculator.calculate_win_rate(*args, **kwargs)
 
@@ -459,7 +486,7 @@ def calculate_calmar_ratio(*args: Any, **kwargs: Any) -> float | None:
     return MetricsCalculator.calculate_calmar_ratio(*args, **kwargs)
 
 
-def calculate_profit_factor(*args: Any, **kwargs: Any) -> float | None:
+def calculate_profit_factor(*args: Any, **kwargs: Any) -> float | dict[str, Any]:
     """See MetricsCalculator.calculate_profit_factor"""
     return MetricsCalculator.calculate_profit_factor(*args, **kwargs)
 

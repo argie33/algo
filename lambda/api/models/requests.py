@@ -66,6 +66,12 @@ class ContactSubmissionRequest(BaseModel):
     @field_validator("phone")
     @classmethod
     def validate_phone(cls, v: str | None) -> str | None:
+        """Validate phone number format.
+
+        Returns:
+            str: Valid phone number if non-empty
+            None: If phone is None or empty string (phone is optional field)
+        """
         if v is not None and v.strip():
             # Pattern: +1-800-555-0123, (800) 555-0123, etc.
             if not re.match(r"^\+?[\d\s\-\(\)]{10,15}$", v):

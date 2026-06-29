@@ -49,6 +49,18 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+
+def _is_data_unavailable_marker(result: Any) -> bool:
+    """Check if result is an explicit unavailability marker dict.
+
+    Marker dicts have data_unavailable=True and should trigger fallback to next source.
+    """
+    return (
+        isinstance(result, dict)
+        and result.get("data_unavailable") is True
+    )
+
+
 # Global/shared rate limiters to prevent multiple DataSourceRouter instances from exceeding API limits
 # Multiple concurrent loaders each call DataSourceRouter, which would create multiple rate limiters.
 # Instead, use a single global limiter shared across all loaders to stay under yfinance's actual rate limits.
@@ -154,8 +166,12 @@ class DataSourceRouter:
         """Try sources in order, skipping paused ones, recording outcomes.
 
         Raises DataSourceError if all sources fail (not if symbol has no data).
+
+        Treats data_unavailable marker dicts as "no data" and continues to next source.
+        Returns the marker from the last source if all return markers.
         """
         last_exc = None
+        last_marker = None
         sources_attempted = []
         for i, (name, fn) in enumerate(sources):
             sources_attempted.append(name)
@@ -165,6 +181,11 @@ class DataSourceRouter:
                 continue
             try:
                 result = fn()
+                # Check for explicit unavailability markers
+                if _is_data_unavailable_marker(result):
+                    last_marker = result
+                    # Treat marker like None — no data from this source, try next
+                    continue
                 if result is None or (hasattr(result, "__len__") and len(result) == 0):
                     # Empty result = symbol doesn't exist or has no data (not a source problem)
                     # Don't count as source failure — skip gracefully without affecting health
@@ -188,7 +209,10 @@ class DataSourceRouter:
                 else:
                     logger.debug(f"Source '{name}' failed for {request_desc}: {e}")
                 continue
-        # All sources failed — raise exception instead of returning None
+        # All sources failed or returned no data
+        # Return marker from last source if available (shows data was unavailable, not error)
+        if last_marker:
+            return last_marker
         if last_exc:
             logger.error("All sources failed for %s. Last error: %s", request_desc, last_exc)
             from algo.exceptions import DataSourceError
@@ -251,7 +275,7 @@ class DataSourceRouter:
     @retry(max_attempts=2, base_delay=2.0, exceptions=(Exception,))
     def _fetch_yfinance_ohlcv(
         self, symbol: str, start: date, end: date, interval: str = "1d"
-    ) -> list[dict[str, Any]] | None:
+    ) -> list[dict[str, Any]] | dict[str, Any] | None:
         if yf is None:
             logger.error("[yfinance] yfinance not installed")
             return None
@@ -276,7 +300,11 @@ class DataSourceRouter:
 
             if hist is None or hist.empty:
                 logger.debug(f"[yfinance] No data returned for {symbol}")
-                return None
+                return {
+                    "symbol": symbol,
+                    "data_unavailable": True,
+                    "reason": "no_historical_data",
+                }
             logger.debug(f"[yfinance] Got {len(hist)} rows for {symbol}")
 
             # Fix: yfinance returns MultiIndex DataFrame when symbol provided as string
@@ -305,7 +333,11 @@ class DataSourceRouter:
 
             if not rows:
                 logger.warning(f"[yfinance] No valid rows for {symbol} after parsing")
-                return None
+                return {
+                    "symbol": symbol,
+                    "data_unavailable": True,
+                    "reason": "invalid_or_missing_data",
+                }
 
             return rows
         except TimeoutError as e:
@@ -506,7 +538,11 @@ class DataSourceRouter:
 
             df = _call_with_timeout(fetch, timeout_sec=30)
             if df is None or df.empty:
-                return None
+                return {
+                    "symbol": symbol,
+                    "data_unavailable": True,
+                    "reason": "balance_sheet_unavailable",
+                }
             return df.to_dict(orient="index")
         except TimeoutError as e:
             raise TimeoutError(f"yfinance balance_sheet timeout for {symbol}") from e
@@ -524,7 +560,11 @@ class DataSourceRouter:
 
             df = _call_with_timeout(fetch, timeout_sec=30)
             if df is None or df.empty:
-                return None
+                return {
+                    "symbol": symbol,
+                    "data_unavailable": True,
+                    "reason": "income_statement_unavailable",
+                }
             return df.to_dict(orient="index")
         except TimeoutError as e:
             raise TimeoutError(f"yfinance income_stmt timeout for {symbol}") from e
@@ -542,7 +582,11 @@ class DataSourceRouter:
 
             df = _call_with_timeout(fetch, timeout_sec=30)
             if df is None or df.empty:
-                return None
+                return {
+                    "symbol": symbol,
+                    "data_unavailable": True,
+                    "reason": "cashflow_unavailable",
+                }
             return df.to_dict(orient="index")
         except TimeoutError as e:
             raise TimeoutError(f"yfinance cashflow timeout for {symbol}") from e
@@ -598,9 +642,17 @@ class DataSourceRouter:
 
             result = _call_with_timeout(fetch, timeout_sec=30)
             if result is None:
-                return None
+                return {
+                    "symbol": symbol,
+                    "data_unavailable": True,
+                    "reason": "earnings_unavailable",
+                }
             if hasattr(result, "empty") and result.empty:
-                return None
+                return {
+                    "symbol": symbol,
+                    "data_unavailable": True,
+                    "reason": "earnings_unavailable",
+                }
             if isinstance(result, dict):
                 return result
             return result.to_dict(orient="index")
@@ -630,7 +682,11 @@ class DataSourceRouter:
 
             df = _call_with_timeout(fetch, timeout_sec=30)
             if df is None or df.empty:
-                return None
+                return {
+                    "symbol": symbol,
+                    "data_unavailable": True,
+                    "reason": "eps_revisions_unavailable",
+                }
             return df
         except TimeoutError as e:
             raise TimeoutError(f"yfinance eps_revisions timeout for {symbol}") from e
@@ -655,7 +711,11 @@ class DataSourceRouter:
 
             df = _call_with_timeout(fetch, timeout_sec=30)
             if df is None or df.empty:
-                return None
+                return {
+                    "symbol": symbol,
+                    "data_unavailable": True,
+                    "reason": "eps_trend_unavailable",
+                }
             return df
         except TimeoutError as e:
             raise TimeoutError(f"yfinance eps_trend timeout for {symbol}") from e

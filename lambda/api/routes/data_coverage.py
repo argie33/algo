@@ -54,7 +54,7 @@ def get_price_coverage(cur: cursor) -> Any:
         )
 
         row = DatabaseResultValidator.safe_get_first_row(rows, "price coverage")
-        if not row:
+        if isinstance(row, dict) and row.get("data_unavailable"):
             return error_response(503, "no_data", "Price data not yet available")
 
         total_symbols = row["total_symbols"]
@@ -83,9 +83,11 @@ def get_price_coverage(cur: cursor) -> Any:
             "coverage_pct": coverage_pct,
             "latest_date": str(latest_date) if latest_date else None,
             "days_stale": days_stale,
-            "status": "fresh"
-            if (days_stale is not None and days_stale <= 1)
-            else ("stale" if days_stale is not None else None),
+            "status": (
+                "fresh"
+                if (days_stale is not None and days_stale <= 1)
+                else ("stale" if days_stale is not None else None)
+            ),
             "data_quality": {
                 "zero_volume_pct": round(zero_vol_pct, 2) if zero_vol_pct is not None else None,
                 "invalid_price_pct": round(invalid_pct, 2) if invalid_pct is not None else None,

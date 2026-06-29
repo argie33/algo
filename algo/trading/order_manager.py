@@ -217,6 +217,7 @@ class OrderManager:
             raise ValueError("alpaca_order_id required")
 
         if alpaca_order_id.startswith(("LOCAL-", "PENDING-")):
+            logger.debug(f"[ORDER_MANAGER] Order {alpaca_order_id} is paper mode (no live Alpaca record)")
             return None
 
         try:
@@ -269,9 +270,11 @@ class OrderManager:
 
         Includes retry logic with exponential backoff for transient failures.
 
-        Returns: int (filled_qty) or None for paper mode orders
+        Returns:
+            int: filled_qty from Alpaca for live orders
+            None: for paper mode orders (LOCAL-*/PENDING-* prefixes, no Alpaca record exists)
 
-        Raises OrderExecutionError if Alpaca API unreachable after retries.
+        Raises OrderExecutionError if Alpaca API unreachable after retries (live mode only).
         """
         if not self.alpaca_key or not self.alpaca_secret:
             raise RuntimeError("Alpaca credentials not configured")
@@ -279,6 +282,7 @@ class OrderManager:
             raise ValueError("alpaca_order_id required")
 
         if alpaca_order_id.startswith(("LOCAL-", "PENDING-")):
+            logger.debug(f"[ORDER_MANAGER] Order {alpaca_order_id} is paper mode (no live Alpaca record)")
             return None
 
         max_retries = 3
@@ -324,15 +328,17 @@ class OrderManager:
     def verify_order_status(self, alpaca_order_id: str) -> str | None:
         """Re-query order status from Alpaca with retry logic.
 
-        Returns: order status string ('filled', 'partially_filled', 'pending', 'cancelled', etc.)
-                 or None for paper mode orders
+        Returns:
+            str: order status string ('filled', 'partially_filled', 'pending', 'cancelled', etc.)
+            None: for paper mode orders (LOCAL-*/PENDING-* prefixes, no Alpaca record exists)
 
-        Raises OrderExecutionError if unable to verify status after retries (non-paper mode).
+        Raises OrderExecutionError if unable to verify status after retries (live mode only).
         """
         if not self.alpaca_key or not self.alpaca_secret or not alpaca_order_id:
             raise RuntimeError("Cannot verify order status without credentials and order_id")
 
         if alpaca_order_id.startswith(("LOCAL-", "PENDING-")):
+            logger.debug(f"[ORDER_MANAGER] Order {alpaca_order_id} is paper mode (no live Alpaca record)")
             return None
 
         max_retries = 3

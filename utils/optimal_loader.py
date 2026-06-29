@@ -77,35 +77,39 @@ class OptimalLoader:
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]] | None:
         raise NotImplementedError("Implement fetch_incremental or fetch_global")
 
-    def fetch_global(self, since: date | None) -> list[dict[str, Any]] | None:
+    def fetch_global(self, since: date | None) -> list[dict[str, Any]] | dict[str, Any]:
         """Fetch global data. Override in subclasses that implement global load patterns.
 
         Returns:
-            list[dict]: Data rows if available, None if not implemented by subclass.
+            list[dict]: Data rows if available.
+            dict: Marker dict with data_unavailable=True if not implemented by subclass.
 
-        Note: Returning None is acceptable for loaders that only implement symbol-level incremental loads.
+        Note: Return explicit data_unavailable marker instead of None for unimplemented loaders.
         """
-        return None
+        return {"data_unavailable": True, "reason": "fetch_global_not_implemented_by_subclass"}
 
     def transform(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         return rows
 
-    def watermark_from_rows(self, rows: list[dict[str, Any]]) -> date | None:
+    def watermark_from_rows(self, rows: list[dict[str, Any]]) -> date:
         """Extract watermark (max date) from rows.
 
         Args:
             rows: List of data rows to extract watermark from.
 
         Returns:
-            Maximum date value from watermark_field, or None if no valid dates found.
-            Returns None only when rows are empty.
+            Maximum date value from watermark_field.
 
         Raises:
-            ValueError: If rows present but critical watermark_field is missing.
+            ValueError: If rows are empty (should not call with empty rows) or
+                       if rows present but critical watermark_field is missing.
         """
         if not rows:
-            # Empty result set—no data to extract watermark from
-            return None
+            # Empty result set—should not call with empty rows
+            raise ValueError(
+                f"[{self.table_name}] watermark_from_rows called with empty rows (should never happen). "
+                "This is a programming error—check caller before invoking."
+            )
 
         # Extract all non-None values of watermark_field with fail-fast validation
         values: list[date] = []
@@ -402,17 +406,20 @@ class OptimalLoader:
                 since = self._watermark._parse_watermark_date(row[0]) if row and row[0] is not None else None
 
             try:
-                rows = self.fetch_global(since)
+                rows_result = self.fetch_global(since)
             except Exception as e:
                 raise RuntimeError(f"[{self.table_name}] fetch_global failed: {e}") from e
 
-            # fetch_global can return None if not implemented by subclass
-            if rows is None:
+            # fetch_global returns marker dict if not implemented by subclass
+            if isinstance(rows_result, dict) and rows_result.get("data_unavailable"):
                 logger.debug(
-                    f"[{self.table_name}] fetch_global not implemented by subclass (returned None). "
-                    "Skipping global load step."
+                    f"[{self.table_name}] fetch_global not implemented by subclass "
+                    f"(data_unavailable: {rows_result.get('reason', 'unknown')}). Skipping global load step."
                 )
                 return 0
+
+            # rows_result is now guaranteed to be a list[dict] after marker dict check
+            rows: list[dict[str, Any]] = cast(list[dict[str, Any]], rows_result)
 
             if not rows:
                 logger.info(f"[{self.table_name}] fetch_global returned empty list (no data available)")

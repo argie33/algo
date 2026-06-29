@@ -640,7 +640,7 @@ class BreadthFetcher:
                 ad_ratio = advances / declines
 
                 # Get new highs/lows if available
-                nh, nl = new_highs_lows.get(d, (None, None))
+                nh, nl = new_highs_lows.get(d, (0, 0))
 
                 result[d] = {
                     "advance_decline_ratio": round(ad_ratio, 3),

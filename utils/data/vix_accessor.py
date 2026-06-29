@@ -33,7 +33,7 @@ class VIXAccessor:
         - API sentiment endpoint: Market fear/greed signal
 
         Returns:
-            Dict with vix_level and date, or None if unavailable
+            Dict with vix_level and date, or marker dict if unavailable
         """
         row = fetch_latest("market_health_daily", "date", timeout=timeout)
         if row and row.get("vix_level") is not None:
@@ -41,7 +41,10 @@ class VIXAccessor:
                 "date": row.get("date"),
                 "vix_level": float(row["vix_level"]),
             }
-        return None
+        return {
+            "data_unavailable": True,
+            "reason": "vix_data_not_available",
+        }
 
     @staticmethod
     def get_vix_history(days: int = 100, timeout: int = 30) -> list[dict[str, Any]]:
@@ -110,11 +113,21 @@ class VIXAccessor:
         - Dashboard market gauge
 
         Returns:
-            Dict with latest VIX data and computed signal
+            dict: VIX data with keys {date, vix_level, signal} if data available
+            dict: Marker dict with data_unavailable=True if data unavailable
         """
         latest = VIXAccessor.get_latest_vix(timeout=timeout)
-        if latest is None or latest.get("vix_level") is None:
-            return None
+        # Check if result is unavailability marker
+        if latest is None or latest.get("data_unavailable") is True:
+            return {
+                "data_unavailable": True,
+                "reason": "vix_data_not_available",
+            }
+        if latest.get("vix_level") is None:
+            return {
+                "data_unavailable": True,
+                "reason": "vix_level_missing",
+            }
 
         vix = latest["vix_level"]
         return {

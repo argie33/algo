@@ -153,7 +153,7 @@ class TestBreadthFetcherFullIntegration:
             assert data["new_lows_count"] == 3
 
     def test_fetch_with_missing_new_highs_lows_data(self):
-        """If new highs/lows query fails, should use None and continue."""
+        """If new highs/lows data unavailable for a date, should default to 0."""
         from loaders.market_health_fetchers import BreadthFetcher
 
         fetcher = BreadthFetcher()
@@ -162,11 +162,11 @@ class TestBreadthFetcherFullIntegration:
             mock_cursor = MagicMock()
 
             # First call succeeds (advance/decline)
-            # Second call raises (new highs/lows fails)
-            mock_cursor.fetchall.return_value = [
-                (date(2024, 1, 1), 100, 50),
+            # Second call returns no matching highs/lows for this date
+            mock_cursor.fetchall.side_effect = [
+                [(date(2024, 1, 1), 100, 50)],  # Advance/decline query
+                [],  # New highs/lows query returns empty (insufficient history for this date)
             ]
-            mock_cursor.execute.side_effect = [None, Exception("DB error")]  # 2nd execute raises
 
             mock_db.return_value.__enter__.return_value = mock_cursor
 
@@ -176,9 +176,9 @@ class TestBreadthFetcherFullIntegration:
             assert "2024-01-01" in result
             assert result["2024-01-01"]["advance_decline_ratio"] == 2.0
 
-            # But new highs/lows should be None (error handling)
-            assert result["2024-01-01"]["new_highs_count"] is None
-            assert result["2024-01-01"]["new_lows_count"] is None
+            # new highs/lows should default to 0 when data unavailable (insufficient history)
+            assert result["2024-01-01"]["new_highs_count"] == 0
+            assert result["2024-01-01"]["new_lows_count"] == 0
 
     def test_fetch_skips_rows_with_zero_declines(self):
         """Rows with declines <= 0 should be skipped (division by zero)."""
