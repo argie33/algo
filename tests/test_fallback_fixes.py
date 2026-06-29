@@ -342,16 +342,19 @@ class TestSentimentLoaders:
 
         loader = AAIISentimentLoader()
 
-        # Mock the request to simulate server unreachable (after all retries)
+        # Mock both request attempts to fail (direct request + Playwright hybrid approach)
         with patch("loaders.load_aaii_sentiment.requests.get") as mock_get:
-            mock_get.side_effect = requests.exceptions.Timeout("Connection timeout")
+            with patch.object(AAIISentimentLoader, "_fetch_with_playwright_hybrid") as mock_playwright:
+                # Both attempts fail with network errors
+                mock_get.side_effect = requests.exceptions.Timeout("Connection timeout")
+                mock_playwright.side_effect = RuntimeError("Playwright fetch failed")
 
-            result = loader.fetch_global(None)
-            # Should return explicit data_unavailable marker for optional enrichment
-            assert isinstance(result, list), "AAII sentiment should return list"
-            assert len(result) == 1, "Expected single result"
-            assert result[0].get("data_unavailable") is True, "Should have data_unavailable=True"
-            assert "reason" in result[0], "Should include reason for unavailability"
+                result = loader.fetch_global(None)
+                # Should return explicit data_unavailable marker for optional enrichment
+                assert isinstance(result, list), "AAII sentiment should return list"
+                assert len(result) == 1, "Expected single result"
+                assert result[0].get("data_unavailable") is True, "Should have data_unavailable=True"
+                assert "reason" in result[0], "Should include reason for unavailability"
 
     def test_sentiment_data_consistency_both_return_none(self):
         """AAII and Analyst sentiment loaders should both return None for optional data."""

@@ -120,7 +120,9 @@ class MarketHealthDailyLoader(OptimalLoader):
                 ) from e
 
         if since is None:
-            return end - timedelta(days=5 * 365)
+            # Limit initial backfill to 365 days to match available VIX data (pre-loaded in main())
+            # This ensures SMA_200 calculations have sufficient history (200+ trading days = ~280 calendar days)
+            return end - timedelta(days=365)
         # Backfill 300 days (~250 trading days after weekends/holidays).
         # This ensures we have sufficient history to compute SMA_200 (needs 200 trading days).
         return since - timedelta(days=300)
@@ -1196,15 +1198,16 @@ def main() -> int:
     tracker.start()
 
     try:
+        # CRITICAL: Write VIX-family prices BEFORE market health load
+        # Market health loader needs VIX data to compute metrics
+        # Use ET date for consistency with trading calendar
+        end = datetime.now(EASTERN_TZ).date()
+        start = end - timedelta(days=365)  # 1 year of history for SMA calculations
+        written = _write_vix_family_prices(start, end)
+        logger.info(f"Pre-loaded {written} VIX family prices into price_daily before market health computation")
+
         loader = MarketHealthDailyLoader()
         loader.run(["SPY"], parallelism=args.parallelism)
-
-        # Also write VIX-family term structure prices to price_daily so the
-        # VolTermStructureCard in MarketsHealth can render.
-        # FIX: Use ET date, not system date (AWS runs in UTC but trading is ET-based)
-        end = datetime.now(EASTERN_TZ).date()
-        start = end - timedelta(days=90)
-        written = _write_vix_family_prices(start, end)
         if written > 0:
             logger.info(f"VIX family: {written} rows written to price_daily")
 

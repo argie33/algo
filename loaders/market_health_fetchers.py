@@ -420,11 +420,12 @@ class YieldCurveFetcher:
                 if not is_transient:
                     # Permanent error - don't retry (e.g., no data available)
                     last_error_reason = f"permanent {type(e).__name__}: {str(e)[:100]}"
-                    logger.error(
+                    error_msg = (
                         f"[YIELD_CURVE] Permanent error on attempt {attempt}/{self.MAX_RETRIES} for {start}:{end}: "
-                        f"{last_error_reason}. Will not retry."
+                        f"{last_error_reason}. Yield curve enrichment is unavailable. Cannot proceed."
                     )
-                    return None
+                    logger.error(error_msg)
+                    raise RuntimeError(error_msg) from e
 
                 # Transient error - log and retry if attempts remain
                 if attempt < self.MAX_RETRIES:
@@ -443,11 +444,12 @@ class YieldCurveFetcher:
                     )
 
         # All retries exhausted
-        logger.critical(
+        error_msg = (
             f"[YIELD_CURVE] All {self.MAX_RETRIES} retries failed for {start}:{end}. "
-            f"Reason: {last_error_reason}. Yield curve enrichment unavailable."
+            f"Reason: {last_error_reason}. Yield curve enrichment is unavailable. Cannot proceed."
         )
-        return None
+        logger.critical(error_msg)
+        raise RuntimeError(error_msg)
 
     def _fetch_yield_curve_data(self, start: date, end: date) -> dict[str, Any]:
         """Internal yield curve fetch implementation.
