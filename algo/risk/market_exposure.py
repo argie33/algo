@@ -62,17 +62,16 @@ import json
 import logging
 from collections.abc import Callable
 from datetime import date as _date
-from datetime import datetime, time, timedelta
+from datetime import datetime, timedelta
 from typing import Any, TypeVar
 
 import psycopg2
 from psycopg2 import sql as pgsql
 from psycopg2.extensions import cursor as PsycopgCursor  # noqa: N812
 
-from algo.infrastructure import MarketCalendar
 from algo.risk.market_factor_calculator import MarketFactorCalculator
 from utils.db import DatabaseContext
-from utils.infrastructure.timezone import EASTERN_TZ
+from utils.infrastructure.timezone import EASTERN_TZ  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
@@ -999,48 +998,15 @@ class MarketExposure:
         vix3m_row = cur.fetchone()
 
         if not vix_row or vix_row[0] is None:
-            # Check if market is currently open (real-time VIX should be available during market hours)
-            now = datetime.now(EASTERN_TZ)
-            is_market_open = (
-                MarketCalendar.is_trading_day(now.date()) and
-                time(9, 30) <= now.time() <= time(16, 0)
+            msg = (
+                f"[VIX CRITICAL] Real-time ^VIX missing for {eval_date}. "
+                f"Cannot assess market volatility for portfolio exposure. "
+                f"Exposure calculation halted - cannot proceed without current VIX data. "
+                f"Check: (1) Is yfinance API reachable? (2) Is ^VIX in price_daily? "
+                f"(3) Did load_prices run successfully?"
             )
-
-            if is_market_open:
-                # During market hours, real-time VIX is critical for exposure calculation
-                msg = (
-                    f"[VIX CRITICAL] Real-time ^VIX missing during market hours ({eval_date} {now.time()}). "
-                    f"Cannot assess market volatility for portfolio exposure during trading session. "
-                    f"Exposure calculation halted - stale VIX data would incorrectly underestimate risk. "
-                    f"Check: (1) Is yfinance API reachable? (2) Is ^VIX in price_daily? "
-                    f"(3) Did load_prices run successfully today?"
-                )
-                logger.critical(msg)
-                raise RuntimeError(msg)
-
-            # After market close, allow fallback to market_health_daily (same-day, acceptable age)
-            cur.execute(
-                """SELECT vix_level FROM market_health_daily
-                   WHERE date <= %s AND vix_level IS NOT NULL
-                   ORDER BY date DESC LIMIT 1""",
-                (eval_date,),
-            )
-            r2 = cur.fetchone()
-            if not r2 or r2[0] is None:
-                msg = (
-                    f"[VIX CRITICAL] No VIX data available for {eval_date} (post-market fallback): "
-                    f"^VIX missing from price_daily AND vix_level missing/null in market_health_daily. "
-                    f"Exposure calculation INCOMPLETE - risk assessment unavailable. "
-                    f"Check that load_market_health_daily loader is running and fetching VIX from external sources."
-                )
-                logger.critical(msg)
-                raise RuntimeError(msg)
-            vix = float(r2[0])
-            logger.info(
-                f"[VIX] Post-market fallback: using vix_level={vix} from market_health_daily "
-                f"(real-time ^VIX unavailable after close for {eval_date})"
-            )
-            return self._vix_score(vix, rising=False, term_structure=None)
+            logger.critical(msg)
+            raise RuntimeError(msg)
 
         vix = float(vix_row[0])
         if vix_row[1] is None:
@@ -1189,112 +1155,107 @@ class MarketExposure:
         Uses pre-computed advance_decline_ratio from market_health_daily and
         SPY close from price_daily (fast, <1s indexed lookups) instead of
         computing LAG() window functions across 5000 stocks x 35 days (~175,000 rows).
-
-        Returns {"score_factor": None} if data unavailable instead of raising.
-        A/D line is a 6pt factor and missing breadth data is handled by returning None
-        score - normalization will exclude this factor.
         """
-        try:
-            cur.execute(
-                """
-                WITH mh AS (
-                    SELECT date, advance_decline_ratio
-                    FROM market_health_daily
-                    WHERE date <= %s AND advance_decline_ratio IS NOT NULL
-                    ORDER BY date DESC LIMIT 22
-                ),
-                spy AS (
-                    SELECT date, close FROM price_daily
-                    WHERE symbol = 'SPY' AND date <= %s
-                    ORDER BY date DESC LIMIT 22
-                )
-                SELECT mh.date, mh.advance_decline_ratio AS ratio, spy.close AS spy_close
-                FROM mh
-                JOIN spy ON mh.date = spy.date
-                ORDER BY mh.date ASC
-                """,
-                (eval_date, eval_date),
+        cur.execute(
+            """
+            WITH mh AS (
+                SELECT date, advance_decline_ratio
+                FROM market_health_daily
+                WHERE date <= %s AND advance_decline_ratio IS NOT NULL
+                ORDER BY date DESC LIMIT 22
+            ),
+            spy AS (
+                SELECT date, close FROM price_daily
+                WHERE symbol = 'SPY' AND date <= %s
+                ORDER BY date DESC LIMIT 22
             )
-            rows = cur.fetchall()
-            if len(rows) < 5:
+            SELECT mh.date, mh.advance_decline_ratio AS ratio, spy.close AS spy_close
+            FROM mh
+            JOIN spy ON mh.date = spy.date
+            ORDER BY mh.date ASC
+            """,
+            (eval_date, eval_date),
+        )
+        rows = cur.fetchall()
+        if len(rows) < 5:
+            msg = (
+                f"[MARKET_EXPOSURE CRITICAL] Insufficient A/D line data for {eval_date}: "
+                f"{len(rows)} rows, need 5+. "
+                f"A/D line (6pt factor) is required for accurate market breadth assessment. "
+                f"Cannot compute exposure score with missing historical data. "
+                f"Check market_health_daily table for advance_decline_ratio data gaps."
+            )
+            logger.error(msg)
+            raise RuntimeError(msg)
+
+        nets = []
+        for r in rows:
+            ratio = r.get("ratio")
+            if ratio is None:
+                row_date = r.get("date", "unknown")
                 msg = (
-                    f"[MARKET_EXPOSURE CRITICAL] Insufficient A/D line data for {eval_date}: "
-                    f"{len(rows)} rows, need 5+. "
-                    f"A/D line (6pt factor) is required for accurate market breadth assessment. "
-                    f"Cannot compute exposure score with missing historical data. "
-                    f"Check advance_decline_daily table for data gaps."
+                    f"[MARKET_EXPOSURE CRITICAL] A/D ratio corrupted/missing for {row_date}. "
+                    f"Cannot compute A/D line with data gaps — requires complete daily sequence. "
+                    f"Check market_health_daily table for data quality."
                 )
                 logger.error(msg)
-                raise ValueError(msg)
+                raise RuntimeError(msg)
+            nets.append((float(ratio) - 1) / (float(ratio) + 1))
 
-            nets = []
-            for r in rows:
-                ratio = r.get("ratio")
-                if ratio is None:
-                    row_date = r.get("date", "unknown")
-                    msg = (
-                        f"[MARKET_EXPOSURE] A/D ratio corrupted/missing for {row_date}. "
-                        f"Cannot compute A/D line with data gaps — requires complete daily sequence. "
-                        f"Check advance_decline_daily table for data quality."
-                    )
-                    logger.error(msg)
-                    raise ValueError(msg)
-                nets.append((float(ratio) - 1) / (float(ratio) + 1))
+        if len(nets) < 2:
+            msg = (
+                f"[MARKET_EXPOSURE CRITICAL] Insufficient valid A/D ratios for {eval_date}. "
+                f"A/D line calculation requires minimum 2 valid data points. "
+                f"Check market_health_daily table for data completeness."
+            )
+            logger.error(msg)
+            raise RuntimeError(msg)
 
-            if len(nets) < 2:
-                msg = (
-                    f"[MARKET_EXPOSURE CRITICAL] Insufficient valid A/D ratios for {eval_date}. "
-                    f"A/D line calculation requires minimum 2 valid data points. "
-                    f"Check advance_decline_daily table for data completeness."
-                )
-                logger.error(msg)
-                raise ValueError(msg)
+        first_net = nets[0]
+        last_net = nets[-1]
+        ad_change = last_net - first_net
 
-            first_net = nets[0]
-            last_net = nets[-1]
-            ad_change = last_net - first_net
+        first_spy_val = rows[0].get("spy_close")
+        last_spy_val = rows[-1].get("spy_close")
 
-            first_spy_val = rows[0].get("spy_close")
-            last_spy_val = rows[-1].get("spy_close")
+        if first_spy_val is None or last_spy_val is None:
+            msg = (
+                f"[MARKET_EXPOSURE CRITICAL] SPY close price missing for A/D line calculation on {eval_date}. "
+                f"A/D line (6pt factor) is required for accurate market breadth assessment. "
+                f"Cannot compute exposure score with missing benchmark data. "
+                f"Check price_daily table for SPY data."
+            )
+            logger.error(msg)
+            raise RuntimeError(msg)
 
-            if first_spy_val is None or last_spy_val is None:
-                msg = (
-                    f"[MARKET_EXPOSURE CRITICAL] SPY close price missing for A/D line calculation on {eval_date}. "
-                    f"A/D line (6pt factor) is required for accurate market breadth assessment. "
-                    f"Cannot compute exposure score with missing benchmark data. "
-                    f"Check price_daily table for SPY data."
-                )
-                logger.error(msg)
-                raise ValueError(msg)
+        first_spy = float(first_spy_val)
+        last_spy = float(last_spy_val)
 
-            first_spy = float(first_spy_val)
-            last_spy = float(last_spy_val)
+        if first_spy <= 0:
+            raise RuntimeError(
+                f"[MARKET_EXPOSURE CRITICAL] Invalid first SPY price {first_spy} on {eval_date}. "
+                f"Cannot compute A/D line direction without valid benchmark price. "
+                f"Check price_daily table for SPY data integrity."
+            )
 
-            if first_spy <= 0:
-                logger.warning(f"Invalid first SPY price {first_spy} on {eval_date}")
-                return {"score": None, "reason": "Invalid SPY price"}
-
-            spy_change_pct = (last_spy - first_spy) / first_spy * 100.0
-            # Confirmation: both same direction. Divergence: opposite.
-            if (ad_change > 0 and spy_change_pct > 0) or (ad_change < 0 and spy_change_pct < 0):
-                score = 100.0
-                relation = "confirming"
-            elif ad_change > 0 and spy_change_pct < 0:
-                score = 60.0  # hidden bullish
-                relation = "bullish_divergence"
-            else:
-                score = 30.0  # bearish divergence
-                relation = "bearish_divergence"
-            return {
-                "score": score,
-                "ad_change_20d": round(ad_change, 4),
-                "spy_change_pct_20d": round(spy_change_pct, 2),
-                "relation": relation,
-                "direction": "up" if ad_change > 0 else "down",
-            }
-        except Exception as e:
-            logger.warning(f"A/D line calculation failed for {eval_date}: {e}")
-            return {"score": None, "reason": f"A/D calculation error: {e}"}
+        spy_change_pct = (last_spy - first_spy) / first_spy * 100.0
+        # Confirmation: both same direction. Divergence: opposite.
+        if (ad_change > 0 and spy_change_pct > 0) or (ad_change < 0 and spy_change_pct < 0):
+            score = 100.0
+            relation = "confirming"
+        elif ad_change > 0 and spy_change_pct < 0:
+            score = 60.0  # hidden bullish
+            relation = "bullish_divergence"
+        else:
+            score = 30.0  # bearish divergence
+            relation = "bearish_divergence"
+        return {
+            "score": score,
+            "ad_change_20d": round(ad_change, 4),
+            "spy_change_pct_20d": round(spy_change_pct, 2),
+            "relation": relation,
+            "direction": "up" if ad_change > 0 else "down",
+        }
 
     def _aaii(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """AAII investor sentiment - contrarian at extremes only.
@@ -1403,67 +1364,63 @@ class MarketExposure:
         Scale: <3.5% = tight/healthy, 4-5% = mild stress, >7% = severe stress.
         Note: HY OAS is intentionally excluded from the economic regime overlay
         to avoid double-counting this data series.
-
-        Returns {"score_factor": None} if data unavailable instead of raising.
-        Credit spread is a 10pt factor and missing economic data is handled by
-        returning None score - normalization will exclude this factor.
         """
-        try:
-            cur.execute(
-                """
-                SELECT value::float, date
-                FROM economic_data
-                WHERE series_id = 'BAMLH0A0HYM2' AND date <= %s
-                ORDER BY date DESC LIMIT 25
-                """,
-                (eval_date,),
+        cur.execute(
+            """
+            SELECT value::float, date
+            FROM economic_data
+            WHERE series_id = 'BAMLH0A0HYM2' AND date <= %s
+            ORDER BY date DESC LIMIT 25
+            """,
+            (eval_date,),
+        )
+        rows = cur.fetchall()
+        if not rows:
+            raise RuntimeError(
+                f"[CREDIT SPREAD CRITICAL] No HY OAS data (BAMLH0A0HYM2) for {eval_date}. "
+                f"Credit spreads are a required 10pt factor for exposure calculation. "
+                f"Cannot assess credit market stress without HY spread data. "
+                f"Check economic_data table for BAMLH0A0HYM2 series."
             )
-            rows = cur.fetchall()
-            if not rows:
-                logger.warning(f"No HY credit spread (BAMLH0A0HYM2) data for {eval_date}")
-                return {"score_factor": None, "reason": "No credit spread data available"}
 
-            hy = float(rows[0][0])
+        hy = float(rows[0][0])
 
-            # If we have trend data, use it; otherwise just use current level
-            widening_1pp = False
-            hy_20d_ago = None
-            if len(rows) >= 20:
-                hy_20d_ago = float(rows[-1][0])
-                widening_1pp = (hy - hy_20d_ago) > 1.0
-            elif len(rows) > 5:
-                # Partial history available, use what we have
-                hy_20d_ago = float(rows[-1][0])
-                widening_1pp = (hy - hy_20d_ago) > 1.0
-            else:
-                logger.debug(f"Limited credit spread history for {eval_date}: {len(rows)} rows")
+        # If we have trend data, use it; otherwise just use current level
+        widening_1pp = False
+        hy_20d_ago = None
+        if len(rows) >= 20:
+            hy_20d_ago = float(rows[-1][0])
+            widening_1pp = (hy - hy_20d_ago) > 1.0
+        elif len(rows) > 5:
+            # Partial history available, use what we have
+            hy_20d_ago = float(rows[-1][0])
+            widening_1pp = (hy - hy_20d_ago) > 1.0
+        else:
+            logger.debug(f"Limited credit spread history for {eval_date}: {len(rows)} rows")
 
-            if hy < 3.5:
-                score = 100.0
-            elif hy < 4.5:
-                score = 85.0
-            elif hy < 5.5:
-                score = 65.0
-            elif hy < 7.0:
-                score = 35.0
-            else:
-                score = 10.0
+        if hy < 3.5:
+            score = 100.0
+        elif hy < 4.5:
+            score = 85.0
+        elif hy < 5.5:
+            score = 65.0
+        elif hy < 7.0:
+            score = 35.0
+        else:
+            score = 10.0
 
-            # Rapid widening haircut: stress is accelerating
-            if widening_1pp and hy > 4.0:
-                score *= 0.80
+        # Rapid widening haircut: stress is accelerating
+        if widening_1pp and hy > 4.0:
+            score *= 0.80
 
-            result = {
-                "score": round(score, 1),
-                "value": round(hy, 3),
-                "widening_rapidly": widening_1pp,
-            }
-            if hy_20d_ago is not None:
-                result["hy_20d_ago"] = round(hy_20d_ago, 3)
-            return result
-        except Exception as e:
-            logger.warning(f"Credit spread calculation failed for {eval_date}: {e}")
-            return {"score": None, "reason": f"Credit spread calculation error: {e}"}
+        result = {
+            "score": round(score, 1),
+            "value": round(hy, 3),
+            "widening_rapidly": widening_1pp,
+        }
+        if hy_20d_ago is not None:
+            result["hy_20d_ago"] = round(hy_20d_ago, 3)
+        return result
 
     def _economic_regime_overlay(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """Post-score macro stress penalty from yield curve, credit trend, jobless claims.
