@@ -275,8 +275,9 @@ def get_cognito_auth(require_auth: bool = True, interactive: bool = True) -> Cog
             logger.info(f"[Cognito] Authenticated as {username}")
             return auth
         else:
-            logger.warning(f"[Cognito] Failed to authenticate {username} from env vars")
-            return None
+            msg = f"[CRITICAL] COGNITO_USERNAME/PASSWORD set but authentication failed for {username}"
+            logger.error(msg)
+            raise RuntimeError(msg)
 
     # 2. Try cached token
     token_file = os.path.expanduser("~/.algo/cognito_token.json")
@@ -346,22 +347,37 @@ def get_cognito_auth(require_auth: bool = True, interactive: bool = True) -> Cog
                     logger.info(f"[Cognito] Authenticated as {username}")
                     return auth
                 else:
+                    if require_auth:
+                        msg = f"[CRITICAL] Interactive authentication failed for {username}"
+                        print(f"[ERROR] {msg}")
+                        logger.error(msg)
+                        raise RuntimeError(msg)
                     print("[ERROR] Authentication failed")
                     return None
             else:
+                if require_auth:
+                    msg = "[CRITICAL] Username or password missing but authentication is required"
+                    print(f"[ERROR] {msg}")
+                    logger.error(msg)
+                    raise RuntimeError(msg)
                 print("[ERROR] Username or password missing")
                 return None
         except (KeyboardInterrupt, EOFError):
-            logger.info("[Cognito] Authentication cancelled")
+            if require_auth:
+                msg = "[CRITICAL] Interactive authentication cancelled but authentication is required"
+                logger.error(msg)
+                raise RuntimeError(msg)
+            logger.info("[Cognito] Interactive authentication cancelled")
             return None
 
     # 5. All auth methods failed
     if require_auth:
         msg = (
-            "No credentials available — run deploy workflow to provision credentials in Secrets Manager, "
+            "[CRITICAL] All authentication methods failed. "
+            "Run deploy workflow to provision credentials in Secrets Manager, "
             "or set COGNITO_USERNAME + COGNITO_PASSWORD environment variables"
         )
-        logger.error(f"[Cognito] Authentication required but failed: {msg}")
+        logger.error(msg)
         raise RuntimeError(msg)
 
     # If require_auth=False, return unauthenticated instance for optional auth scenarios
