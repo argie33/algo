@@ -101,13 +101,11 @@ class StockScoresLoader(OptimalLoader):
             # Cap at 99.99 to fit in NUMERIC(4,2) database column
             data_completeness = min(99.99, round((data_count / 6.0) * 100, 2))
 
-            # CRITICAL FIX: Allow single-metric scores to fill data gaps
-            # Key insight: Value (99.4%) and Stability (98.7%) cover ~all stocks.
-            # Better to show a value/stability-only score than show nothing (--).
-            # Single-metric bias is real but less severe than missing data entirely.
-            # Dashboard can still rank/filter on available scores - incomplete data
-            # is better than gaps that break user experience.
-            min_required_metrics = 1
+            # CRITICAL: Require minimum 3 metrics (e.g., quality + value + stability) for composite
+            # Single-metric composites (e.g., value only) have extreme bias: 100% weight on one factor
+            # Finance domain requires balanced assessment across factors.
+            # Data completeness must be tracked explicitly and fail if insufficient.
+            min_required_metrics = 3
 
             if data_count < min_required_metrics:
                 logger.warning(

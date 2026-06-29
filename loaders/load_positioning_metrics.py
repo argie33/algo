@@ -152,10 +152,8 @@ class PositioningMetricsLoader(OptimalLoader):
             elif "short_percent_of_float" in info and info["short_percent_of_float"] is not None:
                 # Fallback field: may be 0-100 scale already (yfinance inconsistency)
                 short_interest_percent = float(info["short_percent_of_float"])
-            elif "shortRatio" in info and info["shortRatio"] is not None:
-                # Short ratio is absolute number of days to cover short (not a percentage)
-                # Store as-is but document that this is NOT a percentage metric
-                short_interest_percent = float(info["shortRatio"])
+            # NOTE: shortRatio (days-to-cover) removed as fallback - it is NOT a percentage
+            # and storing it in short_interest_percent would create semantic mismatch
 
             if "sharesShort" in info and info["sharesShort"] is not None:
                 short_interest_trend = "stable"

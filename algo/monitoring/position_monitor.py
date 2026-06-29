@@ -532,10 +532,13 @@ class PositionMonitor:
         if days_held >= max_hold * 0.5 and target_hits == 0 and r_multiple < 0.5:
             flags.append("TIME_DECAY_NO_PROGRESS")
 
-        # 3e. Earnings proximity (returns conservative default if data unavailable)
-        days_to_earn = self._days_to_earnings(symbol, current_date, cur)
-        if 0 <= days_to_earn <= 3:
-            flags.append(f"EARNINGS_IN_{days_to_earn}D")
+        # 3e. Earnings proximity (hard fail if data unavailable)
+        try:
+            days_to_earn = self._days_to_earnings(symbol, current_date, cur)
+            if 0 <= days_to_earn <= 3:
+                flags.append(f"EARNINGS_IN_{days_to_earn}D")
+        except (ValueError, RuntimeError) as e:
+            raise PositionValidationError(f"Cannot evaluate earnings proximity for {symbol}: {e}") from e
 
         # 3f. Distribution-day stress
         try:
@@ -951,14 +954,10 @@ class PositionMonitor:
         return ((max_close - entry_price) / entry_price) * 100.0
 
     def _days_to_earnings(self, symbol: str, current_date: Any, cur: Any) -> int:
-        """Get days until next earnings.
+        """Get days until next earnings from earnings_calendar or earnings_history.
 
-        Primary: query earnings_calendar for accurate scheduled dates.
-        Fallback: estimate from earnings_history quarterly cycle if calendar missing.
-        Final fallback: assume earnings are >60 days away if no history available.
-
-        Returns:
-            Days until next earnings, or 100 if data unavailable (conservative default)
+        Raises:
+            ValueError: If earnings data unavailable (no calendar, estimates, or history)
         """
         try:
             # Primary: use earnings_calendar (populated by earnings loader)
@@ -972,44 +971,43 @@ class PositionMonitor:
             if row is not None and row[0] is not None:
                 return int((row[0] - current_date).days)
 
-            # Fallback: estimate from last reported quarter + 90-day cycle
+            # Fallback: estimate from last reported quarter using quarterly cycle math
             cur.execute(
                 "SELECT MAX(earnings_date) FROM earnings_history WHERE symbol = %s",
                 (symbol,),
             )
             row = cur.fetchone()
             if row is None or len(row) < 1 or row[0] is None:
-                # No earnings history available — return conservative default (100 days away)
-                logger.warning(
-                    f"[EARNINGS DATA] No earnings history available for {symbol}. "
-                    f"Assuming earnings are ~100 days away (conservative default)."
+                raise ValueError(
+                    f"Earnings data unavailable for {symbol}: no calendar, estimates, or history found"
                 )
-                return 100
 
-            est = row[0] + timedelta(days=90)
-            while est < current_date:
-                est += timedelta(days=90)
-            days = int((est - current_date).days)
-            if days < 0 or days > 200:
-                # Estimate out of range — return conservative default
-                logger.warning(
-                    f"[EARNINGS ESTIMATE] {symbol}: Earnings estimate out of range ({days}d). "
-                    f"Returning conservative default: 100 days away."
-                )
-                return 100
+            last_report = row[0]
+            month = last_report.month
+            year = last_report.year
 
-            logger.warning(
-                f"[EARNINGS ESTIMATE] {symbol}: Using 90-day cycle estimate ({days}d away, ~{est}) "
-                f"— earnings_calendar unavailable for accurate date"
-            )
-            return days
+            if month < 4:
+                next_q = _date(year, 4, 15)
+            elif month < 7:
+                next_q = _date(year, 7, 15)
+            elif month < 10:
+                next_q = _date(year, 10, 15)
+            else:
+                next_q = _date(year + 1, 1, 15)
+
+            while next_q <= current_date:
+                if next_q.month == 1:
+                    next_q = _date(next_q.year, 4, 15)
+                elif next_q.month == 4:
+                    next_q = _date(next_q.year, 7, 15)
+                elif next_q.month == 7:
+                    next_q = _date(next_q.year, 10, 15)
+                else:
+                    next_q = _date(next_q.year + 1, 1, 15)
+
+            return int((next_q - current_date).days)
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            # Database error — return conservative default instead of failing
-            logger.warning(
-                f"[EARNINGS DATA] Could not query earnings for {symbol}: {e}. "
-                f"Assuming earnings are ~100 days away (conservative default)."
-            )
-            return 100
+            raise RuntimeError(f"Earnings query failed for {symbol}: {e}") from e
 
     def _fetch_market_dist_days(self, current_date: Any, cur: Any) -> int:
         """Get market distribution days from health data.

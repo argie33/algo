@@ -111,11 +111,29 @@ class AnalystSentimentLoader(OptimalLoader):
             results: list[dict[str, Any]] = []
 
             for idx, row in recs.iterrows():
-                strong_buy = int(row.get('strongBuy', 0) or 0)
-                buy = int(row.get('buy', 0) or 0)
-                hold = int(row.get('hold', 0) or 0)
-                sell = int(row.get('sell', 0) or 0)
-                strong_sell = int(row.get('strongSell', 0) or 0)
+                # CRITICAL: Validate all required fields are present and numeric
+                # Missing data indicates incomplete API response — skip rather than defaulting to 0
+                required_fields = ['strongBuy', 'buy', 'hold', 'sell', 'strongSell']
+                missing_fields = [f for f in required_fields if f not in row or row[f] is None]
+                if missing_fields:
+                    logger.warning(
+                        f"[ANALYST_SENTIMENT] Skipping row for {symbol} (idx={idx}): "
+                        f"missing required fields {missing_fields}. yfinance API returned incomplete data."
+                    )
+                    continue
+
+                try:
+                    strong_buy = int(row['strongBuy'])
+                    buy = int(row['buy'])
+                    hold = int(row['hold'])
+                    sell = int(row['sell'])
+                    strong_sell = int(row['strongSell'])
+                except (ValueError, TypeError) as e:
+                    logger.warning(
+                        f"[ANALYST_SENTIMENT] Skipping row for {symbol} (idx={idx}): "
+                        f"non-numeric values in recommendation counts: {e}. Data validation failed."
+                    )
+                    continue
 
                 bullish_count = strong_buy + buy
                 bearish_count = strong_sell + sell

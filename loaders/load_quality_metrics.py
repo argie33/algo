@@ -62,16 +62,44 @@ class QualityMetricsLoader(OptimalLoader):
             (symbol,),
         )
 
-        # If no income statement, skip this stock gracefully
+        # If no income statement, return explicit data_unavailable record
         # (many stocks lack SEC filings: micro-caps, OTC, ADRs, new IPOs - about 55% of universe)
         if not income_row:
             logger.info(f"[QUALITY_METRICS] [SEC_DATA_UNAVAILABLE] {symbol}: no SEC filing data (micro-cap, OTC, ADR, or new IPO)")
-            return []
+            return [
+                {
+                    "symbol": symbol,
+                    "roe": None,
+                    "roa": None,
+                    "operating_margin": None,
+                    "net_margin": None,
+                    "debt_to_equity": None,
+                    "current_ratio": None,
+                    "quick_ratio": None,
+                    "data_unavailable": True,
+                    "reason": "No SEC filing data available (micro-cap, OTC, ADR, or new IPO)",
+                    "updated_at": date.today().isoformat(),
+                }
+            ]
 
         metrics = self._compute_metrics(symbol, income_row, balance_row)
         if not metrics:
-            logger.info(f"[QUALITY_METRICS] Failed to compute for {symbol}")
-            return []
+            logger.warning(f"[QUALITY_METRICS] Failed to compute metrics for {symbol} (check logs for calculation errors)")
+            return [
+                {
+                    "symbol": symbol,
+                    "roe": None,
+                    "roa": None,
+                    "operating_margin": None,
+                    "net_margin": None,
+                    "debt_to_equity": None,
+                    "current_ratio": None,
+                    "quick_ratio": None,
+                    "data_unavailable": True,
+                    "reason": "Metrics computation failed (insufficient or invalid financial data)",
+                    "updated_at": date.today().isoformat(),
+                }
+            ]
         return [metrics]
 
     @staticmethod
