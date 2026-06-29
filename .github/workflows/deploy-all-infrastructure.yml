@@ -1623,7 +1623,7 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          pip install --quiet psycopg2-binary pandas requests playwright
+          pip install --quiet psycopg2-binary pandas requests playwright boto3
           playwright install chromium
 
       - name: Fetch RDS Credentials
