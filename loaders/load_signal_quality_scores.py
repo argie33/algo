@@ -426,10 +426,22 @@ class SignalQualityScoresLoader(OptimalLoader):
 
             try:
                 result = load_vcp_patterns()
-                logger.info(
-                    f"[VCP] Auto-populated: {result.get('patterns_found', 0)} patterns found, "
-                    f"{result.get('symbols_processed', 0)} symbols processed"
-                )
+                # Validate VCP result has expected keys - don't silently default to 0
+                if not isinstance(result, dict):
+                    logger.warning(
+                        f"[VCP] Auto-population returned invalid type {type(result).__name__}: {result}. "
+                        "Expected dict with 'patterns_found' and 'symbols_processed' keys."
+                    )
+                elif "patterns_found" not in result or "symbols_processed" not in result:
+                    logger.warning(
+                        f"[VCP] Auto-population returned incomplete result: {result}. "
+                        "Missing expected keys: 'patterns_found' and/or 'symbols_processed'."
+                    )
+                else:
+                    logger.info(
+                        f"[VCP] Auto-populated: {result['patterns_found']} patterns found, "
+                        f"{result['symbols_processed']} symbols processed"
+                    )
             except Exception as e:
                 logger.warning(f"[VCP] Auto-population failed: {e} - proceeding without VCP patterns")
 

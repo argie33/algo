@@ -170,7 +170,10 @@ class EarningsCalendarLoader(OptimalLoader):
                     time.sleep(base_delay * (2**attempt))
                 return []
 
-        logger.debug(f"[EARNINGS_CALENDAR] {symbol}: All {max_retries} retries exhausted. Skipping symbol.")
+        logger.warning(
+            f"[EARNINGS_CALENDAR] {symbol}: All {max_retries} retries exhausted. "
+            "Earnings calendar data unavailable (optional enrichment). Skipping symbol."
+        )
         return []
 
 

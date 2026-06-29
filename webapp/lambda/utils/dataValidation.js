@@ -184,9 +184,17 @@ function parseLimit(queryLimit, defaultLimit = 500, maxLimit = 50000) {
 function parseOffset(queryOffset, maxOffset = 1000000) {
   try {
     const parsed = parseInt(queryOffset, 10);
-    if (isNaN(parsed) || parsed < 0) return 0;
+    if (isNaN(parsed)) {
+      console.warn(`[PAGINATION] Invalid offset parameter: "${queryOffset}" is not numeric. Defaulting to 0.`);
+      return 0;
+    }
+    if (parsed < 0) {
+      console.warn(`[PAGINATION] Invalid offset parameter: ${parsed} is negative. Defaulting to 0.`);
+      return 0;
+    }
     return Math.min(parsed, maxOffset);
-  } catch {
+  } catch (error) {
+    console.warn(`[PAGINATION] Failed to parse offset "${queryOffset}": ${error.message}. Defaulting to 0.`);
     return 0;
   }
 }
