@@ -11,8 +11,9 @@ Run: python3 load_ad_line_daily.py [--backfill-days N]
 
 import logging
 import sys
+from collections.abc import Iterable
 from datetime import date, datetime, timedelta, timezone
-from typing import Any
+from typing import Any, cast
 
 import psycopg2
 
@@ -138,7 +139,9 @@ class ADLineDailyLoader(OptimalLoader):
                 f"[AD_LINE] Database error: {e}. Cannot compute advance-decline line without trend_template_data."
             ) from e
 
-    def run(self, symbols: list[str], **kwargs: Any) -> dict[str, Any]:
+    def run(
+        self, symbols: Iterable[str], parallelism: int = 1, backfill_days: int | None = None, **kwargs: Any
+    ) -> dict[str, Any]:
         """Not applicable for market-wide loader. Use load_global() instead."""
         raise NotImplementedError("AD_LINE loader is market-wide only. Use load_global().")
 
@@ -153,7 +156,7 @@ class ADLineDailyLoader(OptimalLoader):
             row = cur.fetchone()
             if row and row[0] is not None:
                 # Start one day after last record
-                start_date = row[0] + timedelta(days=1)
+                start_date = cast(date, row[0]) + timedelta(days=1)
                 logger.info(f"[AD_LINE] Watermark found: resuming from {start_date}")
                 return start_date
 

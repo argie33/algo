@@ -82,7 +82,7 @@ def initialize_validators() -> None:
         metadata = (
             default_registry._metadata.get(validator_name) if validator_name in default_registry._metadata else {}
         )
-        description = metadata.get("description") if isinstance(metadata, dict) and "description" in metadata else ""
+        description = metadata.get("description", "") if isinstance(metadata, dict) else ""
         if not description:
             logger.debug(f"No description found for validator '{validator_name}', using empty string")
         registry.register(

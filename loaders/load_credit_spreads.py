@@ -12,8 +12,9 @@ Run: python3 load_credit_spreads.py [--backfill-days N]
 import logging
 import os
 import sys
+from collections.abc import Iterable
 from datetime import date, datetime, timedelta, timezone
-from typing import Any
+from typing import Any, cast
 
 import psycopg2
 import requests
@@ -215,7 +216,9 @@ class CreditSpreadsDailyLoader(OptimalLoader):
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"[CREDIT_SPREADS] Database error: {e}. Cannot store HY OAS data.") from e
 
-    def run(self, symbols: list[str], **kwargs: Any) -> dict[str, Any]:
+    def run(
+        self, symbols: Iterable[str], parallelism: int = 1, backfill_days: int | None = None, **kwargs: Any
+    ) -> dict[str, Any]:
         """Not applicable for market-wide loader. Use load_global() instead."""
         raise NotImplementedError("CREDIT_SPREADS loader is market-wide only. Use load_global().")
 
@@ -233,7 +236,7 @@ class CreditSpreadsDailyLoader(OptimalLoader):
             row = cur.fetchone()
             if row and row[0] is not None:
                 # Start one day after last record
-                start = row[0] + timedelta(days=1)
+                start = cast(date, row[0]) + timedelta(days=1)
                 logger.info(f"[CREDIT_SPREADS] Starting from watermark: {start}")
                 return start
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:

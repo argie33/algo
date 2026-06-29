@@ -54,6 +54,7 @@ Database NULL handling:
     >>>     return None  # For optional enrichment
 """
 
+from collections.abc import Callable
 from enum import Enum
 from typing import Any
 
@@ -116,7 +117,7 @@ def validate_required_data(
 def handle_optional_data(
     data: Any,
     symbol: str | None = None,
-    logger_func=None,
+    logger_func: Callable[[str], None] | None = None,
     log_message: str | None = None,
 ) -> Any | None:
     """Handle optional enrichment data gracefully.

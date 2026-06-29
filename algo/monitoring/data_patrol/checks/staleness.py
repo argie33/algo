@@ -183,6 +183,7 @@ class StalenessChecker(BaseCheck):
                     # For critical tables, raise immediately to halt algo
                     if tbl in critical_signal_tables:
                         raise RuntimeError(error_msg)
+                    continue
 
                 age = (today - latest).days
                 if age > max_days:

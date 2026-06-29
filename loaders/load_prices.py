@@ -2240,7 +2240,7 @@ def main() -> int:
     # SIGALRM only available on Unix; skip on Windows
     if hasattr(signal, "SIGALRM"):
         signal.signal(signal.SIGALRM, timeout_handler)
-        signal.alarm(execution_timeout_sec)[attr-defined]
+        signal.alarm(execution_timeout_sec)
     else:
         logger.debug("[TIMEOUT] SIGALRM not available (Windows). Using process-level timeout instead.")
 
@@ -2262,7 +2262,7 @@ def main() -> int:
         from utils.db.connection import get_db_connection
 
         _lock_conn = get_db_connection(timeout=30)
-        _lock_conn.autocommit = True[attr-defined]
+        _lock_conn.autocommit = True  # type: ignore[attr-defined]
         with _lock_conn.cursor() as _cur:
             _cur.execute(
                 "SELECT pg_try_advisory_lock(hashtext(%s)::bigint)",

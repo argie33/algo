@@ -258,7 +258,7 @@ class MarketFactorCalculator:
 
             most_recent_date = price_row[0]
             age = eval_date - most_recent_date if hasattr(eval_date, "__sub__") else 0
-            if age and age.days > 0:
+            if age and hasattr(age, "days") and age.days > 0:
                 raise RuntimeError(
                     f"[SELLING_PRESSURE CRITICAL] SPY price data is stale: from {most_recent_date}, "
                     f"but eval_date is {eval_date} ({age.days} days old). "

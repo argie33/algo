@@ -8,7 +8,7 @@ import time
 from datetime import date as _date
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import psycopg2
 
@@ -1049,7 +1049,7 @@ class Orchestrator:
                     "[WARNING] Critical loaders did not complete within timeout. Phase 1 will check data freshness."
                 )
 
-            self.executor = self._setup_executor(skip_phases=skip_phases)
+            self.executor = self._setup_executor(skip_phases=cast(list[int | str] | None, skip_phases))
             with TimeBlock("orchestrator_executor"):
                 executor_result = self.executor.run()
 

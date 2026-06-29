@@ -10,7 +10,7 @@ This module consolidates repeated patterns across the trading system:
 
 import logging
 from decimal import Decimal, InvalidOperation
-from typing import Any, Literal, overload
+from typing import Any, Literal, cast, overload
 
 logger = logging.getLogger(__name__)
 
@@ -169,7 +169,7 @@ def extract_error(response: dict[str, Any]) -> str | None:
     if not isinstance(response, dict):
         raise ValueError(f"Expected dict response, got {type(response).__name__}: {response!r}")
     if "_error" in response:
-        return response["_error"]
+        return cast(str, response["_error"])
     if "error" in response:
-        return response["error"]
+        return cast(str, response["error"])
     return None

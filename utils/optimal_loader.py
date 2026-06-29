@@ -5,7 +5,7 @@ import os
 import time
 from collections.abc import Iterable, Sequence
 from datetime import date, datetime, timedelta, timezone
-from typing import Any
+from typing import Any, cast
 
 from utils.bulk_insert_manager import BulkInsertManager
 from utils.db.context import DatabaseContext
@@ -122,7 +122,7 @@ class OptimalLoader:
             raise ValueError(
                 f"[{self.table_name}] watermark_from_rows: {len(rows)} rows present but all {self.watermark_field} values are NULL"
             )
-        return max(values)
+        return cast(date, max(values))
 
     @property
     def router(self) -> Any:

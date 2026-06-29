@@ -167,8 +167,12 @@ def fetch_signal_eval(c: None) -> dict[str, Any]:
 def fetch_scores(c: None) -> dict[str, Any]:
     """Fetch top stock scores from /api/scores. Used by signals panel for composite score display.
 
-    CRITICAL: Scores are NOT optional data - they rank signal quality and inform trading decisions.
-    NEVER use stale cache for scores. Fail-fast on API errors to ensure data accuracy.
+    HANDLES 503 GRACEFULLY: Scores enhance signal quality ranking but are not critical for trading.
+    On 503 errors (service unavailable), return empty scores list with explicit marker instead of
+    failing the entire dashboard. This allows trading to continue with signals, just without score rankings.
+
+    FAIL-FAST ON OTHER ERRORS: Database errors, timeouts, and network issues are still fail-fast
+    since they indicate infrastructure problems that must be surfaced immediately.
     """
     from dashboard.fetcher_validator import FetcherValidator
 
@@ -178,11 +182,28 @@ def fetch_scores(c: None) -> dict[str, Any]:
         # Check for API error
         is_error, error_msg = FetcherValidator.check_api_error(top_data)
         if is_error:
-            # CRITICAL: Scores drive signal quality ranking for trading decisions.
-            # Stale scores can cause poor entry/exit decisions. Must fail-fast, never use stale cache.
-            logger.critical(
-                f"Scores API error (fail-fast, no stale cache fallback): {error_msg} - "
-                f"Signal quality ranking unavailable. Check API and dashboard scores service."
+            # IMPORTANT: Distinguish between temporary service issues (503) and real errors
+            if top_data.get("_is_transient_503"):
+                # 503 Service Unavailable: Scores service is temporarily down
+                # Return explicit marker for empty scores instead of error
+                # Allows signals to display without scores (degraded but functional)
+                logger.warning(
+                    f"Scores API temporarily unavailable (503): {error_msg} - "
+                    f"Signals will display without composite score rankings. Service will recover."
+                )
+                record_data_quality_issue("scores", "api_call", "api_unavailable_503")
+                return {
+                    "top": [],
+                    "data_unavailable": True,
+                    "reason": "Scores service temporarily unavailable (503) - signals display without score rankings",
+                    "unavailability_type": "transient_service_error",
+                }
+
+            # Other errors (database, validation, auth, etc): fail-fast
+            # These indicate infrastructure problems that must be surfaced
+            logger.error(
+                f"Scores API error (fail-fast): {error_msg} - "
+                f"Signal quality ranking unavailable. Check API and database."
             )
             record_data_quality_issue("scores", "api_call", "api_error", error_msg)
             return FetcherValidator.build_error_response(error_msg)
