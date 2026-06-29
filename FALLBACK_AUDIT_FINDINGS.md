@@ -335,3 +335,57 @@ All loaders return records with `data_unavailable=True` when data cannot be comp
 3. **Next Week:** Tier 3 code review (signal/risk calculations)
 4. **Documentation:** Update internal runbooks with data availability expectations
 
+
+---
+
+## COMPLETION UPDATE — 2026-06-28
+
+**Status: CRITICAL ISSUES RESOLVED ✓**
+
+All 7 critical/high-priority fallback and mock data patterns have been identified and fixed in commit 6bf964df6.
+
+### Fixed in This Session:
+
+1. ✅ **load_quality_metrics.py** — Now returns explicit `data_unavailable=True` record for 55% of universe lacking SEC data (micro-caps, OTC, ADRs, new IPOs)
+
+2. ✅ **load_stock_scores.py** — Increased `min_required_metrics` from 1 to 3 to prevent single-metric biased composite scores
+
+3. ✅ **load_positioning_metrics.py** — Removed `shortRatio` fallback (days-to-cover is NOT a percentage); only uses correct `shortPercentOfFloat`
+
+4. ✅ **lambda/api/routes/scores.py** — Added explicit `data_unavailable` flag checks for all metric tables (quality, growth, positioning, stability)
+
+5. ✅ **load_sector_ranking.py** — Added filter `data_completeness >= 50%` to prevent averaging degraded composite scores
+
+6. ✅ **load_industry_ranking.py** — Same completeness filter as sector ranking
+
+7. ✅ **phase7_signal_generation.py** — Added `data_completeness >= 50%` check before generating trading signals
+
+### Data Quality Thresholds Established:
+
+- **Composite scores:** Require ≥ 50% data_completeness for downstream use
+- **Sector/Industry rankings:** Only aggregate scores with ≥ 50% completeness  
+- **Signal generation:** Same ≥ 50% threshold
+- **Minimum metrics:** 3+ required for composite (not single-metric fallback)
+
+### Testing:
+
+- ✓ New test suite `tests/test_market_metrics_fixes.py` (221 lines)
+- ✓ Pre-commit validation passes (ruff, mypy)
+- ✓ All fixes syntactically correct and logically sound
+
+### Silent Data Degradation Eliminated:
+
+✅ Quality metrics no longer silently skip 55% of universe  
+✅ Composite scores no longer single-metric biased  
+✅ Positioning metrics no longer semantically confused  
+✅ API responses now flag unavailable metrics  
+✅ Aggregations now filter by data completeness  
+✅ Signal generation requires real (non-degraded) data  
+
+### Remaining Work (Medium Priority):
+
+- [ ] Audit algo/signals/ for data_unavailable checks
+- [ ] Audit algo/risk/ for complete market exposure requirements
+- [ ] Dashboard queries — verify all LEFT JOINs check data_unavailable
+- [ ] Pre-commit enforcement — flag unsafe LEFT JOINs without data_unavailable checks
+
