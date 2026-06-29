@@ -98,15 +98,30 @@ class CreditSpreadsFetcher:
                 )
 
             result = {}
+            skipped_count = 0
             for obs in data["observations"]:
                 try:
                     obs_date = obs.get("date")
                     obs_value = obs.get("value")
 
-                    if obs_date and obs_value and obs_value != ".":
-                        result[obs_date] = float(obs_value)
-                except (ValueError, KeyError, TypeError):
+                    if not obs_date:
+                        logger.debug(f"[CREDIT_SPREADS] FRED observation missing date field: {obs}")
+                        skipped_count += 1
+                        continue
+
+                    if not obs_value or obs_value == ".":
+                        logger.debug(f"[CREDIT_SPREADS] FRED observation {obs_date} has missing/invalid value: {obs_value}")
+                        skipped_count += 1
+                        continue
+
+                    result[obs_date] = float(obs_value)
+                except (ValueError, KeyError, TypeError) as e:
+                    logger.warning(f"[CREDIT_SPREADS] Error parsing FRED observation {obs}: {e}")
+                    skipped_count += 1
                     continue
+
+            if skipped_count > 0:
+                logger.info(f"[CREDIT_SPREADS] Skipped {skipped_count} invalid observations during FRED parse")
 
             if not result:
                 raise RuntimeError(
@@ -192,24 +207,46 @@ class CreditSpreadsDailyLoader(OptimalLoader):
         raise NotImplementedError("CREDIT_SPREADS loader is market-wide only. Use load_global().")
 
     def _get_start_date(self, cur: Any) -> date:
-        """Get start date from watermark or default to recent backfill."""
+        """Get start date from watermark or default to recent backfill.
+
+        Returns:
+            date: Start date for FRED query (next day after last record, or 90 days back if empty)
+
+        Raises:
+            RuntimeError: If watermark query fails after retry
+        """
         try:
             cur.execute("SELECT MAX(date) FROM credit_spreads")
             row = cur.fetchone()
             if row and row[0] is not None:
                 # Start one day after last record
-                return row[0] + timedelta(days=1)
-        except (psycopg2.DatabaseError, psycopg2.OperationalError):
-            pass
+                start = row[0] + timedelta(days=1)
+                logger.info(f"[CREDIT_SPREADS] Starting from watermark: {start}")
+                return start
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            logger.warning(
+                f"[CREDIT_SPREADS] Failed to query watermark from credit_spreads table: {e}. "
+                f"Falling back to default 90-day backfill."
+            )
 
         # Default: last 90 days if table is empty (FRED data only weekly in many cases)
-        return date.today() - timedelta(days=90)
+        default_start = date.today() - timedelta(days=90)
+        logger.info(f"[CREDIT_SPREADS] Using default start date (90 days back): {default_start}")
+        return default_start
 
     def _get_end_date(self) -> date:
-        """Get end date (latest trading day in ET)."""
+        """Get end date (latest trading day in ET).
+
+        Returns:
+            date: Latest trading day, walking back from current date
+
+        Raises:
+            RuntimeError: If no trading day found within last year
+        """
         now_utc = datetime.now(timezone.utc)
         now_et = now_utc.astimezone(EASTERN_TZ)
         end = now_et.date()
+        original_end = end
 
         from algo.infrastructure import MarketCalendar
 
@@ -219,6 +256,19 @@ class CreditSpreadsDailyLoader(OptimalLoader):
             end = end - timedelta(days=1)
             iterations += 1
 
+        if iterations >= max_iterations:
+            raise RuntimeError(
+                f"[CREDIT_SPREADS] Could not find trading day within {max_iterations} days before {original_end}. "
+                f"Market calendar may be corrupted or system date may be invalid."
+            )
+
+        if end <= date(2020, 1, 1):
+            raise RuntimeError(
+                f"[CREDIT_SPREADS] End date calculation walked back to {end}, "
+                f"before acceptable range (>= 2020-01-01). System date may be invalid."
+            )
+
+        logger.info(f"[CREDIT_SPREADS] End date: {end} (latest trading day)")
         return end
 
 
