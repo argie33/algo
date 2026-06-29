@@ -477,8 +477,14 @@ def panel_orch(run: dict[str, Any] | None, cfg: dict[str, Any], risk: dict[str, 
         error_msg = (
             f"[{R}]run fetch failed[/]: {run.get('_error')}"
             if isinstance(run, dict) and has_error(run)
-            else "[dim]run: no data[/]"
+            else "[dim]run: no execution history available — orchestrator may not have run[/]"
         )
+        if not run or (isinstance(run, dict) and not has_error(run)):
+            logger.warning(
+                "[ORCHESTRATOR_PANEL] Run data unavailable for display. "
+                "Orchestrator execution history is missing or null. "
+                "Cannot show most recent orchestration run status."
+            )
         body = Text.from_markup(
             f"{error_msg}\n"
             f"[{mc2}]{mode}[/]  [{ec}]{en}[/]\n"
@@ -629,6 +635,10 @@ def _format_exec_history_summary(exec_hist: list[Any] | None) -> list[Text]:
     rows: list[Text] = []
     valid_hist = safe_get_list(exec_hist)
     if not valid_hist:
+        logger.warning(
+            "[HEALTH_FORMAT] Execution history unavailable for summary display. "
+            "Data may be empty or API returned None. Cannot show run health metrics."
+        )
         return rows
 
     n_ok = sum(1 for r in valid_hist if _get_status_safe(r) in PHASE_SUCCESS_STATES)
@@ -696,12 +706,16 @@ def _format_exec_history_summary(exec_hist: list[Any] | None) -> list[Text]:
 def _format_recent_trade_events(act: dict[str, Any] | None) -> list[Text]:
     """Format recent trade events (entry/exit/order).
 
-    Returns empty list if no data available. Raises only on actual errors (error dict).
+    Raises on actual errors (error dict). Returns empty list only when data legitimately unavailable.
     """
     rows: list[Text] = []
 
     # Handle None or empty data gracefully
     if not act or not isinstance(act, dict):
+        logger.debug(
+            "[HEALTH_FORMAT] Activity data unavailable for trade events. "
+            "No recent actions to display — algo may not have executed any trades yet."
+        )
         return rows
 
     # Propagate error responses
@@ -763,6 +777,10 @@ def _format_data_health_summary(hlth_items: list[Any]) -> list[Text]:
     """Format data health section (stale tables only)."""
     rows: list[Text] = []
     if not hlth_items:
+        logger.warning(
+            "[HEALTH_FORMAT] Data health items unavailable for display. "
+            "Cannot assess table freshness — health check may not have completed yet."
+        )
         return rows
 
     stale = [r for r in hlth_items if isinstance(r, dict) and r.get("st") != "ok"]
@@ -823,12 +841,24 @@ def _format_loader_status(loader: list[Any]) -> list[Text]:
     try:
         valid_loader = safe_get_list(loader)
     except (ValueError, TypeError) as e:
+        logger.error(
+            f"[LOADER_FORMAT] Loader data parsing failed: {str(e)[:100]}. "
+            "Cannot validate data loader health — corrupted or missing status records."
+        )
         rows.append(Text.from_markup(f"[red]Loader data error: {str(e)[:60]}[/]"))
         return rows
     if valid_loader is None:
+        logger.error(
+            "[LOADER_FORMAT] Loader status data is None. "
+            "Cannot display loader health — status API may have failed or returned null."
+        )
         rows.append(Text.from_markup("[red]Loader data unavailable (None)[/]"))
         return rows
     if len(valid_loader) == 0:
+        logger.warning(
+            "[LOADER_FORMAT] No loaders configured in system. "
+            "Loader status display skipped — check system configuration for data feed definitions."
+        )
         rows.append(Text.from_markup("[dim]No loaders configured[/]"))
         return rows
 
@@ -898,6 +928,10 @@ def _format_notifications_summary(notifs: list[Any]) -> list[Text]:
     rows: list[Text] = []
     valid_notifs = safe_get_list(notifs)
     if not valid_notifs:
+        logger.debug(
+            "[HEALTH_FORMAT] Notifications unavailable for display. "
+            "No alerts to show — system is operating normally with no active notifications."
+        )
         return rows
 
     for n in valid_notifs[:4]:
@@ -936,6 +970,10 @@ def _format_daily_metrics_summary(algo_metrics: list[Any]) -> list[Text]:
     rows: list[Text] = []
     valid_metrics = safe_get_list(algo_metrics)
     if not valid_metrics:
+        logger.warning(
+            "[METRICS_FORMAT] Daily algo metrics unavailable for display. "
+            "No trade activity records found — metrics table may be empty or API returned null."
+        )
         return rows
 
     rows.append(Text.from_markup("[dim]Daily trade activity:[/]"))
@@ -987,6 +1025,10 @@ def _format_audit_log_summary(audit: list[Any]) -> list[Text]:
     rows: list[Text] = []
     valid_audit = safe_get_list(audit)
     if not valid_audit:
+        logger.debug(
+            "[AUDIT_FORMAT] Audit log unavailable for display. "
+            "No audit records found — API may have returned null or audit table is empty."
+        )
         return rows
 
     notable = [
@@ -1277,6 +1319,10 @@ def _format_run_history_summary(valid_hist: list[Any] | None) -> list[Text]:
     """Format run history badges and summary stats."""
     rows: list[Text] = []
     if not valid_hist:
+        logger.warning(
+            "[HISTORY_FORMAT] Run history unavailable for summary display. "
+            "Execution history list is empty or null. Cannot show success rate or past run outcomes."
+        )
         return rows
 
     n_ok = sum(1 for r in valid_hist if _get_status_safe(r) in PHASE_SUCCESS_STATES)
@@ -1339,6 +1385,10 @@ def _format_risk_snapshot(risk_dict: dict[str, Any]) -> list[Text | Rule]:
     # CRITICAL: Explicit None and value checks instead of OR fallback
     # Missing or zero VaR95 indicates incomplete risk data, should not silently return empty
     if var95_val is None or var95_val <= 0:
+        logger.debug(
+            "[RISK_FORMAT] Risk metrics unavailable for display. "
+            "VaR 95% metric missing or zero — risk calculation may have failed or insufficient data."
+        )
         return rows
 
     rows.append(Rule(style="dim"))
@@ -1384,6 +1434,10 @@ def _format_notifications_section(valid_notifs: list[Any]) -> list[Text | Rule]:
     """Format notifications summary."""
     rows: list[Text | Rule] = []
     if not valid_notifs:
+        logger.debug(
+            "[NOTIF_FORMAT] Notifications section unavailable for display. "
+            "No active alerts — system operating normally with no critical notifications."
+        )
         return rows
 
     rows.append(Rule(style="dim"))
@@ -1858,7 +1912,12 @@ def panel_status(  # noqa: C901
                 rows.append(Text.from_markup(f"  [{sc}]{at[:22]}[/]" + (f" [white]{sym}[/]" if sym else "")))
 
     if not rows:
-        rows.append(Text("no activity", style="dim"))
+        logger.warning(
+            "[HEALTH_PANEL] Status panel has no activity to display. "
+            "All data sources (run, activity, health, notifications) returned empty. "
+            "Check orchestrator logs and data freshness."
+        )
+        rows.append(Text("⚠ No activity data available — check system logs", style="yellow"))
     return Panel(
         Group(*rows),
         title="[bold yellow]ALGO ACTIVITY & SYSTEM HEALTH[/]",
@@ -2106,7 +2165,12 @@ def panel_algo_health(  # noqa: C901
         rows.append(Text.from_markup("[dim]Alerts:[/] " + "  ".join(notif_parts)))
 
     if not rows:
-        rows.append(Text("no activity", style="dim"))
+        logger.warning(
+            "[HEALTH_PANEL] Algo health panel has no data to display. "
+            "All data sources (run, activity, health, notifications) returned empty. "
+            "Check orchestrator status and data loader health."
+        )
+        rows.append(Text("⚠ No health data available — check logs for errors", style="yellow"))
     return Panel(
         Group(*rows),
         title="[bold yellow]ALGO HEALTH[/]  [dim][h] expand[/]",

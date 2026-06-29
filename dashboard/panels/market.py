@@ -87,7 +87,13 @@ def _get_market_halts(mkt_data: dict[str, Any], panel_name: str) -> list[Any]:
     halts = safe_get_list(halts_raw)
     if halts is None:
         raise RuntimeError(f"{panel_name}: halts data validation FAILED. Got: {halts_raw}")
-    return halts if isinstance(halts, list) else []
+    if not isinstance(halts, list):
+        logger.error(
+            f"[{panel_name}] Halt validation produced non-list result after safe_get_list check. "
+            f"This indicates a data contract violation. Got type {type(halts).__name__}: {halts}"
+        )
+        raise RuntimeError(f"{panel_name}: halts data type contract violation (expected list, got {type(halts).__name__})")
+    return halts
 
 
 @register_panel(
@@ -110,11 +116,18 @@ def panel_market_full(mkt: Any, sentiment: Any = None) -> Panel:
     vix = safe_float(vix, strict=False)
     spy_raw = safe_float(spy_raw, strict=False)
     if vix is None or spy_raw is None:
+        missing_fields = []
+        if vix is None:
+            missing_fields.append("VIX")
+        if spy_raw is None:
+            missing_fields.append("SPY")
+        error_msg = f"Critical market fields missing: {', '.join(missing_fields)} (VIX or SPY required)"
+        logger.error(f"[MARKET_PANEL] {error_msg} - market regime rendering not possible")
         return Panel(
             Text.from_markup(
-                "[dim]Market data validation failed - critical fields missing (VIX or SPY).[/]\nCheck data loading status."
+                f"[red]{error_msg}[/]\n[dim]Market data pipeline incomplete or failed validation.[/]"
             ),
-            title="[bold blue]MARKET (CRITICAL DATA MISSING)[/]",
+            title="[bold red]MARKET (CRITICAL DATA MISSING)[/]",
             border_style="red",
             padding=(0, 1),
         )
@@ -134,8 +147,12 @@ def panel_market_full(mkt: Any, sentiment: Any = None) -> Panel:
 
     upvol = safe_float(mkt.get("upvol"), strict=False)
     adr = safe_float(mkt.get("adr"), strict=False)
+    if adr is None:
+        logger.warning("[MARKET_PANEL] Advance/Decline ratio missing - breadth analysis incomplete")
     nh = safe_int(mkt.get("nh"), strict=False)
     nl = safe_int(mkt.get("nl"), strict=False)
+    if nh is None or nl is None:
+        logger.warning("[MARKET_PANEL] New Highs/Lows data missing - market breadth data incomplete")
     pcr = safe_float(mkt.get("pcr"), strict=False)
 
     # CRITICAL: Put/call ratio is essential for market sentiment analysis
@@ -149,10 +166,11 @@ def panel_market_full(mkt: Any, sentiment: Any = None) -> Panel:
         )
     bmom = safe_float(mkt.get("bmom"), strict=False)
     fed = mkt.get("fed")
-    # Show N/A if exp is missing — exposure data may not be available in all cases
+    # Exposure data may not be available in some market regimes (optional)
     if exp is None:
         exp_s = "N/A"
         bar = "[dim]N/A[/]"
+        logger.debug("[MARKET_PANEL] Market exposure not available - positioning analysis incomplete")
     else:
         exp_s = f"{float(exp):.0f}%"
         bar = exp_bar(exp, w=10)
@@ -195,9 +213,13 @@ def panel_market_full(mkt: Any, sentiment: Any = None) -> Panel:
     if bmom is not None:
         bmc = G if bmom >= 0.5 else (Y if bmom >= 0 else R)
         bmom_pcr.append(f"[dim]Breadth Momentum:[/][{bmc}]{bmom:.2f}[/]")
+    else:
+        logger.debug("[MARKET_PANEL] Breadth momentum not available - optional market breadth enrichment incomplete")
     if ycs is not None:
         yc_c = G if ycs >= 0.5 else (Y if ycs >= 0 else R)
         bmom_pcr.append(f"[dim]Yield Curve Slope:[/][{yc_c}]{ycs:+.2f}[/]")
+    else:
+        logger.debug("[MARKET_PANEL] Yield curve slope not available - optional macro enrichment incomplete")
     if bmom_pcr:
         lines.append("  ".join(bmom_pcr))
     halt_fed = f"[dim]Trading Halt:[/][{hc}]{halt_s}[/]"
@@ -254,10 +276,18 @@ def panel_market_expanded(mkt: Any, sentiment: Any = None) -> Panel:
     stage = str(mkt.get("stage", "--"))
     trend_raw = mkt.get("trend")
     trend = trend_raw.upper() if trend_raw else "--"
+    if not trend_raw:
+        logger.debug("[MARKET_EXPANDED] Market trend not available - optional directional analysis incomplete")
     dist = safe_float(mkt.get("dist"), strict=False)
+    if dist is None:
+        logger.warning("[MARKET_EXPANDED] Distribution days data missing - market stage analysis incomplete")
     _fed_raw = mkt.get("fed")
     fed = "--" if (_fed_raw is None or str(_fed_raw).lower() in ("unknown", "n/a", "none", "")) else str(_fed_raw)
+    if _fed_raw is None or str(_fed_raw).lower() in ("unknown", "n/a", "none", ""):
+        logger.debug("[MARKET_EXPANDED] Fed environment data unavailable - optional macro context missing")
     ycs = safe_float(mkt.get("ycs"), strict=False)
+    if ycs is None:
+        logger.debug("[MARKET_EXPANDED] Yield curve slope not available - optional macro indicator missing")
     upvol = safe_float(mkt.get("upvol"), strict=False)
     adr = safe_float(mkt.get("adr"), strict=False)
     nh = safe_int(mkt.get("nh"), strict=False)
@@ -374,6 +404,8 @@ def panel_header_market(
         stage = str(mkt.get("stage", "--"))
         trend_raw = (mkt.get("trend", "")).upper()
         trend_s = f"  [dim]Trend:[/][white]{trend_raw[:10]}[/]" if trend_raw else ""
+        if not trend_raw:
+            logger.debug("[MARKET_HEADER] Market trend not available - optional directional display skipped")
         spy_raw = safe_float(mkt.get("spy"), strict=False)
         spy_chg = safe_float(mkt.get("spy_chg"), strict=False)
         spy_chg_s = (
@@ -390,6 +422,8 @@ def panel_header_market(
         nh = safe_int(mkt.get("nh"), strict=False)
         nl = safe_int(mkt.get("nl"), strict=False)
         adr = safe_float(mkt.get("adr"), strict=False)
+        if upvol is None:
+            logger.warning("[MARKET_HEADER] Up volume data missing - breadth analysis incomplete")
         if upvol is not None:
             uvc = G if upvol >= 60 else (Y if upvol >= 50 else R)
             nhnl = (nh - nl) if (nh is not None and nl is not None) else None
@@ -413,13 +447,18 @@ def panel_header_market(
             pcr_c = G if pcr <= 0.8 else (Y if pcr <= 1.0 else R)
             parts4.append(f"[dim]Put/Call:[/][{pcr_c}]{pcr:.3f}[/]")
         else:
+            logger.error("[MARKET_HEADER] Put/Call ratio missing - critical sentiment data unavailable")
             parts4.append("[dim]Put/Call:[/][yellow]⚠ N/A[/]")
         if bmom is not None:
             bmc = G if bmom >= 0.5 else (Y if bmom >= 0 else R)
             parts4.append(f"[dim]Breadth Mom:[/][{bmc}]{bmom:.2f}[/]")
+        else:
+            logger.debug("[MARKET_HEADER] Breadth momentum not available - optional enrichment missing")
         if ycs is not None:
             yc_c = G if ycs >= 0.5 else (Y if ycs >= 0 else R)
             parts4.append(f"[dim]Yield Curve:[/][{yc_c}]{ycs:+.2f}[/]")
+        else:
+            logger.debug("[MARKET_HEADER] Yield curve slope not available - optional macro indicator missing")
         if parts4:
             rows.append(Text.from_markup("  ".join(parts4)))
         halts = _get_market_halts(mkt, "Market details panel")
