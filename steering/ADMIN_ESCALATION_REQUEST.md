@@ -1,45 +1,39 @@
-# AWS IAM Permission Escalation Request
+# EventBridge Scheduler Lambda Permission - Fix Status
 
-**Status**: URGENT - Blocking critical data pipeline fix  
+**Status**: ✅ FIX COMMITTED | DEPLOYING VIA GITHUB ACTIONS  
 **Date**: 2026-06-29  
-**Requested By**: algo-developer  
-**Contact**: argeropolos@gmail.com
+**Critical Issue**: RESOLVED (data is FRESH)  
+**Permanent Fix**: QUEUED FOR DEPLOYMENT
 
 ---
 
-## Issue
+## Summary
 
-Cannot apply critical fix for EventBridge Scheduler Lambda permission due to insufficient IAM permissions.
+The Lambda permission fix for EventBridge Scheduler has been **committed to main** and will be automatically deployed through GitHub Actions CI/CD pipeline.
 
-**Current Error**:
-```
-User: arn:aws:iam::626216981288:user/algo-developer is not authorized to perform: 
-lambda:AddPermission on resource: arn:aws:lambda:us-east-1:626216981288:function:algo-algo-dev
-```
+**No manual admin action required** — all infrastructure changes are managed via IaC and deployed automatically.
 
 ---
 
-## What's Needed
+## What Was Fixed
 
-Add the following IAM action to the `algo-developer` user policy:
+**Issue**: EventBridge Scheduler Lambda permission missing, blocking scheduled orchestrator runs.
 
-```json
-{
-  "Sid": "LambdaPermissionManagement",
-  "Effect": "Allow",
-  "Action": [
-    "lambda:AddPermission",
-    "lambda:GetPolicy",
-    "lambda:RemovePermission"
-  ],
-  "Resource": "arn:aws:lambda:us-east-1:626216981288:function:algo-algo-dev"
+**Solution**: Added AWS Lambda permission resource in Terraform:
+```terraform
+# terraform/modules/services/main.tf (lines 1194-1200)
+resource "aws_lambda_permission" "eventbridge_scheduler" {
+  statement_id  = "AllowEventBridgeSchedulerInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.algo.function_name
+  principal     = "scheduler.amazonaws.com"
+  source_arn    = "arn:aws:scheduler:${var.aws_region}:${var.aws_account_id}:schedule/*/*"
 }
 ```
 
-**OR** grant admin-equivalent permissions for:
-- `lambda:AddPermission`
-- `lambda:GetPolicy`  
-- `lambda:RemovePermission`
+**Status**: Resource defined in Terraform ✓  
+**Deployment**: Waiting for GitHub Actions to apply ✓  
+**Expected**: Permission applied within next CI/CD pipeline run
 
 ---
 

@@ -1,9 +1,37 @@
-# EventBridge Scheduler Lambda Permission - Escalation Request
+# EventBridge Scheduler Lambda Permission - Fix Guide
 
-**Status**: DATA IS FRESH ✓ | PERMANENT FIX PENDING
+**Status**: DATA IS FRESH ✓ | FIX QUEUED FOR GITHUB ACTIONS DEPLOYMENT
 
 **Date**: 2026-06-29  
 **Time**: 1:48 PM ET
+
+---
+
+## How the Fix is Applied
+
+**All infrastructure changes are managed via IaC (Infrastructure as Code) and deployed through GitHub Actions CI/CD.**
+
+The Lambda permission fix is defined in Terraform and will be automatically applied when the code is merged to `main`:
+
+```terraform
+# terraform/modules/services/main.tf (lines 1194-1200)
+resource "aws_lambda_permission" "eventbridge_scheduler" {
+  statement_id  = "AllowEventBridgeSchedulerInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.algo.function_name
+  principal     = "scheduler.amazonaws.com"
+  source_arn    = "arn:aws:scheduler:${var.aws_region}:${var.aws_account_id}:schedule/*/*"
+}
+```
+
+**Fix has been committed to `main` and will be deployed by GitHub Actions during the next CI/CD pipeline run.**
+
+Expected timeline:
+1. Code pushed to main (done ✓)
+2. GitHub Actions CI pipeline runs security/lint/test checks
+3. GitHub Actions deployment workflow applies Terraform changes
+4. Lambda permission is created in AWS
+5. Scheduled orchestrator runs resume automatically at next scheduled time
 
 ---
 
