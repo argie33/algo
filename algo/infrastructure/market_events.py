@@ -255,13 +255,7 @@ class MarketEventHandler:
                 }
 
             logger.debug(f"[CIRCUIT_BREAKER] Market within normal ranges (down {pct_down:.2f}%, threshold 7%)")
-            return {
-                "circuit_breaker_inactive": True,
-                "pct_down": round(pct_down, 2),
-                "threshold": 7.0,
-                "status": "normal_trading",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-            }
+            return None  # Documented return value: None = no circuit breaker active
 
         except requests.Timeout as e:
             logger.error(f"[MARKET_CIRCUIT_BREAKER] API timeout checking circuit breaker: {e}")
