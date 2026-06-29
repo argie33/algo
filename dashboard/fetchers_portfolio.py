@@ -50,6 +50,8 @@ def fetch_portfolio(c: None) -> dict[str, Any]:
         # - Extended gap (Monday morning before market opens): 72 hours (3 days for Friday→Monday)
         is_trading_day = MarketCalendar.is_trading_day()
         max_age_seconds = 300 if is_trading_day else 259200  # 72 hours for non-trading days
+        # Grace period for timing variations, clock skew, and API processing delays (10 minutes)
+        grace_period_seconds = 600
 
         # Comprehensive validation using FetcherValidator
         required_fields = [
@@ -77,7 +79,7 @@ def fetch_portfolio(c: None) -> dict[str, Any]:
         # Use the API-calculated data_age_seconds field for freshness check
         # (avoids date parsing issues and trusts the API's calculation)
         data_age = port.get("data_age_seconds")
-        if data_age is not None and data_age > max_age_seconds:
+        if data_age is not None and data_age > (max_age_seconds + grace_period_seconds):
             error_msg = f"Data is stale ({data_age}s old, max {max_age_seconds}s)"
             logger.error(error_msg)
             record_data_quality_issue("portfolio", "freshness", "stale_data", error_msg)
