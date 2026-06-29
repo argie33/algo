@@ -474,14 +474,17 @@ def _get_market(cur: cursor) -> Any:
             return error_response(503, "data_unavailable", "SPY price data unavailable")
         spy_close = float(spy_row["close"])
 
-        # Handle optional fields that may be None or missing (marked with data_unavailable flag)
+        # Handle optional/enrichment fields that may be None (breadth data, sentiment, macro indicators)
+        uv_val = market_health.get("up_volume_percent")
+        adr_val = market_health.get("advance_decline_ratio")
         nh_val = market_health.get("new_highs_count")
         nl_val = market_health.get("new_lows_count")
         pcr_val = market_health.get("put_call_ratio")
         bm_val = market_health.get("breadth_momentum_10d")
         ycs_val = market_health.get("yield_curve_slope")
+        spy_chg_val = market_health.get("spy_change_pct")
 
-        # Convert to appropriate types, allowing None for optional fields
+        # Convert to appropriate types, allowing None for optional/enrichment fields
         data = {
             "exposure_pct": float(exposure["exposure_pct"]),
             "regime": exposure["regime"],
@@ -491,9 +494,9 @@ def _get_market(cur: cursor) -> Any:
             "market_trend": market_health["market_trend"],
             "distribution_days_4w": int(exposure["distribution_days"]),
             "spy_close": spy_close,
-            "spy_change_pct": float(market_health["spy_change_pct"]),
-            "up_volume_percent": float(market_health["up_volume_percent"]),
-            "advance_decline_ratio": float(market_health["advance_decline_ratio"]),
+            "spy_change_pct": float(spy_chg_val) if spy_chg_val is not None else None,
+            "up_volume_percent": float(uv_val) if uv_val is not None else None,
+            "advance_decline_ratio": float(adr_val) if adr_val is not None else None,
             "new_highs_count": int(nh_val) if nh_val is not None else None,
             "new_lows_count": int(nl_val) if nl_val is not None else None,
             "put_call_ratio": float(pcr_val) if pcr_val is not None else None,
