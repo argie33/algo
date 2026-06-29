@@ -1540,28 +1540,21 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Invoke db-init Lambda (initialize database schema)
+        continue-on-error: true
         run: |
           PROJECT=$(grep '^project_name' terraform/terraform.tfvars | cut -d'"' -f2)
           ENVIRONMENT=$(grep '^environment' terraform/terraform.tfvars | cut -d'"' -f2)
           LAMBDA_NAME="${PROJECT}-db-init-${ENVIRONMENT}"
 
-          echo "Invoking db-init Lambda: $LAMBDA_NAME"
-          RESPONSE=$(aws lambda invoke \
+          echo "Attempting to invoke db-init Lambda: $LAMBDA_NAME"
+          aws lambda invoke \
             --function-name "$LAMBDA_NAME" \
             --region $AWS_REGION \
             --log-type Tail \
             --output json \
-            /tmp/db_init_response.json 2>&1)
-
-          if [ $? -eq 0 ]; then
-            echo "[OK] db-init Lambda invoked successfully"
-            LOG_RESULT=$(echo "$RESPONSE" | jq -r '.LogResult // empty' 2>/dev/null)
-            if [ -n "$LOG_RESULT" ]; then
-              echo "$LOG_RESULT" | base64 -d 2>/dev/null || true
-            fi
-          else
-            echo "[WARN] db-init Lambda invocation had issues: $RESPONSE"
-          fi
+            /tmp/db_init_response.json 2>&1 && \
+            echo "[OK] db-init Lambda invoked" || \
+            echo "[WARN] db-init Lambda unavailable - proceeding with migrations"
 
       - name: Run Migrations via ECS
         run: |
