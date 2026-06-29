@@ -136,9 +136,24 @@ class AlpacaSyncManager:
                 logger.warning(f"[POSITION_SYNC] Skipping malformed position: {pos}")
                 continue
 
+            qty_float = float(qty)
+            if qty_float <= 0:
+                # Long-only algo: short or zero positions from Alpaca are anomalous.
+                # Close them in DB immediately rather than updating with negative values.
+                logger.warning(
+                    f"[POSITION_SYNC] Short/zero position {symbol} qty={qty_float:.4f} — "
+                    "closing in DB (long-only algo does not hold short positions)"
+                )
+                cur.execute(
+                    "UPDATE algo_positions SET status='closed', closed_at=CURRENT_TIMESTAMP, "
+                    "updated_at=CURRENT_TIMESTAMP WHERE symbol=%s AND status='open'",
+                    (symbol,),
+                )
+                continue
+
             alpaca_symbols.add(symbol)
             current_price = pos.get("current_price")
-            position_value = float(qty) * float(current_price) if current_price else None
+            position_value = qty_float * float(current_price) if current_price else None
 
             # Update existing algo-tracked position — never INSERT from Alpaca sync.
             # The algo's entry execution is the source of truth for position creation.
@@ -154,7 +169,7 @@ class AlpacaSyncManager:
                     WHERE symbol = %s AND status = 'open'
                 """,
                     (
-                        float(qty),
+                        qty_float,
                         float(current_price) if current_price else None,
                         float(position_value) if position_value else None,
                         symbol,
