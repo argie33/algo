@@ -134,20 +134,24 @@ def check_file_for_fallbacks(filepath: Path) -> list[dict[str, Any]]:
                     "fix": "Raise exception for CRITICAL data OR return {'data_unavailable': True, 'reason': '...'}"
                 })
 
-        # ========== PATTERN 4: Unsafe .get() on financial data (STRICT: only flag obvious cases) ==========
-        # Only flag very specific patterns that are clearly financial data access
-        obvious_financial_get = any(pattern in stripped for pattern in [
-            "row.get(", "data.get(", "info.get(", "breadth.get(", "metrics.get(",
-            "prices.get(", "volumes.get(", "position.get(", "score.get("
-        ])
-        if obvious_financial_get:
-            violations.append({
-                "file": filepath,
-                "line": line_num,
-                "pattern": ".get()",
-                "message": "Unsafe .get() on financial data (returns None silently if key missing)",
-                "fix": "Use explicit check: if 'key' in dict and dict['key'] is not None: ..."
-            })
+        # ========== PATTERN 4: Unsafe .get() WITH DEFAULTS on financial data ==========
+        # Only flag .get() calls that have explicit defaults (the real problem)
+        # Normal .get() without defaults is OK (returns None which callers should handle)
+        get_with_default = re.search(r'\.get\([^,]+,\s*(["\']|0|None|\[\]|{}|Decimal)', stripped)
+        if get_with_default:
+            # Check if this is likely financial data
+            is_financial_get = any(pattern in stripped for pattern in [
+                "row.get(", "data.get(", "info.get(", "breadth.get(", "metrics.get(",
+                "prices.get(", "volumes.get(", "position.get(", "score.get("
+            ])
+            if is_financial_get:
+                violations.append({
+                    "file": filepath,
+                    "line": line_num,
+                    "pattern": ".get(..., default)",
+                    "message": "Unsafe .get() with default on financial data (silent fallback if key missing)",
+                    "fix": "Check key presence explicitly: if 'key' in dict and dict['key'] is not None: ..."
+                })
 
         # ========== PATTERN 5: Silent None return ==========
         if stripped == "return None" or re.match(r"return\s+None\s*$", stripped):
