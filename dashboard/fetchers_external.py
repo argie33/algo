@@ -6,14 +6,10 @@ from typing import Any
 from utils.safe_data_conversion import safe_float
 
 from .api_data_layer import api_call
-from .fetchers_common import format_fetcher_error, get_endpoint_path
+from .fetchers_common import format_fetcher_error, get_endpoint_path, record_data_quality_issue
 from .utilities import CY, G, R, Y
 
 logger = logging.getLogger(__name__)
-
-
-def record_data_quality_issue(*args: object, **kwargs: object) -> None:
-    """Placeholder for data quality issue recording."""
 
 
 

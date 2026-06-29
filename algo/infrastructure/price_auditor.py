@@ -34,13 +34,15 @@ class PriceAuditor:
         - stale_count: number of positions with stale prices
         - stale_symbols: list of symbols with stale prices
         - details: per-symbol stale status
+
+        Raises:
+            NotImplementedError: Method not yet implemented
         """
-        # Placeholder: full implementation would query price data
-        return {
-            "stale_count": 0,
-            "stale_symbols": [],
-            "details": {},
-        }
+        raise NotImplementedError(
+            "[PRICE_AUDIT] audit_stale_estimated_prices() not implemented. "
+            "Price freshness validation is required for position reconciliation. "
+            "This method returns fake empty data (stale_count=0) - implement the full audit."
+        )
 
     def validate_price_freshness(self, price_timestamp: datetime) -> bool:
         """Check if price data is fresh enough for reconciliation.

@@ -461,19 +461,23 @@ class SwingTraderScore:
                 raise ValueError(f"Swing score result missing or invalid 'pass' field for {symbol}")
 
             comp = result["components"]
-            default_components = {
-                "setup_quality": {"pts": 0.0, "max": self.W_SETUP},
-                "trend_quality": {"pts": 0.0, "max": self.W_TREND},
-                "momentum_rs": {"pts": 0.0, "max": self.W_MOMENTUM},
-                "volume": {"pts": 0.0, "max": self.W_VOLUME},
-                "fundamentals": {"pts": 0.0, "max": self.W_FUNDAMENTALS},
-                "sector_industry": {"pts": 0.0, "max": self.W_SECTOR},
-                "multi_timeframe": {"pts": 0.0, "max": self.W_MULTI_TF},
+            required_components = {
+                "setup_quality": self.W_SETUP,
+                "trend_quality": self.W_TREND,
+                "momentum_rs": self.W_MOMENTUM,
+                "volume": self.W_VOLUME,
+                "fundamentals": self.W_FUNDAMENTALS,
+                "sector_industry": self.W_SECTOR,
+                "multi_timeframe": self.W_MULTI_TF,
             }
 
-            for key in default_components:
-                if key in comp:
-                    default_components[key].update(comp[key])
+            # CRITICAL: Fail if ANY component is missing (no default/fallback values allowed)
+            missing_components = [k for k in required_components if k not in comp]
+            if missing_components:
+                raise ValueError(
+                    f"Swing score result for {symbol} missing required components: {missing_components}. "
+                    f"All components MUST be present. Cannot publish signal with missing data."
+                )
 
             # Validate critical signal quality fields
             grade = result.get("grade")
@@ -485,7 +489,7 @@ class SwingTraderScore:
                 raise ValueError(f"Swing score: grade field missing for {symbol}. Cannot publish incomplete signal.")
 
             components_json = {
-                **default_components,
+                **comp,
                 "grade": grade,
                 "pass": result["pass"],
                 "reason": result.get("reason"),

@@ -142,7 +142,21 @@ class GrowthMetricsLoader(OptimalLoader):
             else:
                 metrics[f"eps_growth_{lookback}y"] = None
 
-        metrics["data_unavailable"] = False
+        # Check if we actually have any real data (not all NULL)
+        has_revenue_growth = any(
+            metrics.get(f"revenue_growth_{y}y") is not None for y in [1, 3, 5]
+        )
+        has_eps_growth = any(
+            metrics.get(f"eps_growth_{y}y") is not None for y in [1, 3, 5]
+        )
+
+        if has_revenue_growth or has_eps_growth:
+            metrics["data_unavailable"] = False
+        else:
+            # All growth metrics are NULL - mark as unavailable
+            metrics["data_unavailable"] = True
+            metrics["reason"] = "Insufficient historical data to compute growth rates"
+
         metrics["updated_at"] = date.today().isoformat()
 
         return metrics

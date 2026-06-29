@@ -11,8 +11,15 @@ ET = ZoneInfo("America/New_York")
 logger = logging.getLogger(__name__)
 
 
-def record_data_quality_issue(*args: object, **kwargs: object) -> None:
-    """Placeholder for data quality issue recording."""
+def record_data_quality_issue(endpoint: str, status_code: int | None, error: str) -> None:
+    """Log data quality issues for observability - tracks API failures, missing data, timeouts.
+
+    Args:
+        endpoint: API endpoint that failed (e.g., "/api/algo/portfolio")
+        status_code: HTTP status code if applicable (e.g., 503, 504, None for timeout)
+        error: Error description or exception message
+    """
+    logger.warning(f"[DATA_QUALITY] {endpoint}: status={status_code}, error={error[:80]}")
 
 
 # Fetcher metadata: endpoint and description for better error context

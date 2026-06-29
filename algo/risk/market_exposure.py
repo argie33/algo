@@ -1518,12 +1518,14 @@ class MarketExposure:
             claims_now = float(claims_rows[0][0])
             claims_26w = float(claims_rows[-1][0])
             if claims_26w <= 0:
-                logger.warning(
-                    f"Invalid 26-week claims baseline ({claims_26w}) - skipping jobless claims signal"
+                msg = (
+                    f"[MARKET_STRESS] Invalid 26-week claims baseline ({claims_26w}) — cannot compute jobless claims signal. "
+                    "Jobless claims are REQUIRED for accurate market stress calculation. "
+                    "Check economic_data table for ICSA series."
                 )
-                chg_pct = 0.0
-            else:
-                chg_pct = (claims_now - claims_26w) / claims_26w * 100
+                logger.error(msg)
+                raise ValueError(msg)
+            chg_pct = (claims_now - claims_26w) / claims_26w * 100
             if chg_pct > 30:
                 stress += 30.0
                 signals.append(f"Jobless claims +{chg_pct:.1f}% in 26w (severe)")

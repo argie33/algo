@@ -270,32 +270,38 @@ class MarketHealthDailyLoader(OptimalLoader):
         except Exception as e:
             logger.warning(f"[MARKET_HEALTH] Put/call ratio fetch failed for {end}: {e}. "
                           f"Options sentiment is optional - continuing without it.")
-            # Set to None for this date; market exposure will handle missing optional data
             today_pc = None
 
+        end_str = end.isoformat()
+        matched_count = 0
         if today_pc is not None:
-            end_str = end.isoformat()
-            matched_count = 0
             for m in health_metrics:
                 if m["date"] == end_str:
                     m["put_call_ratio"] = today_pc
+                    m["put_call_ratio_available"] = True
                     matched_count += 1
                 # Note: Do NOT set put_call_ratio for historical dates
                 # Historical dates keep their existing put_call_ratio values (if any)
             logger.info(f"Put/call ratio: {today_pc:.3f} (matched {matched_count} rows)")
         else:
-            logger.warning(f"[MARKET_HEALTH] Put/call ratio unavailable for {end}. "
-                          f"Options sentiment optional - market exposure will proceed without it.")
+            # Explicitly mark which date is missing put/call ratio (not just leave as None)
+            for m in health_metrics:
+                if m["date"] == end_str:
+                    m["put_call_ratio"] = None
+                    m["put_call_ratio_available"] = False
+                    matched_count += 1
+            logger.warning(f"[MARKET_HEALTH] Put/call ratio unavailable for {end} — marked explicitly. "
+                          f"Options sentiment optional.")
 
     def _merge_yield_curve_data(self, health_metrics: list[dict[str, Any]], start: date, end: date) -> None:
         """Merge yield curve slope into health metrics.
 
-        Yield curve slope is used for market regime detection. For regime accuracy,
-        ALL trading dates MUST have valid yield curve data. NEVER forward-fill—missing data
-        indicates API failure that should be visible, not hidden.
+        Yield curve slope (10Y-2Y spread) is optional enrichment for market regime detection.
+        If yield curve data is unavailable, market regime detection is skipped (graceful degradation).
+        If data DOES exist, it must be complete (no forward-fill, no stale fallbacks).
 
-        Yield curve is OPTIONAL (markets work without Fed inversion data), so unavailability
-        returns early without error. But if data DOES exist, it must be 100% complete.
+        On data unavailability: Log and return early (no error).
+        This allows market health metrics to continue without regime classification.
         """
         try:
             yield_curve = self._yield_curve_fetcher.fetch(start, end)

@@ -238,7 +238,8 @@ class ValueMetricsLoader(OptimalLoader):
                     "fcf_yield": fcf_yield,
                     "held_percent_insiders": held_insiders_pct,
                     "held_percent_institutions": held_institutions_pct,
-                    "data_unavailable": False,
+                    # Mark unavailable only if we got NO usable data from yfinance
+                    "data_unavailable": not (pe or pb or ps or div or fcf_yield),
                     "updated_at": datetime.now(timezone.utc).isoformat(),
                 }
             ]

@@ -110,11 +110,15 @@ class TrendCriteriaLoader(OptimalLoader):
             start = since - timedelta(days=300)
 
         rows = self._fetch_price_daily(symbol, start, end)
-        # Allow symbols with at least 20 days of data (early in trading history)
-        # Very new stocks with < 20 days return empty results (optional data)
+        # Require at least 20 days of price data for trend analysis
+        # Shorter history means insufficient lookback for reliable trend detection
         if not rows or len(rows) < 20:
-            logger.debug(f"[TrendCriteria] Skipping {symbol}: insufficient price data ({len(rows) if rows else 0} rows, need >= 20)")
-            return []
+            logger.info(
+                f"[TrendCriteria] {symbol}: Insufficient price data ({len(rows) if rows else 0} rows, need >= 20). "
+                f"Trend criteria unavailable — require 20+ trading days for reliable analysis."
+            )
+            # Return explicit marker instead of empty list (which looks like "no trends found")
+            return [{"symbol": symbol, "data_unavailable": True, "reason": "Insufficient price history (< 20 days)"}]
 
         results = self._compute_trend_criteria(symbol, rows)
         if since is not None:

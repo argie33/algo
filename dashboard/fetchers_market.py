@@ -7,13 +7,9 @@ from typing import Any, cast
 from utils.safe_data_conversion import StrictValidationError, safe_float, safe_int
 
 from .api_data_layer import api_call
-from .fetchers_common import format_fetcher_error, get_endpoint_path
+from .fetchers_common import format_fetcher_error, get_endpoint_path, record_data_quality_issue
 
 logger = logging.getLogger(__name__)
-
-
-def record_data_quality_issue(*args: object, **kwargs: object) -> None:
-    """Placeholder for data quality issue recording."""
 
 
 _markets_cache: dict[str, Any] = {}

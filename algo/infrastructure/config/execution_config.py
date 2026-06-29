@@ -104,10 +104,31 @@ class ExecutionConfig:
     def get_default_portfolio_value(self) -> float:
         """Get default portfolio value for dry-run mode.
 
+        CRITICAL: Returns hardcoded $100k default only if 'default_portfolio_value' config key is missing.
+        This should only happen during initial setup. Production must have explicit portfolio configuration.
+
         Returns:
             Portfolio value in dollars
+
+        Raises:
+            RuntimeError: If attempting to use default portfolio value in production (non-dry-run) mode
         """
-        return float(self.get("default_portfolio_value", 100000.0))
+        import logging
+        value = self.get("default_portfolio_value")
+        if value is None:
+            # Only allow hardcoded default in dry-run/paper modes, not production
+            if self.get_execution_mode() not in ("dry", "paper", "review"):
+                raise RuntimeError(
+                    "[EXECUTION_CONFIG] default_portfolio_value config key missing. "
+                    "Cannot use hardcoded $100k default in production (auto) mode. "
+                    "Set 'default_portfolio_value' in configuration before trading."
+                )
+            logging.getLogger(__name__).warning(
+                "[EXECUTION_CONFIG] Using hardcoded default portfolio value ($100k). "
+                "This should only happen in dry-run/paper/review mode or during initial setup."
+            )
+            return 100000.0
+        return float(value)
 
     def get_execution_config(self) -> dict[str, Any]:
         """Get all execution configuration as a dictionary.

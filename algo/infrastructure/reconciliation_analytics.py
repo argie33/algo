@@ -27,32 +27,40 @@ class ReconciliationAnalytics:
         """Compute daily analytics: equity curves, returns, risk metrics.
 
         Returns dict with daily performance analytics.
+
+        Raises:
+            NotImplementedError: Method not yet implemented
         """
-        # Placeholder: full implementation would compute daily metrics
-        return {
-            "daily_return_pct": 0.0,
-            "equity_high": None,
-            "equity_low": None,
-        }
+        raise NotImplementedError(
+            "[ANALYTICS_METRICS] compute_analytics_metrics() not implemented. "
+            "Daily analytics computation is required for performance dashboard. "
+            "This method returns fake 0.0 values - implement the full calculation."
+        )
 
     def compute_closed_trade_metrics(self, cur: Any) -> dict[str, Any]:
         """Compute metrics from all closed trades: win rate, R-multiples, profit factor.
 
         Returns dict with cumulative trade performance metrics.
+
+        Raises:
+            NotImplementedError: Method not yet implemented
         """
-        # Placeholder: full implementation would compute trade metrics
-        return {
-            "total_trades": 0,
-            "winning_trades": 0,
-            "losing_trades": 0,
-            "profit_factor": 1.0,
-            "avg_r_multiple": 0.0,
-        }
+        raise NotImplementedError(
+            "[CLOSED_TRADE_METRICS] compute_closed_trade_metrics() not implemented. "
+            "Trade performance metrics computation is required for risk analysis. "
+            "This method returns fake values (0 trades, 1.0 profit factor) - implement the full calculation."
+        )
 
     def compute_trade_streak(self, cur: Any) -> int:
         """Compute current win/loss streak from recent closed trades.
 
         Returns positive number for win streak, negative for loss streak.
+
+        Raises:
+            NotImplementedError: Method not yet implemented
         """
-        # Placeholder: full implementation would compute streaks
-        return 0
+        raise NotImplementedError(
+            "[TRADE_STREAK] compute_trade_streak() not implemented. "
+            "Win/loss streak tracking is required for performance analysis. "
+            "This method returns fake 0 value - implement the full calculation."
+        )

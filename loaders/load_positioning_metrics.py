@@ -131,6 +131,8 @@ class PositioningMetricsLoader(OptimalLoader):
                 logger.info(f"Skipping {symbol} (market cap ${mkt_cap:,} < $1M threshold)")
                 return None
 
+            # Use ONLY primary fields - no fallbacks to alternative field names
+            # This makes yfinance schema changes visible immediately (fail-fast)
             institutional_ownership = None
             insider_ownership = None
             short_interest_percent = None
@@ -140,25 +142,14 @@ class PositioningMetricsLoader(OptimalLoader):
             # Consistently convert all to percentage scale (0-100)
             if "heldPercentInstitutions" in info and info["heldPercentInstitutions"] is not None:
                 institutional_ownership = float(info["heldPercentInstitutions"]) * 100
-            elif "institutional_ownership" in info and info["institutional_ownership"] is not None:
-                # Fallback field: yfinance returns as 0-100 scale directly (no multiply)
-                institutional_ownership = float(info["institutional_ownership"])
 
             if "heldPercentInsiders" in info and info["heldPercentInsiders"] is not None:
                 insider_ownership = float(info["heldPercentInsiders"]) * 100
-            elif "insider_ownership" in info and info["insider_ownership"] is not None:
-                # Fallback field: yfinance returns as 0-100 scale directly (no multiply)
-                insider_ownership = float(info["insider_ownership"])
 
             if "shortPercentOfFloat" in info and info["shortPercentOfFloat"] is not None:
                 # CRITICAL: This field is returned as a decimal (0.05 = 5%), not a percentage (5.0)
                 # Must multiply by 100 to convert to percentage scale
                 short_interest_percent = float(info["shortPercentOfFloat"]) * 100
-            elif "short_percent_of_float" in info and info["short_percent_of_float"] is not None:
-                # Fallback field: may be 0-100 scale already (yfinance inconsistency)
-                short_interest_percent = float(info["short_percent_of_float"])
-            # NOTE: shortRatio (days-to-cover) removed as fallback - it is NOT a percentage
-            # and storing it in short_interest_percent would create semantic mismatch
 
             if "sharesShort" in info and info["sharesShort"] is not None:
                 short_interest_trend = "stable"

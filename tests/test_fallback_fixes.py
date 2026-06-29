@@ -288,6 +288,47 @@ class TestOptionsLoader:
                 loader.run(symbols=["AAPL", "MSFT"])
 
 
+class TestIndustryRankingLoader:
+    """Test industry ranking loader returns explicit data_unavailable marker"""
+
+    def test_industry_ranking_returns_data_unavailable_on_empty_data(self):
+        """Industry ranking should return explicit data_unavailable marker when no ranking data computed."""
+        from unittest.mock import MagicMock, patch
+
+        from loaders.load_industry_ranking import IndustryRankingLoader
+
+        loader = IndustryRankingLoader()
+
+        # Mock database to return no rows (edge case where query succeeds but no results)
+        with patch("loaders.load_industry_ranking.DatabaseContext") as mock_db:
+            mock_cursor = MagicMock()
+            # Mock the price_daily query to return a date
+            # Mock the ranking computation query to return no rows
+            call_count = [0]
+
+            def mock_fetchone():
+                call_count[0] += 1
+                # First call: latest date from price_daily
+                if call_count[0] == 1:
+                    return {"date": date(2024, 12, 31)}
+                return None
+
+            def mock_fetchall():
+                # Ranking computation returns no rows
+                return []
+
+            mock_cursor.fetchone.side_effect = mock_fetchone
+            mock_cursor.fetchall.return_value = mock_fetchall()
+            mock_db.return_value.__enter__.return_value = mock_cursor
+
+            result = loader.fetch_global(since=None)
+            # Should return list with explicit data_unavailable marker
+            assert isinstance(result, list), "Industry ranking should return list"
+            assert len(result) == 1, "Expected single result with data_unavailable marker"
+            assert result[0].get("data_unavailable") is True, "Should have data_unavailable=True"
+            assert result[0].get("reason") == "no_ranking_data_computed", "Should include reason"
+
+
 class TestSentimentLoaders:
     """Test sentiment loader consistency and graceful degradation"""
 

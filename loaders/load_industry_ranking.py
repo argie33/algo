@@ -95,7 +95,7 @@ class IndustryRankingLoader(OptimalLoader):
                 rows = cur.fetchall()
                 if not rows:
                     logger.warning("No industry ranking data computed — check company_profile and stock_scores tables")
-                    return None
+                    return [{"data_unavailable": True, "reason": "no_ranking_data_computed"}]
 
                 return [
                     {

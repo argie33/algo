@@ -80,8 +80,9 @@ class AnalystRatingsLoader(OptimalLoader):
                 "API format may have changed or ticker data is corrupted."
             )
         if upgrades_downgrades.empty:
-            logger.info(f"[ANALYST_RATINGS] No upgrade/downgrade history for {symbol} — optional enrichment unavailable")
-            return []
+            logger.info(f"[ANALYST_RATINGS] No upgrade/downgrade history for {symbol} — data unavailable")
+            # Return explicit marker instead of empty list (which looks like "no ratings found")
+            return [{"symbol": symbol, "data_unavailable": True, "reason": "No analyst upgrade/downgrade history available"}]
 
         results = []
 

@@ -31,10 +31,11 @@ class EconomicMetricsDailyLoader(OptimalLoader):
     CRITICAL METRICS (must be present):
     - CPI YoY: Year-over-year CPI change (required for inflation environment assessment)
     - Yield curve slope: 10Y - 2Y spread (required for market regime detection)
+    - SPY price change: Daily SPY performance for market regime assessment
 
-    OPTIONAL METRICS (fallback available):
-    - SPY price change: If unavailable in economic_metrics_daily, dashboard can derive from price_daily.
-      This is acceptable because price_daily is a separate, reliable data source.
+    NOTE: All metrics above are REQUIRED. No fallback sources are implemented.
+    If any metric unavailable, entire loader fails (no partial/degraded mode).
+    Dashboard does NOT implement fallback computation from price_daily.
     """
 
     table_name = "economic_metrics_daily"

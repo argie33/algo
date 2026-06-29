@@ -264,8 +264,15 @@ class YieldCurveFetcher:
                 logger.info(f"[YIELD_CURVE] Fetched {len(result)} dates with yield spread from T10Y2Y series")
             return result
         except Exception as e:
-            logger.warning(f"Yield curve fetch failed: {e}. Returning empty dict for optional enrichment.")
-            return {}
+            logger.error(
+                f"[YIELD_CURVE] Fetch failed: {e}. Yield curve is CRITICAL for market regime detection. "
+                f"Cannot continue with empty yield curve data — system must detect API failures explicitly."
+            )
+            raise RuntimeError(
+                f"[YIELD_CURVE] Failed to fetch yield spread data: {e}. "
+                f"Market regime classification requires valid yield curve. "
+                f"Not using empty fallback — API failure must be visible and handled explicitly."
+            ) from e
 
 
 class BreadthFetcher:

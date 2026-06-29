@@ -157,7 +157,12 @@ class StabilityMetricsLoader(OptimalLoader):
 
     @staticmethod
     def _get_beta_yfinance(symbol: str) -> float | None:
-        """Fetch beta from yfinance via the rate-limiting wrapper."""
+        """Fetch beta from yfinance via the rate-limiting wrapper.
+
+        Uses ONLY primary 'beta' field (no fallback to beta3Year).
+        If primary field missing, returns None so caller can mark data_unavailable.
+        Fallbacks to alternative field names would mask yfinance schema changes.
+        """
         from utils.external.yfinance import get_ticker
 
         ticker = get_ticker(symbol)
@@ -166,13 +171,14 @@ class StabilityMetricsLoader(OptimalLoader):
 
         try:
             info = ticker.info
+            # Use ONLY primary field - no fallback to beta3Year
             beta = None
             if "beta" in info and info["beta"] is not None:
                 beta = float(info["beta"])
-            elif "beta3Year" in info and info["beta3Year"] is not None:
-                beta = float(info["beta3Year"])
+
+            # Reject extreme values that indicate data corruption
             if beta is not None and abs(beta) > 200:
-                logger.debug(f"Dropping extreme beta for {symbol}: {beta}")
+                logger.warning(f"[STABILITY_METRICS] Extreme beta value for {symbol}: {beta} (rejecting as corrupted)")
                 return None
             return beta
         except (ValueError, ZeroDivisionError, TypeError) as e:

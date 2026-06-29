@@ -65,67 +65,26 @@ class AlpacaSyncManager:
             raise
 
     def sync_alpaca_positions(self, cur: Any) -> dict[str, Any]:
-        """Sync Alpaca positions to database (placeholder for paper trading).
+        """Sync Alpaca positions to database.
 
-        Fetches current positions from Alpaca API but does NOT write to database.
-        This is intentional for paper trading mode — no position sync is needed.
+        CRITICAL: This method is currently a placeholder that does NOT sync positions.
+        Position sync is not implemented - attempting to call this will raise an error.
+        This is intentional to prevent accidental use of incomplete code.
 
         For production (live trading): Implement actual sync logic to update DB with:
         - New positions imported from Alpaca
         - Positions closed that still exist in database
         - Imported position status updates
 
-        Returns status dict with counts of imported, updated, closed positions.
-        Currently: imported=0, updated=0, closed=0 (placeholder behavior).
+        Raises:
+            NotImplementedError: Position sync logic is not implemented yet
         """
-        from typing import cast
-
-        import requests
-
-        try:
-            # Fetch all positions from Alpaca
-            url = f"{self._alpaca_base_url}/v2/positions"
-            headers = {
-                "APCA-API-KEY-ID": self._alpaca_key,
-                "APCA-API-SECRET-KEY": self._alpaca_secret,
-                "Accept": "application/json",
-            }
-            resp = requests.get(url, headers=headers, timeout=10)
-            resp.raise_for_status()
-            alpaca_positions = cast(list[dict[str, Any]], resp.json())
-
-            imported = 0
-            updated = 0
-            closed = 0
-            orphan_symbols: list[str] = []
-
-            if not alpaca_positions:
-                logger.info("No positions in Alpaca account")
-                return {
-                    "imported": 0,
-                    "updated": 0,
-                    "closed": 0,
-                    "message": "No positions to sync",
-                    "orphan_symbols": [],
-                    "_sync_skipped": False,
-                }
-
-            logger.warning(
-                f"[PAPER_TRADING] Position sync intentionally skipped. Alpaca has {len(alpaca_positions)} positions. "
-                "Production live-trading mode requires actual sync logic to update database."
-            )
-
-            return {
-                "imported": imported,
-                "updated": updated,
-                "closed": closed,
-                "message": f"[PAPER_TRADING] Found {len(alpaca_positions)} positions in Alpaca (sync skipped - paper trading mode)",
-                "orphan_symbols": orphan_symbols,
-                "_sync_skipped": True,
-            }
-        except (requests.RequestException, ValueError) as e:
-            logger.error(f"Failed to fetch Alpaca positions for sync: {e}")
-            raise
+        raise NotImplementedError(
+            "[POSITION_SYNC] sync_alpaca_positions() is not implemented. "
+            "Position sync logic must be implemented before production use. "
+            "This method was a placeholder that silently returned mock data - "
+            "calling it now raises an error to prevent accidental use of incomplete code."
+        )
 
     def process_failed_imports(self, cur: Any, alpaca_positions: list[Any]) -> dict[str, Any]:
         """Handle positions that failed to import or process.
