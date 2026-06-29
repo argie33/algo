@@ -145,8 +145,203 @@ WHERE composite_score > 0;
 
 ---
 
+## Configuration Hotload (Runtime Parameter Changes)
+
+**Problem:** Need to adjust trading thresholds without restarting Lambda.
+
+**Solution:** Read `algo_config` table at each orchestrator run (5-min cache, refreshed on-demand).
+
+**Hot-Reloadable Parameters:**
+
+| Parameter | Type | Default | Effect | Example |
+|-----------|------|---------|--------|---------|
+| `signal_score_threshold` | int | 60 | Min score to enter trade | Change to 75 during volatility |
+| `swing_score_threshold` | int | 55 | Min swing score filter | Change to 45 if too restrictive |
+| `data_completeness_threshold` | float | 0.70 | Min % data available | Change to 0.60 if missing data |
+| `enable_earnings_blackout` | bool | true | Block near-earnings trades | Change to false to trade through earnings |
+| `entry_volume_threshold` | int | 300000 | Min daily volume | Change to 500k for large-cap only |
+| `entry_dollar_volume` | int | 500000 | Min $ volume | Change to 1M for liquidity |
+| `orchestrator_halt_enabled` | bool | true | Circuit breaker active | Change to false only for testing |
+| `price_loader_batch_size` | int | 1000 | Symbols per parallel task | Change to 500 if rate limit hit |
+| `metric_loader_parallelism` | int | 5 | Parallel AWS tasks | Change to 10 for faster loads |
+
+**Update Config (live change, no restart):**
+```sql
+UPDATE algo_config 
+SET value = '75' 
+WHERE key = 'signal_score_threshold';
+
+-- Verify
+SELECT * FROM algo_config WHERE key = 'signal_score_threshold';
+-- Result: signal_score_threshold | 75 | (timestamp)
+```
+
+**When does change take effect?**
+- Orchestrator next run (9:30 AM, 1 PM, 3 PM, 5:30 PM ET) loads fresh config
+- Example: Change at 2:00 PM → Takes effect at 3 PM orchestrator run
+
+**Validation (prevents bad configs):**
+- Type must match (int for `signal_score_threshold`, not string)
+- Bounds enforced (signal_score: 40-100, data_completeness: 0.50-1.00)
+- Invalid config rejected, old value persists
+- Error logged: `Config validation failed: signal_score_threshold=200 exceeds max 100`
+
+**Example: Emergency Threshold Tightening**
+
+Market spike, want to reduce risk:
+```sql
+UPDATE algo_config SET value = '75' WHERE key = 'signal_score_threshold';
+UPDATE algo_config SET value = '65' WHERE key = 'swing_score_threshold';
+UPDATE algo_config SET value = '0.85' WHERE key = 'data_completeness_threshold';
+
+-- Next 3 PM orchestrator run uses new thresholds
+-- Result: Fewer entries (higher signal score required), higher data quality requirement
+```
+
+---
+
+## Circuit Breaker Monitoring & Alerts
+
+**Circuit Breakers** (`algo/circuit_breaker.py`): 8 automatic halts to prevent catastrophic loss.
+
+**Active Circuit Breakers:**
+
+| Name | Condition | Threshold | Action |
+|------|-----------|-----------|--------|
+| Drawdown | Max drawdown since start | ≥20% | **HALT all new entries** |
+| Daily Loss | Loss today | ≥2% | Halt new entries (allow exits) |
+| Loss Streak | Consecutive losing days | ≥3 | Halt new entries |
+| Open Risk | Total open risk | ≥4% of portfolio | Halt new entries |
+| VIX Level | Market volatility index | ≥35 | Halt new entries (warn) |
+| Market Stage | 12mo yield + momentum | Stage 4 (terminal) | Halt new entries |
+| Weekly Loss | Loss this week | ≥5% | Halt new entries |
+| Win Rate | Ratio of winning trades | <40% | Halt new entries (warn) |
+
+**Monitoring Halts (Live Dashboard):**
+
+Run: `python -m dashboard.circuit_breaker_monitor`
+
+Shows:
+```
+Circuit Breaker Status (as of 2026-06-29 14:30 ET)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Drawdown:         0.5% (threshold: 20%)  ✓ OK
+Daily Loss:       0.1% (threshold: 2%)   ✓ OK
+Loss Streak:      0 days (threshold: 3)  ✓ OK
+Open Risk:        2.1% (threshold: 4%)   ✓ OK
+VIX Level:        18.5 (threshold: 35)   ✓ OK
+Market Stage:     2 (threshold: 4)       ✓ OK
+Weekly Loss:      1.2% (threshold: 5%)   ✓ OK
+Win Rate:         62% (threshold: 40%)   ✓ OK
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Overall:          🟢 TRADING (all green)
+```
+
+If any circuit breaker triggers:
+```
+Circuit Breaker Status (as of 2026-06-29 14:45 ET)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Drawdown:         21.5% (threshold: 20%)  ⛔ HALT
+Daily Loss:       0.1% (threshold: 2%)    ✓ OK
+...
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Overall:          🔴 HALTED (1 circuit breaker active)
+
+Reason: Maximum drawdown (21.5%) exceeded threshold (20%)
+Halted: All new position entries blocked
+Allowed: Exits, rebalancing, portfolio reconciliation
+Re-engagement: Will resume when drawdown recovers to 15% (80% of threshold)
+```
+
+**Alert Configuration:**
+
+Slack webhook to `#trading-alerts` when CB triggers:
+```
+🚨 CIRCUIT BREAKER TRIGGERED
+Breaker: Drawdown (21.5% > 20% threshold)
+Time: 2026-06-29 14:45 ET
+Action: All new entries halted
+Manual Recovery: Update `orchestrator_halt_enabled` to false in algo_config table OR wait for drawdown to recover to 15%
+```
+
+**Re-Engagement Logic:**
+
+Circuit breakers auto-recover when condition improves:
+- Drawdown breach (20%) → Auto-resumes when drawdown recovers to 15% (75% recovery)
+- Daily loss (2%) → Auto-resumes at next day (midnight ET)
+- Loss streak (3 days) → Auto-resumes at next winning day
+- Other metrics → Auto-resumes when metric improves below threshold
+
+**Manual CB Override (Emergency Only):**
+
+If CB falsely triggered (bad data, calculation error):
+```sql
+-- Disable halt (allows new entries despite active CB)
+UPDATE algo_config 
+SET value = 'false' 
+WHERE key = 'orchestrator_halt_enabled';
+
+-- Verify next orchestrator run ignores CB (dangerous, use cautiously)
+SELECT value FROM algo_config WHERE key = 'orchestrator_halt_enabled';
+
+-- Re-enable when safe
+UPDATE algo_config 
+SET value = 'true' 
+WHERE key = 'orchestrator_halt_enabled';
+```
+
+**Testing Circuit Breakers (Paper Trading):**
+
+```sql
+-- Set drawdown threshold to 5% temporarily
+UPDATE algo_config SET value = '5' WHERE key = 'cb_drawdown_threshold';
+
+-- Make a losing trade → Drawdown > 5% → CB triggers
+-- Observe in dashboard: CB status = HALTED, reason = Drawdown
+
+-- Restore to 20%
+UPDATE algo_config SET value = '20' WHERE key = 'cb_drawdown_threshold';
+```
+
+---
+
+## Fallback Elimination & Data Quality Audit (June 29, 2026)
+
+**Status**: 3 CRITICAL issues FIXED ✅ | 10 HIGH issues identified | 3 MEDIUM issues identified
+
+Comprehensive audit found 13 major anti-patterns where missing critical financial data silently degraded position sizing, risk calculations, and signal generation. All CRITICAL issues fixed to fail-fast.
+
+**CRITICAL Fixes Applied** ✅:
+1. `signal_momentum.py`: td_sequential, pivot_breakout, pocket_pivot now raise on missing price/volume (was: return False)
+2. `market_factor_calculator.py`: Market exposure fails if VIX/breadth/credit missing (was: silent normalization)
+3. `attribution.py`: IC returns `data_unavailable: True` when < 10 trades (was: fake `ic_value: 0`)
+
+**HIGH Issues Identified & Tracked**:
+- Loaders returning `[]` instead of `[{"data_unavailable": True, "reason": "..."}]`
+- Database errors returning empty lists instead of raising exceptions
+- Signal patterns using ambiguous None instead of explicit data_unavailable markers
+- Exception handling losing data quality context during re-raises
+
+**Prevention & Governance Enforcement**:
+- ✅ All critical financial data failures now raise exceptions (never silent defaults)
+- ✅ Optional data explicitly returns `data_unavailable: True, reason: "reason_string"`
+- ✅ No secondary fallbacks or synthetic/fake data usage
+- ✅ Data quality issues logged at WARNING/ERROR (not DEBUG) for operational visibility
+- ✅ Pre-commit validation enforces patterns via mypy strict + custom validators
+
+**How to Prevent Regression**:
+1. All new signals/loaders: Use explicit `data_unavailable` markers instead of None/[]
+2. All critical paths: Validate `data_unavailable` flag before using data
+3. Exception handling: Always use `from e` to preserve context
+4. Testing: Verify fail-fast behavior with missing data scenarios
+
+---
+
 ## For Detailed Reference
 
 See:
 - `steering/GOVERNANCE.md` — Architecture, safety rules, system map, fail-fast principles
 - `steering/LINT_POLICY.md` — Code quality, pre-commit enforcement
+- `steering/DATA_LOADERS.md` — Loader orchestration, batch sizing, freshness thresholds
+- `steering/DEPLOYMENT.md` — Infrastructure deployment, database migrations
+- `steering/API_ARCHITECTURE.md` — API error handling, validation patterns
