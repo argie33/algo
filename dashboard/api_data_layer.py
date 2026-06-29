@@ -418,7 +418,8 @@ def api_call(endpoint: str, params: dict[str, Any] | None = None, method: str = 
                     continue
                 _record_api_failure()
                 max_att = API_MAX_RETRIES + 1
-                # Mark 503 Service Unavailable as transient so callers can use stale cache
+                # Mark 503 Service Unavailable as transient (indicates temporary issue, not permanent failure)
+                # CRITICAL: Callers must NOT attempt stale cache fallback - get_cached_response() raises on stale (>30min)
                 error_result: dict[str, Any] = {"_error": f"API error {resp.status_code} after {max_att} attempts"}
                 if resp.status_code == 503:
                     error_result["_is_transient_503"] = True
