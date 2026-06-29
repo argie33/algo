@@ -3639,8 +3639,9 @@ router.get("/trade-distribution", authenticateToken, async (req, res) => {
     const rValues = result.rows
       .map((r) => parseFloat(r.exit_r_multiple))
       .filter((v) => !isNaN(v));
+    // FAIL-FAST: No trade data means we can't compute R-multiple histogram
     if (rValues.length === 0) {
-      return sendSuccess(res, { buckets: [], total_trades: 0 });
+      return sendError(res, "[TRADE_DATA_UNAVAILABLE] No valid trade R-multiple data available", 503);
     }
 
     const buckets = [
@@ -3699,8 +3700,9 @@ router.get(
       const durations = result.rows
         .map((r) => parseInt(r.trade_duration_days))
         .filter((v) => !isNaN(v));
+      // FAIL-FAST: No trade duration data means we can't compute histogram
       if (durations.length === 0) {
-        return sendSuccess(res, { buckets: [], total_trades: 0 });
+        return sendError(res, "[TRADE_DURATION_UNAVAILABLE] No valid trade duration data available", 503);
       }
 
       const buckets = [
