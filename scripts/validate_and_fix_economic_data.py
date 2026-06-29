@@ -88,8 +88,12 @@ VALID_RANGES = {
     "T5YIE": (1, 4, "%"),
     "T10YIE": (1, 4, "%"),
 
-    # CRITICAL FIX: DXY historically 85-115, but in strong dollar scenario (June 2026) can reach 120
-    "DTWEXBGS": (85, 125, "index"),  # Widened to accommodate current strong dollar
+    # DXY_ICE: Actual US Dollar Index from ICE (Intercontinental Exchange)
+    # Real market rate, ~100-110 normal range, published daily
+    "DXY_ICE": (95, 115, "index"),  # Actual ICE DXY - Real US Dollar Index
+
+    # DEPRECATED: DTWEXBGS is FRED trade-weighted proxy (NOT actual DXY - DO NOT USE)
+    "DTWEXBGS": (85, 125, "index"),  # DEPRECATED: Trade-weighted USD (FRED proxy, NOT actual DXY)
 
     # Oil: $20-$150/barrel
     "DCOILWTICO": (20, 150, "$/barrel"),

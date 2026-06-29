@@ -77,7 +77,9 @@ SERIES = [
     "T5YIE",  # 5-Year Breakeven Inflation Rate (daily)
     "T10YIE",  # 10-Year Breakeven Inflation Rate (daily)
     # Dollar strength
-    "DTWEXBGS",  # USD Broad Nominal Index, trade-weighted (daily)
+    # NOTE: Real DXY is published by ICE, not FRED. DTWEXBGS is a FRED proxy (trade-weighted broad index)
+    # TODO: Replace with actual ICE DXY from Yahoo Finance or IEX Cloud API
+    "DTWEXBGS",  # USD Broad Trade-Weighted Index (PROXY - NOT actual DXY) - daily
     # Commodities
     "DCOILWTICO",  # WTI Crude Oil, Cushing OK ($/barrel, daily)
     # Financial stress (broader than credit spreads alone)

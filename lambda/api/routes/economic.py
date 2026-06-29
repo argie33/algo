@@ -224,7 +224,8 @@ def _get_leading_indicators(cur: cursor) -> Any:  # noqa: C901
         # Lending / credit
         "BUSLOANS": "Business Loans",
         # Global / commodities
-        "DTWEXBGS": "USD Dollar Index",
+        "DXY_ICE": "USD Dollar Index (ICE - Actual Market Rate)",
+        "DTWEXBGS": "USD Trade-Weighted Index (FRED - DEPRECATED proxy, not actual DXY)",
         "DCOILWTICO": "WTI Crude Oil",
     }
     # Series that report absolute levels but should be shown as YoY % change
