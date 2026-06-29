@@ -23,7 +23,7 @@ setup_imports()
 
 import logging  # noqa: E402
 from collections.abc import Iterable  # noqa: E402
-from datetime import date, datetime, timezone  # noqa: E402
+from datetime import date  # noqa: E402
 from typing import Any  # noqa: E402
 
 import psycopg2  # noqa: E402
@@ -40,7 +40,7 @@ class StockScoresLoader(OptimalLoader):
 
     table_name = "stock_scores"
     primary_key = ("symbol",)
-    watermark_field: str = ""  # No date watermark, we compute all at once
+    watermark_field: str = "updated_at"
 
     def run(self, symbols: Iterable[str], parallelism: int = 1, backfill_days: int | None = None) -> dict[str, Any]:
         """Override run to validate upstream metrics are ready before computing scores.
@@ -154,7 +154,7 @@ class StockScoresLoader(OptimalLoader):
                         "symbol": symbol,
                         "data_unavailable": True,
                         "reason": "internal_computation_returned_none",
-                        "updated_at": datetime.now(timezone.utc).isoformat(),
+                        "updated_at": date.today(),
                     }
                 ]
             return [score_result]
@@ -166,7 +166,7 @@ class StockScoresLoader(OptimalLoader):
                     "symbol": symbol,
                     "data_unavailable": True,
                     "reason": "insufficient_upstream_metrics",
-                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                    "updated_at": date.today(),
                 }
             ]
 
@@ -362,7 +362,7 @@ class StockScoresLoader(OptimalLoader):
                 "rs_percentile": 0.0,
                 "data_completeness": data_completeness,
                 "unavailable_metrics": unavailable_metrics,
-                "updated_at": datetime.now(timezone.utc).isoformat(),
+                "updated_at": date.today(),
             }
             if unavailable_metrics:
                 logger.warning(
