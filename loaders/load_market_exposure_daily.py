@@ -54,15 +54,21 @@ def main() -> int:
 
         from algo.risk import MarketExposure
 
-        # Determine the latest trading date from price_daily
+        # Determine the latest date for which BOTH price_daily AND market_health_daily have data.
+        # market_health_daily is capped to VIX availability and may lag price_daily by 1 trading day
+        # (VIX is not available until after market close). Computing market_exposure for a date
+        # where market_health_daily has no row causes a hard failure in new_highs_lows().
         latest_date = None
         with DatabaseContext("read") as cur:
             cur.execute("SELECT date FROM price_daily WHERE symbol='SPY' ORDER BY date DESC LIMIT 1")
             result = cur.fetchone()
-            if result:
-                latest_date = result[0]
+            spy_latest = result[0] if result else None
 
-        if not latest_date:
+            cur.execute("SELECT MAX(date) FROM market_health_daily")
+            result = cur.fetchone()
+            health_latest = result[0] if result else None
+
+        if not spy_latest:
             logger.warning(
                 "[MARKET_EXPOSURE] No SPY price data available — critical data for market exposure computation missing"
             )
@@ -73,6 +79,26 @@ def main() -> int:
                     ("FAILED", "No price data available for SPY", table_name),
                 )
             return 1
+
+        if not health_latest:
+            logger.warning(
+                "[MARKET_EXPOSURE] No market_health_daily data available — required for new_highs_lows computation"
+            )
+            with DatabaseContext("write") as cur:
+                cur.execute(
+                    "UPDATE data_loader_status SET status = %s, last_updated = NOW(), error_message = %s WHERE table_name = %s",
+                    ("FAILED", "No market_health_daily data available", table_name),
+                )
+            return 1
+
+        # Use the earlier of the two dates so market_exposure never tries to compute for a date
+        # where market_health_daily has no row (VIX lag causes health to trail price by 1 day)
+        latest_date = min(spy_latest, health_latest)
+        if latest_date < spy_latest:
+            logger.info(
+                f"[MARKET_EXPOSURE] Using health watermark {latest_date} (SPY has {spy_latest}; "
+                f"market_health_daily not yet available for {spy_latest})"
+            )
 
         # CRITICAL: Only compute market exposure for trading days
         # Loading on weekend/holiday should not create entries for non-trading days (corrupts position sizing logic)
