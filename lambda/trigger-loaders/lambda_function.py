@@ -158,10 +158,10 @@ class TriggerLoadersHandler(LambdaHandler):
         task_def = f"{project_name}-{loader_name}-loader"
         logger.info(f"Triggering loader: {loader_name} (task_def={task_def}, count={task_count})")
 
-        # Build container overrides to pass environment variables to ECS task
+        # Container name is "{project}-{loader}" (no -loader suffix) per Terraform task definition
         container_overrides = [
             {
-                "name": f"{project_name}-{loader_name}-loader",
+                "name": f"{project_name}-{loader_name}",
                 "environment": [{"name": k, "value": v} for k, v in environment_overrides.items()],
             }
         ]
