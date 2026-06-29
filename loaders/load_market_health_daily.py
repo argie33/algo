@@ -941,8 +941,13 @@ class MarketHealthDailyLoader(OptimalLoader):
                     f"(VIX in price_daily through {max_vix_str}; skipping dates beyond that)"
                 )
             if not health_metrics:
-                logger.info("[MARKET_HEALTH] No dates with VIX coverage — all metrics deferred to next run")
-                return []
+                # FAIL-FAST: Market health is critical for circuit breaker evaluation
+                # Cannot silently skip all dates - must raise error so orchestrator knows to retry
+                raise RuntimeError(
+                    "[MARKET_HEALTH CRITICAL] No dates with VIX coverage available. "
+                    "Cannot compute market health metrics without VIX data. "
+                    "Check price_daily table for ^VIX symbol data availability."
+                )
 
             # Filter to only dates where VIX actually exists in price_daily.
             # The cap above removes dates AFTER the latest VIX row, but VIX coverage may be
@@ -968,8 +973,13 @@ class MarketHealthDailyLoader(OptimalLoader):
                             f"{len(health_metrics)} (skipped {skipped} historical dates without VIX)"
                         )
                     if not health_metrics:
-                        logger.info("[MARKET_HEALTH] No VIX-covered dates remain — deferring to next run")
-                        return []
+                        # FAIL-FAST: Market health is critical for circuit breaker evaluation
+                        # Cannot silently defer when VIX filtering eliminates all dates
+                        raise RuntimeError(
+                            "[MARKET_HEALTH CRITICAL] VIX pre-filtering eliminated all dates. "
+                            "Check VIX data availability in price_daily for ^VIX symbol. "
+                            "Market health metrics require complete VIX coverage."
+                        )
             except Exception as e:
                 logger.warning(f"[MARKET_HEALTH] Could not pre-filter by VIX dates: {e} — proceeding")
 

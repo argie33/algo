@@ -1487,13 +1487,22 @@ router.get("/markets", async (req, res) => {
     });
 
     // Parse halt_reasons: stored as VARCHAR containing JSON array string (e.g. "[]")
+    // FAIL-FAST: Halt reasons are critical for trading decisions - cannot silently default
     let parsedHaltReasons = [];
     if (latest && latest.halt_reasons != null) {
       if (typeof latest.halt_reasons === "string") {
         try {
           parsedHaltReasons = JSON.parse(latest.halt_reasons);
-        } catch (_) {
-          parsedHaltReasons = [];
+        } catch (e) {
+          logger.error("CRITICAL: Halt reasons JSON parse error - data corruption or misconfiguration detected", {
+            raw_value: latest.halt_reasons.substring(0, 200),
+            error: e.message,
+          });
+          return sendError(
+            res,
+            503,
+            "CRITICAL: Market halt reasons data is corrupted. Cannot proceed with trading without valid halt information."
+          );
         }
       } else if (Array.isArray(latest.halt_reasons)) {
         parsedHaltReasons = latest.halt_reasons;
