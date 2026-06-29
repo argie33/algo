@@ -127,6 +127,9 @@ def _audit_exit_prices_step(
             stale_audit = recon.audit_stale_estimated_prices(audit_cur)
             status = stale_audit.get("status")
             if status is None:
+                if stale_audit.get("implementation_required"):
+                    logger.warning("[PHASE 9] Exit price audit not yet implemented — skipping stale price check")
+                    return
                 raise ValueError(f"Exit price audit result missing 'status' field. Keys: {list(stale_audit.keys())}")
 
             if status != "OK":

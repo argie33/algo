@@ -41,7 +41,13 @@ class SignalOptionsMixin:
             )
             row = cur.fetchone()
             if row is None or len(row) < 1 or row[0] is None:
-                return {"iv_rank": None, "signal": "neutral", "bonus_pts": 0.0}
+                return {
+                    "iv_rank": None,
+                    "signal": None,
+                    "bonus_pts": 0.0,
+                    "data_unavailable": True,
+                    "reason": "iv_history data not found",
+                }
 
             # Validate all three IV values are present (fail-fast on incomplete data)
             if row[1] is None or row[2] is None:
@@ -114,11 +120,23 @@ class SignalOptionsMixin:
             )
             row = cur.fetchone()
             if row is None or len(row) < 2 or row[0] is None or row[1] is None:
-                return {"put_call_ratio": None, "signal": "neutral", "bonus_pts": 0.0}
+                return {
+                    "put_call_ratio": None,
+                    "signal": None,
+                    "bonus_pts": 0.0,
+                    "data_unavailable": True,
+                    "reason": "options_chains data not found",
+                }
 
             put_vol, call_vol = float(row[0]), float(row[1])
             if call_vol == 0:
-                return {"put_call_ratio": None, "signal": "neutral", "bonus_pts": 0.0}
+                return {
+                    "put_call_ratio": None,
+                    "signal": None,
+                    "bonus_pts": 0.0,
+                    "data_unavailable": True,
+                    "reason": "no_call_volume_data",
+                }
 
             pc_ratio = put_vol / call_vol
 
@@ -243,29 +261,51 @@ class SignalOptionsMixin:
                 'put_call': {...},
                 'implied_move': {...},
                 'bonus_pts': float (sum of bonuses, capped at 3),
+                'data_unavailable': bool (if any component unavailable),
+                'reason': str (if data_unavailable),
             }
         """
         iv_sig = self.iv_rank_signal(symbol, eval_date)
         pc_sig = self.put_call_ratio_signal(symbol, eval_date)
         im_sig = self.implied_move_signal(symbol, eval_date)
 
-        # Validate all signals have bonus_pts before aggregating
+        # Check if any component has unavailable data
+        unavailable_components = []
+        if iv_sig and iv_sig.get("data_unavailable"):
+            unavailable_components.append(f"iv_rank ({iv_sig.get('reason', 'unknown')})")
+        if pc_sig and pc_sig.get("data_unavailable"):
+            unavailable_components.append(f"put_call ({pc_sig.get('reason', 'unknown')})")
+        if im_sig and im_sig.get("data_unavailable"):
+            unavailable_components.append(f"implied_move ({im_sig.get('reason', 'unknown')})")
+
+        if unavailable_components:
+            logger.debug(
+                f"[OPTIONS_SIGNAL] Incomplete options data for {symbol}: {', '.join(unavailable_components)}. "
+                f"Options alpha scoring unavailable (small-caps often have limited options)."
+            )
+            return {
+                "iv_rank": iv_sig,
+                "put_call": pc_sig,
+                "implied_move": im_sig,
+                "bonus_pts": 0.0,
+                "data_unavailable": True,
+                "reason": f"options_data_incomplete: {', '.join(unavailable_components)}",
+            }
+
+        # All components available — aggregate bonuses
         if iv_sig is None:
-            logger.error(f"IV rank signal missing for {symbol}; cannot compute options score")
             raise ValueError(f"IV rank signal required but missing for {symbol}")
         if "bonus_pts" not in iv_sig:
             raise ValueError(f"IV signal for {symbol} missing required 'bonus_pts' field")
         iv_bonus = iv_sig["bonus_pts"]
 
         if pc_sig is None:
-            logger.error(f"Put/call signal missing for {symbol}; cannot compute options score")
             raise ValueError(f"Put/call signal required but missing for {symbol}")
         if "bonus_pts" not in pc_sig:
             raise ValueError(f"Put/call signal for {symbol} missing required 'bonus_pts' field")
         pc_bonus = pc_sig["bonus_pts"]
 
         if im_sig is None:
-            logger.error(f"Implied move signal missing for {symbol}; cannot compute options score")
             raise ValueError(f"Implied move signal required but missing for {symbol}")
         if "bonus_pts" not in im_sig:
             raise ValueError(f"Implied move signal for {symbol} missing required 'bonus_pts' field")

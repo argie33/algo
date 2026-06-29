@@ -230,5 +230,12 @@ class AuditManager:
 
         Returns:
             List of audit entries
+
+        Raises:
+            NotImplementedError: Use get_position_history() instead, which requires symbol and lookback_days parameters
         """
-        return []
+        raise NotImplementedError(
+            "AuditManager.get_history() requires explicit parameters. "
+            "Use get_position_history(symbol, lookback_days, cur) instead to retrieve position review history. "
+            "This prevents silent empty-list fallback that could mask audit trail gaps."
+        )

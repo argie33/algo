@@ -214,9 +214,13 @@ class TestAuditManager:
         config = {}
         manager = AuditManager(config)
 
+        if hasattr(manager, "get_position_history"):
+            assert callable(manager.get_position_history)
+            assert manager.get_position_history.__doc__ is not None
+
         if hasattr(manager, "get_history"):
-            history = manager.get_history()
-            assert isinstance(history, (list, dict)) or history is not None
+            with pytest.raises(NotImplementedError):
+                manager.get_history()
 
 
 class TestDataPatrolBase:

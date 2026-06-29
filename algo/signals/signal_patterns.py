@@ -69,7 +69,11 @@ class SignalPatternsMixin:
             )
             rows = cur.fetchall()
             if len(rows) < self.BASE_MIN_HISTORY:
-                return {"in_base": False, "reason": "Insufficient history"}
+                return {
+                    "in_base": None,
+                    "data_unavailable": True,
+                    "reason": f"insufficient_price_history ({len(rows)}/{self.BASE_MIN_HISTORY} bars)",
+                }
 
             highs = [float(r[1]) for r in rows]
             lows = [float(r[2]) for r in rows]
@@ -84,8 +88,9 @@ class SignalPatternsMixin:
 
             if len(base_highs) < self.BASE_MIN_BARS:
                 return {
-                    "in_base": False,
-                    "reason": f"Base too short ({len(base_highs)} bars)",
+                    "in_base": None,
+                    "data_unavailable": True,
+                    "reason": f"insufficient_base_data ({len(base_highs)}/{self.BASE_MIN_BARS} minimum bars)",
                 }
 
             base_high = max(base_highs)
@@ -184,7 +189,12 @@ class SignalPatternsMixin:
             )
             rows = cur.fetchall()
             if len(rows) < self.VCP_MIN_BARS:
-                return {"is_vcp": False, "reason": "Insufficient bars"}
+                return {
+                    "is_vcp": None,
+                    "contractions": 0,
+                    "data_unavailable": True,
+                    "reason": f"insufficient_price_history ({len(rows)}/{self.VCP_MIN_BARS} bars required)",
+                }
 
             rows = list(reversed(rows))
             highs = [float(r[1]) for r in rows]
@@ -195,7 +205,12 @@ class SignalPatternsMixin:
                 if highs[i] == max(highs[i - 5 : i + 6]):
                     peaks.append(i)
             if len(peaks) < 2:
-                return {"is_vcp": False, "contractions": 0}
+                return {
+                    "is_vcp": None,
+                    "contractions": 0,
+                    "data_unavailable": True,
+                    "reason": "insufficient_peaks_for_vcp_detection",
+                }
 
             depths = []
             for j in range(len(peaks) - 1):
@@ -228,13 +243,22 @@ class SignalPatternsMixin:
         Classify the current base into canonical chart pattern types.
         """
         base_info = self.base_detection(symbol, eval_date)
-        # Explicit check: in_base must be present and truthy
+        # Check if base detection was unavailable (insufficient data)
+        if base_info and base_info.get("data_unavailable"):
+            return {
+                "type": None,
+                "quality": None,
+                "data_unavailable": True,
+                "reason": base_info.get("reason", "base_detection_unavailable"),
+                "characteristics": base_info,
+            }
+        # Check if base detection failed to find a pattern
         if base_info is None or not base_info.get("in_base"):
             return {
                 "type": "no_base",
                 "quality": "D",
-                "data_unavailable": True,
-                "reason": "base_not_detected" if base_info else "base_detection_failed",
+                "data_unavailable": False,
+                "reason": "pattern_not_detected",
                 "characteristics": base_info,
             }
 
@@ -547,7 +571,11 @@ class SignalPatternsMixin:
             )
             rows = cur.fetchall()
             if len(rows) < 4:
-                return {"is_3wt": False, "reason": "insufficient weekly history"}
+                return {
+                    "is_3wt": None,
+                    "data_unavailable": True,
+                    "reason": f"insufficient_weekly_history ({len(rows)}/4 weeks required)",
+                }
 
             last3 = rows[:3]
             closes = [float(r[3]) for r in last3]
@@ -634,7 +662,11 @@ class SignalPatternsMixin:
             )
             rows = cur.fetchall()
             if len(rows) < 8:
-                return {"is_ht": False, "reason": "insufficient weekly history"}
+                return {
+                    "is_ht": None,
+                    "data_unavailable": True,
+                    "reason": f"insufficient_weekly_history ({len(rows)}/8 weeks required)",
+                }
 
             rows = list(reversed(rows))
             highs = [float(r[1]) for r in rows]
@@ -682,6 +714,10 @@ class SignalPatternsMixin:
                     "consolidation_weeks": best_htf["cons_weeks"],
                     "pivot_high": round(best_htf["pivot_high"], 2),
                 }
-            return {"is_ht": False, "data_unavailable": True, "reason": "insufficient_htf_pattern_data"}
+            return {
+                "is_ht": False,
+                "data_unavailable": False,
+                "reason": "pattern_not_detected (no HTF in available data)",
+            }
 
         return cast(dict[str, Any], self._with_cursor(_analyze_htf))
