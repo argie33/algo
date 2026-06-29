@@ -205,8 +205,8 @@ class TestStaleCacheWithMalformedData:
             cached_entry = _response_cache[endpoint]
             cached_entry["timestamp"] = "not a datetime"  # Invalid timestamp
 
-        # Should raise on invalid timestamp
-        with pytest.raises((TypeError, AttributeError)):
+        # Should raise on invalid timestamp (ValueError for cache corruption)
+        with pytest.raises(ValueError, match="CACHE_CORRUPTION"):
             get_cached_response(endpoint, mark_stale=True)
 
     def test_get_cached_response_timestamp_as_int(self):
@@ -218,8 +218,8 @@ class TestStaleCacheWithMalformedData:
             cached_entry = _response_cache[endpoint]
             cached_entry["timestamp"] = 12345  # Integer instead of datetime
 
-        # Should raise on invalid timestamp
-        with pytest.raises((TypeError, AttributeError)):
+        # Should raise on invalid timestamp (ValueError for cache corruption)
+        with pytest.raises(ValueError, match="CACHE_CORRUPTION"):
             get_cached_response(endpoint, mark_stale=True)
 
     def test_cache_response_with_non_dict_data_types(self):
