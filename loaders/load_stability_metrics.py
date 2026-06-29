@@ -76,6 +76,8 @@ class StabilityMetricsLoader(OptimalLoader):
 
         Requires minimum 30 days of price history. New stocks without sufficient
         history should not score on stability—incomplete data biases risk assessment.
+
+        Returns None if data insufficient; caller converts to explicit data_unavailable marker.
         """
         try:
             with DatabaseContext("read") as cur:
@@ -93,8 +95,11 @@ class StabilityMetricsLoader(OptimalLoader):
 
             # Require minimum 30 days of data for meaningful volatility calculation
             if not rows or len(rows) < 30:
+                actual_rows = len(rows) if rows else 0
                 logger.warning(
-                    f"[STABILITY_METRICS] Insufficient data for {symbol} ({len(rows) if rows else 0}/30 days required) — metrics unavailable"
+                    f"[STABILITY_METRICS] Insufficient data for {symbol} "
+                    f"({actual_rows}/30 days required) — metrics unavailable. "
+                    f"New symbols without price history should return explicit data_unavailable marker."
                 )
                 return None
 
@@ -117,7 +122,11 @@ class StabilityMetricsLoader(OptimalLoader):
                     returns.append(ret)
 
             if not returns:
-                logger.warning(f"[STABILITY_METRICS] Insufficient price data for {symbol} (cannot calculate returns - skipping)")
+                logger.warning(
+                    f"[STABILITY_METRICS] Cannot calculate returns for {symbol} "
+                    f"(no valid price transitions found). "
+                    f"Metrics unavailable with explicit data_unavailable marker."
+                )
                 return None
 
             # Calculate volatilities (annualized: sqrt(252) * daily_std)
@@ -139,7 +148,11 @@ class StabilityMetricsLoader(OptimalLoader):
             }
 
         except (ValueError, ZeroDivisionError, TypeError) as e:
-            logger.warning(f"[STABILITY_METRICS] Calculation error for {symbol} (volatility/beta unavailable): {e}")
+            logger.warning(
+                f"[STABILITY_METRICS] Calculation error for {symbol} "
+                f"(volatility/beta unavailable): {type(e).__name__}: {e}. "
+                f"Returning explicit data_unavailable marker in caller."
+            )
             return None
 
     @staticmethod
@@ -162,6 +175,11 @@ class StabilityMetricsLoader(OptimalLoader):
         Uses ONLY primary 'beta' field (no fallback to beta3Year).
         If primary field missing, returns None so caller can mark data_unavailable.
         Fallbacks to alternative field names would mask yfinance schema changes.
+
+        Validates:
+        - beta field exists (not fetched with .get() default)
+        - beta value is not None
+        - beta is not extreme (>200 indicates corruption)
         """
         from utils.external.yfinance import get_ticker
 
@@ -171,28 +189,68 @@ class StabilityMetricsLoader(OptimalLoader):
 
         try:
             info = ticker.info
-            # Use ONLY primary field - no fallback to beta3Year
-            beta = None
-            if "beta" in info and info["beta"] is not None:
-                beta = float(info["beta"])
+
+            # Validate 'beta' field exists explicitly (not using .get() default)
+            if "beta" not in info:
+                logger.debug(f"[STABILITY_METRICS] No beta field in yfinance info for {symbol}")
+                return None
+
+            beta_raw = info["beta"]
+
+            # Validate value is not None
+            if beta_raw is None:
+                logger.debug(f"[STABILITY_METRICS] Beta field is None for {symbol} (data unavailable from yfinance)")
+                return None
+
+            # Convert to float and validate
+            beta = float(beta_raw)
 
             # Reject extreme values that indicate data corruption
-            if beta is not None and abs(beta) > 200:
-                logger.warning(f"[STABILITY_METRICS] Extreme beta value for {symbol}: {beta} (rejecting as corrupted)")
+            if abs(beta) > 200:
+                logger.warning(
+                    f"[STABILITY_METRICS] Extreme beta value for {symbol}: {beta} "
+                    f"(rejecting as corrupted). Beta must be in range [-200, 200]."
+                )
                 return None
+
             return beta
-        except (ValueError, ZeroDivisionError, TypeError) as e:
-            raise RuntimeError(f"Operation failed: {e}") from e
+        except (ValueError, TypeError) as e:
+            logger.warning(
+                f"[STABILITY_METRICS] Failed to parse beta for {symbol}: {type(e).__name__}: {e}. "
+                f"Returning None so caller marks metrics as data_unavailable."
+            )
+            return None
+        except ZeroDivisionError as e:
+            raise RuntimeError(f"[STABILITY_METRICS] Unexpected division error parsing beta for {symbol}: {e}") from e
 
     def transform(self, rows: Any) -> list[dict[str, Any]]:
         """Rows are clean."""
         return cast(list[dict[str, Any]], rows)
 
     def _validate_row(self, row: dict[str, Any]) -> bool:
-        """Validate stability metrics row."""
+        """Validate stability metrics row.
+
+        Ensures symbol field exists (required). Validates that data_unavailable marker
+        is explicitly set (never silent/implicit availability).
+        """
         if not super()._validate_row(row):
             return False
-        return row.get("symbol") is not None
+
+        # Validate symbol exists (required field, not optional)
+        symbol = row.get("symbol")
+        if symbol is None:
+            logger.error("[STABILITY_METRICS] Invalid row: symbol field missing or None")
+            return False
+
+        # Validate data_unavailable marker is explicit
+        if "data_unavailable" not in row:
+            logger.error(
+                f"[STABILITY_METRICS] Invalid row for {symbol}: "
+                f"data_unavailable marker missing (must be explicit: True or False)"
+            )
+            return False
+
+        return True
 
 
 if __name__ == "__main__":

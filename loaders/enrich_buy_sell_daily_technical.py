@@ -60,8 +60,8 @@ def enrich_technical_data(
             params: list[Any] = [since]
 
             if symbols:
-                placeholders = ",".join(["%s"] * len(symbols))
-                where_parts.append(f"bsd.symbol IN ({placeholders})")
+                symbol_sql_params = ",".join(["%s"] * len(symbols))
+                where_parts.append(f"bsd.symbol IN ({symbol_sql_params})")
                 params.extend(symbols)
 
             where_clause = " AND ".join(where_parts)
@@ -85,6 +85,8 @@ def enrich_technical_data(
 
             if not records_to_update:
                 logger.info(f"No records with NULL technical data found since {since}")
+                stats["data_unavailable"] = True
+                stats["reason"] = "no_null_technical_records_found"
                 return stats
 
             logger.info(f"Found {len(records_to_update)} records with NULL technical data, enriching...")
@@ -100,12 +102,12 @@ def enrich_technical_data(
 
                 # Fetch all technical data for the relevant symbols and date range
                 # This single query replaces thousands of per-symbol queries
-                placeholders = ",".join(["%s"] * len(symbols_set))
+                symbol_sql_params = ",".join(["%s"] * len(symbols_set))
                 cur.execute(
                     f"""
                     SELECT symbol, date, rsi, sma_50, sma_200, ema_21, atr, adx, mansfield_rs
                     FROM technical_data_daily
-                    WHERE symbol IN ({placeholders})
+                    WHERE symbol IN ({symbol_sql_params})
                     AND date >= %s - INTERVAL '10 days'
                     AND date <= %s
                     ORDER BY symbol, date DESC
@@ -198,17 +200,17 @@ def enrich_technical_data(
             if checked is None or checked == 0:
                 raise ValueError("No records checked for technical enrichment")
             if checked > 0:
-                updated: int | None = stats.get("updated")
-                if updated is None:
+                updated: int = stats["updated"]
+                if not isinstance(updated, int):
                     raise ValueError(
-                        "[ENRICHMENT] Missing 'updated' count in enrichment stats — "
-                        "cannot assess enrichment coverage without tracking successful updates"
+                        "[ENRICHMENT] Invalid 'updated' count in enrichment stats — "
+                        "must be integer tracking successful updates"
                     )
-                nulls: int | None = stats.get("nulls_remaining")
-                if nulls is None:
+                nulls: int = stats["nulls_remaining"]
+                if not isinstance(nulls, int):
                     raise ValueError(
-                        "[ENRICHMENT] Missing 'nulls_remaining' count in enrichment stats — "
-                        "cannot assess data quality without tracking NULL field counts"
+                        "[ENRICHMENT] Invalid 'nulls_remaining' count in enrichment stats — "
+                        "must be integer tracking NULL field counts"
                     )
                 success_rate = updated / checked
                 logger.info(
@@ -217,7 +219,7 @@ def enrich_technical_data(
                 )
 
                 if success_rate < min_success_rate:
-                    errors_sample = stats["errors"][:3] if stats.get("errors") else []
+                    errors_sample = stats["errors"][:3] if stats["errors"] else []
                     raise RuntimeError(
                         f"[ENRICHMENT] Technical data enrichment failed coverage threshold: "
                         f"{updated}/{checked} records enriched ({success_rate * 100:.1f}%), "
@@ -275,6 +277,12 @@ def main() -> int:
 
     try:
         stats = enrich_technical_data(since=since, symbols=symbols, min_success_rate=args.min_success_rate)
+
+        # Skip reporting if no enrichment was attempted (data_unavailable)
+        if stats.get("data_unavailable"):
+            logger.info("No enrichment attempted — no records with NULL technical data")
+            return 0
+
         logger.info(f"Updated {stats['updated']} records")
         if stats["errors"]:
             logger.warning(f"{len(stats['errors'])} errors occurred")

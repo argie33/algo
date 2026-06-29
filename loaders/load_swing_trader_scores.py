@@ -133,10 +133,10 @@ class VectorizedSwingScoresLoader:
         """Fetch signal quality scores for all symbols at once."""
         try:
             with DatabaseContext("read") as cur:
-                ph = ",".join(["%s"] * len(symbols))
+                param_positions = ",".join(["%s"] * len(symbols))
                 cur.execute(
                     "SELECT symbol, date, composite_sqs FROM signal_quality_scores"
-                    " WHERE symbol IN (" + ph + ")"
+                    " WHERE symbol IN (" + param_positions + ")"
                     " AND date >= %s AND date <= %s ORDER BY symbol, date DESC",
                     [*symbols, start_date, end_date],
                 )
@@ -148,10 +148,10 @@ class VectorizedSwingScoresLoader:
         """Fetch technical indicators for all symbols at once."""
         try:
             with DatabaseContext("read") as cur:
-                ph = ",".join(["%s"] * len(symbols))
+                param_positions = ",".join(["%s"] * len(symbols))
                 cur.execute(
                     "SELECT symbol, date, rsi, atr_14, volume_ma_50 FROM technical_data_daily"
-                    " WHERE symbol IN (" + ph + ")"
+                    " WHERE symbol IN (" + param_positions + ")"
                     " AND date >= %s AND date <= %s ORDER BY symbol, date DESC",
                     [*symbols, start_date, end_date],
                 )
@@ -166,11 +166,11 @@ class VectorizedSwingScoresLoader:
         """Fetch trend template scores for all symbols at once."""
         try:
             with DatabaseContext("read") as cur:
-                ph = ",".join(["%s"] * len(symbols))
+                param_positions = ",".join(["%s"] * len(symbols))
                 cur.execute(
                     "SELECT symbol, date, weinstein_stage, minervini_trend_score, trend_direction"
                     " FROM trend_template_data"
-                    " WHERE symbol IN (" + ph + ")"
+                    " WHERE symbol IN (" + param_positions + ")"
                     " AND date >= %s AND date <= %s ORDER BY symbol, date DESC",
                     [*symbols, start_date, end_date],
                 )
@@ -191,12 +191,12 @@ class VectorizedSwingScoresLoader:
         """Fetch sector names and sector ranking momentum scores for all symbols."""
         try:
             with DatabaseContext("read") as cur:
-                ph = ",".join(["%s"] * len(symbols))
+                param_positions = ",".join(["%s"] * len(symbols))
                 cur.execute(
                     "SELECT cp.ticker AS symbol, sr.date, cp.sector, sr.momentum_score "
                     " FROM company_profile cp "
                     " LEFT JOIN sector_ranking sr ON cp.sector = sr.sector_name "
-                    " WHERE cp.ticker IN (" + ph + ")"
+                    " WHERE cp.ticker IN (" + param_positions + ")"
                     " AND sr.date >= %s AND sr.date <= %s ORDER BY cp.ticker, sr.date DESC",
                     [*symbols, start_date, end_date],
                 )
@@ -247,7 +247,7 @@ class VectorizedSwingScoresLoader:
                 # (consistent with SwingTraderScore.compute)
                 if "minervini_trend_score" not in trend:
                     raise ValueError(f"{symbol}: trend data missing required 'minervini_trend_score' field")
-                minervini = trend.get("minervini_trend_score")
+                minervini = trend["minervini_trend_score"]
                 if not pd.notna(minervini):
                     raise ValueError(f"{symbol}: minervini_trend_score is NaN on {date} — required for trend-based scoring")
                 minervini = float(minervini)
@@ -265,7 +265,7 @@ class VectorizedSwingScoresLoader:
                 # (uptrend phase)
                 if "weinstein_stage" not in trend:
                     raise ValueError(f"{symbol}: trend data missing required 'weinstein_stage' field")
-                weinstein = trend.get("weinstein_stage")
+                weinstein = trend["weinstein_stage"]
                 if not pd.notna(weinstein):
                     raise ValueError(f"{symbol}: weinstein_stage is NaN on {date} — required for market stage filtering")
                 weinstein = int(weinstein)
@@ -277,7 +277,7 @@ class VectorizedSwingScoresLoader:
 
                 if tech is None or "rsi" not in tech:
                     raise ValueError(f"RSI data missing for {symbol} on {date}")
-                rsi = tech.get("rsi")
+                rsi = tech["rsi"]
                 if not pd.notna(rsi):
                     raise ValueError(f"RSI value is NaN for {symbol} on {date}")
                 rsi = float(rsi)
@@ -287,15 +287,15 @@ class VectorizedSwingScoresLoader:
 
                 if sig is None or "composite_sqs" not in sig:
                     raise ValueError(f"Signal quality score missing for {symbol} on {date}")
-                sqs = sig.get("composite_sqs")
+                sqs = sig["composite_sqs"]
                 if not pd.notna(sqs):
                     raise ValueError(f"Signal quality score is NaN for {symbol} on {date}")
                 fundamentals_score = float(sqs)
 
-                # Fetch sector momentum score (real sector health metric, not placeholder)
+                # Fetch sector momentum score (real sector health metric, not mock data)
                 sector_score = None
                 if sector is not None and "sector_momentum_score" in sector:
-                    sector_momentum = sector.get("sector_momentum_score")
+                    sector_momentum = sector["sector_momentum_score"]
                     if pd.notna(sector_momentum):
                         sector_score = float(sector_momentum)
                         logger.debug(f"{symbol}: Using sector momentum score {sector_score:.1f} from sector_ranking")
@@ -462,8 +462,8 @@ class VectorizedSwingScoresLoader:
 
                 # Delete existing rows for symbols being loaded (allows re-compute)
                 symbols_to_load = insert_df["symbol"].unique().tolist()
-                placeholders = ",".join(["%s"] * len(symbols_to_load))
-                delete_sql = f"DELETE FROM swing_trader_scores WHERE symbol IN ({placeholders})"
+                delete_param_positions = ",".join(["%s"] * len(symbols_to_load))
+                delete_sql = f"DELETE FROM swing_trader_scores WHERE symbol IN ({delete_param_positions})"
                 cur.execute(delete_sql, symbols_to_load)
                 logger.info(f"Deleted {cur.rowcount} stale rows for {len(symbols_to_load)} symbols")
 

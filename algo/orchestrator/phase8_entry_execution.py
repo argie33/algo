@@ -102,8 +102,8 @@ def _batch_fetch_technical_data(
         return cast(dict[str, dict[str, float | None]], precomputed_by_symbol)
 
     # Fetch missing data only for symbols that lack precomputed values
-
-    placeholders = ",".join(["%s"] * len(symbols_needing_fetch))
+    # Use SQL parameter markers (%s) for safe parameterized queries
+    symbol_placeholders = ",".join(["%s"] * len(symbols_needing_fetch))
 
     result: dict[str, dict[str, float | None]] = cast(dict[str, dict[str, float | None]], precomputed_by_symbol.copy())
 
@@ -118,7 +118,7 @@ def _batch_fetch_technical_data(
 
                     FROM price_daily
 
-                    WHERE symbol IN ({placeholders}) AND date <= %s
+                    WHERE symbol IN ({symbol_placeholders}) AND date <= %s
 
                     ORDER BY symbol, date DESC
 
@@ -136,7 +136,7 @@ def _batch_fetch_technical_data(
 
                         FROM price_daily
 
-                        WHERE symbol IN ({placeholders}) AND date <= %s
+                        WHERE symbol IN ({symbol_placeholders}) AND date <= %s
 
                     ) t
 
@@ -170,7 +170,7 @@ def _batch_fetch_technical_data(
 
                         FROM price_daily
 
-                        WHERE symbol IN ({placeholders}) AND date <= %s
+                        WHERE symbol IN ({symbol_placeholders}) AND date <= %s
 
                     ) t
 
@@ -402,11 +402,18 @@ def run(
     # Check for halt flag set by exposure policy
     # exposure_constraints validated above - always exists and has required keys
     if exposure_constraints["halt_new_entries"]:
-        reason = exposure_constraints.get("halt_reason")
-        if not reason:
+        # FAIL-FAST: halt_reason MUST be present when halt_new_entries is True
+        if "halt_reason" not in exposure_constraints:
             raise RuntimeError(
-                "[PHASE 8 CRITICAL] Exposure policy halted entries but no halt_reason provided. "
+                "[PHASE 8 CRITICAL] Exposure policy set halt_new_entries=True but halt_reason missing. "
                 "Cannot determine why trading is halted. Exposure constraints data incomplete."
+            )
+
+        reason = exposure_constraints["halt_reason"]
+        if not reason or reason is None:
+            raise RuntimeError(
+                "[PHASE 8 CRITICAL] Exposure policy halted entries but halt_reason is empty/None. "
+                "Cannot determine why trading is halted. Halt reason must be non-empty string."
             )
 
         logger.warning(f"[PHASE 8] {reason}")
@@ -508,20 +515,31 @@ def run(
     failed_count = 0
 
     # ISSUE #8 FIX: Build a dict with precomputed technical data from Phase 5 signals
-
     # to avoid redundant SMA_50/ATR calculations in Phase 6.
-
+    # VALIDATION: Only store actual values; track which signals lack precomputed data (data_unavailable markers).
     symbols_with_precomputed = {}
 
     for sig in qualified_trades:
         symbol = sig.get("symbol")
 
-        if symbol:
-            symbols_with_precomputed[symbol] = {
-                "sma_50": sig.get("sma_50"),
-                "atr_14": sig.get("atr_14"),
-                "close": sig.get("close"),
-            }
+        if not symbol:
+            raise RuntimeError(
+                "[PHASE 8] Signal missing required 'symbol' field. "
+                "Cannot process trade without stock symbol. "
+                "Verify Phase 7 (qualified trades) produces valid signals."
+            )
+
+        # Extract precomputed technical indicators from Phase 5 signal
+        # These are OPTIONAL (Phase 5 may not have computed all values if data was unavailable)
+        sma_50 = sig.get("sma_50")  # None if Phase 5 marked data_unavailable
+        atr_14 = sig.get("atr_14")  # None if Phase 5 marked data_unavailable
+        close = sig.get("close")    # None if Phase 5 marked data_unavailable
+
+        symbols_with_precomputed[symbol] = {
+            "sma_50": sma_50,
+            "atr_14": atr_14,
+            "close": close,
+        }
 
     technical_data = _batch_fetch_technical_data(symbols_with_precomputed, run_date)
 
@@ -713,6 +731,8 @@ def run(
 
             if not dry_run:
                 try:
+                    # REQUIRED: symbol, entry_price, shares, stop_loss_price, signal_date, entry_date
+                    # OPTIONAL: sector, industry (enrichment data, may be None if data unavailable)
                     result = trade_executor.execute_trade(
                         symbol=symbol,
                         entry_price=entry_price,
@@ -720,9 +740,9 @@ def run(
                         stop_loss_price=stop_loss,
                         signal_date=run_date,
                         entry_date=run_date,
-                        sector=signal.get("sector"),
-                        industry=signal.get("industry"),
-                        rs_percentile=signal.get("rs_percentile"),
+                        sector=signal.get("sector"),  # Optional enrichment
+                        industry=signal.get("industry"),  # Optional enrichment
+                        rs_percentile=signal.get("rs_percentile"),  # Already validated as required above
                     )
 
                     if "success" not in result or result["success"] is None:
