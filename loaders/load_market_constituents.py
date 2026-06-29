@@ -109,16 +109,19 @@ class MarketConstituentsLoader(OptimalLoader):
             sp500_set = set(sp500_symbols)
             logger.info(f"Fetched {len(sp500_set)} S&P 500 constituents")
 
-            # STEP 3: Fetch and index Russell 2000 constituents
+            # STEP 3: Fetch and index Russell 2000 constituents (optional enrichment)
             logger.info("STEP 3/3: Fetching Russell 2000 constituents")
-            russell_symbols = self._fetch_russell2000_symbols()
-            if not russell_symbols:
-                raise RuntimeError(
-                    "[MARKET_CONSTITUENTS] Russell 2000 fetch returned empty list. "
-                    "Cannot proceed with empty Russell 2000 constituent data."
-                )
-            russell_set = set(russell_symbols)
-            logger.info(f"Fetched {len(russell_set)} Russell 2000 constituents")
+            try:
+                russell_symbols = self._fetch_russell2000_symbols()
+                if russell_symbols:
+                    russell_set = set(russell_symbols)
+                    logger.info(f"Fetched {len(russell_set)} Russell 2000 constituents")
+                else:
+                    logger.warning("[MARKET_CONSTITUENTS] Russell 2000 fetch returned empty list. Continuing without Russell 2000 data.")
+                    russell_set = set()
+            except Exception as e:
+                logger.warning(f"[MARKET_CONSTITUENTS] Failed to fetch Russell 2000 ({e}). Continuing without Russell 2000 data.")
+                russell_set = set()
 
             # Enrich base symbols with index membership flags
             enriched_count = 0
