@@ -123,7 +123,7 @@ class SecEdgarStatementLoader(OptimalLoader):
 
             transformed.append(row)
 
-        seen = {}
+        seen: dict[tuple[Any, ...], dict[str, Any]] = {}
         skipped_missing_keys = 0
 
         for row in transformed:
@@ -141,7 +141,7 @@ class SecEdgarStatementLoader(OptimalLoader):
                 continue
 
             if self.period == "annual":
-                key = (symbol, fiscal_year)
+                key: tuple[Any, ...] = (symbol, fiscal_year)
             else:
                 fiscal_quarter = row.get("fiscal_quarter")
                 if fiscal_quarter is None:
