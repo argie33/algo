@@ -302,7 +302,7 @@ def run(
     missing_keys = [k for k in required_constraint_keys if k not in exposure_constraints]
     if missing_keys:
         msg = (
-            f"[PHASE 6 CRITICAL] Exposure constraints missing required keys: {missing_keys}. "
+            f"[PHASE 8 CRITICAL] Exposure constraints missing required keys: {missing_keys}. "
             f"Phase 5 output must include: {required_constraint_keys}"
         )
         logger.critical(msg)
@@ -318,7 +318,7 @@ def run(
     try:
         from datetime import timedelta as td
 
-        from infrastructure.market_calendar import MarketCalendar
+        from algo.infrastructure.market_calendar import MarketCalendar
 
         with DatabaseContext("read") as cur:
             cur.execute("""SELECT MAX(date) as latest_price_date FROM price_daily""")
@@ -329,19 +329,24 @@ def run(
 
             latest_price_date = result[0]
 
-            # Determine expected last trading day (intelligent logic for non-trading days)
-            if MarketCalendar.is_trading_day(run_date):
-                # Today is a trading day: expect data for today
-                expected_price_date = run_date
-            else:
-                # Weekend/holiday: find most recent trading day within last 10 days
-                expected_price_date = run_date - td(days=1)
-                while expected_price_date > run_date - td(days=10):
-                    if MarketCalendar.is_trading_day(expected_price_date):
+            # Determine expected last trading day — allow previous trading day's data
+            # Phase 8 may run intraday (9 AM, 1 PM, 3 PM) before EOD data is available,
+            # so we require prices to be at most 1 trading day old (not necessarily same-day).
+            most_recent_trading_day = run_date
+            if not MarketCalendar.is_trading_day(most_recent_trading_day):
+                most_recent_trading_day = most_recent_trading_day - td(days=1)
+                while most_recent_trading_day > run_date - td(days=10):
+                    if MarketCalendar.is_trading_day(most_recent_trading_day):
                         break
-                    expected_price_date -= td(days=1)
+                    most_recent_trading_day -= td(days=1)
+            # Find previous trading day as minimum acceptable price date
+            expected_price_date = most_recent_trading_day - td(days=1)
+            while expected_price_date > most_recent_trading_day - td(days=10):
+                if MarketCalendar.is_trading_day(expected_price_date):
+                    break
+                expected_price_date -= td(days=1)
 
-            if latest_price_date is None or latest_price_date != expected_price_date:
+            if latest_price_date is None or latest_price_date < expected_price_date:
                 msg = (
                     f"[PHASE 8 CRITICAL] Price data is not current (latest: {latest_price_date}, "
                     f"expected: {expected_price_date}, run_date: {run_date}). "
@@ -364,24 +369,7 @@ def run(
 
         return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, msg)
 
-    # Exposure policy validation (fail-closed if constraints invalid)
-
-    # CRITICAL: exposure_constraints MUST be provided by Phase 3b and have valid fields
-
-    if exposure_constraints is None:
-        msg = (
-            "[PHASE 6 CRITICAL] exposure_constraints not provided by Phase 3b. "
-            "Cannot execute entries without market exposure limits. "
-            "Verify Phase 3b (Exposure Policy) completed successfully."
-        )
-
-        logger.critical(msg)
-
-        log_phase_result_fn(8, "entry_execution", "halt", msg)
-
-        return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, msg)
-
-    # Validate that exposure_constraints has required fields
+    # Validate that exposure_constraints has all fields needed for position sizing
 
     required_fields = ["tier_name", "risk_multiplier", "max_new_positions_today"]
 
@@ -389,7 +377,7 @@ def run(
 
     if missing_fields:
         msg = (
-            f"[PHASE 6 CRITICAL] exposure_constraints missing required fields: {missing_fields}. "
+            f"[PHASE 8 CRITICAL] exposure_constraints missing required fields: {missing_fields}. "
             "Cannot size positions without complete constraints."
         )
 
@@ -473,7 +461,7 @@ def run(
     except RuntimeError as e:
         # Portfolio value unavailable — fail-closed, halt all entries
 
-        error_msg = f"[PHASE 6 HALT] Cannot determine portfolio value: {e}"
+        error_msg = f"[PHASE 8 HALT] Cannot determine portfolio value: {e}"
 
         logger.critical(error_msg)
 

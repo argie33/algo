@@ -907,6 +907,7 @@ class Orchestrator:
             self.verbose,
             self.log_phase_result,
             exposure_constraints=exposure_constraints,
+            check_halt_flag=self.halt_manager.check_halt_flag,
             config=self.config,
         )
         return result
@@ -925,6 +926,7 @@ class Orchestrator:
             self.dry_run,
             self.verbose,
             self.log_phase_result,
+            check_halt_flag=self.halt_manager.check_halt_flag,
             executor=executor,
         )
         return result

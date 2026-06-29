@@ -298,7 +298,7 @@ def fetch_perf(c: None) -> dict[str, Any]:
             logger.error(validation_error)
             for field in required_fields:
                 if field not in perf or perf[field] is None:
-                    record_data_quality_issue("per", field, "missing_required_field")
+                    record_data_quality_issue("perf", field, "missing_required_field")
             return FetcherValidator.build_error_response(validation_error)
 
         # Data is already validated at boundary; direct conversion
@@ -343,14 +343,14 @@ def fetch_perf(c: None) -> dict[str, Any]:
             logger.debug("Performance data missing 'unrealized_pnl' field (optional enrichment)")
             unrealized_pnl = {"data_unavailable": True, "reason": "not_in_performance_response"}
 
-        # CRITICAL: open_losses_count is REQUIRED. No fallback to alternative fields.
-        # Missing field indicates API schema mismatch — fail-fast.
+        # open_positions_count = total open positions; open_losses_count = subset with losses
+        open_positions_count = perf.get("open_positions_count")
         open_losses_count = perf.get("open_losses_count")
         if open_losses_count is None:
             raise ValueError(
                 "Performance data missing required field 'open_losses_count'. Available: " + str(list(perf.keys()))
             )
-        open_count = open_losses_count
+        open_count = open_positions_count if open_positions_count is not None else open_losses_count
 
         return {
             "n": n,
@@ -374,7 +374,7 @@ def fetch_perf(c: None) -> dict[str, Any]:
     except Exception as e:
         error_msg = format_fetcher_error("perf", e)
         logger.error(error_msg)
-        record_data_quality_issue("per", "exception", type(e).__name__, str(e))
+        record_data_quality_issue("perf", "exception", type(e).__name__, str(e))
         return {"_error": error_msg}
 
 

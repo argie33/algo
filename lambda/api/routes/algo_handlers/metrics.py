@@ -265,11 +265,13 @@ def _get_algo_performance(cur: cursor) -> Any:  # noqa: C901
 
         # Compute open losses for adjusted win rate
         open_losses_count = 0
+        open_positions_count = 0
         total_open_losses_dollars = 0.0
         win_rate_pct_adjusted = None
         try:
             cur.execute("""
                     SELECT
+                        COUNT(*) AS total_open,
                         COUNT(*) FILTER (WHERE unrealized_pnl < 0) AS open_losses,
                         -- CRITICAL: Use NULLIF instead of COALESCE to detect missing position data
                         NULLIF(SUM(CASE WHEN unrealized_pnl < 0 THEN unrealized_pnl ELSE 0 END), 0) AS total_losses
@@ -278,6 +280,7 @@ def _get_algo_performance(cur: cursor) -> Any:  # noqa: C901
                 """)
             pos_row = cur.fetchone()
             if pos_row:
+                open_positions_count = int(pos_row["total_open"]) if pos_row.get("total_open") is not None else 0
                 open_losses_count_raw = pos_row["open_losses"]
                 if open_losses_count_raw is None:
                     logger.error("Position data incomplete: Cannot determine open losing positions")
@@ -417,6 +420,7 @@ def _get_algo_performance(cur: cursor) -> Any:  # noqa: C901
             "avg_loss_r": fds(trade_stats.get("avg_loss_r"), 3, True),
             "gross_win_dollars": fds(trade_stats.get("gross_win_dollars"), 2, True),
             "gross_loss_dollars": fds(trade_stats.get("gross_loss_dollars"), 2, True),
+            "open_positions_count": open_positions_count,
             "open_losses_count": open_losses_count,
             "total_open_losses_dollars": fds(total_open_losses_dollars, 2, True),
             "best_trade_pct": fds(metrics.get("best_trade_pct"), 2, True),

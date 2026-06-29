@@ -115,6 +115,7 @@ def fetch_run(c: None) -> dict[str, Any]:
             logger.debug("Last-run API response missing summary (optional enrichment)")
 
         return {
+            "_source": "exec_log",
             "run_id": run_id,
             "run_at": started_at,
             "success": inner["success"],

@@ -804,47 +804,26 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
 
         current_date = row.get("date")
 
-        # CRITICAL: Validate vix_regime is present in factors; fail-fast if missing
-        if "vix_regime" not in factors:
+        # Validate vix_regime is present in factors; warn and use neutral if missing
+        if "vix_regime" not in factors or factors.get("vix_regime") is None:
             logger.error(
-                f"[MARKETS API] CRITICAL: vix_regime missing from factors for {current_date}: "
+                f"[MARKETS API] vix_regime missing/null in factors for {current_date}: "
                 f"market exposure computation may not have run or vix_regime computation failed. "
                 f"Check market_exposure_daily and load_market_exposure_daily logs."
             )
-            return error_response(
-                503,
-                "data_unavailable",
-                "VIX regime data unavailable - cannot assess volatility risk",
-            )
-        vix_regime_obj = factors.get("vix_regime")
-        if vix_regime_obj is None:
-            logger.error(
-                f"[MARKETS API] CRITICAL: vix_regime object is None for {current_date}: "
-                f"VIX calculation failed completely. Check load_market_exposure_daily logs."
-            )
-            return error_response(
-                503,
-                "data_unavailable",
-                "VIX regime calculation failed - cannot assess volatility risk",
-            )
-        # Note: vix_regime value may be None if VIX data unavailable, but the factor is still computed
-        # with neutral score. This is acceptable — dashboard displays the neutral signal.
+            factors["vix_regime"] = {"score": 0, "value": None, "signal": "neutral", "data_unavailable": True}
 
         response = list_response(sectors, total=len(sectors), limit=None, offset=None)
 
-        # CRITICAL: distribution_days is a key market factor for exposure scoring; fail-fast if missing
+        # distribution_days is a key market factor; warn and use 0 if missing
         dist_days_raw = row.get("distribution_days")
         if dist_days_raw is None:
             logger.error(
-                f"[MARKETS API] CRITICAL: distribution_days missing from market_exposure_daily for {current_date}: "
+                f"[MARKETS API] distribution_days missing from market_exposure_daily for {current_date}: "
                 f"market exposure computation may not have run or distribution days calculation failed. "
-                f"Check load_market_exposure_daily logs."
+                f"Check load_market_exposure_daily logs. Defaulting to 0."
             )
-            return error_response(
-                503,
-                "data_unavailable",
-                "Distribution days data unavailable - cannot assess selling pressure",
-            )
+            dist_days_raw = 0
 
         response_data = {
             "exposure_pct": (float(row["exposure_pct"]) if row.get("exposure_pct") is not None else None),

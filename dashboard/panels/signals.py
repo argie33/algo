@@ -426,11 +426,11 @@ def _build_buy_signals_table(
         sig_table.add_row(
             Text(sym, style=f"bold {G}"),
             Text(f"{comp_v:.0f}" if comp_v is not None else "⚠", style=comp_c),
-            Text(f"▲{swing_score:.0f}" if swing_score is not None else "--", style=swing_c),
             Text(f"${price_f:.2f}" if price_f is not None else "--", style="dim"),
             Text(f"${buy_lvl_f:.2f}" if buy_lvl_f is not None else "--", style=CY),
             Text(f"${stop_lvl_f:.2f}" if stop_lvl_f is not None else "--", style=R),
             Text(f"{rr_ratio:.2f}" if rr_ratio else "--", style=rr_c),
+            Text(f"▲{swing_score:.0f}" if swing_score is not None else "--", style=swing_c),
             Text(f"{entry_qual:.0f}" if entry_qual is not None else "--", style=CY),
         )
     rows.append(sig_table)
@@ -485,8 +485,8 @@ def _build_scores_table(top_scores: list[Any]) -> list[Text | Table]:
         rs_pct = safe_get_field(sc, "rs_percentile")
         chg = safe_get_field(sc, "change_percent")
         sector = (safe_get_field(sc, "sector", ""))[:12]
-        comp_v: float = float(comp) if comp is not None else 0
-        sc_c: str = _composite_score_color(comp_v)
+        comp_v: float | None = float(comp) if comp is not None else None
+        sc_c: str = _composite_score_color(comp_v) if comp_v is not None else DIM
 
         try:
             chg_v: float | None = float(chg) if chg is not None and chg != "" else None
@@ -501,7 +501,7 @@ def _build_scores_table(top_scores: list[Any]) -> list[Text | Table]:
 
         t.add_row(
             sym,
-            Text(f"{comp_v:.0f}", style=sc_c),
+            Text(f"{comp_v:.0f}" if comp_v is not None else "--", style=sc_c),
             _score_cell(mom),
             _score_cell(qual),
             _score_cell(grwth),

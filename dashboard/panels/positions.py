@@ -209,7 +209,7 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
         # Extract optional enrichment fields (low-priority data — graceful degradation)
         days = p.get("days_since_entry", "--")
         stg = p.get("weinstein_stage")  # Optional: Weinstein stage (may be unavailable)
-        swg = p.get("swing_score")  # Optional: swing score (may be unavailable)
+        swg = p.get("minervini_trend_score")  # Optional: Minervini trend score from API
         sec = (p.get("sector") or "--")[:12]  # Optional: sector enrichment
         rmul = safe_float(
             p.get("r_multiple"), default=None, field_name=f"{symbol}.r_multiple"

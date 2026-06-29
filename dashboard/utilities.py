@@ -37,16 +37,14 @@ WH = "white"
 
 TIER_COLOR = {
     "confirmed_uptrend": "bright_green",
-    "healthy_uptrend": "green",
-    "pressure": "yellow",
+    "uptrend_under_pressure": "yellow",
     "caution": "orange1",
     "correction": "bright_red",
 }
 
 TIER_SHORT = {
     "confirmed_uptrend": "CONFIRMED UP",
-    "healthy_uptrend": "HEALTHY UP",
-    "pressure": "PRESSURE",
+    "uptrend_under_pressure": "PRESSURE",
     "caution": "CAUTION",
     "correction": "CORRECTION",
 }

@@ -128,8 +128,8 @@ def _get_stock_scores(
                 price_prev AS (
                     SELECT DISTINCT ON (symbol) symbol, close
                     FROM price_daily
+                    WHERE date < (SELECT MAX(date) FROM price_daily)
                     ORDER BY symbol, date DESC
-                    OFFSET 1
                 ),
                 tech_latest AS (
                     SELECT DISTINCT ON (symbol) symbol, rsi_14, macd, sma_50, sma_200,

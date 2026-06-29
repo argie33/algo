@@ -70,6 +70,7 @@ from ..formatters import (
     sparkline,
 )
 from ..utilities import (
+    DIM,
     G,
     R,
     Y,
@@ -278,7 +279,7 @@ def panel_portfolio(
 
 @register_panel(
     "performance",
-    endpoint_deps=["per", "trades", "perf_anl"],
+    endpoint_deps=["perf", "trades", "perf_anl"],
     optional=True,
     description="Performance",
 )
@@ -306,9 +307,9 @@ def panel_performance_spark(  # noqa: C901
     pnl_c = G if pnl_val is not None and pnl_val >= 0 else R
     pf = safe_float(perf.get("profit_factor"), default=None)
     pf_s = f"{pf:.2f}" if pf is not None else "--"
-    pf_c = G if pf is not None and pf >= 1.5 else (Y if pf is not None and pf >= 1.0 else R)
+    pf_c = G if pf is not None and pf >= 1.5 else (Y if pf is not None and pf >= 1.0 else (R if pf is not None else DIM))
     exp = safe_float(perf.get("expectancy"), default=None)
-    exp_c = G if (exp is None or exp >= 0) else R
+    exp_c = G if exp is not None and exp >= 0 else (R if exp is not None else DIM)
     exp_s = f"{exp:.2f}R" if exp is not None else "--"
     sharpe_v = perf.get("sharpe")
     sharpe_s = f"{sharpe_v:.2f}" if sharpe_v is not None else "--"
@@ -322,14 +323,15 @@ def panel_performance_spark(  # noqa: C901
     avg_loss_v = perf.get("avg_loss")
     avg_win_s = f"{avg_win_v:.1f}%" if avg_win_v is not None else "--"
     avg_loss_s = f"{avg_loss_v:.1f}%" if avg_loss_v is not None else "--"
-    wrc = G if wr_v is not None and wr_v >= 45 else (Y if wr_v is not None and wr_v >= 40 else R)
+    wrc = G if wr_v is not None and wr_v >= 45 else (Y if wr_v is not None and wr_v >= 40 else (R if wr_v is not None else DIM))
     open_l_s = f" [dim](+{losing_open} open L)[/]" if losing_open > 0 else ""
 
     # Header line: trade summary
+    wr_s = f"{wr_v:.1f}%" if wr_v is not None else "--"
     header = Text.from_markup(
         f"[bold white]{closed_wins + closed_losses + losing_open} Trades[/]  "
         f"[{G}]{closed_wins}W[/][dim]/[/][{R}]{adj_l}L[/]  "
-        f"[dim]Win Rate:[/][{wrc}]{wr_v:.1f}%[/]{open_l_s}  "
+        f"[dim]Win Rate:[/][{wrc}]{wr_s}[/]{open_l_s}  "
         f"[{str_c}]{str_s} streak[/]"
     )
 
@@ -576,9 +578,9 @@ def panel_portfolio_perf_expanded(  # noqa: C901
         sharpe_v = safe_float(perf.get("sharpe"), default=None)
         exp = safe_float(perf.get("expectancy"), default=None)
         dd_val = perf.get("maxdd")
-        if dd_val is None or not isinstance(dd_val, (int, float)):
-            raise ValueError(f"Max drawdown value missing or invalid: {dd_val}")
-        dd_v = float(dd_val)
+        dd_v = float(dd_val) if isinstance(dd_val, (int, float)) else 0.0
+        if dd_val is None:
+            logger.warning("[PORTFOLIO] max_drawdown_pct missing from performance data — showing 0.0")
         avg_win = perf.get("avg_win")
         avg_loss = perf.get("avg_loss")
 
@@ -594,7 +596,7 @@ def panel_portfolio_perf_expanded(  # noqa: C901
             raise
         wr_label = "Win Rate (adj.):" if losing_open > 0 else "Win Rate:"
 
-        wrc = G if wr_v is not None and wr_v >= 45 else (Y if wr_v is not None and wr_v >= 40 else R)
+        wrc = G if wr_v is not None and wr_v >= 45 else (Y if wr_v is not None and wr_v >= 40 else (R if wr_v is not None else DIM))
         pf_c = G if pf is not None and pf >= 1.5 else (Y if pf is not None and pf >= 1.0 else R)
         exp_c = G if (exp is None or exp >= 0) else R
         str_c = G if streak >= 0 else R

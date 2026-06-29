@@ -46,9 +46,8 @@ class TierFormatter(FormatterStrategy):
 
     TIER_MAP = {
         80: "confirmed_uptrend",
-        60: "healthy_uptrend",
-        40: "pressure",
-        20: "caution",
+        60: "uptrend_under_pressure",
+        40: "caution",
         0: "correction",
     }
 

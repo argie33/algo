@@ -907,19 +907,25 @@ def _get_dashboard_signals(cur: cursor) -> Any:
             return error_response(503, "no_data", "No swing trader signals available")
         total_n = int(sig["n"])
 
-        # Top swing candidates with swing score and sector
+        # Top swing candidates with swing score, sector, and buy/stop levels from buy_sell_daily
         cur.execute("""
                 SELECT s.symbol, t.weinstein_stage AS stage_number, s.score AS signal_quality_score,
                        s.score AS entry_quality_score, p.close,
                        s.components->>'fail_reason' AS reason,
                        cp.sector,
-                       s.score AS swing_score
+                       s.score AS swing_score,
+                       bsd.buylevel,
+                       bsd.stoplevel
                 FROM swing_trader_scores s
                 LEFT JOIN company_profile cp ON cp.ticker = s.symbol
                 LEFT JOIN trend_template_data t ON t.symbol = s.symbol AND t.date = s.date
                 LEFT JOIN LATERAL (
                     SELECT close FROM price_daily WHERE symbol = s.symbol ORDER BY date DESC LIMIT 1
                 ) p ON true
+                LEFT JOIN LATERAL (
+                    SELECT buylevel, stoplevel FROM buy_sell_daily
+                    WHERE symbol = s.symbol ORDER BY date DESC LIMIT 1
+                ) bsd ON true
                 WHERE s.date=(SELECT MAX(date) FROM swing_trader_scores)
                 ORDER BY s.score DESC
                 LIMIT 30""")
@@ -968,23 +974,14 @@ def _get_dashboard_signals(cur: cursor) -> Any:
 
         freshness = check_data_freshness(cur, "swing_trader_scores", "date", warning_days=1)
 
-        # Count qualifying buy signals (score >= 70) for the "n BUY" display
-        def _try_float(value):
-            if value is None:
-                return None
-            try:
-                return float(value)
-            except (TypeError, ValueError):
-                return None
-
-        qualifying_buy_count = sum(
-            1
-            for s in buy_sigs
-            if (
-                _try_float(s.get("signal_quality_score")) is not None
-                and _try_float(s.get("signal_quality_score")) >= 70
-            )
-        )
+        # Count qualifying buy signals (score >= 70) via separate query to avoid LIMIT 30 cap
+        cur.execute("""
+                SELECT COUNT(*) AS n
+                FROM swing_trader_scores
+                WHERE date=(SELECT MAX(date) FROM swing_trader_scores)
+                  AND score >= 70""")
+        count_row = cur.fetchone()
+        qualifying_buy_count = int(count_row["n"]) if count_row and count_row.get("n") is not None else 0
         sig_response = {
             "n": qualifying_buy_count,
             "total": total_n,

@@ -221,9 +221,9 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
 
         # Set execution_mode in environment before creating orchestrator
         # (orchestrator.__init__ will pick it up from ORCHESTRATOR_EXECUTION_MODE)
-        if execution_mode != "auto":
-            os.environ["ORCHESTRATOR_EXECUTION_MODE"] = execution_mode
-            logger.info(f"ORCHESTRATOR_EXECUTION_MODE set to {execution_mode} from event")
+        # Always write to env to override any Terraform-set residual value (e.g. "paper")
+        os.environ["ORCHESTRATOR_EXECUTION_MODE"] = execution_mode
+        logger.info(f"ORCHESTRATOR_EXECUTION_MODE set to {execution_mode} from event")
 
         # Ensure sector_ranking schema is correct (has 'date' column, not 'date_recorded')
         # This is a failsafe for when migrations don't run properly
