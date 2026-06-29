@@ -31,10 +31,7 @@ import logging  # noqa: E402
 
 from utils.db.context import DatabaseContext  # noqa: E402
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -72,10 +69,7 @@ def fetch_dxy_from_iex() -> list[dict[str, Any]]:
         rows = []
         for item in data:
             try:
-                rows.append({
-                    "date": item["date"],
-                    "value": float(item["close"])
-                })
+                rows.append({"date": item["date"], "value": float(item["close"])})
             except (KeyError, ValueError, TypeError) as e:
                 logger.debug(f"[DXY] Skipping malformed IEX record: {e}")
                 continue
@@ -147,7 +141,7 @@ def fetch_dxy_from_yahoo() -> list[dict[str, Any]]:
         )
         return []
     except Exception as e:
-        logger.debug(f"[DXY] Failed to fetch from Yahoo Finance: {e} (expected)")
+        logger.warning(f"[DXY] Failed to fetch from Yahoo Finance: {e}")
         return []
 
 
@@ -159,7 +153,7 @@ def store_dxy_data(rows: list[dict[str, Any]]) -> int:
     try:
         with DatabaseContext("write") as cur:
             # Delete existing DXY data to avoid duplicates
-            cur.execute('DELETE FROM economic_data WHERE series_id = %s', ('DXY_ICE',))
+            cur.execute("DELETE FROM economic_data WHERE series_id = %s", ("DXY_ICE",))
 
             # Insert new data
             for row in rows:
@@ -169,7 +163,7 @@ def store_dxy_data(rows: list[dict[str, Any]]) -> int:
                     VALUES (%s, %s, %s)
                     ON CONFLICT (series_id, date) DO UPDATE SET value = EXCLUDED.value
                     """,
-                    ('DXY_ICE', row['date'], row['value'])
+                    ("DXY_ICE", row["date"], row["value"]),
                 )
 
             logger.info(f"Stored {len(rows)} DXY records in database")
@@ -181,7 +175,12 @@ def store_dxy_data(rows: list[dict[str, Any]]) -> int:
 
 
 def main() -> int:
-    """Fetch and store actual ICE DXY data from available sources."""
+    """Fetch and store actual ICE DXY data from available sources.
+
+    CRITICAL: This loader fetches REAL DXY data only. No hardcoded bootstrap values.
+    Per governance: "Fail-fast on missing data. No silent fallbacks."
+    When DXY data is unavailable, the API gracefully omits it from responses.
+    """
     logger.info("Starting DXY (ICE) data fetch...")
 
     # Try multiple sources in order of preference
@@ -205,6 +204,7 @@ def main() -> int:
             "(https://fred.stlouisfed.org/series/DTWEXBGS)"
         )
         # Return 0 (success) instead of 1 - this is an expected graceful degradation
+        # Per governance: missing data is preferable to fake data
         # The API handles missing DXY_ICE by simply omitting it from responses
         return 0
 

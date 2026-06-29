@@ -1,12 +1,15 @@
 """Route: economic"""
 
 import logging
+from datetime import date as date_module
+from datetime import timedelta
 from typing import Any
 
 import psycopg2
 import psycopg2.errors
 import psycopg2.extras
 import psycopg2.sql
+import yfinance as yf
 from psycopg2.extensions import cursor
 from routes.utils import (
     check_data_freshness,
@@ -635,21 +638,56 @@ def _get_yield_curve_full(cur: cursor) -> Any:  # noqa: C901
 
 
 def _seed_dxy_ice(cur: cursor) -> Any:
-    """Seed DXY_ICE data into economic_data table."""
+    """Seed real DXY_ICE data into economic_data table.
+
+    CRITICAL: This endpoint fetches REAL DXY data from Yahoo Finance.
+    Per governance rule: "Fail-fast on missing data. No silent fallbacks."
+    No hardcoded values are used - only actual market data.
+
+    Returns:
+        - 200 with success message if real data was fetched and stored
+        - 503 if real data unavailable (expected during Yahoo Finance downtime)
+    """
     try:
-        from datetime import date as date_module
+        logger.info("[SEED] Attempting to fetch real DXY data from Yahoo Finance...")
+
+        # Fetch real DXY data
+        end_date = date_module.today()
+        start_date = end_date - timedelta(days=365)
+
+        dxy = yf.download("^DXY", start=start_date, end=end_date, progress=False)
+
+        if dxy is None or len(dxy) == 0:
+            logger.warning("[SEED] Yahoo Finance returned no DXY data - ^DXY ticker currently unavailable")
+            return error_response(
+                503,
+                "data_unavailable",
+                "DXY data currently unavailable from Yahoo Finance. Will try again on next run.",
+            )
 
         # Delete existing DXY_ICE to avoid duplicates
         cur.execute("DELETE FROM economic_data WHERE series_id = %s", ("DXY_ICE",))
 
-        # Insert DXY_ICE with correct value
-        cur.execute(
-            "INSERT INTO economic_data (series_id, date, value) VALUES (%s, %s, %s)",
-            ("DXY_ICE", date_module.today().isoformat(), 101.13)
-        )
+        # Insert real DXY data
+        count = 0
+        for idx, row in dxy.iterrows():
+            if idx.tz_aware:
+                date_str = idx.tz_localize(None).date().isoformat()
+            else:
+                date_str = idx.date().isoformat()
 
-        logger.info("[SEED] Seeded DXY_ICE = 101.13 into economic_data table")
-        return json_response(200, {"success": True, "message": "Seeded DXY_ICE = 101.13"})
+            value = float(row["Close"])
+            cur.execute(
+                "INSERT INTO economic_data (series_id, date, value) VALUES (%s, %s, %s)", ("DXY_ICE", date_str, value)
+            )
+            count += 1
+
+        logger.info(f"[SEED] Seeded {count} real DXY_ICE records from Yahoo Finance")
+        return json_response(200, {"success": True, "message": f"Seeded {count} real DXY_ICE records"})
+
+    except ImportError as e:
+        logger.error(f"[SEED] yfinance library not available: {e}")
+        return error_response(500, "dependency_error", "yfinance library not available")
     except Exception as e:
-        logger.error(f"Failed to seed DXY_ICE: {e}")
-        return error_response(500, "seed_error", f"Failed to seed DXY_ICE: {str(e)}")
+        logger.error(f"[SEED] Failed to fetch/seed DXY_ICE: {e}")
+        return error_response(500, "seed_error", f"Failed to seed DXY_ICE: {e!s}")
