@@ -215,8 +215,13 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
 
         # Extract display name — NO SECONDARY FALLBACK (remove name field secondary source)
         # Use only company_name if available, don't fall back to generic name field
-        company_name_val = p.get("company_name", "")
-        name = company_name_val[:16] if company_name_val else ""
+        # CRITICAL: Don't silently default company_name to empty string — log if missing
+        company_name_val = p.get("company_name")
+        if company_name_val is None:
+            logger.debug(f"[POSITIONS] company_name enrichment missing for {symbol} — position tracking incomplete")
+            name = "[dim]?[/dim]"  # Explicit indicator that enrichment unavailable
+        else:
+            name = company_name_val[:16]
 
         # Determine row styling based on metrics
         pc = G if (pnl is not None and pnl >= 0) else R

@@ -95,7 +95,12 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
     if regime is None or regime == "":
         logger.warning("[EXPOSURE] regime field missing or empty — market regime unavailable")
         regime = "[yellow]⚠ regime unavailable[/]"
-    factors = exp_f.get("factors", {})
+
+    # CRITICAL: Never silently default factors to empty dict — explicitly validate
+    factors = exp_f.get("factors")
+    if factors is None:
+        logger.warning("[EXPOSURE] factors field is None (API returned null) — data validation failed")
+        return Text.from_markup("[red]✗ Exposure factors data invalid (null value)[/]")
     if not isinstance(factors, dict):
         logger.error("[EXPOSURE] factors field is not a dict, received type: %s", type(factors).__name__)
         return Text.from_markup("[red]✗ Exposure factors has invalid type[/]")
