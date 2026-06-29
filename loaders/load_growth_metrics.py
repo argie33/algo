@@ -32,7 +32,7 @@ class GrowthMetricsLoader(OptimalLoader):
     watermark_field = "created_at"
     exclude_etfs_from_symbols = True
 
-    def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]] | None:
+    def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Compute multi-year growth metrics from annual income statement.
 
         Returns record with data_unavailable marker if financial data unavailable (normal for small caps, new IPOs).
