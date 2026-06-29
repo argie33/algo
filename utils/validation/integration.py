@@ -88,7 +88,7 @@ def initialize_validators() -> None:
         registry.register(
             validator_name,
             validator,
-            description,
+            description or "",
         )
 
     _initialized = True

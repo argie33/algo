@@ -108,7 +108,7 @@ class OptimalLoader:
             return None
 
         # Extract all non-None values of watermark_field with fail-fast validation
-        values: list[Any] = []
+        values: list[date] = []
         for r in rows:
             if self.watermark_field not in r:
                 raise ValueError(
@@ -116,13 +116,13 @@ class OptimalLoader:
                 )
             field_value = r[self.watermark_field]
             if field_value is not None:
-                values.append(field_value)
+                values.append(cast(date, field_value))
 
         if not values:
             raise ValueError(
                 f"[{self.table_name}] watermark_from_rows: {len(rows)} rows present but all {self.watermark_field} values are NULL"
             )
-        return cast(date, max(values))
+        return max(values)
 
     @property
     def router(self) -> Any:

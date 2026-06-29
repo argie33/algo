@@ -611,7 +611,7 @@ class PriceLoader(OptimalLoader):
                         from algo.reporting import MetricsPublisher
 
                         metrics = MetricsPublisher()
-                        metrics.add_metric(
+                        metrics.add_metric( # type: ignore[attr-defined]
                             "MarketCloseDataAvailable",
                             1,
                             unit="Count",
@@ -691,7 +691,7 @@ class PriceLoader(OptimalLoader):
             from algo.reporting import MetricsPublisher
 
             metrics = MetricsPublisher()
-            metrics.add_metric(
+            metrics.add_metric( # type: ignore[attr-defined]
                 "MarketCloseDataAvailable",
                 0,
                 unit="Count",
@@ -1209,7 +1209,7 @@ class PriceLoader(OptimalLoader):
                     from algo.reporting import MetricsPublisher
 
                     m = MetricsPublisher()
-                    m.add_metric(
+                    m.add_metric( # type: ignore[attr-defined]
                         "BatchFetchMinimumSizeReached",
                         1,
                         unit="Count",
@@ -1602,7 +1602,7 @@ class PriceLoader(OptimalLoader):
 
                 m = MetricsPublisher()
                 m.add_metric(
-                    "LoaderTimeoutAlert",
+                    "LoaderTimeoutAlert", # type: ignore[attr-defined]
                     1,
                     unit="Count",
                     dimensions={
@@ -1658,7 +1658,7 @@ class PriceLoader(OptimalLoader):
 
                 m = MetricsPublisher()
                 m.add_metric(
-                    "RateLimitCircuitBreaker",
+                    "RateLimitCircuitBreaker", # type: ignore[attr-defined]
                     1,
                     unit="Count",
                     dimensions={

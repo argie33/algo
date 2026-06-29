@@ -125,20 +125,19 @@ class EarningsHistoryLoader(OptimalLoader):
                 rows = list(seen.values())
                 return rows
             else:
-                # No new earnings records since watermark (not an error, just no new data)
+                # No earnings records available - fail fast
                 if since:
-                    logger.info(
-                        f"[EARNINGS_HISTORY] {symbol}: No new earnings records since {since.isoformat()}. "
-                        "Existing records will not be re-fetched — data unavailable this cycle."
+                    error_msg = (
+                        f"[EARNINGS_HISTORY] {symbol}: no new earnings records since {since.isoformat()}. "
+                        "Cannot update earnings data without new records available."
                     )
-                    reason = f"No new earnings since {since.isoformat()}"
                 else:
-                    logger.warning(
-                        f"[EARNINGS_HISTORY] {symbol}: No earnings records found in full history. "
-                        "Symbol may have no earnings data available."
+                    error_msg = (
+                        f"[EARNINGS_HISTORY] {symbol}: no earnings history available from yfinance. "
+                        "Symbol must have earnings data available to track surprises."
                     )
-                    reason = "No earnings history available"
-                return [{"symbol": symbol, "data_unavailable": True, "reason": reason}]
+                logger.error(error_msg)
+                raise RuntimeError(error_msg)
         except (ValueError, ZeroDivisionError, TypeError) as e:
             error_msg = f"[EARNINGS_HISTORY] {symbol}: Failed to fetch earnings history: {e}"
             logger.error(error_msg)

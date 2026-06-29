@@ -138,6 +138,12 @@ class AAIISentimentLoader(OptimalLoader):
                     if response.status_code == 200 and len(response.content) > 100000:
                         logger.info(f"Successfully fetched {len(response.content)} bytes via hybrid approach")
                         return cast(bytes, response.content)
+                    else:
+                        logger.warning(
+                            f"[AAII_SENTIMENT] Invalid response: status={response.status_code}, "
+                            f"size={len(response.content)} bytes"
+                        )
+                        return None
 
                 except Exception as e:
                     logger.warning(f"[AAII_SENTIMENT] Playwright page fetch failed: {type(e).__name__}: {str(e)[:100]}")

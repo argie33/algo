@@ -164,7 +164,7 @@ class StalenessChecker(BaseCheck):
                     except (ValueError, AttributeError):
                         latest = None
 
-                if not latest:
+                if latest is None:
                     # CRITICAL: Cannot parse timestamp — data freshness cannot be verified
                     # Staleness check failure is fatal for critical signal tables
                     severity_on_parse_fail = CRIT if tbl in critical_signal_tables else ERROR

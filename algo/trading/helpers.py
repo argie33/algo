@@ -169,7 +169,7 @@ def extract_error(response: dict[str, Any]) -> str | None:
     if not isinstance(response, dict):
         raise ValueError(f"Expected dict response, got {type(response).__name__}: {response!r}")
     if "_error" in response:
-        return cast(str, response["_error"])
+        return str(response["_error"])
     if "error" in response:
-        return cast(str, response["error"])
+        return str(response["error"])
     return None

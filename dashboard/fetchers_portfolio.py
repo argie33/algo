@@ -36,17 +36,33 @@ def fetch_portfolio(c: None) -> dict[str, Any]:
         port = data
 
         # Determine appropriate max_age_seconds based on market status
-        # On trading days: data must be fresh (5 min) since Phase 9 runs daily
+        # CRITICAL FIX: Account for Friday→Monday gap where portfolio data can be 60+ hours old
+        # On trading days AFTER market opens: data must be fresh (5 min) since Phase 9 runs daily at close
+        # On trading days BEFORE/EARLY: accept data from previous trading day (up to 72 hours for Fri→Mon)
         # On non-trading days: accept data from last trading day
-        # - Weekend/single-day gap: 48 hours (2 days)
-        # - Extended gap (Monday morning before market opens): 72 hours (3 days for Friday→Monday)
         is_trading_day = MarketCalendar.is_trading_day()
         if is_trading_day:
-            max_age_seconds = 300  # 5 minutes for trading days
-            grace_period_seconds = 60  # 1 minute grace for trading days
+            # TRADING DAY: Check if market has closed (4:00 PM ET)
+            from datetime import datetime
+            from datetime import time as dt_time
+            from zoneinfo import ZoneInfo
+
+            et = ZoneInfo("America/New_York")
+            now_et = datetime.now(et)
+            market_close_time = dt_time(16, 0)  # 4:00 PM ET
+
+            if now_et.time() >= market_close_time:
+                # After market close (4:00 PM): Phase 9 should run soon, expect fresh data
+                max_age_seconds = 300  # 5 minutes after close
+                grace_period_seconds = 60  # 1 minute grace
+            else:
+                # Before/during market hours: accept data from previous trading day (up to 72 hours)
+                # This handles Friday→Monday gap where data from Friday (4 PM) is still valid Mon morning
+                max_age_seconds = 259200  # 72 hours (3 days) for pre-close trading days
+                grace_period_seconds = 3600  # 1 hour grace for trading day pre-close
         else:
-            # Non-trading days: accept data from last trading day (extended to account for holidays/long weekends)
-            max_age_seconds = 432000  # 120 hours (5 days) for non-trading days to handle extended gaps
+            # Non-trading days (weekends/holidays): accept data from last trading day (extended to account for long gaps)
+            max_age_seconds = 432000  # 120 hours (5 days) for non-trading days to handle holidays
             grace_period_seconds = 3600  # 1 hour grace period for non-trading days (clock skew, processing delays)
 
         # Comprehensive validation using FetcherValidator
@@ -103,16 +119,25 @@ def fetch_portfolio(c: None) -> dict[str, Any]:
         tc = float(port["total_cash"])
         pc = int(port["position_count"])
 
-        unrealized_pnl_dict = safe_get_dict(port.get("unrealized_pnl"))
+        # Extract unrealized PnL percentage with explicit handling for missing/invalid data
         unrealized_pnl_pct = None
-        if unrealized_pnl_dict and "total_pct" in unrealized_pnl_dict:
-            val = unrealized_pnl_dict.get("total_pct")
-            unrealized_pnl_pct = float(val) if val is not None else None
-        elif port.get("unrealized_pnl") is not None:
-            logger.warning(
-                f"[DATA_QUALITY] Portfolio unrealized_pnl missing 'total_pct' field. "
-                f"Available keys: {list(unrealized_pnl_dict.keys()) if unrealized_pnl_dict else 'None'}"
-            )
+        unrealized_pnl_raw = port.get("unrealized_pnl")
+        if unrealized_pnl_raw is not None:
+            unrealized_pnl_dict = safe_get_dict(unrealized_pnl_raw)
+            if unrealized_pnl_dict and "total_pct" in unrealized_pnl_dict:
+                val = unrealized_pnl_dict.get("total_pct")
+                unrealized_pnl_pct = float(val) if val is not None else None
+            elif unrealized_pnl_dict:
+                # Unrealized PnL dict exists but missing total_pct field
+                logger.warning(
+                    f"[DATA_QUALITY] Portfolio unrealized_pnl missing 'total_pct' field. "
+                    f"Available keys: {list(unrealized_pnl_dict.keys())}"
+                )
+            else:
+                # Unrealized PnL is not a dict (malformed)
+                logger.warning(
+                    f"[DATA_QUALITY] Portfolio unrealized_pnl is malformed: expected dict, got {type(unrealized_pnl_raw).__name__}"
+                )
 
         # Validate optional fields have reasonable values when present
         snapshot_date = port.get("last_run")

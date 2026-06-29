@@ -1049,7 +1049,7 @@ class Orchestrator:
                     "[WARNING] Critical loaders did not complete within timeout. Phase 1 will check data freshness."
                 )
 
-            self.executor = self._setup_executor(skip_phases=cast(list[int | str] | None, skip_phases))
+            self.executor = self._setup_executor(skip_phases=skip_phases)  # type: ignore[arg-type]
             with TimeBlock("orchestrator_executor"):
                 executor_result = self.executor.run()
 

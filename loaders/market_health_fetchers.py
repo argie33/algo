@@ -160,9 +160,6 @@ class PutCallRatioFetcher:
         Returns:
             float: Put/call ratio if successful
             None: If all retries exhausted or permanent error encountered
-
-        Raises:
-            RuntimeError: Only on validation errors (invalid type from circuit breaker)
         """
         # Attempt direct fetch with retries first (before circuit breaker check)
         result = self._fetch_with_retries(eval_date)
@@ -177,10 +174,11 @@ class PutCallRatioFetcher:
 
         # Validate result type
         if not isinstance(result, float):
-            raise RuntimeError(
+            logger.warning(
                 f"[PUT_CALL_RATIO] Fetch returned unexpected type {type(result).__name__}. "
                 f"Expected float, got {result!r}."
             )
+            return None
 
         return result
 

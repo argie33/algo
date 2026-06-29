@@ -465,12 +465,14 @@ def fetch_circuit(c: None) -> dict[str, Any]:
 
             formatted_bs.append(
                 {
-                    "lbl": label,
-                    "cur": float(cur_val),
-                    "thr": float(thr_val),
-                    "u": unit_display,
-                    "u_available": unit is not None,
-                    "fired": safe_bool(is_triggered),
+                    "id": r.get("id"),
+                    "label": label,
+                    "current": float(cur_val),
+                    "threshold": float(thr_val),
+                    "unit": unit_display,
+                    "unit_available": unit is not None,
+                    "triggered": safe_bool(is_triggered),
+                    "description": r.get("description"),
                 }
             )
 

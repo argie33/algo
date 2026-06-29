@@ -111,7 +111,7 @@ def get_active_symbols(
     old_handler: Any = None
     try:
         if hasattr(signal, "SIGALRM"):
-            old_handler = signal.signal(signal.SIGALRM, timeout_handler)
+            old_handler = signal.signal(signal.SIGALRM, timeout_handler)  # type: ignore[attr-defined]
             signal.alarm(timeout_secs)  # type: ignore[attr-defined]
     except (AttributeError, ValueError):
         # signal.SIGALRM not available on Windows, use threading timeout instead
@@ -182,7 +182,7 @@ def get_active_symbols(
             try:
                 if hasattr(signal, "SIGALRM"):
                     signal.alarm(0)  # type: ignore[attr-defined]
-                    signal.signal(signal.SIGALRM, old_handler)
+                    signal.signal(signal.SIGALRM, old_handler)  # type: ignore[attr-defined]
             except (AttributeError, ValueError):
                 pass
 

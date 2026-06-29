@@ -83,11 +83,12 @@ class AnalystRatingsLoader(OptimalLoader):
                 "API format may have changed or ticker data is corrupted."
             )
         if upgrades_downgrades.empty:
-            logger.info(f"[ANALYST_RATINGS] No upgrade/downgrade history for {symbol} — data unavailable")
-            # Return explicit marker instead of empty list (which looks like "no ratings found")
-            return [
-                {"symbol": symbol, "data_unavailable": True, "reason": "No analyst upgrade/downgrade history available"}
-            ]
+            error_msg = (
+                f"[ANALYST_RATINGS] {symbol}: no upgrade/downgrade history available. "
+                f"Cannot update analyst ratings without historical data."
+            )
+            logger.error(error_msg)
+            raise RuntimeError(error_msg)
 
         results = []
 
@@ -139,16 +140,14 @@ class AnalystRatingsLoader(OptimalLoader):
                 }
             )
 
-        # If all records were skipped due to validation failures, return explicit marker
+        # If all records were skipped due to validation failures, fail fast
         if not results:
-            logger.warning(f"[ANALYST_RATINGS] All records skipped for {symbol} (all records missing required fields)")
-            return [
-                {
-                    "symbol": symbol,
-                    "data_unavailable": True,
-                    "reason": "All analyst upgrade/downgrade records missing required fields (Firm, Rating, Action)",
-                }
-            ]
+            error_msg = (
+                f"[ANALYST_RATINGS] {symbol}: all upgrade/downgrade records missing required fields (Firm, Rating, Action). "
+                f"Cannot use analyst data without complete field values."
+            )
+            logger.error(error_msg)
+            raise RuntimeError(error_msg)
 
         return results
 

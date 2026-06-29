@@ -257,14 +257,15 @@ class MarketFactorCalculator:
                 )
 
             most_recent_date = price_row[0]
-            age = eval_date - most_recent_date if hasattr(eval_date, "__sub__") else 0
-            if age and hasattr(age, "days") and age.days > 0:
-                raise RuntimeError(
-                    f"[SELLING_PRESSURE CRITICAL] SPY price data is stale: from {most_recent_date}, "
-                    f"but eval_date is {eval_date} ({age.days} days old). "
-                    f"Distribution day detection requires TODAY's market data (prices, volumes). "
-                    f"Cannot use yesterday's selling pressure for today's risk assessment."
-                )
+            if hasattr(eval_date, "__sub__"):
+                age = eval_date - most_recent_date
+                if hasattr(age, "days") and age.days > 0:
+                    raise RuntimeError(
+                        f"[SELLING_PRESSURE CRITICAL] SPY price data is stale: from {most_recent_date}, "
+                        f"but eval_date is {eval_date} ({age.days} days old). "
+                        f"Distribution day detection requires TODAY's market data (prices, volumes). "
+                        f"Cannot use yesterday's selling pressure for today's risk assessment."
+                    )
 
             # Now calculate distribution days from last 25 sessions
             cur.execute(

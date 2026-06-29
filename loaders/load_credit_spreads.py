@@ -217,7 +217,7 @@ class CreditSpreadsDailyLoader(OptimalLoader):
             raise RuntimeError(f"[CREDIT_SPREADS] Database error: {e}. Cannot store HY OAS data.") from e
 
     def run(
-        self, symbols: Iterable[str], parallelism: int = 1, backfill_days: int | None = None, **kwargs: Any
+        self, symbols: Iterable[str], parallelism: int = 1, backfill_days: int | None = None
     ) -> dict[str, Any]:
         """Not applicable for market-wide loader. Use load_global() instead."""
         raise NotImplementedError("CREDIT_SPREADS loader is market-wide only. Use load_global().")

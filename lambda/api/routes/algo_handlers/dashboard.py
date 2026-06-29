@@ -273,7 +273,8 @@ def _get_algo_status(cur: cursor) -> Any:
     if row is None:
         return error_response(503, "no_data", "No trading activity available yet")
 
-    portfolio = {}
+    # CRITICAL: Portfolio must be present in response - fail-fast if unavailable
+    # Empty dict breaks frontend panels expecting portfolio metrics
     try:
         cur.execute("""
                 SELECT total_portfolio_value, total_cash, daily_return_pct,
@@ -282,34 +283,35 @@ def _get_algo_status(cur: cursor) -> Any:
                 ORDER BY snapshot_date DESC LIMIT 1
             """)
         snap = cur.fetchone()
-        if snap:
-            pv = float(snap["total_portfolio_value"])
-            unrealized_pnl = float(snap["unrealized_pnl_total"])
-            unrealized_pnl_pct = None
-            if pv is not None and pv > 0 and unrealized_pnl is not None:
-                unrealized_pnl_pct = unrealized_pnl / pv * 100
-            tc = snap["total_cash"]
-            if tc is None or (isinstance(tc, float) and not (tc > 0 or tc == 0)):
-                raise RuntimeError(
-                    f"CRITICAL: algo_portfolio_snapshots.total_cash is missing or invalid ({tc}). "
-                    f"Cannot determine cash available for position sizing. "
-                    f"Dashboard portfolio status unreliable without this data."
-                )
-            tc_float = float(tc)
-            portfolio = {
-                "total_portfolio_value": format_decimal_string(pv, precision=2, allow_none=True),
-                "total_cash": format_decimal_string(tc_float, precision=2),
-                "position_count": int(snap["position_count"]),
-                "daily_return_pct": format_decimal_string(
-                    float(snap["daily_return_pct"]), precision=2, allow_none=True
-                ),
-                "unrealized_pnl_pct": format_decimal_string(
-                    unrealized_pnl_pct,
-                    precision=2,
-                    allow_none=True,
-                ),
-                "unrealized_pnl_dollars": format_decimal_string(unrealized_pnl, precision=2, allow_none=True),
-            }
+        if snap is None:
+            # No portfolio snapshots yet - algo hasn't started or data loader issue
+            return error_response(503, "no_data", "Portfolio snapshots not available yet")
+
+        pv = float(snap["total_portfolio_value"])
+        unrealized_pnl = float(snap["unrealized_pnl_total"])
+        unrealized_pnl_pct = None
+        if pv is not None and pv > 0 and unrealized_pnl is not None:
+            unrealized_pnl_pct = unrealized_pnl / pv * 100
+        tc = snap["total_cash"]
+        if tc is None or (isinstance(tc, float) and not (tc > 0 or tc == 0)):
+            raise RuntimeError(
+                f"CRITICAL: algo_portfolio_snapshots.total_cash is missing or invalid ({tc}). "
+                f"Cannot determine cash available for position sizing. "
+                f"Dashboard portfolio status unreliable without this data."
+            )
+        tc_float = float(tc)
+        portfolio = {
+            "total_portfolio_value": format_decimal_string(pv, precision=2, allow_none=True),
+            "total_cash": format_decimal_string(tc_float, precision=2),
+            "position_count": int(snap["position_count"]),
+            "daily_return_pct": format_decimal_string(float(snap["daily_return_pct"]), precision=2, allow_none=True),
+            "unrealized_pnl_pct": format_decimal_string(
+                unrealized_pnl_pct,
+                precision=2,
+                allow_none=True,
+            ),
+            "unrealized_pnl_dollars": format_decimal_string(unrealized_pnl, precision=2, allow_none=True),
+        }
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
@@ -1041,7 +1043,7 @@ def _get_equity_curve(cur: cursor, days: int = 180) -> Any:
         curve = cur.fetchall()
         freshness = check_data_freshness(cur, "algo_portfolio_snapshots", "snapshot_date", warning_days=1)
         return list_response(
-            [safe_json_serialize(safe_dict_convert(c)) for c in reversed(curve) if c],
+            [safe_json_serialize(safe_dict_convert(c)) for c in reversed(curve) if c is not None],
             data_freshness=freshness,
         )
     except (

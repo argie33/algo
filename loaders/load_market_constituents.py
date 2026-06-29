@@ -392,11 +392,12 @@ class MarketConstituentsLoader(OptimalLoader):
                 )
                 continue
 
-        logger.info(
+        error_msg = (
             f"[MARKET_CONSTITUENTS] Russell 2000 data unavailable from all sources ({len(urls)} attempted). "
-            "Continuing with S&P 500 and tradable symbols only (Russell 2000 is optional enrichment)."
+            "Cannot load Russell 2000 constituent data without valid source."
         )
-        return []
+        logger.error(error_msg)
+        raise RuntimeError(error_msg)
 
     def _upsert_etf_symbols(self, etf_rows: list[dict[str, Any]]) -> None:
         """Refresh ETF symbols table with explicit validation (keep separate from tradable symbols)."""

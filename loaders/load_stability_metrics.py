@@ -203,7 +203,8 @@ class StabilityMetricsLoader(OptimalLoader):
     def _validate_row(self, row: dict[str, Any]) -> bool:
         """Validate stability metrics row.
 
-        Ensures symbol field exists (required).
+        Ensures symbol field exists (required). Validates that data_unavailable marker
+        is explicitly set (never silent/implicit availability).
         """
         if not super()._validate_row(row):
             return False
@@ -212,6 +213,14 @@ class StabilityMetricsLoader(OptimalLoader):
         symbol = row.get("symbol")
         if symbol is None:
             logger.error("[STABILITY_METRICS] Invalid row: symbol field missing or None")
+            return False
+
+        # Validate data_unavailable marker is explicit
+        if "data_unavailable" not in row:
+            logger.error(
+                f"[STABILITY_METRICS] Invalid row for {symbol}: "
+                f"data_unavailable marker missing (must be explicit: True or False)"
+            )
             return False
 
         return True
