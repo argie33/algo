@@ -130,20 +130,32 @@ def _build_signal_header(sig_data: dict[str, Any], scores_data: dict[str, Any] |
     """Build signal header row (count, sparkline, grades, date).
 
     Returns empty rows if input validation fails (missing required structure).
+    Logs errors for all validation failures.
     """
     rows: list[Text] = []
-    if not isinstance(sig_data, dict) or has_error(sig_data):
+    if not isinstance(sig_data, dict):
+        logger.error(f"_build_signal_header: sig_data is not dict, got {type(sig_data).__name__}")
         return rows, 0, 0
-    overview = extract_signal_overview(sig_data)
+    if has_error(sig_data):
+        logger.error(f"_build_signal_header: sig_data contains error - {sig_data.get('_error', 'unknown error')}")
+        return rows, 0, 0
+    try:
+        overview = extract_signal_overview(sig_data)
+    except (TypeError, ValueError) as e:
+        logger.error(f"_build_signal_header: extract_signal_overview failed - {e}")
+        return rows, 0, 0
     if has_error(overview):
+        logger.error(f"_build_signal_header: overview extraction produced error - {overview.get('_error', 'unknown error')}")
         return rows, 0, 0
 
     raw_val = safe_get_field(overview, "n")
     if raw_val is None or not isinstance(raw_val, (int, float)):
+        logger.warning(f"_build_signal_header: signal count 'n' missing or invalid, got {type(raw_val).__name__}")
         return rows, 0, 0
     raw = int(raw_val)
     total_val = safe_get_field(overview, "total")
     if total_val is None or not isinstance(total_val, (int, float)):
+        logger.warning(f"_build_signal_header: total screened 'total' missing or invalid, got {type(total_val).__name__}")
         return rows, 0, 0
     total = int(total_val)
     ds = _format_signal_date(safe_get_field(overview, "date"))
@@ -194,12 +206,22 @@ def _build_grade_radar(sig_data: dict[str, Any]) -> list[Text]:
     """Build A-grade radar row or near-miss fallback.
 
     Returns empty list if input validation fails (missing required structure).
+    Logs errors for all validation failures.
     """
     rows: list[Text] = []
-    if not isinstance(sig_data, dict) or has_error(sig_data):
+    if not isinstance(sig_data, dict):
+        logger.error(f"_build_grade_radar: sig_data is not dict, got {type(sig_data).__name__}")
         return rows
-    overview = extract_signal_overview(sig_data)
+    if has_error(sig_data):
+        logger.error(f"_build_grade_radar: sig_data contains error - {sig_data.get('_error', 'unknown error')}")
+        return rows
+    try:
+        overview = extract_signal_overview(sig_data)
+    except (TypeError, ValueError) as e:
+        logger.error(f"_build_grade_radar: extract_signal_overview failed - {e}")
+        return rows
     if has_error(overview):
+        logger.error(f"_build_grade_radar: overview extraction produced error - {overview.get('_error', 'unknown error')}")
         return rows
     top_a = safe_get_list(safe_get_field(overview, "top_a", []))
     near = safe_get_list(safe_get_field(overview, "near", []))
@@ -236,15 +258,26 @@ def _build_funnel_row(sig_eval_data: dict[str, Any] | None) -> list[Text]:
     """Build funnel arrow chain row with avg score and top blockers.
 
     Returns empty list if input is missing or has errors.
+    Logs errors for all validation failures.
     """
     rows: list[Text] = []
-    if not sig_eval_data or has_error(sig_eval_data):
+    if not sig_eval_data:
+        logger.debug("_build_funnel_row: sig_eval_data is None (optional field)")
+        return rows
+    if has_error(sig_eval_data):
+        logger.warning(f"_build_funnel_row: sig_eval_data contains error - {sig_eval_data.get('_error', 'unknown error')}")
         return rows
     if not isinstance(sig_eval_data, dict):
+        logger.error(f"_build_funnel_row: sig_eval_data is not dict, got {type(sig_eval_data).__name__}")
         return rows
 
-    funnel = extract_eval_funnel(sig_eval_data)
+    try:
+        funnel = extract_eval_funnel(sig_eval_data)
+    except (TypeError, ValueError) as e:
+        logger.warning(f"_build_funnel_row: extract_eval_funnel failed - {e}")
+        return rows
     if has_error(funnel):
+        logger.warning(f"_build_funnel_row: funnel extraction produced error - {funnel.get('_error', 'unknown error')}")
         return rows
     ev_tot = safe_get_field(funnel, "total")
     ev_t1 = safe_get_field(funnel, "t1")
@@ -294,13 +327,17 @@ def _build_buy_signals_table(
     """Build active buy signals table section.
 
     Validates input is list and dict before accessing fields.
+    Logs all validation failures.
     """
     rows: list[Text | Table | Rule] = []
     if not isinstance(scored_with_signals, list):
+        logger.error(f"_build_buy_signals_table: scored_with_signals is not list, got {type(scored_with_signals).__name__}")
         return rows
     if not scored_with_signals:
+        logger.debug("_build_buy_signals_table: scored_with_signals is empty (no active signals)")
         return rows
     if not isinstance(buy_sig_details, dict):
+        logger.error(f"_build_buy_signals_table: buy_sig_details is not dict, got {type(buy_sig_details).__name__}")
         return rows
 
     rows.append(
@@ -393,12 +430,15 @@ def _build_scores_table(top_scores: list[Any]) -> list[Text | Table]:
     """Build stock quality scores table.
 
     Validates input is list before accessing items.
+    Logs all validation failures.
     """
     rows: list[Text | Table] = []
     if not isinstance(top_scores, list):
+        logger.error(f"_build_scores_table: top_scores is not list, got {type(top_scores).__name__}")
         rows.append(Text.from_markup(f"[{Y}]Invalid score data structure — check Data Health[/]"))
         return rows
     if not top_scores:
+        logger.debug("_build_scores_table: top_scores is empty (no score data available)")
         rows.append(Text.from_markup(f"[{Y}]No score data — check Data Health[/]"))
         return rows
 
@@ -507,10 +547,15 @@ def panel_signals_compact(sig: Any, sig_eval: Any = None, scores: Any = None) ->
 
     buy_sig_details = {}
     for bs in buy_sigs:
+        if not isinstance(bs, dict):
+            logger.warning(f"panel_signals_compact: buy_sig item is not dict, got {type(bs).__name__} - skipping")
+            continue
         sym = bs.get("symbol")
-        if sym:
-            sym_norm = str(sym).upper().strip()
-            buy_sig_details[sym_norm] = bs
+        if not sym:
+            logger.debug("panel_signals_compact: buy_sig item missing 'symbol' field - skipping")
+            continue
+        sym_norm = str(sym).upper().strip()
+        buy_sig_details[sym_norm] = bs
 
     scored_with_signals = [
         s for s in top_scores if str(safe_get_field(s, "symbol", "")).upper().strip() in buy_sig_details

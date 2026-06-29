@@ -160,6 +160,20 @@ def fetch_market(c: None) -> dict[str, Any]:
             # Raise instead of returning error dict for consistency with halt_reasons validation below
             raise ValueError(error_msg)
 
+        # Optional fields: market_stage, market_trend, fed_rate_environment
+        # Log explicitly if missing to ensure visibility of incomplete market data
+        market_stage = market_health.get("market_stage")
+        if market_stage is None:
+            logger.debug("Optional market data missing: market_stage not provided by API")
+
+        market_trend = market_health.get("market_trend")
+        if market_trend is None:
+            logger.debug("Optional market data missing: market_trend not provided by API")
+
+        fed_env = market_health.get("fed_rate_environment")
+        if fed_env is None:
+            logger.debug("Optional market data missing: fed_rate_environment not provided by API")
+
         # CRITICAL: Circuit breaker halt reasons validation - fail fast on missing data
         halt_reasons_raw = current.get("halt_reasons")
         if halt_reasons_raw is None:
@@ -180,8 +194,8 @@ def fetch_market(c: None) -> dict[str, Any]:
             "tier": tier,
             "halts": halt_reasons,
             "vix": vix,
-            "stage": market_health.get("market_stage"),
-            "trend": market_health.get("market_trend"),
+            "stage": market_stage,  # May be None if optional data missing; logged above
+            "trend": market_trend,  # May be None if optional data missing; logged above
             "dist": safe_int(current.get("distribution_days"), field_name="market.distribution_days"),
             "spy": spy,
             "spy_chg": safe_float(market_health.get("spy_change_pct"), field_name="market.spy_change_pct"),
@@ -207,7 +221,7 @@ def fetch_market(c: None) -> dict[str, Any]:
                 market_health.get("yield_curve_slope"),
                 field_name="market.yield_curve_slope",
             ),
-            "fed": market_health.get("fed_rate_environment"),
+            "fed": fed_env,  # May be None if optional data missing; logged above
         }
     except Exception as e:
         error_msg = format_fetcher_error("mkt", e)
@@ -251,11 +265,26 @@ def fetch_exp_factors(c: None) -> dict[str, Any]:
             return FetcherValidator.build_error_response(error_msg)
 
         current = inner["current"]
+
+        # Validate optional fields with explicit logging
+        regime = current.get("regime")
+        if regime is None:
+            logger.debug("Optional exposure data missing: regime not provided by API")
+
+        factors = current.get("factors")
+        if factors is None:
+            logger.debug("Optional exposure data missing: factors not provided by API")
+        elif not isinstance(factors, (list, dict)):
+            error_msg = f"Exposure factors must be list or dict, got {type(factors).__name__}"
+            logger.error(error_msg)
+            record_data_quality_issue("exp_factors", "validation", "invalid_factors_type", str(type(factors).__name__))
+            return FetcherValidator.build_error_response(error_msg)
+
         return {
             "exposure_pct": safe_float(current.get("exposure_pct"), field_name="exposure.exposure_pct"),
             "raw_score": safe_float(current.get("raw_score"), field_name="exposure.raw_score"),
-            "regime": current.get("regime"),
-            "factors": current.get("factors"),
+            "regime": regime,  # May be None if optional data missing; logged above
+            "factors": factors,  # May be None if optional data missing; logged above
         }
     except Exception as e:
         error_msg = format_fetcher_error("exp_factors", e)
@@ -291,8 +320,13 @@ def fetch_risk_metrics(c: None) -> dict[str, Any]:
             record_data_quality_issue("risk", "validation", "missing_required_fields", str(missing_fields))
             return FetcherValidator.build_error_response(error_msg)
 
+        # Validate optional field with explicit logging
+        report_date = d.get("report_date")
+        if report_date is None:
+            logger.debug("Optional risk data missing: report_date not provided by API")
+
         return {
-            "date": d.get("report_date"),
+            "date": report_date,  # May be None if optional data missing; logged above
             "var95": safe_float(d["var_pct_95"]),
             "cvar95": safe_float(d["cvar_pct_95"]),
             "svar": safe_float(d.get("stressed_var_pct"), default=None),
@@ -396,8 +430,14 @@ def fetch_sector_rotation(c: None) -> dict[str, Any]:
                 "Cannot determine signal persistence without weeks duration. "
                 "Check sector rotation calculation."
             )
+
+        # Validate optional field with explicit logging
+        rotation_date = row.get("date")
+        if rotation_date is None:
+            logger.debug("Optional sector rotation data missing: date not provided by API")
+
         return {
-            "date": row.get("date"),
+            "date": rotation_date,  # May be None if optional data missing; logged above
             "signal": row["signal"],
             "strength": safe_float(row.get("spread"), default=None, field_name="sec_rot.spread"),
             "weeks": int(weeks_raw),

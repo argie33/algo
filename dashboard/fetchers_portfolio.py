@@ -112,18 +112,34 @@ def fetch_portfolio(c: None) -> dict[str, Any]:
         if unrealized_pnl_dict and "total_pct" in unrealized_pnl_dict:
             val = unrealized_pnl_dict.get("total_pct")
             unrealized_pnl_pct = float(val) if val is not None else None
+        elif port.get("unrealized_pnl") is not None:
+            logger.warning(
+                f"[DATA_QUALITY] Portfolio unrealized_pnl missing 'total_pct' field. "
+                f"Available keys: {list(unrealized_pnl_dict.keys()) if unrealized_pnl_dict else 'None'}"
+            )
+
+        # Validate optional fields have reasonable values when present
+        snapshot_date = port.get("last_run")
+        if not snapshot_date:
+            logger.warning("[DATA_QUALITY] Portfolio snapshot_date is missing (last_run not set)")
+
+        daily_return = port.get("daily_return_pct")
+        cumulative_return = port.get("cumulative_return_pct")
+        max_dd = port.get("max_drawdown_pct")
+        largest_pos = port.get("largest_position_pct")
+        data_age = port.get("data_age_seconds")
 
         return {
-            "snapshot_date": port.get("last_run"),
+            "snapshot_date": snapshot_date,
             "total_portfolio_value": tpv,
             "total_cash": tc,
             "position_count": pc,
-            "daily_return_pct": port.get("daily_return_pct"),
+            "daily_return_pct": daily_return,
             "unrealized_pnl_pct": unrealized_pnl_pct,
-            "cumulative_return_pct": port.get("cumulative_return_pct"),
-            "max_drawdown_pct": port.get("max_drawdown_pct"),
-            "largest_position_pct": port.get("largest_position_pct"),
-            "data_age_seconds": port.get("data_age_seconds"),
+            "cumulative_return_pct": cumulative_return,
+            "max_drawdown_pct": max_dd,
+            "largest_position_pct": largest_pos,
+            "data_age_seconds": data_age,
         }
     except Exception as e:
         error_msg = format_fetcher_error("port", e)
@@ -148,15 +164,20 @@ def fetch_positions(c: None) -> dict[str, Any]:
         result = data
         if isinstance(result, dict):
             items = result.get("items")
+            if items is None:
+                error_msg = "Positions API response: 'items' field is missing"
+                logger.error(error_msg)
+                record_data_quality_issue("pos", "validation", "items_missing")
+                return FetcherValidator.build_error_response(error_msg)
             if not isinstance(items, list):
-                error_msg = "Positions API response: 'items' field is not a list"
+                error_msg = f"Positions API response: 'items' field is not a list, got {type(items).__name__}"
                 logger.error(error_msg)
                 record_data_quality_issue("pos", "validation", "items_not_list")
                 return FetcherValidator.build_error_response(error_msg)
         elif isinstance(result, list):
             items = result
         else:
-            error_msg = "Positions API response: expected dict or list"
+            error_msg = f"Positions API response: expected dict or list, got {type(result).__name__}"
             logger.error(error_msg)
             record_data_quality_issue("pos", "validation", "invalid_response_type")
             return FetcherValidator.build_error_response(error_msg)
@@ -191,15 +212,20 @@ def fetch_recent_trades(c: None) -> dict[str, Any]:
         result = data
         if isinstance(result, dict):
             trades = result.get("items")
+            if trades is None:
+                error_msg = "Trades API response: 'items' field is missing"
+                logger.error(error_msg)
+                record_data_quality_issue("trades", "validation", "items_missing")
+                return FetcherValidator.build_error_response(error_msg)
             if not isinstance(trades, list):
-                error_msg = "Trades API response: 'items' field is not a list"
+                error_msg = f"Trades API response: 'items' field is not a list, got {type(trades).__name__}"
                 logger.error(error_msg)
                 record_data_quality_issue("trades", "validation", "items_not_list")
                 return FetcherValidator.build_error_response(error_msg)
         elif isinstance(result, list):
             trades = result
         else:
-            error_msg = "Trades API response: expected dict or list"
+            error_msg = f"Trades API response: expected dict or list, got {type(result).__name__}"
             logger.error(error_msg)
             record_data_quality_issue("trades", "validation", "invalid_response_type")
             return FetcherValidator.build_error_response(error_msg)
@@ -282,9 +308,21 @@ def fetch_perf(c: None) -> dict[str, Any]:
         # unrealized_pnl comes from portfolio endpoint (performance endpoint doesn't have it)
         unrealized_pnl = perf.get("unrealized_pnl")
         if unrealized_pnl is None:
+            logger.debug("Performance data missing 'unrealized_pnl' field, falling back to portfolio endpoint")
             port_data = api_call("/api/algo/portfolio")
-            if not port_data.get("_error") and isinstance(port_data.get("unrealized_pnl"), dict):
+            is_port_error, port_error_msg = FetcherValidator.check_api_error(port_data)
+            if is_port_error:
+                logger.warning(
+                    f"[DATA_QUALITY] Could not fetch unrealized_pnl from portfolio endpoint: {port_error_msg}"
+                )
+            elif isinstance(port_data.get("unrealized_pnl"), dict):
                 unrealized_pnl = port_data["unrealized_pnl"]
+                logger.debug("Successfully retrieved unrealized_pnl from portfolio endpoint fallback")
+            else:
+                logger.warning(
+                    f"[DATA_QUALITY] Portfolio endpoint missing/invalid 'unrealized_pnl' field. "
+                    f"Type: {type(port_data.get('unrealized_pnl')).__name__}"
+                )
 
         # CRITICAL: open_losses_count is REQUIRED. No fallback to alternative fields.
         # Missing field indicates API schema mismatch — fail-fast.
@@ -349,6 +387,23 @@ def fetch_perf_analytics(c: None) -> dict[str, Any]:
         # NOTE: Performance analytics is non-critical dashboard metric (not used for trading decisions).
         # Use strict=False to gracefully handle None/missing values instead of failing hard.
         # Critical metrics (VaR, risk) use strict=True; informational metrics (Sharpe, Sortino) use strict=False.
+
+        # Extract metrics with explicit logging for missing optional fields
+        optional_fields = {
+            "rolling_sharpe_252d": "sharpe252",
+            "rolling_sortino_252d": "sortino",
+            "calmar_ratio": "calmar",
+            "win_rate_50t": "wr50",
+            "avg_win_r_50t": "avg_w_r",
+            "avg_loss_r_50t": "avg_l_r",
+            "expectancy": "expectancy",
+            "max_drawdown_pct": "maxdd",
+        }
+
+        for api_field, display_name in optional_fields.items():
+            if api_field not in d:
+                logger.debug(f"[DATA_QUALITY] Performance analytics missing optional '{api_field}'")
+
         return {
             "sharpe252": safe_float(d.get("rolling_sharpe_252d"), strict=False, field_name="sharpe252"),
             "sortino": safe_float(d.get("rolling_sortino_252d"), strict=False, field_name="sortino"),
