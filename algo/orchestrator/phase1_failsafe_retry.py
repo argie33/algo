@@ -44,6 +44,9 @@ CRITICAL_INCOMPLETE_LOADERS = {
     "etf_price_daily",
     "etf_price_weekly",
     "etf_price_monthly",
+    # Market regime tables (halt if stale — must run on FARGATE, not SPOT)
+    "market_health_daily",
+    "market_exposure_daily",
     # Other critical loaders
     "stock_scores",
     "technical_data_daily",
@@ -53,10 +56,17 @@ CRITICAL_INCOMPLETE_LOADERS = {
 # Loaders that are auxiliary (warn if incomplete after retry, but allow proceeding)
 # NOTE: These loaders are nice-to-have enrichments; failing to load them should NOT
 # trigger retry since they don't block trading. Phase 1 only retries CRITICAL loaders.
+# REVERTED 2026-06-28: value_metrics and positioning_metrics were promoted to critical
+# but caused cascade failure—they don't complete reliably under AWS constraints.
+# stock_scores is designed to work with partial metrics (min_required_metrics=1),
+# so incomplete metric tables are acceptable; complete-but-partial data is better than
+# blocking trading entirely due to slow upstream loaders.
 AUXILIARY_INCOMPLETE_LOADERS = {
     "growth_metrics",
-    "value_metrics",
     "positioning_metrics",
+    "quality_metrics",
+    "stability_metrics",
+    "value_metrics",
     "analyst_sentiment_analysis",
     "sector_ranking",
     "trend_template_data",
@@ -307,6 +317,7 @@ def invoke_loader_retry(loader_name: str, is_critical: bool) -> bool:
             "positioning_metrics": "loaders.load_positioning_metrics",
             "trend_template_data": "loaders.load_trend_criteria_data",
             "market_health_daily": "loaders.load_market_health_daily",
+            "market_exposure_daily": "loaders.load_market_exposure_daily",
             "sector_ranking": "loaders.load_sector_ranking",
         }
 
