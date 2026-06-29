@@ -30,9 +30,10 @@ class FetcherValidator:
             (is_error: bool, error_message: str|None)
         """
         if isinstance(response, dict) and "_error" in response:
-            error_msg = response.get("_error")
+            error_msg = response.get("_error", None)
             # Ensure error message is always a non-empty string, never None
             if not error_msg or not str(error_msg).strip():
+                logger.warning("API error marker present but error message is empty or missing")
                 return True, "Unknown API error"
             return True, str(error_msg)
         return False, None
@@ -114,6 +115,9 @@ class FetcherValidator:
 
         Returns:
             (value: Any, error_message: str|None)
+
+        For optional fields (required=False), returns (None, None) when field is missing,
+        but logs at DEBUG level to maintain visibility of data extraction patterns.
         """
         if not isinstance(data, dict):
             return None, f"Expected dict, got {type(data).__name__}"
@@ -127,11 +131,15 @@ class FetcherValidator:
             if part not in current:
                 if required:
                     return None, f"Missing required field: {field_path}"
+                # Optional field missing — log for visibility but return None with no error
+                logger.debug(f"Optional field not present: {field_path}")
                 return None, None
             current = current[part]
 
         if required and current is None:
             return None, f"Field {field_path} is None"
+        if not required and current is None:
+            logger.debug(f"Optional field is None: {field_path}")
         return current, None
 
     @staticmethod
@@ -142,11 +150,20 @@ class FetcherValidator:
             dict with _error key and message
 
         Ensures error message is always a non-empty string with actual details.
+        Never returns silent empty dict {} or None — always includes explicit error context.
+
+        Args:
+            error_message: Error message to include, or None if no message available
+
+        Returns:
+            {"_error": "<message>"} — always includes detailed error text
         """
         if error_message is None:
+            logger.error("build_error_response called with None message — no context provided")
             return {"_error": "Unknown error (no details provided)"}
         error_str = str(error_message).strip()
         if not error_str:
+            logger.error("build_error_response called with empty message after strip")
             return {"_error": "Unknown error (empty error message)"}
         return {"_error": error_str}
 
@@ -162,6 +179,9 @@ class FetcherValidator:
 
         Returns:
             (valid: bool, error_message: str|None)
+
+        When freshness validation is enabled (max_age_seconds and timestamp_field specified),
+        timestamp field MUST be present and valid — missing timestamp triggers freshness error.
         """
         # Check for API error
         is_error, error_msg = FetcherValidator.check_api_error(response)
@@ -175,7 +195,13 @@ class FetcherValidator:
 
         # Check freshness if specified
         if max_age_seconds is not None and timestamp_field:
-            timestamp = response.get(timestamp_field)
+            # Timestamp field must be explicitly present when freshness validation is enabled
+            timestamp = response.get(timestamp_field, None)
+            if timestamp is None:
+                logger.warning(
+                    f"{source_name}: Freshness validation enabled but timestamp field '{timestamp_field}' "
+                    f"is missing or None (will be treated as stale)"
+                )
             fresh, error_msg = FetcherValidator.check_freshness(timestamp, max_age_seconds)
             if not fresh:
                 return False, error_msg

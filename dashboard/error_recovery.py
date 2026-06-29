@@ -4,6 +4,7 @@ Implements transient vs permanent error classification, exponential backoff,
 and automatic retry with state persistence.
 """
 
+import logging
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -15,6 +16,8 @@ from rich.layout import Layout
 from rich.markup import escape
 from rich.panel import Panel
 from rich.text import Text
+
+logger = logging.getLogger(__name__)
 
 
 class ErrorCategory(Enum):
@@ -57,8 +60,15 @@ class RenderState:
     error_log: list[tuple[datetime, str, str]] = field(default_factory=list)  # Track all errors for diagnostics
 
     def get_recovery_status(self) -> str:
-        """Generate human-readable recovery status."""
+        """Generate human-readable recovery status.
+
+        Returns:
+            Status string describing current recovery state, or empty string if no error.
+            Empty string indicates no active errors.
+        """
         if not self.error_category:
+            # No error state: dashboard should render normally
+            logger.debug("No active error category - rendering normally")
             return ""
 
         if self.error_category == ErrorCategory.TRANSIENT:
@@ -143,12 +153,20 @@ class RenderRecovery:
             layout = render_fn(data)
             # Success: reset error state and cache this layout
             with self._lock:
+                was_recovering = self.state.retry_count > 0
                 self.state.last_good_layout = layout
                 self.state.last_good_time = datetime.now()
                 self.state.retry_count = 0
                 self.state.error_category = None
                 self.state.next_retry_time = None
-            return layout, ""  # No status = no error
+
+            # Log recovery if we were previously in error state
+            if was_recovering:
+                logger.info("Render recovered successfully after transient error")
+            else:
+                logger.debug("Render successful with no active errors")
+
+            return layout, ""  # Empty status = no error to display
         except Exception as e:
             # Error: categorize and decide retry (hold lock while updating state)
             with self._lock:
@@ -156,41 +174,64 @@ class RenderRecovery:
                 self.state.error_log.append((datetime.now(), type(e).__name__, str(e)))
                 self.state.retry_count += 1
 
+                # Log error with appropriate level based on category
+                error_msg = f"Render error ({self.state.error_category.value}): {type(e).__name__}: {str(e)}"
+                if self.state.error_category == ErrorCategory.PERMANENT:
+                    logger.error(error_msg)
+                elif self.state.error_category == ErrorCategory.TRANSIENT:
+                    logger.warning(error_msg)
+                else:  # UNKNOWN
+                    logger.warning(error_msg)
+
                 if self.state.should_retry():
                     # Schedule next retry
                     delay = self.state.next_backoff_delay()
                     self.state.next_retry_time = datetime.now() + timedelta(seconds=delay)
                     status = self.state.get_recovery_status()
+                    logger.debug(f"Scheduled retry in {delay:.1f}s (attempt {self.state.retry_count})")
                 else:
-                    # Give up
+                    # Give up after max retries
                     status = self.state.get_recovery_status()
+                    logger.error(f"Giving up on render after {self.state.retry_count} attempts")
 
                 # Return last good render if available, else error panel
                 if self.state.last_good_layout:
+                    logger.info(f"Using cached render from {self.state.last_good_time}")
                     return self.state.last_good_layout, status
                 else:
+                    logger.error("No cached render available - displaying error panel")
                     return self._create_error_panel(e, status), status
 
     def should_retry_data_load(self) -> bool:
         """Check if data reload should be triggered (e.g., in watch mode).
 
         For transient errors, reloading data may help recover from API issues.
+
+        Returns:
+            True if data should be reloaded, False otherwise.
         """
         with self._lock:
-            return (
+            should_reload = (
                 self.state.error_category == ErrorCategory.TRANSIENT
                 and self.state.retry_count > 0
                 and self.state.should_retry()
             )
+            if should_reload:
+                logger.debug("Data reload triggered to recover from transient error")
+            return should_reload
 
     def get_recovery_status(self) -> str:
         """Get recovery status message (thread-safe).
 
         Returns:
-            Human-readable recovery status string, or empty string if no error.
+            Human-readable recovery status string. Empty string if no active error.
+            Empty string explicitly means dashboard should render normally.
         """
         with self._lock:
-            return self.state.get_recovery_status()
+            status = self.state.get_recovery_status()
+            if not status:
+                logger.debug("No active recovery status - dashboard rendering normally")
+            return status
 
     def _create_loading_panel(self, status: str) -> Layout:
         """Create a loading panel for backoff periods."""

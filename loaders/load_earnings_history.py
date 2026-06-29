@@ -26,7 +26,12 @@ class EarningsHistoryLoader(OptimalLoader):
     watermark_field = "earnings_date"
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, str | float | None]]:
-        """Fetch earnings history from yfinance earnings_dates."""
+        """Fetch earnings history from yfinance earnings_dates.
+
+        Returns list of earnings records since the watermark date.
+        Raises RuntimeError if no earnings history is available for the symbol.
+        Logs WARNING if earnings data is present but no new records since watermark.
+        """
         try:
             from datetime import datetime
 
@@ -36,10 +41,12 @@ class EarningsHistoryLoader(OptimalLoader):
             ticker = get_ticker(yf_symbol)
             df = ticker.earnings_dates
             if df is None or (hasattr(df, "empty") and df.empty):
-                raise RuntimeError(
-                    f"[EARNINGS_HISTORY] No earnings history available for {symbol}. "
+                error_msg = (
+                    f"[EARNINGS_HISTORY] {symbol}: No earnings history available from yfinance. "
                     "Cannot track earnings surprises without historical data."
                 )
+                logger.error(error_msg)
+                raise RuntimeError(error_msg)
 
             rows = []
             cutoff = since.isoformat() if since else "2000-01-01"
@@ -51,9 +58,10 @@ class EarningsHistoryLoader(OptimalLoader):
                         ed = str(idx)[:10]
                     if ed < cutoff:
                         continue
-                    eps_est = row.get("EPS Estimate")
-                    eps_actual = row.get("Reported EPS")
-                    surprise_pct = row.get("Surprise(%)")
+                    # Explicitly get optional earnings fields with None defaults
+                    eps_est = row.get("EPS Estimate", None)
+                    eps_actual = row.get("Reported EPS", None)
+                    surprise_pct = row.get("Surprise(%)", None)
 
                     def _float(v: Any, field_name: str = "value") -> float | None:
                         """Convert value to float, fail-fast on corruption.
@@ -115,10 +123,22 @@ class EarningsHistoryLoader(OptimalLoader):
                     if key not in seen or row["earnings_date"] > seen[key]["earnings_date"]:
                         seen[key] = row
                 rows = list(seen.values())
-
-            return rows
+                return rows
+            else:
+                # No new earnings records since watermark (not an error, just no new data)
+                if since:
+                    logger.warning(
+                        f"[EARNINGS_HISTORY] {symbol}: No new earnings records since {since.isoformat()}. "
+                        "Existing records will not be re-fetched."
+                    )
+                else:
+                    logger.warning(
+                        f"[EARNINGS_HISTORY] {symbol}: No earnings records found in full history. "
+                        "Symbol may have no earnings data available."
+                    )
+                return []
         except (ValueError, ZeroDivisionError, TypeError) as e:
-            error_msg = f"Failed to fetch earnings history for {symbol}: {e}"
+            error_msg = f"[EARNINGS_HISTORY] {symbol}: Failed to fetch earnings history: {e}"
             logger.error(error_msg)
             raise RuntimeError(error_msg) from e
 
@@ -126,9 +146,35 @@ class EarningsHistoryLoader(OptimalLoader):
         return rows
 
     def _validate_row(self, row: dict[str, Any]) -> bool:
+        """Validate earnings row has required fields.
+
+        Raises ValueError if required fields are missing or malformed.
+        """
         if not super()._validate_row(row):
             return False
-        return bool(row.get("quarter")) and bool(row.get("earnings_date"))
+
+        # Validate required fields with explicit defaults
+        quarter = row.get("quarter", None)
+        earnings_date = row.get("earnings_date", None)
+        symbol = row.get("symbol", None)
+
+        if not quarter:
+            raise ValueError(
+                f"[{symbol}] Missing or empty required field 'quarter'. "
+                f"Earnings row cannot be inserted without a valid quarter."
+            )
+        if not earnings_date:
+            raise ValueError(
+                f"[{symbol}] Missing or empty required field 'earnings_date'. "
+                f"Earnings row cannot be inserted without a valid earnings date."
+            )
+        if not symbol:
+            raise ValueError(
+                "Missing or empty required field 'symbol'. "
+                "Earnings row cannot be inserted without a valid symbol."
+            )
+
+        return True
 
 
 if __name__ == "__main__":
