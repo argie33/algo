@@ -339,6 +339,50 @@ class AAIISentimentLoader(OptimalLoader):
                     "created_at": datetime.now().isoformat(),
                 }]
             except (OSError, requests.RequestException) as e:
+                # If 403 Forbidden on last attempt, try Playwright fallback
+                error_str = str(e)
+                if ("403" in error_str or "Forbidden" in error_str) and attempt == 3 and HAS_PLAYWRIGHT:
+                    logger.info("Got 403 Forbidden (Imperva bot detection), trying Playwright fallback...")
+                    file_content = self._fetch_with_playwright(aaii_url)
+                    if file_content:
+                        try:
+                            # Parse the Playwright-fetched content
+                            excel_data = BytesIO(file_content)
+                            xl_engine = "openpyxl" if file_content.startswith(b"PK") else "xlrd"
+                            df = pd.read_excel(excel_data, skiprows=3, engine=xl_engine)
+
+                            df.columns = df.columns.str.strip()
+                            required_cols = ["Date", "Bullish", "Neutral", "Bearish"]
+                            df = df[required_cols]
+
+                            for col in ["Bullish", "Neutral", "Bearish"]:
+                                df[col] = df[col].astype(str).str.replace("%", "", regex=False).str.strip()
+                                df[col] = pd.to_numeric(df[col], errors="coerce")
+
+                            df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
+                            df["Date"] = df["Date"].dt.strftime("%Y-%m-%d")
+                            df.sort_values("Date", inplace=True)
+                            df.reset_index(drop=True, inplace=True)
+
+                            logger.info(f"Playwright fallback succeeded! Parsed {len(df)} records")
+
+                            rows = []
+                            for _, row in df.iterrows():
+                                rows.append({
+                                    "date": row["Date"],
+                                    "bullish": (None if pd.isna(row["Bullish"]) else float(row["Bullish"])),
+                                    "neutral": (None if pd.isna(row["Neutral"]) else float(row["Neutral"])),
+                                    "bearish": (None if pd.isna(row["Bearish"]) else float(row["Bearish"])),
+                                })
+                            return rows if rows else [{
+                                "data_unavailable": True,
+                                "reason": "No sentiment data in Playwright fallback file",
+                                "created_at": datetime.now().isoformat(),
+                            }]
+                        except Exception as pw_error:
+                            logger.warning(f"Playwright fallback parsing failed: {pw_error}")
+
+                # Standard RequestException handling
                 logger.error(f"Download attempt {attempt} unexpected error: {e}")
                 if attempt < 3:
                     import time
