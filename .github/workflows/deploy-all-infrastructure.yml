@@ -1658,6 +1658,7 @@ jobs:
           DB_USER: ${{ steps.rds_creds.outputs.db_user }}
           DB_PASSWORD: ${{ steps.rds_creds.outputs.db_password }}
           DB_NAME: ${{ steps.rds_creds.outputs.db_name }}
+          PYTHONPATH: ${{ github.workspace }}
         run: |
           echo "Running AAII Sentiment Loader..."
           python3 loaders/load_aaii_sentiment.py

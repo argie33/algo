@@ -99,34 +99,46 @@ class CreditSpreadsFetcher:
 
             result = {}
             skipped_count = 0
+            total_count = len(data["observations"])
             for obs in data["observations"]:
                 try:
                     obs_date = obs.get("date")
                     obs_value = obs.get("value")
 
                     if not obs_date:
-                        logger.debug(f"[CREDIT_SPREADS] FRED observation missing date field: {obs}")
+                        logger.warning(f"[CREDIT_SPREADS] WARN: FRED observation missing date field: {obs}")
                         skipped_count += 1
                         continue
 
                     if not obs_value or obs_value == ".":
-                        logger.debug(f"[CREDIT_SPREADS] FRED observation {obs_date} has missing/invalid value: {obs_value}")
+                        logger.warning(f"[CREDIT_SPREADS] WARN: FRED observation {obs_date} has missing/invalid value: {obs_value}")
                         skipped_count += 1
                         continue
 
                     result[obs_date] = float(obs_value)
                 except (ValueError, KeyError, TypeError) as e:
-                    logger.warning(f"[CREDIT_SPREADS] Error parsing FRED observation {obs}: {e}")
+                    logger.warning(f"[CREDIT_SPREADS] WARN: Error parsing FRED observation {obs}: {e}")
                     skipped_count += 1
                     continue
 
             if skipped_count > 0:
-                logger.info(f"[CREDIT_SPREADS] Skipped {skipped_count} invalid observations during FRED parse")
+                logger.warning(
+                    f"[CREDIT_SPREADS] WARNING: Skipped {skipped_count}/{total_count} observations during FRED parse. "
+                    f"Market exposure calculation depends on complete HY OAS data — missing observations may affect accuracy."
+                )
 
             if not result:
                 raise RuntimeError(
-                    f"[CREDIT_SPREADS] FRED returned no valid HY OAS observations for {start} to {end}. "
-                    f"Check FRED data availability and series BAMLH0A0HYM2."
+                    f"[CREDIT_SPREADS] CRITICAL: FRED returned no valid HY OAS observations for {start} to {end}. "
+                    f"Check FRED data availability and series BAMLH0A0HYM2. "
+                    f"Market exposure calculation requires credit spread data."
+                )
+
+            # Warn if significant percentage of observations were skipped
+            if skipped_count > 0 and (skipped_count / total_count) > 0.1:
+                logger.error(
+                    f"[CREDIT_SPREADS] ERROR: {skipped_count/total_count*100:.1f}% of FRED observations invalid. "
+                    f"Market exposure calculation depends on accurate credit spreads — data quality degraded."
                 )
 
             logger.info(f"Fetched {len(result)} HY OAS records from FRED")

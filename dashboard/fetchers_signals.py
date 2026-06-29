@@ -20,16 +20,16 @@ logger = logging.getLogger(__name__)
 
 def fetch_signals(c: None) -> dict[str, Any]:
     """Fetch dashboard signals from API. Fail-fast: error only on failure."""
+    from dashboard.error_boundary import has_error
     from dashboard.fetcher_validator import FetcherValidator
 
     try:
         data = api_call(get_endpoint_path("sig"))
 
-        # Check for API error
-        is_error, error_msg = FetcherValidator.check_api_error(data)
-        if is_error:
-            record_data_quality_issue("sig", "api_call", "api_error", error_msg)
-            return FetcherValidator.build_error_response(error_msg)
+        # Check for API error (fail-fast pattern: check error first)
+        if has_error(data):
+            record_data_quality_issue("sig", "api_call", "api_error", data.get("_error"))
+            return data
 
         if not data:
             error_msg = "No data returned from /api/algo/dashboard-signals"
@@ -117,30 +117,44 @@ def fetch_signals(c: None) -> dict[str, Any]:
 
 
 def fetch_signal_eval(c: None) -> dict[str, Any]:
-    """Fetch signal evaluation stats from API."""
+    """Fetch signal evaluation stats from API.
+
+    CRITICAL: Use strict mode for all numeric conversions. Parse errors must raise,
+    never silently default to None which could hide data corruption.
+    """
+    from dashboard.data_validation import StrictValidationError
+    from dashboard.error_boundary import has_error
     from dashboard.fetcher_validator import FetcherValidator
 
     try:
         data = api_call(get_endpoint_path("sig_eval"))
 
-        # Check for API error
-        is_error, error_msg = FetcherValidator.check_api_error(data)
-        if is_error:
-            record_data_quality_issue("sig_eval", "api_call", "api_error", error_msg)
-            return FetcherValidator.build_error_response(error_msg)
+        # Check for API error (fail-fast pattern: check error first)
+        if has_error(data):
+            record_data_quality_issue("sig_eval", "api_call", "api_error", data.get("_error"))
+            return data
 
         result = data
-        return {
-            "total": safe_int(result.get("total"), default=None),
-            "t1": safe_int(result.get("t1"), default=None),
-            "t2": safe_int(result.get("t2"), default=None),
-            "t3": safe_int(result.get("t3"), default=None),
-            "t4": safe_int(result.get("t4"), default=None),
-            "t5": safe_int(result.get("t5"), default=None),
-            "avg_score": safe_float(result.get("avg_score"), default=None),
-            "date": result.get("signal_date"),
-            "rejected": result.get("rejected"),
-        }
+
+        # CRITICAL: Use strict=True for all finance data conversions.
+        # Parse errors must raise exceptions, never silently default to None.
+        try:
+            return {
+                "total": safe_int(result.get("total"), default=None, strict=True) if result.get("total") is not None else None,
+                "t1": safe_int(result.get("t1"), default=None, strict=True) if result.get("t1") is not None else None,
+                "t2": safe_int(result.get("t2"), default=None, strict=True) if result.get("t2") is not None else None,
+                "t3": safe_int(result.get("t3"), default=None, strict=True) if result.get("t3") is not None else None,
+                "t4": safe_int(result.get("t4"), default=None, strict=True) if result.get("t4") is not None else None,
+                "t5": safe_int(result.get("t5"), default=None, strict=True) if result.get("t5") is not None else None,
+                "avg_score": safe_float(result.get("avg_score"), default=None, strict=True) if result.get("avg_score") is not None else None,
+                "date": result.get("signal_date"),
+                "rejected": result.get("rejected"),
+            }
+        except (StrictValidationError, ValueError, TypeError) as e:
+            error_msg = f"Signal evaluation data contains invalid numeric values: {e}"
+            logger.error(error_msg)
+            record_data_quality_issue("sig_eval", "validation", "numeric_parse_error", str(e))
+            return FetcherValidator.build_error_response(error_msg)
     except Exception as e:
         error_msg = format_fetcher_error("sig_eval", e)
         logger.error(error_msg)
@@ -151,9 +165,9 @@ def fetch_signal_eval(c: None) -> dict[str, Any]:
 def fetch_scores(c: None) -> dict[str, Any]:
     """Fetch top stock scores from /api/scores. Used by signals panel for composite score display.
 
-    On 503 transient errors, falls back to cached scores if available (optional data).
+    CRITICAL: Scores are NOT optional data - they rank signal quality and inform trading decisions.
+    NEVER use stale cache for scores. Fail-fast on API errors to ensure data accuracy.
     """
-    from dashboard.api_data_layer import get_cached_response
     from dashboard.fetcher_validator import FetcherValidator
 
     try:
@@ -162,20 +176,12 @@ def fetch_scores(c: None) -> dict[str, Any]:
         # Check for API error
         is_error, error_msg = FetcherValidator.check_api_error(top_data)
         if is_error:
-            # On 503 transient error, try cached scores (optional data can use stale cache)
-            if top_data.get("_is_transient_503"):
-                logger.warning("Scores API returned 503, attempting cache fallback")
-                try:
-                    cached = get_cached_response("/api/scores")
-                    if cached and isinstance(cached, dict) and "items" in cached:
-                        items = cached["items"]
-                        if items:
-                            logger.info("Scores: Using cached data due to API 503 (stale cache acceptable for optional data)")
-                            return {"top": items, "_stale_cache": True}
-                except RuntimeError as cache_err:
-                    logger.warning(f"Scores cache fallback failed (stale cache): {cache_err}")
-                    # Cache is too old or corrupted, continue to error response below
-
+            # CRITICAL: Scores drive signal quality ranking for trading decisions.
+            # Stale scores can cause poor entry/exit decisions. Must fail-fast, never use stale cache.
+            logger.critical(
+                f"Scores API error (fail-fast, no stale cache fallback): {error_msg} - "
+                f"Signal quality ranking unavailable. Check API and dashboard scores service."
+            )
             record_data_quality_issue("scores", "api_call", "api_error", error_msg)
             return FetcherValidator.build_error_response(error_msg)
 

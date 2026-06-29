@@ -17,6 +17,7 @@ Use: python3 loaders/load_options_chains.py [--symbols AAPL,MSFT]
 
 import argparse
 import logging
+import math
 import sys
 import time
 from datetime import date, datetime
@@ -193,12 +194,24 @@ class OptionsLoader:
                     f"expected {required_cols}, got {set(calls_df.columns)}"
                 )
 
-            for _, row in calls_df.iterrows():
+            for idx, row in calls_df.iterrows():
                 vol = row.get("volume")
                 strike = row.get("strike")
 
-                # Validate volume is positive
-                if vol is not None and vol > 0:
+                # Validate volume and strike are valid (not None, not NaN)
+                if vol is None or (isinstance(vol, float) and math.isnan(vol)):
+                    logger.warning(
+                        f"[OPTIONS_CHAINS] WARN: Call option for {symbol} at index {idx} has missing volume. Skipping."
+                    )
+                    continue
+                if strike is None or (isinstance(strike, float) and math.isnan(strike)):
+                    logger.warning(
+                        f"[OPTIONS_CHAINS] WARN: Call option for {symbol} at index {idx} has missing strike. Skipping."
+                    )
+                    continue
+
+                # Only insert if volume is positive
+                if vol > 0:
                     try:
                         cur.execute(
                             """
@@ -224,12 +237,24 @@ class OptionsLoader:
                     f"expected {required_cols}, got {set(puts_df.columns)}"
                 )
 
-            for _, row in puts_df.iterrows():
+            for idx, row in puts_df.iterrows():
                 vol = row.get("volume")
                 strike = row.get("strike")
 
-                # Validate volume is positive
-                if vol is not None and vol > 0:
+                # Validate volume and strike are valid (not None, not NaN)
+                if vol is None or (isinstance(vol, float) and math.isnan(vol)):
+                    logger.warning(
+                        f"[OPTIONS_CHAINS] WARN: Put option for {symbol} at index {idx} has missing volume. Skipping."
+                    )
+                    continue
+                if strike is None or (isinstance(strike, float) and math.isnan(strike)):
+                    logger.warning(
+                        f"[OPTIONS_CHAINS] WARN: Put option for {symbol} at index {idx} has missing strike. Skipping."
+                    )
+                    continue
+
+                # Only insert if volume is positive
+                if vol > 0:
                     try:
                         cur.execute(
                             """

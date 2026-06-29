@@ -37,7 +37,7 @@ class VCPPatternsLoader:
             end_date: End date for analysis (default: today)
 
         Returns:
-            Summary of patterns loaded
+            Summary of patterns loaded, includes data_unavailable flag if any failures occur
         """
         if end_date is None:
             end_date = datetime.now(timezone.utc).date()
@@ -79,6 +79,8 @@ class VCPPatternsLoader:
                     "symbols_processed": 0,
                     "symbols_failed": 0,
                     "patterns_found": 0,
+                    "data_unavailable": True,
+                    "reason": "no_technical_data_available",
                 }
 
             logger.info(f"[VCP_LOADER] Processing VCP patterns for {len(dates)} dates")
@@ -97,16 +99,30 @@ class VCPPatternsLoader:
                         self._process_symbol(cur, symbol, process_date)
                         self.symbols_processed += 1
                     except Exception as e:
-                        logger.debug(f"[VCP_LOADER] {symbol} {process_date}: {e}")
+                        logger.warning(
+                            f"[VCP_LOADER] WARN: VCP processing failed for {symbol} {process_date}: {e}. "
+                            f"signal_quality_scorer depends on complete VCP data; this symbol's quality score may be incomplete."
+                        )
                         self.symbols_failed += 1
 
             cur.connection.commit()
 
-        return {
+        result = {
             "symbols_processed": self.symbols_processed,
             "symbols_failed": self.symbols_failed,
             "patterns_found": self.patterns_found,
         }
+
+        # Mark data unavailable if any failures occurred (signal_quality_scorer needs complete data)
+        if self.symbols_failed > 0:
+            result["data_unavailable"] = True
+            result["reason"] = f"{self.symbols_failed} symbol(s) failed VCP processing"
+            logger.error(
+                f"[VCP_LOADER] CRITICAL: {self.symbols_failed} VCP processing failures. "
+                f"signal_quality_scorer will have incomplete data. Check logs for per-symbol errors."
+            )
+
+        return result
 
     def _process_symbol(self, cur: Any, symbol: str, end_date: date) -> None:
         """Calculate and store VCP pattern for a symbol. Fail-fast on data quality issues.

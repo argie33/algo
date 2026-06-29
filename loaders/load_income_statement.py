@@ -216,6 +216,7 @@ class IncomeStatementLoader(OptimalLoader):
                 f"Cannot transform SEC EDGAR data without field mapping rules."
             )
         transformed = []
+        skipped_invalid_fields = 0
         for r in rows:
             row: dict[str, Any] = {}
             field_mapping = self._field_mapping
@@ -239,11 +240,13 @@ class IncomeStatementLoader(OptimalLoader):
                         quarter_str,
                         quarter_str,
                     )
+                    skipped_invalid_fields += 1
                     continue  # Skip this row instead of silently setting None
                 row["fiscal_quarter"] = quarter_num
             transformed.append(row)
 
         seen = {}
+        skipped_missing_keys = 0
         for row in transformed:
             key: tuple[Any, ...]
             symbol = row.get("symbol")
@@ -251,14 +254,16 @@ class IncomeStatementLoader(OptimalLoader):
 
             if not symbol:
                 logger.warning(
-                    f"[{self.table_name}] Row missing required 'symbol' field. Row data: {row}. Skipping."
+                    f"[{self.table_name}] WARNING: Row missing required 'symbol' field. Row data: {row}. Skipping."
                 )
+                skipped_missing_keys += 1
                 continue
             if fiscal_year is None:
                 logger.warning(
-                    f"[{self.table_name}] Row missing required 'fiscal_year' field for symbol '{symbol}'. "
+                    f"[{self.table_name}] WARNING: Row missing required 'fiscal_year' field for symbol '{symbol}'. "
                     f"Row data: {row}. Skipping."
                 )
+                skipped_missing_keys += 1
                 continue
 
             if self.period == "annual":
@@ -267,9 +272,10 @@ class IncomeStatementLoader(OptimalLoader):
                 fiscal_quarter = row.get("fiscal_quarter")
                 if fiscal_quarter is None:
                     logger.warning(
-                        f"[{self.table_name}] Row missing required 'fiscal_quarter' field for symbol '{symbol}' "
+                        f"[{self.table_name}] WARNING: Row missing required 'fiscal_quarter' field for symbol '{symbol}' "
                         f"fiscal_year {fiscal_year}. Row data: {row}. Skipping."
                     )
+                    skipped_missing_keys += 1
                     continue
                 key = (symbol, fiscal_year, fiscal_quarter)
 
@@ -277,9 +283,19 @@ class IncomeStatementLoader(OptimalLoader):
                 seen[key] = row
 
         if not seen:
+            raise RuntimeError(
+                f"[{self.table_name}] CRITICAL: No valid rows after transformation. "
+                f"All {len(rows)} SEC EDGAR {self.period} income statement rows were filtered. "
+                f"Skipped {skipped_invalid_fields} rows with invalid fields, "
+                f"{skipped_missing_keys} rows with missing required keys. "
+                f"Cannot proceed without valid fundamental data."
+            )
+
+        if skipped_invalid_fields + skipped_missing_keys > 0:
             logger.warning(
-                f"[{self.table_name}] No valid transformed rows after deduplication. "
-                f"All rows were filtered due to missing required fields or validation failures."
+                f"[{self.table_name}] WARNING: Skipped {skipped_invalid_fields + skipped_missing_keys} rows "
+                f"(invalid fields: {skipped_invalid_fields}, missing keys: {skipped_missing_keys}). "
+                f"Income statement data completeness may be affected."
             )
 
         return list(seen.values())

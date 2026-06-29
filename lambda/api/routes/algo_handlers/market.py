@@ -741,8 +741,13 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
                                 f"VIX must be > 0. Setting to NULL to trigger fail-fast in dashboard."
                             )
                             market_health["vix_level"] = None
-                    except (ValueError, TypeError):
-                        pass
+                    except (ValueError, TypeError) as e:
+                        logger.error(
+                            f"[MARKETS API] CRITICAL: VIX conversion error - {e}. "
+                            f"Cannot validate market health data quality. VIX value invalid in database: {vix_val}. "
+                            f"Market health validation requires valid VIX (must be > 0)."
+                        )
+                        market_health["vix_level"] = None
             else:
                 return error_response(
                     503,

@@ -337,17 +337,20 @@ class MarketConstituentsLoader(OptimalLoader):
             ) from e
 
     def _fetch_russell2000_symbols(self) -> list[str]:
-        """Fetch Russell 2000 constituents from reliable source (multi-source fallback with explicit validation)."""
+        """Fetch Russell 2000 constituents from reliable source (optional enrichment).
+
+        Returns empty list if unavailable — Russell 2000 is optional enrichment data.
+        The loader continues without it rather than failing.
+        """
         urls = [
             "https://www.multpl.com/russell-2000/table/by-date",
             "https://en.wikipedia.org/wiki/Russell_2000",
         ]
 
-        last_error = None
         for url_index, url in enumerate(urls, 1):
             is_valid, error_msg = validate_url(url, allowed_domains=["multpl.com", "wikipedia.org"])
             if not is_valid:
-                logger.warning(
+                logger.debug(
                     f"[MARKET_CONSTITUENTS] Russell 2000 URL validation failed ({url_index}/{len(urls)}): {error_msg}. "
                     "Attempting next source."
                 )
@@ -361,7 +364,7 @@ class MarketConstituentsLoader(OptimalLoader):
 
                 tables = pd.read_html(StringIO(response.text))
                 if not tables:
-                    logger.warning(f"[MARKET_CONSTITUENTS] No tables found at Russell 2000 source ({url_index}/{len(urls)}). Attempting next source.")
+                    logger.debug(f"[MARKET_CONSTITUENTS] No tables found at Russell 2000 source ({url_index}/{len(urls)}). Attempting next source.")
                     continue
 
                 for table in tables:
@@ -372,28 +375,26 @@ class MarketConstituentsLoader(OptimalLoader):
                                 logger.info(f"Successfully fetched Russell 2000 data from source {url_index}/{len(urls)} using column '{col}': {len(symbols)} constituents")
                                 return symbols
 
-                logger.warning(f"[MARKET_CONSTITUENTS] No valid symbol column found at source {url_index}/{len(urls)}. Attempting next source.")
+                logger.debug(f"[MARKET_CONSTITUENTS] No valid symbol column found at source {url_index}/{len(urls)}. Attempting next source.")
 
             except requests.exceptions.Timeout as e:
-                last_error = e
-                logger.warning(
+                logger.debug(
                     f"[MARKET_CONSTITUENTS] Timeout fetching Russell 2000 from source {url_index}/{len(urls)}: {e}. "
                     "Attempting next source."
                 )
                 continue
             except Exception as e:
-                last_error = e
-                logger.warning(
+                logger.debug(
                     f"[MARKET_CONSTITUENTS] Failed to fetch Russell 2000 from source {url_index}/{len(urls)}: {e}. "
                     "Attempting next source."
                 )
                 continue
 
-        raise RuntimeError(
-            f"[MARKET_CONSTITUENTS] Failed to fetch Russell 2000 constituents from all available sources ({len(urls)} attempted). "
-            f"Last error: {last_error}. "
-            "Cannot load Russell 2000 constituent membership data."
+        logger.info(
+            f"[MARKET_CONSTITUENTS] Russell 2000 data unavailable from all sources ({len(urls)} attempted). "
+            "Continuing with S&P 500 and tradable symbols only (Russell 2000 is optional enrichment)."
         )
+        return []
 
     def _upsert_etf_symbols(self, etf_rows: list[dict[str, Any]]) -> None:
         """Refresh ETF symbols table with explicit validation (keep separate from tradable symbols)."""
