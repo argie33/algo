@@ -37,7 +37,7 @@ repos:
     hooks:
       - id: enforce-type-safety-rules
         name: Enforce type safety (no disabling Pylint critical checks)
-        entry: bash -c 'if grep -rn "# pylint: disable=comparison-with-callable\|# pylint: disable=unsupported-binary-operation" --include="*.py" --exclude-dir=migrations --exclude-dir=tests 2>/dev/null; then echo "❌ BLOCKED: Cannot disable comparison-with-callable or unsupported-binary-operation"; exit 1; fi; exit 0'
+        entry: bash -c "if grep -rn '# pylint: disable=comparison-with-callable' --include='*.py' --exclude-dir=migrations --exclude-dir=tests 2>/dev/null || grep -rn '# pylint: disable=unsupported-binary-operation' --include='*.py' --exclude-dir=migrations --exclude-dir=tests 2>/dev/null; then echo 'BLOCKED: Cannot disable comparison-with-callable or unsupported-binary-operation'; exit 1; fi; exit 0"
         language: system
         pass_filenames: false
         types: [python]
