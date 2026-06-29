@@ -482,11 +482,16 @@ CREATE TABLE IF NOT EXISTS quality_metrics (
     roe DECIMAL(8, 4),
     roa DECIMAL(8, 4),
     debt_to_equity DECIMAL(8, 4),
+    debt_to_assets DECIMAL(8, 4),
     current_ratio DECIMAL(8, 4),
     quick_ratio DECIMAL(8, 4),
     interest_coverage DECIMAL(8, 4),
+    quality_score DECIMAL(5, 2),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+-- Migration: add new columns for quality scoring
+ALTER TABLE quality_metrics ADD COLUMN IF NOT EXISTS debt_to_assets DECIMAL(8, 4);
+ALTER TABLE quality_metrics ADD COLUMN IF NOT EXISTS quality_score DECIMAL(5, 2);
 
 -- Growth metrics
 CREATE TABLE IF NOT EXISTS growth_metrics (
