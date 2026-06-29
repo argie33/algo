@@ -48,8 +48,8 @@ class SignalPatternsMixin:
             with DatabaseContext("read") as cur:
                 # SEC-001 FIX: Use parameterized query to prevent SQL injection
                 keys_list = list(thresholds.keys())
-                placeholders = ", ".join(["%s"] * len(keys_list))
-                query = f"SELECT key, value FROM algo_config WHERE key IN ({placeholders})"
+                param_marks = ", ".join(["%s"] * len(keys_list))
+                query = f"SELECT key, value FROM algo_config WHERE key IN ({param_marks})"
                 cur.execute(query, keys_list)
                 for k, v in cur.fetchall():
                     thresholds[k] = int(v)
@@ -224,6 +224,8 @@ class SignalPatternsMixin:
             return {
                 "type": "no_base",
                 "quality": "D",
+                "data_unavailable": True,
+                "reason": "base_not_detected" if base_info else "base_detection_failed",
                 "characteristics": base_info,
             }
 
@@ -238,7 +240,12 @@ class SignalPatternsMixin:
             )
             rows = list(reversed(cur.fetchall()))
             if len(rows) < 20:
-                return {"type": "no_base", "quality": "D"}
+                return {
+                    "type": "no_base",
+                    "quality": "D",
+                    "data_unavailable": True,
+                    "reason": "insufficient_price_history"
+                }
 
             highs = [float(r[1]) for r in rows]
             lows = [float(r[2]) for r in rows]
@@ -595,11 +602,13 @@ class SignalPatternsMixin:
         setup for swing traders willing to take the heat.
 
         Returns: {
-          'is_htf': bool,
+          'is_ht': bool,
           'prior_advance_pct': float,
           'consolidation_pct': float,
           'consolidation_weeks': int,
           'pivot_high': float,
+          'data_unavailable': bool (when pattern not detected),
+          'reason': str (when pattern not detected),
         }
         """
 
@@ -656,12 +665,16 @@ class SignalPatternsMixin:
 
             if best_htf:
                 return {
-                    "is_htf": True,
+                    "is_ht": True,
                     "prior_advance_pct": round(best_htf["advance"], 1),
                     "consolidation_pct": round(best_htf["cons_pct"], 1),
                     "consolidation_weeks": best_htf["cons_weeks"],
                     "pivot_high": round(best_htf["pivot_high"], 2),
                 }
-            return {"is_htf": False}
+            return {
+                "is_ht": False,
+                "data_unavailable": True,
+                "reason": "insufficient_htf_pattern_data"
+            }
 
         return cast(dict[str, Any], self._with_cursor(_analyze_htf))

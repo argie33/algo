@@ -113,13 +113,23 @@ def fetch_run(c: None) -> dict[str, Any]:
         # errored: use API field if present, otherwise derive from phase data
         api_errored = inner.get("errored")
         derived_errored = bool(errored_phases) or (not inner["success"] and not inner["halted"] and bool(phases))
+
+        # Extract optional enrichment fields with explicit logging
+        run_id = inner.get("run_id")
+        if run_id is None:
+            logger.debug("Last-run API response missing run_id (optional enrichment)")
+
+        summary = inner.get("summary")
+        if summary is None:
+            logger.debug("Last-run API response missing summary (optional enrichment)")
+
         return {
-            "run_id": inner.get("run_id"),
+            "run_id": run_id,
             "run_at": started_at,
             "success": inner["success"],
             "halted": inner["halted"],
             "errored": api_errored if api_errored is not None else derived_errored,
-            "summary": inner.get("summary"),
+            "summary": summary,
             "halt_reason": halt_reason,
             "phases_completed": [p.get("action_type") for p in completed_phases],
             "phases_halted": [p.get("action_type") for p in halted_phases],
@@ -193,11 +203,20 @@ def fetch_algo_config(c: None) -> dict[str, Any]:
             "base_risk_pct",
             "t1_target_r_multiple",
         ]
+        # Check for missing keys
         missing = [k for k in required_config if k not in cfg]
         if missing:
             error_msg = f"Config missing required fields: {missing}"
             logger.error(error_msg)
             record_data_quality_issue("cfg", "validation", "missing_fields", ", ".join(missing))
+            return FetcherValidator.build_error_response(error_msg)
+
+        # Check for None values in required fields (fail-fast: no silent None defaults)
+        null_fields = [k for k in required_config if cfg[k] is None]
+        if null_fields:
+            error_msg = f"Config has NULL values for required fields: {null_fields}"
+            logger.error(error_msg)
+            record_data_quality_issue("cfg", "validation", "null_required_fields", ", ".join(null_fields))
             return FetcherValidator.build_error_response(error_msg)
 
         # Boolean string conversion - CRITICAL: Must parse explicitly, no silent False default
@@ -320,6 +339,15 @@ def fetch_health(c: None) -> dict[str, Any]:
                 record_data_quality_issue("health", "validation", "missing_status_field", name)
                 return FetcherValidator.build_error_response(error_msg)
 
+            # Extract optional enrichment fields with explicit markers
+            last_updated = s.get("last_updated")
+            if last_updated is None:
+                logger.debug(f"Data freshness missing last_updated for {name} — optional enrichment unavailable")
+
+            row_count = s.get("row_count")
+            if row_count is None:
+                logger.debug(f"Data freshness missing row_count for {name} — optional enrichment unavailable")
+
             sources.append(
                 {
                     "tbl": name,
@@ -329,17 +357,27 @@ def fetch_health(c: None) -> dict[str, Any]:
                     # preserve originals for other panels that may use them
                     "name": name,
                     "status": status,
-                    "last_updated": s.get("last_updated"),
+                    "last_updated": last_updated,
                     "age_hours": age_hours,
-                    "row_count": s.get("row_count"),
+                    "row_count": row_count,
+                    # Mark optional fields as unavailable if missing
+                    "last_updated_available": last_updated is not None,
+                    "row_count_available": row_count is not None,
                 }
             )
         summary = inner.get("summary")
-        if not isinstance(summary, dict):
+        if summary is not None and not isinstance(summary, dict):
+            logger.debug(f"Health API summary field has unexpected type {type(summary).__name__}, treating as unavailable")
             summary = None
+
+        # Extract optional enrichment fields with explicit logging
+        ready_to_trade = inner.get("ready_to_trade")
+        if ready_to_trade is None:
+            logger.debug("Health API response missing ready_to_trade field (optional enrichment)")
+
         return {
             "items": sources,
-            "ready_to_trade": inner.get("ready_to_trade"),
+            "ready_to_trade": ready_to_trade,
             "summary": summary,
             "critical_stale": critical_stale,
         }
@@ -434,12 +472,20 @@ def fetch_circuit(c: None) -> dict[str, Any]:
                 return FetcherValidator.build_error_response(error_msg)
             is_triggered = r["triggered"]
 
+            unit = r.get("unit")
+            if unit is None:
+                logger.debug(f"Circuit breaker {label}: 'unit' field missing (optional enrichment)")
+                unit_display = ""
+            else:
+                unit_display = str(unit)
+
             formatted_bs.append(
                 {
                     "lbl": label,
                     "cur": float(cur_val),
                     "thr": float(thr_val),
-                    "u": r.get("unit", ""),
+                    "u": unit_display,
+                    "u_available": unit is not None,
                     "fired": safe_bool(is_triggered),
                 }
             )
@@ -486,11 +532,20 @@ def fetch_algo_metrics(c: None) -> dict[str, Any] | list[Any]:
 
         d = data
         if isinstance(d, list):
+            if not d:
+                logger.warning("Algo metrics API returned empty list")
+                record_data_quality_issue("algo_metrics", "validation", "empty_list")
             return d
         if isinstance(d, dict):
             # Remove statusCode if present (it's API metadata, not application data)
             cleaned = {k: v for k, v in d.items() if k != "statusCode"}
-            return [cleaned] if cleaned else [d]
+            if not cleaned:
+                # Dict was empty or only contained statusCode
+                logger.warning(f"Algo metrics API response has no data fields (only statusCode present: {d})")
+                record_data_quality_issue("algo_metrics", "validation", "empty_after_cleanup")
+                # Return empty data marker rather than statusCode
+                return [{}]
+            return [cleaned]
         error_msg = f"Algo metrics API response unexpected type: expected list or dict, got {type(d).__name__}"
         logger.error(error_msg)
         record_data_quality_issue("algo_metrics", "validation", "invalid_response_type")

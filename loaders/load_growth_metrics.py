@@ -100,7 +100,22 @@ class GrowthMetricsLoader(OptimalLoader):
 
     @staticmethod
     def _compute_metrics(symbol: str, latest: tuple[Any, Any, Any], all_years: list[Any]) -> dict[str, Any] | None:
-        """Compute multi-year growth metrics."""
+        """Compute multi-year growth metrics.
+
+        Args:
+            symbol: Stock symbol
+            latest: Tuple of (fiscal_year, revenue, earnings_per_share) for most recent year
+            all_years: List of all historical year tuples, sorted ascending (oldest first)
+
+        Returns:
+            Dictionary with computed growth metrics and data_unavailable flag.
+            Raises ValueError if inputs are malformed (fail-fast on data corruption).
+        """
+        if not latest or len(latest) != 3:
+            raise ValueError(f"[GROWTH_METRICS] Malformed latest data for {symbol}: expected (year, revenue, eps), got {latest}")
+        if not all_years or not isinstance(all_years, list):
+            raise ValueError(f"[GROWTH_METRICS] Malformed all_years for {symbol}: expected list, got {type(all_years)}")
+
         _latest_year, latest_rev, latest_eps = latest
 
         metrics: dict[str, Any] = {"symbol": symbol}
@@ -127,7 +142,7 @@ class GrowthMetricsLoader(OptimalLoader):
 
             # EPS growth
             if len(all_years) > lookback and all_years[idx] and latest_eps:
-                _prev_year2, _prev_rev2, prev_eps = all_years[idx]
+                _prev_year, _prev_rev, prev_eps = all_years[idx]
                 try:
                     if prev_eps is not None and float(prev_eps) > 0 and float(latest_eps) > 0:
                         # Convert to float to support Decimal types from database
@@ -143,11 +158,14 @@ class GrowthMetricsLoader(OptimalLoader):
                 metrics[f"eps_growth_{lookback}y"] = None
 
         # Check if we actually have any real data (not all NULL)
+        # Explicitly check that computed growth metrics exist and are not None
         has_revenue_growth = any(
-            metrics.get(f"revenue_growth_{y}y") is not None for y in [1, 3, 5]
+            metrics.get(f"revenue_growth_{y}y") is not None
+            for y in [1, 3, 5]
         )
         has_eps_growth = any(
-            metrics.get(f"eps_growth_{y}y") is not None for y in [1, 3, 5]
+            metrics.get(f"eps_growth_{y}y") is not None
+            for y in [1, 3, 5]
         )
 
         if has_revenue_growth or has_eps_growth:

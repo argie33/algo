@@ -112,6 +112,7 @@ class VectorizedTechnicalLoader:
                 "duration_sec": round(duration, 2),
                 "latest_date": latest_date,
                 "error": None,
+                "data_available": True,  # Indicators computed successfully
             }
 
         except RuntimeError as e:
@@ -122,6 +123,7 @@ class VectorizedTechnicalLoader:
                 "duration_sec": round(time.time() - start_time, 2),
                 "error": str(e),
                 "latest_date": None,
+                "data_available": False,  # Computation failed — no indicators available
             }
         except Exception as e:
             logger.error(f"VectorizedTechnicalLoader unexpected error: {e}", exc_info=True)
@@ -131,6 +133,7 @@ class VectorizedTechnicalLoader:
                 "duration_sec": round(time.time() - start_time, 2),
                 "error": f"Unexpected error: {e!s}",
                 "latest_date": None,
+                "data_available": False,  # Unexpected error — no indicators available
             }
 
     def _get_required_duration(self, result: dict[str, Any]) -> float:
@@ -165,11 +168,11 @@ class VectorizedTechnicalLoader:
         """
         try:
             with DatabaseContext("read") as cur:
-                placeholders = ",".join(["%s"] * len(symbols))
+                sql_param_markers = ",".join(["%s"] * len(symbols))
                 query = f"""
                     SELECT symbol, date, open, high, low, close, volume
                     FROM price_daily
-                    WHERE symbol IN ({placeholders})
+                    WHERE symbol IN ({sql_param_markers})
                     AND date >= %s AND date <= %s
                     ORDER BY symbol, date ASC
                 """
@@ -380,8 +383,19 @@ class VectorizedTechnicalLoader:
             ) from e
 
     def _bulk_insert(self, df: pd.DataFrame, since_date: date | None = None) -> int:
-        """Bulk insert all indicators at once using COPY (fast)."""
+        """Bulk insert all indicators at once using COPY (fast).
+
+        Returns:
+            Number of rows inserted. Returns 0 only if dataframe is empty (no indicators computed).
+
+        Raises:
+            RuntimeError: If database operation fails
+        """
         if df.empty:
+            logger.warning(
+                "[BULK_INSERT] No indicator data to insert: dataframe is empty. "
+                "This may indicate upstream computation failure or no price data available."
+            )
             return 0
 
         # Filter to only new data if incremental
@@ -455,8 +469,8 @@ class VectorizedTechnicalLoader:
                 # Delete existing rows for symbols being loaded (allows re-compute)
                 # Now protected by EXCLUSIVE lock — no other loader can interfere
                 symbols_to_load = insert_df["symbol"].unique().tolist()
-                placeholders = ",".join(["%s"] * len(symbols_to_load))
-                delete_sql = f"DELETE FROM technical_data_daily WHERE symbol IN ({placeholders})"
+                sql_param_markers = ",".join(["%s"] * len(symbols_to_load))
+                delete_sql = f"DELETE FROM technical_data_daily WHERE symbol IN ({sql_param_markers})"
                 cur.execute(delete_sql, symbols_to_load)
                 logger.info(f"Deleted {cur.rowcount} stale rows for {len(symbols_to_load)} symbols")
 
@@ -608,12 +622,31 @@ def main() -> int:
         logger.info(f"Result: {result}")
 
         # Validate result structure upfront
-        required_fields = ["rows_inserted", "error", "latest_date"]
+        required_fields = ["rows_inserted", "error", "latest_date", "data_available"]
         missing = [f for f in required_fields if f not in result]
         if missing:
             raise RuntimeError(
                 f"Loader returned incomplete result: missing {missing}. "
                 f"Expected fields: {required_fields}, got: {list(result.keys())}"
+            )
+
+        # Validate data_available is explicit boolean (never implicit)
+        if not isinstance(result["data_available"], bool):
+            raise RuntimeError(
+                f"[VALIDATION] data_available must be explicit boolean, got {type(result['data_available']).__name__}: "
+                f"{result['data_available']!r}. Cannot proceed with ambiguous data availability."
+            )
+
+        # Cross-validate error and data_available consistency
+        if not result["data_available"] and result["error"] is None:
+            raise RuntimeError(
+                "[VALIDATION] Inconsistent result: data_available=False but error=None. "
+                "When data is unavailable, error must contain failure reason."
+            )
+        if result["data_available"] and result["error"] is not None:
+            raise RuntimeError(
+                "[VALIDATION] Inconsistent result: data_available=True but error is set. "
+                "Cannot have both successful computation and error state."
             )
 
         # Update status to COMPLETED or FAILED based on result

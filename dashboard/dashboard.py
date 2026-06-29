@@ -66,7 +66,6 @@ from dashboard.api_data_layer import set_api_url, set_cognito_auth, validate_api
 from dashboard.cognito_auth import get_cognito_auth as get_cognito_auth_instance
 from dashboard.cognito_auth import save_tokens
 from dashboard.core import DashboardContext, ViewMode
-from dashboard.credentials_provider import CredentialsProvider
 from dashboard.error_boundary import error_summary_panel
 from dashboard.error_recovery import RenderRecovery
 from dashboard.fetchers import load_all
@@ -412,64 +411,92 @@ def _setup_local_api() -> str:
 
 
 def _fetch_and_validate_aws_credentials() -> tuple[str, str, str]:
-    """Fetch AWS credentials from environment, Secrets Manager, or Terraform."""
+    """Fetch AWS credentials from environment variables (primary source only).
+
+    CRITICAL: Fails fast if any credential is missing. AWS mode requires all three
+    credentials (dashboard API URL, Cognito user pool ID, and Cognito client ID).
+    No fallback to secondary sources — environment variables are the single source of truth.
+
+    Raises: SystemExit if any credential missing or invalid.
+    """
     env_url = os.environ.get("DASHBOARD_API_URL")
     env_pool = os.environ.get("COGNITO_USER_POOL_ID")
     env_client = os.environ.get("COGNITO_CLIENT_ID")
-    if env_url and env_pool and env_client:
-        logger.info("AWS mode: Using credentials from environment variables")
-        return env_url, env_pool, env_client
 
-    logger.info("AWS mode: Fetching dashboard credentials...")
-    try:
-        return CredentialsProvider.fetch_secrets_manager_credentials()
-    except RuntimeError as secrets_err:
-        logger.info(f"Secrets Manager unavailable: {secrets_err}")
+    if not env_url:
+        logger.error("[CREDS] DASHBOARD_API_URL environment variable not set")
         try:
-            return CredentialsProvider.fetch_terraform_credentials()
-        except RuntimeError as tf_err:
-            try:
-                CONSOLE.print("[bold red]ERROR:[/] Dashboard credentials not found")
-                CONSOLE.print("[bold cyan]To automate setup:[/]")
-                CONSOLE.print("[cyan]   scripts/setup-local-dev.ps1[/]")
-            except Exception as display_err:
-                logger.error(
-                    f"Dashboard credentials not found.\n"
-                    f"  Secrets Manager: {secrets_err}\n"
-                    f"  Terraform: {tf_err}\n"
-                    f"(Failed to display full message: {type(display_err).__name__})\n"
-                )
-            sys.exit(1)
+            CONSOLE.print("[bold red]ERROR:[/] DASHBOARD_API_URL environment variable required for AWS mode")
+            CONSOLE.print("[bold cyan]To set up:[/]")
+            CONSOLE.print("[cyan]   export DASHBOARD_API_URL='https://your-api-endpoint'[/]")
+            CONSOLE.print("[cyan]   export COGNITO_USER_POOL_ID='your-pool-id'[/]")
+            CONSOLE.print("[cyan]   export COGNITO_CLIENT_ID='your-client-id'[/]")
+        except Exception as display_err:
+            logger.error(f"Failed to display error message: {type(display_err).__name__}: {display_err}")
+        sys.exit(1)
+
+    if not env_pool:
+        logger.error("[CREDS] COGNITO_USER_POOL_ID environment variable not set")
+        try:
+            CONSOLE.print("[bold red]ERROR:[/] COGNITO_USER_POOL_ID environment variable required for AWS mode")
+        except Exception as display_err:
+            logger.error(f"Failed to display error message: {type(display_err).__name__}: {display_err}")
+        sys.exit(1)
+
+    if not env_client:
+        logger.error("[CREDS] COGNITO_CLIENT_ID environment variable not set")
+        try:
+            CONSOLE.print("[bold red]ERROR:[/] COGNITO_CLIENT_ID environment variable required for AWS mode")
+        except Exception as display_err:
+            logger.error(f"Failed to display error message: {type(display_err).__name__}: {display_err}")
+        sys.exit(1)
+
+    logger.info("AWS mode: Dashboard credentials loaded from environment variables")
+    return env_url, env_pool, env_client
 
 
 def _configure_aws_and_auth(aws_url: str, pool_id: str, client_id: str) -> None:
-    """Configure AWS API and Cognito authentication."""
+    """Configure AWS API and Cognito authentication.
+
+    CRITICAL: Fails fast if authentication cannot be established. AWS mode requires
+    valid Cognito credentials and successful user authentication. No degraded-state
+    fallbacks are permitted.
+
+    Raises: SystemExit if authentication fails or Cognito credentials invalid.
+    """
     set_api_url(aws_url)
     os.environ["DASHBOARD_API_URL"] = aws_url
     os.environ["COGNITO_USER_POOL_ID"] = pool_id
     os.environ["COGNITO_CLIENT_ID"] = client_id
-    logger.info("Dashboard credentials loaded from Secrets Manager")
+    logger.info("Dashboard credentials configured from environment variables")
 
-    try:
-        auth = get_cognito_auth_instance(require_auth=True)
-    except RuntimeError as e:
+    auth = get_cognito_auth_instance(require_auth=True)
+    if auth is None:
+        logger.error("[AUTH] Failed to initialize Cognito authentication instance")
         try:
-            CONSOLE.print("[bold red]ERROR:[/] Authentication required but Cognito credentials not found")
-            CONSOLE.print("[bold cyan]Options:[/]")
-            CONSOLE.print("[yellow]1. Set environment variables:[/]")
-            CONSOLE.print("[cyan]   $env:COGNITO_USERNAME = 'your_username'[/]")
-        except Exception as print_err:
-            logger.error(f"[AUTH] Authentication required but failed: {e}. (Failed to display full message: {type(print_err).__name__})")
-        logger.error(f"[AUTH] Authentication required but failed: {e}")
+            CONSOLE.print("[bold red]ERROR:[/] Cognito authentication initialization failed")
+            CONSOLE.print("[bold cyan]Required environment variables:[/]")
+            CONSOLE.print("[cyan]   COGNITO_USERNAME = 'your_username'[/]")
+            CONSOLE.print("[cyan]   COGNITO_PASSWORD = 'your_password' (set via AWS Secrets Manager)[/]")
+        except Exception as display_err:
+            logger.error(f"Failed to display error message: {type(display_err).__name__}: {display_err}")
         sys.exit(1)
 
     auth = cast(Any, auth)
-    if auth.is_authenticated():
-        set_cognito_auth(auth)
-        save_tokens(auth)
-    else:
-        logger.warning("[AUTH] Running with limited permissions - Cognito not fully authenticated")
-        set_cognito_auth(auth)
+    if not auth.is_authenticated():
+        logger.error("[AUTH] Cognito authentication failed - user is not authenticated")
+        try:
+            CONSOLE.print("[bold red]ERROR:[/] Authentication failed - invalid or missing Cognito credentials")
+            CONSOLE.print("[bold cyan]Verify:[/]")
+            CONSOLE.print("[cyan]   COGNITO_USERNAME environment variable is set[/]")
+            CONSOLE.print("[cyan]   COGNITO_PASSWORD is available in AWS Secrets Manager[/]")
+        except Exception as display_err:
+            logger.error(f"Failed to display error message: {type(display_err).__name__}: {display_err}")
+        sys.exit(1)
+
+    set_cognito_auth(auth)
+    save_tokens(auth)
+    logger.info("[AUTH] Dashboard authentication successful")
 
 
 def main() -> None:

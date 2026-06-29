@@ -184,10 +184,17 @@ class IncomeStatementLoader(OptimalLoader):
                     filtered.append(r)
 
             if len(filtered) < len(rows):
-                logger.debug(
-                    f"{symbol}: Filtered {len(rows) - len(filtered)} row(s) with fiscal_year <= {since_year} "
+                logger.info(
+                    f"[INCOME_STATEMENT] {symbol}: Filtered {len(rows) - len(filtered)} row(s) "
+                    f"with fiscal_year <= {since_year} "
                     f"(watermark incremental load — keeping {len(filtered)} newer rows; "
-                    f"{len(null_revenue_years)} null-revenue years also included)"
+                    f"{len(null_revenue_years)} null-revenue years also included for backfill)"
+                )
+            if not filtered:
+                logger.warning(
+                    f"[INCOME_STATEMENT] {symbol}: No {self._edgar_period} income statement rows "
+                    f"after incremental filtering (since={since_year}). "
+                    f"Original fetch returned {len(rows)} row(s), but all were filtered by watermark."
                 )
             return filtered
         except RuntimeError:
@@ -222,32 +229,87 @@ class IncomeStatementLoader(OptimalLoader):
                     if db_field not in row or (row[db_field] is None and value is not None):
                         row[db_field] = value
             if "fiscal_quarter" in row and isinstance(row["fiscal_quarter"], str):
-                row["fiscal_quarter"] = self._QUARTER_MAP.get(row["fiscal_quarter"])
+                quarter_str = row["fiscal_quarter"]
+                quarter_num = self._QUARTER_MAP.get(quarter_str)
+                if quarter_num is None:
+                    logger.error(
+                        f"[{self.table_name}] Invalid fiscal_quarter format '%s'. "
+                        f"Expected Q1-Q4, found '%s'. Skipping row.",
+                        quarter_str,
+                        quarter_str,
+                    )
+                    continue  # Skip this row instead of silently setting None
+                row["fiscal_quarter"] = quarter_num
             transformed.append(row)
 
         seen = {}
         for row in transformed:
             key: tuple[Any, ...]
-            if self.period == "annual":
-                key = (row.get("symbol"), row.get("fiscal_year"))
-            else:
-                key = (
-                    row.get("symbol"),
-                    row.get("fiscal_year"),
-                    row.get("fiscal_quarter"),
+            symbol = row.get("symbol")
+            fiscal_year = row.get("fiscal_year")
+
+            if not symbol:
+                logger.warning(
+                    f"[{self.table_name}] Row missing required 'symbol' field. Row data: {row}. Skipping."
                 )
+                continue
+            if fiscal_year is None:
+                logger.warning(
+                    f"[{self.table_name}] Row missing required 'fiscal_year' field for symbol '{symbol}'. "
+                    f"Row data: {row}. Skipping."
+                )
+                continue
+
+            if self.period == "annual":
+                key = (symbol, fiscal_year)
+            else:
+                fiscal_quarter = row.get("fiscal_quarter")
+                if fiscal_quarter is None:
+                    logger.warning(
+                        f"[{self.table_name}] Row missing required 'fiscal_quarter' field for symbol '{symbol}' "
+                        f"fiscal_year {fiscal_year}. Row data: {row}. Skipping."
+                    )
+                    continue
+                key = (symbol, fiscal_year, fiscal_quarter)
+
             if key not in seen:
                 seen[key] = row
+
+        if not seen:
+            logger.warning(
+                f"[{self.table_name}] No valid transformed rows after deduplication. "
+                f"All rows were filtered due to missing required fields or validation failures."
+            )
+
         return list(seen.values())
 
     def _validate_row(self, row: dict[str, Any]) -> bool:
         if not super()._validate_row(row):
+            symbol = row.get("symbol", "UNKNOWN")
+            logger.warning(
+                f"[{self.table_name}] Row failed parent validation for symbol '{symbol}'. "
+                f"Row: {row}."
+            )
             return False
+
         fy = row.get("fiscal_year")
-        if not (fy and 1990 < fy < 2100):
+        if not fy or not (1990 < fy < 2100):
+            symbol = row.get("symbol", "UNKNOWN")
+            logger.warning(
+                f"[{self.table_name}] Row has invalid or missing fiscal_year for symbol '{symbol}'. "
+                f"Expected 4-digit year between 1990 and 2100, got: {fy}."
+            )
             return False
-        if self.period == "quarterly" and row.get("fiscal_quarter") is None:
-            return False
+
+        if self.period == "quarterly":
+            fiscal_quarter = row.get("fiscal_quarter")
+            if fiscal_quarter is None:
+                symbol = row.get("symbol", "UNKNOWN")
+                logger.warning(
+                    f"[{self.table_name}] Quarterly income statement row missing required 'fiscal_quarter' "
+                    f"for symbol '{symbol}' fiscal_year {fy}."
+                )
+                return False
 
         # Reject rows where all key financial fields are NULL
         # (indicates API failure or no data available for this symbol/year)
@@ -258,6 +320,12 @@ class IncomeStatementLoader(OptimalLoader):
             "cost_of_revenue",
         ]
         if all(row.get(field) is None for field in financial_fields):
+            symbol = row.get("symbol", "UNKNOWN")
+            logger.error(
+                f"[{self.table_name}] Row has all critical financial fields NULL for symbol '{symbol}' "
+                f"fiscal_year {fy}. This indicates incomplete data from SEC EDGAR. "
+                f"Row: {row}. Rejecting row — cannot trust incomplete financial data."
+            )
             return False
 
         return True

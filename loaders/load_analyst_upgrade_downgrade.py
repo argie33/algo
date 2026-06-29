@@ -33,12 +33,13 @@ class AnalystRatingsLoader(OptimalLoader):
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Fetch analyst upgrades/downgrades from yfinance.
 
-        Returns empty list (not None) if analyst rating history is unavailable.
-        All returned records must have complete analyst rating data (Firm, To Grade, Action).
+        Returns list of analyst upgrade/downgrade records. If no data is available or all records
+        are invalid, returns a list containing one dict with data_unavailable marker.
+        All returned valid records must have complete analyst rating data (Firm, To Grade, Action).
 
         Raises:
             TransientAPIError: On timeouts/connection errors (orchestrator will retry with backoff)
-            ValueError: If a record is missing required analyst rating field (indicates data format change)
+            RuntimeError: If yfinance returns unexpected data structure (API format change, corrupted data)
 
         Analyst upgrades/downgrades are optional enrichment; their absence does not prevent trading.
         """
@@ -105,20 +106,22 @@ class AnalystRatingsLoader(OptimalLoader):
         for idx, row in upgrades_downgrades.iterrows():
             ud_date = idx.date() if hasattr(idx, "date") else idx
             # Validate required fields (use actual column names from API)
+            # .get() is safe here: yfinance column names vary, None means field doesn't exist in this record
             firm = row.get("Firm")
             to_grade = row.get(to_grade_col)
             action = row.get("Action")
 
             if not firm or (isinstance(firm, float) and pd.isna(firm)):
-                logger.warning(f"[ANALYST_RATINGS] Missing Firm for {symbol} on {ud_date}, skipping")
+                logger.warning(f"[ANALYST_RATINGS] Missing Firm for {symbol} on {ud_date}, skipping record")
                 continue
             if not to_grade or (isinstance(to_grade, float) and pd.isna(to_grade)):
-                logger.warning(f"[ANALYST_RATINGS] Missing {to_grade_col} for {symbol} on {ud_date}, skipping")
+                logger.warning(f"[ANALYST_RATINGS] Missing {to_grade_col} for {symbol} on {ud_date}, skipping record")
                 continue
             if not action or (isinstance(action, float) and pd.isna(action)):
-                logger.warning(f"[ANALYST_RATINGS] Missing Action for {symbol} on {ud_date}, skipping")
+                logger.warning(f"[ANALYST_RATINGS] Missing Action for {symbol} on {ud_date}, skipping record")
                 continue
 
+            # old_rating is optional (older records may not have FromGrade), safe to use .get()
             old_rating_raw = row.get(from_grade_col) if from_grade_col else None
             old_rating_str = str(old_rating_raw).strip() if old_rating_raw else None
             results.append(
@@ -131,6 +134,15 @@ class AnalystRatingsLoader(OptimalLoader):
                     "action": str(action).strip(),
                 }
             )
+
+        # If all records were skipped due to validation failures, return explicit marker
+        if not results:
+            logger.warning(f"[ANALYST_RATINGS] All records skipped for {symbol} (all records missing required fields)")
+            return [{
+                "symbol": symbol,
+                "data_unavailable": True,
+                "reason": "All analyst upgrade/downgrade records missing required fields (Firm, Rating, Action)"
+            }]
 
         return results
 

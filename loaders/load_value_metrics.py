@@ -103,9 +103,6 @@ class ValueMetricsLoader(OptimalLoader):
         import time
         start_time = time.time()
         try:
-            elapsed = time.time() - start_time
-            if elapsed > 10:
-                logger.warning(f"[VALUE_METRICS] {symbol}: get_ticker took {elapsed:.1f}s")
             ticker = get_ticker(symbol)
             if not ticker:
                 elapsed = time.time() - start_time
@@ -130,8 +127,11 @@ class ValueMetricsLoader(OptimalLoader):
                 ]
 
             info = ticker.info
-            if not info:
-                logger.info(f"[VALUE_METRICS] No financial info for {symbol} — metrics unavailable")
+            if not info or not isinstance(info, dict):
+                logger.info(
+                    f"[VALUE_METRICS] No financial info or unexpected info type for {symbol} "
+                    f"(type={type(info).__name__}) — metrics unavailable"
+                )
                 return [
                     {
                         "symbol": symbol,

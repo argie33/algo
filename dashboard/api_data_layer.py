@@ -64,6 +64,12 @@ logger = logging.getLogger(__name__)
 
 # Dashboard API URL will be set at runtime, either from environment or via set_api_url()
 _dashboard_api_url = os.environ.get("DASHBOARD_API_URL")
+if not _dashboard_api_url:
+    logger.debug(
+        "DASHBOARD_API_URL environment variable not set. "
+        "Using default localhost:8000 for development. "
+        "For production, set DASHBOARD_API_URL to your API endpoint."
+    )
 API_BASE_URL = _dashboard_api_url if _dashboard_api_url else "http://localhost:8000"
 API_TIMEOUT = 20
 API_MAX_RETRIES = 3
@@ -251,9 +257,28 @@ def is_stale_data(data: dict[str, Any]) -> bool:
 def get_cache_age_seconds(data: dict[str, Any]) -> int | None:
     """Get age of cached data in seconds.
 
-    Returns None if data is not from cache, or age in seconds if stale.
+    EXPLICIT UNAVAILABILITY: Returns None only if data is not from cache (fresh API response).
+    If data is from cache, returns age in seconds.
+
+    Args:
+        data: Response dict (potentially with _cache_age_seconds)
+
+    Returns:
+        Age in seconds if data is from cache, None if fresh API response
+
+    Raises:
+        ValueError: If _cache_age_seconds is present but not an integer (data corruption)
     """
-    return data.get("_cache_age_seconds")
+    if "_cache_age_seconds" not in data:
+        logger.debug("Data is fresh from API (not from cache), _cache_age_seconds not present")
+        return None
+
+    age = data.get("_cache_age_seconds")
+    if not isinstance(age, int):
+        raise ValueError(
+            f"Cache age corrupted: _cache_age_seconds is {type(age).__name__}, expected int. Value: {age}"
+        )
+    return age
 
 
 def get_cached_response(endpoint: str, mark_stale: bool = False) -> dict[str, Any] | None:
@@ -281,6 +306,7 @@ def get_cached_response(endpoint: str, mark_stale: bool = False) -> dict[str, An
     with _response_cache_lock:
         cached = _response_cache.get(endpoint)
         if not cached:
+            logger.debug(f"No cached response found for {endpoint} - API response required")
             return None
     # Validate cache structure (fail-fast if corrupted)
     if "data" not in cached:
@@ -519,15 +545,24 @@ def _unwrap_api_response(response: dict[str, Any]) -> dict[str, Any]:
     This function extracts the payload while preserving statusCode so callers can
     distinguish between successful and error responses.
 
+    CRITICAL FAIL-FAST: All API responses MUST be dicts. If response is not a dict,
+    this indicates a critical data corruption issue and must fail immediately.
+
     Args:
         response: Full API response dict with format {statusCode: X, data: {...}, ...}
 
     Returns:
         Unwrapped response preserving statusCode and payload. Allows callers to check
         statusCode >= 400 to distinguish errors from successful empty responses.
+
+    Raises:
+        RuntimeError: If response is not a dict (data corruption or malformed JSON)
     """
     if not isinstance(response, dict):
-        return cast(dict[str, Any], response)
+        raise RuntimeError(
+            f"API response is not a dict. Received {type(response).__name__}: {response!r}. "
+            "This indicates data corruption or malformed JSON from API. Cannot proceed."
+        )
 
     status_code = response.get("statusCode")
     if status_code is None:
@@ -545,11 +580,22 @@ def _unwrap_api_response(response: dict[str, Any]) -> dict[str, Any]:
             payload = cast(dict[str, Any], data_field)
         else:
             # Data field is malformed (string, list, etc) - mark as error
+            logger.error(
+                f"API response data field is malformed: "
+                f"expected dict but got {type(data_field).__name__}. Value: {data_field!r}"
+            )
             payload = {"_error": f"Response data field is {type(data_field).__name__}, expected dict"}
     else:
         # Fallback for error responses that have no 'data' field
         # Keep statusCode but remove other metadata markers
         payload = {k: v for k, v in response.items() if k not in ("statusCode", "headers")}
+        if not payload:
+            # Empty payload after filtering - log explicitly that response contains no data
+            logger.warning(
+                f"API response has no data field and no other fields (after filtering metadata). "
+                f"Original response keys: {list(response.keys())}. "
+                f"This may indicate an error response with missing 'data' field."
+            )
 
     # Preserve statusCode at top level so callers can distinguish errors from success
     result: dict[str, Any] = {"statusCode": status_code}

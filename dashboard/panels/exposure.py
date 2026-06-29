@@ -87,13 +87,18 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
     if err_panel:
         return err_panel
     if "factors" not in exp_f:
-        return Text.from_markup("[red]✗ Exposure data missing 'factors' field[/] (API schema issue)")
+        logger.error("[EXPOSURE] factors field missing from API response")
+        return Text.from_markup("[red]✗ Exposure data missing 'factors' field — API schema mismatch[/]")
     raw = exp_f.get("raw_score")
     epct = exp_f.get("exposure_pct")
     regime = exp_f.get("regime")
     if regime is None or regime == "":
-        regime = "[yellow]UNAVAILABLE[/]"
-    factors = exp_f["factors"]
+        logger.warning("[EXPOSURE] regime field missing or empty — market regime unavailable")
+        regime = "[yellow]⚠ regime unavailable[/]"
+    factors = exp_f.get("factors", {})
+    if not isinstance(factors, dict):
+        logger.error("[EXPOSURE] factors field is not a dict, received type: %s", type(factors).__name__)
+        return Text.from_markup("[red]✗ Exposure factors has invalid type[/]")
     tier = _tier_formatter.format(epct)
     tc = TIER_COLOR.get(tier, "dim")
 
@@ -185,14 +190,18 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
     items = []
     for key, label, max_pts in factor_map:
         if not factors or key not in factors:
+            logger.debug("[EXPOSURE] factor %s not in response", key)
             f = {}
         else:
             f = factors[key]
             if not isinstance(f, dict):
+                logger.warning("[EXPOSURE] factor %s has invalid type: %s, expected dict", key, type(f).__name__)
                 f = {}
         pts_raw = f.get("pts")
         if pts_raw is None:
-            items.append(f"[dim]{label}:[/] [yellow]⚠ N/A[/][dim] /{max_pts}[/]")
+            reason = f.get("reason", "no data")
+            logger.debug("[EXPOSURE] factor %s missing pts field: %s", key, reason)
+            items.append(f"[dim]{label}:[/] [yellow]⚠ {reason[:20]}[/][dim] /{max_pts}[/]")
         else:
             try:
                 pts = safe_float(pts_raw, strict=True, field_name=f"{label}_pts")
@@ -215,30 +224,34 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
         sr_raw = factors.get("sector_rotation")
         if isinstance(sr_raw, dict):
             sr = sr_raw
+        else:
+            logger.debug("[EXPOSURE] sector_rotation not available or invalid type: %s", type(sr_raw).__name__ if sr_raw is not None else "None")
         eco_raw = factors.get("economic_overlay")
         if isinstance(eco_raw, dict):
             eco = eco_raw
+        else:
+            logger.debug("[EXPOSURE] economic_overlay not available or invalid type: %s", type(eco_raw).__name__ if eco_raw is not None else "None")
 
     sr_pen = None
     eco_pen = None
     if sr:
         sr_pts_raw = sr.get("pts")
         if sr_pts_raw is None:
-            logger.warning("sector_rotation factor missing 'pts' field")
+            logger.warning("[EXPOSURE] sector_rotation factor present but missing 'pts' field")
         else:
             try:
                 sr_pen = safe_float(sr_pts_raw, None, strict=True, field_name="sector_rotation_pts")
             except StrictValidationError as e:
-                logger.warning(f"sector_rotation pts conversion failed: {e}")
+                logger.error("[EXPOSURE] sector_rotation pts conversion failed: %s", e)
     if eco:
         eco_pts_raw = eco.get("pts")
         if eco_pts_raw is None:
-            logger.warning("economic_overlay factor missing 'pts' field")
+            logger.warning("[EXPOSURE] economic_overlay factor present but missing 'pts' field")
         else:
             try:
                 eco_pen = safe_float(eco_pts_raw, None, strict=True, field_name="economic_overlay_pts")
             except StrictValidationError as e:
-                logger.warning(f"economic_overlay pts conversion failed: {e}")
+                logger.error("[EXPOSURE] economic_overlay pts conversion failed: %s", e)
     if sr_pen is not None and sr_pen < 0 and sr:
         sig = (sr.get("signal", "")).replace("_", " ")[:18]
         items.append(f"[dim]Sector Rotation:[/] [{R}]{sr_pen:+.0f}[/] [dim]{sig}[/]")
@@ -277,20 +290,43 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
         return err_panel
 
     if "factors" not in exp_f:
-        rows.append(Text.from_markup("[red]✗ Exposure data missing 'factors' field[/] (API schema issue)"))
-        return rows
+        logger.error("[EXPOSURE_EXPANDED] factors field missing from API response")
+        rows.append(Text.from_markup("[red]✗ Exposure data missing 'factors' field — API schema mismatch[/]"))
+        return Panel(
+            Group(*cast(list[ConsoleRenderable | RichCast | str], rows)),
+            title="[bold blue]EXPOSURE SCORE - EXPANDED[/]  [dim][x] return[/]",
+            border_style="blue",
+            padding=(0, 1),
+        )
     raw = exp_f.get("raw_score")
     epct = exp_f.get("exposure_pct")
-    # If raw_score or exposure_pct are missing, show data unavailable instead of crashing
+    # If raw_score or exposure_pct are missing, return explicit data_unavailable marker
     if raw is None or epct is None:
-        return Text.from_markup(
+        missing_fields = []
+        if raw is None:
+            logger.warning("[EXPOSURE_EXPANDED] raw_score field missing")
+            missing_fields.append("raw_score")
+        if epct is None:
+            logger.warning("[EXPOSURE_EXPANDED] exposure_pct field missing")
+            missing_fields.append("exposure_pct")
+        rows.append(Text.from_markup(
             f"[yellow]⚠ Exposure data incomplete[/]\n"
-            f"[dim]Available fields: {', '.join(list(exp_f.keys()))}\n"
-            f"Missing: {('raw_score' if raw is None else '') + (', exposure_pct' if epct is None else '')}[/]"
+            f"[dim]Missing required fields: {', '.join(missing_fields)}\n"
+            f"Available: {', '.join(list(exp_f.keys()))}[/]"
+        ))
+        return Panel(
+            Group(*cast(list[ConsoleRenderable | RichCast | str], rows)),
+            title="[bold blue]EXPOSURE SCORE - EXPANDED[/]  [dim][x] return[/]",
+            border_style="blue",
+            padding=(0, 1),
         )
     regime = exp_f.get("regime", "")
-    factors = exp_f.get("factors", {})
+    if not regime:
+        logger.warning("[EXPOSURE_EXPANDED] regime field missing or empty")
+        regime = "unavailable"
+    factors = exp_f.get("factors")
     if not isinstance(factors, dict):
+        logger.error("[EXPOSURE_EXPANDED] factors field is not a dict, received type: %s", type(factors).__name__)
         factors = {}
     tier = _tier_formatter.format(epct)
     tc = TIER_COLOR.get(tier, "dim")
@@ -340,11 +376,13 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
 
     for key, label, max_pts, context in factor_map_exp:
         if key not in factors:
-            # Factor missing from API response — skip (should rarely happen)
+            # Factor missing from API response — log and skip
+            logger.debug("[EXPOSURE_EXPANDED] factor %s not in response", key)
             f = {}
         else:
             f = factors[key]
             if not isinstance(f, dict):
+                logger.warning("[EXPOSURE_EXPANDED] factor %s has invalid type: %s, expected dict", key, type(f).__name__)
                 f = {}
 
         pts_raw = f.get("pts") if f else None
@@ -352,7 +390,13 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
             # Factor has no data — show ⚠ N/A rather than a misleading 0-point bar
             reason_val = f.get("reason")
             if reason_val is None:
-                reason_val = "stale" if f.get("stale") else "no data"
+                # Check for explicit stale marker
+                if f.get("stale"):
+                    logger.debug("[EXPOSURE_EXPANDED] factor %s marked stale", key)
+                    reason_val = "stale"
+                else:
+                    logger.debug("[EXPOSURE_EXPANDED] factor %s missing pts and reason", key)
+                    reason_val = "no data"
             reason = reason_val[:18]
             bar_s = Text.from_markup(f"[yellow]⚠ N/A{'':>10}[/]  [dim]--/{max_pts}[/]")
             tbl.add_row(
@@ -449,30 +493,34 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
         sr_raw = factors.get("sector_rotation")
         if isinstance(sr_raw, dict):
             sr = sr_raw
+        else:
+            logger.debug("[EXPOSURE_EXPANDED_ADJ] sector_rotation not available or invalid type: %s", type(sr_raw).__name__ if sr_raw is not None else "None")
         eco_raw = factors.get("economic_overlay")
         if isinstance(eco_raw, dict):
             eco = eco_raw
+        else:
+            logger.debug("[EXPOSURE_EXPANDED_ADJ] economic_overlay not available or invalid type: %s", type(eco_raw).__name__ if eco_raw is not None else "None")
 
     sr_pen = None
     eco_pen = None
     if sr:
         sr_pts_raw = sr.get("pts")
         if sr_pts_raw is None:
-            logger.error("CRITICAL: sector_rotation factor missing 'pts' field — cannot calculate adjustment")
+            logger.error("[EXPOSURE_EXPANDED_ADJ] sector_rotation factor present but missing 'pts' field — cannot calculate adjustment")
         else:
             try:
                 sr_pen = safe_float(sr_pts_raw, strict=True, field_name="sector_rotation_pts")
             except StrictValidationError as e:
-                logger.error(f"CRITICAL: sector_rotation pts conversion failed: {e}")
+                logger.error("[EXPOSURE_EXPANDED_ADJ] sector_rotation pts conversion failed: %s", e)
     if eco:
         eco_pts_raw = eco.get("pts")
         if eco_pts_raw is None:
-            logger.error("CRITICAL: economic_overlay factor missing 'pts' field — cannot calculate adjustment")
+            logger.error("[EXPOSURE_EXPANDED_ADJ] economic_overlay factor present but missing 'pts' field — cannot calculate adjustment")
         else:
             try:
                 eco_pen = safe_float(eco_pts_raw, strict=True, field_name="economic_overlay_pts")
             except StrictValidationError as e:
-                logger.error(f"CRITICAL: economic_overlay pts conversion failed: {e}")
+                logger.error("[EXPOSURE_EXPANDED_ADJ] economic_overlay pts conversion failed: %s", e)
     if sr_pen is not None or eco_pen is not None:
         rows.append(Rule(style="dim"))
         rows.append(Text.from_markup("[dim bold]ADJUSTMENTS[/]"))
@@ -481,7 +529,8 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
             sc = R if sr_pen < 0 else G
             rows.append(Text.from_markup(f"  [dim]Sector Rotation:[/] [{sc}]{sr_pen:+.0f} pts[/]  [dim]{sig}[/]"))
         elif sr:
-            rows.append(Text.from_markup("  [dim]Sector Rotation:[/] [red]✗ data unavailable[/]"))
+            logger.debug("[EXPOSURE_EXPANDED_ADJ] sector_rotation present but pts field missing")
+            rows.append(Text.from_markup("  [dim]Sector Rotation:[/] [red]✗ pts calculation failed[/]"))
         if eco_pen is not None and eco:
             eco_err = (eco.get("error", ""))[:30]
             ec = R if eco_pen < 0 else G
@@ -492,7 +541,8 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
                 )
             )
         elif eco:
-            rows.append(Text.from_markup("  [dim]Economic Overlay:[/] [red]✗ data unavailable[/]"))
+            logger.debug("[EXPOSURE_EXPANDED_ADJ] economic_overlay present but pts field missing")
+            rows.append(Text.from_markup("  [dim]Economic Overlay:[/] [red]✗ pts calculation failed[/]"))
 
     return Panel(
         Group(*cast(list[ConsoleRenderable | RichCast | str], rows)),

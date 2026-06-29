@@ -72,12 +72,19 @@ from .data_extractors import extract_economic_indicators
 
 
 def _build_calendar_rows(econ_cal: Any) -> list[Text | Rule]:
-    """Extract and format economic calendar events."""
+    """Extract and format economic calendar events.
+
+    Economic calendar is optional enrichment (DEBUG-level when missing).
+    """
     rows: list[Text | Rule] = []
-    # Fail-fast: return early if API error detected
+
+    # Fail-fast: log and return early if API error detected
     if has_error(econ_cal):
+        error_msg = econ_cal.get("_error", "unknown error") if isinstance(econ_cal, dict) else "invalid data structure"
+        logger.debug(f"Economic calendar data unavailable: {error_msg}")
         return rows
 
+    # Extract calendar items (optional field, may be dict with "items" key or raw list)
     econ_cal_items = (
         econ_cal.get("items")
         if isinstance(econ_cal, dict) and "items" in econ_cal
@@ -86,6 +93,7 @@ def _build_calendar_rows(econ_cal: Any) -> list[Text | Rule]:
     valid_cal = econ_cal_items if econ_cal_items else []
 
     if not valid_cal:
+        logger.debug("Economic calendar: no upcoming events available")
         return rows
 
     from datetime import date
@@ -118,8 +126,8 @@ def _build_calendar_rows(econ_cal: Any) -> list[Text | Rule]:
 
         importance_val = ev.get("importance")
         if importance_val is None:
-            logger.warning(f"Economic calendar event '{name}' missing 'importance' field")
-            importance_val = "LOW"  # Default for display only, but logged
+            logger.debug(f"Economic calendar event '{name}' ({ed_raw!s}) missing 'importance' field - defaulting to LOW for display")
+            importance_val = "LOW"  # Default for display only; missing enrichment field logged at DEBUG
         imp = str(importance_val).upper()
         ic = imp_c.get(imp, "dim")
 
@@ -292,6 +300,7 @@ def panel_economic_pulse(eco: Any, econ_cal: Any = None) -> Panel:  # noqa: C901
     rows.extend(_build_calendar_rows(econ_cal))
 
     if not rows:
+        logger.debug("Economic pulse: all indicators unavailable - displaying empty state")
         rows.append(Text("[dim]no economic data[/]"))
     return Panel(
         Group(*rows),
@@ -467,6 +476,7 @@ def panel_economic_expanded(eco: Any, econ_cal: Any = None) -> Any:  # noqa: C90
         rows.extend(cal_rows[1:])
 
     if not rows:
+        logger.debug("Economic expanded view: all indicators unavailable - displaying empty state")
         rows.append(Text("[dim]no economic data[/]"))
     return Panel(
         Group(*cast(list[ConsoleRenderable | RichCast | str], rows)),
