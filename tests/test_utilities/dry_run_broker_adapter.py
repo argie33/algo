@@ -80,9 +80,13 @@ class DryRunBrokerAdapter(BrokerAdapter):
         """Return empty closed orders (no order history in dry-run mode)."""
         return []
 
-    def fetch_initial_capital(self) -> float | None:
-        """Return None (initial capital not tracked in dry-run mode)."""
-        return None
+    def fetch_initial_capital(self) -> float | dict[str, Any]:
+        """Return error marker (initial capital not tracked in dry-run mode).
+
+        Dry-run mode returns empty portfolio history, so returns explicit error marker
+        to match production behavior.
+        """
+        return {"error": "empty_portfolio_history", "initial_capital": None}
 
     def sync_positions(self, cur: Any) -> dict[str, Any]:
         """Return empty position sync result (no positions in dry-run mode)."""

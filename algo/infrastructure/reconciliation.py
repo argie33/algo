@@ -1308,9 +1308,19 @@ class DailyReconciliation:
         """
         try:
             initial_val = self.broker.fetch_initial_capital()
+            # Check if dict (error marker) or float (valid data)
+            if isinstance(initial_val, dict):
+                error_reason = initial_val.get("error", "unknown")
+                raise ValueError(
+                    f"CRITICAL: Broker returned empty portfolio history (error: {error_reason}). "
+                    "Initial capital cannot be determined from Alpaca. "
+                    "Reconciliation requires live broker history for accurate P&L — cannot proceed."
+                )
             if initial_val and initial_val > 0:
                 logger.info(f"Initial capital from broker history: ${initial_val:,.2f}")
                 return initial_val
+        except ValueError:
+            raise
         except Exception as e:
             raise ValueError(
                 f"CRITICAL: Cannot fetch initial capital from Alpaca broker history: {e}. "

@@ -68,10 +68,12 @@ class BrokerAdapter(Protocol):
         """
         ...
 
-    def fetch_initial_capital(self) -> float | None:
+    def fetch_initial_capital(self) -> float | dict[str, Any]:
         """Fetch initial portfolio equity (first known value from account history).
 
         Returns:
-            Initial capital amount, or None if unavailable
+            Initial capital amount as float if available,
+            or dict with error marker {"error": "empty_portfolio_history", "initial_capital": None}
+            if history is empty. Allows callers to distinguish "empty history" from "API failed".
         """
         ...
