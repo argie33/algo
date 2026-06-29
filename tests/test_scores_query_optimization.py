@@ -16,7 +16,7 @@ def test_query_optimization():
     """Verify scores query optimization is correctly implemented."""
     # Read the source code to check query structure
     source_file = "lambda/api/routes/scores.py"
-    with open(source_file, "r") as f:
+    with open(source_file) as f:
         source = f.read()
 
     print("=" * 70)
@@ -94,7 +94,7 @@ def test_query_optimization():
         timeout = int(timeout_match.group(1))
         print(f"    Query timeout: {timeout} seconds")
         if timeout <= 30:
-            print(f"    [OK] Timeout is reasonable for optimized query")
+            print("    [OK] Timeout is reasonable for optimized query")
         else:
             print(f"    [WARNING] Timeout may be too high: {timeout}s")
     else:

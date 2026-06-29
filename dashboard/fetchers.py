@@ -182,7 +182,7 @@ def _execute_fetcher_batch(
                 raise RuntimeError(
                     f"[DASHBOARD CRITICAL] Critical fetcher(s) timed out: {missing_str}. "
                     f"Cannot render dashboard without this data."
-                )
+                ) from None
 
     return out
 

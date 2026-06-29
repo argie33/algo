@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 
 @db_route_handler("fetch algo positions")
-def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:
+def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa: C901
     """Get current open positions with computed fields.
 
     Provides comprehensive position data with:
@@ -389,7 +389,7 @@ def _get_algo_trades(cur: cursor, limit: int = 200, user_id: str | None = None, 
 
 
 @db_route_handler("fetch circuit breakers")
-def _get_circuit_breakers(cur: cursor) -> Any:
+def _get_circuit_breakers(cur: cursor) -> Any:  # noqa: C901
     """Get real-time circuit breaker state with current values vs thresholds."""
     try:
         today = date.today()

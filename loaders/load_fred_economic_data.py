@@ -139,7 +139,7 @@ class FredEconomicDataLoader(OptimalLoader):
             }
         )
 
-    def fetch_global(self, since: date | None) -> list[dict[str, Any]]:
+    def fetch_global(self, since: date | None) -> list[dict[str, Any]]:  # noqa: C901
         """Fetch FRED economic data for all configured series with circuit breaker and freshness validation."""
         api_key = get_fred_api_key()
 

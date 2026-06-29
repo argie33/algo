@@ -38,7 +38,7 @@ _ETF_TABLE_MAP = {
 }
 
 
-def handle(
+def handle(  # noqa: C901
     cur: cursor,
     path: str,
     method: str,

@@ -879,8 +879,8 @@ class MarketExposure:
 
         if not rows:
             logger.warning(
-                f"[MARKET_EXPOSURE] Cannot compute 150-day SMA: insufficient price history. "
-                f"Market exposure factor unavailable — risk calculations may be degraded."
+                "[MARKET_EXPOSURE] Cannot compute 150-day SMA: insufficient price history. "
+                "Market exposure factor unavailable — risk calculations may be degraded."
             )
             return {
                 "score_factor": None,

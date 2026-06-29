@@ -633,7 +633,7 @@ class SignalsDailyLoader(OptimalLoader):
         return rows
 
 
-def main() -> int:
+def main() -> int:  # noqa: C901
     parser = argparse.ArgumentParser(description="Load daily trading signals")
     parser.add_argument("--symbols", type=str, help="Comma-separated symbols")
     parser.add_argument(

@@ -279,7 +279,7 @@ def _calculate_trade_preview(cur: cursor, body: dict[str, Any]) -> Any:
 
 
 @db_route_handler("fetch rejection funnel")
-def _get_rejection_funnel(cur: cursor) -> Any:
+def _get_rejection_funnel(cur: cursor) -> Any:  # noqa: C901
     """Get signal rejection funnel with detailed breakdown by filter."""
     try:
         today = date.today()

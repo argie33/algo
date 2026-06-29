@@ -47,7 +47,7 @@ def handle(
             try:
                 limit = safe_limit(limit_str, max_val=10000)
             except (ValueError, TypeError) as e:
-                return error_response(400, "bad_request", f"Invalid limit value: {str(e)}")
+                return error_response(400, "bad_request", f"Invalid limit value: {e!s}")
 
             # Extract and validate timeframe parameter (optional, default 'daily')
             timeframe_list = params.get("timeframe", [])
@@ -71,7 +71,7 @@ def handle(
             try:
                 limit = safe_limit(limit_str, max_val=10000)
             except (ValueError, TypeError) as e:
-                return error_response(400, "bad_request", f"Invalid limit value: {str(e)}")
+                return error_response(400, "bad_request", f"Invalid limit value: {e!s}")
 
             return _get_signals_etf(cur, limit)
         else:

@@ -78,7 +78,7 @@ from ._helpers import _error_panel
     optional=False,
     description="Circuit breaker status",
 )
-def panel_circuit(cb: Any) -> Panel:
+def panel_circuit(cb: Any) -> Panel:  # noqa: C901
     err_panel = _error_panel("circuit breakers", cb, "CIRCUIT BREAKERS", border="blue")
     if err_panel:
         return err_panel
@@ -214,7 +214,7 @@ def panel_circuit(cb: Any) -> Panel:
     optional=False,
     description="Circuit Breakers Expanded",
 )
-def panel_circuit_expanded(cb: Any) -> Panel:
+def panel_circuit_expanded(cb: Any) -> Panel:  # noqa: C901
     """Full-screen circuit breaker status — wide bars, % utilization, per-breaker detail."""
     rows: list[Text | Rule | Table] = [
         Text.from_markup("[dim]press [/][bold blue]b[/][dim] to return to dashboard[/]"),

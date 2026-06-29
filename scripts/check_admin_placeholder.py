@@ -7,7 +7,7 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from utils.db import DatabaseContext
+from utils.db import DatabaseContext  # noqa: E402
 
 CRITICAL_TABLES = [
     "algo_portfolio_snapshots",

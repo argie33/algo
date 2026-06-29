@@ -157,7 +157,7 @@ def split_sql_statements(sql):
     return statements
 
 
-def lambda_handler(event, context):
+def lambda_handler(event, context):  # noqa: C901
     """Initialize RDS database schema and ensure stocks user exists."""
     try:
         creds = get_credentials()

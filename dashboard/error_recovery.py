@@ -175,7 +175,7 @@ class RenderRecovery:
                 self.state.retry_count += 1
 
                 # Log error with appropriate level based on category
-                error_msg = f"Render error ({self.state.error_category.value}): {type(e).__name__}: {str(e)}"
+                error_msg = f"Render error ({self.state.error_category.value}): {type(e).__name__}: {e!s}"
                 if self.state.error_category == ErrorCategory.PERMANENT:
                     logger.error(error_msg)
                 elif self.state.error_category == ErrorCategory.TRANSIENT:

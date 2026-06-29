@@ -56,7 +56,7 @@ def validate_password_strength(password: str) -> dict:
     return {"valid": len(errors) == 0, "errors": errors}
 
 
-def lambda_handler(event, context):
+def lambda_handler(event, context):  # noqa: C901
     """Reset RDS master password with strength validation and audit trail."""
 
     timestamp = datetime.now(timezone.utc).isoformat()

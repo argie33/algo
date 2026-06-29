@@ -535,7 +535,7 @@ def _get_algo_portfolio(cur: cursor) -> Any:
             logger.error(f"CRITICAL: Cannot get database NOW(): {e}")
             return error_response(503, "database_error", "Cannot get current database time")
 
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         # MUST have created_at in query result - query includes it explicitly
         created_at = data.get("created_at")

@@ -513,7 +513,7 @@ class Orchestrator:
             raise RuntimeError(
                 f"[ORCHESTRATOR] CRITICAL: Cannot verify loader health: {e}. "
                 f"Halting trading - unable to confirm data freshness."
-            )
+            ) from e
         except Exception as e:
             logger.debug(f"[LOADER HEALTH] Unexpected error checking loader health: {e}")
 

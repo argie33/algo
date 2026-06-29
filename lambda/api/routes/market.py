@@ -989,7 +989,7 @@ def _parse_range_param(params: dict, default: int = 30) -> int:
 
 
 @db_route_handler("get correlation matrix")
-def _get_correlation_matrix(cur: cursor) -> Any:
+def _get_correlation_matrix(cur: cursor) -> Any:  # noqa: C901
     """Compute and return correlation matrix between key market indices."""
     symbols = ["^GSPC", "^IXIC", "SPY", "QQQ", "IVV", "TLT", "GLD"]
 

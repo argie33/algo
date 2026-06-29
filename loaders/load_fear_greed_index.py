@@ -235,7 +235,7 @@ class FearGreedIndexLoader(OptimalLoader):
 
                 return rows
 
-            except requests.exceptions.Timeout as e:
+            except requests.exceptions.Timeout:
                 if attempt < 2:
                     logger.warning(f"Fear & Greed timeout (attempt {attempt + 1}/3), retrying...")
                     time.sleep((attempt + 1) * 5)
@@ -252,7 +252,7 @@ class FearGreedIndexLoader(OptimalLoader):
                             "reason": "fetch_timeout",
                         }
                     ]
-            except requests.exceptions.ConnectionError as e:
+            except requests.exceptions.ConnectionError:
                 if attempt < 2:
                     logger.warning(f"Fear & Greed connection error (attempt {attempt + 1}/3), retrying...")
                     time.sleep((attempt + 1) * 5)

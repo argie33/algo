@@ -24,7 +24,7 @@ from shared_contracts.response_validator import ResponseValidator
 logger = logging.getLogger(__name__)
 
 
-def handle(
+def handle(  # noqa: C901
     cur: cursor,
     path: str,
     method: str,

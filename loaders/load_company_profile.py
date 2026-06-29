@@ -56,9 +56,9 @@ class CompanyProfileLoader(OptimalLoader):
                 )
 
             # REQUIRED: Company name - fail fast if missing
-            if "longName" in info and info["longName"]:
+            if info.get("longName"):
                 company_name = info["longName"]
-            elif "shortName" in info and info["shortName"]:
+            elif info.get("shortName"):
                 company_name = info["shortName"]
                 logger.debug(f"[COMPANY_PROFILE] {symbol}: Using shortName as fallback for company name")
             else:

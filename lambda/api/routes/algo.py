@@ -135,7 +135,7 @@ def handle(
         raise_db_error(e, "handle algo")
 
 
-def _dispatch(
+def _dispatch(  # noqa: C901
     cur: Any,
     path: str,
     method: str,

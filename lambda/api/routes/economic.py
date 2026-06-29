@@ -181,7 +181,7 @@ def _get_calendar(cur: cursor, params: dict[str, Any]) -> Any:
         return error_response(code, error_type, message)
 
 
-def _get_leading_indicators(cur: cursor) -> Any:
+def _get_leading_indicators(cur: cursor) -> Any:  # noqa: C901
     """Get leading economic indicators formatted for EconomicDashboard."""
     # Maps FRED series IDs to indicator names
     indicator_map = {
@@ -415,7 +415,7 @@ def _get_leading_indicators(cur: cursor) -> Any:
         return error_response(code, error_type, message)
 
 
-def _get_yield_curve_full(cur: cursor) -> Any:
+def _get_yield_curve_full(cur: cursor) -> Any:  # noqa: C901
     """Get yield curve and credit spread data formatted for EconomicDashboard."""
     try:
         cur.execute("""

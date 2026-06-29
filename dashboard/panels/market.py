@@ -102,7 +102,7 @@ def _get_market_halts(mkt_data: dict[str, Any], panel_name: str) -> list[Any]:
     optional=False,
     description="Market",
 )
-def panel_market_full(mkt: Any, sentiment: Any = None) -> Panel:
+def panel_market_full(mkt: Any, sentiment: Any = None) -> Panel:  # noqa: C901
     err_panel = _error_panel("market", mkt, "MARKET", border="blue")
     if err_panel:
         return err_panel
@@ -393,7 +393,7 @@ def panel_market_expanded(mkt: Any, sentiment: Any = None) -> Panel:
 
 
 @register_panel("header", endpoint_deps=["mkt", "sentiment"], optional=False, description="Header")
-def panel_header_market(
+def panel_header_market(  # noqa: C901
     mkt: Any,
     sentiment: Any,
     ts: Any,

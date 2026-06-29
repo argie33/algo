@@ -54,7 +54,7 @@ class AnalystSentimentLoader(OptimalLoader):
     primary_key = ("symbol", "date")
     watermark_field = "date"
 
-    def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]] | None:
+    def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]] | None:  # noqa: C901
         """Fetch analyst recommendations from yfinance and aggregate into sentiment.
 
         DATA CONTRACT:

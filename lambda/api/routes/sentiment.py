@@ -27,7 +27,7 @@ from utils.validation import DatabaseResultValidator
 logger = logging.getLogger(__name__)
 
 
-def handle(
+def handle(  # noqa: C901
     cur: cursor,
     path: str,
     method: str,
@@ -261,7 +261,7 @@ def handle(
                 return {
                     "symbol": symbol,
                     "data_unavailable": True,
-                    "reason": f"Invalid analyst count format: {str(e)}",
+                    "reason": f"Invalid analyst count format: {e!s}",
                     "lastUpdated": None,
                 }
 
@@ -388,7 +388,7 @@ def handle(
                 return {
                     "symbol": symbol,
                     "data_unavailable": True,
-                    "reason": f"Invalid analyst count format: {str(e)}",
+                    "reason": f"Invalid analyst count format: {e!s}",
                     "lastUpdated": None,
                 }
 

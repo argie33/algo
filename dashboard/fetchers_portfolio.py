@@ -391,7 +391,7 @@ def fetch_perf_analytics(c: None) -> dict[str, Any]:
             "max_drawdown_pct": "maxdd",
         }
 
-        for api_field, display_name in optional_fields.items():
+        for api_field, _display_name in optional_fields.items():
             if api_field not in d:
                 logger.debug(f"[DATA_QUALITY] Performance analytics missing optional '{api_field}'")
 

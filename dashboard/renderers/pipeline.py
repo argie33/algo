@@ -204,7 +204,7 @@ def render_dashboard_body(outer: Layout, ctx: DashboardContext, compact: bool) -
     )
 
 
-def render_expanded_view(view_mode: str, ctx: DashboardContext, hdr_panel: Panel, exp_panel: Panel, mascot_panel: Panel, compact: bool) -> Layout | None:
+def render_expanded_view(view_mode: str, ctx: DashboardContext, hdr_panel: Panel, exp_panel: Panel, mascot_panel: Panel, compact: bool) -> Layout | None:  # noqa: C901
     """Render expanded detail view for given mode."""
     if view_mode == "normal":
         return None

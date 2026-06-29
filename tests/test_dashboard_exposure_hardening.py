@@ -9,10 +9,10 @@ import logging
 from unittest.mock import patch
 
 import pytest
+from rich.panel import Panel
+from rich.text import Text
 
 from dashboard.panels.exposure import panel_exposure_compact, panel_exposure_expanded
-from rich.text import Text
-from rich.panel import Panel
 
 
 class TestExposureCompactMissingFields:
@@ -85,7 +85,7 @@ class TestExposureCompactMissingFields:
         }
 
         with caplog.at_level(logging.DEBUG):
-            result = panel_exposure_compact(exp_data)
+            panel_exposure_compact(exp_data)
 
         # Should log debug for missing factors
         assert any("factor" in record.message and "not in response" in record.message
