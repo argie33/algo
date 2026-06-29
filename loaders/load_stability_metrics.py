@@ -176,9 +176,7 @@ class StabilityMetricsLoader(OptimalLoader):
 
             # Validate value is not None
             if beta_raw is None:
-                raise RuntimeError(
-                    f"[STABILITY_METRICS] {symbol}: beta field is None (unavailable from yfinance)"
-                )
+                raise RuntimeError(f"[STABILITY_METRICS] {symbol}: beta field is None (unavailable from yfinance)")
 
             # Convert to float and validate
             beta = float(beta_raw)
@@ -194,9 +192,7 @@ class StabilityMetricsLoader(OptimalLoader):
         except RuntimeError:
             raise
         except (ValueError, TypeError) as e:
-            raise RuntimeError(
-                f"[STABILITY_METRICS] {symbol}: failed to parse beta ({type(e).__name__}: {e})"
-            ) from e
+            raise RuntimeError(f"[STABILITY_METRICS] {symbol}: failed to parse beta ({type(e).__name__}: {e})") from e
         except ZeroDivisionError as e:
             raise RuntimeError(f"[STABILITY_METRICS] {symbol}: division error parsing beta: {e}") from e
 
@@ -207,8 +203,7 @@ class StabilityMetricsLoader(OptimalLoader):
     def _validate_row(self, row: dict[str, Any]) -> bool:
         """Validate stability metrics row.
 
-        Ensures symbol field exists (required). Validates that data_unavailable marker
-        is explicitly set (never silent/implicit availability).
+        Ensures symbol field exists (required).
         """
         if not super()._validate_row(row):
             return False
@@ -217,14 +212,6 @@ class StabilityMetricsLoader(OptimalLoader):
         symbol = row.get("symbol")
         if symbol is None:
             logger.error("[STABILITY_METRICS] Invalid row: symbol field missing or None")
-            return False
-
-        # Validate data_unavailable marker is explicit
-        if "data_unavailable" not in row:
-            logger.error(
-                f"[STABILITY_METRICS] Invalid row for {symbol}: "
-                f"data_unavailable marker missing (must be explicit: True or False)"
-            )
             return False
 
         return True
