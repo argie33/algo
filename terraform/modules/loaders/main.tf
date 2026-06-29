@@ -437,7 +437,9 @@ locals {
     "signal_quality_scores",
     # Metrics loaders: long-running yfinance API calls; Spot interruptions prevent completion
     "growth_metrics",
+    "quality_metrics",
     "value_metrics",
+    "positioning_metrics",
     "stability_metrics"
   ])
 }
