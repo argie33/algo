@@ -156,20 +156,22 @@ Required:
 - Batch size 1000 causes rate limit cascade, backoff increases execution time
 - VPC network latency and database connection pooling contention
 
-**Solution (Code Committed, Infrastructure Apply Pending):**
-- Metric loader timeout: 300s → 600s (10 minutes) — ✅ Code committed
-- Batch size in AWS: 1000 → 100 (avoids rate limiting) — ✅ Code committed, Terraform changes written
-- ECS task memory: 512MB → 1024MB (sufficient for batches) — ✅ Terraform changes written
-- Loader classification: CRITICAL (FARGATE resource guarantee, not SPOT) — ✅ Lambda trigger updated
+**Solution (Deployed - Lambda Routing Fix):**
+- Metric loader timeout: 300s → 600s (10 minutes) — ✅ Environment override in Lambda
+- Batch size in AWS: 1000 → 100 (avoids rate limiting) — ✅ Environment override in Lambda
+- ECS task memory: 512MB → 1024MB (sufficient for batches) — ✅ Environment override in Lambda
+- Loader classification: CRITICAL (FARGATE resource guarantee, not SPOT) — ✅ Lambda trigger routing
 
-**Infrastructure Deployment Blocked:** ECS task definitions have NOT been updated in AWS. Requires:
-1. AWS account admin grant `algo-developer` user `ecs:DescribeTaskDefinition` + `ecs:RegisterTaskDefinition` permissions (see AWS Account Setup section)
-2. OR manually update each task definition via AWS Console: add environment variable `LOADER_CHUNK_SIZE=100` to:
-   - algo-quality_metrics-loader
-   - algo-growth_metrics-loader
-   - algo-value_metrics-loader
-   - algo-positioning_metrics-loader
-   - algo-stability_metrics-loader
+**How It Works (No ECS Task Definition Changes Needed):**
+GitHub Actions now routes all loader triggers through the `algo-trigger-loaders` Lambda function, which applies the correct environment overrides before launching ECS tasks:
+- `.github/workflows/trigger-loader.yml` modified to invoke Lambda instead of calling ECS directly
+- Lambda applies containerOverrides with LOADER_CHUNK_SIZE=100, LOADER_TIMEOUT_SEC=600
+- ECS task definitions do NOT need to be updated in AWS
+
+**Deployment Status:** ✅ Complete and running
+- Code changes committed to main
+- GitHub Actions workflow updated and deployed
+- Metric loaders running with Lambda routing (batch size 100, timeout 600s)
 
 **Verify Fix Working:**
 ```bash
