@@ -764,8 +764,11 @@ def _get_performance_analytics(cur: cursor) -> Any:
                         avg_w = float(avg_win_r)
                         avg_l = abs(float(avg_loss_r))
                         expectancy_val = round(wr_frac * avg_w - (1 - wr_frac) * avg_l, 4)
-                    except (ValueError, TypeError, ZeroDivisionError):
-                        pass
+                    except (ValueError, TypeError, ZeroDivisionError) as exp_err:
+                        logger.warning(
+                            f"Performance analytics: expectancy computation failed "
+                            f"(wr_pct={wr_pct}, avg_win_r={avg_win_r}, avg_loss_r={avg_loss_r}): {type(exp_err).__name__}: {exp_err}"
+                        )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.warning(f"Could not compute R-multiple stats for expectancy: {e}")
 
