@@ -314,8 +314,13 @@ def get_overall_coverage_summary(cur: cursor) -> Any:
                     if int(section_data.get("statusCode", 200)) >= 400:
                         statuses.append("critical")
                         continue
-                except (ValueError, TypeError):
-                    pass
+                except (ValueError, TypeError) as e:
+                    logger.warning(
+                        f"[COVERAGE_SUMMARY] Failed to parse statusCode from section '{section_name}': "
+                        f"statusCode={section_data.get('statusCode')!r}, error={e}. "
+                        f"Treating as critical status to avoid silent mask of errors."
+                    )
+                    statuses.append("critical")
             status = section_data.get("status")
             if status == "error" or status == "missing":
                 statuses.append("critical")

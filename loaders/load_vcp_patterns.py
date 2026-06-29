@@ -48,7 +48,8 @@ class VCPPatternsLoader:
                 "SELECT EXISTS(SELECT 1 FROM information_schema.tables "
                 "WHERE table_schema = 'public' AND table_name = 'technical_data_daily')"
             )
-            if not cur.fetchone()[0]:
+            row = cur.fetchone()
+            if row is None or not row[0]:
                 raise RuntimeError(
                     "[VCP_LOADER] technical_data_daily table missing. "
                     "Cannot load VCP patterns without technical data. "
@@ -60,7 +61,8 @@ class VCPPatternsLoader:
                 "SELECT EXISTS(SELECT 1 FROM information_schema.tables "
                 "WHERE table_schema = 'public' AND table_name = 'vcp_patterns')"
             )
-            if not cur.fetchone()[0]:
+            row = cur.fetchone()
+            if row is None or not row[0]:
                 raise RuntimeError(
                     "[VCP_LOADER] vcp_patterns table missing. "
                     "Cannot load VCP patterns without target table. "

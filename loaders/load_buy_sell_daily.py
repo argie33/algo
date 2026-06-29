@@ -423,14 +423,14 @@ class SignalsDailyLoader(OptimalLoader):
             Explicitly logs when batch context is missing (data unavailable).
         """
         if not self._batch_context:
-            logger.warning(
-                "[TECH_DATA_AGE] Batch context not initialized - tech data age unavailable. Signal generation may have incomplete data."
+            logger.debug(
+                "[TECH_DATA_AGE] Batch context not initialized - tech data age unavailable. Signal generation may have incomplete optional data."
             )
             return None
 
         tech_data_age = self._batch_context.get("tech_data_age")
         if tech_data_age is None:
-            logger.debug("[TECH_DATA_AGE] 'tech_data_age' not in batch context - technical data freshness unavailable")
+            logger.debug("[TECH_DATA_AGE] 'tech_data_age' not in batch context - technical data freshness unavailable (optional enrichment)")
         return tech_data_age
 
     def _log_rejection_if_available(self, symbol: str, signal_date: date, reason: str) -> None:
