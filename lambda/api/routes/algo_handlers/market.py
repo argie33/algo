@@ -372,8 +372,14 @@ def _normalize_market_health(mh: dict) -> Any:
         "new_lows_count": mh.get("new_lows_count"),
         "breadth_momentum_10d": mh.get("breadth_momentum_10d"),
         "put_call_ratio": mh.get("put_call_ratio"),
+        "put_call_ratio_data_unavailable": bool(mh.get("put_call_ratio_data_unavailable", False)),
+        "put_call_ratio_unavailable_reason": mh.get("put_call_ratio_unavailable_reason"),
         "yield_curve_slope": mh.get("yield_curve_slope"),
+        "yield_curve_data_unavailable": bool(mh.get("yield_curve_data_unavailable", False)),
+        "yield_curve_unavailable_reason": mh.get("yield_curve_unavailable_reason"),
         "fed_rate_environment": mh.get("fed_rate_environment"),
+        "fed_rate_data_unavailable": bool(mh.get("fed_rate_data_unavailable", False)),
+        "fed_rate_unavailable_reason": mh.get("fed_rate_unavailable_reason"),
         "spy_change_pct": mh.get("spy_change_pct"),
     }
 
@@ -426,11 +432,19 @@ def _get_market(cur: cursor) -> Any:
         cur.execute("SET LOCAL statement_timeout = '8000ms'")
 
         # CRITICAL: Fetch market health; fail fast if unavailable
+        # Include data_unavailable markers for optional enrichment fields so API can signal
+        # which fields are truly unavailable vs. present in the response
         cur.execute("""
             SELECT market_trend, market_stage, vix_level,
                    up_volume_percent, advance_decline_ratio, new_highs_count,
                    new_lows_count, breadth_momentum_10d, put_call_ratio,
-                   yield_curve_slope, fed_rate_environment
+                   yield_curve_slope, fed_rate_environment,
+                   COALESCE(put_call_ratio_data_unavailable, FALSE) as put_call_ratio_data_unavailable,
+                   COALESCE(put_call_ratio_unavailable_reason, NULL) as put_call_ratio_unavailable_reason,
+                   COALESCE(yield_curve_data_unavailable, FALSE) as yield_curve_data_unavailable,
+                   COALESCE(yield_curve_unavailable_reason, NULL) as yield_curve_unavailable_reason,
+                   COALESCE(fed_rate_data_unavailable, FALSE) as fed_rate_data_unavailable,
+                   COALESCE(fed_rate_unavailable_reason, NULL) as fed_rate_unavailable_reason
             FROM market_health_daily
             ORDER BY date DESC LIMIT 1
         """)
@@ -485,6 +499,7 @@ def _get_market(cur: cursor) -> Any:
         spy_chg_val = market_health.get("spy_change_pct")
 
         # Convert to appropriate types, allowing None for optional/enrichment fields
+        # Include data_unavailable markers so frontend knows which fields are truly unavailable
         data = {
             "exposure_pct": float(exposure["exposure_pct"]),
             "regime": exposure["regime"],
@@ -500,9 +515,15 @@ def _get_market(cur: cursor) -> Any:
             "new_highs_count": int(nh_val) if nh_val is not None else None,
             "new_lows_count": int(nl_val) if nl_val is not None else None,
             "put_call_ratio": float(pcr_val) if pcr_val is not None else None,
+            "put_call_ratio_data_unavailable": market_health.get("put_call_ratio_data_unavailable", False),
+            "put_call_ratio_unavailable_reason": market_health.get("put_call_ratio_unavailable_reason"),
             "breadth_momentum_10d": float(bm_val) if bm_val is not None else None,
             "yield_curve_slope": float(ycs_val) if ycs_val is not None else None,
+            "yield_curve_data_unavailable": market_health.get("yield_curve_data_unavailable", False),
+            "yield_curve_unavailable_reason": market_health.get("yield_curve_unavailable_reason"),
             "fed_rate_environment": market_health.get("fed_rate_environment"),
+            "fed_rate_data_unavailable": market_health.get("fed_rate_data_unavailable", False),
+            "fed_rate_unavailable_reason": market_health.get("fed_rate_unavailable_reason"),
         }
 
         return json_response(200, data)

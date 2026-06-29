@@ -80,9 +80,18 @@ class RiskConfig:
     def get_base_risk(self) -> float:
         """Get base risk % per trade.
 
-        Default is defensive (0.75 = 75%) but always validated by PositionSizer at init.
+        CRITICAL: Raises RuntimeError if base_risk_pct is missing from configuration.
+        This parameter controls position sizing and must never silently default.
+        See config_schema.py for fail-closed default (0.5%) that applies on missing config.
         """
-        return cast(float, self.get("base_risk_pct", 0.75))
+        value = self.get("base_risk_pct")  # No default - raise if missing
+        if value is None:
+            raise ValueError(
+                "[CONFIG CRITICAL] base_risk_pct is missing from configuration. "
+                "This parameter is required for position sizing calculations. "
+                "Set via config.set() or verify database configuration is loaded."
+            )
+        return cast(float, value)
 
     def get_position_sizing_config(self) -> dict[str, Any]:
         """Get all position sizing thresholds (for risk team).

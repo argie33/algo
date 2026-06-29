@@ -124,14 +124,19 @@ class DataPatrolConfig:
             # Try to get from freshness_config first
             rule = get_freshness_rule(fresh_table_name)
             if rule:
-                windows[patrol_name] = rule.get("max_age_days", 7)
+                max_age = rule.get("max_age_days")
+                if max_age is None:
+                    raise RuntimeError(
+                        f"[CONFIG CRITICAL] freshness_config rule for '{fresh_table_name}' "
+                        f"missing 'max_age_days' key. Data staleness thresholds are required for safety."
+                    )
+                windows[patrol_name] = max_age
             else:
-                # Fallback to conservative default if table not in freshness_config
-                windows[patrol_name] = self.get(f"patrol_staleness_{patrol_name}", 7)
-                logger.warning(
-                    f"[CONFIG] Table '{fresh_table_name}' not found in freshness_config. "
-                    f"Using patrol default of 7 days for '{patrol_name}'. "
-                    f"Consider adding to freshness_config.py FRESHNESS_RULES."
+                # No fallback - this is a critical configuration issue
+                raise RuntimeError(
+                    f"[CONFIG CRITICAL] Table '{fresh_table_name}' not found in freshness_config.FRESHNESS_RULES. "
+                    f"Data staleness thresholds must be defined in one place (freshness_config.py), not duplicated. "
+                    f"Add '{fresh_table_name}' to FRESHNESS_RULES with max_age_days."
                 )
 
         return windows
@@ -139,19 +144,39 @@ class DataPatrolConfig:
     def get_coverage_thresholds(self) -> dict[str, int]:
         """Get data patrol coverage ratio thresholds.
 
+        CRITICAL: These thresholds control when data patrol alerts fire.
+        Missing configuration is a critical safety issue.
+
         Returns:
             {
                 "error_pct": 95,   # Alert error threshold
                 "warn_pct": 90,    # Alert warning threshold
             }
         """
+        error_pct = self.get("patrol_coverage_error_threshold_pct")
+        warn_pct = self.get("patrol_coverage_warning_threshold_pct")
+
+        if error_pct is None:
+            raise RuntimeError(
+                "[CONFIG CRITICAL] patrol_coverage_error_threshold_pct is missing. "
+                "Data coverage thresholds must be explicitly configured, not defaulted."
+            )
+        if warn_pct is None:
+            raise RuntimeError(
+                "[CONFIG CRITICAL] patrol_coverage_warning_threshold_pct is missing. "
+                "Data coverage thresholds must be explicitly configured, not defaulted."
+            )
+
         return {
-            "error_pct": self.get("patrol_coverage_error_threshold_pct", 95),
-            "warn_pct": self.get("patrol_coverage_warning_threshold_pct", 90),
+            "error_pct": error_pct,
+            "warn_pct": warn_pct,
         }
 
     def get_price_sanity_config(self) -> dict[str, Any]:
         """Get data patrol OHLC/price sanity thresholds.
+
+        CRITICAL: These thresholds detect corrupted price data (impossible price moves).
+        Missing configuration could allow obviously bad data into the system.
 
         Returns:
             {
@@ -159,13 +184,30 @@ class DataPatrolConfig:
                 "max_daily_move_count": 10,   # Max count of >50% moves
             }
         """
+        max_move_pct = self.get("patrol_max_daily_move_pct")
+        max_move_count = self.get("patrol_max_daily_move_count")
+
+        if max_move_pct is None:
+            raise RuntimeError(
+                "[CONFIG CRITICAL] patrol_max_daily_move_pct is missing. "
+                "Price sanity thresholds must be explicitly configured to detect data corruption."
+            )
+        if max_move_count is None:
+            raise RuntimeError(
+                "[CONFIG CRITICAL] patrol_max_daily_move_count is missing. "
+                "Price sanity thresholds must be explicitly configured to detect data corruption."
+            )
+
         return {
-            "max_daily_move_pct": self.get("patrol_max_daily_move_pct", 0.5),
-            "max_daily_move_count": self.get("patrol_max_daily_move_count", 10),
+            "max_daily_move_pct": max_move_pct,
+            "max_daily_move_count": max_move_count,
         }
 
     def get_volume_config(self) -> dict[str, Any]:
         """Get data patrol volume sanity thresholds.
+
+        CRITICAL: These thresholds detect volume anomalies and data quality issues.
+        Missing configuration could allow suspicious volume data into calculations.
 
         Returns:
             {
@@ -174,14 +216,37 @@ class DataPatrolConfig:
                 "new_low_alert": 5,
             }
         """
+        low_thresh = self.get("patrol_low_volume_threshold")
+        high_thresh = self.get("patrol_high_volume_threshold")
+        new_low_alert = self.get("patrol_new_low_volume_alert")
+
+        if low_thresh is None:
+            raise RuntimeError(
+                "[CONFIG CRITICAL] patrol_low_volume_threshold is missing. "
+                "Volume sanity checks must be explicitly configured."
+            )
+        if high_thresh is None:
+            raise RuntimeError(
+                "[CONFIG CRITICAL] patrol_high_volume_threshold is missing. "
+                "Volume sanity checks must be explicitly configured."
+            )
+        if new_low_alert is None:
+            raise RuntimeError(
+                "[CONFIG CRITICAL] patrol_new_low_volume_alert is missing. "
+                "Volume anomaly detection must be explicitly configured."
+            )
+
         return {
-            "low_threshold": self.get("patrol_low_volume_threshold", 1000),
-            "high_threshold": self.get("patrol_high_volume_threshold", 100000000),
-            "new_low_alert": self.get("patrol_new_low_volume_alert", 5),
+            "low_threshold": low_thresh,
+            "high_threshold": high_thresh,
+            "new_low_alert": new_low_alert,
         }
 
     def get_quality_config(self) -> dict[str, Any]:
         """Get data patrol quality thresholds.
+
+        CRITICAL: These thresholds detect incomplete/duplicate data patterns.
+        Missing configuration could allow data quality issues to go undetected.
 
         Returns:
             {
@@ -191,15 +256,44 @@ class DataPatrolConfig:
                 "identical_ohlc_threshold": 50,
             }
         """
+        max_null = self.get("patrol_max_null_pct_threshold")
+        zero_err = self.get("patrol_new_zero_symbols_error")
+        zero_warn = self.get("patrol_new_zero_symbols_warn")
+        identical = self.get("patrol_identical_ohlc_threshold")
+
+        if max_null is None:
+            raise RuntimeError(
+                "[CONFIG CRITICAL] patrol_max_null_pct_threshold is missing. "
+                "NULL tolerance thresholds must be explicitly configured."
+            )
+        if zero_err is None:
+            raise RuntimeError(
+                "[CONFIG CRITICAL] patrol_new_zero_symbols_error is missing. "
+                "Data coverage error thresholds must be explicitly configured."
+            )
+        if zero_warn is None:
+            raise RuntimeError(
+                "[CONFIG CRITICAL] patrol_new_zero_symbols_warn is missing. "
+                "Data coverage warning thresholds must be explicitly configured."
+            )
+        if identical is None:
+            raise RuntimeError(
+                "[CONFIG CRITICAL] patrol_identical_ohlc_threshold is missing. "
+                "Duplicate OHLC detection must be explicitly configured."
+            )
+
         return {
-            "max_null_pct": self.get("patrol_max_null_pct_threshold", 5),
-            "zero_symbols_error": self.get("patrol_new_zero_symbols_error", 10),
-            "zero_symbols_warn": self.get("patrol_new_zero_symbols_warn", 5),
-            "identical_ohlc_threshold": self.get("patrol_identical_ohlc_threshold", 50),
+            "max_null_pct": max_null,
+            "zero_symbols_error": zero_err,
+            "zero_symbols_warn": zero_warn,
+            "identical_ohlc_threshold": identical,
         }
 
     def get_cross_validation_config(self) -> dict[str, Any]:
         """Get data patrol cross-validation thresholds.
+
+        CRITICAL: These thresholds detect price data mismatches across sources.
+        Missing configuration could allow data inconsistencies to go undetected.
 
         Returns:
             {
@@ -207,13 +301,30 @@ class DataPatrolConfig:
                 "top_n_symbols": 50,
             }
         """
+        mismatch = self.get("patrol_price_xval_mismatch_pct")
+        top_n = self.get("patrol_xval_top_n_symbols")
+
+        if mismatch is None:
+            raise RuntimeError(
+                "[CONFIG CRITICAL] patrol_price_xval_mismatch_pct is missing. "
+                "Price cross-validation thresholds must be explicitly configured."
+            )
+        if top_n is None:
+            raise RuntimeError(
+                "[CONFIG CRITICAL] patrol_xval_top_n_symbols is missing. "
+                "Cross-validation scope must be explicitly configured."
+            )
+
         return {
-            "price_mismatch_pct": self.get("patrol_price_xval_mismatch_pct", 2),
-            "top_n_symbols": self.get("patrol_xval_top_n_symbols", 50),
+            "price_mismatch_pct": mismatch,
+            "top_n_symbols": top_n,
         }
 
     def get_corporate_actions_config(self) -> dict[str, Any]:
         """Get data patrol corporate actions detection config.
+
+        CRITICAL: These parameters control split/dividend detection, which affects
+        price normalization and technical indicator accuracy.
 
         Returns:
             {
@@ -221,13 +332,30 @@ class DataPatrolConfig:
                 "drop_ratio": -0.30,
             }
         """
+        lookback = self.get("patrol_corporate_action_lookback_days")
+        drop = self.get("patrol_corporate_action_drop_ratio")
+
+        if lookback is None:
+            raise RuntimeError(
+                "[CONFIG CRITICAL] patrol_corporate_action_lookback_days is missing. "
+                "Corporate action detection must be explicitly configured."
+            )
+        if drop is None:
+            raise RuntimeError(
+                "[CONFIG CRITICAL] patrol_corporate_action_drop_ratio is missing. "
+                "Split/dividend drop detection must be explicitly configured."
+            )
+
         return {
-            "lookback_days": self.get("patrol_corporate_action_lookback_days", 90),
-            "drop_ratio": self.get("patrol_corporate_action_drop_ratio", -0.30),
+            "lookback_days": lookback,
+            "drop_ratio": drop,
         }
 
     def get_loader_contracts(self) -> dict[str, dict[str, Any]]:
         """Get data patrol loader contracts with expected output thresholds.
+
+        CRITICAL: These contracts define minimum data coverage for each loader.
+        Missing configuration is a safety issue—data patrol cannot monitor if contracts are undefined.
 
         Returns:
             {
@@ -241,34 +369,68 @@ class DataPatrolConfig:
             }
         """
         severity_error = "error"
+
+        # Extract all loader contract thresholds with explicit fail-fast
+        price_14d = self.get("patrol_price_daily_14d_min")
+        tech_14d = self.get("patrol_technical_daily_14d_min")
+        buysell_14d = self.get("patrol_buy_sell_daily_14d_min")
+        trend_14d = self.get("patrol_trend_14d_min")
+        mkt_exp = self.get("patrol_market_exposure_daily_min")
+
+        if price_14d is None:
+            raise RuntimeError(
+                "[CONFIG CRITICAL] patrol_price_daily_14d_min is missing. "
+                "Price loader contract must be explicitly configured."
+            )
+        if tech_14d is None:
+            raise RuntimeError(
+                "[CONFIG CRITICAL] patrol_technical_daily_14d_min is missing. "
+                "Technical data loader contract must be explicitly configured."
+            )
+        if buysell_14d is None:
+            raise RuntimeError(
+                "[CONFIG CRITICAL] patrol_buy_sell_daily_14d_min is missing. "
+                "Buy/sell signal loader contract must be explicitly configured."
+            )
+        if trend_14d is None:
+            raise RuntimeError(
+                "[CONFIG CRITICAL] patrol_trend_14d_min is missing. "
+                "Trend template loader contract must be explicitly configured."
+            )
+        if mkt_exp is None:
+            raise RuntimeError(
+                "[CONFIG CRITICAL] patrol_market_exposure_daily_min is missing. "
+                "Market exposure loader contract must be explicitly configured."
+            )
+
         return {
             "price_daily": {
                 "condition": "date >= CURRENT_DATE - INTERVAL '14 days'",
-                "min_rows": self.get("patrol_price_daily_14d_min", 40000),
+                "min_rows": price_14d,
                 "severity": severity_error,
                 "description": "Daily price data should be ~5000 symbols x 14 days",
             },
             "technical_data_daily": {
                 "condition": "date >= CURRENT_DATE - INTERVAL '14 days'",
-                "min_rows": self.get("patrol_technical_daily_14d_min", 40000),
+                "min_rows": tech_14d,
                 "severity": severity_error,
                 "description": "Technical indicators should match price coverage",
             },
             "buy_sell_daily": {
                 "condition": "date >= CURRENT_DATE - INTERVAL '14 days'",
-                "min_rows": self.get("patrol_buy_sell_daily_14d_min", 800),
+                "min_rows": buysell_14d,
                 "severity": severity_error,
                 "description": "Pine signals should produce 50+ per day minimum",
             },
             "trend_template_data": {
                 "condition": "date >= CURRENT_DATE - INTERVAL '14 days'",
-                "min_rows": self.get("patrol_trend_14d_min", 16000),
+                "min_rows": trend_14d,
                 "severity": severity_error,
                 "description": "Trend template covers 4900+ symbols x 14 days",
             },
             "market_exposure_daily": {
                 "condition": "date >= (SELECT MAX(date) - INTERVAL '1 day' FROM price_daily)",
-                "min_rows": self.get("patrol_market_exposure_daily_min", 1),
+                "min_rows": mkt_exp,
                 "severity": severity_error,
                 "description": "Market regime indicators must match latest trading day in price_daily (within 1 day lag)",
             },
