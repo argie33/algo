@@ -280,9 +280,10 @@ def _generate_daily_report(run_date: _date, log_phase_result_fn: Callable[..., A
                     )
                 finally:
                     release_advisory_lock(cur, ALGO_AUDIT_LOG_LOCK_ID, "algo_audit_log")
-        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError, RuntimeError) as e:
             logger.critical(f"[AUDIT_FAILURE] Could not log daily report to audit log: {e}")
-            raise
+            logger.warning(f"[PHASE 9] Audit log write failed but continuing: {str(e)[:100]}")
+            # Don't raise - allow Phase 9 to continue to risk metrics and other critical steps
 
         # Portfolio data must be present for daily reporting
         if not portfolio_data:
@@ -686,7 +687,11 @@ def run(
             log_phase_result_fn(9, "risk_metrics", "warn", f"computation error: {str(e)[:60]}")
 
         # Step 7: Update algo_metrics_daily with actual trade results from this run
-        _update_daily_metrics(run_date, log_phase_result_fn)
+        try:
+            _update_daily_metrics(run_date, log_phase_result_fn)
+        except Exception as e:
+            logger.warning(f"[PHASE 9] Metrics update failed: {e}")
+            log_phase_result_fn(9, "metrics_update", "warn", f"update error: {str(e)[:60]}")
 
         # Refresh materialized view so positions dashboard reflects current state.
         # This runs after reconciliation updates algo_positions from Broker.
