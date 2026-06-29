@@ -128,36 +128,58 @@ def fetch_economic_pulse(c: None) -> dict[str, Any]:  # noqa: C901
                         raise ValueError(f"Invalid indicator value for {i.get('series_id')}: {e}") from e
 
         # Critical indicators: fail fast if missing
+        # FEDFUNDS: Current policy rate—required for all economic models
         fed_funds = by_series.get("FEDFUNDS")
         if fed_funds is None:
             raise ValueError("Federal Funds Rate (FEDFUNDS) missing from indicators")
 
-        # Other important indicators (optional if not published yet)
-        cpi_yoy = by_series.get("CPIAUCSL")
-        unrate = by_series.get("UNRATE")
-        be10 = by_series.get("T10YIE")
-        be5 = by_series.get("T5YIE")
-        dxy = by_series.get("DTWEXBGS")
-        oil = by_series.get("DCOILWTICO")
+        # Optional indicators (None if not published, but logged for monitoring)
+        # These are used in economic stress scoring but have published gaps.
+        # Callers must handle None explicitly.
+        cpi_yoy = by_series.get("CPIAUCSL")  # CPI inflation (optional, publish lag)
+        if cpi_yoy is None:
+            logger.debug("[FETCH] CPIAUCSL (CPI YoY) missing from indicators—using None for eco scoring")
+
+        unrate = by_series.get("UNRATE")  # Unemployment rate (optional, publish lag)
+        if unrate is None:
+            logger.debug("[FETCH] UNRATE (unemployment) missing from indicators—using None for eco scoring")
+
+        be10 = by_series.get("T10YIE")  # 10-year breakeven inflation (optional)
+        if be10 is None:
+            logger.debug("[FETCH] T10YIE (10Y breakeven) missing from indicators—using None for eco scoring")
+
+        be5 = by_series.get("T5YIE")  # 5-year breakeven inflation (optional)
+        if be5 is None:
+            logger.debug("[FETCH] T5YIE (5Y breakeven) missing from indicators—using None for eco scoring")
+
+        dxy = by_series.get("DTWEXBGS")  # Dollar index (optional)
+        if dxy is None:
+            logger.debug("[FETCH] DTWEXBGS (dollar index) missing from indicators—using None for eco scoring")
+
+        oil = by_series.get("DCOILWTICO")  # Oil price (optional)
+        if oil is None:
+            logger.debug("[FETCH] DCOILWTICO (oil) missing from indicators—using None for eco scoring")
         anfci = by_series.get("ANFCI")
-        # NFCI fallback logic: prefer ANFCI (advanced), fallback to STLFSI4 (traditional) if missing
-        # Both are measures of financial stress; document which one is being used
-        nfci = None
-        nfci_source = None
-        if anfci is not None:
-            nfci = anfci
-            nfci_source = "ANFCI"
-        else:
-            stlfsi = by_series.get("STLFSI4")
-            if stlfsi is not None:
-                logger.warning(
-                    "[DATA_QUALITY] Using STLFSI4 as fallback financial stress measure. "
-                    "ANFCI was missing. This may affect algo decisions."
-                )
-                nfci = stlfsi
-                nfci_source = "STLFSI4_FALLBACK"
-        umcsent = by_series.get("UMCSENT")
-        mortgage = by_series.get("MORTGAGE30US")
+        # CRITICAL: Advanced National Financial Conditions Index (ANFCI) is required for accurate
+        # exposure tier calculation. It measures credit, funding, and asset price conditions.
+        # STLFSI4 (St. Louis Financial Stress Index) measures different dimensions and is NOT
+        # a valid substitute—must not silently fallback (would cause incorrect position sizing).
+        if anfci is None:
+            raise ValueError(
+                "Advanced National Financial Conditions Index (ANFCI) missing from indicators. "
+                "This is required for market exposure tier calculation (affects position sizing). "
+                "Check: Fred API data availability, load_market_exposure_daily logs."
+            )
+        nfci = anfci
+        nfci_source = "ANFCI"
+
+        umcsent = by_series.get("UMCSENT")  # Consumer sentiment (optional)
+        if umcsent is None:
+            logger.debug("[FETCH] UMCSENT (consumer sentiment) missing from indicators—using None for eco scoring")
+
+        mortgage = by_series.get("MORTGAGE30US")  # 30-year mortgage rate (optional)
+        if mortgage is None:
+            logger.debug("[FETCH] MORTGAGE30US (mortgage rate) missing from indicators—using None for eco scoring")
 
         return {
             "t10": t10,

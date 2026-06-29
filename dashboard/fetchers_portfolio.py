@@ -84,11 +84,27 @@ def fetch_portfolio(c: None) -> dict[str, Any]:
         # (avoids date parsing issues and trusts the API's calculation)
         data_age = port.get("data_age_seconds")
         max_age_with_grace = max_age_seconds + grace_period_seconds
+
+        # FAIL: Data exceeds maximum acceptable age
         if data_age is not None and data_age > max_age_with_grace:
             error_msg = f"Data is stale ({data_age}s old, max {max_age_with_grace}s including grace period)"
             logger.error(error_msg)
             record_data_quality_issue("portfolio", "freshness", "stale_data", error_msg)
             return FetcherValidator.build_error_response(error_msg)
+
+        # WARN: Data is older than 24 hours but still within acceptable range
+        # This flag indicates portfolio data hasn't been updated in a while (non-trading day gap)
+        # Check Phase 9 reconciliation logs if concerned.
+        hours_24_seconds = 86400
+        is_stale_24h = data_age is not None and data_age > hours_24_seconds
+        if is_stale_24h:
+            logger.warning(
+                f"[DATA_QUALITY] Portfolio data is {data_age}s old ({data_age / 3600:.1f} hours). "
+                f"This is normal on non-trading days but unexpected on trading days. "
+                f"Check Phase 9 reconciliation if this persists. Data is still within limits ({max_age_with_grace}s), "
+                f"but monitor for staleness."
+            )
+            record_data_quality_issue("portfolio", "freshness", "stale_warning_24h")
 
         # Data is already validated at boundary; direct conversion
         tpv = float(port["total_portfolio_value"])

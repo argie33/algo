@@ -51,6 +51,20 @@ repos:
         types: [python]
         stages: [commit]
 
+      - id: enforce-strict-safe-conversion
+        name: Enforce strict=True on safe data conversion (finance paths)
+        entry: python .pre-commit-scripts/check-strict-safe-conversion.py
+        language: system
+        types: [python]
+        stages: [commit]
+
+      - id: check-dashboard-get-pattern
+        name: Check dashboard .get() patterns (fail-fast pattern)
+        entry: python .pre-commit-scripts/check-dashboard-get-pattern.py
+        language: system
+        types: [python]
+        stages: [commit]
+
   # Comprehensive CI validation (ruff + basic syntax checks)
   - repo: local
     hooks:

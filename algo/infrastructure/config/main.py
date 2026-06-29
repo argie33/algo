@@ -1223,17 +1223,19 @@ class AlgoConfig:
                             # Check if this is a critical safety threshold
                             schema_info = self.VALIDATION_SCHEMA.get(key)
                             if schema_info and schema_info[3]:  # is_critical
-                                _, _, _, _, fail_closed = schema_info
-                                self._config[key] = fail_closed
-                                self._sources[key] = "fail_closed_default"
-                                invalid_critical_values.append(
-                                    f"  {key}={value}: {e} -> using fail-closed default {fail_closed}"
+                                # FAIL FAST: Critical safety thresholds must not fallback to defaults.
+                                # If database value is corrupted, system should not start trading.
+                                error_msg = (
+                                    f"CRITICAL: Safety threshold '{key}' has invalid value '{value}' in database. "
+                                    f"Error: {e}\n"
+                                    f"This is a critical safety gate. System will NOT trade with invalid configuration.\n"
+                                    f"Admin MUST restore a valid value to '{key}' in algo_config table.\n"
+                                    f"Expected type: {schema_info[0]}, acceptable range: {schema_info[1]}"
                                 )
-                                logger.error(
-                                    f"ALERT: Critical safety gate {key} has invalid value {value}. "
-                                    f"Using fail-closed default {fail_closed}. "
-                                    f"Admin must fix database value: {e}"
-                                )
+                                logger.critical(error_msg)
+                                invalid_critical_values.append(f"  {key}={value}: {e}")
+                                # Re-raise as RuntimeError to force fatal failure during init
+                                raise RuntimeError(error_msg) from e
                             else:
                                 logger.warning(
                                     f"[AlgoConfig] NON-CRITICAL Invalid config {key}={value}: {e}. "
@@ -1243,10 +1245,10 @@ class AlgoConfig:
                                 self._sources[key] = "default_fallback"
 
                 if invalid_critical_values:
+                    # This should never be reached since we raise above, but keep as safety net
                     logger.warning(
-                        "[AlgoConfig] ALERT: Critical safety thresholds were invalid and reverted to fail-closed defaults:\n"
+                        "[AlgoConfig] ALERT: Non-critical config values were invalid:\n"
                         + "\n".join(invalid_critical_values)
-                        + "\n\nAdmin must restore valid values in algo_config table before these thresholds take normal effect."
                     )
 
                 self._validate_r_multiple_ordering()

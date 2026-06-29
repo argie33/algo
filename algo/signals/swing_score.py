@@ -143,6 +143,16 @@ class SwingTraderScore:
 
                 if not gates["pass"]:
                     logger.debug(f"Swing score {symbol}: hard gate failed - {gates.get('reason', 'unknown')}")
+                    # CRITICAL: pass=False indicates gate failure. swing_score=0.0 is a placeholder value only.
+                    # Callers MUST check `pass == False` before using swing_score. Never trade based on score if pass=False.
+                    # Example correct usage:
+                    #   result = score.compute(symbol, eval_date)
+                    #   if result['pass'] and result['swing_score'] >= 50:
+                    #       ... trade ...
+                    # Example INCORRECT (will make bad trades):
+                    #   result = score.compute(symbol, eval_date)
+                    #   if result['swing_score'] >= 50:  # Missing pass check!
+                    #       ... trade ...
                     return {
                         "symbol": symbol,
                         "eval_date": str(eval_date),

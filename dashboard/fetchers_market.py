@@ -161,7 +161,8 @@ def fetch_market(c: None) -> dict[str, Any]:
             )
             logger.error(error_msg)
             record_data_quality_issue("market", "critical_field", "missing_regime")
-            return FetcherValidator.build_error_response(error_msg)
+            # Raise instead of returning error dict for consistency with halt_reasons validation below
+            raise ValueError(error_msg)
 
         # CRITICAL: Circuit breaker halt reasons validation - fail fast on missing data
         halt_reasons_raw = current.get("halt_reasons")
