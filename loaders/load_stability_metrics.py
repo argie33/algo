@@ -40,28 +40,76 @@ class StabilityMetricsLoader(OptimalLoader):
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Compute stability metrics for this symbol.
 
-        Raises RuntimeError if unable to compute (e.g., new symbol with <30 days price history).
-        Caller must handle unavailable metrics explicitly.
+        For OPTIONAL enrichment (beta/volatility): Returns explicit data_unavailable marker
+        instead of raising errors, enabling graceful degradation when metrics unavailable.
+
+        Returns list containing:
+        - Valid metrics dict if successful (data_unavailable=False)
+        - data_unavailable marker dict if unable to compute (e.g., <30 days price history)
         """
         try:
             metrics = self._compute_stability_metrics(symbol)
             return [metrics]
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.error(f"[STABILITY_METRICS] Database error for {symbol}: {e}")
-            raise RuntimeError(
-                f"[STABILITY_METRICS] Database error computing metrics for {symbol}: {e}. "
-                f"Cannot compute stability metrics without price history access."
-            ) from e
-        except Exception as e:
-            logger.error(
-                f"[STABILITY_METRICS] Unexpected error computing metrics for {symbol}: {type(e).__name__}: {e}"
+            logger.warning(
+                f"[STABILITY_METRICS] Database error for {symbol}: {e}. "
+                f"Stability metrics (beta/volatility) are optional enrichment - marking unavailable."
             )
-            raise
+            return [
+                {
+                    "symbol": symbol,
+                    "data_unavailable": True,
+                    "reason": f"database_error: {str(e)[:100]}",
+                    "volatility_30d": None,
+                    "volatility_60d": None,
+                    "volatility_252d": None,
+                    "beta": None,
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                }
+            ]
+        except RuntimeError as e:
+            # Insufficient data (< 30 days) or validation error
+            logger.debug(
+                f"[STABILITY_METRICS] {symbol}: {e}. "
+                f"Stability metrics unavailable (optional enrichment)."
+            )
+            return [
+                {
+                    "symbol": symbol,
+                    "data_unavailable": True,
+                    "reason": str(e)[:150],
+                    "volatility_30d": None,
+                    "volatility_60d": None,
+                    "volatility_252d": None,
+                    "beta": None,
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                }
+            ]
+        except Exception as e:
+            logger.warning(
+                f"[STABILITY_METRICS] Unexpected error computing metrics for {symbol}: {type(e).__name__}: {e}. "
+                f"Marking stability metrics as unavailable (optional enrichment)."
+            )
+            return [
+                {
+                    "symbol": symbol,
+                    "data_unavailable": True,
+                    "reason": f"unexpected_error: {type(e).__name__}",
+                    "volatility_30d": None,
+                    "volatility_60d": None,
+                    "volatility_252d": None,
+                    "beta": None,
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                }
+            ]
 
     def _compute_stability_metrics(self, symbol: str) -> dict[str, Any]:
         """Compute volatility from price_daily and beta from yfinance.
 
-        Requires minimum 30 days of price history. Raises if data insufficient.
+        For OPTIONAL enrichment: Returns explicit data_unavailable marker instead of raising
+        when data cannot be computed (e.g., insufficient price history, yfinance unavailable).
+
+        Minimum requirement: 30 days of price history for meaningful volatility calculation.
         """
         try:
             with DatabaseContext("read") as cur:
@@ -81,8 +129,7 @@ class StabilityMetricsLoader(OptimalLoader):
             if not rows or len(rows) < 30:
                 actual_rows = len(rows) if rows else 0
                 raise RuntimeError(
-                    f"[STABILITY_METRICS] {symbol}: insufficient price history ({actual_rows}/30 days required). "
-                    f"Cannot compute stability metrics without adequate historical data."
+                    f"insufficient_price_history: {actual_rows}/30 days available"
                 )
 
             # Sort chronologically (oldest to newest)
@@ -105,8 +152,7 @@ class StabilityMetricsLoader(OptimalLoader):
 
             if not returns:
                 raise RuntimeError(
-                    f"[STABILITY_METRICS] {symbol}: cannot calculate returns (no valid price transitions). "
-                    f"Price history contains invalid data."
+                    "invalid_price_data: no valid price transitions"
                 )
 
             # Calculate volatilities (annualized: sqrt(252) * daily_std)
@@ -124,43 +170,40 @@ class StabilityMetricsLoader(OptimalLoader):
                 "volatility_252d": (round(volatility_252d, 4) if volatility_252d else None),
                 "beta": round(beta, 4) if beta else None,
                 "created_at": datetime.now(timezone.utc).isoformat(),
+                "data_unavailable": False,
             }
 
-        except RuntimeError:
-            raise
+        except RuntimeError as e:
+            # Data unavailability (insufficient history, invalid data)
+            raise RuntimeError(str(e)) from e
         except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(
-                f"[STABILITY_METRICS] {symbol}: calculation error ({type(e).__name__}: {e}). "
-                f"Cannot compute stability metrics with invalid data."
+                f"calculation_error: {type(e).__name__}"
             ) from e
 
     @staticmethod
     def _calculate_volatility(returns: list[float], symbol: str = "") -> float | None:
         """Calculate annualized volatility from returns.
 
-        Raises ValueError if insufficient data (less than 2 returns) for meaningful calculation.
-        This is a calculation helper, not optional enrichment—failures must be explicit.
+        For optional periods (30d, 60d): Returns None if insufficient data
+        For full year (252d): Raises ValueError if insufficient data (required field)
 
         Args:
             returns: List of daily returns (log returns)
             symbol: Optional symbol name for error messages (for 252d volatility failures)
 
         Returns:
-            Annualized volatility (float) or None if data was valid but insufficient
-            for optional periods (30d, 60d).
+            Annualized volatility (float) or None if optional period lacks data
 
         Raises:
-            ValueError: If full year (252d) volatility cannot be calculated with valid data
+            ValueError: If full year (252d) volatility cannot be calculated
         """
         if not returns or len(returns) < 2:
             # For optional periods (30d, 60d), returning None is acceptable
-            # For full year (252d) used in solvency scoring, this shouldn't happen
-            # since we check len(returns) >= 30 before calling for those periods
+            # For full year (252d) used in scoring, this shouldn't happen
             if symbol:
                 raise ValueError(
-                    f"[STABILITY_METRICS] {symbol}: insufficient returns data for volatility calculation "
-                    f"({len(returns) if returns else 0} returns, minimum 2 required). "
-                    f"Cannot compute stability metrics without valid return data."
+                    f"insufficient_returns: {len(returns) if returns else 0} returns (minimum 2 required)"
                 )
             return None
 
@@ -172,8 +215,11 @@ class StabilityMetricsLoader(OptimalLoader):
         return daily_std * math.sqrt(252)
 
     @staticmethod
-    def _get_beta_yfinance(symbol: str) -> float:
+    def _get_beta_yfinance(symbol: str) -> float | None:
         """Fetch beta from yfinance via the rate-limiting wrapper.
+
+        For OPTIONAL enrichment: Returns None if beta unavailable (instead of raising).
+        This allows volatility metrics to be returned even if beta fetch fails.
 
         Uses ONLY primary 'beta' field (no fallback to beta3Year).
         Validates:
@@ -181,44 +227,52 @@ class StabilityMetricsLoader(OptimalLoader):
         - beta value is not None
         - beta is not extreme (>200 indicates corruption)
 
-        Raises RuntimeError if beta unavailable or invalid.
+        Raises RuntimeError if yfinance ticker cannot be fetched (permanent error).
+        Returns None if beta data unavailable but ticker OK (transient/data error).
         """
         from utils.external.yfinance import get_ticker
 
         ticker = get_ticker(symbol)
         if not ticker:
-            raise RuntimeError(f"[STABILITY_METRICS] {symbol}: cannot fetch yfinance ticker data")
+            logger.warning(f"[STABILITY_METRICS] {symbol}: cannot fetch yfinance ticker data")
+            return None
 
         try:
             info = ticker.info
 
             # Validate 'beta' field exists explicitly (not using .get() default)
             if "beta" not in info:
-                raise RuntimeError(f"[STABILITY_METRICS] {symbol}: beta field missing from yfinance data")
+                logger.debug(f"[STABILITY_METRICS] {symbol}: beta field missing from yfinance data")
+                return None
 
             beta_raw = info["beta"]
 
             # Validate value is not None
             if beta_raw is None:
-                raise RuntimeError(f"[STABILITY_METRICS] {symbol}: beta field is None (unavailable from yfinance)")
+                logger.debug(f"[STABILITY_METRICS] {symbol}: beta field is None (unavailable from yfinance)")
+                return None
 
             # Convert to float and validate
             beta = float(beta_raw)
 
             # Reject extreme values that indicate data corruption
             if abs(beta) > 200:
-                raise RuntimeError(
+                logger.warning(
                     f"[STABILITY_METRICS] {symbol}: extreme beta value {beta} (out of range [-200, 200]). "
-                    f"Data appears corrupted."
+                    f"Data appears corrupted - marking beta unavailable."
                 )
+                return None
 
             return beta
-        except RuntimeError:
-            raise
         except (ValueError, TypeError) as e:
-            raise RuntimeError(f"[STABILITY_METRICS] {symbol}: failed to parse beta ({type(e).__name__}: {e})") from e
+            logger.debug(f"[STABILITY_METRICS] {symbol}: failed to parse beta ({type(e).__name__}: {e})")
+            return None
         except ZeroDivisionError as e:
-            raise RuntimeError(f"[STABILITY_METRICS] {symbol}: division error parsing beta: {e}") from e
+            logger.debug(f"[STABILITY_METRICS] {symbol}: division error parsing beta: {e}")
+            return None
+        except Exception as e:
+            logger.debug(f"[STABILITY_METRICS] {symbol}: unexpected error fetching beta: {type(e).__name__}: {e}")
+            return None
 
     def transform(self, rows: Any) -> list[dict[str, Any]]:
         """Rows are clean."""
