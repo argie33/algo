@@ -117,7 +117,12 @@ class QualityMetricsLoader(OptimalLoader):
     def _compute_metrics(
         symbol: str, income: tuple[Any, Any, Any], balance: tuple[Any, Any, Any, Any, Any, Any] | None
     ) -> dict[str, Any]:
-        """Compute quality metrics from financial data. Balance sheet is optional."""
+        """Compute quality metrics from financial data. Balance sheet is optional.
+
+        Returns dict with explicit reason strings when individual metrics unavailable:
+        - operating_margin_unavailable_reason, net_margin_unavailable_reason, etc.
+        Callers check these strings to understand why each metric is None.
+        """
         revenue, operating_income, net_income = income
         if balance:
             (
@@ -135,78 +140,82 @@ class QualityMetricsLoader(OptimalLoader):
 
         metrics: dict[str, Any] = {"symbol": symbol}
 
-        # Operating Margin: Operating Income / Revenue
         if revenue and revenue > 0 and operating_income is not None:
             metrics["operating_margin"] = float(round((operating_income / revenue) * 100, 2))
+            metrics["operating_margin_unavailable_reason"] = None
         else:
             metrics["operating_margin"] = None
+            metrics["operating_margin_unavailable_reason"] = "insufficient_income_statement_data" if not revenue or revenue <= 0 else "missing_operating_income"
 
-        # Net Margin: Net Income / Revenue
         if revenue and revenue > 0 and net_income is not None:
             metrics["net_margin"] = float(round((net_income / revenue) * 100, 2))
+            metrics["net_margin_unavailable_reason"] = None
         else:
             metrics["net_margin"] = None
+            metrics["net_margin_unavailable_reason"] = "insufficient_income_statement_data" if not revenue or revenue <= 0 else "missing_net_income"
 
         if stockholders_equity and stockholders_equity > 0 and net_income is not None:
             metrics["roe"] = float(round((net_income / stockholders_equity) * 100, 2))
+            metrics["roe_unavailable_reason"] = None
         else:
             metrics["roe"] = None
+            metrics["roe_unavailable_reason"] = "missing_equity_data" if not stockholders_equity or stockholders_equity <= 0 else "missing_net_income"
 
         if total_assets and total_assets > 0 and net_income is not None:
             metrics["roa"] = float(round((net_income / total_assets) * 100, 2))
+            metrics["roa_unavailable_reason"] = None
         else:
             metrics["roa"] = None
+            metrics["roa_unavailable_reason"] = "missing_asset_data" if not total_assets or total_assets <= 0 else "missing_net_income"
 
-        # Debt/Equity: Total Liabilities / Equity
         if stockholders_equity and stockholders_equity > 0 and total_liabilities is not None:
             metrics["debt_to_equity"] = float(round(total_liabilities / stockholders_equity, 2))
+            metrics["debt_to_equity_unavailable_reason"] = None
         else:
             metrics["debt_to_equity"] = None
+            metrics["debt_to_equity_unavailable_reason"] = "missing_balance_sheet_data"
 
-        # Current Ratio: Current Assets / Current Liabilities
         if current_liabilities and current_liabilities > 0 and current_assets is not None:
             metrics["current_ratio"] = float(round(current_assets / current_liabilities, 2))
+            metrics["current_ratio_unavailable_reason"] = None
         else:
             metrics["current_ratio"] = None
+            metrics["current_ratio_unavailable_reason"] = "missing_balance_sheet_data"
 
-        # Quick Ratio: (Current Assets - Inventory) / Current Liabilities
         if current_liabilities and current_liabilities > 0 and current_assets is not None:
             if inventory and inventory > 0:
                 quick_assets = float(current_assets) - float(inventory)
             else:
-                quick_assets = float(current_assets)  # No inventory data, use all current assets
+                quick_assets = float(current_assets)
             metrics["quick_ratio"] = float(round(quick_assets / float(current_liabilities), 2))
+            metrics["quick_ratio_unavailable_reason"] = None
         else:
             metrics["quick_ratio"] = None
+            metrics["quick_ratio_unavailable_reason"] = "missing_balance_sheet_data"
 
         metrics["interest_coverage"] = None
+        metrics["interest_coverage_unavailable_reason"] = "not_implemented"
 
-        # Quality Score: Composite (0-100) based on profitability and financial health
-        score = 50.0  # Neutral baseline
-
+        score = 50.0
         if metrics["operating_margin"] is not None:
-            # Higher is better (up to 20% = +25 points)
             om_score = min(25, metrics["operating_margin"] / 0.8)
             score += om_score
-
         if metrics["net_margin"] is not None:
-            # Higher is better (up to 10% = +25 points)
             nm_score = min(25, metrics["net_margin"] / 0.4)
             score += nm_score
-
         if metrics["roe"] is not None and metrics["roe"] > 0:
-            # Higher ROE is better (up to 15% = +25 points)
             roe_score = min(25, metrics["roe"] / 0.6)
             score += roe_score
 
         score = max(0, min(100, score))
         metrics["quality_score"] = float(round(score, 2))
 
-        # Debt/Assets: Total Liabilities / Total Assets (solvency metric)
         if total_assets and total_assets > 0 and total_liabilities is not None:
             metrics["debt_to_assets"] = float(round(total_liabilities / total_assets, 2))
+            metrics["debt_to_assets_unavailable_reason"] = None
         else:
             metrics["debt_to_assets"] = None
+            metrics["debt_to_assets_unavailable_reason"] = "missing_balance_sheet_data"
 
         metrics["data_unavailable"] = False
         metrics["updated_at"] = date.today().isoformat()

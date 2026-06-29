@@ -265,10 +265,11 @@ class StockScoresLoader(OptimalLoader):
                     normalized_weights[key] = 0
 
             # Clamp scores to 0-100, keep markers for missing data
-            def clamp_score(score: float | dict[str, Any] | None) -> float | None:
+            def clamp_score(score: float | dict[str, Any] | None) -> float | dict[str, Any] | None:
                 if isinstance(score, float):
                     return max(0.0, min(100.0, score))
-                return None
+                # Return marker dicts as-is; don't silence them with None
+                return score if isinstance(score, dict) else None
 
             clamped_quality = clamp_score(quality_score)
             clamped_growth = clamp_score(growth_score)
@@ -290,23 +291,41 @@ class StockScoresLoader(OptimalLoader):
             ]:
                 weight = normalized_weights[metric_name]
                 if weight > 0:
-                    if clamped_value_score is None:
+                    # Handle marker dicts (data unavailable) separately from float scores
+                    if isinstance(clamped_value_score, dict) and clamped_value_score.get("data_unavailable"):
+                        # Marker returned — data unavailable for this metric
+                        reason = clamped_value_score.get("reason", "unknown_reason")
+                        unavailable_metrics[metric_name] = reason
+                        logger.debug(f"[STOCK_SCORES] {metric_name} unavailable for {symbol}: {reason}")
+                    elif clamped_value_score is None:
                         raise ValueError(
-                            f"[{symbol}] Metric '{metric_name}' has weight {weight:.3f} but value is None. "
-                            "This indicates incomplete data despite passing min_required_metrics check."
+                            f"[{symbol}] Metric '{metric_name}' has weight {weight:.3f} but returned None (not a marker dict). "
+                            "This indicates a calculation error or incomplete implementation."
                         )
-                    composite_score_value += clamped_value_score * weight
+                    elif isinstance(clamped_value_score, float):
+                        composite_score_value += clamped_value_score * weight
+                    else:
+                        raise RuntimeError(
+                            f"[{symbol}] Metric '{metric_name}' returned unexpected type {type(clamped_value_score).__name__}. "
+                            "Expected float or dict marker."
+                        )
             composite_score = max(0, min(100, round(composite_score_value, 2)))
+
+            def extract_score_value(score_result: float | dict[str, Any] | None) -> float | None:
+                """Extract numeric score from result (float or marker dict)."""
+                if isinstance(score_result, float):
+                    return round(score_result, 2)
+                return None  # Markers and None return as None
 
             result = {
                 "symbol": symbol,
                 "composite_score": composite_score,
-                "quality_score": (round(clamped_quality, 2) if clamped_quality is not None else None),
-                "growth_score": (round(clamped_growth, 2) if clamped_growth is not None else None),
-                "value_score": (round(clamped_value, 2) if clamped_value is not None else None),
-                "momentum_score": (round(clamped_momentum, 2) if clamped_momentum is not None else None),
-                "positioning_score": (round(clamped_positioning, 2) if clamped_positioning is not None else None),
-                "stability_score": (round(clamped_stability, 2) if clamped_stability is not None else None),
+                "quality_score": extract_score_value(clamped_quality),
+                "growth_score": extract_score_value(clamped_growth),
+                "value_score": extract_score_value(clamped_value),
+                "momentum_score": extract_score_value(clamped_momentum),
+                "positioning_score": extract_score_value(clamped_positioning),
+                "stability_score": extract_score_value(clamped_stability),
                 "rs_percentile": 0.0,
                 "data_completeness": data_completeness,
                 "unavailable_metrics": unavailable_metrics,

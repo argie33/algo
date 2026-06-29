@@ -104,14 +104,8 @@ class GrowthMetricsLoader(OptimalLoader):
     def _compute_metrics(symbol: str, latest: tuple[Any, Any, Any], all_years: list[Any]) -> dict[str, Any] | None:
         """Compute multi-year growth metrics.
 
-        Args:
-            symbol: Stock symbol
-            latest: Tuple of (fiscal_year, revenue, earnings_per_share) for most recent year
-            all_years: List of all historical year tuples, sorted ascending (oldest first)
-
-        Returns:
-            Dictionary with computed growth metrics and data_unavailable flag.
-            Raises ValueError if inputs are malformed (fail-fast on data corruption).
+        Returns dict with explicit unavailability reasons for each metric when data insufficient.
+        Each metric has a corresponding _unavailable_reason field when None.
         """
         if not latest or len(latest) != 3:
             raise ValueError(
@@ -124,42 +118,45 @@ class GrowthMetricsLoader(OptimalLoader):
 
         metrics: dict[str, Any] = {"symbol": symbol}
 
-        # Calculate 1Y, 3Y, 5Y growth rates
         for lookback in [1, 3, 5]:
-            # Revenue growth
             idx = -(lookback + 1)
             if len(all_years) > lookback and all_years[idx] and latest_rev:
                 _prev_year, prev_rev, _prev_eps = all_years[idx]
                 try:
                     if prev_rev is not None and float(prev_rev) > 0 and float(latest_rev) > 0:
-                        # Convert to float to support Decimal types from database
                         latest_rev_f = float(latest_rev)
                         prev_rev_f = float(prev_rev)
                         rev_growth = (((latest_rev_f / prev_rev_f) ** (1.0 / lookback)) - 1) * 100
                         metrics[f"revenue_growth_{lookback}y"] = float(round(rev_growth, 2))
+                        metrics[f"revenue_growth_{lookback}y_unavailable_reason"] = None
                     else:
                         metrics[f"revenue_growth_{lookback}y"] = None
+                        metrics[f"revenue_growth_{lookback}y_unavailable_reason"] = "insufficient_revenue_data"
                 except (TypeError, ValueError):
                     metrics[f"revenue_growth_{lookback}y"] = None
+                    metrics[f"revenue_growth_{lookback}y_unavailable_reason"] = "revenue_calculation_error"
             else:
                 metrics[f"revenue_growth_{lookback}y"] = None
+                metrics[f"revenue_growth_{lookback}y_unavailable_reason"] = f"insufficient_history_{lookback}y"
 
-            # EPS growth
             if len(all_years) > lookback and all_years[idx] and latest_eps:
                 _prev_year, _prev_rev, prev_eps = all_years[idx]
                 try:
                     if prev_eps is not None and float(prev_eps) > 0 and float(latest_eps) > 0:
-                        # Convert to float to support Decimal types from database
                         latest_eps_f = float(latest_eps)
                         prev_eps_f = float(prev_eps)
                         eps_growth = (((latest_eps_f / prev_eps_f) ** (1.0 / lookback)) - 1) * 100
                         metrics[f"eps_growth_{lookback}y"] = float(round(eps_growth, 2))
+                        metrics[f"eps_growth_{lookback}y_unavailable_reason"] = None
                     else:
                         metrics[f"eps_growth_{lookback}y"] = None
+                        metrics[f"eps_growth_{lookback}y_unavailable_reason"] = "insufficient_eps_data"
                 except (TypeError, ValueError):
                     metrics[f"eps_growth_{lookback}y"] = None
+                    metrics[f"eps_growth_{lookback}y_unavailable_reason"] = "eps_calculation_error"
             else:
                 metrics[f"eps_growth_{lookback}y"] = None
+                metrics[f"eps_growth_{lookback}y_unavailable_reason"] = f"insufficient_history_{lookback}y"
 
         # Check if we actually have any real data (not all NULL)
         # Explicitly check that computed growth metrics exist and are not None
