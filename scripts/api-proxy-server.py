@@ -83,8 +83,17 @@ class _APIHandler(BaseHTTPRequestHandler):
         }
 
     def _read_body(self) -> str | None:
+        """Read request body from stream. Returns None if no Content-Length or zero-length body.
+
+        Logs at DEBUG level when body is empty (typical for GET/DELETE with no payload).
+        """
         length = int(self.headers.get("Content-Length", 0))
-        return self.rfile.read(length).decode("utf-8") if length else None
+        if not length:
+            logger.debug("No request body (Content-Length: 0)")
+            return None
+        body = self.rfile.read(length).decode("utf-8")
+        logger.debug(f"Request body read: {len(body)} bytes")
+        return body
 
     def _build_event(self, method: str, body: str | None = None) -> dict[str, Any]:
         parsed = urlparse(self.path)

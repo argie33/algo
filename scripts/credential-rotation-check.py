@@ -15,11 +15,22 @@ class CredentialRotationChecker:
         self.secretsmanager = boto3.client("secretsmanager", region_name=region)
 
     def get_credential_status(self) -> dict[str, Any] | None:
-        """Retrieve credential status from Secrets Manager."""
+        """Retrieve credential status from Secrets Manager.
+
+        Returns:
+            Parsed credential dict if successful, None if secret_string is not a string.
+            Raises Exception on network or parsing errors.
+        """
         try:
             response = self.secretsmanager.get_secret_value(SecretId="algo/developer-credentials")
             secret_string = response["SecretString"]
-            return json.loads(secret_string) if isinstance(secret_string, str) else None
+            if not isinstance(secret_string, str):
+                print(
+                    f"WARNING: Credential status is not a string (got {type(secret_string).__name__})",
+                    file=sys.stderr,
+                )
+                return None
+            return json.loads(secret_string)
         except json.JSONDecodeError as e:
             print(f"ERROR: Failed to parse credential status JSON: {e}", file=sys.stderr)
             raise

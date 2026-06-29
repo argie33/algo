@@ -28,11 +28,17 @@ def get_db_connection() -> Any:
 
     Returns None if connection fails (CI runners are outside VPC).
     Centralized implementation in utils/db/connection.py handles pooling/retries in Lambda.
+
+    Logs explicitly when returning None with explanation.
     """
     try:
-        return _get_db_connection(max_retries=1, timeout=5)
+        conn = _get_db_connection(max_retries=1, timeout=5)
+        if conn:
+            logger.debug("Database connection established")
+        return conn
     except Exception as e:
         logger.error(f"❌ Database connection failed: {e}")
+        logger.info("Returning None (connection unavailable)")
         logger.info("Note: CI runners are outside VPC and can't reach private RDS proxy.")
         logger.info("Loader health is verified by ECS task logs instead.")
         return None
