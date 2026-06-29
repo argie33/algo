@@ -73,6 +73,14 @@ repos:
         types: [python]
         stages: [commit]
 
+      - id: check-silent-fallbacks
+        name: Prevent silent fallback patterns (fail-fast governance)
+        entry: python .pre-commit-scripts/check-silent-fallbacks.py
+        language: system
+        pass_filenames: false
+        types: [python]
+        stages: [commit]
+
       - id: block-seed-prices-in-orchestrator
         name: Block seed_prices in orchestrator Lambda (test data governance)
         entry: python scripts/block_seed_prices.py
