@@ -623,17 +623,18 @@ class BreadthFetcher:
             new_highs_lows = self._compute_new_highs_lows(cur, start, end)
 
             # Check if new highs/lows is unavailable (e.g., insufficient 252-day price history)
-            # Gracefully degrade: when new_highs_lows can't be computed, use 0 placeholders instead of failing
-            # This allows dashboard to load with real data, even if breadth enrichment is temporarily unavailable
-            new_highs_lows_unavailable = False
+            # FAIL-FAST: Do not use placeholders for critical breadth data
+            # Return explicit unavailability marker instead of silent degradation
             if isinstance(new_highs_lows, dict) and new_highs_lows.get("data_unavailable"):
-                logger.warning(
-                    f"[BREADTH_FETCHER] New highs/lows unavailable for {start} to {end}: "
-                    f"{new_highs_lows.get('reason')}. Using (0,0) placeholder to allow dashboard to load."
+                msg = (
+                    f"[BREADTH_FETCHER CRITICAL] New highs/lows data unavailable for {start} to {end}: "
+                    f"{new_highs_lows.get('reason')}. "
+                    f"Breadth data (new highs/lows + advance/decline) is critical for market health assessment. "
+                    f"Using (0,0) placeholders would corrupt position sizing calculations (16% of composite exposure score). "
+                    f"Must fail fast instead of silently degrading."
                 )
-                new_highs_lows_unavailable = True
-                # Will populate with (0, 0) placeholders for each date when building result
-                new_highs_lows = {}
+                logger.error(msg)
+                raise RuntimeError(msg)
 
             result = {}
             for row in rows:
@@ -665,25 +666,21 @@ class BreadthFetcher:
 
                 ad_ratio = advances / declines
 
-                # Get new highs/lows if available, otherwise use (0, 0) placeholder
-                if d in new_highs_lows:
-                    nh, nl = new_highs_lows[d]
-                elif new_highs_lows_unavailable:
-                    # Use (0, 0) placeholders when new_highs_lows computation failed
-                    nh, nl = 0, 0
-                else:
-                    # This shouldn't happen - log warning but use placeholder
-                    logger.warning(
-                        f"[BREADTH_FETCHER] New highs/lows missing for {d}. "
-                        f"Using (0, 0) placeholder for market breadth data."
+                # Get new highs/lows - must exist since we fail-fast if unavailable
+                if d not in new_highs_lows:
+                    msg = (
+                        f"[BREADTH_FETCHER CRITICAL] New highs/lows missing for {d} "
+                        f"despite availability check passing. Data consistency error."
                     )
-                    nh, nl = 0, 0
+                    logger.error(msg)
+                    raise RuntimeError(msg)
+                nh, nl = new_highs_lows[d]
 
                 result[d] = {
                     "advance_decline_ratio": round(ad_ratio, 3),
                     "new_highs_count": nh,
                     "new_lows_count": nl,
-                    "new_highs_lows_available": not new_highs_lows_unavailable,
+                    "new_highs_lows_available": True,
                 }
 
             if not result:

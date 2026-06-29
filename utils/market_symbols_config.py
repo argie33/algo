@@ -10,6 +10,7 @@ All symbols are configurable via the algo_config table (config keys: market_etf_
 market_index_symbols, market_index_names, essential_stocks).
 """
 
+import json
 import logging
 from typing import Any, cast
 
@@ -54,18 +55,64 @@ class MarketSymbolsConfig:
     _cache: dict[str, Any] = {}
 
     @staticmethod
+    def _fetch_config_from_db(key: str, default_value: Any) -> Any:
+        """Fetch configuration value from algo_config table.
+
+        Args:
+            key: Configuration key (e.g., 'market_etf_symbols')
+            default_value: Default value if key not found
+
+        Returns:
+            Configuration value from database, or default if not found
+
+        FAIL-FAST: If database query fails, log error and raise RuntimeError
+        instead of silently falling back to defaults.
+        """
+        try:
+            from utils.db import DatabaseContext
+
+            with DatabaseContext("read") as cur:
+                cur.execute("SELECT value FROM algo_config WHERE key = %s", (key,))
+                row = cur.fetchone()
+                if row:
+                    value_str = row[0]
+                    try:
+                        return json.loads(value_str)
+                    except json.JSONDecodeError as e:
+                        msg = (
+                            f"[MARKET_SYMBOLS_CONFIG CRITICAL] Config key '{key}' has invalid JSON: {value_str}. "
+                            f"Database value must be valid JSON. Parse error: {e}"
+                        )
+                        logger.error(msg)
+                        raise RuntimeError(msg) from e
+                else:
+                    # Key not in database - use hardcoded default
+                    logger.debug(f"[MARKET_SYMBOLS_CONFIG] Config key '{key}' not in algo_config, using hardcoded default")
+                    return default_value
+        except RuntimeError:
+            # Re-raise our own RuntimeError (JSON decode errors)
+            raise
+        except Exception as e:
+            # Database connection error or other issues
+            msg = (
+                f"[MARKET_SYMBOLS_CONFIG CRITICAL] Failed to fetch config key '{key}' from algo_config: {e}. "
+                f"Cannot reliably fall back to hardcoded defaults—database is required for accurate symbol configuration. "
+                f"Check database connectivity and algo_config table."
+            )
+            logger.error(msg)
+            raise RuntimeError(msg) from e
+
+    @staticmethod
     def get_etf_symbols() -> list[str]:
         """Get list of ETF symbols for signal analysis.
 
-        Returns configured symbols from database, or hardcoded defaults if config missing.
+        Fetches from algo_config table (key='market_etf_symbols'), falls back to hardcoded defaults
+        if key not found. Raises RuntimeError if database unavailable or config invalid.
         """
         if "etf_symbols" in MarketSymbolsConfig._cache:
             return cast(list[str], MarketSymbolsConfig._cache["etf_symbols"])
 
-        # In a real implementation, this would fetch from the database
-        # For now, return the hardcoded defaults
-        # TODO: Add database fetch from algo_config where key='market_etf_symbols'
-        symbols = MarketSymbolsConfig.DEFAULT_ETF_SYMBOLS
+        symbols = MarketSymbolsConfig._fetch_config_from_db("market_etf_symbols", MarketSymbolsConfig.DEFAULT_ETF_SYMBOLS)
         MarketSymbolsConfig._cache["etf_symbols"] = symbols
         return symbols
 
@@ -73,15 +120,13 @@ class MarketSymbolsConfig:
     def get_index_symbols() -> list[str]:
         """Get list of market index symbols for breadth/trend analysis.
 
-        Returns configured symbols from database, or hardcoded defaults if config missing.
+        Fetches from algo_config table (key='market_index_symbols'), falls back to hardcoded defaults
+        if key not found. Raises RuntimeError if database unavailable or config invalid.
         """
         if "index_symbols" in MarketSymbolsConfig._cache:
             return cast(list[str], MarketSymbolsConfig._cache["index_symbols"])
 
-        # In a real implementation, this would fetch from the database
-        # For now, return the hardcoded defaults
-        # TODO: Add database fetch from algo_config where key='market_index_symbols'
-        symbols = MarketSymbolsConfig.DEFAULT_INDEX_SYMBOLS
+        symbols = MarketSymbolsConfig._fetch_config_from_db("market_index_symbols", MarketSymbolsConfig.DEFAULT_INDEX_SYMBOLS)
         MarketSymbolsConfig._cache["index_symbols"] = symbols
         return symbols
 
@@ -89,15 +134,13 @@ class MarketSymbolsConfig:
     def get_index_names() -> dict[str, str]:
         """Get mapping of index symbols to display names.
 
-        Returns configured mapping from database, or hardcoded defaults if config missing.
+        Fetches from algo_config table (key='market_index_names'), falls back to hardcoded defaults
+        if key not found. Raises RuntimeError if database unavailable or config invalid.
         """
         if "index_names" in MarketSymbolsConfig._cache:
             return cast(dict[str, str], MarketSymbolsConfig._cache["index_names"])
 
-        # In a real implementation, this would fetch from the database
-        # For now, return the hardcoded defaults
-        # TODO: Add database fetch from algo_config where key='market_index_names'
-        names = MarketSymbolsConfig.DEFAULT_INDEX_NAMES
+        names = MarketSymbolsConfig._fetch_config_from_db("market_index_names", MarketSymbolsConfig.DEFAULT_INDEX_NAMES)
         MarketSymbolsConfig._cache["index_names"] = names
         return names
 
@@ -110,15 +153,13 @@ class MarketSymbolsConfig:
         - Sector rotation analysis (sector ETFs)
         - Macro factor calculations (TLT, GLD for long-term trends)
 
-        Returns configured symbols from database, or hardcoded defaults if config missing.
+        Fetches from algo_config table (key='essential_stocks'), falls back to hardcoded defaults
+        if key not found. Raises RuntimeError if database unavailable or config invalid.
         """
         if "essential_stocks" in MarketSymbolsConfig._cache:
             return cast(list[str], MarketSymbolsConfig._cache["essential_stocks"])
 
-        # In a real implementation, this would fetch from the database
-        # For now, return the hardcoded defaults
-        # TODO: Add database fetch from algo_config where key='essential_stocks'
-        symbols = MarketSymbolsConfig.DEFAULT_ESSENTIAL_STOCKS
+        symbols = MarketSymbolsConfig._fetch_config_from_db("essential_stocks", MarketSymbolsConfig.DEFAULT_ESSENTIAL_STOCKS)
         MarketSymbolsConfig._cache["essential_stocks"] = symbols
         return symbols
 
@@ -132,15 +173,13 @@ class MarketSymbolsConfig:
         - Frontend price history lookups (falls back to etf_price_daily)
         - Macro regime and correlation calculations
 
-        Returns configured symbols from database, or hardcoded defaults if config missing.
+        Fetches from algo_config table (key='essential_etf_symbols'), falls back to hardcoded defaults
+        if key not found. Raises RuntimeError if database unavailable or config invalid.
         """
         if "essential_etf_symbols" in MarketSymbolsConfig._cache:
             return cast(list[str], MarketSymbolsConfig._cache["essential_etf_symbols"])
 
-        # In a real implementation, this would fetch from the database
-        # For now, return the hardcoded defaults
-        # TODO: Add database fetch from algo_config where key='essential_etf_symbols'
-        symbols = MarketSymbolsConfig.DEFAULT_ESSENTIAL_ETF_SYMBOLS
+        symbols = MarketSymbolsConfig._fetch_config_from_db("essential_etf_symbols", MarketSymbolsConfig.DEFAULT_ESSENTIAL_ETF_SYMBOLS)
         MarketSymbolsConfig._cache["essential_etf_symbols"] = symbols
         return symbols
 
@@ -151,7 +190,10 @@ class MarketSymbolsConfig:
 
     @staticmethod
     def get_orchestrator_schedule() -> list[dict[str, int]]:
-        """Get default orchestrator schedule (fallback when API unavailable).
+        """Get orchestrator schedule for pipeline execution.
+
+        Fetches from algo_config table (key='orchestrator_schedule'), falls back to hardcoded defaults
+        if key not found. Raises RuntimeError if database unavailable or config invalid.
 
         Returns:
             List of schedule entries, each with 'hour' and 'minute' keys
@@ -159,10 +201,7 @@ class MarketSymbolsConfig:
         if "orchestrator_schedule" in MarketSymbolsConfig._cache:
             return cast(list[dict[str, int]], MarketSymbolsConfig._cache["orchestrator_schedule"])
 
-        # In a real implementation, this would fetch from the database
-        # For now, return the hardcoded defaults
-        # TODO: Add database fetch from algo_config where key='orchestrator_schedule'
-        schedule = MarketSymbolsConfig.DEFAULT_ORCHESTRATOR_SCHEDULE
+        schedule = MarketSymbolsConfig._fetch_config_from_db("orchestrator_schedule", MarketSymbolsConfig.DEFAULT_ORCHESTRATOR_SCHEDULE)
         MarketSymbolsConfig._cache["orchestrator_schedule"] = schedule
         return schedule
 

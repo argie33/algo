@@ -53,7 +53,7 @@ def get_api_key(secret_name: str, env_var: str, default: str | None = None, requ
                     logger.debug(f"Fetched {secret_name} from Secrets Manager")
                     return key
             except Exception as sm_err:
-                logger.debug(f"Secrets Manager fetch failed for {secret_name}: {sm_err}, falling back to env var")
+                logger.warning(f"Secrets Manager fetch failed for {secret_name}: {sm_err}, falling back to env var")
     except ImportError:
         logger.debug("boto3 not available, using env var fallback")
 

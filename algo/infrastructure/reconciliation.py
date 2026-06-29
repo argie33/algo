@@ -69,17 +69,19 @@ class DailyReconciliation:
                     f"{'Alpaca credentials missing (APCA_API_KEY_ID, APCA_API_SECRET_KEY required).' if not has_alpaca_creds else 'Broker adapter initialization failed.'}"
                 ) from e
 
-            # Only reach here if explicitly in dry-run mode
-            logger.warning(
-                f"[DRY-RUN] Reconciliation broker adapter initialization failed: {e}. "
-                "Using dry-run broker for testing only."
+            # CRITICAL: Dry-run mode is only valid during explicit testing with ORCHESTRATOR_DRY_RUN=true.
+            # Even in that case, reconciliation will reject dry-run mode below (see run_daily_reconciliation).
+            # This code path should be unreachable in normal operation.
+            logger.critical(
+                f"[CRITICAL] Attempted to use dry-run broker in reconciliation init: {e}. "
+                "This should only occur during explicit testing with ORCHESTRATOR_DRY_RUN=true. "
+                "Reconciliation cannot proceed with mock broker in any mode (see run_daily_reconciliation safety gate)."
             )
-            # Import test adapter from test utilities (signals test-only usage)
-            from tests.test_utilities import DryRunBrokerAdapter
-
-            self.broker = DryRunBrokerAdapter()
-            self.audit_logger = TradeAuditLogger()
-            self.trading_client = False  # Dry-run broker, no real credentials
+            raise ValueError(
+                f"Dry-run mode not allowed for reconciliation init: {e}. "
+                "Reconciliation requires live broker connection. "
+                "This error indicates a test configuration issue."
+            ) from e
 
     def run_daily_reconciliation(self, reconcile_date: Any = None, dry_run: bool = False) -> dict[str, Any]:
         """Run full daily reconciliation. If dry_run=True, skip Alpaca API calls and return mock data.
@@ -1061,73 +1063,28 @@ class DailyReconciliation:
         return retried
 
     def compute_analytics_metrics(self, cur: Any) -> dict[str, Any]:
-        """Compute analytics metrics (Information Coefficient, expectancy, Sharpe ratio).
+        """Compute analytics metrics (Information Coefficient, expectancy).
 
-        Returns dict with analytics results. If not implemented, returns dict with
-        valid=False flags and implementation requirements.
+        Delegates to ReconciliationAnalytics for actual computation.
+
+        Returns dict with ic and expectancy results.
         """
-        return {
-            "ic": {
-                "valid": False,
-                "data_unavailable": True,
-                "implementation_required": True,
-                "ic": None,
-                "trade_count": None,
-                "alert": (
-                    "[ANALYTICS_METRICS] NOT IMPLEMENTED: compute_analytics_metrics() requires implementation. "
-                    "Information Coefficient (IC) computation is REQUIRED for "
-                    "performance dashboard and algorithmic monitoring. Cannot assess strategy edge without actual metrics."
-                ),
-            },
-            "expectancy": {
-                "valid": False,
-                "data_unavailable": True,
-                "implementation_required": True,
-                "expectancy": None,
-                "win_rate": None,
-                "kelly_fraction": None,
-                "alert": (
-                    "Expectancy computation is CRITICAL for position sizing and risk management. "
-                    "Implement analytics that compute: "
-                    "(1) Information Coefficient (price prediction accuracy vs market), "
-                    "(2) Expectancy (expected return per trade), "
-                    "(3) Win rate (winning trades / total closed trades), "
-                    "(4) Kelly Fraction (optimal position sizing), "
-                    "(5) Sharpe ratio (risk-adjusted returns) — all required for dashboard."
-                ),
-            },
-        }
+        from algo.infrastructure.reconciliation_analytics import ReconciliationAnalytics
+
+        analytics = ReconciliationAnalytics()
+        return analytics.compute_analytics_metrics(cur)
 
     def compute_closed_trade_metrics(self, cur: Any) -> dict[str, Any]:
         """Compute closed trade metrics (win rate, R-multiples, profit factor).
 
-        Returns dict with closed trade metrics. If not implemented, returns dict with
-        valid=False flag and implementation requirements.
+        Delegates to ReconciliationAnalytics for actual computation.
+
+        Returns dict with closed trade metrics including MAE/MFE.
         """
-        return {
-            "valid": False,
-            "data_unavailable": True,
-            "implementation_required": True,
-            "reason": (
-                "[CLOSED_TRADE_METRICS] NOT IMPLEMENTED: compute_closed_trade_metrics() requires implementation. "
-                "Closed trade analysis (win rate, R-multiples, profit factor) is REQUIRED for "
-                "algorithmic performance evaluation and risk analysis. Cannot assess edge without actual closed trade metrics. "
-                "Implement metrics that compute: "
-                "(1) Win rate (winning trades / total closed trades), "
-                "(2) Profit factor (gross profit / gross loss, must be > 1.0 for profitability), "
-                "(3) Average R-multiple (average trade profit / initial risk, expected value), "
-                "(4) Best and worst trade (max gain, max loss), "
-                "(5) Consecutive win/loss streaks (longest win/loss sequence). "
-                "All metrics required for dashboard monitoring and edge analysis."
-            ),
-            "win_rate": None,
-            "profit_factor": None,
-            "avg_r_multiple": None,
-            "best_trade": None,
-            "worst_trade": None,
-            "max_consecutive_wins": None,
-            "max_consecutive_losses": None,
-        }
+        from algo.infrastructure.reconciliation_analytics import ReconciliationAnalytics
+
+        analytics = ReconciliationAnalytics()
+        return analytics.compute_closed_trade_metrics(cur)
 
     def check_partial_fills(self, cur: Any) -> dict[str, Any]:
         """Check for partial fills that haven't been reconciled with Alpaca.

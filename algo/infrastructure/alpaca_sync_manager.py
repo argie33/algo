@@ -8,6 +8,8 @@ independent testing of position sync logic.
 import logging
 from typing import Any
 
+import requests
+
 from config.api_endpoints import get_alpaca_base_url
 from config.credential_manager import get_credential_manager
 
@@ -82,25 +84,115 @@ class AlpacaSyncManager:
     def sync_alpaca_positions(self, cur: Any) -> dict[str, Any]:
         """Sync Alpaca positions to database.
 
-        CRITICAL: This method is currently not implemented.
-        Position sync logic must be implemented before production use.
+        Fetches open positions from Alpaca and updates database:
+        - New positions are imported as algo_positions
+        - Positions closed in Alpaca are marked as closed
+        - Imported position status is tracked
 
-        For production (live trading): Implement actual sync logic to update DB with:
-        - New positions imported from Alpaca
-        - Positions closed that still exist in database
-        - Imported position status updates
+        Returns:
+            dict with:
+            - message: str, summary of sync operation
+            - orphan_symbols: list[str], symbols in Alpaca but not in DB
+            - synced_count: int, number of positions synchronized
+            - closed_count: int, number of positions marked as closed
 
         Raises:
-            RuntimeError: Position sync logic is not implemented
+            RuntimeError: If Alpaca API fails or database error
         """
-        raise RuntimeError(
-            "[POSITION_SYNC] CRITICAL: sync_alpaca_positions() is not implemented. "
-            "Position synchronization between Alpaca and database is REQUIRED for production trading. "
-            "Cannot proceed without actual sync implementation. "
-            "Implement sync logic that: (1) fetches positions from Alpaca, "
-            "(2) imports new positions to database, "
-            "(3) marks closed positions as imported."
-        )
+        try:
+            self.fetch_alpaca_account()
+        except Exception as e:
+            raise RuntimeError(f"[POSITION_SYNC] Failed to fetch Alpaca account: {e}") from e
+
+        # Fetch positions from Alpaca
+        try:
+            url = f"{self._alpaca_base_url}/v2/positions"
+            headers = {
+                "APCA-API-KEY-ID": self._alpaca_key,
+                "APCA-API-SECRET-KEY": self._alpaca_secret,
+                "Accept": "application/json",
+            }
+            response = requests.get(url, headers=headers, timeout=10)
+            response.raise_for_status()
+            alpaca_positions = response.json()
+        except Exception as e:
+            raise RuntimeError(f"[POSITION_SYNC] Failed to fetch positions from Alpaca: {e}") from e
+
+        if not isinstance(alpaca_positions, list):
+            raise RuntimeError(f"[POSITION_SYNC] Alpaca positions API returned non-list: {type(alpaca_positions)}")
+
+        # Update database with current Alpaca positions
+        synced_count = 0
+        closed_count = 0
+        alpaca_symbols = set()
+
+        for pos in alpaca_positions:
+            symbol = pos.get("symbol")
+            qty = pos.get("qty")
+            avg_fill_price = pos.get("avg_fill_price")
+
+            if not symbol or qty is None or avg_fill_price is None:
+                logger.warning(f"[POSITION_SYNC] Skipping malformed position: {pos}")
+                continue
+
+            alpaca_symbols.add(symbol)
+            current_price = pos.get("current_price")
+            position_value = float(qty) * float(current_price) if current_price else None
+
+            # Upsert position into algo_positions
+            try:
+                cur.execute("""
+                    INSERT INTO algo_positions (
+                        position_id, symbol, quantity, avg_entry_price,
+                        current_price, position_value, status, created_at, updated_at
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                    ON CONFLICT (position_id) DO UPDATE SET
+                        quantity = EXCLUDED.quantity,
+                        current_price = EXCLUDED.current_price,
+                        position_value = EXCLUDED.position_value,
+                        updated_at = CURRENT_TIMESTAMP
+                """,
+                    (
+                        f"alpaca_{symbol}_{int(qty)}",
+                        symbol,
+                        int(qty),
+                        float(avg_fill_price),
+                        float(current_price) if current_price else None,
+                        float(position_value) if position_value else None,
+                        "open",
+                    ),
+                )
+                synced_count += 1
+            except Exception as e:
+                logger.error(f"[POSITION_SYNC] Failed to upsert position {symbol}: {e}")
+                raise RuntimeError(f"[POSITION_SYNC] Database error updating position {symbol}: {e}") from e
+
+        # Mark positions as closed if they exist in DB but not in Alpaca
+        try:
+            cur.execute("""
+                UPDATE algo_positions
+                SET status = 'closed', closed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+                WHERE symbol NOT IN %s AND status = 'open'
+            """, (tuple(alpaca_symbols) if alpaca_symbols else (None,),))
+            closed_count = cur.rowcount
+        except Exception as e:
+            logger.error(f"[POSITION_SYNC] Failed to mark closed positions: {e}")
+            raise RuntimeError(f"[POSITION_SYNC] Database error marking closed positions: {e}") from e
+
+        # Identify orphan positions (in Alpaca but not in our algo_positions table)
+        cur.execute("""
+            SELECT DISTINCT symbol FROM algo_positions WHERE status = 'open'
+        """)
+        db_symbols = {row[0] for row in cur.fetchall()}
+        orphan_symbols = list(alpaca_symbols - db_symbols)
+
+        return {
+            "message": f"Synced {synced_count} positions, marked {closed_count} as closed",
+            "orphan_symbols": orphan_symbols,
+            "synced_count": synced_count,
+            "closed_count": closed_count,
+        }
 
     def process_failed_imports(self, cur: Any, alpaca_positions: list[Any]) -> dict[str, Any]:
         """Handle positions that failed to import or process.

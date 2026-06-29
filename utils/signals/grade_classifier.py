@@ -37,7 +37,7 @@ class GradeClassifier:
             val = get_config().get(key)
             return val if val is not None else default
         except Exception as e:
-            logger.debug(f"_load_config_val({key}) failed: {e}")
+            logger.error(f"[GRADE_CLASSIFIER] Failed to load config '{key}' (using default={default}): {e}")
             return default
 
     @staticmethod

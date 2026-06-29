@@ -51,9 +51,20 @@ def compute_atr(high: pd.Series, low: pd.Series, close: pd.Series, period: int =
     Uses the same Wilder's EMA as RSI and ADX — NOT a simple rolling mean.
     SMA would give discontinuous jumps as big days enter/exit the window.
     """
-    tr1 = high - low
-    tr2 = (high - close.shift()).abs()
-    tr3 = (low - close.shift()).abs()
+    # Reset frequency to avoid pandas frequency mismatch errors during operations
+    high_reset = high.copy()
+    low_reset = low.copy()
+    close_reset = close.copy()
+    if hasattr(high_reset.index, 'freq') and high_reset.index.freq is not None:
+        high_reset.index.freq = None
+    if hasattr(low_reset.index, 'freq') and low_reset.index.freq is not None:
+        low_reset.index.freq = None
+    if hasattr(close_reset.index, 'freq') and close_reset.index.freq is not None:
+        close_reset.index.freq = None
+
+    tr1 = high_reset - low_reset
+    tr2 = (high_reset - close_reset.shift()).abs()
+    tr3 = (low_reset - close_reset.shift()).abs()
     tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
     atr = tr.ewm(alpha=1.0 / period, adjust=False, min_periods=period).mean()
     return atr
@@ -82,21 +93,32 @@ def compute_adx(
 
     Returns: (plus_di, minus_di, adx)
     """
-    high_diff = high.diff()
-    low_diff = -low.diff()
+    # Reset frequency to avoid pandas frequency mismatch errors during operations
+    high_reset = high.copy()
+    low_reset = low.copy()
+    close_reset = close.copy()
+    if hasattr(high_reset.index, 'freq') and high_reset.index.freq is not None:
+        high_reset.index.freq = None
+    if hasattr(low_reset.index, 'freq') and low_reset.index.freq is not None:
+        low_reset.index.freq = None
+    if hasattr(close_reset.index, 'freq') and close_reset.index.freq is not None:
+        close_reset.index.freq = None
+
+    high_diff = high_reset.diff()
+    low_diff = -low_reset.diff()
 
     plus_dm = pd.Series(
         np.where((high_diff > 0) & (high_diff > low_diff), high_diff, 0.0),
-        index=high.index,
+        index=high_reset.index,
     )
     minus_dm = pd.Series(
         np.where((low_diff > 0) & (low_diff > high_diff), low_diff, 0.0),
-        index=high.index,
+        index=high_reset.index,
     )
 
-    tr1 = high - low
-    tr2 = (high - close.shift()).abs()
-    tr3 = (low - close.shift()).abs()
+    tr1 = high_reset - low_reset
+    tr2 = (high_reset - close_reset.shift()).abs()
+    tr3 = (low_reset - close_reset.shift()).abs()
     tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
 
     alpha = 1.0 / period
