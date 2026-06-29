@@ -164,18 +164,21 @@ class StockScoresLoader(OptimalLoader):
             # Cap at 99.99 to fit in NUMERIC(4,2) database column
             data_completeness = min(99.99, round((data_count / 6.0) * 100, 2))
 
-            # CRITICAL: Require minimum 1 metric for composite scoring.
-            # Single-metric composites have clear bias, but partial data is better than blocking trading.
-            # Upstream metric loaders (value_metrics, positioning_metrics) don't complete reliably under
-            # AWS constraints (rate limits, timeouts). Rather than wait indefinitely, calculate scores
-            # from whatever metrics are available. Data completeness tracks actual availability (0-100%).
+            # CRITICAL: Require minimum 50% (3 of 6) metrics for composite scoring.
+            # Single or dual-metric composites have severe bias and produce unreliable signals.
+            # Upstream metric loaders (value_metrics, positioning_metrics) may not complete reliably under
+            # AWS constraints (rate limits, timeouts). Return explicit marker if insufficient data.
             # Downstream systems (signals, filters) weight scores by completeness percentage.
-            min_required_metrics = 1
+            # When data unavailable, return explicit marker so callers can't silently degrade.
+            min_required_metrics = 3
 
             if data_count < min_required_metrics:
                 logger.warning(
-                    f"[STOCK_SCORES] {symbol}: no metrics available ({data_count}/6, {data_completeness:.0f}% complete)"
+                    f"[STOCK_SCORES] {symbol}: insufficient metrics for scoring ({data_count}/{min_required_metrics} required, "
+                    f"{data_completeness:.0f}% complete). Data unavailable marker returned."
                 )
+                # CRITICAL: Return explicit marker that score is unavailable (not a fake/partial score)
+                # Downstream: Callers MUST check data_unavailable=True before using composite_score
                 return {
                     "symbol": symbol,
                     "composite_score": None,
@@ -186,9 +189,9 @@ class StockScoresLoader(OptimalLoader):
                     "positioning_score": None,
                     "stability_score": None,
                     "rs_percentile": 0.0,
-                    "data_completeness": 0.0,
+                    "data_completeness": data_completeness,
                     "data_unavailable": True,
-                    "reason": "no_metrics_available",
+                    "reason": f"insufficient_metrics ({data_count}/{min_required_metrics} available)",
                     "updated_at": datetime.now(timezone.utc).isoformat(),
                 }
 

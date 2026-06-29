@@ -86,24 +86,30 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
     err_panel = _error_panel("exposure factors", exp_f, "EXPOSURE FACTORS", border="blue")
     if err_panel:
         return err_panel
-    if "factors" not in exp_f:
-        logger.error("[EXPOSURE] factors field missing from API response")
-        return Text.from_markup("[red]✗ Exposure data missing 'factors' field — API schema mismatch[/]")
-    raw = exp_f.get("raw_score")
-    epct = exp_f.get("exposure_pct")
-    regime = exp_f.get("regime")
-    if regime is None or regime == "":
-        logger.warning("[EXPOSURE] regime field missing or empty — market regime unavailable")
-        regime = "[yellow]⚠ regime unavailable[/]"
 
-    # CRITICAL: Never silently default factors to empty dict — explicitly validate
-    factors = exp_f.get("factors")
-    if factors is None:
-        logger.warning("[EXPOSURE] factors field is None (API returned null) — data validation failed")
-        return Text.from_markup("[red]✗ Exposure factors data invalid (null value)[/]")
+    # CRITICAL: Fail fast if required fields missing. No fallback to defaults.
+    required_fields = ["raw_score", "exposure_pct", "regime", "factors"]
+    missing = [f for f in required_fields if f not in exp_f]
+    if missing:
+        logger.error("[EXPOSURE] Required fields missing from API response: %s", missing)
+        return Text.from_markup(f"[red]✗ Exposure data incomplete (missing: {', '.join(missing)})[/]")
+
+    raw = exp_f["raw_score"]
+    epct = exp_f["exposure_pct"]
+    regime = exp_f["regime"]
+    factors = exp_f["factors"]
+
+    # Validate types
+    if not isinstance(epct, (int, float)):
+        logger.error("[EXPOSURE] exposure_pct is not numeric: %s", type(epct).__name__)
+        return Text.from_markup("[red]✗ Exposure data has invalid type[/]")
+    if not isinstance(regime, str):
+        logger.error("[EXPOSURE] regime is not string: %s", type(regime).__name__)
+        return Text.from_markup("[red]✗ Regime data has invalid type[/]")
     if not isinstance(factors, dict):
-        logger.error("[EXPOSURE] factors field is not a dict, received type: %s", type(factors).__name__)
+        logger.error("[EXPOSURE] factors is not dict: %s", type(factors).__name__)
         return Text.from_markup("[red]✗ Exposure factors has invalid type[/]")
+
     tier = _tier_formatter.format(epct)
     tc = TIER_COLOR.get(tier, "dim")
 
@@ -154,8 +160,11 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
             v = f.get("value")
             return f" {v:.2f}" if v is not None else ""
         if key == "ad_line":
-            rel = (f.get("relation", "")).replace("_", " ")[:8]
-            return f" {rel}" if rel else ""
+            rel = f.get("relation")
+            if rel and isinstance(rel, str):
+                rel_display = rel.replace("_", " ")[:8]
+                return f" {rel_display}"
+            return ""
         if key == "aaii_sentiment":
             bull = f.get("bullish_pct")
             bear = f.get("bearish_pct")
@@ -166,11 +175,10 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
         if key == "distribution_days":
             cnt = f.get("count")
             regime = f.get("regime")
-            if regime is None or regime == "":
-                regime = "UNK"
-            else:
-                regime = regime[:5]
-            return f" {cnt}d/{regime}" if cnt is not None else ""
+            if cnt is not None:
+                regime_display = regime[:5] if regime else "?"
+                return f" {cnt}d/{regime_display}"
+            return ""
         return ""
 
     factor_map = [
@@ -258,11 +266,13 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
             except StrictValidationError as e:
                 logger.error("[EXPOSURE] economic_overlay pts conversion failed: %s", e)
     if sr_pen is not None and sr_pen < 0 and sr:
-        sig = (sr.get("signal", "")).replace("_", " ")[:18]
-        items.append(f"[dim]Sector Rotation:[/] [{R}]{sr_pen:+.0f}[/] [dim]{sig}[/]")
+        sig = sr.get("signal")
+        sig_display = (sig.replace("_", " ")[:18] if isinstance(sig, str) else "")
+        items.append(f"[dim]Sector Rotation:[/] [{R}]{sr_pen:+.0f}[/] [dim]{sig_display}[/]")
     if eco_pen is not None and eco_pen < 0 and eco:
-        eco_err = (eco.get("error", ""))[:18]
-        items.append(f"[dim]Economic Overlay:[/] [{R}]{eco_pen:+.0f}[/]" + (f" [dim]{eco_err}[/]" if eco_err else ""))
+        eco_err = eco.get("error")
+        eco_err_display = (eco_err[:18] if isinstance(eco_err, str) else "")
+        items.append(f"[dim]Economic Overlay:[/] [{R}]{eco_pen:+.0f}[/]" + (f" [dim]{eco_err_display}[/]" if eco_err_display else ""))
 
     for a, b in zip(items[::2], [*items[1::2], ""], strict=False):
         tbl.add_row(Text.from_markup(a), Text.from_markup(b))
@@ -325,14 +335,26 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
             border_style="blue",
             padding=(0, 1),
         )
-    regime = exp_f.get("regime", "")
-    if not regime:
-        logger.warning("[EXPOSURE_EXPANDED] regime field missing or empty")
-        regime = "unavailable"
+    regime = exp_f.get("regime")
+    if not regime or not isinstance(regime, str):
+        logger.warning("[EXPOSURE_EXPANDED] regime field missing or invalid type")
+        rows.append(Text.from_markup("[yellow]⚠ Market regime unavailable[/]"))
+        return Panel(
+            Group(*cast(list[ConsoleRenderable | RichCast | str], rows)),
+            title="[bold blue]EXPOSURE SCORE - EXPANDED[/]  [dim][x] return[/]",
+            border_style="blue",
+            padding=(0, 1),
+        )
     factors = exp_f.get("factors")
     if not isinstance(factors, dict):
         logger.error("[EXPOSURE_EXPANDED] factors field is not a dict, received type: %s", type(factors).__name__)
-        factors = {}
+        rows.append(Text.from_markup("[red]✗ Exposure factors data invalid[/]"))
+        return Panel(
+            Group(*cast(list[ConsoleRenderable | RichCast | str], rows)),
+            title="[bold blue]EXPOSURE SCORE - EXPANDED[/]  [dim][x] return[/]",
+            border_style="blue",
+            padding=(0, 1),
+        )
     tier = _tier_formatter.format(epct)
     tc = TIER_COLOR.get(tier, "dim")
 
@@ -466,8 +488,9 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
             v = f.get("value")
             val_s = f"{v:.2f}% OAS" if v is not None else "--"
         elif key == "ad_line":
-            rel = (f.get("relation", "")).replace("_", " ")
-            val_s = rel[:16] if rel else "--"
+            rel = f.get("relation")
+            rel_display = (rel.replace("_", " ")[:16] if isinstance(rel, str) else "--")
+            val_s = rel_display
         elif key == "aaii_sentiment":
             bull = f.get("bullish_pct")
             bear = f.get("bearish_pct")
@@ -477,8 +500,9 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
             val_s = f"{v:.0f}% allocated" if v is not None else "--"
         elif key == "distribution_days":
             cnt = f.get("count")
-            rg = (f.get("regime", ""))[:10]
-            val_s = f"{cnt}d / {rg}" if cnt is not None else "--"
+            rg = f.get("regime")
+            rg_display = (rg[:10] if isinstance(rg, str) else "?")
+            val_s = f"{cnt}d / {rg_display}" if cnt is not None else "--"
 
         tbl.add_row(
             Text(label, style=fc),
@@ -530,19 +554,21 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
         rows.append(Rule(style="dim"))
         rows.append(Text.from_markup("[dim bold]ADJUSTMENTS[/]"))
         if sr_pen is not None and sr:
-            sig = (sr.get("signal", "")).replace("_", " ")
+            sig = sr.get("signal")
+            sig_display = (sig.replace("_", " ") if isinstance(sig, str) else "")
             sc = R if sr_pen < 0 else G
-            rows.append(Text.from_markup(f"  [dim]Sector Rotation:[/] [{sc}]{sr_pen:+.0f} pts[/]  [dim]{sig}[/]"))
+            rows.append(Text.from_markup(f"  [dim]Sector Rotation:[/] [{sc}]{sr_pen:+.0f} pts[/]  [dim]{sig_display}[/]"))
         elif sr:
             logger.debug("[EXPOSURE_EXPANDED_ADJ] sector_rotation present but pts field missing")
             rows.append(Text.from_markup("  [dim]Sector Rotation:[/] [red]✗ pts calculation failed[/]"))
         if eco_pen is not None and eco:
-            eco_err = (eco.get("error", ""))[:30]
+            eco_err = eco.get("error")
+            eco_err_display = (eco_err[:30] if isinstance(eco_err, str) else "")
             ec = R if eco_pen < 0 else G
             rows.append(
                 Text.from_markup(
                     f"  [dim]Economic Overlay:[/] [{ec}]{eco_pen:+.0f} pts[/]"
-                    + (f"  [dim]{eco_err}[/]" if eco_err else "")
+                    + (f"  [dim]{eco_err_display}[/]" if eco_err_display else "")
                 )
             )
         elif eco:
