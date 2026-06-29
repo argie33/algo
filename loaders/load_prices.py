@@ -1476,12 +1476,12 @@ class PriceLoader(OptimalLoader):
         parallelism: int,
         start_time: float,
         total_symbols: int,
-    ) -> dict[str, Any] | None:
+    ) -> dict[str, Any]:
         """Execute batch jobs concurrently with timeout monitoring and circuit breaker logic.
 
         Returns:
-          - None if all batches completed successfully
-          - dict with circuit breaker metrics if halted early
+          - dict with status="success" if all batches completed successfully
+          - dict with status="halted" if circuit breaker triggered early
 
         """
         import time
@@ -1532,7 +1532,7 @@ class PriceLoader(OptimalLoader):
                     batch_elapsed=batch_elapsed,
                     max_concurrent=max_concurrent,
                 )
-                if result is not None:
+                if result.get("status") == "halted":
                     return result
 
         if failed_batches:
@@ -1549,7 +1549,8 @@ class PriceLoader(OptimalLoader):
             logger.critical(msg)
             raise RuntimeError(msg)
 
-        return None
+        logger.debug("[BATCH_JOBS] All batches completed successfully")
+        return {"status": "success"}
 
     def _monitor_and_enforce_timeouts(
         self,
@@ -1564,12 +1565,12 @@ class PriceLoader(OptimalLoader):
         emergency_mode_enabled: bool,
         batch_elapsed: float,
         max_concurrent: int,
-    ) -> dict[str, Any] | None:
+    ) -> dict[str, Any]:
         """Monitor timeout conditions and enforce circuit breaker logic.
 
         Returns:
-          - dict with early halt metrics if circuit breaker triggered
-          - None if execution should continue
+          - dict with status="halted" if circuit breaker triggered
+          - dict with status="continue" if execution should continue
 
         """
 
@@ -1693,7 +1694,7 @@ class PriceLoader(OptimalLoader):
             raise RuntimeError(error_msg)
 
         # Timeout check passed — execution should continue.
-        # Returns None to signal caller that no circuit breaker was triggered
+        # Returns explicit status dict to signal caller that no circuit breaker was triggered
         # and normal batch processing should resume.
         logger.debug(
             "[TIMEOUT_MONITOR] Progress check passed: %d/%d symbols (%.1f%% complete). "
@@ -1704,7 +1705,7 @@ class PriceLoader(OptimalLoader):
             total_estimated_sec,
             task_timeout_sec,
         )
-        return None
+        return {"status": "continue"}
 
     def _finalize_execution_metrics(self) -> None:
         """Finalize execution: publish metrics, update loader status, attempt final symbol retry."""
@@ -1907,7 +1908,8 @@ class PriceLoader(OptimalLoader):
         self._stats["symbols_total"] = len(symbols)
 
         circuit_breaker_result = self._execute_batch_jobs(batches, parallelism, start, len(symbols))
-        if circuit_breaker_result is not None:
+        if circuit_breaker_result.get("status") != "success":
+            logger.debug("[BATCH_JOBS] Early halt triggered, returning circuit breaker result")
             return circuit_breaker_result
 
         self._stats["duration_sec"] = round(time.time() - start, 2)

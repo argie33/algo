@@ -215,15 +215,17 @@ class ValueMetricsLoader(OptimalLoader):
             if fcf and mkt_cap and mkt_cap > 0:
                 fcf_yield = float(fcf) / float(mkt_cap)
 
-            def _cap(val: Any, limit: int = 9_999_999) -> float | None:
+            def _cap(val: Any, limit: int = 9_999_999) -> dict[str, Any]:
                 if val is None:
-                    return None
+                    logger.debug("[VALUE_METRICS_CAP] Value is null, marking unavailable")
+                    return {"value": None, "available": False, "reason": "null_input"}
                 try:
                     f = float(val)
-                    return min(f, limit)
+                    capped = min(f, limit)
+                    return {"value": capped, "available": True}
                 except (ValueError, TypeError) as e:
-                    logger.warning(f"Failed to convert value {val!r} to float: {e}")
-                    return None
+                    logger.debug(f"[VALUE_METRICS_CAP] Failed to convert value {val!r} to float: {e}")
+                    return {"value": None, "available": False, "reason": f"conversion_error: {str(e)[:50]}"}
 
             # Convert held_percent fields to 0-100 scale (yfinance returns 0-1 scale)
             # CRITICAL: Must match load_positioning_metrics.py behavior for data consistency
@@ -237,15 +239,22 @@ class ValueMetricsLoader(OptimalLoader):
             elapsed = time.time() - start_time
             if elapsed > 5:
                 logger.warning(f"[VALUE_METRICS] {symbol}: fetch took {elapsed:.1f}s total")
+
+            # Extract values from _cap dicts (which now have explicit availability markers)
+            pe_cap_result = _cap(pe) if pe else {"value": None, "available": False, "reason": "null_input"}
+            pb_cap_result = _cap(pb) if pb else {"value": None, "available": False, "reason": "null_input"}
+            ps_cap_result = _cap(ps) if ps else {"value": None, "available": False, "reason": "null_input"}
+            peg_cap_result = _cap(peg) if peg else {"value": None, "available": False, "reason": "null_input"}
+
             return [
                 {
                     "symbol": symbol,
                     "date": date.today(),
                     "market_cap": int(mkt_cap) if mkt_cap else None,
-                    "pe_ratio": _cap(pe) if pe else None,
-                    "pb_ratio": _cap(pb) if pb else None,
-                    "ps_ratio": _cap(ps) if ps else None,
-                    "peg_ratio": _cap(peg) if peg else None,
+                    "pe_ratio": pe_cap_result["value"],
+                    "pb_ratio": pb_cap_result["value"],
+                    "ps_ratio": ps_cap_result["value"],
+                    "peg_ratio": peg_cap_result["value"],
                     "dividend_yield": float(div) if div else None,
                     "fcf_yield": fcf_yield,
                     "held_percent_insiders": held_insiders_pct,

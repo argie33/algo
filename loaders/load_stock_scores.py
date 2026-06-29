@@ -344,10 +344,10 @@ class StockScoresLoader(OptimalLoader):
     # are already explicitly handled and logged at appropriate levels.
     # ====================================================
 
-    def _get_quality_metrics(self, cur: Any, symbol: str) -> dict[str, Any] | None:
+    def _get_quality_metrics(self, cur: Any, symbol: str) -> dict[str, Any]:
         """Fetch quality metrics for symbol.
 
-        Returns None only if data is explicitly unavailable (quality_metrics table
+        Returns explicit marker dict if data is unavailable (quality_metrics table
         has no entry for this symbol). Raises on database errors.
         """
         try:
@@ -371,14 +371,19 @@ class StockScoresLoader(OptimalLoader):
             logger.warning(
                 f"[LOAD_STOCK_SCORES] No quality metrics available for {symbol} — score completeness will be reduced"
             )
-            return None
+            logger.debug(f"[LOAD_STOCK_SCORES] Returning data_unavailable marker for quality_metrics({symbol})")
+            return {
+                "symbol": symbol,
+                "data_unavailable": True,
+                "reason": "no_quality_metrics_found"
+            }
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Database operation failed fetching quality metrics for {symbol}: {e}") from e
 
-    def _get_growth_metrics(self, cur: Any, symbol: str) -> dict[str, Any] | None:
+    def _get_growth_metrics(self, cur: Any, symbol: str) -> dict[str, Any]:
         """Fetch growth metrics for symbol.
 
-        Returns None only if data is explicitly unavailable (growth_metrics table
+        Returns explicit marker dict if data is unavailable (growth_metrics table
         has no entry for this symbol). Raises on database errors.
         """
         try:
@@ -401,14 +406,19 @@ class StockScoresLoader(OptimalLoader):
             logger.warning(
                 f"[LOAD_STOCK_SCORES] No growth metrics available for {symbol} — score completeness will be reduced"
             )
-            return None
+            logger.debug(f"[LOAD_STOCK_SCORES] Returning data_unavailable marker for growth_metrics({symbol})")
+            return {
+                "symbol": symbol,
+                "data_unavailable": True,
+                "reason": "no_growth_metrics_found"
+            }
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Database operation failed fetching growth metrics for {symbol}: {e}") from e
 
-    def _get_value_metrics(self, cur: Any, symbol: str) -> dict[str, Any] | None:
+    def _get_value_metrics(self, cur: Any, symbol: str) -> dict[str, Any]:
         """Fetch value metrics for symbol.
 
-        Returns None only if data is explicitly unavailable (value_metrics table
+        Returns explicit marker dict if data is unavailable (value_metrics table
         has no entry for this symbol). Raises on database errors.
         """
         try:
@@ -431,14 +441,19 @@ class StockScoresLoader(OptimalLoader):
             logger.warning(
                 f"[LOAD_STOCK_SCORES] No value metrics available for {symbol} — score completeness will be reduced"
             )
-            return None
+            logger.debug(f"[LOAD_STOCK_SCORES] Returning data_unavailable marker for value_metrics({symbol})")
+            return {
+                "symbol": symbol,
+                "data_unavailable": True,
+                "reason": "no_value_metrics_found"
+            }
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Database operation failed fetching value metrics for {symbol}: {e}") from e
 
-    def _get_positioning_metrics(self, cur: Any, symbol: str) -> dict[str, Any] | None:
+    def _get_positioning_metrics(self, cur: Any, symbol: str) -> dict[str, Any]:
         """Fetch positioning metrics for symbol.
 
-        Returns None only if data is explicitly unavailable (positioning_metrics table
+        Returns explicit marker dict if data is unavailable (positioning_metrics table
         has no entry for this symbol). Raises on database errors.
         """
         try:
@@ -458,14 +473,19 @@ class StockScoresLoader(OptimalLoader):
             logger.debug(
                 f"[LOAD_STOCK_SCORES] No positioning metrics available for {symbol} — will reduce score completeness"
             )
-            return None
+            logger.debug(f"[LOAD_STOCK_SCORES] Returning data_unavailable marker for positioning_metrics({symbol})")
+            return {
+                "symbol": symbol,
+                "data_unavailable": True,
+                "reason": "no_positioning_metrics_found"
+            }
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Database operation failed fetching positioning metrics for {symbol}: {e}") from e
 
-    def _get_stability_metrics(self, cur: Any, symbol: str) -> dict[str, Any] | None:
+    def _get_stability_metrics(self, cur: Any, symbol: str) -> dict[str, Any]:
         """Fetch stability metrics for symbol.
 
-        Returns None only if data is explicitly unavailable (stability_metrics table
+        Returns explicit marker dict if data is unavailable (stability_metrics table
         has no entry for this symbol). Raises on database errors.
         """
         try:
@@ -486,11 +506,16 @@ class StockScoresLoader(OptimalLoader):
             logger.warning(
                 f"[LOAD_STOCK_SCORES] No stability metrics available for {symbol} — score completeness will be reduced"
             )
-            return None
+            logger.debug(f"[LOAD_STOCK_SCORES] Returning data_unavailable marker for stability_metrics({symbol})")
+            return {
+                "symbol": symbol,
+                "data_unavailable": True,
+                "reason": "no_stability_metrics_found"
+            }
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Database operation failed fetching stability metrics for {symbol}: {e}") from e
 
-    def _get_momentum_metrics(self, cur: Any, symbol: str) -> dict[str, Any] | None:
+    def _get_momentum_metrics(self, cur: Any, symbol: str) -> dict[str, Any]:
         """Fetch momentum/RS metrics for symbol using DATE-based lookups (not OFFSET).
 
         Uses date arithmetic to find approximate prices at 1m/3m/6m/12m ago.
@@ -551,19 +576,29 @@ class StockScoresLoader(OptimalLoader):
             # CRITICAL: Momentum is HIGH-priority technical indicator data (price history)
             # Logging at WARNING to ensure ops visibility of degraded scoring
             logger.warning(f"[LOAD_STOCK_SCORES] No momentum data available for {symbol} — insufficient price history")
-            return None
+            logger.debug(f"[LOAD_STOCK_SCORES] Returning data_unavailable marker for momentum_metrics({symbol})")
+            return {
+                "symbol": symbol,
+                "data_unavailable": True,
+                "reason": "no_momentum_data_available"
+            }
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Database operation failed fetching momentum metrics for {symbol}: {e}") from e
 
-    def _score_quality(self, metrics: dict[str, Any] | None, symbol: str) -> float | None:
-        """Score quality metrics on 0-100 scale. Returns None if no real data.
+    def _score_quality(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict | None:
+        """Score quality metrics on 0-100 scale. Returns marker dict if no real data.
 
-        Internal function: caller (_compute_stock_score) explicitly handles None
-        and converts to data_unavailable markers at public API boundary.
+        Internal function: caller (_compute_stock_score) explicitly handles marker dicts
+        and uses them for quality metric computation.
         """
-        if not metrics:
+        if not metrics or metrics.get("data_unavailable"):
             logger.debug(f"[STOCK_SCORES] Quality metrics unavailable for {symbol}")
-            return None
+            logger.debug(f"[STOCK_SCORES] Returning data_unavailable marker for quality_score({symbol})")
+            return {
+                "symbol": symbol,
+                "data_unavailable": True,
+                "reason": "no_quality_metrics_data"
+            }
 
         scores = []
 
@@ -609,28 +644,43 @@ class StockScoresLoader(OptimalLoader):
         if scores:
             return sum(scores) / len(scores)
         logger.debug(f"[STOCK_SCORES] No quality metrics found to score for {symbol}")
-        return None
+        logger.debug(f"[STOCK_SCORES] Returning data_unavailable marker for quality_score({symbol}) - no scoreable fields")
+        return {
+            "symbol": symbol,
+            "data_unavailable": True,
+            "reason": "no_quality_scores_computed"
+        }
 
-    def _score_growth(self, metrics: dict[str, Any] | None, symbol: str) -> float | None:
-        """Score growth metrics on 0-100 scale. Returns None if no real data.
+    def _score_growth(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict | None:
+        """Score growth metrics on 0-100 scale. Returns marker dict if no real data.
 
         Uses weighted blend: 1Y growth (60%) + 3Y CAGR (30%) + 5Y CAGR (10%).
         Longer-term growth signals more durable earnings quality.
 
-        Internal function: caller (_compute_stock_score) explicitly handles None
-        and converts to data_unavailable markers at public API boundary.
+        Internal function: caller (_compute_stock_score) explicitly handles marker dicts
+        and uses them for growth metric computation.
         """
-        if not metrics:
+        if not metrics or metrics.get("data_unavailable"):
             logger.debug(f"[STOCK_SCORES] Growth metrics unavailable for {symbol}")
-            return None
+            logger.debug(f"[STOCK_SCORES] Returning data_unavailable marker for growth_score({symbol})")
+            return {
+                "symbol": symbol,
+                "data_unavailable": True,
+                "reason": "no_growth_metrics_data"
+            }
 
         weighted_sum = 0.0
         total_weight = 0.0
 
-        def _score_single_growth(val: float | None, cap: float) -> float | None:
+        def _score_single_growth(val: float | None, cap: float) -> float | dict | None:
             """Score a single growth rate capped at `cap`%."""
             if val is None:
-                return None
+                logger.debug(f"[STOCK_SCORES] Returning data_unavailable marker for growth_score({symbol}) - growth value is None")
+                return {
+                    "symbol": symbol,
+                    "data_unavailable": True,
+                    "reason": "single_growth_value_none"
+                }
             if val <= 0:
                 # Negative growth: map [-50, 0] → [0, 40]
                 return max(0, 40 + (val / 50) * 40)
@@ -669,20 +719,30 @@ class StockScoresLoader(OptimalLoader):
         if total_weight > 0:
             return weighted_sum / total_weight
         logger.debug(f"[STOCK_SCORES] No growth metrics found to score for {symbol}")
-        return None
+        logger.debug(f"[STOCK_SCORES] Returning data_unavailable marker for growth_score({symbol}) - no scoreable fields")
+        return {
+            "symbol": symbol,
+            "data_unavailable": True,
+            "reason": "no_growth_scores_computed"
+        }
 
-    def _score_value(self, metrics: dict[str, Any] | None, symbol: str) -> float | None:
-        """Score value metrics on 0-100 scale. Returns None if no real data.
+    def _score_value(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict | None:
+        """Score value metrics on 0-100 scale. Returns marker dict if no real data.
 
         Uses P/E (primary), P/B (secondary), FCF yield (secondary), dividend yield (bonus).
         Peak zone for growth stocks: P/E 15-30, P/B < 5, positive FCF yield.
 
-        Internal function: caller (_compute_stock_score) explicitly handles None
-        and converts to data_unavailable markers at public API boundary.
+        Internal function: caller (_compute_stock_score) explicitly handles marker dicts
+        and uses them for value metric computation.
         """
-        if not metrics:
+        if not metrics or metrics.get("data_unavailable"):
             logger.debug(f"[STOCK_SCORES] Value metrics unavailable for {symbol}")
-            return None
+            logger.debug(f"[STOCK_SCORES] Returning data_unavailable marker for value_score({symbol})")
+            return {
+                "symbol": symbol,
+                "data_unavailable": True,
+                "reason": "no_value_metrics_data"
+            }
 
         weighted_sum = 0.0
         total_weight = 0.0
@@ -732,17 +792,27 @@ class StockScoresLoader(OptimalLoader):
         if total_weight > 0:
             return weighted_sum / total_weight
         logger.debug(f"[STOCK_SCORES] No value metrics found to score for {symbol}")
-        return None
+        logger.debug(f"[STOCK_SCORES] Returning data_unavailable marker for value_score({symbol}) - no scoreable fields")
+        return {
+            "symbol": symbol,
+            "data_unavailable": True,
+            "reason": "no_value_scores_computed"
+        }
 
-    def _score_positioning(self, metrics: dict[str, Any] | None, symbol: str) -> float | None:
-        """Score positioning metrics on 0-100 scale. Returns None if no real data.
+    def _score_positioning(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict | None:
+        """Score positioning metrics on 0-100 scale. Returns marker dict if no real data.
 
-        Internal function: caller (_compute_stock_score) explicitly handles None
-        and converts to data_unavailable markers at public API boundary.
+        Internal function: caller (_compute_stock_score) explicitly handles marker dicts
+        and uses them for positioning metric computation.
         """
-        if not metrics:
+        if not metrics or metrics.get("data_unavailable"):
             logger.debug(f"[STOCK_SCORES] Positioning metrics unavailable for {symbol}")
-            return None
+            logger.debug(f"[STOCK_SCORES] Returning data_unavailable marker for positioning_score({symbol})")
+            return {
+                "symbol": symbol,
+                "data_unavailable": True,
+                "reason": "no_positioning_metrics_data"
+            }
 
         weighted_sum = 0.0
         total_weight = 0.0
@@ -779,16 +849,28 @@ class StockScoresLoader(OptimalLoader):
             weighted_sum += max(0, min(100, score)) * 0.25
             total_weight += 0.25
 
-        return weighted_sum / total_weight if total_weight > 0 else None
+        if total_weight > 0:
+            return weighted_sum / total_weight
+        logger.debug(f"[STOCK_SCORES] Returning data_unavailable marker for positioning_score({symbol}) - no scoreable fields")
+        return {
+            "symbol": symbol,
+            "data_unavailable": True,
+            "reason": "no_positioning_scores_computed"
+        }
 
-    def _score_stability(self, metrics: dict[str, Any] | None, symbol: str) -> float | None:
-        """Score stability metrics on 0-100 scale. Returns None if no real data.
+    def _score_stability(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict | None:
+        """Score stability metrics on 0-100 scale. Returns marker dict if no real data.
 
         Uses 12-month volatility (primary), beta vs market (secondary),
         and debt-to-assets (tertiary solvency signal).
         """
-        if not metrics:
-            return None
+        if not metrics or metrics.get("data_unavailable"):
+            logger.debug(f"[STOCK_SCORES] Returning data_unavailable marker for stability_score({symbol})")
+            return {
+                "symbol": symbol,
+                "data_unavailable": True,
+                "reason": "no_stability_metrics_data"
+            }
 
         weighted_sum = 0.0
         total_weight = 0.0
@@ -837,17 +919,29 @@ class StockScoresLoader(OptimalLoader):
             weighted_sum += dta_score * 0.10
             total_weight += 0.10
 
-        return weighted_sum / total_weight if total_weight > 0 else None
+        if total_weight > 0:
+            return weighted_sum / total_weight
+        logger.debug(f"[STOCK_SCORES] Returning data_unavailable marker for stability_score({symbol}) - no scoreable fields")
+        return {
+            "symbol": symbol,
+            "data_unavailable": True,
+            "reason": "no_stability_scores_computed"
+        }
 
-    def _score_momentum(self, metrics: dict[str, Any] | None, symbol: str) -> float | None:
-        """Score momentum metrics on 0-100 scale. Returns None if no real data.
+    def _score_momentum(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict | None:
+        """Score momentum metrics on 0-100 scale. Returns marker dict if no real data.
 
         Weights favor recent momentum (1m/3m) over longer-term (12m) for swing trading.
         Normalizes by total weight of available timeframes so partial data doesn't
         deflate the score.
         """
-        if not metrics:
-            return None
+        if not metrics or metrics.get("data_unavailable"):
+            logger.debug(f"[STOCK_SCORES] Returning data_unavailable marker for momentum_score({symbol})")
+            return {
+                "symbol": symbol,
+                "data_unavailable": True,
+                "reason": "no_momentum_metrics_data"
+            }
 
         # Named weights â€" recent timeframes matter more for swing trading
         weights = {
@@ -864,7 +958,14 @@ class StockScoresLoader(OptimalLoader):
                 weighted_sum += self._pct_to_score(metrics[key]) * w
                 total_weight += w
 
-        return weighted_sum / total_weight if total_weight > 0 else None
+        if total_weight > 0:
+            return weighted_sum / total_weight
+        logger.debug(f"[STOCK_SCORES] Returning data_unavailable marker for momentum_score({symbol}) - no scoreable fields")
+        return {
+            "symbol": symbol,
+            "data_unavailable": True,
+            "reason": "no_momentum_scores_computed"
+        }
 
     @staticmethod
     def _pct_to_score(pct_return: float) -> float:
