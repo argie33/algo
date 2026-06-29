@@ -218,7 +218,8 @@ class SignalPatternsMixin:
         Classify the current base into canonical chart pattern types.
         """
         base_info = self.base_detection(symbol, eval_date)
-        if not base_info.get("in_base"):
+        # Explicit check: in_base must be present and truthy
+        if base_info is None or not base_info.get("in_base"):
             return {
                 "type": "no_base",
                 "quality": "D",
@@ -261,10 +262,13 @@ class SignalPatternsMixin:
                 }
 
             vcp = self.vcp_detection(symbol, eval_date)
-            if vcp.get("is_vcp"):
+            if vcp and vcp.get("is_vcp"):
+                # Explicit quality assignment: A if tight_pattern is True, B otherwise
+                tight_pattern = vcp.get("tight_pattern")
+                quality = "A" if tight_pattern is True else "B"
                 return {
                     "type": "vcp",
-                    "quality": "A" if vcp.get("tight_pattern") else "B",
+                    "quality": quality,
                     **characteristics,
                     **vcp,
                 }

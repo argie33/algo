@@ -45,7 +45,14 @@ class BaseCheck(ABC):
     """
 
     def __init__(self, config: "PatrolConfig | None" = None):
-        self.config: PatrolConfig = config or {}
+        if config is None:
+            raise ValueError(
+                "BaseCheck requires explicit PatrolConfig. "
+                "Silent fallback to empty dict would run data quality checks with no configured thresholds. "
+                "Cannot execute patrol checks without knowing which values are acceptable. "
+                "Pass config from DataPatrol or provide explicit PatrolConfig instance."
+            )
+        self.config: PatrolConfig = config
         self.results: list[CheckResult] = []
 
     @abstractmethod
@@ -77,10 +84,19 @@ class DataPatrol:
     """Data patrol orchestrator - runs all data quality checks."""
 
     def __init__(self, config: "PatrolConfig | None" = None) -> None:
-        """Initialize data patrol."""
-        from .config import PatrolConfig
+        """Initialize data patrol.
 
-        self.config: PatrolConfig = config or PatrolConfig()
+        Raises:
+            ValueError: If config is None (patrol checks require configured thresholds)
+        """
+        if config is None:
+            raise ValueError(
+                "DataPatrol requires explicit PatrolConfig. "
+                "Silent fallback to empty PatrolConfig() would run data quality checks with no configured thresholds. "
+                "Cannot execute patrol checks without knowing which values are acceptable. "
+                "Pass PatrolConfig instance with loaded thresholds from database."
+            )
+        self.config: PatrolConfig = config
         self.results: list[CheckResult] = []
         self.run_id = ""
 

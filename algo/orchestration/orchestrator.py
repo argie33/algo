@@ -86,8 +86,13 @@ class Orchestrator:
         try:
             self.alerts: AlertManager | NullAlertManager = AlertManager()
         except RuntimeError as e:
-            logger.warning(f"[ALERTS] No alert channels configured — using null alerts: {e}")
-            self.alerts = NullAlertManager()
+            raise RuntimeError(
+                f"CRITICAL: AlertManager initialization failed. "
+                f"Operators will not receive critical trading alerts, risk notifications, or system errors. "
+                f"Cannot proceed with trading orchestration without alert infrastructure. "
+                f"Root cause: {e}. "
+                f"Fix: Ensure alert channels (Slack, email, PagerDuty) are configured in ALERT_CHANNELS environment variable."
+            ) from e
 
         self.db_monitor = DatabaseHealthMonitor(self.alerts)
         self.halt_manager = HaltFlagManager(self.alerts, self.log_phase_result)

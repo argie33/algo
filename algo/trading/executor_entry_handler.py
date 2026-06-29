@@ -101,6 +101,28 @@ class EntryHandler:
         self.t2_target_r_multiple = context.t2_target_r_multiple
         self.t3_target_r_multiple = context.t3_target_r_multiple
 
+    def _validate_stage_phase(self, stage_phase: str | None) -> int | None:
+        """Validate stage_phase against known mapping.
+
+        Args:
+            stage_phase: Stage phase name (early, mid, late) or None
+
+        Returns:
+            Integer ID from STAGE_PHASE_MAPPING or None if stage_phase is None
+
+        Raises:
+            ValueError: If stage_phase is provided but not in STAGE_PHASE_MAPPING
+        """
+        if stage_phase is None:
+            return None
+        if stage_phase not in STAGE_PHASE_MAPPING:
+            raise ValueError(
+                f"Invalid stage_phase '{stage_phase}'. "
+                f"Must be one of: {list(STAGE_PHASE_MAPPING.keys())}. "
+                f"Cannot record trade with unknown stage phase—data integrity issue."
+            )
+        return STAGE_PHASE_MAPPING[stage_phase]
+
     def execute_entry(self, context: TradeContext) -> dict[str, Any]:
         """Execute entry trade through 4 phases: validate → submit → record → notify.
 
@@ -455,7 +477,7 @@ class EntryHandler:
                 request.swing_grade,
                 request.base_type,
                 request.base_quality,
-                STAGE_PHASE_MAPPING.get(request.stage_phase) if request.stage_phase else None,
+                self._validate_stage_phase(request.stage_phase),
                 request.stage_phase,
                 request.sector,
                 request.industry,

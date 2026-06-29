@@ -24,8 +24,18 @@ class PositionAggregator:
 
         Args:
             config: Algorithm configuration with halt_flag_count, etc.
+
+        Raises:
+            ValueError: If config is None (aggregator requires risk parameters)
         """
-        self.config = config or {}
+        if config is None:
+            raise ValueError(
+                "PositionAggregator requires explicit config parameter. "
+                "Silent fallback to empty dict would run position sizing/exit logic without risk parameters. "
+                "Cannot execute position aggregation without halt_flag_count and other safety thresholds. "
+                "Pass config with required risk management parameters."
+            )
+        self.config = config
 
     def aggregate_flags(self, health_scores: dict[str, Any]) -> dict[str, Any]:
         """Convert health scores into flags with severity.

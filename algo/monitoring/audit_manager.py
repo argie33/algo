@@ -21,8 +21,18 @@ class AuditManager:
 
         Args:
             config: Algorithm configuration
+
+        Raises:
+            ValueError: If config is None (audit logging requires configuration)
         """
-        self.config = config or {}
+        if config is None:
+            raise ValueError(
+                "AuditManager requires explicit config parameter. "
+                "Silent fallback to empty dict would log audit entries without configuration validation. "
+                "Cannot execute audit logging without required config parameters. "
+                "Pass config from orchestrator or provide explicit configuration."
+            )
+        self.config = config
 
     def log_position_review(
         self,

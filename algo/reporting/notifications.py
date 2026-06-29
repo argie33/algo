@@ -68,6 +68,32 @@ class TradeNotificationService:
             stop_loss = details.get("stop_loss")
             target_1 = details.get("target_1")
 
+            # Validate all critical fields before formatting
+            if entry_price is None:
+                raise ValueError(
+                    f"CRITICAL: Trade entry event missing entry_price. "
+                    f"Cannot format notification without entry price. "
+                    f"Audit log corruption: symbol={symbol}, event={event.get('id')}"
+                )
+            if shares is None:
+                raise ValueError(
+                    f"CRITICAL: Trade entry event missing shares. "
+                    f"Cannot format notification without share count. "
+                    f"Audit log corruption: symbol={symbol}, event={event.get('id')}"
+                )
+            if stop_loss is None:
+                raise ValueError(
+                    f"CRITICAL: Trade entry event missing stop_loss. "
+                    f"Cannot format notification without stop loss price. "
+                    f"Audit log corruption: symbol={symbol}, event={event.get('id')}"
+                )
+            if target_1 is None:
+                raise ValueError(
+                    f"CRITICAL: Trade entry event missing target_1. "
+                    f"Cannot format notification without target level. "
+                    f"Audit log corruption: symbol={symbol}, event={event.get('id')}"
+                )
+
             return f"""
 [ENTRY] TRADE ENTRY -- {symbol}
 Entry Price:  ${entry_price:.2f}
@@ -98,6 +124,26 @@ Time:         {event["created_at"].strftime("%H:%M:%S")}
             shares = details.get("shares")
             pnl = details.get("pnl")
             exit_reason = details.get("reason")
+
+            # Validate all critical fields before formatting
+            if exit_price is None:
+                raise ValueError(
+                    f"CRITICAL: Trade exit event missing exit_price. "
+                    f"Cannot format notification without exit price. "
+                    f"Audit log corruption: symbol={symbol}, event={event.get('id')}"
+                )
+            if shares is None:
+                raise ValueError(
+                    f"CRITICAL: Trade exit event missing shares. "
+                    f"Cannot format notification without share count. "
+                    f"Audit log corruption: symbol={symbol}, event={event.get('id')}"
+                )
+            if pnl is None:
+                raise ValueError(
+                    f"CRITICAL: Trade exit event missing pnl. "
+                    f"Cannot format notification without P&L value. "
+                    f"Audit log corruption: symbol={symbol}, event={event.get('id')}"
+                )
             if not exit_reason:
                 raise ValueError(
                     f"CRITICAL: Trade exit event missing reason. "
@@ -244,7 +290,8 @@ def notify(
 ) -> None:
     """Convenience function to send alerts without managing service lifecycle."""
     try:
-        service = TradeNotificationService(config={})
+        # Use minimal valid config to satisfy validation requirements
+        service = TradeNotificationService(config={"enabled": True})
         service._send_notification(
             subject=title,
             message=message,
@@ -273,7 +320,8 @@ def notify_signal_staleness(stale_tables: list[str], details: dict[str, Any] | N
 
         message = f"Trading signals based on stale or unavailable data.\n\nAffected: {tables_str}"
 
-        service = TradeNotificationService(config={})
+        # Use minimal valid config to satisfy validation requirements
+        service = TradeNotificationService(config={"enabled": True})
         service._send_notification(
             subject="SIGNAL STALENESS ALERT",
             message=message,
