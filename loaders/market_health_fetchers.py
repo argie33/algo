@@ -285,6 +285,16 @@ class BreadthFetcher:
         For each symbol in price_daily, checks if close is highest/lowest in past 252 trading days.
         Uses window function to efficiently compute 52-week highs/lows across all symbols.
         """
+        cur.execute("SELECT COUNT(*) FROM price_daily WHERE date >= %s AND date <= %s", (start, end))
+        price_count_row = cur.fetchone()
+        price_count = price_count_row[0] if price_count_row else 0
+        if price_count == 0:
+            raise RuntimeError(
+                f"[BREADTH_FETCHER CRITICAL] price_daily has no rows for {start} to {end}. "
+                f"Cannot compute new highs/lows without price data. "
+                f"Check: price loader is running, price_daily table is populated."
+            )
+
         cur.execute(
             """
             WITH price_window AS (
@@ -316,8 +326,18 @@ class BreadthFetcher:
             """,
             (start, end),
         )
+        rows = cur.fetchall()
+        if not rows:
+            raise RuntimeError(
+                f"[BREADTH_FETCHER CRITICAL] New highs/lows computation returned 0 rows for {start} to {end}. "
+                f"price_daily has {price_count} rows in range but window function produced no results. "
+                f"This typically means price data is too recent (< 252 days history). "
+                f"Verify: (1) price_daily has >= 252 days of history per symbol, "
+                f"(2) symbols have continuous trading data without gaps."
+            )
+
         result = {}
-        for row in cur.fetchall():
+        for row in rows:
             date_val = row[0]
             # Convert datetime to date if necessary for consistent formatting
             if hasattr(date_val, "date"):

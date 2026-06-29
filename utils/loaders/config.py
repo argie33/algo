@@ -289,7 +289,10 @@ class LoaderConfigManager:
             Adaptive parallelism value (number of threads)
         """
         # Get base parallelism from cache or config
-        base_parallelism = 1
+        # Default: use constraint maximum instead of 1, allows adaptive scaling to reach target parallelism
+        constraints = self.LOADER_CONSTRAINTS.get(loader_name, (1, 32))
+        _, max_parallelism = constraints
+        base_parallelism = max_parallelism  # Start with max from constraints
 
         # Check in-memory cache first
         cached = self._get_cache(loader_name)
@@ -303,20 +306,20 @@ class LoaderConfigManager:
                 self._set_cache(loader_name, config)
                 base_parallelism = config["parallelism"]
                 logger.debug(f"Loaded parallelism for {loader_name} from DynamoDB: {base_parallelism}")
-        # Fall back to environment variable, then per-loader constraint
+        # Fall back to environment variable
         else:
             env_parallelism = os.getenv("LOADER_PARALLELISM", None)
             if env_parallelism is not None:
                 base_parallelism = int(env_parallelism)
                 logger.debug(f"Using env var parallelism for {loader_name}: {base_parallelism}")
             else:
-                # CLUSTER 6 FIX: Default to minimum parallelism (1) to prevent RDS pool exhaustion
-                # With 6 ECS tasks x 8 loaders x 2 workers = 96 connections hitting 100-conn proxy limit.
-                # Start conservative: min=1, adaptive RDS adjustment increases as load permits.
-                base_parallelism = 1
+                # CLUSTER 6 FIX 2026-06-28: Default to constraint maximum, not 1
+                # This enables loader-specific parallelism limits (e.g., value_metrics max=3)
+                # to actually be used when no DynamoDB or env var is set
+                # RDS-aware adaptive adjustment can still reduce if pool is saturated
                 logger.info(
-                    f"Using default minimum parallelism for {loader_name}: 1 (no DynamoDB/env var). "
-                    f"Will scale up via RDS-aware adaptive adjustment if pool available."
+                    f"Using constraint maximum parallelism for {loader_name}: {max_parallelism} "
+                    f"(no DynamoDB/env var). RDS saturation may reduce this if needed."
                 )
 
         # Apply adaptive adjustment based on RDS load

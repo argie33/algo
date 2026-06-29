@@ -26,7 +26,16 @@ ET = EASTERN_TZ
 
 
 class EconomicMetricsDailyLoader(OptimalLoader):
-    """Compute derived economic metrics daily."""
+    """Compute derived economic metrics daily.
+
+    CRITICAL METRICS (must be present):
+    - CPI YoY: Year-over-year CPI change (required for inflation environment assessment)
+    - Yield curve slope: 10Y - 2Y spread (required for market regime detection)
+
+    OPTIONAL METRICS (fallback available):
+    - SPY price change: If unavailable in economic_metrics_daily, dashboard can derive from price_daily.
+      This is acceptable because price_daily is a separate, reliable data source.
+    """
 
     table_name = "economic_metrics_daily"
     primary_key = ("report_date",)
