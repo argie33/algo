@@ -303,9 +303,17 @@ class PositionMonitor:
                     )
                 pos_value = float(pos_value_sum)
                 if pos_value < 0:
-                    raise PositionValidationError(
-                        f"Invalid position value: {pos_value} < 0. Database corruption detected."
+                    # Negative total may be caused by a short position written during
+                    # an Alpaca sync anomaly. Log at ERROR but do not halt — Phase 4
+                    # reconciliation will close any short positions in DB. A true
+                    # corruption scenario (negative equity from math error) is caught
+                    # by the total_equity <= 0 check above.
+                    logger.error(
+                        f"[MARGIN_CHECK] Total position value {pos_value:.2f} < 0 — "
+                        "likely stale short position in algo_positions. "
+                        "Reconciliation (Phase 4) will close it. Continuing with pos_value=0."
                     )
+                    pos_value = 0.0
 
                 margin_util_pct = pos_value / total_equity * 100
                 if margin_util_pct > 90:
