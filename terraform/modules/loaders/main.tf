@@ -280,7 +280,7 @@ resource "aws_iam_role_policy" "eventbridge_run_task_policy" {
 locals {
   loader_file_map = {
     "market_constituents" = "load_market_constituents.py"
-    "stock_prices_daily" = "load_prices.py"
+    "stock_prices_daily"  = "load_prices.py"
 
     "financials_annual_income"      = "load_income_statement.py"
     "financials_annual_balance"     = "load_balance_sheet.py"
@@ -290,36 +290,36 @@ locals {
     "financials_quarterly_cashflow" = "load_cash_flow.py"
     "financials_ttm_income"         = "load_income_statement.py"
     "financials_ttm_cashflow"       = "load_cash_flow.py"
-    "growth_metrics"      = "load_growth_metrics.py"
-    "quality_metrics"     = "load_quality_metrics.py"
-    "value_metrics"       = "load_value_metrics.py"
-    "positioning_metrics" = "load_positioning_metrics.py"
-    "stability_metrics"   = "load_stability_metrics.py"
-    "stock_scores"        = "load_stock_scores.py"
-    "sector_ranking"      = "load_sector_ranking.py"
-    "earnings_history"  = "load_earnings_history.py"
-    "earnings_calendar" = "load_earnings_calendar.py"
-    "company_profile"             = "load_company_profile.py"
-    "analyst_sentiment"           = "load_analyst_sentiment_analysis.py"
-    "analyst_upgrades_downgrades" = "load_analyst_upgrade_downgrade.py"
-    "industry_ranking"            = "load_industry_ranking.py"
-    "feargreed"  = "load_fear_greed_index.py"
-    "aaiidata"   = "load_aaii_sentiment.py"
-    "naaim_data" = "load_naaim.py"
-    "signal_themes"         = "load_signal_themes.py"
-    "signal_quality_scores" = "load_signal_quality_scores.py"
-    "buy_sell_daily"        = "load_buy_sell_daily.py"
-    "technical_data_daily" = "load_technical_data_daily.py"
-    "algo_metrics_daily"   = "load_algo_metrics_daily.py"
-    "swing_trader_scores"  = "load_swing_trader_scores.py"
-    "market_health_daily"    = "load_market_health_daily.py"
-    "market_exposure_daily"  = "load_market_exposure_daily.py"
-    "options_chains"         = "load_options_chains.py"
-    "fred_economic_data"     = "load_fred_economic_data.py"
-    "economic_metrics_daily" = "load_economic_metrics_daily.py"
-    "trend_template_data"    = "load_trend_criteria_data.py"
-    "compute_circuit_breakers"    = "compute_circuit_breakers.py"
-    "compute_performance_metrics" = "compute_performance_metrics.py"
+    "growth_metrics"                = "load_growth_metrics.py"
+    "quality_metrics"               = "load_quality_metrics.py"
+    "value_metrics"                 = "load_value_metrics.py"
+    "positioning_metrics"           = "load_positioning_metrics.py"
+    "stability_metrics"             = "load_stability_metrics.py"
+    "stock_scores"                  = "load_stock_scores.py"
+    "sector_ranking"                = "load_sector_ranking.py"
+    "earnings_history"              = "load_earnings_history.py"
+    "earnings_calendar"             = "load_earnings_calendar.py"
+    "company_profile"               = "load_company_profile.py"
+    "analyst_sentiment"             = "load_analyst_sentiment_analysis.py"
+    "analyst_upgrades_downgrades"   = "load_analyst_upgrade_downgrade.py"
+    "industry_ranking"              = "load_industry_ranking.py"
+    "feargreed"                     = "load_fear_greed_index.py"
+    "aaiidata"                      = "load_aaii_sentiment.py"
+    "naaim_data"                    = "load_naaim.py"
+    "signal_themes"                 = "load_signal_themes.py"
+    "signal_quality_scores"         = "load_signal_quality_scores.py"
+    "buy_sell_daily"                = "load_buy_sell_daily.py"
+    "technical_data_daily"          = "load_technical_data_daily.py"
+    "algo_metrics_daily"            = "load_algo_metrics_daily.py"
+    "swing_trader_scores"           = "load_swing_trader_scores.py"
+    "market_health_daily"           = "load_market_health_daily.py"
+    "market_exposure_daily"         = "load_market_exposure_daily.py"
+    "options_chains"                = "load_options_chains.py"
+    "fred_economic_data"            = "load_fred_economic_data.py"
+    "economic_metrics_daily"        = "load_economic_metrics_daily.py"
+    "trend_template_data"           = "load_trend_criteria_data.py"
+    "compute_circuit_breakers"      = "compute_circuit_breakers.py"
+    "compute_performance_metrics"   = "compute_performance_metrics.py"
 
   }
 
@@ -386,7 +386,7 @@ locals {
   all_loaders = {
     "market_constituents" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
     // parallelism=1 for yfinance (IP-level rate limiting with shared NAT gateway)
-    "stock_prices_daily" = { cpu = 1024, memory = 2048, timeout = 5400, parallelism = 1 }
+    "stock_prices_daily"            = { cpu = 1024, memory = 2048, timeout = 5400, parallelism = 1 }
     "financials_annual_income"      = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
     "financials_annual_balance"     = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
     "financials_annual_cashflow"    = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
@@ -395,36 +395,36 @@ locals {
     "financials_quarterly_cashflow" = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
     "financials_ttm_income"         = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
     "financials_ttm_cashflow"       = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
-    "growth_metrics"      = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
-    "quality_metrics"     = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
-    "value_metrics"       = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
-    "positioning_metrics" = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 2 }
-    "stability_metrics"   = { cpu = 1024, memory = 2048, timeout = 1800, parallelism = 2 }
-    "stock_scores"        = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
-    "earnings_history"  = { cpu = 512, memory = 1024, timeout = 7200, parallelism = 1 }
-    "earnings_calendar" = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
-    "company_profile"             = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 3 }
-    "analyst_sentiment"           = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 3 }
-    "analyst_upgrades_downgrades" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 3 }
-    "industry_ranking"            = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 2 }
-    "feargreed"  = { cpu = 256, memory = 512, timeout = 600, parallelism = 2 }
-    "aaiidata"   = { cpu = 256, memory = 512, timeout = 600, parallelism = 2 }
-    "naaim_data" = { cpu = 256, memory = 512, timeout = 600, parallelism = 2 }
-    "signal_themes" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 2 }
-    "signal_quality_scores" = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
-    "buy_sell_daily" = { cpu = 2048, memory = 4096, timeout = 2400, parallelism = 2 }
-    "technical_data_daily" = { cpu = 2048, memory = 4096, timeout = 2400, parallelism = 1 }
-    "market_health_daily" = { cpu = 256, memory = 512, timeout = 1200, parallelism = 1 }
-    "options_chains" = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
-    "market_exposure_daily" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
-    "algo_metrics_daily" = { cpu = 1024, memory = 2048, timeout = 10800, parallelism = 1 }
-    "swing_trader_scores" = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 1 }
-    "sector_ranking" = { cpu = 512, memory = 1024, timeout = 900, parallelism = 1 }
-    "fred_economic_data" = { cpu = 256, memory = 1024, timeout = 300, parallelism = 1 }
-    "economic_metrics_daily" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
-    "trend_template_data" = { cpu = 2048, memory = 4096, timeout = 5400, parallelism = 2 }
-    "compute_circuit_breakers"    = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
-    "compute_performance_metrics" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
+    "growth_metrics"                = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
+    "quality_metrics"               = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
+    "value_metrics"                 = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
+    "positioning_metrics"           = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 2 }
+    "stability_metrics"             = { cpu = 1024, memory = 2048, timeout = 1800, parallelism = 2 }
+    "stock_scores"                  = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
+    "earnings_history"              = { cpu = 512, memory = 1024, timeout = 7200, parallelism = 1 }
+    "earnings_calendar"             = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
+    "company_profile"               = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 3 }
+    "analyst_sentiment"             = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 3 }
+    "analyst_upgrades_downgrades"   = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 3 }
+    "industry_ranking"              = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 2 }
+    "feargreed"                     = { cpu = 256, memory = 512, timeout = 600, parallelism = 2 }
+    "aaiidata"                      = { cpu = 256, memory = 512, timeout = 600, parallelism = 2 }
+    "naaim_data"                    = { cpu = 256, memory = 512, timeout = 600, parallelism = 2 }
+    "signal_themes"                 = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 2 }
+    "signal_quality_scores"         = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
+    "buy_sell_daily"                = { cpu = 2048, memory = 4096, timeout = 2400, parallelism = 2 }
+    "technical_data_daily"          = { cpu = 2048, memory = 4096, timeout = 2400, parallelism = 1 }
+    "market_health_daily"           = { cpu = 256, memory = 512, timeout = 1200, parallelism = 1 }
+    "options_chains"                = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
+    "market_exposure_daily"         = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
+    "algo_metrics_daily"            = { cpu = 1024, memory = 2048, timeout = 10800, parallelism = 1 }
+    "swing_trader_scores"           = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 1 }
+    "sector_ranking"                = { cpu = 512, memory = 1024, timeout = 900, parallelism = 1 }
+    "fred_economic_data"            = { cpu = 256, memory = 1024, timeout = 300, parallelism = 1 }
+    "economic_metrics_daily"        = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
+    "trend_template_data"           = { cpu = 2048, memory = 4096, timeout = 5400, parallelism = 2 }
+    "compute_circuit_breakers"      = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
+    "compute_performance_metrics"   = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
   }
   default_loaders = local.all_loaders
 

@@ -663,9 +663,9 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Type     = "Task"
         Resource = var.loader_failure_handler_arn
         Parameters = {
-          loader_name       = "market_exposure_daily"
-          "error.$"         = "$.loaderError.Error"
-          "error_message.$" = "$.loaderError.Cause"
+          loader_name        = "market_exposure_daily"
+          "error.$"          = "$.loaderError.Error"
+          "error_message.$"  = "$.loaderError.Cause"
           is_critical_loader = true
         }
         ResultPath = "$.failureLog"
