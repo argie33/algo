@@ -786,10 +786,10 @@ jobs:
             zip_path.unlink()
 
           with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
-            # Add all handler files from lambda/api/ EXCEPT __pycache__ and .pyc
+            # Add all handler files from lambda/api/ EXCEPT __pycache__, .pyc, and dev-only files
             api_path = app_dir / "lambda" / "api"
             for file_path in api_path.rglob("*"):
-              if file_path.is_file() and not (file_path.name.endswith(".pyc") or "__pycache__" in str(file_path)):
+              if file_path.is_file() and not (file_path.name.endswith(".pyc") or "__pycache__" in str(file_path) or file_path.name in ("dev_server.py", "dev_auth.py")):
                 rel_path = file_path.relative_to(api_path)
                 zf.write(str(file_path), str(rel_path))
             print(f"  + API handler code ({len(list(api_path.rglob('*.py')))} Python files)")

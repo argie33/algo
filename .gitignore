@@ -222,6 +222,12 @@ api-pkg/
 lambda/api/package/
 lambda/api/*.zip
 
+# Development-only utilities — never include in Lambda deployments
+# These files are guarded by code-level security checks (Cognito requirement, Lambda detection)
+# but excluding them reduces attack surface and package size
+lambda/api/dev_server.py
+lambda/api/dev_auth.py
+
 # Test artifacts (auto-generated)
 webapp/frontend/src/tests/e2e/visual-regression.visual.spec.js-snapshots/
 webapp/frontend/src/tests/screenshots/

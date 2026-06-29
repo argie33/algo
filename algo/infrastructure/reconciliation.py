@@ -13,7 +13,6 @@ import requests
 from algo.infrastructure.alpaca_broker_adapter import AlpacaBrokerAdapter
 from algo.infrastructure.audit_logger import TradeAuditLogger
 from algo.infrastructure.broker_adapter import BrokerAdapter
-from algo.infrastructure.dry_run_adapters import DryRunBrokerAdapter
 from algo.infrastructure.position_analyzer import PositionAnalyzer
 from algo.reporting import notify
 from utils.db import DatabaseContext
@@ -75,6 +74,8 @@ class DailyReconciliation:
                 f"[DRY-RUN] Reconciliation broker adapter initialization failed: {e}. "
                 "Using dry-run broker for testing only."
             )
+            # Import test adapter from test utilities (signals test-only usage)
+            from tests.test_utilities import DryRunBrokerAdapter
             self.broker = DryRunBrokerAdapter()
             self.audit_logger = TradeAuditLogger()
             self.trading_client = False  # Dry-run broker, no real credentials

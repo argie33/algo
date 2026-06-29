@@ -273,7 +273,6 @@ class MarketHealthDailyLoader(OptimalLoader):
         matched_count = 0
         missing_dates = []
         null_values = []
-        placeholder_values = []
 
         for m in health_metrics:
             if m["date"] not in vix:
@@ -301,8 +300,10 @@ class MarketHealthDailyLoader(OptimalLoader):
 
             # Check for placeholder/fallback values (0, 0.0) which indicate missing data
             if vix_close == 0 or vix_close == 0.0:
-                placeholder_values.append((m["date"], vix_close))
-                continue
+                raise RuntimeError(
+                    f"[MARKET_HEALTH CRITICAL] VIX has placeholder/fallback value (0.0) for {m['date']}: {vix_close}. "
+                    "Cannot use fallback zeros for circuit breaker decisions. Check vix_history loader."
+                )
 
             # Validate VIX is in realistic range (VIX typically 5-100, occasionally beyond)
             try:
@@ -332,14 +333,6 @@ class MarketHealthDailyLoader(OptimalLoader):
             raise RuntimeError(
                 f"[MARKET_HEALTH] CRITICAL: VIX has NULL vix_close for {len(null_values)} date(s): {null_values[:5]}{'...' if len(null_values) > 5 else ''}. "
                 "Data corruption detected. Check VIX feed and database."
-            )
-
-        if placeholder_values:
-            raise RuntimeError(
-                f"[MARKET_HEALTH] CRITICAL: VIX has placeholder/fallback values (0.0) for {len(placeholder_values)} date(s): "
-                f"{placeholder_values[:5]}{'...' if len(placeholder_values) > 5 else ''}. "
-                "Placeholder data indicates missing values — cannot use fallback zeros for circuit breaker decisions. "
-                "Check vix_history loader and ensure real data is being loaded."
             )
 
         if matched_count == 0:

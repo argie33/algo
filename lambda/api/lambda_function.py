@@ -1032,7 +1032,15 @@ if not IMPORT_ERROR:
     with _COGNITO_ENABLED_LOCK:
         _COGNITO_ENABLED = bool(os.getenv("COGNITO_USER_POOL_ID"))
         if not _COGNITO_ENABLED:
-            logger.warning("[COGNITO] COGNITO_USER_POOL_ID not set - Cognito authentication is disabled")
+            # In production Lambda, Cognito MUST be configured for security
+            is_production = "AWS_LAMBDA_FUNCTION_NAME" in os.environ
+            if is_production:
+                raise RuntimeError(
+                    "[CRITICAL] COGNITO_USER_POOL_ID environment variable not set in production Lambda. "
+                    "Authentication is required for production deployments. "
+                    "Set COGNITO_USER_POOL_ID environment variable via Terraform or Lambda console."
+                )
+            logger.warning("[COGNITO] COGNITO_USER_POOL_ID not set - Cognito authentication is disabled (dev mode)")
 
     # Pre-cache allowed origins at module load to avoid building on every request
     _build_allowed_origins()
