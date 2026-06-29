@@ -39,20 +39,51 @@ jobs:
       - name: Invoke algo-trigger-loaders Lambda (applies LOADER_CHUNK_SIZE=100, LOADER_TIMEOUT_SEC=600)
         id: lambda
         run: |
-          # Write JSON payload using Python to avoid shell encoding issues
+          # Use Python and boto3 to invoke Lambda directly (avoids AWS CLI encoding issues)
           python3 << 'PYEOF'
           import json
+          import boto3
+          import os
+
+          # Create Lambda client
+          client = boto3.client('lambda', region_name='us-east-1')
+
+          # Prepare payload
           payload = {"loader_name": "${{ inputs.loader_name }}"}
-          with open('/tmp/payload.json', 'w') as f:
-              json.dump(payload, f)
+
+          # Invoke Lambda
+          response = client.invoke(
+              FunctionName='algo-trigger-loaders',
+              InvocationType='RequestResponse',
+              Payload=json.dumps(payload)
+          )
+
+          # Extract and parse response
+          response_body = json.loads(response['Payload'].read())
+
+          # Handle both wrapped and direct responses
+          if 'body' in response_body:
+              body = json.loads(response_body['body']) if isinstance(response_body['body'], str) else response_body['body']
+          else:
+              body = response_body
+
+          # Extract task ARN
+          tasks = body.get('tasks', [])
+          if not tasks:
+              print("ERROR: Lambda did not return task ARN")
+              print(json.dumps(response_body, indent=2))
+              exit(1)
+
+          task_arn = tasks[0]
+          print(f"Lambda launched: {task_arn}")
+
+          # Write task ARN to file for shell
+          with open('/tmp/arn.txt', 'w') as f:
+              f.write(task_arn)
           PYEOF
 
-          # Invoke Lambda which applies correct environment overrides
-          aws lambda invoke \
-            --function-name algo-trigger-loaders \
-            --region us-east-1 \
-            --payload file:///tmp/payload.json \
-            /tmp/response.json
+          TASK_ARN=$(cat /tmp/arn.txt)
+          echo "task_arn=$TASK_ARN" >> $GITHUB_OUTPUT
 
           # Extract task ARN from Lambda response
           python3 << 'PYEOF'
