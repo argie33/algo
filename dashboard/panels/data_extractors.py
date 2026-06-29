@@ -49,20 +49,22 @@ def safe_extract(data: dict[str, Any], *keys: str, defaults: dict[str, Any] | No
     return result
 
 
-def safe_get_dict(data: Any) -> dict[str, Any] | None:
-    """Get dict from data if not error. Returns None if data is None (optional field).
+def safe_get_dict(data: Any) -> dict[str, Any]:
+    """Get dict from data if not error. Returns marker dict if data is None (optional field).
 
     Returns:
-        dict: validated non-error dict
-        None: if data is None (optional field not present)
+        dict: validated non-error dict OR marker dict with data_unavailable=True
 
     Raises:
         TypeError: if data is not dict, list, or None
         ValueError: if data is error dict
     """
     if data is None:
-        logger.debug("safe_get_dict: data is None (optional field not present)")
-        return None
+        logger.debug("safe_get_dict: data is None (optional field not present), returning unavailability marker")
+        return {
+            "data_unavailable": True,
+            "reason": "data_not_present",
+        }
     if not isinstance(data, dict):
         raise TypeError(f"Expected dict but got {type(data).__name__}")
     if has_error(data):
@@ -70,20 +72,23 @@ def safe_get_dict(data: Any) -> dict[str, Any] | None:
     return data
 
 
-def safe_get_list(data: Any) -> list[Any] | None:
-    """Get list from data if not error. Returns None if data is None or dict without list (optional field).
+def safe_get_list(data: Any) -> list[Any] | dict[str, Any]:
+    """Get list from data if not error. Returns marker dict if data is None or dict without list (optional field).
 
     Returns:
         list: extracted list from data or data.items or data.data
-        None: if data is None or dict without list/items/data fields (optional field not present)
+        dict: marker dict with data_unavailable=True if data is None or dict without list/items/data fields (optional field not present)
 
     Raises:
         TypeError: if data is not dict, list, or None
         ValueError: if data is error dict
     """
     if data is None:
-        logger.debug("safe_get_list: data is None (optional field not present)")
-        return None
+        logger.debug("safe_get_list: data is None (optional field not present), returning unavailability marker")
+        return {
+            "data_unavailable": True,
+            "reason": "data_not_present",
+        }
     if isinstance(data, list):
         return data
     if isinstance(data, dict):
@@ -93,8 +98,11 @@ def safe_get_list(data: Any) -> list[Any] | None:
             return data["items"]
         if "data" in data and isinstance(data["data"], list):
             return data["data"]
-        logger.debug("safe_get_list: dict has no items/data list field (optional field not present)")
-        return None
+        logger.debug("safe_get_list: dict has no items/data list field (optional field not present), returning unavailability marker")
+        return {
+            "data_unavailable": True,
+            "reason": "list_field_not_found",
+        }
     raise TypeError(f"Expected dict or list but got {type(data).__name__}")
 
 

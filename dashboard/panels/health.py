@@ -1052,15 +1052,24 @@ def _format_audit_log_summary(audit: list[Any]) -> list[Text]:
 # ── Helper functions for panel_algo_health() ──────────────────────────────────
 
 
-def _age_h(r: dict[str, Any]) -> float | None:
-    """Extract age in hours from health item dict."""
+def _age_h(r: dict[str, Any]) -> float | dict[str, Any]:
+    """Extract age in hours from health item dict.
+
+    Returns:
+        float: Age in hours
+        dict: Marker dict with data_unavailable=True if age data missing
+    """
     ah = r.get("age_hours")
     if ah is not None:
         return float(ah)
     ad = r.get("age")
     if ad is not None:
         return float(ad) * 24
-    return None
+    logger.debug("[HEALTH] Health item missing age_hours and age fields")
+    return {
+        "data_unavailable": True,
+        "reason": "age_data_missing",
+    }
 
 
 def _age_fmt_c(r: dict[str, Any]) -> str:
@@ -1099,17 +1108,28 @@ def _extract_phase_metrics_from_pdata(pdata: dict[str, Any] | None) -> tuple[int
     return int(sg), int(ee), int(xe)
 
 
-def _parse_phase_data_json(pdata_raw: str | dict[str, Any] | None) -> dict[str, Any] | None:
-    """Parse phase data field (may be string or dict)."""
+def _parse_phase_data_json(pdata_raw: str | dict[str, Any] | None) -> dict[str, Any]:
+    """Parse phase data field (may be string or dict).
+
+    Returns:
+        dict: Parsed phase data OR marker dict with data_unavailable=True
+    """
     if isinstance(pdata_raw, str):
         try:
             return cast(dict[str, Any], json.loads(pdata_raw))
         except (json.JSONDecodeError, ValueError) as e:
-            logger.warning(f"Failed to parse phase metrics data JSON: {e}")
-            return None
+            logger.warning(f"[HEALTH] Failed to parse phase metrics data JSON: {e}")
+            return {
+                "data_unavailable": True,
+                "reason": "phase_data_json_invalid",
+            }
     elif isinstance(pdata_raw, dict):
         return pdata_raw
-    return None
+    logger.debug("[HEALTH] Phase data raw is None or invalid type, returning unavailability marker")
+    return {
+        "data_unavailable": True,
+        "reason": "phase_data_missing",
+    }
 
 
 def _format_health_data_stale_section(stale: list[Any], hlth_list: list[Any] | None) -> str:

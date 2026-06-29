@@ -11,7 +11,7 @@ import platform
 import sys
 import time
 from datetime import datetime
-from typing import cast
+from typing import Any, cast
 
 import boto3
 from botocore.exceptions import ClientError
@@ -220,15 +220,25 @@ class CognitoAuth:
         return self._auth_lost_time is not None
 
 
-def _get_aws_cfn_output(key: str) -> str | None:
-    """Try to get Cognito credentials from AWS CloudFormation stack outputs."""
+def _get_aws_cfn_output(key: str) -> str | dict[str, Any]:
+    """Try to get Cognito credentials from AWS CloudFormation stack outputs.
+
+    Returns:
+        str: CloudFormation output value if found
+        dict: Marker dict with data_unavailable=True if not found
+    """
     try:
         cfn_client = boto3.client("cloudformation", region_name="us-east-1")
         stacks = cfn_client.list_stacks(StackStatusFilter=["CREATE_COMPLETE", "UPDATE_COMPLETE"])
         stack_summaries = stacks.get("StackSummaries")
 
         if not stack_summaries:
-            return None
+            logger.warning(f"[Cognito] CloudFormation stacks unavailable for output '{key}'")
+            return {
+                "data_unavailable": True,
+                "reason": "no_cloudformation_stacks",
+                "key": key,
+            }
 
         for stack in stack_summaries:
             if "algo" in stack["StackName"].lower():
@@ -243,10 +253,15 @@ def _get_aws_cfn_output(key: str) -> str | None:
                         return cast(str, output["OutputValue"])
     except Exception as e:
         raise RuntimeError(f"Operation failed: {e}") from e
-    return None
+    logger.debug(f"[Cognito] CloudFormation output not found for key: {key}")
+    return {
+        "data_unavailable": True,
+        "reason": "cfn_output_not_found",
+        "key": key,
+    }
 
 
-def get_cognito_auth(require_auth: bool = True, interactive: bool = True) -> CognitoAuth | None:  # noqa: C901
+def get_cognito_auth(require_auth: bool = True, interactive: bool = True) -> CognitoAuth | dict[str, Any]:  # noqa: C901
     """
     Dynamically get authenticated Cognito instance.
 
@@ -257,7 +272,9 @@ def get_cognito_auth(require_auth: bool = True, interactive: bool = True) -> Cog
     4. Saved credentials from ~/.algo/cognito_credentials.json
     5. Interactive prompt (if interactive=True and TTY available)
 
-    Returns authenticated CognitoAuth or None if all methods fail.
+    Returns:
+        CognitoAuth: Authenticated instance if successful
+        dict: Marker dict with auth_unavailable=True if all methods fail and require_auth=False
     """
     user_pool_id = os.environ.get("COGNITO_USER_POOL_ID")
     client_id = os.environ.get("COGNITO_CLIENT_ID")
@@ -272,7 +289,10 @@ def get_cognito_auth(require_auth: bool = True, interactive: bool = True) -> Cog
             logger.error(f"[Cognito] {msg}")
             raise RuntimeError(msg)
         logger.debug("Cognito not configured (COGNITO_USER_POOL_ID or COGNITO_CLIENT_ID missing)")
-        return None
+        return {
+            "auth_unavailable": True,
+            "reason": "cognito_env_vars_missing",
+        }
 
     auth = CognitoAuth(user_pool_id, client_id)
 
@@ -365,7 +385,11 @@ def get_cognito_auth(require_auth: bool = True, interactive: bool = True) -> Cog
                         logger.error(msg)
                         raise RuntimeError(msg)
                     print("[ERROR] Authentication failed")
-                    return None
+                    logger.warning("[Cognito] Interactive authentication failed, returning unavailability marker")
+                    return {
+                        "auth_unavailable": True,
+                        "reason": "interactive_auth_failed",
+                    }
             else:
                 if require_auth:
                     msg = "[CRITICAL] Username or password missing but authentication is required"
@@ -373,14 +397,21 @@ def get_cognito_auth(require_auth: bool = True, interactive: bool = True) -> Cog
                     logger.error(msg)
                     raise RuntimeError(msg)
                 print("[ERROR] Username or password missing")
-                return None
+                logger.warning("[Cognito] Username or password empty, returning unavailability marker")
+                return {
+                    "auth_unavailable": True,
+                    "reason": "interactive_credentials_empty",
+                }
         except (KeyboardInterrupt, EOFError) as e:
             if require_auth:
                 msg = "[CRITICAL] Interactive authentication cancelled but authentication is required"
                 logger.error(msg)
                 raise RuntimeError(msg) from e
-            logger.info("[Cognito] Interactive authentication cancelled")
-            return None
+            logger.info("[Cognito] Interactive authentication cancelled, returning unavailability marker")
+            return {
+                "auth_unavailable": True,
+                "reason": "interactive_auth_cancelled",
+            }
 
     # 5. All auth methods failed
     if require_auth:

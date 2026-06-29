@@ -93,19 +93,19 @@ def is_data_stale(data: Any) -> bool:
     return isinstance(data, dict) and data.get("_stale_cache") is True
 
 
-def get_error_message_plain(data: Any) -> str | None:
+def get_error_message_plain(data: Any) -> str | dict[str, Any]:
     """Extract error message from data without Rich formatting.
 
     Returns:
         str: error message if _error marker present in dict
-        None: if data is not a dict or has no _error marker (no error state)
+        dict: data_unavailable marker if data is not a dict or has no _error marker
 
     Raises:
         ValueError: if _error marker present but message is empty/None (invalid state)
     """
     if not isinstance(data, dict):
-        logger.debug("Data is not a dict (no error to extract)")
-        return None
+        logger.debug("Data is not a dict (data_unavailable)")
+        return create_data_unavailable_marker("data_not_a_dict")
 
     # Fail-fast: if _error marker present, message MUST be valid
     if "_error" in data:
@@ -115,8 +115,8 @@ def get_error_message_plain(data: Any) -> str | None:
             raise ValueError("[CRITICAL] _error marker present but message is empty/None")
         return str(error_msg)
 
-    logger.debug("Data is dict but has no error marker")
-    return None
+    logger.debug("Data is dict but has no error marker (data_unavailable)")
+    return create_data_unavailable_marker("no_error_marker")
 
 
 def get_error_message(data: Any) -> str | None:
