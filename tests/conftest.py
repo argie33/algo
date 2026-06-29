@@ -22,13 +22,37 @@ os.environ["AWS_REGION"] = "us-east-1"
 
 
 def _create_mock_cursor():
-    """Create a mock cursor."""
+    """Create a mock cursor with proper algo_config data."""
     cursor = MagicMock()
-    cursor.fetchone.return_value = None
-    cursor.fetchall.return_value = []
+
+    # Create realistic algo_config data (key, value, dtype tuples)
+    # All values must pass validation - use safe defaults matching VALIDATION_SCHEMA ranges
+    mock_config_rows = [
+        ("max_positions", "15", "int"),  # 15 max concurrent positions
+        ("max_position_size_pct", "6.3", "float"),  # 6.3% per position
+        ("max_total_invested_pct", "85", "float"),  # 85% total invested
+        ("min_swing_score", "55", "float"),  # min score 55 (range 0.1-100)
+        ("halt_drawdown_pct", "-20", "float"),  # NEGATIVE: -20% halt threshold (range -100 to -5)
+        ("max_daily_loss_pct", "2", "float"),  # 2% daily loss cap (range 0.1-50)
+        ("vix_max_threshold", "35", "float"),  # VIX max 35 (range 20-100)
+        ("vix_caution_threshold", "25", "float"),  # VIX caution 25 (range 20-100)
+        ("min_completeness_score", "70", "int"),  # 70% completeness (range 1-100)
+        ("min_stock_price", "5", "float"),  # $5 min price (range 0.1-1000)
+    ]
+
+    def mock_fetchall():
+        """Return mock config data on SELECT from algo_config."""
+        return mock_config_rows
+
+    def mock_fetchone():
+        """Return single row for specific queries."""
+        return ("max_positions", "50", "int")
+
+    cursor.fetchall.side_effect = mock_fetchall
+    cursor.fetchone.side_effect = mock_fetchone
     cursor.fetchmany.return_value = []
     cursor.description = None
-    cursor.rowcount = 0
+    cursor.rowcount = len(mock_config_rows)
     return cursor
 
 
