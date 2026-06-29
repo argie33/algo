@@ -57,20 +57,31 @@ class StockScoresLoader(OptimalLoader):
 
         Raises RuntimeError if critical metric loaders haven't populated data yet.
         Prevents silent score computation failure when metrics are missing due to loader timeouts.
+
+        Two tiers:
+        - required: value/positioning/stability — must have real coverage thresholds met
+        - optional_sec: quality/growth — depend on SEC annual financials; may be all-unavailable
+          if the annual_income_statement upstream is empty. Fail only if table is completely empty
+          (loader never ran). All-unavailable is acceptable; per-symbol scoring handles gracefully.
         """
         from utils.db.error_handlers import handle_db_errors
 
         with handle_db_errors("validate_upstream_metrics"):
             with DatabaseContext("read") as cur:
-                metric_tables = {
-                    "quality_metrics": 0.75,  # Require 75% coverage for SEC filings
-                    "growth_metrics": 0.75,  # Require 75% coverage for SEC filings
-                    "value_metrics": 0.80,  # Require 80% (less dependent on financials)
-                    "positioning_metrics": 0.70,  # Require 70% (many don't have short interest data)
-                    "stability_metrics": 0.85,  # Require 85% (computed from price data, nearly complete)
+                required_metric_tables = {
+                    "value_metrics": 0.80,
+                    "positioning_metrics": 0.70,
+                    "stability_metrics": 0.85,
+                }
+                # SEC-filing-dependent metrics: acceptable to have 0% real data if upstream
+                # annual_income_statement is empty (known infrastructure gap). Only fail if
+                # the loader never ran at all (0 rows in table).
+                optional_sec_metric_tables = {
+                    "quality_metrics",
+                    "growth_metrics",
                 }
 
-                for table_name, min_coverage in metric_tables.items():
+                for table_name, min_coverage in required_metric_tables.items():
                     cur.execute(f"SELECT COUNT(*) FROM {table_name} WHERE data_unavailable = false")
                     row = cur.fetchone()
                     available_count = row[0] if row else 0
@@ -96,10 +107,32 @@ class StockScoresLoader(OptimalLoader):
                             f"Check step function logs and metric loader CloudWatch logs."
                         )
 
+                for table_name in optional_sec_metric_tables:
+                    cur.execute(f"SELECT COUNT(*) FROM {table_name}")
+                    row = cur.fetchone()
+                    total_count = row[0] if row else 0
+
+                    if total_count == 0:
+                        raise RuntimeError(
+                            f"[STOCK_SCORES] Pre-flight validation failed: {table_name} is empty. "
+                            f"Upstream metric loader may not have run yet. "
+                            f"Cannot compute stock scores without metric data."
+                        )
+
+                    cur.execute(f"SELECT COUNT(*) FROM {table_name} WHERE data_unavailable = false")
+                    row = cur.fetchone()
+                    available_count = row[0] if row else 0
+                    coverage = available_count / total_count if total_count > 0 else 0
+                    if coverage == 0:
+                        logger.warning(
+                            f"[STOCK_SCORES] {table_name} has {total_count} rows but 0% real data "
+                            f"(all data_unavailable=True) — SEC annual financials upstream may be empty. "
+                            f"Proceeding without {table_name} factor; per-symbol scoring redistributes weights."
+                        )
+
                 logger.info(
-                    f"[STOCK_SCORES] Pre-flight validation passed: "
-                    f"All upstream metric loaders have sufficient coverage (>={min(metric_tables.values()):.0%}). "
-                    f"Proceeding with stock score computation."
+                    "[STOCK_SCORES] Pre-flight validation passed: upstream metric loaders ready. "
+                    "Proceeding with stock score computation."
                 )
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:

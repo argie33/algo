@@ -36,7 +36,7 @@ class QualityMetricsLoader(OptimalLoader):
 
     table_name = "quality_metrics"
     primary_key = ("symbol",)
-    watermark_field = "created_at"
+    watermark_field = "updated_at"
     exclude_etfs_from_symbols = True
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:

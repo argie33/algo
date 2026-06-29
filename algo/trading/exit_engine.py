@@ -532,7 +532,7 @@ class ExitEngine:
 
                 exits_executed = 0
 
-                for row in trades:
+                for _idx, row in enumerate(trades):
                     (
                         trade_id,
                         symbol,
@@ -551,143 +551,155 @@ class ExitEngine:
                         t3_hit_time,
                     ) = row
 
-                    # Issue #22: Lock position row to prevent concurrent exits (TOCTOU race)
-
-                    cur.execute(
-                        "SELECT status FROM algo_positions WHERE position_id = %s FOR UPDATE",
-                        (_position_id,),
-                    )
-
-                    status_row = cur.fetchone()
-
-                    status = status_row[0] if status_row else None
-
-                    if status != "open":
-                        logger.debug(f"Position {symbol} already closed, skipping exit check")
-
-                        continue
-
+                    _sp = f"sp_exit_{_idx}"
+                    cur.execute(f"SAVEPOINT {_sp}")
                     try:
-                        entry_price = Decimal(str(entry_price))
+                        # Issue #22: Lock position row to prevent concurrent exits (TOCTOU race)
 
-                        init_stop = Decimal(str(init_stop))
-
-                        active_stop = Decimal(str(current_stop)) if current_stop else init_stop
-
-                        t1_price = Decimal(str(t1_price)) if t1_price else None
-
-                        t2_price = Decimal(str(t2_price)) if t2_price else None
-
-                        t3_price = Decimal(str(t3_price)) if t3_price else None
-
-                        if target_hits is None:
-                            raise ValueError(f"{symbol}: target_hits is NULL in database  - data corruption detected")
-
-                        target_hits = int(target_hits)
-
-                    except (TypeError, ValueError) as e:
-                        raise ValueError(f"Cannot evaluate exit checks for {symbol}: invalid price data  - {e}") from e
-
-                    cur_price, prev_close = self._fetch_recent_prices(cur, symbol, current_date)
-
-                    if cur_price is None:
-                        raise RuntimeError(
-                            f"[EXIT ENGINE] Critical: current price unavailable for {symbol} "
-                            " - cannot evaluate exits without market data"
+                        cur.execute(
+                            "SELECT status FROM algo_positions WHERE position_id = %s FOR UPDATE",
+                            (_position_id,),
                         )
 
-                    days_held = (current_date - trade_date).days
+                        status_row = cur.fetchone()
 
-                    # Enforce minimum holding period (no same-day exits per Curtis Faith)
+                        status = status_row[0] if status_row else None
 
-                    if days_held < 1:
-                        if self.verbose:
-                            logger.info(f"  {symbol}: hold (too new, need 1d hold minimum, held {days_held}d)")
+                        if status != "open":
+                            logger.debug(f"Position {symbol} already closed, skipping exit check")
+                            cur.execute(f"RELEASE SAVEPOINT {_sp}")
+                            continue
 
-                        continue
+                        try:
+                            entry_price = Decimal(str(entry_price))
 
-                    exit_signal = self._evaluate_position(
-                        cur,
-                        symbol,
-                        current_date,
-                        Decimal(str(cur_price)),
-                        Decimal(str(prev_close)) if prev_close is not None else None,
-                        entry_price,
-                        active_stop,
-                        init_stop,
-                        t1_price,
-                        t2_price,
-                        t3_price,
-                        target_hits,
-                        days_held,
-                        dist_days_today,
-                        t1_hit_time,
-                        t2_hit_time,
-                        t3_hit_time,
-                    )
+                            init_stop = Decimal(str(init_stop))
 
-                    if not exit_signal:
-                        t1_str = f"${float(t1_price):.2f}" if t1_price is not None else "--"
+                            active_stop = Decimal(str(current_stop)) if current_stop else init_stop
 
-                        logger.info(
-                            f"  {symbol}: hold (cur ${float(cur_price):.2f}, "
-                            f"stop ${float(active_stop):.2f}, t1 {t1_str}, "
-                            f"day {days_held}, hits {target_hits})"
+                            t1_price = Decimal(str(t1_price)) if t1_price else None
+
+                            t2_price = Decimal(str(t2_price)) if t2_price else None
+
+                            t3_price = Decimal(str(t3_price)) if t3_price else None
+
+                            if target_hits is None:
+                                raise ValueError(f"{symbol}: target_hits is NULL in database  - data corruption detected")
+
+                            target_hits = int(target_hits)
+
+                        except (TypeError, ValueError) as e:
+                            raise ValueError(f"Cannot evaluate exit checks for {symbol}: invalid price data  - {e}") from e
+
+                        cur_price, prev_close = self._fetch_recent_prices(cur, symbol, current_date)
+
+                        if cur_price is None:
+                            raise RuntimeError(
+                                f"[EXIT ENGINE] Critical: current price unavailable for {symbol} "
+                                " - cannot evaluate exits without market data"
+                            )
+
+                        days_held = (current_date - trade_date).days
+
+                        # Enforce minimum holding period (no same-day exits per Curtis Faith)
+
+                        if days_held < 1:
+                            if self.verbose:
+                                logger.info(f"  {symbol}: hold (too new, need 1d hold minimum, held {days_held}d)")
+                            cur.execute(f"RELEASE SAVEPOINT {_sp}")
+                            continue
+
+                        exit_signal = self._evaluate_position(
+                            cur,
+                            symbol,
+                            current_date,
+                            Decimal(str(cur_price)),
+                            Decimal(str(prev_close)) if prev_close is not None else None,
+                            entry_price,
+                            active_stop,
+                            init_stop,
+                            t1_price,
+                            t2_price,
+                            t3_price,
+                            target_hits,
+                            days_held,
+                            dist_days_today,
+                            t1_hit_time,
+                            t2_hit_time,
+                            t3_hit_time,
                         )
 
-                        continue
+                        if not exit_signal:
+                            t1_str = f"${float(t1_price):.2f}" if t1_price is not None else "--"
 
-                    fraction = exit_signal["fraction"]
+                            logger.info(
+                                f"  {symbol}: hold (cur ${float(cur_price):.2f}, "
+                                f"stop ${float(active_stop):.2f}, t1 {t1_str}, "
+                                f"day {days_held}, hits {target_hits})"
+                            )
+                            cur.execute(f"RELEASE SAVEPOINT {_sp}")
+                            continue
 
-                    stage = exit_signal["stage"]
+                        fraction = exit_signal["fraction"]
 
-                    new_stop = exit_signal.get("new_stop")
+                        stage = exit_signal["stage"]
 
-                    # Route exit through executor (atomicity + audit logging)
+                        new_stop = exit_signal.get("new_stop")
 
-                    # Stop-raise-only (fraction=0) skips exit_trade, just updates stop
+                        # Route exit through executor (atomicity + audit logging)
 
-                    logger.info(f"  {symbol}: {stage.upper()} - {exit_signal['reason']}")
+                        # Stop-raise-only (fraction=0) skips exit_trade, just updates stop
 
-                    if fraction > 0:
-                        logger.info(f"      (exit {int(fraction * 100)}%)")
+                        logger.info(f"  {symbol}: {stage.upper()} - {exit_signal['reason']}")
 
-                    # For stop-raise-only, new_stop is required
-                    if fraction == 0 and new_stop is None:
-                        raise RuntimeError(
-                            f"[EXIT_ENGINE] {symbol}: Stop-raise-only (fraction=0) requires new_stop price. "
-                            f"Exit signal missing new_stop field. Cannot update stop without price."
+                        if fraction > 0:
+                            logger.info(f"      (exit {int(fraction * 100)}%)")
+
+                        # For stop-raise-only, new_stop is required
+                        if fraction == 0 and new_stop is None:
+                            raise RuntimeError(
+                                f"[EXIT_ENGINE] {symbol}: Stop-raise-only (fraction=0) requires new_stop price. "
+                                f"Exit signal missing new_stop field. Cannot update stop without price."
+                            )
+
+                        # Route through executor for all cases (stop-raise-only when fraction=0)
+
+                        # Pass cursor for transactional integrity: all exit updates in same transaction
+
+                        # as position queries and state checks above (prevents orphaned state)
+
+                        result = self.executor.exit_trade(
+                            trade_id=trade_id,
+                            exit_price=cur_price if fraction > 0 else None,
+                            exit_reason=exit_signal["reason"],
+                            exit_fraction=fraction,  # 0 for stop-raise-only
+                            exit_stage=stage,
+                            new_stop_price=new_stop,
+                            cur=cur,
                         )
 
-                    # Route through executor for all cases (stop-raise-only when fraction=0)
+                        if "success" not in result:
+                            raise RuntimeError("Exit trade result missing 'success' field")
+                        success = result["success"]
+                        message = result.get("message", "(no message provided)")
 
-                    # Pass cursor for transactional integrity: all exit updates in same transaction
+                        if fraction == 0 and success:
+                            logger.info(f"      -> Stop raised to ${new_stop:.2f}")
+                            exits_executed += 1
+                        elif success:
+                            exits_executed += 1
+                            logger.info(f"      -> {message}")
+                        else:
+                            logger.error(f"      -> FAILED: {message}")
 
-                    # as position queries and state checks above (prevents orphaned state)
+                        cur.execute(f"RELEASE SAVEPOINT {_sp}")
 
-                    result = self.executor.exit_trade(
-                        trade_id=trade_id,
-                        exit_price=cur_price if fraction > 0 else None,
-                        exit_reason=exit_signal["reason"],
-                        exit_fraction=fraction,  # 0 for stop-raise-only
-                        exit_stage=stage,
-                        new_stop_price=new_stop,
-                        cur=cur,
-                    )
-
-                    if "success" not in result:
-                        raise RuntimeError("Exit trade result missing 'success' field")
-                    success = result["success"]
-                    message = result.get("message", "(no message provided)")
-
-                    if fraction == 0 and success:
-                        logger.info(f"      -> Stop raised to ${new_stop:.2f}")
-                        exits_executed += 1
-                    elif success:
-                        exits_executed += 1
-                        logger.info(f"      -> {message}")
-                    else:
-                        logger.error(f"      -> FAILED: {message}")
+                    except Exception as _trade_err:
+                        cur.execute(f"ROLLBACK TO SAVEPOINT {_sp}")
+                        logger.error(
+                            f"Exit check failed for {symbol} (trade {trade_id}): "
+                            f"{type(_trade_err).__name__}: {_trade_err}"
+                        )
 
                 logger.info(f"\n{'=' * 70}")
 

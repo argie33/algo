@@ -182,20 +182,20 @@ def fetch_scores(c: None) -> dict[str, Any]:
         # Check for API error
         is_error, error_msg = FetcherValidator.check_api_error(top_data)
         if is_error:
-            # IMPORTANT: Distinguish between temporary service issues (503) and real errors
-            if top_data.get("_is_transient_503"):
-                # 503 Service Unavailable: Scores service is temporarily down
-                # Return explicit marker for empty scores instead of error
-                # Allows signals to display without scores (degraded but functional)
+            # IMPORTANT: Distinguish between temporary service issues and real errors
+            # Scores are non-critical enrichment — 503 (unavailable) and 504 (query timeout)
+            # are both transient; allow signals to display without score rankings
+            is_transient = top_data.get("_is_transient_503") or "504" in str(error_msg or "")
+            if is_transient:
                 logger.warning(
-                    f"Scores API temporarily unavailable (503): {error_msg} - "
+                    f"Scores API temporarily unavailable: {error_msg} - "
                     f"Signals will display without composite score rankings. Service will recover."
                 )
-                record_data_quality_issue("scores", "api_call", "api_unavailable_503")
+                record_data_quality_issue("scores", "api_call", "api_unavailable_transient")
                 return {
                     "top": [],
                     "data_unavailable": True,
-                    "reason": "Scores service temporarily unavailable (503) - signals display without score rankings",
+                    "reason": "Scores service temporarily unavailable - signals display without score rankings",
                     "unavailability_type": "transient_service_error",
                 }
 

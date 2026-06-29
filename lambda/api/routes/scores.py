@@ -225,8 +225,9 @@ def _get_stock_scores(
         params_list.extend([limit, offset])
 
         # Try with data_unavailable columns first (preferred)
+        # timeout_sec=20 ensures DB cancels before Lambda's 25s timeout, allowing proper error response
         try:
-            scores = execute_with_timeout(cur, query, params_list, timeout_sec=30)
+            scores = execute_with_timeout(cur, query, params_list, timeout_sec=20, max_attempts=1)
         except psycopg2.errors.UndefinedColumn as e:
             # If data_unavailable columns don't exist, retry with fallback query
             # This handles the transition period before database migration is applied
@@ -249,7 +250,7 @@ def _get_stock_scores(
                     "(sm.symbol IS NULL OR sm.data_unavailable = TRUE) AS _stability_data_unavailable,",
                     "(sm.symbol IS NULL) AS _stability_data_unavailable,"
                 )
-                scores = execute_with_timeout(cur, fallback_query, params_list, timeout_sec=30)
+                scores = execute_with_timeout(cur, fallback_query, params_list, timeout_sec=20, max_attempts=1)
             else:
                 raise
 

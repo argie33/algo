@@ -29,7 +29,7 @@ class GrowthMetricsLoader(OptimalLoader):
 
     table_name = "growth_metrics"
     primary_key = ("symbol",)
-    watermark_field = "created_at"
+    watermark_field = "updated_at"
     exclude_etfs_from_symbols = True
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
@@ -67,6 +67,7 @@ class GrowthMetricsLoader(OptimalLoader):
                         "eps_growth_5y": None,
                         "data_unavailable": True,
                         "reason": "No annual income statement data available",
+                        "updated_at": date.today(),
                     }
                 ]
 
@@ -89,6 +90,7 @@ class GrowthMetricsLoader(OptimalLoader):
                         "eps_growth_5y": None,
                         "data_unavailable": True,
                         "reason": "Metrics computation failed",
+                        "updated_at": date.today(),
                     }
                 ]
             return [metrics]
@@ -170,7 +172,7 @@ class GrowthMetricsLoader(OptimalLoader):
             metrics["data_unavailable"] = True
             metrics["reason"] = "Insufficient historical data to compute growth rates"
 
-        metrics["updated_at"] = date.today().isoformat()
+        metrics["updated_at"] = date.today()
 
         return metrics
 

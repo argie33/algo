@@ -442,13 +442,7 @@ def _get_market(cur: cursor) -> Any:
             SELECT market_trend, market_stage, vix_level,
                    up_volume_percent, advance_decline_ratio, new_highs_count,
                    new_lows_count, breadth_momentum_10d, put_call_ratio,
-                   yield_curve_slope, fed_rate_environment,
-                   COALESCE(put_call_ratio_data_unavailable, FALSE) as put_call_ratio_data_unavailable,
-                   COALESCE(put_call_ratio_unavailable_reason, NULL) as put_call_ratio_unavailable_reason,
-                   COALESCE(yield_curve_data_unavailable, FALSE) as yield_curve_data_unavailable,
-                   COALESCE(yield_curve_unavailable_reason, NULL) as yield_curve_unavailable_reason,
-                   COALESCE(fed_rate_data_unavailable, FALSE) as fed_rate_data_unavailable,
-                   COALESCE(fed_rate_unavailable_reason, NULL) as fed_rate_unavailable_reason
+                   yield_curve_slope, fed_rate_environment
             FROM market_health_daily
             ORDER BY date DESC LIMIT 1
         """)
@@ -519,15 +513,15 @@ def _get_market(cur: cursor) -> Any:
             "new_highs_count": int(nh_val) if nh_val is not None else None,
             "new_lows_count": int(nl_val) if nl_val is not None else None,
             "put_call_ratio": float(pcr_val) if pcr_val is not None else None,
-            "put_call_ratio_data_unavailable": market_health.get("put_call_ratio_data_unavailable", False),
-            "put_call_ratio_unavailable_reason": market_health.get("put_call_ratio_unavailable_reason"),
+            "put_call_ratio_data_unavailable": False,
+            "put_call_ratio_unavailable_reason": None,
             "breadth_momentum_10d": float(bm_val) if bm_val is not None else None,
             "yield_curve_slope": float(ycs_val) if ycs_val is not None else None,
-            "yield_curve_data_unavailable": market_health.get("yield_curve_data_unavailable", False),
-            "yield_curve_unavailable_reason": market_health.get("yield_curve_unavailable_reason"),
+            "yield_curve_data_unavailable": False,
+            "yield_curve_unavailable_reason": None,
             "fed_rate_environment": market_health.get("fed_rate_environment"),
-            "fed_rate_data_unavailable": market_health.get("fed_rate_data_unavailable", False),
-            "fed_rate_unavailable_reason": market_health.get("fed_rate_unavailable_reason"),
+            "fed_rate_data_unavailable": False,
+            "fed_rate_unavailable_reason": None,
         }
 
         return json_response(200, data)

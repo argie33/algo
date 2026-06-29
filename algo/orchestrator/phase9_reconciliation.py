@@ -573,7 +573,9 @@ def _record_closed_positions_exits(
                         pnl = (exit_price - entry_price) * quantity
                         pnl_pct = (exit_price - entry_price) / entry_price * 100
 
+                        sp = f"sp_exit_{symbol.replace('-', '_').replace('.', '_')}"
                         try:
+                            write_cursor.execute(f"SAVEPOINT {sp}")
                             write_cursor.execute(
                                 """
                                 UPDATE algo_trades
@@ -610,6 +612,7 @@ def _record_closed_positions_exits(
                                 )
                             else:
                                 exits_recorded += 1
+                            write_cursor.execute(f"RELEASE SAVEPOINT {sp}")
                             logger.info(
                                 f"Recorded exit: {symbol} {quantity}sh @ ${exit_price:.2f} on {run_date} "
                                 f"(P&L: ${pnl:.2f} / {pnl_pct:.1f}%)"
@@ -618,6 +621,7 @@ def _record_closed_positions_exits(
                             psycopg2.DatabaseError,
                             psycopg2.OperationalError,
                         ) as e:
+                            write_cursor.execute(f"ROLLBACK TO SAVEPOINT {sp}")
                             logger.error(f"Failed to record exit for {symbol}: {e}")
 
                     if exits_recorded > 0:
