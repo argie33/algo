@@ -837,7 +837,11 @@ class MarketExposure:
         Reads pre-computed sma_150 from technical_data_daily (indexed lookup, <1s)
         instead of computing AVG() OVER a window across all SPY rows in price_daily
         (7000+ rows x window function = slow under load on t4g.micro).
+
+        FALLBACK: If technical_data_daily is not available (removed from pipeline),
+        compute SMA_150 directly from price_daily.
         """
+        # First, try to read from technical_data_daily (pre-computed, faster)
         cur.execute(
             """
             SELECT date, close, sma_150
@@ -849,6 +853,50 @@ class MarketExposure:
             (eval_date,),
         )
         rows = cur.fetchall()
+
+        # If technical_data_daily is empty/missing, fall back to computing from price_daily
+        if not rows:
+            logger.debug("[MARKET_EXPOSURE] technical_data_daily not available, computing SMA from price_daily")
+            cur.execute(
+                """
+                SELECT date, close
+                FROM price_daily
+                WHERE symbol = 'SPY' AND date <= %s
+                ORDER BY date DESC
+                LIMIT 200  -- Need 200 days for 150-day SMA + buffer for 30d-ago calculation
+                """,
+                (eval_date,),
+            )
+            price_rows = cur.fetchall()
+
+            if not price_rows or len(price_rows) < 35:
+                return {
+                    "score_factor": None,
+                    "value": None,
+                    "reason": "Insufficient price history for SMA calculation",
+                }
+
+            # Compute SMA_150 for each date in the result
+            # rows format: [(date, close, sma_150_computed), ...]
+            rows = []
+            price_rows_list = list(price_rows)  # Most recent first
+
+            for i, (row_date, row_close) in enumerate(price_rows_list):
+                if i + 150 <= len(price_rows_list):
+                    # Calculate 150-day SMA: average of closes from day i to day i+149
+                    sma_150_val = sum(float(p[1]) for p in price_rows_list[i:i+150]) / 150.0
+                    rows.append((row_date, float(row_close), sma_150_val))
+                else:
+                    # Not enough history for full SMA
+                    break
+
+            if not rows:
+                return {
+                    "score_factor": None,
+                    "value": None,
+                    "reason": "Insufficient history for 150-day SMA",
+                }
+
         if not rows or rows[0][2] is None:
             return {
                 "score_factor": None,

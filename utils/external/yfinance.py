@@ -40,17 +40,17 @@ class TimeoutHTTPAdapter(HTTPAdapter):  # type: ignore
         return super().send(request, **kwargs)
 
 # Global per-process rate limiter: enforces minimum interval between requests
-# This is a BACKUP to the shared circuit breaker (DynamoDB-based).
-# CRITICAL: Each ECS task runs one loader with parallelism=2-8, so this per-process
-# limit applies to all symbols processed in parallel.
+# This is a BACKUP to the shared circuit breaker (PostgreSQL-based).
+# CRITICAL: Each ECS task runs loaders with parallelism up to 3, so this per-process
+# limit applies to all symbols processed in parallel by 3 workers.
 #
-# OPTIMIZATION: Reduced from 2.0s to 1.0s to improve throughput while staying within
-# yfinance's documented rate limits (2000 requests per hour = 1.8 req/sec max).
-# Circuit breaker handles IP-level coordination if we exceed limits.
+# OPTIMIZATION: Reduced from 1.0s to 0.3s (2026-06-28) to improve throughput.
+# With 3 workers and 0.3s minimum: ~10 req/sec per task = 36k req/hour
+# 6 tasks = 216k req/hour potential. Circuit breaker + shared IP coordination manages this.
 _yf_semaphore = threading.Semaphore(1)  # Max 1 concurrent request
 _yf_rate_lock = threading.Lock()
 _yf_last_request_time = [0.0]  # list for mutable access across threads
-_YF_MIN_INTERVAL_SECS = 1.0  # OPTIMIZATION 2026-06-26: Reduced from 2.0s to 1.0s per request. 1 req/s = 3600 req/hour per task. 6 tasks = 21.6k/hour. Circuit breaker prevents IP bans via shared coordination
+_YF_MIN_INTERVAL_SECS = 0.3  # OPTIMIZATION 2026-06-28: Reduced from 1.0s to 0.3s. 3 req/sec per worker = much faster throughput. Circuit breaker coordinates across all ECS tasks to prevent IP bans
 
 
 def _throttled_yf_request(fn: Any) -> Any:

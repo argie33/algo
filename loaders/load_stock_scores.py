@@ -693,7 +693,55 @@ class StockScoresLoader(OptimalLoader):
         score = 50 + (pct_return / 0.4)
         return max(0, min(100, score))
 
+    def audit_upstream_coverage(self) -> None:
+        """Audit upstream metric loader coverage after stock_scores completes.
+
+        Verifies that critical metric loaders (value_metrics, stability_metrics) have
+        sufficient completion before considering stock_scores run successful.
+        Prevents silent data degradation when upstream loaders fail to complete.
+        """
+        try:
+            with DatabaseContext("read") as cur:
+                cur.execute("""
+                    SELECT
+                        table_name,
+                        completion_pct,
+                        symbols_loaded,
+                        symbol_count
+                    FROM data_loader_status
+                    WHERE table_name IN ('value_metrics', 'positioning_metrics', 'stability_metrics', 'growth_metrics')
+                    ORDER BY table_name
+                """)
+
+                metric_coverage = cur.fetchall()
+                if not metric_coverage:
+                    logger.warning("[STOCK_SCORES] No upstream metric loader status found. Metrics may not be populated yet.")
+                    return
+
+                # Require at least 90% coverage on critical metric loaders
+                min_coverage_pct = 90.0
+                critical_metric_loaders = ['value_metrics', 'stability_metrics']
+
+                for table_name, completion_pct, symbols_loaded, symbol_count in metric_coverage:
+                    if completion_pct is None:
+                        logger.warning(f"[STOCK_SCORES] {table_name}: completion_pct is NULL (loader still running?)")
+                        continue
+
+                    if table_name in critical_metric_loaders and completion_pct < min_coverage_pct:
+                        raise RuntimeError(
+                            f"[STOCK_SCORES] Post-run audit failed: {table_name} only {completion_pct:.1f}% complete "
+                            f"({symbols_loaded}/{symbol_count} symbols). "
+                            f"Cannot compute stock scores with upstream metric coverage below {min_coverage_pct}%. "
+                            f"Requires upstream metric loaders to complete successfully."
+                        )
+        except RuntimeError:
+            raise
+        except Exception as e:
+            logger.error(f"[STOCK_SCORES] Post-run audit encountered error: {e}", exc_info=True)
+            raise
+
     def post_run(self) -> None:
+        self.audit_upstream_coverage()
         self.update_rs_percentiles()
 
     def update_rs_percentiles(self) -> None:

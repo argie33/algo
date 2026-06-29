@@ -29,6 +29,10 @@ class ValueMetricsLoader(OptimalLoader):
     primary_key = ("symbol",)
     watermark_field = "updated_at"
 
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._illiquid_skip_count = 0
+
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Fetch value metrics from yfinance for a symbol.
 
@@ -86,7 +90,8 @@ class ValueMetricsLoader(OptimalLoader):
             # Skip illiquid symbols gracefully (< $1M market cap). These legitimately lack
             # reliable metrics in yfinance and are typically excluded from trading anyway.
             if mkt_cap and mkt_cap < 1_000_000:
-                logger.info(f"[VALUE_METRICS] Skipping {symbol} (market cap ${mkt_cap:,} < $1M) — metrics unavailable")
+                self._illiquid_skip_count += 1
+                logger.debug(f"[VALUE_METRICS] [ILLIQUID_SKIP] {symbol} (market cap ${mkt_cap:,} < $1M)")
                 return [
                     {
                         "symbol": symbol,
@@ -195,6 +200,13 @@ class ValueMetricsLoader(OptimalLoader):
         except Exception as e:
             logger.error(f"[VALUE_METRICS] Unexpected error for {symbol} (not data unavailability): {type(e).__name__}: {e}")
             raise
+
+    def post_run(self) -> None:
+        """Log telemetry on illiquid stocks skipped during this run."""
+        if self._illiquid_skip_count > 0:
+            logger.info(
+                f"[VALUE_METRICS] Telemetry: {self._illiquid_skip_count} stocks skipped due to illiquidity (market cap < $1M)"
+            )
 
 
 def _apply_schema_migrations() -> None:

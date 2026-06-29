@@ -36,6 +36,41 @@ FRESHNESS_RULES = {
         "purpose": "Used for portfolio valuation, signal generation, position sizing",
         "applies_to": ["orchestrator_phase1", "dashboard", "api"],
     },
+    "price_weekly": {
+        "critical": True,
+        "max_age_days": 7,
+        "description": "Weekly stock prices (technical analysis, trend confirmation)",
+        "purpose": "Weekly trend validation, signal generation",
+        "applies_to": ["orchestrator_phase1", "dashboard"],
+    },
+    "price_monthly": {
+        "critical": True,
+        "max_age_days": 30,
+        "description": "Monthly stock prices (long-term trend analysis)",
+        "purpose": "Long-term trend validation, regime identification",
+        "applies_to": ["orchestrator_phase1", "dashboard"],
+    },
+    "etf_price_daily": {
+        "critical": True,
+        "max_age_days": 1,
+        "description": "Daily ETF prices (market indices, sector ETFs)",
+        "purpose": "Market health assessment, sector rotation, portfolio hedging",
+        "applies_to": ["orchestrator_phase1", "dashboard"],
+    },
+    "etf_price_weekly": {
+        "critical": True,
+        "max_age_days": 7,
+        "description": "Weekly ETF prices (market trend confirmation)",
+        "purpose": "Weekly market trend validation, sector strength ranking",
+        "applies_to": ["orchestrator_phase1", "dashboard"],
+    },
+    "etf_price_monthly": {
+        "critical": True,
+        "max_age_days": 30,
+        "description": "Monthly ETF prices (long-term market trends)",
+        "purpose": "Long-term market regime, sector durability assessment",
+        "applies_to": ["orchestrator_phase1", "dashboard"],
+    },
     "algo_portfolio_snapshots": {
         "critical": True,
         "max_age_days": 1,
@@ -67,6 +102,13 @@ FRESHNESS_RULES = {
         "purpose": "Legacy pre-computed signals — Phase 5 no longer reads from this table",
         "applies_to": [],
     },
+    "stock_scores": {
+        "critical": True,
+        "max_age_days": 1,
+        "description": "Composite scores for all symbols (fundamental, technical, sentiment)",
+        "purpose": "Signal filtering, universe ranking, position selection",
+        "applies_to": ["orchestrator_phase1", "orchestrator_phase5", "dashboard"],
+    },
     "swing_trader_scores": {
         "critical": True,
         "max_age_days": 1,
@@ -88,16 +130,14 @@ FRESHNESS_RULES = {
         "purpose": "Position monitoring, exposure policy enforcement",
         "applies_to": ["orchestrator_phase3b", "dashboard"],
     },
-    # === IMPORTANT TABLES (Warning if stale, may still use) ===
-    # technical_data_daily and signal_quality_scores removed from EOD pipeline.
-    # Orchestrator Phase 5 computes these on-the-fly; pre-computed tables no longer used.
     "technical_data_daily": {
-        "critical": False,
-        "max_age_days": 365,
-        "description": "Technical indicators (RSI, MACD, Bollinger Bands) — computed on-the-fly by orchestrator",
-        "purpose": "Legacy pre-computed technicals — Phase 5 no longer reads from this table",
-        "applies_to": [],
+        "critical": True,
+        "max_age_days": 1,
+        "description": "Technical indicators (RSI, MACD, Bollinger Bands) for all symbols",
+        "purpose": "Signal generation, entry/exit confirmation, trend validation",
+        "applies_to": ["orchestrator_phase1", "orchestrator_phase5", "dashboard"],
     },
+    # === IMPORTANT TABLES (Warning if stale, may still use) ===
     "signal_quality_scores": {
         "critical": False,
         "max_age_days": 365,

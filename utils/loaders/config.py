@@ -45,15 +45,17 @@ class LoaderConfigManager:
         "buy_sell_daily": (1, 3),  # Critical path, yfinance-dependent; conservative
         "signal_quality_scores": (1, 3),  # Critical path
         "swing_trader_scores": (1, 3),  # Critical path
-        # yfinance-dependent metrics: MUST stay low (shared IP across 6 tasks)
+        # yfinance-dependent metrics: auxiliary loaders that feed stock_scores
+        # Increased parallelism (2026-06-28) to improve throughput and achieve 80%+ coverage
+        # stock_scores requires upstream metrics for reliable scoring
         "positioning_metrics": (
             1,
-            1,
-        ),  # CRITICAL FIX: Was unlimited, now 1 (pure yfinance, single-threaded)
+            3,
+        ),  # Increased from (1,1) to (1,3) - 3x faster throughput with adaptive backoff
         "value_metrics": (
             1,
-            2,
-        ),  # CRITICAL FIX: Was 1-8, now 1-2 (yfinance-heavy, rate limit prone)
+            3,
+        ),  # Increased from (1,2) to (1,3) - better throughput with rate limiting
         "company_profile": (1, 2),
         "analyst_sentiment": (1, 3),
         "stability_metrics": (1, 3),

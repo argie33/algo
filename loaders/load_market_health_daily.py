@@ -78,9 +78,10 @@ class MarketHealthDailyLoader(OptimalLoader):
             iterations += 1
 
         if iterations >= max_iterations:
-            logger.warning(
+            raise RuntimeError(
                 f"[MARKET_HEALTH] MarketCalendar loop exceeded {max_iterations} iterations. "
-                "Possible calendar bug. Using {end} as fallback."
+                "Calendar is corrupted or has no trading days in last 365 days. "
+                "Manual investigation required. Cannot compute market health with invalid calendar data."
             )
         return end
 

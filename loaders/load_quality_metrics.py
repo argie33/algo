@@ -65,7 +65,7 @@ class QualityMetricsLoader(OptimalLoader):
         # If no income statement, skip this stock gracefully
         # (many stocks lack SEC filings: micro-caps, OTC, ADRs, new IPOs - about 55% of universe)
         if not income_row:
-            logger.info(f"[QUALITY_METRICS] No income statement for {symbol}")
+            logger.info(f"[QUALITY_METRICS] [SEC_DATA_UNAVAILABLE] {symbol}: no SEC filing data (micro-cap, OTC, ADR, or new IPO)")
             return []
 
         metrics = self._compute_metrics(symbol, income_row, balance_row)
