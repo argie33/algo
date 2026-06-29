@@ -372,19 +372,25 @@ class BreadthFetcher:
                     date_val = date_val.date()
                 d = date_val.isoformat() if hasattr(date_val, "isoformat") else str(date_val)
                 if row[1] is None or row[2] is None:
-                    logger.debug(
-                        f"[BREADTH_FETCHER] Data quality issue: advances/declines NULL for {d}. "
-                        f"Skipping this date (optional enrichment continues)."
+                    msg = (
+                        f"[BREADTH_FETCHER CRITICAL] Data corruption detected: advances/declines NULL for {d}. "
+                        f"Breadth metrics are required for market exposure scoring (16% of composite score). "
+                        f"Cannot compute position sizing without valid breadth data."
                     )
-                    # Skip this date and continue - breadth is optional enrichment
-                    continue
+                    logger.error(msg)
+                    raise RuntimeError(msg)
 
                 advances = int(row[1])
                 declines = int(row[2])
 
                 if declines <= 0:
-                    logger.debug(f"[BREADTH_FETCHER] Skipping date {d} - invalid declines count ({declines}). Optional enrichment continues.")
-                    continue
+                    msg = (
+                        f"[BREADTH_FETCHER CRITICAL] Invalid breadth data for {d}: declines={declines}. "
+                        f"Negative or zero declines indicate corrupt data. "
+                        f"Cannot score market health without valid advance/decline counts."
+                    )
+                    logger.error(msg)
+                    raise RuntimeError(msg)
 
                 ad_ratio = advances / declines
 
@@ -397,5 +403,14 @@ class BreadthFetcher:
                     "new_lows_count": nl,
                 }
 
-            logger.info(f"[BREADTH_FETCHER] Fetched breadth for {len(result)} dates (advances/declines + new highs/lows)")
+            if not result:
+                msg = (
+                    f"[BREADTH_FETCHER CRITICAL] No valid breadth data obtained from {len(rows)} query results. "
+                    f"All rows had NULL or invalid advances/declines. "
+                    f"Verify trend_template_data has complete data for date range {start} to {end}."
+                )
+                logger.error(msg)
+                raise RuntimeError(msg)
+
+            logger.info(f"[BREADTH_FETCHER] Fetched valid breadth for {len(result)}/{len(rows)} dates")
             return result

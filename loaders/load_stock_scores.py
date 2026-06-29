@@ -73,6 +73,10 @@ class StockScoresLoader(OptimalLoader):
                 stability = self._get_stability_metrics(cur, symbol)
                 momentum = self._get_momentum_metrics(cur, symbol)
 
+            # Merge debt_to_assets from quality into stability metrics for solvency scoring
+            if stability and quality and quality.get("debt_to_assets") is not None:
+                stability["debt_to_assets"] = quality["debt_to_assets"]
+
             # Compute individual factor scores from REAL data only (no defaults)
             # Scoring functions return None if metrics dict exists but has all NULL values
             quality_score = self._score_quality(quality)
@@ -309,7 +313,7 @@ class StockScoresLoader(OptimalLoader):
         """Fetch stability metrics for symbol."""
         try:
             cur.execute(
-                "SELECT volatility_252d, volatility_60d, volatility_30d, beta, debt_to_assets FROM stability_metrics WHERE symbol = %s",
+                "SELECT volatility_252d, volatility_60d, volatility_30d, beta FROM stability_metrics WHERE symbol = %s",
                 (symbol,),
             )
             row = cur.fetchone()
@@ -319,7 +323,6 @@ class StockScoresLoader(OptimalLoader):
                     "volatility_60d": float(row[1]) if row[1] is not None else None,
                     "volatility_30d": float(row[2]) if row[2] is not None else None,
                     "beta": float(row[3]) if row[3] is not None else None,
-                    "debt_to_assets": float(row[4]) if row[4] is not None else None,
                 }
             return None
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:

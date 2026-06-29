@@ -186,10 +186,22 @@ class MarketHealthDailyLoader(OptimalLoader):
                 m["new_lows_count"] = b.get("new_lows_count")
                 matched_count += 1
 
-        if matched_count > 0:
-            logger.info(f"Breadth enrichment: matched {matched_count}/{len(health_metrics)} dates")
-        else:
-            logger.info("Breadth data available but no date matches found - skipping enrichment")
+        if matched_count == 0:
+            msg = (
+                f"[MARKET_HEALTH CRITICAL] Breadth data fetched but no dates matched with health metrics ({len(health_metrics)} dates). "
+                f"This indicates data misalignment: breadth available dates don't overlap with trading dates. "
+                f"Cannot compute market exposure without valid breadth/advance-decline metrics. "
+                f"Verify breadth_fetcher date logic and technical_data_daily completeness."
+            )
+            logger.error(msg)
+            raise RuntimeError(msg)
+
+        if matched_count < len(health_metrics):
+            logger.warning(
+                f"[MARKET_HEALTH] Breadth enrichment: matched {matched_count}/{len(health_metrics)} dates. "
+                f"Some dates have missing breadth data ({len(health_metrics) - matched_count} unmatched). "
+                f"This may reduce market exposure scoring confidence."
+            )
 
     def _merge_vix_data(self, health_metrics: list[dict[str, Any]], start: date, end: date) -> None:
         """Merge VIX data into health metrics.

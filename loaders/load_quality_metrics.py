@@ -159,8 +159,13 @@ class QualityMetricsLoader(OptimalLoader):
             score += roe_score
 
         score = max(0, min(100, score))
-        # Note: quality_score not stored in DB (no column in quality_metrics table)
-        # metrics['quality_score'] = float(round(score, 1))
+        metrics["quality_score"] = float(round(score, 2))
+
+        # Debt/Assets: Total Liabilities / Total Assets (solvency metric)
+        if total_assets and total_assets > 0 and total_liabilities is not None:
+            metrics["debt_to_assets"] = float(round(total_liabilities / total_assets, 2))
+        else:
+            metrics["debt_to_assets"] = None
 
         return metrics
 
