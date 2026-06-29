@@ -409,18 +409,6 @@ resource "aws_security_group_rule" "rds_from_dev_machine" {
   description       = "Allow PostgreSQL from development machine (local dev_server)"
 }
 
-# GitHub Actions CI/CD access (for deployment workflows)
-# Allows GitHub Actions runners to populate initial data (AAII sentiment loader, etc.)
-resource "aws_security_group_rule" "rds_from_github_actions" {
-  type              = "ingress"
-  from_port         = 5432
-  to_port           = 5432
-  protocol          = "tcp"
-  security_group_id = aws_security_group.rds.id
-  cidr_blocks       = ["0.0.0.0/0"]
-  description       = "Allow PostgreSQL from GitHub Actions (CI/CD workflows)"
-}
-
 # VPC Endpoints Security Group (for services in private subnets to reach AWS services)
 resource "aws_security_group" "vpc_endpoints" {
   name        = "${var.project_name}-vpc-endpoints-sg"
