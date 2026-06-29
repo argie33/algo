@@ -983,7 +983,7 @@ class PriceLoader(OptimalLoader):
             wait_time = base_wait * jitter
             logger.debug("[RATE_LIMIT] Waiting %ss before paced retry...", wait_time)
             time.sleep(wait_time)
-            return self._fetch_with_fallback(
+            return self._fetch_with_explicit_retry(
                 symbols,
                 start,
                 end,
@@ -1012,7 +1012,7 @@ class PriceLoader(OptimalLoader):
         failed_chunks = []
         for i in range(0, len(symbols), new_batch_size):
             chunk = symbols[i : i + new_batch_size]
-            chunk_results = self._fetch_with_fallback(
+            chunk_results = self._fetch_with_explicit_retry(
                 chunk,
                 start,
                 end,
@@ -1093,7 +1093,7 @@ class PriceLoader(OptimalLoader):
             "(Note: batch size not reduced for timeouts - if API fundamentally slow, increasing wait time not batch reduction)"
         )
         time.sleep(wait_time)
-        return self._fetch_with_fallback(
+        return self._fetch_with_explicit_retry(
             symbols,
             start,
             end,
@@ -1103,7 +1103,7 @@ class PriceLoader(OptimalLoader):
             elapsed_sec=elapsed_sec + wait_time,
         )
 
-    def _fetch_with_fallback(
+    def _fetch_with_explicit_retry(
         self,
         symbols: list[str],
         start: date,
@@ -1261,7 +1261,7 @@ class PriceLoader(OptimalLoader):
                         batch_size,
                         elapsed_sec,
                     )
-                    reduced_attempt = self._fetch_with_fallback(
+                    reduced_attempt = self._fetch_with_explicit_retry(
                         symbols,
                         start,
                         end,
@@ -1543,8 +1543,6 @@ class PriceLoader(OptimalLoader):
             logger.critical(msg)
             raise RuntimeError(msg)
 
-        return None
-
     def _monitor_and_enforce_timeouts(
         self,
         elapsed_sec: float,
@@ -1687,8 +1685,6 @@ class PriceLoader(OptimalLoader):
             )
             logger.critical(error_msg)
             raise RuntimeError(error_msg)
-
-        return None
 
     def _finalize_execution_metrics(self) -> None:
         """Finalize execution: publish metrics, update loader status, attempt final symbol retry."""

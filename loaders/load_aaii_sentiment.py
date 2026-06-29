@@ -57,8 +57,13 @@ class AAIISentimentLoader(OptimalLoader):
             File content bytes if successful, None on failure
         """
         if not HAS_PLAYWRIGHT:
-            logger.warning("[AAII_SENTIMENT] Playwright not installed - cannot use hybrid bot protection bypass")
-            return None
+            error_msg = (
+                "[AAII_SENTIMENT] CRITICAL: Playwright not installed - cannot bypass Imperva bot protection. "
+                "AAII sentiment data requires Playwright for hybrid authentication. "
+                "Install with: pip install playwright && playwright install chromium"
+            )
+            logger.error(error_msg)
+            raise RuntimeError(error_msg)
 
         try:
             logger.debug("Attempting hybrid Playwright+requests approach...")
@@ -141,9 +146,13 @@ class AAIISentimentLoader(OptimalLoader):
                         logger.warning(f"[AAII_SENTIMENT] Error closing Playwright resources: {cleanup_err}")
 
         except Exception as e:
-            logger.warning(f"[AAII_SENTIMENT] Playwright hybrid fetch failed: {type(e).__name__}: {str(e)[:100]}")
-
-        return None
+            logger.error(f"[AAII_SENTIMENT] CRITICAL: Playwright hybrid fetch failed: {type(e).__name__}: {str(e)[:200]}")
+            error_msg = (
+                f"[AAII_SENTIMENT] Failed to fetch data via Playwright hybrid approach after browser launch failed. "
+                f"Error: {type(e).__name__}: {str(e)[:200]}. "
+                f"Cannot proceed without AAII sentiment data."
+            )
+            raise RuntimeError(error_msg) from e
 
     def fetch_global(self, since: date | None) -> list[dict[str, Any]] | None:  # noqa: C901
         """Fetch AAII sentiment data from Excel file.

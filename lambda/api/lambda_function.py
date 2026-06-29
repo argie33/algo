@@ -30,29 +30,6 @@ _JWKS_CACHE: dict[str, Any] = {}
 _JWKS_CACHE_TIME = None
 _JWKS_CACHE_LOCK = threading.Lock()  # Protects JWKS cache updates
 
-# Fallback JWKS for when Cognito endpoint is unreachable (no NAT / VPC endpoint).
-# Fetched from https://cognito-idp.us-east-1.amazonaws.com/us-east-1_XJpLb9SKX/.well-known/jwks.json
-# on 2026-06-22. Update this whenever the Cognito user pool keys are rotated.
-_COGNITO_JWKS_FALLBACK = {
-    "keys": [
-        {
-            "alg": "RS256",
-            "e": "AQAB",
-            "kid": "2ewdprqHu38LTQxhG1dqULJb32ACB9SkFnq1Juex694=",
-            "kty": "RSA",
-            "n": "3If-Rasq9bLBfz-dBcvYkHjQ2pYVcdCHkaLt9rEVORnc7c0WHGp4GdJ71Kql3_I7j_BdR_z-w8we5cbDRuWFlynGpfgsQYSM-g7s_biwITPYdz3HUr7Yvh75WxMMZFRP6O4Kn-6eiZdl-u8a_A6cH-JVGgmojXHb6aG7MHWBfNWLzfY9a7ldc1BEk9h0HJBn2RBpBpqZl9zZ1BaPg5MGqGbS4nWecwYu35TexmDjgqd0bAYVt4v0Uu90LXNcaWHvUPgrsY2a23lsFjdFyyaWF-gzrP2WeesvZsPpcR42OYzwwjdmUO5JIulQZP-YqAK2kKToTs-oGcyMFdBkuNvPYQ",
-            "use": "sig",
-        },
-        {
-            "alg": "RS256",
-            "e": "AQAB",
-            "kid": "6J8Vk5XcBBwBm9mtZx/Wj+Oa7wAQti71uJnhpyE4PR8=",
-            "kty": "RSA",
-            "n": "sOm0DzUkM3v4KKbWFXQOhdia2f1N_bBveFvBTirDV2Y51FHrh8u0mFIHNQOZo1hEp5qlPWJRDCzfYRshr6qV_YyPVCkkh5u8vq-Vq-McV68Ki2ss4KIih5InXs2ckolfEFzz9XgiQczSC-xdpPjgZOVJfeIx3deB0okzCoD4buqaD2PCpM9AA3S-P4HNJ8HCTvjEVvv0y0GhdcxCcs6pfRqMLJaoRF7oz3LTNT-M_T7dfA25zMTNq6e93YM9Zok1NZ2tkhqzHrXDKUhYSmQ_Nmffh8yZafsId0vyuE2az9YI1E7WuXpo21wEUtZwwKha3zX9ZrLGkieZxkBThuYHvQ",
-            "use": "sig",
-        },
-    ]
-}
 _ALLOWED_ORIGINS_CACHE = None
 _ALLOWED_ORIGINS_LOCK = threading.Lock()  # Protects allowed origins cache
 _COGNITO_ENABLED = None  # Determined at module load
