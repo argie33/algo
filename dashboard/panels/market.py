@@ -205,9 +205,13 @@ def panel_market_full(mkt: Any, sentiment: Any = None) -> Panel:
     ]
     if upvol is not None:
         adr_s = f"  [dim]Adv/Dec:[/][white]{adr:.1f}[/]" if adr is not None else ""
-        nhnl_s = f"  [dim]NH-NL:[/][{nhnl_c}]{sign(nhnl)}{int(nhnl)}[/]" if nhnl is not None else ""
+        nh_nl_s = ""
+        if nh is not None and nl is not None:
+            nh_nl_s = f"  [dim]New Highs:[/][{G}]{nh}[/] [dim]Lows:[/][{R}]{nl}[/]"
+            if nhnl is not None:
+                nh_nl_s += f"  [dim]NH-NL:[/][{nhnl_c}]{sign(nhnl)}{int(nhnl)}[/]"
         lines.append(
-            f"[dim]Up Volume:[/][{uvc}]{upvol:.0f}%[/]{adr_s}  [dim]New Highs:[/][{G}]{nh or '--'!s}[/] [dim]Lows:[/][{R}]{nl or '--'!s}[/]{nhnl_s}"
+            f"[dim]Up Volume:[/][{uvc}]{upvol:.0f}%[/]{adr_s}{nh_nl_s}"
         )
     ycs = safe_float(mkt.get("ycs"), strict=False)
     bmom_pcr = []
@@ -422,12 +426,15 @@ def panel_header_market(
             nhnl = (nh - nl) if (nh is not None and nl is not None) else None
             nhnl_c = (G if (nhnl is not None and nhnl >= 50) else (Y if (nhnl is not None and nhnl >= 0) else R)) if nhnl is not None else DIM
             adr_s = f"  [dim]Adv/Dec:[/][white]{adr:.1f}[/]" if adr is not None else ""
-            nhnl_s = f"[dim]New Hi-Lo:[/][{nhnl_c}]{sign(nhnl)}{int(nhnl)}[/]" if nhnl is not None else ""
+            nh_nl_s = ""
+            if nh is not None and nl is not None:
+                nh_nl_part = f"[dim]New High:[/][{G}]{nh}[/] [dim]New Low:[/][{R}]{nl}[/]"
+                if nhnl is not None:
+                    nh_nl_part += f"  [dim]New Hi-Lo:[/][{nhnl_c}]{sign(nhnl)}{int(nhnl)}[/]"
+                nh_nl_s = f"  {nh_nl_part}"
             rows.append(
                 Text.from_markup(
-                    f"[dim]Up Volume:[/][{uvc}]{upvol:.0f}%[/]{adr_s}  "
-                    f"[dim]New High:[/][{G}]{nh or '--'!s}[/] [dim]New Low:[/][{R}]{nl or '--'!s}[/]  "
-                    f"{nhnl_s}"
+                    f"[dim]Up Volume:[/][{uvc}]{upvol:.0f}%[/]{adr_s}{nh_nl_s}"
                 )
             )
         pcr = safe_float(mkt.get("pcr"), strict=False)
