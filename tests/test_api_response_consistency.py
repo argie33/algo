@@ -8,6 +8,8 @@ and that all data fetchers can work with the unwrapped responses.
 import os
 import sys
 
+import pytest
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from dashboard.api_data_layer import _unwrap_api_response
 
@@ -145,16 +147,16 @@ class TestUnwrapWithMalformedData:
         assert "pagination" not in unwrapped or unwrapped.get("pagination") is None
 
     def test_response_not_dict(self):
-        """If response itself is not a dict, should return as-is."""
+        """If response itself is not a dict, should raise RuntimeError (fail-fast on corruption)."""
         response = "not_a_dict"  # type: ignore
-        result = _unwrap_api_response(response)  # type: ignore
-        assert result == "not_a_dict"
+        with pytest.raises(RuntimeError, match="API response is not a dict"):
+            _unwrap_api_response(response)  # type: ignore
 
     def test_response_is_none(self):
-        """If response is None, should handle gracefully."""
+        """If response is None, should raise RuntimeError (fail-fast on corruption)."""
         response = None  # type: ignore
-        result = _unwrap_api_response(response)  # type: ignore
-        assert result is None
+        with pytest.raises(RuntimeError, match="API response is not a dict"):
+            _unwrap_api_response(response)  # type: ignore
 
 
 if __name__ == "__main__":

@@ -205,10 +205,10 @@ class MarketConstituentsLoader(OptimalLoader):
                 for r in reader:
                     # CRITICAL: Symbol is required — explicit validation, no defaults
                     if "Symbol" not in r or not r["Symbol"]:
-                        raise ValueError(
-                            "[MARKET_CONSTITUENTS] Missing or empty 'Symbol' field in row. "
-                            "Cannot process market constituent without symbol."
+                        logger.debug(
+                            "[MARKET_CONSTITUENTS] Skipping row with missing or empty 'Symbol' field."
                         )
+                        continue
                     sym = r["Symbol"].strip()
                     if sym.startswith("File Creation Time"):
                         continue
@@ -251,13 +251,18 @@ class MarketConstituentsLoader(OptimalLoader):
                         logger.debug(f"Excluding {sym} ({name}) by security name pattern")
                         continue
 
-                    # CRITICAL: Listing Exchange is required
-                    if "Listing Exchange" not in r or not r["Listing Exchange"]:
-                        raise ValueError(
-                            f"[MARKET_CONSTITUENTS] Symbol {sym} missing or empty 'Listing Exchange' field. "
-                            "Cannot determine proper exchange for market constituent."
+                    # FIXED: NASDAQ API changed from "Listing Exchange" to "Market Category"
+                    # Market Category: G=Global Market, Q=NASDAQ, S=NYSE MKT
+                    exchange_field = "Listing Exchange" if "Listing Exchange" in r else "Market Category"
+                    if exchange_field not in r or not r[exchange_field]:
+                        logger.warning(
+                            f"[MARKET_CONSTITUENTS] Symbol {sym} missing exchange field. Skipping."
                         )
-                    exchange = r["Listing Exchange"].upper()
+                        continue
+                    market_cat = r[exchange_field].upper().strip()
+                    # Map Market Category to exchange code
+                    exchange_map = {"Q": "NASDAQ", "N": "NYSE", "S": "NYSE MKT", "G": "NASDAQ"}
+                    exchange = exchange_map.get(market_cat, market_cat if len(market_cat) <= 8 else "UNKNOWN")
                     rows.append(
                         {
                             "symbol": sym,

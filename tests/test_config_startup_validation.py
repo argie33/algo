@@ -36,11 +36,12 @@ class TestConfigCriticalThresholds:
 
         def mock_load_with_zero_sqs(self):
             self._config["min_signal_quality_score"] = 0
+            self._sources["min_signal_quality_score"] = "database"  # Mark as loaded from DB
 
-        patch_target = AlgoConfig, "_load_from_database"
-        with mock.patch.object(*patch_target, mock_load_with_zero_sqs):
-            with pytest.raises(RuntimeError, match="SAFETY GATE FAILURE"):
-                AlgoConfig()
+        with mock.patch.object(AlgoConfig, "_load_from_database", mock_load_with_zero_sqs):
+            with mock.patch.object(AlgoConfig, "_detect_config_db_failure"):
+                with pytest.raises(RuntimeError, match="SAFETY GATE FAILURE"):
+                    AlgoConfig()
 
     def test_critical_threshold_validation_catches_zero_swing_score(self):
         """Should raise RuntimeError if min_swing_score is zero."""
@@ -48,11 +49,12 @@ class TestConfigCriticalThresholds:
 
         def mock_load_with_zero_swing(self):
             self._config["min_swing_score"] = 0.0
+            self._sources["min_swing_score"] = "database"
 
-        patch_target = AlgoConfig, "_load_from_database"
-        with mock.patch.object(*patch_target, mock_load_with_zero_swing):
-            with pytest.raises(RuntimeError, match="SAFETY GATE FAILURE"):
-                AlgoConfig()
+        with mock.patch.object(AlgoConfig, "_load_from_database", mock_load_with_zero_swing):
+            with mock.patch.object(AlgoConfig, "_detect_config_db_failure"):
+                with pytest.raises(RuntimeError, match="SAFETY GATE FAILURE"):
+                    AlgoConfig()
 
     def test_critical_threshold_validation_catches_zero_halt_drawdown(self):
         """Should raise RuntimeError if halt_drawdown_pct is zero."""
@@ -60,11 +62,12 @@ class TestConfigCriticalThresholds:
 
         def mock_load_with_zero_halt(self):
             self._config["halt_drawdown_pct"] = 0
+            self._sources["halt_drawdown_pct"] = "database"
 
-        patch_target = AlgoConfig, "_load_from_database"
-        with mock.patch.object(*patch_target, mock_load_with_zero_halt):
-            with pytest.raises(RuntimeError, match="SAFETY GATE FAILURE"):
-                AlgoConfig()
+        with mock.patch.object(AlgoConfig, "_load_from_database", mock_load_with_zero_halt):
+            with mock.patch.object(AlgoConfig, "_detect_config_db_failure"):
+                with pytest.raises(RuntimeError, match="SAFETY GATE FAILURE"):
+                    AlgoConfig()
 
     def test_critical_threshold_validation_catches_zero_max_daily_loss(self):
         """Should raise RuntimeError if max_daily_loss_pct is zero."""
@@ -72,11 +75,12 @@ class TestConfigCriticalThresholds:
 
         def mock_load_with_zero_daily_loss(self):
             self._config["max_daily_loss_pct"] = 0
+            self._sources["max_daily_loss_pct"] = "database"
 
-        patch_target = AlgoConfig, "_load_from_database"
-        with mock.patch.object(*patch_target, mock_load_with_zero_daily_loss):
-            with pytest.raises(RuntimeError, match="SAFETY GATE FAILURE"):
-                AlgoConfig()
+        with mock.patch.object(AlgoConfig, "_load_from_database", mock_load_with_zero_daily_loss):
+            with mock.patch.object(AlgoConfig, "_detect_config_db_failure"):
+                with pytest.raises(RuntimeError, match="SAFETY GATE FAILURE"):
+                    AlgoConfig()
 
     def test_critical_threshold_validation_catches_zero_vix_threshold(self):
         """Should raise RuntimeError if vix_max_threshold is zero."""
@@ -84,11 +88,12 @@ class TestConfigCriticalThresholds:
 
         def mock_load_with_zero_vix(self):
             self._config["vix_max_threshold"] = 0
+            self._sources["vix_max_threshold"] = "database"
 
-        patch_target = AlgoConfig, "_load_from_database"
-        with mock.patch.object(*patch_target, mock_load_with_zero_vix):
-            with pytest.raises(RuntimeError, match="SAFETY GATE FAILURE"):
-                AlgoConfig()
+        with mock.patch.object(AlgoConfig, "_load_from_database", mock_load_with_zero_vix):
+            with mock.patch.object(AlgoConfig, "_detect_config_db_failure"):
+                with pytest.raises(RuntimeError, match="SAFETY GATE FAILURE"):
+                    AlgoConfig()
 
     def test_critical_threshold_validation_catches_missing_thresholds(self):
         """Should raise RuntimeError if critical thresholds are None."""
@@ -96,11 +101,12 @@ class TestConfigCriticalThresholds:
 
         def mock_load_with_missing(self):
             self._config["min_signal_quality_score"] = None
+            self._sources["min_signal_quality_score"] = "database"
 
-        patch_target = AlgoConfig, "_load_from_database"
-        with mock.patch.object(*patch_target, mock_load_with_missing):
-            with pytest.raises(RuntimeError, match="SAFETY GATE FAILURE"):
-                AlgoConfig()
+        with mock.patch.object(AlgoConfig, "_load_from_database", mock_load_with_missing):
+            with mock.patch.object(AlgoConfig, "_detect_config_db_failure"):
+                with pytest.raises(RuntimeError, match="SAFETY GATE FAILURE"):
+                    AlgoConfig()
 
     def test_critical_threshold_validation_error_message_is_informative(self):
         """Error message should guide user to check database and migration-033."""
@@ -108,17 +114,18 @@ class TestConfigCriticalThresholds:
 
         def mock_load_with_zero(self):
             self._config["max_daily_loss_pct"] = 0
+            self._sources["max_daily_loss_pct"] = "database"
 
-        patch_target = AlgoConfig, "_load_from_database"
-        with mock.patch.object(*patch_target, mock_load_with_zero):
-            with pytest.raises(RuntimeError) as exc_info:
-                AlgoConfig()
+        with mock.patch.object(AlgoConfig, "_load_from_database", mock_load_with_zero):
+            with mock.patch.object(AlgoConfig, "_detect_config_db_failure"):
+                with pytest.raises(RuntimeError) as exc_info:
+                    AlgoConfig()
 
-            error_msg = str(exc_info.value)
-            assert "SAFETY GATE FAILURE" in error_msg
-            assert "max_daily_loss_pct" in error_msg
-            assert "migration-033" in error_msg
-            assert "database" in error_msg
+                error_msg = str(exc_info.value)
+                assert "SAFETY GATE FAILURE" in error_msg
+                assert "max_daily_loss_pct" in error_msg
+                assert "migration-033" in error_msg
+                assert "database" in error_msg
 
     def test_all_critical_thresholds_listed_in_validation(self):
         """Verify all expected critical thresholds are checked at startup."""
