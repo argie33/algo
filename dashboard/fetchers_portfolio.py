@@ -49,9 +49,13 @@ def fetch_portfolio(c: None) -> dict[str, Any]:
         # - Weekend/single-day gap: 48 hours (2 days)
         # - Extended gap (Monday morning before market opens): 72 hours (3 days for Friday→Monday)
         is_trading_day = MarketCalendar.is_trading_day()
-        max_age_seconds = 300 if is_trading_day else 259200  # 72 hours for non-trading days
-        # Grace period for timing variations, clock skew, and API processing delays (10 minutes)
-        grace_period_seconds = 600
+        if is_trading_day:
+            max_age_seconds = 300  # 5 minutes for trading days
+            grace_period_seconds = 60  # 1 minute grace for trading days
+        else:
+            # Non-trading days: accept data from last trading day (extended to account for holidays/long weekends)
+            max_age_seconds = 432000  # 120 hours (5 days) for non-trading days to handle extended gaps
+            grace_period_seconds = 3600  # 1 hour grace period for non-trading days (clock skew, processing delays)
 
         # Comprehensive validation using FetcherValidator
         required_fields = [
@@ -79,8 +83,9 @@ def fetch_portfolio(c: None) -> dict[str, Any]:
         # Use the API-calculated data_age_seconds field for freshness check
         # (avoids date parsing issues and trusts the API's calculation)
         data_age = port.get("data_age_seconds")
-        if data_age is not None and data_age > (max_age_seconds + grace_period_seconds):
-            error_msg = f"Data is stale ({data_age}s old, max {max_age_seconds}s)"
+        max_age_with_grace = max_age_seconds + grace_period_seconds
+        if data_age is not None and data_age > max_age_with_grace:
+            error_msg = f"Data is stale ({data_age}s old, max {max_age_with_grace}s including grace period)"
             logger.error(error_msg)
             record_data_quality_issue("portfolio", "freshness", "stale_data", error_msg)
             return FetcherValidator.build_error_response(error_msg)
