@@ -164,34 +164,43 @@ class StockScoresLoader(OptimalLoader):
                 stability["debt_to_assets"] = quality["debt_to_assets"]
 
             # Compute individual factor scores from REAL data only (no defaults)
-            # Scoring functions return float, dict (marker), or None
-            # Convert marker dicts to None for consistent handling
-            def extract_score(result: float | dict[str, Any] | None) -> float | None:
+            # Scoring functions return float or dict (marker when data unavailable)
+            # Keep marker dicts throughout to track missing data reasons
+            quality_score = self._score_quality(quality, symbol)
+            growth_score = self._score_growth(growth, symbol)
+            value_score = self._score_value(value, symbol)
+            positioning_score = self._score_positioning(positioning, symbol)
+            stability_score = self._score_stability(stability, symbol)
+            momentum_score = self._score_momentum(momentum, symbol)
+
+            # Extract numeric scores for computation, track unavailability reasons
+            def is_real_score(result: float | dict[str, Any] | None) -> bool:
+                return isinstance(result, float)
+
+            def get_marker_reason(result: float | dict[str, Any] | None) -> str:
                 if isinstance(result, dict) and result.get("data_unavailable"):
-                    return None
-                if isinstance(result, float):
-                    return result
-                return None
+                    reason = result.get("reason")
+                    if isinstance(reason, str):
+                        return reason
+                return "unknown_reason"
 
-            quality_score = extract_score(self._score_quality(quality, symbol))
-            growth_score = extract_score(self._score_growth(growth, symbol))
-            value_score = extract_score(self._score_value(value, symbol))
-            positioning_score = extract_score(self._score_positioning(positioning, symbol))
-            stability_score = extract_score(self._score_stability(stability, symbol))
-            momentum_score = extract_score(self._score_momentum(momentum, symbol))
-
-            # Count data completeness: only non-None scores count as "real data"
-            # (ignores empty rows with all NULLs which return None from scoring functions)
-            all_scores = [
-                quality_score,
-                growth_score,
-                value_score,
-                positioning_score,
-                stability_score,
-                momentum_score,
-            ]
-            real_scores = [s for s in all_scores if s is not None]
+            # Count data completeness: only float scores count as "real data"
+            # Markers (dicts with data_unavailable=True) are excluded from count
+            all_scores = {
+                "quality": quality_score,
+                "growth": growth_score,
+                "value": value_score,
+                "positioning": positioning_score,
+                "stability": stability_score,
+                "momentum": momentum_score,
+            }
+            real_scores = [s for s in all_scores.values() if is_real_score(s)]
             data_count = len(real_scores)
+            unavailable_metrics = {
+                name: get_marker_reason(score)
+                for name, score in all_scores.items()
+                if not is_real_score(score)
+            }
             # Cap at 99.99 to fit in NUMERIC(4,2) database column
             data_completeness = min(99.99, round((data_count / 6.0) * 100, 2))
 
@@ -231,12 +240,12 @@ class StockScoresLoader(OptimalLoader):
                 )
 
             score_availability = {
-                "quality": quality_score is not None,
-                "growth": growth_score is not None,
-                "value": value_score is not None,
-                "positioning": positioning_score is not None,
-                "stability": stability_score is not None,
-                "momentum": momentum_score is not None,
+                "quality": is_real_score(quality_score),
+                "growth": is_real_score(growth_score),
+                "value": is_real_score(value_score),
+                "positioning": is_real_score(positioning_score),
+                "stability": is_real_score(stability_score),
+                "momentum": is_real_score(momentum_score),
             }
 
             # Normalize weights: keep weights of available metrics, redistribute missing weights
@@ -255,13 +264,18 @@ class StockScoresLoader(OptimalLoader):
                 else:
                     normalized_weights[key] = 0
 
-            # Clamp scores to 0-100, keeping None for missing data
-            clamped_quality = max(0, min(100, quality_score)) if quality_score is not None else None
-            clamped_growth = max(0, min(100, growth_score)) if growth_score is not None else None
-            clamped_value = max(0, min(100, value_score)) if value_score is not None else None
-            clamped_positioning = max(0, min(100, positioning_score)) if positioning_score is not None else None
-            clamped_stability = max(0, min(100, stability_score)) if stability_score is not None else None
-            clamped_momentum = max(0, min(100, momentum_score)) if momentum_score is not None else None
+            # Clamp scores to 0-100, keep markers for missing data
+            def clamp_score(score: float | dict[str, Any] | None) -> float | None:
+                if isinstance(score, float):
+                    return max(0.0, min(100.0, score))
+                return None
+
+            clamped_quality = clamp_score(quality_score)
+            clamped_growth = clamp_score(growth_score)
+            clamped_value = clamp_score(value_score)
+            clamped_positioning = clamp_score(positioning_score)
+            clamped_stability = clamp_score(stability_score)
+            clamped_momentum = clamp_score(momentum_score)
 
             # Composite: only use metrics that are actually available
             # Fail fast if a metric has weight but no value (indicates calculation error)
@@ -284,7 +298,7 @@ class StockScoresLoader(OptimalLoader):
                     composite_score_value += clamped_value_score * weight
             composite_score = max(0, min(100, round(composite_score_value, 2)))
 
-            return {
+            result = {
                 "symbol": symbol,
                 "composite_score": composite_score,
                 "quality_score": (round(clamped_quality, 2) if clamped_quality is not None else None),
@@ -295,8 +309,15 @@ class StockScoresLoader(OptimalLoader):
                 "stability_score": (round(clamped_stability, 2) if clamped_stability is not None else None),
                 "rs_percentile": 0.0,
                 "data_completeness": data_completeness,
+                "unavailable_metrics": unavailable_metrics,
                 "updated_at": datetime.now(timezone.utc).isoformat(),
             }
+            if unavailable_metrics:
+                logger.warning(
+                    f"[STOCK_SCORES] {symbol} computed with degraded metrics: "
+                    f"{', '.join(f'{k}={v}' for k, v in unavailable_metrics.items())}"
+                )
+            return result
 
         except Exception as e:
             raise RuntimeError(f"Operation failed: {e}") from e

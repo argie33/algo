@@ -531,6 +531,7 @@ class PositionMonitor:
             flags.append("TIME_DECAY_NO_PROGRESS")
 
         # 3e. Earnings proximity (warn and skip if data unavailable — earnings data is optional enrichment)
+        days_to_earn: int | None = None
         try:
             days_to_earn = self._days_to_earnings(symbol, current_date, cur)
             if 0 <= days_to_earn <= 3:
@@ -573,7 +574,7 @@ class PositionMonitor:
             urgent_exit = True
 
         # Special case: earnings within 1-2 days = always exit
-        if 0 <= days_to_earn <= 2:
+        if days_to_earn is not None and 0 <= days_to_earn <= 2:
             action = "EARLY_EXIT"
             action_reason = f"Earnings in {days_to_earn} day(s) - flatten before report"
             urgent_exit = True
