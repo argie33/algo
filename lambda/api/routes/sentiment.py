@@ -227,13 +227,56 @@ def handle(
             bull_val = latest.get("bullish_count")
             bear_val = latest.get("bearish_count")
             neut_val = latest.get("neutral_count")
-            total = int(total_val) if total_val is not None else 0
-            bull = int(bull_val) if bull_val is not None else 0
-            bear = int(bear_val) if bear_val is not None else 0
-            neut = int(neut_val) if neut_val is not None else 0
-            bp = round(bull / total * 100, 1) if total > 0 else None
-            bep = round(bear / total * 100, 1) if total > 0 else None
-            np_ = round(neut / total * 100, 1) if total > 0 else None
+
+            # CRITICAL: Analyst counts must be present - fallback to 0 corrupts sentiment
+            missing_fields = []
+            if total_val is None:
+                missing_fields.append("analyst_count")
+            if bull_val is None:
+                missing_fields.append("bullish_count")
+            if bear_val is None:
+                missing_fields.append("bearish_count")
+            if neut_val is None:
+                missing_fields.append("neutral_count")
+
+            if missing_fields:
+                logger.warning(
+                    f"[SENTIMENT] Missing analyst count data: {', '.join(missing_fields)}. "
+                    f"Sentiment metrics unavailable - not using fallback to 0."
+                )
+                return {
+                    "symbol": symbol,
+                    "data_unavailable": True,
+                    "reason": f"Missing analyst counts: {', '.join(missing_fields)}",
+                    "lastUpdated": None,
+                }
+
+            try:
+                total = int(total_val)
+                bull = int(bull_val)
+                bear = int(bear_val)
+                neut = int(neut_val)
+            except (ValueError, TypeError) as e:
+                logger.error(f"[SENTIMENT] Invalid analyst count data: {e}")
+                return {
+                    "symbol": symbol,
+                    "data_unavailable": True,
+                    "reason": f"Invalid analyst count format: {str(e)}",
+                    "lastUpdated": None,
+                }
+
+            if total <= 0:
+                logger.warning(f"[SENTIMENT] Invalid analyst total {total} (must be > 0)")
+                return {
+                    "symbol": symbol,
+                    "data_unavailable": True,
+                    "reason": f"Invalid analyst total: {total}",
+                    "lastUpdated": None,
+                }
+
+            bp = round(bull / total * 100, 1)
+            bep = round(bear / total * 100, 1)
+            np_ = round(neut / total * 100, 1)
             metrics = {
                 "totalAnalysts": total,
                 "bullish": bull,
@@ -309,13 +352,56 @@ def handle(
             bull_val = latest.get("bullish_count")
             bear_val = latest.get("bearish_count")
             neut_val = latest.get("neutral_count")
-            total = int(total_val) if total_val is not None else 0
-            bull = int(bull_val) if bull_val is not None else 0
-            bear = int(bear_val) if bear_val is not None else 0
-            neut = int(neut_val) if neut_val is not None else 0
-            bp = round(bull / total * 100, 1) if total > 0 else None
-            bep = round(bear / total * 100, 1) if total > 0 else None
-            np_ = round(neut / total * 100, 1) if total > 0 else None
+
+            # CRITICAL: Analyst counts must be present - fallback to 0 corrupts sentiment
+            missing_fields = []
+            if total_val is None:
+                missing_fields.append("analyst_count")
+            if bull_val is None:
+                missing_fields.append("bullish_count")
+            if bear_val is None:
+                missing_fields.append("bearish_count")
+            if neut_val is None:
+                missing_fields.append("neutral_count")
+
+            if missing_fields:
+                logger.warning(
+                    f"[SENTIMENT] Missing analyst count data: {', '.join(missing_fields)}. "
+                    f"Sentiment metrics unavailable - not using fallback to 0."
+                )
+                return {
+                    "symbol": symbol,
+                    "data_unavailable": True,
+                    "reason": f"Missing analyst counts: {', '.join(missing_fields)}",
+                    "lastUpdated": None,
+                }
+
+            try:
+                total = int(total_val)
+                bull = int(bull_val)
+                bear = int(bear_val)
+                neut = int(neut_val)
+            except (ValueError, TypeError) as e:
+                logger.error(f"[SENTIMENT] Invalid analyst count data: {e}")
+                return {
+                    "symbol": symbol,
+                    "data_unavailable": True,
+                    "reason": f"Invalid analyst count format: {str(e)}",
+                    "lastUpdated": None,
+                }
+
+            if total <= 0:
+                logger.warning(f"[SENTIMENT] Invalid analyst total {total} (must be > 0)")
+                return {
+                    "symbol": symbol,
+                    "data_unavailable": True,
+                    "reason": f"Invalid analyst total: {total}",
+                    "lastUpdated": None,
+                }
+
+            bp = round(bull / total * 100, 1)
+            bep = round(bear / total * 100, 1)
+            np_ = round(neut / total * 100, 1)
             sentiment_data = {
                 "totalAnalysts": total,
                 "bullish": bull,

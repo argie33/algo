@@ -125,8 +125,14 @@ def panel_circuit(cb: Any) -> Panel:
                 thr_f = safe_float(thr, default=None)
                 thr_s = "--" if thr_f is None else f"{thr_f:.0f}"
                 cur_s = "--" if cur is None else str(cur)
+                # Unit field should always be present - don't silently use empty string
+                unit = br.get('u')
+                if unit is None:
+                    unit_display = "[yellow]?[/]"  # Show missing data indicator
+                else:
+                    unit_display = str(unit)
                 return (
-                    f"[{R if fired else 'dim'}]{lbl_s}:[/]{cur_s}{br.get('u', '')!s}[dim]/{thr_s}{br.get('u', '')!s}[/]"
+                    f"[{R if fired else 'dim'}]{lbl_s}:[/]{cur_s}{unit_display}[dim]/{thr_s}{unit_display}[/]"
                 )
             try:
                 thr_f = safe_float(thr, 0.0, strict=True, field_name="circuit_breaker_threshold")

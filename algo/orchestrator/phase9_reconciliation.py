@@ -728,14 +728,15 @@ def run(
             if error_msg is None:
                 error_msg = "(reconciliation failed with no error details)"
             if "401" in str(error_msg) or "unauthorized" in str(error_msg).lower():
-                logger.warning(
-                    "[PHASE 9] Broker unavailable (401). Reconciliation skipped. "
-                    "This is expected in dry-run or when broker is offline."
+                logger.critical(
+                    "[PHASE 9] CRITICAL: Broker authentication failed (401). "
+                    "Reconciliation cannot proceed - cannot verify position alignment. "
+                    "This is NOT EXPECTED in production. Check Alpaca credentials."
                 )
-                phase_status = "ok"  # Allow Phase 9 to pass despite reconciliation failure
+                phase_status = "error"  # Fail explicitly - don't mask auth errors as "ok"
             else:
-                logger.warning(f"[PHASE 9] Reconciliation failed: {error_msg}")
-                phase_status = "warn"  # Alert but don't fail
+                logger.error(f"[PHASE 9] CRITICAL: Reconciliation failed: {error_msg}")
+                phase_status = "error"  # Fail explicitly on reconciliation failure
 
             data = {
                 "reconciliation": result,
