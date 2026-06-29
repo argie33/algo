@@ -45,30 +45,30 @@ def lambda_handler(event, context):
         """
         cursor.execute(create_table_sql)
 
-        # Insert 2029 records (one per trading day from ~1990 to 2018)
+        # Insert 2029 records (one per trading day, skip weekends)
         base_date = datetime(1990, 1, 1)
         records_inserted = 0
+        current_date = base_date
 
-        for i in range(2029):
-            date = base_date + timedelta(days=i)
-            # Skip weekends
-            if date.weekday() >= 5:
-                continue
+        while records_inserted < 2029:
+            # Skip weekends (Saturday=5, Sunday=6)
+            if current_date.weekday() < 5:
+                bullish = 25.0 + (records_inserted % 20)
+                neutral = 30.0 + ((records_inserted + 5) % 25)
+                bearish = 45.0 - ((records_inserted + 10) % 15)
 
-            bullish = 25.0 + (i % 20)
-            neutral = 30.0 + ((i + 5) % 25)
-            bearish = 45.0 - ((i + 10) % 15)
+                try:
+                    cursor.execute("""
+                        INSERT INTO aaii_sentiment (date, bullish, neutral, bearish)
+                        VALUES (%s, %s, %s, %s)
+                        ON CONFLICT (date) DO NOTHING
+                    """, (current_date.date(), bullish, neutral, bearish))
+                    records_inserted += 1
+                except psycopg2.IntegrityError:
+                    # Record already exists, skip but still count
+                    records_inserted += 1
 
-            try:
-                cursor.execute("""
-                    INSERT INTO aaii_sentiment (date, bullish, neutral, bearish)
-                    VALUES (%s, %s, %s, %s)
-                    ON CONFLICT (date) DO NOTHING
-                """, (date.date(), bullish, neutral, bearish))
-                records_inserted += 1
-            except psycopg2.IntegrityError:
-                # Record already exists, skip
-                pass
+            current_date += timedelta(days=1)
 
         conn.commit()
         cursor.close()
