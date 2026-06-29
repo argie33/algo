@@ -458,11 +458,14 @@ class DailyReconciliation:
                 if win_count is None or loss_count is None:
                     raise ValueError(f"Trade counts missing from database: wins={win_count}, losses={loss_count}")
 
-                # Validate PnL values (null if no closed trades or all NULL)
-                if realized_pnl_today is None or cumulative_pnl is None:
-                    raise ValueError(
-                        f"PnL values missing from database: today={realized_pnl_today}, cumulative={cumulative_pnl}"
-                    )
+                # realized_pnl_today can legitimately be None when no trades closed today.
+                # cumulative_pnl is None only when there are zero closed trades ever.
+                if cumulative_pnl is None:
+                    cumulative_pnl = 0.0
+                    logger.info("No closed trades found — cumulative PnL is 0")
+                if realized_pnl_today is None:
+                    realized_pnl_today = 0.0
+                    logger.info("No trades closed today — daily realized PnL is 0")
                 win_count = int(win_count)
                 loss_count = int(loss_count)
                 realized_pnl_today = float(realized_pnl_today)
