@@ -609,7 +609,15 @@ class StockScoresLoader(OptimalLoader):
             else:
                 scores.append(max(0, cr * 60))
 
-        return sum(scores) / len(scores) if scores else None
+        if scores:
+            return sum(scores) / len(scores)
+        logger.debug(f"[STOCK_SCORES] No quality metrics found to score for {self.symbol}")
+        return {
+            "symbol": self.symbol,
+            "data_unavailable": True,
+            "reason": "no_scoreable_quality_data",
+            "score_type": "quality"
+        }
 
     def _score_growth(self, metrics: dict[str, Any] | None) -> float | dict[str, Any]:
         """Score growth metrics on 0-100 scale. Returns marker if no real data.
@@ -668,7 +676,15 @@ class StockScoresLoader(OptimalLoader):
             weighted_sum += eps_5y * 0.05
             total_weight += 0.05
 
-        return weighted_sum / total_weight if total_weight > 0 else None
+        if total_weight > 0:
+            return weighted_sum / total_weight
+        logger.debug(f"[STOCK_SCORES] No growth metrics found to score for {self.symbol}")
+        return {
+            "symbol": self.symbol,
+            "data_unavailable": True,
+            "reason": "no_scoreable_growth_data",
+            "score_type": "growth"
+        }
 
     def _score_value(self, metrics: dict[str, Any] | None) -> float | dict[str, Any]:
         """Score value metrics on 0-100 scale. Returns marker if no real data.

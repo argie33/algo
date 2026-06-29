@@ -324,29 +324,10 @@ locals {
     "positioning_metrics"           = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 2 }
     "stability_metrics"             = { cpu = 1024, memory = 2048, timeout = 1800, parallelism = 2 }
     "stock_scores"                  = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
-    "earnings_history"              = { cpu = 512, memory = 1024, timeout = 7200, parallelism = 1 }
-    "earnings_calendar"             = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
-    "company_profile"               = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 3 }
-    "analyst_sentiment"             = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 3 }
-    "analyst_upgrades_downgrades"   = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 3 }
-    "industry_ranking"              = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 2 }
-    "feargreed"                     = { cpu = 256, memory = 512, timeout = 600, parallelism = 2 }
-    "aaiidata"                      = { cpu = 256, memory = 512, timeout = 600, parallelism = 2 }
-    "naaim_data"                    = { cpu = 256, memory = 512, timeout = 600, parallelism = 2 }
-    "signal_themes"                 = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 2 }
     "signal_quality_scores"         = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
-    "buy_sell_daily"                = { cpu = 2048, memory = 4096, timeout = 2400, parallelism = 2 }
     "technical_data_daily"          = { cpu = 2048, memory = 4096, timeout = 2400, parallelism = 1 }
-    "market_health_daily"           = { cpu = 256, memory = 512, timeout = 1200, parallelism = 1 }
-    "options_chains"                = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
     "market_exposure_daily"         = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
-    "algo_metrics_daily"            = { cpu = 1024, memory = 2048, timeout = 10800, parallelism = 1 }
     "swing_trader_scores"           = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 1 }
-    "sector_ranking"                = { cpu = 512, memory = 1024, timeout = 900, parallelism = 1 }
-    "fred_economic_data"            = { cpu = 256, memory = 1024, timeout = 300, parallelism = 1 }
-    "dxy_index"                     = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
-    "economic_metrics_daily"        = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
-    "trend_template_data"           = { cpu = 2048, memory = 4096, timeout = 5400, parallelism = 2 }
     "compute_circuit_breakers"      = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
     "compute_performance_metrics"   = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
   }
@@ -355,9 +336,7 @@ locals {
   # Loaders that must run on on-demand FARGATE (cannot tolerate interruption)
   critical_loaders = toset([
     "stock_prices_daily",
-    "algo_metrics_daily",
     "stock_scores",
-    "buy_sell_daily",
     "signal_quality_scores",
     # Metrics loaders: long-running yfinance API calls; Spot interruptions prevent completion
     "growth_metrics",

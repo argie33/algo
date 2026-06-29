@@ -374,7 +374,7 @@ class VectorizedSwingScoresLoader:
                 )
 
             except (ValueError, ZeroDivisionError, TypeError) as e:
-                logger.debug(f"Error computing score for {symbol}: {e}")
+                logger.warning(f"Error computing swing trader score for {symbol}: {e}. This symbol will be skipped.")
                 continue
 
         return pd.DataFrame(results) if results else pd.DataFrame()
