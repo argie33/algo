@@ -457,8 +457,8 @@ class ExitEngine:
             "eight_week_rule_window_days",
             "exit_on_distribution_day",
             "max_distribution_days",
-            "move_to_breakeven_r",
-            "trailing_stop_atr_multiplier",
+            "move_be_at_r",
+            "chandelier_atr_mult",
         ]
         missing = [k for k in required_keys if k not in config]
         if missing:

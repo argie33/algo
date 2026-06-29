@@ -129,9 +129,10 @@ class AlpacaSyncManager:
         for pos in alpaca_positions:
             symbol = pos.get("symbol")
             qty = pos.get("qty")
-            avg_fill_price = pos.get("avg_fill_price")
+            # Alpaca positions API uses avg_entry_price, not avg_fill_price
+            avg_entry_price = pos.get("avg_entry_price")
 
-            if not symbol or qty is None or avg_fill_price is None:
+            if not symbol or qty is None or avg_entry_price is None:
                 logger.warning(f"[POSITION_SYNC] Skipping malformed position: {pos}")
                 continue
 
@@ -154,10 +155,10 @@ class AlpacaSyncManager:
                         updated_at = CURRENT_TIMESTAMP
                 """,
                     (
-                        f"alpaca_{symbol}_{int(qty)}",
+                        pos.get("asset_id") or f"alpaca_{symbol}",
                         symbol,
-                        int(qty),
-                        float(avg_fill_price),
+                        float(qty),
+                        float(avg_entry_price),
                         float(current_price) if current_price else None,
                         float(position_value) if position_value else None,
                         "open",

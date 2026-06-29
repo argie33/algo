@@ -242,14 +242,16 @@ class ExitHandler:
                 "duplicate": True,
             }
 
-        # TRANSACTION GUARD 2: Fetch all trade and position data with row locks
+        # TRANSACTION GUARD 2: Fetch all trade and position data with row locks.
+        # Lock algo_trades (t) only — PostgreSQL forbids FOR UPDATE on the nullable side
+        # of a LEFT JOIN (p may be NULL if trade has no position yet).
         cur.execute(
             """SELECT t.symbol, t.entry_price, t.entry_quantity, t.stop_loss_price,
                        t.alpaca_order_id,
                        p.position_id, p.quantity, p.target_levels_hit, p.status
                 FROM algo_trades t
                 LEFT JOIN algo_positions p ON t.trade_id = ANY(p.trade_ids_arr)
-                WHERE t.trade_id = %s FOR UPDATE OF t, p""",
+                WHERE t.trade_id = %s FOR UPDATE OF t""",
             (trade_id,),
         )
         row = cur.fetchone()
@@ -270,6 +272,13 @@ class ExitHandler:
             _target_hits,
             position_status,
         ) = row
+
+        # Lock algo_positions separately now that we have the position_id.
+        if position_id is not None:
+            cur.execute(
+                "SELECT 1 FROM algo_positions WHERE position_id = %s FOR UPDATE",
+                (position_id,),
+            )
 
         entry_price = float(entry_price)
         entry_qty = int(entry_qty)

@@ -642,9 +642,10 @@ resource "aws_ecs_task_definition" "algo_orchestrator" {
       image     = "${var.ecr_repository_uri}:${var.environment}-latest"
       essential = true
 
-      # Orchestrator entry point: python3 algo/algo_orchestrator.py [args]
-      # Step Functions passes mode and dry_run as environment variables
-      command = ["python3", "algo/algo_orchestrator.py"]
+      # Orchestrator entry point: combined with Dockerfile ENTRYPOINT ["python3", "-u"]
+      # → python3 -u algo/algo_orchestrator.py
+      # Do NOT prefix with "python3" — ENTRYPOINT already provides the interpreter.
+      command = ["algo/algo_orchestrator.py"]
 
       logConfiguration = {
         logDriver = "awslogs"
@@ -719,7 +720,8 @@ resource "aws_ecs_task_definition" "data_patrol" {
       image     = "${var.ecr_repository_uri}:${var.environment}-latest"
       essential = true
 
-      command = ["python3", "algo/algo_data_patrol.py"]
+      # Do NOT prefix with "python3" — ENTRYPOINT ["python3", "-u"] already provides the interpreter.
+      command = ["algo/algo_data_patrol.py"]
 
       logConfiguration = {
         logDriver = "awslogs"
