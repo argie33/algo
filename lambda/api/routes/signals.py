@@ -39,26 +39,40 @@ def handle(
         if path in ["/api/signals", "/api/signals/stocks"] or path.startswith(
             ("/api/signals?", "/api/signals/stocks?")
         ):
-            limit_list = params.get("limit")
-            if limit_list is None:
-                limit_list = []
-            limit_str = limit_list[0] if limit_list else None
-            limit = safe_limit(limit_str or "500", max_val=10000)
-            timeframe_list = params.get("timeframe")
-            if timeframe_list is None:
-                timeframe_list = []
+            # Extract and validate limit parameter (optional, default 500)
+            limit_list = params.get("limit", [])
+            if not isinstance(limit_list, list):
+                return error_response(400, "bad_request", "limit parameter must be a list")
+            limit_str = limit_list[0] if limit_list else "500"
+            try:
+                limit = safe_limit(limit_str, max_val=10000)
+            except (ValueError, TypeError) as e:
+                return error_response(400, "bad_request", f"Invalid limit value: {str(e)}")
+
+            # Extract and validate timeframe parameter (optional, default 'daily')
+            timeframe_list = params.get("timeframe", [])
+            if not isinstance(timeframe_list, list):
+                return error_response(400, "bad_request", "timeframe parameter must be a list")
             timeframe = timeframe_list[0] if timeframe_list else "daily"
-            symbol_list = params.get("symbol")
-            if symbol_list is None:
-                symbol_list = []
+
+            # Extract symbol filter parameter (optional, no default)
+            symbol_list = params.get("symbol", [])
+            if not isinstance(symbol_list, list):
+                return error_response(400, "bad_request", "symbol parameter must be a list")
             symbol_filter = symbol_list[0] if symbol_list else None
+
             return _get_signals_stocks(cur, limit, timeframe, symbol_filter)
         elif path == "/api/signals/etf":
-            limit_list = params.get("limit")
-            if limit_list is None:
-                limit_list = []
-            limit_str = limit_list[0] if limit_list else None
-            limit = safe_limit(limit_str or "500", max_val=10000)
+            # Extract and validate limit parameter (optional, default 500)
+            limit_list = params.get("limit", [])
+            if not isinstance(limit_list, list):
+                return error_response(400, "bad_request", "limit parameter must be a list")
+            limit_str = limit_list[0] if limit_list else "500"
+            try:
+                limit = safe_limit(limit_str, max_val=10000)
+            except (ValueError, TypeError) as e:
+                return error_response(400, "bad_request", f"Invalid limit value: {str(e)}")
+
             return _get_signals_etf(cur, limit)
         else:
             return error_response(404, "not_found", f"No signals handler for {path}")
@@ -230,10 +244,9 @@ def _get_signals_etf(cur: cursor, limit: int = 500) -> Any:
                     WHEN 4 THEN 'Stage 4'
                     ELSE 'unknown'
                 END AS market_stage,
-                COALESCE(cp.short_name, cp.long_name, pd.symbol) AS company_name,
-                (tt.symbol IS NULL) AS _is_fallback
+                COALESCE(cp.short_name, cp.long_name, pd.symbol) AS company_name
             FROM etf_price_daily pd
-            LEFT JOIN trend_template_data tt ON tt.symbol = pd.symbol AND tt.date = pd.date
+            INNER JOIN trend_template_data tt ON tt.symbol = pd.symbol AND tt.date = pd.date
             LEFT JOIN company_profile cp ON cp.ticker = pd.symbol
             WHERE pd.symbol = ANY(%s)
             AND pd.date >= CURRENT_DATE - INTERVAL '90 days'
@@ -243,15 +256,18 @@ def _get_signals_etf(cur: cursor, limit: int = 500) -> Any:
             (etf_symbols, limit),
         )
         signals = cur.fetchall()
-        freshness = check_data_freshness(cur, "etf_price_daily", "date", warning_days=1)
+        # Check freshness for both ETF price data and trend template data
+        etf_freshness = check_data_freshness(cur, "etf_price_daily", "date", warning_days=1)
+        trend_freshness = check_data_freshness(cur, "trend_template_data", "date", warning_days=1)
         if not signals:
+            freshness_detail = f"etf_price_daily: {etf_freshness}; trend_template_data: {trend_freshness}"
             return error_response(
                 503,
                 "data_unavailable",
                 f"No ETF market signals available. "
-                f"ETF price_daily loader or trend_template_data generator may not have run. {freshness}",
+                f"ETF price_daily or trend_template_data pipeline may not have run. {freshness_detail}",
             )
-        etf_signals_result = list_response([safe_json_serialize(dict(s)) for s in signals], data_freshness=freshness)
+        etf_signals_result = list_response([safe_json_serialize(dict(s)) for s in signals], data_freshness=etf_freshness)
         is_valid, error_msg = ResponseValidator.validate_endpoint_response("sig", etf_signals_result)
         if not is_valid:
             logger.error(f"Endpoint response validation failed: {error_msg}")
