@@ -141,14 +141,16 @@ class TestPositionAggregation:
         """Test that position aggregator can be initialized."""
         from algo.monitoring.position_aggregator import PositionAggregator
 
-        aggregator = PositionAggregator()
+        config = {"halt_flag_count_for_early_exit": 3}
+        aggregator = PositionAggregator(config)
         assert aggregator is not None
 
     def test_position_aggregator_sums_positions(self):
         """Test that aggregator correctly sums positions."""
         from algo.monitoring.position_aggregator import PositionAggregator
 
-        aggregator = PositionAggregator()
+        config = {"halt_flag_count_for_early_exit": 3}
+        aggregator = PositionAggregator(config)
 
         if hasattr(aggregator, 'get_total_value'):
             total = aggregator.get_total_value()
@@ -158,7 +160,8 @@ class TestPositionAggregation:
         """Test that aggregator breaks down positions by sector."""
         from algo.monitoring.position_aggregator import PositionAggregator
 
-        aggregator = PositionAggregator()
+        config = {"halt_flag_count_for_early_exit": 3}
+        aggregator = PositionAggregator(config)
 
         if hasattr(aggregator, 'get_sector_breakdown'):
             breakdown = aggregator.get_sector_breakdown()
@@ -172,14 +175,16 @@ class TestAuditManager:
         """Test that audit manager can be initialized."""
         from algo.monitoring.audit_manager import AuditManager
 
-        manager = AuditManager()
+        config = {}
+        manager = AuditManager(config)
         assert manager is not None
 
     def test_audit_manager_logs_trades(self):
         """Test that audit manager logs all trade actions."""
         from algo.monitoring.audit_manager import AuditManager
 
-        manager = AuditManager()
+        config = {}
+        manager = AuditManager(config)
 
         if hasattr(manager, 'log_trade'):
             trade = {
@@ -195,7 +200,8 @@ class TestAuditManager:
         """Test that audit manager logs halt events."""
         from algo.monitoring.audit_manager import AuditManager
 
-        manager = AuditManager()
+        config = {}
+        manager = AuditManager(config)
 
         if hasattr(manager, 'log_halt'):
             manager.log_halt("Circuit breaker L2")
@@ -205,7 +211,8 @@ class TestAuditManager:
         """Test that audit manager can retrieve action history."""
         from algo.monitoring.audit_manager import AuditManager
 
-        manager = AuditManager()
+        config = {}
+        manager = AuditManager(config)
 
         if hasattr(manager, 'get_history'):
             history = manager.get_history()
@@ -218,15 +225,19 @@ class TestDataPatrolBase:
     def test_data_patrol_initialization(self):
         """Test that data patrol can be initialized."""
         from algo.monitoring.data_patrol.base import DataPatrol
+        from algo.monitoring.data_patrol.config import PatrolConfig
 
-        patrol = DataPatrol()
+        config = PatrolConfig()
+        patrol = DataPatrol(config)
         assert patrol is not None
 
     def test_data_patrol_runs_checks(self):
         """Test that data patrol runs quality checks."""
         from algo.monitoring.data_patrol.base import DataPatrol
+        from algo.monitoring.data_patrol.config import PatrolConfig
 
-        patrol = DataPatrol()
+        config = PatrolConfig()
+        patrol = DataPatrol(config)
 
         if hasattr(patrol, 'run'):
             result = patrol.run()
@@ -235,8 +246,10 @@ class TestDataPatrolBase:
     def test_data_patrol_reports_issues(self):
         """Test that data patrol reports data quality issues."""
         from algo.monitoring.data_patrol.base import DataPatrol
+        from algo.monitoring.data_patrol.config import PatrolConfig
 
-        patrol = DataPatrol()
+        config = PatrolConfig()
+        patrol = DataPatrol(config)
 
         if hasattr(patrol, 'get_issues'):
             issues = patrol.get_issues()
@@ -249,36 +262,46 @@ class TestDataPatrolChecks:
     def test_staleness_check_initialization(self):
         """Test staleness checker initialization."""
         from algo.monitoring.data_patrol.checks.staleness import StalenessChecker
+        from algo.monitoring.data_patrol.config import PatrolConfig
 
-        checker = StalenessChecker()
+        config = PatrolConfig()
+        checker = StalenessChecker(config)
         assert checker is not None
 
     def test_alignment_check_initialization(self):
         """Test alignment checker initialization."""
         from algo.monitoring.data_patrol.checks.alignment import AlignmentChecker
+        from algo.monitoring.data_patrol.config import PatrolConfig
 
-        checker = AlignmentChecker()
+        config = PatrolConfig()
+        checker = AlignmentChecker(config)
         assert checker is not None
 
     def test_quality_check_initialization(self):
         """Test quality checker initialization."""
         from algo.monitoring.data_patrol.checks.quality import QualityChecker
+        from algo.monitoring.data_patrol.config import PatrolConfig
 
-        checker = QualityChecker()
+        config = PatrolConfig()
+        checker = QualityChecker(config)
         assert checker is not None
 
     def test_coverage_check_initialization(self):
         """Test coverage checker initialization."""
         from algo.monitoring.data_patrol.checks.coverage import CoverageChecker
+        from algo.monitoring.data_patrol.config import PatrolConfig
 
-        checker = CoverageChecker()
+        config = PatrolConfig()
+        checker = CoverageChecker(config)
         assert checker is not None
 
     def test_price_sanity_check_initialization(self):
         """Test price sanity checker initialization."""
         from algo.monitoring.data_patrol.checks.price_sanity import PriceSanityChecker
+        from algo.monitoring.data_patrol.config import PatrolConfig
 
-        checker = PriceSanityChecker()
+        config = PatrolConfig()
+        checker = PriceSanityChecker(config)
         assert checker is not None
 
 
@@ -314,7 +337,8 @@ class TestAlertTriggering:
         """Test that alert triggers when position limit is breached."""
         from algo.monitoring.position_aggregator import PositionAggregator
 
-        aggregator = PositionAggregator()
+        config = {"halt_flag_count_for_early_exit": 3}
+        aggregator = PositionAggregator(config)
 
         if hasattr(aggregator, 'check_limits'):
             within_limits = aggregator.check_limits()

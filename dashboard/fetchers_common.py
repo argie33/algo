@@ -11,18 +11,13 @@ ET = ZoneInfo("America/New_York")
 logger = logging.getLogger(__name__)
 
 
-def record_data_quality_issue(endpoint: str, status_code: int | None, error: str) -> None:
-    """Log data quality issues for observability - tracks API failures, missing data, timeouts.
-
-    Args:
-        endpoint: API endpoint that failed (e.g., "/api/algo/portfolio")
-        status_code: HTTP status code if applicable (e.g., 503, 504, None for timeout)
-        error: Error description or exception message
-    """
-    logger.warning(f"[DATA_QUALITY] {endpoint}: status={status_code}, error={error[:80]}")
+def record_data_quality_issue(fetcher: str, issue_type: str, issue_subtype: str, details: str = "") -> None:
+    msg = f"[DATA_QUALITY] {fetcher}: {issue_type}/{issue_subtype}"
+    if details:
+        msg += f" — {details[:80]}"
+    logger.warning(msg)
 
 
-# Fetcher metadata: endpoint and description for better error context
 FETCHER_METADATA = {
     "run": {"endpoint": "/api/algo/last-run", "desc": "Last algo run status"},
     "cfg": {"endpoint": "/api/algo/config", "desc": "Algo configuration"},
@@ -75,7 +70,6 @@ FETCHER_METADATA = {
 
 
 def format_fetcher_error(fetcher_name: str, error: Exception) -> str:
-    """Format fetcher error with endpoint context for better troubleshooting."""
     meta = FETCHER_METADATA.get(fetcher_name)
     endpoint = meta.get("endpoint", "unknown endpoint") if meta else "unknown endpoint"
     desc = meta.get("desc", "") if meta else ""
@@ -94,7 +88,6 @@ def format_fetcher_error(fetcher_name: str, error: Exception) -> str:
 
 
 def get_endpoint_path(fetcher_key: str, params: dict[str, Any] | None = None) -> str:
-    """Map fetcher key to full endpoint path."""
     meta = FETCHER_METADATA.get(fetcher_key)
     if not meta:
         return fetcher_key
@@ -105,11 +98,7 @@ def get_endpoint_path(fetcher_key: str, params: dict[str, Any] | None = None) ->
 
 
 def is_api_error(response: dict[str, Any]) -> bool:
-    """Check if API response indicates an error.
-
-    CRITICAL: statusCode is REQUIRED. Never default to 200 (success).
-    If statusCode is missing, we cannot determine validity — treat as unknown error.
-    """
+    # CRITICAL: statusCode is REQUIRED. Never default to 200 (success).
     if "_error" in response:
         return True
     status = response.get("statusCode")
@@ -131,7 +120,6 @@ def is_api_error(response: dict[str, Any]) -> bool:
 
 
 def get_error_message(response: dict[str, Any]) -> str:
-    """Extract error message from API response."""
     if "_error" in response:
         error_val = response["_error"]
         return str(error_val) if error_val is not None else "Unknown API error"
@@ -143,11 +131,7 @@ def get_error_message(response: dict[str, Any]) -> str:
 
 
 def check_data_freshness(data_dict: Any, max_age_seconds: int = 3600) -> None:
-    """Check if data timestamp is within acceptable age. Raises ValueError if invalid or stale.
-
-    CRITICAL: In finance applications, data freshness is non-negotiable. Always fails fast
-    on stale data instead of returning error dicts that callers might ignore.
-    """
+    # CRITICAL: Fail fast on stale data instead of returning error dicts that callers might ignore.
     if not isinstance(data_dict, dict):
         raise ValueError(f"Expected dict for freshness check, got {type(data_dict).__name__}")
     ts = data_dict.get("timestamp")
@@ -167,20 +151,16 @@ def check_data_freshness(data_dict: Any, max_age_seconds: int = 3600) -> None:
         raise ValueError(f"Cannot parse data timestamp {ts!r}: {e}") from e
 
 
-# Cache for market data (used by both fetch_market and fetch_exp_factors)
 _market_cache: dict[str, object] = {}
 _market_cache_lock = __import__("threading").Lock()
 
 
 def get_markets_cached() -> dict[str, Any]:
-    """Get cached market data or fetch fresh."""
     with _market_cache_lock:
         cached = _market_cache.get("_data")
         now = __import__("time").time()
-
-        # CRITICAL: Validate cache time is present; don't rely on fallback arithmetic
-        # Missing _time indicates corrupted cache or cache cleared — force fresh fetch
-        if cached and "_time" in _market_cache and (now - _market_cache["_time"]) < 5:  # 5 second cache
+        # CRITICAL: Validate cache time is present; missing _time indicates corrupted cache.
+        if cached and "_time" in _market_cache and (now - _market_cache["_time"]) < 5:
             if not isinstance(cached, dict):
                 logger.warning(f"Market cache corrupted: _data is {type(cached).__name__}, not dict. Force refresh.")
             else:
@@ -193,20 +173,16 @@ def get_markets_cached() -> dict[str, Any]:
     return mkt
 
 
-# Cache for data status (used by fetch_health)
 _data_status_cache: dict[str, object] = {}
 _data_status_cache_lock = __import__("threading").Lock()
 
 
 def get_data_status_cached() -> dict[str, Any]:
-    """Get cached data status or fetch fresh."""
     with _data_status_cache_lock:
         cached = _data_status_cache.get("_data")
         now = __import__("time").time()
-
-        # CRITICAL: Validate cache time is present; don't rely on fallback arithmetic
-        # Missing _time indicates corrupted cache or cache cleared — force fresh fetch
-        if cached and "_time" in _data_status_cache and (now - _data_status_cache["_time"]) < 10:  # 10 second cache
+        # CRITICAL: Validate cache time is present; missing _time indicates corrupted cache.
+        if cached and "_time" in _data_status_cache and (now - _data_status_cache["_time"]) < 10:
             return cast(dict[str, Any], cached)
 
     status = api_call("/api/algo/data-status")

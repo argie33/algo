@@ -81,35 +81,12 @@ from .data_extractors import (
 
 
 def _get_market_halts(mkt_data: dict[str, Any], panel_name: str) -> list[Any]:
-    """Extract market halts with validation and logging.
-
-    Args:
-        mkt_data: Market data dict from endpoint
-        panel_name: Panel name for logging context
-
-    Returns:
-        List of halts (empty if no active halts, but not if data missing)
-
-    Raises:
-        RuntimeError: If halts data missing
-        ValueError: If halts data is invalid (propagated from safe_get_list)
-    """
     halts_raw = mkt_data.get("halts")
     if halts_raw is None:
-        raise RuntimeError(
-            f"{panel_name}: halts data MISSING from market endpoint. "
-            "Market halts are CRITICAL for trading safety. "
-            "Cannot proceed without halt status — check /api/algo/markets endpoint."
-        )
-    # safe_get_list raises ValueError if data contains error, TypeError for unexpected types
+        raise RuntimeError(f"{panel_name}: halts data MISSING from market endpoint")
     halts = safe_get_list(halts_raw)
     if halts is None:
-        raise RuntimeError(
-            f"{panel_name}: halts data validation FAILED (returned None). "
-            f"Got: {halts_raw}. "
-            "Cannot proceed without valid halt status — check API response format."
-        )
-    # Return actual list (may be empty if no halts active)
+        raise RuntimeError(f"{panel_name}: halts data validation FAILED. Got: {halts_raw}")
     return halts if isinstance(halts, list) else []
 
 
@@ -120,20 +97,16 @@ def _get_market_halts(mkt_data: dict[str, Any], panel_name: str) -> list[Any]:
     description="Market",
 )
 def panel_market_full(mkt: Any, sentiment: Any = None) -> Panel:
-    """Market regime + internals combined."""
     err_panel = _error_panel("market", mkt, "MARKET", border="blue")
     if err_panel:
         return err_panel
 
-    # Extract market fields in batch after error check
     tier = mkt.get("tier", "unknown")
     tc = TIER_COLOR.get(tier, "dim")
     lbl = TIER_SHORT.get(tier, "LOADING")
     exp = mkt.get("pct")
     vix = mkt.get("vix")
     spy_raw = mkt.get("spy")
-
-    # Validate and convert critical fields to safe types
     vix = safe_float(vix, strict=False)
     spy_raw = safe_float(spy_raw, strict=False)
     if vix is None or spy_raw is None:
@@ -145,8 +118,6 @@ def panel_market_full(mkt: Any, sentiment: Any = None) -> Panel:
             border_style="red",
             padding=(0, 1),
         )
-
-    # Optional fields: dist/stage may not always be available from API
     dist = mkt.get("dist", "--")
     stage = mkt.get("stage", "--")
     spy_chg = safe_float(mkt.get("spy_chg"), strict=False)
@@ -166,11 +137,19 @@ def panel_market_full(mkt: Any, sentiment: Any = None) -> Panel:
     nh = safe_int(mkt.get("nh"), strict=False)
     nl = safe_int(mkt.get("nl"), strict=False)
     pcr = safe_float(mkt.get("pcr"), strict=False)
+
+    # CRITICAL: Put/call ratio is essential for market sentiment analysis
+    if pcr is None:
+        logger.error("[MARKET_PANEL] Put/call ratio missing from market data - cannot render accurate market sentiment")
+        return Panel(
+            Text.from_markup("[red]Put/call ratio unavailable - market sentiment data incomplete[/]"),
+            title="[bold blue]MARKET (SENTIMENT DATA MISSING)[/]",
+            border_style="red",
+            padding=(0, 1),
+        )
     bmom = safe_float(mkt.get("bmom"), strict=False)
     fed = mkt.get("fed")
-
-    # Derived values from extracted fields
-    # If exp is missing, show N/A instead of crashing — exposure data may not be available in all cases
+    # Show N/A if exp is missing — exposure data may not be available in all cases
     if exp is None:
         exp_s = "N/A"
         bar = "[dim]N/A[/]"
@@ -211,10 +190,8 @@ def panel_market_full(mkt: Any, sentiment: Any = None) -> Panel:
         )
     ycs = safe_float(mkt.get("ycs"), strict=False)
     bmom_pcr = []
-    if pcr is not None:
-        bmom_pcr.append(f"[dim]Put/Call:[/][{pcr_c}]{pcr:.3f}[/]")
-    else:
-        bmom_pcr.append("[dim]Put/Call:[/][yellow]⚠ N/A[/]")
+    # pcr is guaranteed to be not None at this point (checked above)
+    bmom_pcr.append(f"[dim]Put/Call:[/][{pcr_c}]{pcr:.3f}[/]")
     if bmom is not None:
         bmc = G if bmom >= 0.5 else (Y if bmom >= 0 else R)
         bmom_pcr.append(f"[dim]Breadth Momentum:[/][{bmc}]{bmom:.2f}[/]")
@@ -227,8 +204,6 @@ def panel_market_full(mkt: Any, sentiment: Any = None) -> Panel:
     if fed and str(fed).lower() not in ("unknown", "n/a", "none", ""):
         halt_fed += f"  [dim]Fed Environment:[/][white]{fed[:20]}[/]"
     lines.append(halt_fed)
-
-    # Fear & Greed
     if sentiment and not has_error(sentiment):
         fg_v = sentiment.get("fg")
         if fg_v is not None:
@@ -249,7 +224,6 @@ def panel_market_full(mkt: Any, sentiment: Any = None) -> Panel:
     description="Market Expanded",
 )
 def panel_market_expanded(mkt: Any, sentiment: Any = None) -> Panel:
-    """Full-screen market internals — regime, breadth, sentiment, macro."""
     rows: list[Text | Rule | Table] = [
         Text.from_markup("[dim]press [/][bold blue]m[/][dim] to return to dashboard[/]"),
         Rule(style="dim"),
@@ -382,7 +356,6 @@ def panel_header_market(
     cfg: Any = None,
     data_source: str = "AWS",
 ) -> Panel:
-    """Compact market header - fits alongside exposure factors + monkey in the top row."""
     source_color = "cyan" if data_source == "LOCAL" else "dim"
     rows: list[Text | Rule] = [
         Text.from_markup(f"{mkt_s}  [dim]{ts}[/]  [dim]{elapsed:.1f}s[/]{refresh_s}  [{source_color}]{data_source}[/]")

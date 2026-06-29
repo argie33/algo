@@ -1,42 +1,8 @@
-/**
- * Pipeline Module - Step Functions EOD & Morning Data Loading Pipelines
- *
- * Replaces 13 individual EventBridge cron rules with dependency-driven
- * Step Functions state machines. Guarantees the orchestrator only runs when
- * all signal data is actually ready, not on a fixed timer.
- *
- * EOD PIPELINE (4:05 PM ET, 4h max execution):
- *   market_constituents (10 min, 600s timeout)
- *     → stock_prices_daily (1.5-2h expected, 6h timeout = 21600s) [CRITICAL: must succeed]
- *       → [parallel] market_health_daily (20 min expected, 20 min timeout = 1200s)
- *                  + trend_template_data (30 min expected, 90 min timeout = 5400s)
- *         → algo_metrics_daily (12 min expected, 2h timeout = 7200s)
- *           → swing_trader_scores (30+ min expected, 2h timeout = 7200s)
- *             → technical_data_daily (15-25 min expected, 1h timeout = 3600s) [REQUIRED: buy_sell_daily depends on it]
- *               → buy_sell_daily (30 min expected, 6h timeout = 21600s for vectorized loader)
- *                 → sector_ranking (15 min expected, 15 min timeout = 900s)
- *                   → algo_orchestrator (dry-run & live: Phase 1-7)
- *
- * KEY INSIGHTS:
- * 1. technical_data_daily REQUIRED: buy_sell_daily loader validates freshness before signal generation
- * 2. buy_sell_daily CRITICAL: Phase 5 uses breakout signals as primary path for entries
- * Note: signal_quality_scores removed (on-the-fly computation not yet implemented; use stock_scores instead)
- *
- * MORNING PIPELINE (2:00 AM ET, 2.5h max execution):
- *   stock_prices_daily (daily only, 60-90 min actual with 5000+ symbols, 2h timeout = 7200s)
- *     → [parallel] market_health_daily (20 min expected, 20 min timeout = 1200s)
- *                + trend_template_data (30 min expected, 90 min timeout = 5400s)
- *       → swing_trader_scores (30+ min expected, 45 min timeout = 2700s)
- *
- * TIMEOUT STRATEGY: Expected + 2-3x safety margin to catch slow queries without being excessive.
- * - Fail fast on real failures (RDS unavailable, API errors) within 2-3x expected time
- * - Don't mask failures with 8-10h timeouts (previous anti-pattern)
- * - Monitor CloudWatch alarms if pipelines approach >80% of timeout (slow queries)
- * - If consistently slow, check: RDS CPU/connections, yfinance API status, network latency
- */
+// Step Functions state machines for dependency-driven data loading pipelines.
+// Replaces EventBridge cron rules with guaranteed ordering: orchestrator runs only when
+// all signal data is ready. Timeout strategy: expected + 2-3x safety margin, fail fast on real failures.
 
 locals {
-  # Network config injected into every ECS task launched by Step Functions
   network_config = {
     AwsvpcConfiguration = {
       Subnets        = var.private_subnet_ids

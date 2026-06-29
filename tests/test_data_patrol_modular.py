@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-"""Test that the modular data patrol architecture works correctly."""
-
 import sys
 from pathlib import Path
 
@@ -76,7 +74,8 @@ def test_check_instantiation():
 
 def test_data_patrol_instantiation():
     """Test that DataPatrol can be instantiated."""
-    patrol = DataPatrol()
+    config = PatrolConfig()
+    patrol = DataPatrol(config)
     assert patrol.run_id == ""
     assert len(patrol.results) == 0
     print("OK - DataPatrol instantiates correctly")

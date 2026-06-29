@@ -622,6 +622,7 @@ class DailyReconciliation:
             json.JSONDecodeError,
             KeyError,
             TypeError,
+            NotImplementedError,
         ) as e:
             logger.error(f"Error in reconciliation: {e}", exc_info=True)
             return {"success": False, "error": str(e)}

@@ -1,22 +1,6 @@
-/**
- * Loaders Module - ECS Task Definitions, EventBridge Scheduled Rules
- *
- * Creates:
- * - 37 ECS task definitions (data loaders)
- * - 26 EventBridge scheduled rules (staggered ET schedule)
- * - IAM roles for EventBridge and ECS task execution
- *
- * NOTE: 10 core EOD-critical loaders (+ sector_ranking) are now triggered by Step Functions (modules/pipeline)
- * not by EventBridge cron rules. This ensures sector_ranking completes BEFORE the orchestrator runs.
- * Task definitions remain here for Step Functions to use.
-
- * Financial loaders run daily at 4am ET (after market close) to maximize data coverage and capture incremental updates
- * Analyst data (sentiment, upgrades/downgrades), earnings calendar, and industry rankings now run daily for better signal coverage
- * Removed: market_overview, sector_performance, relative_performance, social_sentiment
- *   (no real data source; market_overview duplicated price_daily; others wrote zeros/wrong data).
- *
- * All loaders run on Fargate in private subnets with proper resource allocation
- */
+// ECS task definitions, EventBridge scheduled rules, IAM roles for data loaders.
+// NOTE: Core EOD loaders run via Step Functions (modules/pipeline), not EventBridge cron.
+// Task definitions remain here for Step Functions to reference.
 
 # ============================================================
 # IAM Roles & Policies
@@ -42,11 +26,7 @@ resource "aws_iam_role" "eventbridge_run_task" {
   tags = var.common_tags
 }
 
-# ============================================================
 # DynamoDB Table for Orchestrator Distributed Locking
-# FIXED Issue #8: Replaced filesystem locks with DynamoDB for Fargate
-# ============================================================
-
 resource "aws_dynamodb_table" "orchestrator_locks" {
   name         = "${var.project_name}-orchestrator-locks-${var.environment}"
   billing_mode = "PAY_PER_REQUEST"
@@ -56,8 +36,6 @@ resource "aws_dynamodb_table" "orchestrator_locks" {
     name = "lock_key"
     type = "S"
   }
-
-  # TTL: lock entries expire after 15 minutes (prevents stale locks)
   ttl {
     attribute_name = "expires_at"
     enabled        = true
@@ -68,14 +46,7 @@ resource "aws_dynamodb_table" "orchestrator_locks" {
   })
 }
 
-# ============================================================
-# DynamoDB Table for Loader Distributed Locking
-# FIXED Issue #???: Prevent concurrent loader instances
-# ============================================================
-# Each loader acquires a 30-minute lock before running to prevent
-# duplicate processing if EventBridge fires while a loader is already running.
-# TTL auto-releases stale locks if a loader crashes.
-
+# DynamoDB Table for Loader Distributed Locking (prevents concurrent instances)
 resource "aws_dynamodb_table" "loader_locks" {
   name         = "${var.project_name}-loader-locks-${var.environment}"
   billing_mode = "PAY_PER_REQUEST"
@@ -85,8 +56,6 @@ resource "aws_dynamodb_table" "loader_locks" {
     name = "lock_key"
     type = "S"
   }
-
-  # TTL: lock entries expire after 30 minutes (gives loaders time to complete, auto-releases crashes)
   ttl {
     attribute_name = "expires_at"
     enabled        = true
@@ -97,14 +66,7 @@ resource "aws_dynamodb_table" "loader_locks" {
   })
 }
 
-# ============================================================
-# DynamoDB Table for Loader Execution Status
-# FIXED Issue #30: Separate loader status from lock TTL
-# ============================================================
-# Tracks successful/failed loader runs independently of locking mechanism.
-# Status retained for 1 hour (3600s), giving time for monitoring/debugging.
-# Separate from orchestrator_locks which has 15-minute TTL for distributed coordination.
-
+# DynamoDB Table for Loader Execution Status (separate from lock TTL)
 resource "aws_dynamodb_table" "loader_execution_status" {
   name         = "${var.project_name}-loader-status-${var.environment}"
   billing_mode = "PAY_PER_REQUEST"
@@ -118,10 +80,8 @@ resource "aws_dynamodb_table" "loader_execution_status" {
 
   attribute {
     name = "execution_date"
-    type = "S" # ISO8601 date string
+    type = "S"
   }
-
-  # TTL: status entries expire after 1 hour (3600 seconds)
   ttl {
     attribute_name = "expires_at"
     enabled        = true
@@ -132,14 +92,7 @@ resource "aws_dynamodb_table" "loader_execution_status" {
   })
 }
 
-# ============================================================
 # DynamoDB Table for Dynamic Loader Configuration
-# FIXED Issue #13: Hard-coded Parallelism Values vs RDS Capabilities
-# ============================================================
-# Stores loader configuration (parallelism, enabled status) dynamically.
-# Allows updating parallelism without redeploying Terraform or restarting ECS tasks.
-# Loaders read this config at startup with 5-minute cache fallback to env vars.
-
 resource "aws_dynamodb_table" "loader_config" {
   name         = "${var.project_name}-loader-config-${var.environment}"
   billing_mode = "PAY_PER_REQUEST"
@@ -322,37 +275,13 @@ resource "aws_iam_role_policy" "eventbridge_run_task_policy" {
 # - 5:00pm ET (10pm UTC): trading signals (5 parallel)
 # - 5:15pm ET (10:15pm UTC): algo metrics (after signals)
 
-# ============================================================
-# LOADER PARALLELISM ENFORCEMENT (CRITICAL)
-# ============================================================
-# Each loader in the loaders map MUST have a parallelism value to prevent RDS connection pool exhaustion.
-# LOADER_PARALLELISM is injected into ECS task definitions as an environment variable.
-# All loaders (load_*.py) MUST read and respect this environment variable in their run() method.
-#
-# DO NOT override LOADER_PARALLELISM in ECS task definition revisions — it breaks per-loader tuning.
-# DO NOT set a global default parallelism for all loaders — causes connection pool exhaustion.
-# DO NOT ignore this environment variable in loader code — parallelism tuning won't work.
-#
-# Critical path loaders (technical_data_daily, buy_sell_daily, signal_quality_scores, swing_trader_scores):
-#   parallelism = 2-3 (reduces DB connection peak to 20-30 total across all 9 concurrent loaders in EOD pipeline)
-# Analytics loaders (company_profile, analyst_sentiment, value_metrics, stability_metrics, growth_metrics, quality_metrics):
-#   parallelism = 2 (prevents rate-limiting cascades and database connection pool exhaustion)
-# Small/reference loaders (stock_symbols, sp500_constituents, earnings_history):
-#   parallelism = 1 (minimal data volume, no parallelism benefit)
-
+// CRITICAL: Each loader MUST have a parallelism value to prevent RDS connection pool exhaustion.
+// Loaders read LOADER_PARALLELISM env var and must respect it in their run() method.
 locals {
-  # Maps each Terraform loader key to the actual Python script filename.
-  # This maps to the 33 actual loaders in loaders/ directory.
   loader_file_map = {
-    # Reference data — consolidated loader: NASDAQ/NYSE + S&P 500 + Russell 2000 membership
-    # FIXED: Removed fragile cron-based ordering (stock_symbols → sp500 → russell2000)
-    # FIXED: Now atomic single-transaction loader with explicit enrichment
     "market_constituents" = "load_market_constituents.py"
-
-    # Pricing data — unified loader handles all intervals/asset classes via env vars
     "stock_prices_daily" = "load_prices.py"
 
-    # Financial statements
     "financials_annual_income"      = "load_income_statement.py"
     "financials_annual_balance"     = "load_balance_sheet.py"
     "financials_annual_cashflow"    = "load_cash_flow.py"
@@ -361,8 +290,6 @@ locals {
     "financials_quarterly_cashflow" = "load_cash_flow.py"
     "financials_ttm_income"         = "load_income_statement.py"
     "financials_ttm_cashflow"       = "load_cash_flow.py"
-
-    # Computed metrics
     "growth_metrics"      = "load_growth_metrics.py"
     "quality_metrics"     = "load_quality_metrics.py"
     "value_metrics"       = "load_value_metrics.py"
@@ -370,114 +297,57 @@ locals {
     "stability_metrics"   = "load_stability_metrics.py"
     "stock_scores"        = "load_stock_scores.py"
     "sector_ranking"      = "load_sector_ranking.py"
-
-    # Earnings data
     "earnings_history"  = "load_earnings_history.py"
     "earnings_calendar" = "load_earnings_calendar.py"
-
-    # Company & analyst data
     "company_profile"             = "load_company_profile.py"
     "analyst_sentiment"           = "load_analyst_sentiment_analysis.py"
     "analyst_upgrades_downgrades" = "load_analyst_upgrade_downgrade.py"
     "industry_ranking"            = "load_industry_ranking.py"
-
-    # Market sentiment (raw data sources — API aggregates these on-the-fly)
     "feargreed"  = "load_fear_greed_index.py"
     "aaiidata"   = "load_aaii_sentiment.py"
     "naaim_data" = "load_naaim.py"
-    # DELETED: sentiment, sentiment_aggregate - were producing unused aggregated data
-    # (API now computes sentiment aggregation on-the-fly from raw sources)
-
-    # Trading signals & scores
     "signal_themes"         = "load_signal_themes.py"
     "signal_quality_scores" = "load_signal_quality_scores.py"
     "buy_sell_daily"        = "load_buy_sell_daily.py"
-
-    # Technical indicators & metrics (vectorized implementations)
     "technical_data_daily" = "load_technical_data_daily.py"
     "algo_metrics_daily"   = "load_algo_metrics_daily.py"
     "swing_trader_scores"  = "load_swing_trader_scores.py"
-
-    # Market health & economic data
     "market_health_daily"    = "load_market_health_daily.py"
     "market_exposure_daily"  = "load_market_exposure_daily.py"
     "options_chains"         = "load_options_chains.py"
     "fred_economic_data"     = "load_fred_economic_data.py"
     "economic_metrics_daily" = "load_economic_metrics_daily.py"
     "trend_template_data"    = "load_trend_criteria_data.py"
-    # Pre-computed metrics (used by API instead of on-the-fly computation)
     "compute_circuit_breakers"    = "compute_circuit_breakers.py"
     "compute_performance_metrics" = "compute_performance_metrics.py"
 
   }
 
   scheduled_loaders = {
-    # Morning batch — staggered to prevent resource contention
-    # 3:25am ET = 8:25am UTC Mon-Fri
-    # FIXED: Consolidated market constituents loader (replaced fragile 3-loader sequence)
     "market_constituents" = {
       schedule    = "cron(25 8 ? * MON-FRI *)"
-      description = "Market constituents (NASDAQ/NYSE + S&P 500 + Russell 2000 membership) - 3:25am ET"
+      description = "Market constituents - 3:25am ET"
     }
-
-    # 4:00am ET = 9am UTC Mon-Fri
     "stock_prices_daily" = {
       schedule    = "cron(0 9 ? * MON-FRI *)"
-      description = "Unified price loader: daily, weekly, monthly for stocks and ETFs - 4:00am ET"
+      description = "Stock prices (daily, weekly, monthly) - 4:00am ET"
     }
-
-    # FIXED Issue #14: Moved from 4:05am to 4:30pm ET to provide fresh data for EOD pipeline
-    # FIXED 2026-06-04: Changed from daily to weekly (Mon only) - macro data doesn't change daily
-    # Economic indicators (yields, jobless claims, inflation) publish weekly/monthly, not daily
-    # Running daily causes unnecessary FRED API load and database connection exhaustion during logging
-    # Monday-only schedule: cron(30 20 ? * MON *) = 4:30pm ET Mondays
     "fred_economic_data" = {
       schedule    = "cron(30 20 ? * MON *)"
-      description = "FRED economic indicators - Weekly Monday 4:30pm ET (macro data doesn't change daily)"
+      description = "FRED economic indicators - Monday 4:30pm ET"
     }
-
-    # Economic metrics daily — pre-compute CPI YoY, SPY change, yield curve slope for dashboard
-    # Reads: CPIAUCSL (updated Mondays), DGS10/DGS2 (updated daily), SPY price (updated daily)
-    # Runs after stock_prices_daily (4:00am) completes: 4:05am ET Mon-Fri
     "economic_metrics_daily" = {
       schedule    = "cron(5 9 ? * MON-FRI *)"
-      description = "Economic metrics aggregation (CPI, SPY change, yield curve) - Daily 4:05am ET"
+      description = "Economic metrics aggregation - 4:05am ET"
     }
-
-    # FIXED Issue #31: Financial data loaders now run via Step Functions pipeline at 4:05 PM ET daily
-    # (were running Monday-only via EventBridge, causing stale data Tue-Fri for quality/growth metrics)
-    # Task definitions remain in all_loaders; EventBridge rules below are DISABLED
-    # Removed from scheduled_loaders: financials_annual_*, financials_quarterly_*, financials_ttm_*
-
-    # FIXED Issue #31: Computed metrics loaders now run via Step Functions pipeline at 5:00 PM ET daily
-    # (were running staggered via EventBridge, but depended on financial data that only ran Monday)
-    # Task definitions remain in all_loaders; EventBridge rules below are DISABLED
-    # Removed from scheduled_loaders: growth_metrics, quality_metrics, value_metrics, stability_metrics, stock_scores
-
-    # sector_ranking is now part of the EOD Step Functions pipeline (runs after swing_trader_scores)
-    # Removed from EventBridge to ensure it completes BEFORE the orchestrator runs
-    # Pre-computed metrics loaders � run nightly after orchestrator (Phase 7 reconciliation)
-    # These metrics are used by API endpoints instead of on-the-fly computation
-    # circuit_breaker_status: 4:30 PM ET (20:30 UTC) � stores 9 circuit breaker metrics for API
-    # algo_performance_metrics: 4:45 PM ET (20:45 UTC) � stores performance stats for API
     "compute_circuit_breakers" = {
       schedule    = "cron(30 20 ? * MON-FRI *)"
-      description = "Pre-compute circuit breaker metrics - Daily 4:30pm ET"
+      description = "Pre-compute circuit breaker metrics - 4:30pm ET"
     }
     "compute_performance_metrics" = {
       schedule    = "cron(45 20 ? * MON-FRI *)"
-      description = "Pre-compute performance metrics - Daily 4:45pm ET"
+      description = "Pre-compute performance metrics - 4:45pm ET"
     }
-
-    # FIXED Issue #32: Reference data loaders now run via Step Functions pipeline at 4:15 AM ET daily
-    # (were running staggered via EventBridge)
-    # Task definitions remain in all_loaders; EventBridge rules below are DISABLED
-    # Removed from scheduled_loaders: earnings_history, earnings_calendar, company_profile,
-    #   positioning_metrics, analyst_sentiment, analyst_upgrades_downgrades
-    # NOTE: industry_ranking still on EventBridge (1:10 AM) - runs independently
-
-    # Market sentiment data — run daily (data published at irregular intervals, daily refresh is fine)
-    # STAGGERED: Prevent simultaneous API calls
     "feargreed" = {
       schedule    = "cron(2 22 ? * MON-FRI *)"
       description = "CNN Fear & Greed index - Daily 6:02pm ET"
@@ -488,39 +358,18 @@ locals {
     }
     "naaim_data" = {
       schedule    = "cron(5 4 ? * FRI *)"
-      description = "NAAIM exposure index - Weekly Friday 12:05am ET (publishes Wednesdays)"
+      description = "NAAIM exposure index - Weekly Friday 12:05am ET"
     }
-    # DELETED: sentiment, sentiment_aggregate - were producing unused data
-    # (API now computes sentiment aggregation on-the-fly from raw sources)
-    # DELETED: sentiment_social - placeholder implementation removed
-
-    # Signal theme — run after signals generated
-    # 10:00am UTC = 5:00am ET Mon-Fri
     "signal_themes" = {
       schedule    = "cron(0 10 ? * MON-FRI *)"
-      description = "Signal themes (momentum/reversal/breakout) - Daily 5:00am ET"
+      description = "Signal themes - 5:00am ET"
     }
-
-    # Options data — put/call volumes for options signals
-    # 8:00pm UTC = 4:00pm ET (right at market close)
     "options_chains" = {
       schedule    = "cron(0 20 ? * MON-FRI *)"
-      description = "Options chains (put/call volumes) - Daily 4:00pm ET"
+      description = "Options chains - 4:00pm ET"
     }
-
-    # NOTE: These loaders are managed via the Step Functions EOD pipeline:
-    # - trend_template_data, algo_metrics_daily, swing_trader_scores
-    # signal_quality_scores, technical_data_daily, buy_sell_daily were removed
-    # from the pipeline. Orchestrator Phase 5 computes signals on-the-fly.
-    # Task definitions remain in all_loaders for Step Functions to reference.
   }
 }
-
-# FIXED Issue #29: EventBridge Rule Naming Convention
-# Rule name format: {project}-{loader_name}-schedule
-# Examples: algo-stock_symbols-schedule, algo-price_daily-schedule, algo-signals_daily-schedule
-# Matches task definition naming: {project}-{loader_name}-loader
-# Enables operators to correlate rules with tasks by name
 
 resource "aws_cloudwatch_event_rule" "scheduled_loader" {
   for_each = local.scheduled_loaders
@@ -535,23 +384,9 @@ resource "aws_cloudwatch_event_rule" "scheduled_loader" {
 
 locals {
   all_loaders = {
-    # Reference data — consolidated market constituents loader (NASDAQ/NYSE + S&P 500 + Russell 2000)
-    # FIXED: Replaced fragile 3-loader sequence with atomic single loader, parallelism=1
     "market_constituents" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
-
-    # Unified Price Loader — handles all intervals (1d,1wk,1mo) + asset classes (stock,etf)
-    # I/O bound, 5000+ symbols; REDUCED to parallelism=1 to prevent yfinance 429 rate limit errors
-    # Root cause: parallelism=6 created 6 concurrent threads fighting for yfinance API tokens
-    # With shared NAT gateway IP across loaders, high parallelism triggered IP-level rate limiting
-    # New strategy (parallelism=1): serial execution, predictable timing, no cascade failures
-    # CRITICAL FIX 2026-06-28: Increased timeout from 1800→5400s (30m→90m)
-    # Reason: yfinance rate limiting + 5000 symbols + DB writes = 60-90 min actual runtime
-    # Previous 30m timeout was premature failure, causing 24-30h data gaps
-    # 90m timeout accounts for rate-limit backoff + network delays without masking real failures
+    // parallelism=1 for yfinance (IP-level rate limiting with shared NAT gateway)
     "stock_prices_daily" = { cpu = 1024, memory = 2048, timeout = 5400, parallelism = 1 }
-
-    # Financial statements — reduce parallelism to 1 to prevent SEC EDGAR rate-limit cascade
-    # FIXED 2026-06-21: Reduced timeout from 3600→1200s (1h→20m) to fail fast instead of masking failures
     "financials_annual_income"      = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
     "financials_annual_balance"     = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
     "financials_annual_cashflow"    = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
@@ -560,119 +395,37 @@ locals {
     "financials_quarterly_cashflow" = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
     "financials_ttm_income"         = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
     "financials_ttm_cashflow"       = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
-
-    # Computed metrics — CPU bound, process 5000+ symbols, reduced parallelism to avoid DB connection pool exhaustion
-    # Previous: parallelism=8, but when multiple loaders run concurrently (9 loaders × 8 parallelism = 72 connections) exhausted RDS Proxy
-    # New: parallelism=2-3 reduces peak connections to 27-54 range while maintaining parallelism benefits
-    # CRITICAL FIX 2026-06-28: Increased timeouts from 1800→3600s (30m→1h) to prevent cascade failures
-    # Reason: vectorized pandas ops on 5000+ symbols with DB load spikes takes 20-45m, need buffer
-    # Previous 30m timeout was too aggressive given RDS connection contention during peak loads
-    # OPTIMIZED 2026-06-28: Reduced to 1024 CPU, 2048MB (vectorized pandas ops use <2GB, 2048 CPU requires min 4096 MB)
     "growth_metrics"      = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
     "quality_metrics"     = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
     "value_metrics"       = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
-    # positioning_metrics: yfinance-based, was hanging for 1700+ minutes
-    # FIXED 2026-06-26: Increased timeout from 1200→3600s (20m→1h) to handle rate-limited yfinance fetches
     "positioning_metrics" = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 2 }
     "stability_metrics"   = { cpu = 1024, memory = 2048, timeout = 1800, parallelism = 2 }
-    # OPTIMIZED 2026-06-28: Reduced to 1024 CPU, 2048MB + parallelism from 3→2 (eliminates thread pool overhead; 2048 CPU requires min 4096 MB)
     "stock_scores"        = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
-
-    # Earnings data — uses yfinance with 2-second rate limit per symbol
-    # With 10,574 symbols: 10574 × 2s = 21,148s = 5.87 hours for full load (but incremental after first load)
-    # CRITICAL FIX 2026-06-28: Increased timeout from 3600→7200s (1h→2h) to handle full loads
-    # Reason: Full data load takes 5+ hours, incremental <20m; 2h timeout covers incremental + buffer
-    # Previous 1h timeout was failing full loads during recovery scenarios
-    # Parallelism=1 due to SEC EDGAR rate-limit coordination via shared circuit breaker
     "earnings_history"  = { cpu = 512, memory = 1024, timeout = 7200, parallelism = 1 }
     "earnings_calendar" = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
-
-    # Company & analyst data — I/O bound, yfinance API calls, 5000+ symbols
-    # With 2s rate-limit per symbol: 10574/parallelism × 2s = timeout needed
-    # parallelism=3: ~7050s needed; parallelism=4: ~5287s needed; need additional headroom for DB ops
-    # FIXED 2026-06-26: Increased timeouts from 1200→1800s (20m→30m) to account for rate-limited yfinance calls
     "company_profile"             = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 3 }
     "analyst_sentiment"           = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 3 }
     "analyst_upgrades_downgrades" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 3 }
-    # OPTIMIZED 2026-06-28: Reduced parallelism from 4→2 (eliminates thread pool overhead, reduces RDS contention)
     "industry_ranking"            = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 2 }
-
-    # Market sentiment data — small API calls (minimal DB load)
-    # OPTIMIZED 2026-06-21: Increased parallelism from 1→2 (light DB usage, no connection pool contention)
     "feargreed"  = { cpu = 256, memory = 512, timeout = 600, parallelism = 2 }
     "aaiidata"   = { cpu = 256, memory = 512, timeout = 600, parallelism = 2 }
     "naaim_data" = { cpu = 256, memory = 512, timeout = 600, parallelism = 2 }
-    # DELETED: sentiment, sentiment_aggregate — were producing unused aggregated data
-    # (API now computes sentiment aggregation on-the-fly from raw sources)
-    # DELETED: sentiment_social = placeholder implementation removed
-
-    # Signal processing — compute signal themes
-    # OPTIMIZED 2026-06-28: Reduced parallelism from 4→2 (vectorized operations, no thread pool benefit)
     "signal_themes" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 2 }
-    # signal_quality_scores: reduced from parallelism=4 to 2 to prevent statement timeouts during concurrent loader runs
-    # CRITICAL FIX 2026-06-28: Increased timeout from 1800→3600s (30m→1h) to prevent signal generation failure
-    # Reason: Depends on technical_data_daily + buy_sell_daily + position data; cascade delays extend runtime
-    # Previous 30m timeout was causing Phase 5 signal generation to halt due to missing data
     "signal_quality_scores" = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
-
-    # BUY/SELL signals — compute trade signals for all 5000+ symbols
-    # OPTIMIZED 2026-06-28: Reduced memory from 4096→2048MB + parallelism from 3→2 (vectorized ops, lower RDS contention)
-    # CRITICAL FIX 2026-06-28: Increased timeout from 1800→2400s (30m→40m) to prevent premature failure
-    # Reason: Vectorized ops on 5000+ symbols with RDS contention takes 15-25m, need buffer for DB load spikes
-    # Previous 30m timeout was too aggressive given DB connection pool exhaustion risk during peak loads
-    "buy_sell_daily" = { cpu = 2048, memory = 4096, timeout = 2400, parallelism = 2 } # Vectorized: requires 4096 MB min for 2048 CPU
-
-    # Technical indicators (vectorized) — 4-6x faster via bulk query + vectorized pandas operations
-    # FIXED Issue #???: Vectorized approach: 1 bulk query → vectorized pandas → single bulk insert
-    # Full load (300-day lookback): 15-25 min vs old 60-90 min
-    # Intraday mode (today only): 3-8 min vs old 60-90 min
-    # CRITICAL FIX 2026-06-28: Increased timeout from 1800→2400s (30m→40m) to prevent premature failure
-    # Reason: Depends on stock_prices_daily completion; vectorized bulk ops on 5000+ symbols needs buffer
-    # Previous 30m timeout was causing cascade failures when DB contention extends runtime
-    "technical_data_daily" = { cpu = 2048, memory = 4096, timeout = 2400, parallelism = 1 } # Vectorized: bulk fetch + pandas ops for 5000+ symbols; 2048 CPU requires min 4096 MB
-
-    # Market health — reads price_daily, processes 5000+ symbols
+    "buy_sell_daily" = { cpu = 2048, memory = 4096, timeout = 2400, parallelism = 2 }
+    "technical_data_daily" = { cpu = 2048, memory = 4096, timeout = 2400, parallelism = 1 }
     "market_health_daily" = { cpu = 256, memory = 512, timeout = 1200, parallelism = 1 }
-
-    # Options chains — yfinance options data, 5000+ symbols, rate-limited
     "options_chains" = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
-
-    # Market exposure daily — computes market regime + 0-100 risk allocation score from 12 quantitative factors
-    # Lightweight: ~2-5 seconds (vectorized computation, minimal DB load). Runs EOD to guarantee availability.
     "market_exposure_daily" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
-
-    # Algo metrics — compute metrics on 5000+ symbols
     "algo_metrics_daily" = { cpu = 1024, memory = 2048, timeout = 10800, parallelism = 1 }
-
-    # Swing trader scores — bulk query + vectorized pandas operations
-    # Full load (30-day lookback): 10-20 min, Intraday (--today flag): 5-15 min
-    # OPTIMIZED 2026-06-28: Reduced memory from 4096→2048MB (vectorized pandas uses <2GB heap)
-    "swing_trader_scores" = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 1 } # Vectorized: bulk processing for 5000+ symbols; 2048 CPU requires min 4096 MB
-
-    # Sector ranking — compute sector composite scores and rankings
+    "swing_trader_scores" = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 1 }
     "sector_ranking" = { cpu = 512, memory = 1024, timeout = 900, parallelism = 1 }
-
-    # FRED macro data — 42 economic series, 0.5s delay between requests to avoid 429 rate limiting
-    # NOTE: Docker image has FRED rate limit fix + LOADER_LOCKS_TABLE env var (2026-06-04T12:27)
-    # UPDATED: Increased memory from 512MB to 1024MB to fix container crash (Exit code: None)
     "fred_economic_data" = { cpu = 256, memory = 1024, timeout = 300, parallelism = 1 }
-
-    # Economic metrics daily — pre-compute CPI YoY, SPY price change, yield curve slope for dashboard
-    # Lightweight aggregation: reads a few price_daily and economic_data rows, computes daily metrics
     "economic_metrics_daily" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
-
-    # Trend template — compute-heavy scoring
-    # OPTIMIZED 2026-06-28: Reduced memory from 4096→2048MB + parallelism from 4→2 (vectorized, lower overhead)
-    "trend_template_data" = { cpu = 2048, memory = 4096, timeout = 5400, parallelism = 2 } # 2048 CPU requires min 4096 MB Fargate memory
-    # Pre-computed metrics for API endpoints � pure SQL aggregation, no external APIs
-    # Lightweight: reads portfolio snapshots, trades, and market health (all cached locally)
-    # Runs after Phase 7 reconciliation to capture latest position/trade state
+    "trend_template_data" = { cpu = 2048, memory = 4096, timeout = 5400, parallelism = 2 }
     "compute_circuit_breakers"    = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
     "compute_performance_metrics" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
-
   }
-
-  # For backward compatibility
   default_loaders = local.all_loaders
 
   # Loaders that must run on on-demand FARGATE (cannot tolerate interruption)

@@ -76,17 +76,57 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
                 "body": json.dumps({"status": "error", "message": "Event must be a JSON object"}),
             }
 
-        # Seed mode: insert price rows directly into price_daily so today's intraday
-        # price is visible to circuit breakers before the EOD pipeline runs.
+        # Seed mode: DEVELOPMENT ONLY - insert test prices into price_daily.
+        # CRITICAL: This bypasses normal validation and injects TEST DATA into production DB.
         # Usage: {"seed_prices": [{"symbol": "SPY", "date": "2026-06-08", "open": 743.35,
         #          "high": 745.18, "low": 744.99, "close": 745.16, "volume": 50000}]}
         if event.get("seed_prices"):
+            import os
+            from datetime import datetime
+
             from utils.db.context import DatabaseContext
+
+            # CRITICAL GUARD: Fail if not explicitly enabled for development
+            env = os.getenv("ENVIRONMENT", "unknown").lower()
+            allow_seed = os.getenv("ALLOW_PRICE_SEEDING", "false").lower() == "true"
+
+            if env == "production" or not allow_seed:
+                raise RuntimeError(
+                    f"[SEED] REJECTED: seed_prices feature is for development only. "
+                    f"Environment={env}, ALLOW_PRICE_SEEDING={allow_seed}. "
+                    f"Set ENVIRONMENT=development and ALLOW_PRICE_SEEDING=true to enable. "
+                    f"DO NOT enable seeding in production."
+                )
 
             rows = event["seed_prices"]
             inserted = []
+
             with DatabaseContext("write") as cur:
                 for row in rows:
+                    # Validate prices are reasonable
+                    close = float(row["close"])
+                    if close <= 0 or close > 1_000_000:
+                        raise ValueError(
+                            f"[SEED] Invalid price {close} for {row['symbol']}. "
+                            f"Prices must be 0 < price < $1M to prevent fake data."
+                        )
+
+                    # Validate date is today or yesterday (not future/distant past)
+                    from datetime import date
+
+                    seed_date = datetime.fromisoformat(row["date"]).date()
+                    today = date.today()
+                    if seed_date > today:
+                        raise ValueError(
+                            f"[SEED] Future date {seed_date} not allowed. "
+                            f"Can only seed today or past dates, not future."
+                        )
+                    if (today - seed_date).days > 30:
+                        raise ValueError(
+                            f"[SEED] Date {seed_date} is {(today - seed_date).days} days old. "
+                            f"Only allow seeding within last 30 days to prevent stale data."
+                        )
+
                     cur.execute(
                         """INSERT INTO price_daily (symbol, date, open, high, low, close, volume, adj_close)
                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
@@ -100,13 +140,18 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
                             row.get("open"),
                             row.get("high"),
                             row.get("low"),
-                            row["close"],
+                            close,
                             row.get("volume"),
-                            row.get("adj_close", row["close"]),
+                            row.get("adj_close", close),
                         ),
                     )
-                    inserted.append(f"{row['symbol']}@{row['date']}={row['close']}")
-            logger.info(f"[SEED] Inserted/updated prices: {inserted}")
+                    inserted.append(f"{row['symbol']}@{row['date']}={close}")
+
+            logger.warning(
+                f"[SEED] DEVELOPMENT MODE: Inserted test prices: {inserted}. "
+                f"These are TEST DATA injected into price_daily. "
+                f"Remove before pushing to production."
+            )
             if not event.get("then_run_orchestrator"):
                 return {
                     "statusCode": 200,

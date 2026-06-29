@@ -244,8 +244,23 @@ VALIDATION_SCHEMA = {
     "loader_emergency_mode_threshold_multiplier": ("float", 0.01, 100.0, False, 0.5),
     # Data Staleness Thresholds
     "data_staleness_fresh_days": ("int", 1, 100, False, 3),
-    "data_staleness_stale_days_monday": ("int", 1, 100, False, 10),
-    "data_staleness_stale_days_other": ("int", 1, 100, False, 3),
+    # CRITICAL: Data staleness thresholds for trading decisions
+    # Swing/day traders MUST use fresh data - gap risk is too high with 3-10 day old prices
+    # Default values intentionally CONSERVATIVE: reject stale data by default
+    "data_staleness_stale_days_monday": (
+        "int",
+        1,
+        2,  # Max 2 days old (prevent weekend lag accepting stale Friday close as fresh Monday)
+        False,
+        1,  # Fail-closed to 1 day: reject if data older than 1 day
+    ),
+    "data_staleness_stale_days_other": (
+        "int",
+        0,
+        1,  # Max 1 day old - prices older than today unacceptable for intraday trading
+        False,
+        0,  # Fail-closed to 0 days: only today's data acceptable (reject any older)
+    ),
     # Signal Strength Thresholds
     "signal_weak_threshold": ("float", 0.0, 100.0, False, 40.0),
     "signal_medium_threshold": ("float", 0.0, 100.0, False, 60.0),

@@ -107,6 +107,10 @@ def up():
 
         cur.execute("""
             CREATE MATERIALIZED VIEW algo_positions_with_risk AS
+            -- CRITICAL RISK: This view uses COALESCE(lp.current_price, ap.current_price) at line 143.
+            -- If price_daily missing for a symbol, falls back to stale alpaca_positions.current_price.
+            -- P&L and risk calculations should NEVER silently use stale alpaca prices.
+            -- If price_daily missing, raise error instead of using fallback.
             WITH latest_prices AS (
               SELECT DISTINCT ON (symbol)
                 symbol,
