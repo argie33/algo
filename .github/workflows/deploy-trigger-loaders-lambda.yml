@@ -1,0 +1,59 @@
+name: Deploy Trigger-Loaders Lambda
+
+# Deploys the trigger-loaders Lambda (manually triggers ECS data loaders).
+# Use when base_handler.py or trigger-loaders/lambda_function.py changes.
+
+on:
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  deploy:
+    name: Package & Deploy Trigger-Loaders Lambda
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a  # v4
+        with:
+          role-to-assume: ${{ secrets.GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/{1}', secrets.AWS_ACCOUNT_ID, secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev') }}
+          aws-region: us-east-1
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: '3.12'
+
+      - name: Package trigger-loaders Lambda handler
+        run: |
+          set -e
+          mkdir -p trigger-pkg
+          # Lambda handler
+          cp lambda/trigger-loaders/lambda_function.py trigger-pkg/
+          # Shared base handler (psycopg2 import is now conditional — no psycopg2 needed)
+          cp lambda/base_handler.py trigger-pkg/
+          # Shared utils and config used for ECS task triggering
+          cp -r utils/. trigger-pkg/utils/
+          cp -r config/ trigger-pkg/config/
+          cd trigger-pkg && zip -r ../trigger_loaders_lambda.zip . -x "*.pyc" -x "__pycache__/*" && cd ..
+          if [ ! -f trigger_loaders_lambda.zip ]; then
+            echo "ERROR: Failed to create trigger_loaders_lambda.zip!"
+            exit 1
+          fi
+          echo "[OK] Trigger-Loaders Lambda ZIP: $(du -sh trigger_loaders_lambda.zip | cut -f1)"
+
+      - name: Deploy to Lambda
+        run: |
+          aws lambda update-function-code \
+            --function-name algo-trigger-loaders \
+            --zip-file fileb://trigger_loaders_lambda.zip \
+            --region us-east-1 \
+            --query '{FunctionName:FunctionName,LastModified:LastModified,CodeSize:CodeSize}' \
+            --output json
