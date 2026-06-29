@@ -179,11 +179,7 @@ def render_dashboard_body(outer: Layout, ctx: DashboardContext, compact: bool) -
         Layout(eco_panel, name="eco"),
     )
 
-    sig_panel = (
-        safe_render(panel_signals_compact, ctx.sig, ctx.sig_eval, scores=ctx.scores)
-        if not (has_error(ctx.sig) or has_error(ctx.scores))
-        else Panel("[red]Signals unavailable[/]", border_style="red")
-    )
+    sig_panel = safe_render(panel_signals_compact, ctx.sig, ctx.sig_eval, scores=ctx.scores)
     sector_panel = safe_render(panel_sector_compact, ctx.srank, ctx.pos, ctx.port, ctx.sec_rot, ctx.irank)
 
     outer["r3"].split_row(
@@ -252,8 +248,6 @@ def render_expanded_view(view_mode: str, ctx: DashboardContext, hdr_panel: Panel
                 ),
             )
         case "signals":
-            if has_error(ctx.sig) or has_error(ctx.scores):
-                return _expanded_layout(*_exp_top, Panel("[red]Signals data unavailable[/]", border_style="red"))
             sig_panel = panel_signals_expanded(ctx.sig, ctx.sig_eval, scores=ctx.scores)
             if sig_panel is None:
                 return _expanded_layout(*_exp_top, Panel("[red]Signals panel unavailable[/]", border_style="red"))
