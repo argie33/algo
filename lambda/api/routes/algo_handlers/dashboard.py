@@ -42,7 +42,7 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
     - Sector allocation for pie chart
     - Ladder percentage points for visualization
     """
-    cur.execute("SET LOCAL statement_timeout = '30000ms'")
+    cur.execute("SET LOCAL statement_timeout = '10000ms'")
 
     cur.execute("""
             SELECT

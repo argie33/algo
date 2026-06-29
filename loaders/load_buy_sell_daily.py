@@ -16,11 +16,10 @@ import logging
 from datetime import date, datetime, timedelta
 from typing import Any
 
-import psycopg2.sql
+import psycopg2
 
 from loaders.buy_signal_generation_handler import BuySignalGenerationHandler
 from utils.db.context import DatabaseContext
-from utils.db.sql_safety import assert_safe_table
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.loaders.config import get_default_parallelism
 from utils.loaders.helpers import get_active_symbols
@@ -413,56 +412,6 @@ class SignalsDailyLoader(OptimalLoader):
 
         return signals
 
-    def _calculate_data_source_age_days(self, symbol: str, source_table: str) -> int | None:
-        """Calculate age of most recent data in source table (in days).
-
-        Returns:
-            Days since most recent row in source table, or None if no data
-        """
-        try:
-            with DatabaseContext("read") as cur:
-                table_safe = assert_safe_table(source_table)
-                cur.execute(
-                    psycopg2.sql.SQL("SELECT MAX(date) FROM {} WHERE symbol = %s").format(
-                        psycopg2.sql.Identifier(table_safe)
-                    ),
-                    (symbol,),
-                )
-                row = cur.fetchone()
-                if row is None or len(row) < 1 or row[0] is None:
-                    logger.error(
-                        f"[DATA_AGE] {symbol}: No data in {source_table} - cannot calculate signal data freshness. "
-                        f"Signal data age unavailable for this symbol."
-                    )
-                    return None
-                max_date_val = row[0]
-                if isinstance(max_date_val, date) and not isinstance(max_date_val, datetime):
-                    max_date = max_date_val
-                elif isinstance(max_date_val, datetime):
-                    max_date = max_date_val.date()
-                elif isinstance(max_date_val, str):
-                    try:
-                        max_date = date.fromisoformat(max_date_val)
-                    except ValueError as e:
-                        raise RuntimeError(
-                            f"[DATA_AGE] {symbol}: Invalid date format in {source_table}: {max_date_val!r}. "
-                            "Cannot calculate data age without valid date."
-                        ) from e
-                else:
-                    raise RuntimeError(
-                        f"[DATA_AGE] {symbol}: Unexpected type for {source_table} date: {type(max_date_val).__name__}. "
-                        f"Expected date or string, got {max_date_val!r}. Database query may return corrupted data."
-                    )
-                # FIX: Use ET date, not system date (AWS runs in UTC but trading is ET-based)
-                today_et = datetime.now(EASTERN_TZ).date()
-                age_days = (today_et - max_date).days
-                return age_days
-        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            raise RuntimeError(
-                f"[DATA_AGE] {symbol}: Failed to calculate data age from {source_table}: {e}. "
-                "Cannot verify data freshness without source table access."
-            ) from e
-
     def get_tech_data_age(self) -> float | None:
         """Return current batch tech_data_age for signal generation.
 
@@ -474,7 +423,9 @@ class SignalsDailyLoader(OptimalLoader):
             Explicitly logs when batch context is missing (data unavailable).
         """
         if not self._batch_context:
-            logger.warning("[TECH_DATA_AGE] Batch context not initialized - tech data age unavailable. Signal generation may have incomplete data.")
+            logger.warning(
+                "[TECH_DATA_AGE] Batch context not initialized - tech data age unavailable. Signal generation may have incomplete data."
+            )
             return None
 
         tech_data_age = self._batch_context.get("tech_data_age")
