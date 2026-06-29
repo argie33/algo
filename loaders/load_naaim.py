@@ -28,11 +28,16 @@ class NAAIMExposureLoader(OptimalLoader):
     primary_key = ("date",)
     watermark_field = "date"
 
-    def fetch_global(self, since: date | None) -> list[dict[str, Any]] | None:
+    def fetch_global(self, since: date | None) -> list[dict[str, Any]]:
         """Fetch NAAIM Exposure Index from website. FAIL-FAST on missing data.
 
-        NAAIM sentiment is CRITICAL for market regime detection. Cannot proceed
-        without valid sentiment data.
+        NAAIM sentiment is CRITICAL for market regime detection. Returns explicit
+        data_unavailable marker when data cannot be fetched or parsed.
+
+        Returns:
+            List with single dict containing either:
+            - Valid NAAIM sentiment records (date, naaim_number_mean, bullish_alloc, bearish_alloc)
+            - Explicit {data_unavailable: True, reason: ...} marker when data unavailable
         """
         try:
             url = "https://www.naaim.org/programs/naaim-exposure-index/"
@@ -56,11 +61,16 @@ class NAAIMExposureLoader(OptimalLoader):
             tables = pd.read_html(StringIO(response.text), flavor="lxml")
 
             if not tables:
-                raise RuntimeError(
+                logger.warning(
                     "NAAIM page contains no data tables. "
-                    "Website format may have changed or data is unavailable. "
-                    "Cannot proceed without NAAIM sentiment index (critical for regime detection)."
+                    "Website format may have changed or data is temporarily unavailable."
                 )
+                return [
+                    {
+                        "data_unavailable": True,
+                        "reason": "no_data_tables_found"
+                    }
+                ]
 
             df = tables[0]
 
@@ -68,6 +78,15 @@ class NAAIMExposureLoader(OptimalLoader):
             if len(df) > 0 and 'Date' in df.iloc[0].values:
                 logger.info("Skipping header row from HTML table parsing")
                 df = df.iloc[1:].reset_index(drop=True)
+
+            if len(df) == 0:
+                logger.warning("NAAIM table is empty after header skipping")
+                return [
+                    {
+                        "data_unavailable": True,
+                        "reason": "no_rows_in_table"
+                    }
+                ]
 
             if len(df.columns) < 3:
                 raise RuntimeError(
@@ -118,19 +137,48 @@ class NAAIMExposureLoader(OptimalLoader):
 
             rows = []
             for _, row in df.iterrows():
+                # Validate that at least one metric is present
+                naaim_mean = float(row["NAAIM Mean"]) if pd.notna(row["NAAIM Mean"]) else None
+                bullish = float(row["Bullish"]) if pd.notna(row["Bullish"]) else None
+                bearish = float(row["Bearish"]) if pd.notna(row["Bearish"]) else None
+
+                # Skip rows where all metrics are None (no actual data)
+                if all(v is None for v in [naaim_mean, bullish, bearish]):
+                    logger.debug(f"Skipping NAAIM row for {row['Date']}: all metrics are None")
+                    continue
+
                 rows.append(
                     {
                         "date": row["Date"],
-                        "naaim_number_mean": (float(row["NAAIM Mean"]) if pd.notna(row["NAAIM Mean"]) else None),
-                        "bullish_alloc": (float(row["Bullish"]) if pd.notna(row["Bullish"]) else None),
-                        "bearish_alloc": (float(row["Bearish"]) if pd.notna(row["Bearish"]) else None),
+                        "naaim_number_mean": naaim_mean,
+                        "bullish_alloc": bullish,
+                        "bearish_alloc": bearish,
                     }
                 )
 
-            return rows if rows else None
+            # If no valid rows found, return explicit marker
+            if not rows:
+                logger.warning(
+                    "NAAIM table parsed but contains no valid sentiment data "
+                    "(all rows have null metrics)"
+                )
+                return [
+                    {
+                        "data_unavailable": True,
+                        "reason": "no_valid_sentiment_records"
+                    }
+                ]
 
-        except (ValueError, ZeroDivisionError, TypeError) as e:
-            raise RuntimeError(f"Operation failed: {e}") from e
+            return rows
+
+        except ValueError as e:
+            # Data validation error (corrupted dates, etc.)
+            logger.error(f"[NAAIM] Data validation failed: {e}")
+            raise RuntimeError(f"NAAIM data validation error: {e}") from e
+        except (requests.RequestException, RuntimeError, ZeroDivisionError, TypeError) as e:
+            # Network, parsing, or other errors
+            logger.error(f"[NAAIM] Failed to fetch or parse NAAIM sentiment data: {e}")
+            raise RuntimeError(f"NAAIM fetch/parse error: {e}") from e
 
 
 if __name__ == "__main__":
