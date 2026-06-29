@@ -36,58 +36,62 @@ jobs:
           role-to-assume: ${{ secrets.GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/{1}', secrets.AWS_ACCOUNT_ID, secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev') }}
           aws-region: us-east-1
 
-      - name: Get network config
-        id: network
+      - name: Invoke Lambda trigger (applies environment overrides)
+        id: lambda
         run: |
-          VPC_ID=$(aws ec2 describe-vpcs --filters "Name=tag:Name,Values=algo*" \
-            --region us-east-1 --query "Vpcs[0].VpcId" --output text)
-          # Prefer public subnets: ECS tasks need internet access to reach Secrets Manager/ECR.
-          # Public subnets with assignPublicIp=ENABLED work without NAT gateway.
-          SUBNET=$(aws ec2 describe-subnets \
-            --filters "Name=vpc-id,Values=$VPC_ID" "Name=map-public-ip-on-launch,Values=true" \
-            --region us-east-1 --query "Subnets[0].SubnetId" --output text)
-          if [ -z "$SUBNET" ] || [ "$SUBNET" = "None" ]; then
-            SUBNET=$(aws ec2 describe-subnets --filters "Name=vpc-id,Values=$VPC_ID" \
-              --region us-east-1 --query "Subnets[0].SubnetId" --output text)
-          fi
-          SG=$(aws ec2 describe-security-groups \
-            --filters "Name=vpc-id,Values=$VPC_ID" "Name=group-name,Values=algo-ecs-tasks-sg" \
-            --region us-east-1 --query "SecurityGroups[0].GroupId" --output text)
-          echo "subnet=$SUBNET" >> $GITHUB_OUTPUT
-          echo "security_group=$SG" >> $GITHUB_OUTPUT
-
-      - name: Resolve task definition
-        id: taskdef
-        run: |
-          TASK_DEF=$(aws ecs list-task-definitions --region us-east-1 \
-            --family-prefix "algo-${{ inputs.loader_name }}-loader" \
-            --sort DESC --query "taskDefinitionArns[0]" --output text)
-          if [ -z "$TASK_DEF" ] || [ "$TASK_DEF" = "None" ]; then
-            echo "ERROR: Task definition algo-${{ inputs.loader_name }}-loader not found."
-            exit 1
-          fi
-          echo "task_def=$TASK_DEF" >> $GITHUB_OUTPUT
-          echo "Using task definition: $TASK_DEF"
-
-      - name: Run ECS task
-        id: run_task
-        run: |
-          TASK_ARN=$(aws ecs run-task \
-            --cluster algo-cluster \
-            --capacity-provider-strategy "capacityProvider=FARGATE_SPOT,weight=100,base=0" \
-            --task-definition "${{ steps.taskdef.outputs.task_def }}" \
-            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.network.outputs.subnet }}],securityGroups=[${{ steps.network.outputs.security_group }}],assignPublicIp=ENABLED}" \
+          # Invoke Lambda with loader name
+          aws lambda invoke \
+            --function-name algo-trigger-loaders \
             --region us-east-1 \
-            --query "tasks[0].taskArn" --output text)
+            --payload "{\"loader_name\": \"${{ inputs.loader_name }}\"}" \
+            /tmp/lambda_response.json
+
+          # Parse Lambda response using Python for reliability
+          python3 << 'EOF'
+          import json
+          import sys
+
+          try:
+              with open('/tmp/lambda_response.json') as f:
+                  response = json.load(f)
+
+              # Handle both direct response and wrapped response
+              if isinstance(response, dict) and 'body' in response:
+                  body = response['body']
+                  if isinstance(body, str):
+                      body = json.loads(body)
+              else:
+                  body = response
+
+              tasks = body.get('tasks', [])
+              if not tasks:
+                  print("ERROR: No task ARN returned from Lambda")
+                  print(f"Response: {json.dumps(response, indent=2)}")
+                  sys.exit(1)
+
+              task_arn = tasks[0]
+              with open('/tmp/task_arn.txt', 'w') as f:
+                  f.write(task_arn)
+
+              print(f"✅ Lambda triggered loader: {task_arn}")
+              print("   Environment: LOADER_CHUNK_SIZE=100, LOADER_TIMEOUT_SEC=600")
+          except Exception as e:
+              print(f"ERROR: Failed to parse Lambda response: {e}")
+              print("Response content:")
+              with open('/tmp/lambda_response.json') as f:
+                  print(f.read())
+              sys.exit(1)
+          EOF
+
+          TASK_ARN=$(cat /tmp/task_arn.txt)
           echo "task_arn=$TASK_ARN" >> $GITHUB_OUTPUT
-          echo "Launched: $TASK_ARN"
 
       - name: Wait for completion
         if: inputs.wait_for_completion
         timeout-minutes: 120
         run: |
           echo "Waiting for ${{ inputs.loader_name }} to finish (up to 2h)..."
-          TASK_ARN="${{ steps.run_task.outputs.task_arn }}"
+          TASK_ARN="${{ steps.lambda.outputs.task_arn }}"
           MAX_WAIT=7200
           ELAPSED=0
           while [ $ELAPSED -lt $MAX_WAIT ]; do
