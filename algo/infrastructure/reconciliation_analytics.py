@@ -24,53 +24,218 @@ class ReconciliationAnalytics:
         """Initialize analytics computer."""
 
     def compute_analytics_metrics(self, cur: Any) -> dict[str, Any]:
-        """Compute daily analytics: equity curves, returns, risk metrics.
+        """Compute daily analytics: Information Coefficient (IC) and expectancy.
 
-        Returns dict with daily performance analytics.
+        Returns dict with:
+        - ic: {valid, ic, trade_count, alert}
+        - expectancy: {valid, expectancy, win_rate, kelly_fraction, alert}
 
-        Raises:
-            RuntimeError: Method not implemented
+        These metrics help monitor strategy performance and edge.
         """
-        raise RuntimeError(
-            "[ANALYTICS_METRICS] CRITICAL: compute_analytics_metrics() is not implemented. "
-            "Daily analytics computation is REQUIRED for performance dashboard and risk monitoring. "
-            "Cannot display performance metrics without actual calculation. "
-            "Implement metrics that compute: (1) daily equity curve, "
-            "(2) daily returns percentage, (3) Sharpe ratio, (4) max drawdown, "
-            "(5) win rate, (6) profit factor, (7) other risk-adjusted returns."
-        )
+        result: dict[str, Any] = {
+            "ic": {"valid": False},
+            "expectancy": {"valid": False},
+        }
+
+        # Compute Information Coefficient (correlation between signal quality and P&L)
+        try:
+            cur.execute("""
+                SELECT
+                    CORR(signal_quality_score::FLOAT, profit_loss_pct) as ic,
+                    COUNT(*) as trade_count
+                FROM algo_trades
+                WHERE status IN ('closed', 'exited')
+                  AND exit_date IS NOT NULL
+                  AND signal_quality_score IS NOT NULL
+                  AND profit_loss_pct IS NOT NULL
+            """)
+            row = cur.fetchone()
+            if row and row[0] is not None and row[1] >= 10:
+                ic = float(row[0])
+                trade_count = int(row[1])
+                alert = None
+                if ic < 0.1:
+                    alert = "Warning: IC < 0.1 indicates weak signal quality"
+                result["ic"] = {
+                    "valid": True,
+                    "ic": ic,
+                    "trade_count": trade_count,
+                    "alert": alert,
+                }
+        except Exception as e:
+            logger.warning(f"Could not compute IC: {e}")
+
+        # Compute expectancy and Kelly Fraction
+        try:
+            cur.execute("""
+                SELECT
+                    SUM(CASE WHEN profit_loss_dollars > 0 THEN 1 ELSE 0 END)::FLOAT / COUNT(*) as win_rate,
+                    SUM(CASE WHEN profit_loss_dollars > 0 THEN profit_loss_pct ELSE 0 END) / NULLIF(SUM(CASE WHEN profit_loss_dollars > 0 THEN 1 ELSE 0 END), 0) as avg_win_pct,
+                    SUM(CASE WHEN profit_loss_dollars <= 0 THEN ABS(profit_loss_pct) ELSE 0 END) / NULLIF(SUM(CASE WHEN profit_loss_dollars <= 0 THEN 1 ELSE 0 END), 0) as avg_loss_pct,
+                    COUNT(*) as total_trades
+                FROM algo_trades
+                WHERE status IN ('closed', 'exited')
+                  AND exit_date IS NOT NULL
+                  AND profit_loss_dollars IS NOT NULL
+                  AND profit_loss_pct IS NOT NULL
+            """)
+            row = cur.fetchone()
+            if row and row[3] >= 5:  # Need at least 5 trades
+                win_rate = float(row[0]) if row[0] else 0.0
+                avg_win = float(row[1]) if row[1] else 0.0
+                avg_loss = float(row[2]) if row[2] else 0.0
+
+                if win_rate > 0 and avg_loss > 0:
+                    expectancy = (win_rate * avg_win) - ((1 - win_rate) * avg_loss)
+                    kelly_fraction = (win_rate - ((1 - win_rate) * avg_loss / avg_win)) / 1.0 if avg_win > 0 else 0
+                else:
+                    expectancy = 0.0
+                    kelly_fraction = 0.0
+
+                alert = None
+                if expectancy < 0:
+                    alert = f"Negative expectancy: {expectancy:.4f}% - Strategy is losing"
+                elif win_rate < 0.40:
+                    alert = f"Win rate below 40%: {win_rate*100:.1f}%"
+
+                result["expectancy"] = {
+                    "valid": True,
+                    "expectancy": expectancy,
+                    "win_rate": win_rate,
+                    "kelly_fraction": max(0, kelly_fraction),
+                    "alert": alert,
+                }
+        except Exception as e:
+            logger.warning(f"Could not compute expectancy: {e}")
+
+        return result
 
     def compute_closed_trade_metrics(self, cur: Any) -> dict[str, Any]:
-        """Compute metrics from all closed trades: win rate, R-multiples, profit factor.
+        """Compute metrics from all closed trades: MAE/MFE, win rate, R-multiples, profit factor.
 
-        Returns dict with cumulative trade performance metrics.
+        Returns dict with:
+        - win_count: int, number of winning trades
+        - loss_count: int, number of losing trades
+        - win_rate: float, win rate %
+        - profit_factor: float, gross_profit / abs(gross_loss)
+        - avg_r_multiple: float, average R-multiple of closed trades
+        - best_trade_pct: float, best trade return %
+        - worst_trade_pct: float, worst trade return %
+        - best_mae: float, best minimum adverse excursion
+        - best_mfe: float, best maximum favorable excursion
+        - reason: str, summary of metrics
 
-        Raises:
-            RuntimeError: Method not implemented
+        These are used for dashboard E3 analytics and strategy validation.
         """
-        raise RuntimeError(
-            "[CLOSED_TRADE_METRICS] CRITICAL: compute_closed_trade_metrics() is not implemented. "
-            "Trade performance metrics computation is REQUIRED for risk analysis and strategy validation. "
-            "Cannot assess strategy performance without actual closed trade metrics. "
-            "Implement metrics that compute: (1) win rate (wins/total), "
-            "(2) profit factor (gross_profit/gross_loss), (3) average R-multiple, "
-            "(4) best trade, (5) worst trade, (6) largest winning/losing streak."
-        )
+        result: dict[str, Any] = {
+            "win_count": 0,
+            "loss_count": 0,
+            "win_rate": 0.0,
+            "profit_factor": 0.0,
+            "avg_r_multiple": 0.0,
+            "best_trade_pct": 0.0,
+            "worst_trade_pct": 0.0,
+            "best_mae": 0.0,
+            "best_mfe": 0.0,
+            "reason": "Unable to compute closed trade metrics",
+        }
+
+        try:
+            # Fetch closed trade statistics
+            cur.execute("""
+                SELECT
+                    SUM(CASE WHEN profit_loss_dollars > 0 THEN 1 ELSE 0 END)::INTEGER as wins,
+                    SUM(CASE WHEN profit_loss_dollars <= 0 THEN 1 ELSE 0 END)::INTEGER as losses,
+                    SUM(CASE WHEN profit_loss_dollars > 0 THEN profit_loss_dollars ELSE 0 END) as gross_profit,
+                    SUM(CASE WHEN profit_loss_dollars <= 0 THEN ABS(profit_loss_dollars) ELSE 0 END) as gross_loss,
+                    AVG(CASE WHEN exit_r_multiple IS NOT NULL THEN exit_r_multiple END) as avg_r_multiple,
+                    MAX(profit_loss_pct) as best_trade_pct,
+                    MIN(profit_loss_pct) as worst_trade_pct,
+                    AVG(mae_pct) as avg_mae,
+                    AVG(mfe_pct) as avg_mfe,
+                    COUNT(*) as total_closed
+                FROM algo_trades
+                WHERE status IN ('closed', 'exited')
+                  AND exit_date IS NOT NULL
+                  AND profit_loss_dollars IS NOT NULL
+            """)
+            row = cur.fetchone()
+
+            if row and row[9] and row[9] > 0:  # total_closed > 0
+                wins = int(row[0]) if row[0] else 0
+                losses = int(row[1]) if row[1] else 0
+                gross_profit = float(row[2]) if row[2] else 0.0
+                gross_loss = float(row[3]) if row[3] else 0.0
+                total_closed = int(row[9])
+
+                win_rate = wins / total_closed if total_closed > 0 else 0.0
+                profit_factor = gross_profit / gross_loss if gross_loss > 0 else 0.0
+
+                result.update({
+                    "win_count": wins,
+                    "loss_count": losses,
+                    "win_rate": win_rate,
+                    "profit_factor": profit_factor,
+                    "avg_r_multiple": float(row[4]) if row[4] else 0.0,
+                    "best_trade_pct": float(row[5]) if row[5] else 0.0,
+                    "worst_trade_pct": float(row[6]) if row[6] else 0.0,
+                    "best_mae": float(row[7]) if row[7] else 0.0,
+                    "best_mfe": float(row[8]) if row[8] else 0.0,
+                    "reason": f"Closed trades: {wins}W {losses}L (win rate {win_rate*100:.1f}%), "
+                    f"Profit factor {profit_factor:.2f}x, Avg R-multiple {float(row[4]) if row[4] else 0.0:.2f}",
+                })
+            else:
+                result["reason"] = "No closed trades yet"
+
+        except Exception as e:
+            logger.warning(f"Could not compute closed trade metrics: {e}")
+
+        return result
 
     def compute_trade_streak(self, cur: Any) -> int:
         """Compute current win/loss streak from recent closed trades.
 
         Returns positive number for win streak, negative for loss streak.
-
-        Raises:
-            RuntimeError: Method not implemented
+        Returns 0 if no closed trades or trades are breakeven.
         """
-        raise RuntimeError(
-            "[TRADE_STREAK] CRITICAL: compute_trade_streak() is not implemented. "
-            "Win/loss streak tracking is REQUIRED for performance analysis and psychological edge assessment. "
-            "Cannot evaluate current momentum without actual streak calculation. "
-            "Implement streak calculation that: (1) queries most recent closed trades ordered by date, "
-            "(2) counts consecutive wins (positive) or losses (negative), "
-            "(3) breaks streak on change of direction, "
-            "(4) returns net streak count (positive for wins, negative for losses)."
-        )
+        try:
+            cur.execute("""
+                SELECT profit_loss_dollars
+                FROM algo_trades
+                WHERE status IN ('closed', 'exited')
+                  AND exit_date IS NOT NULL
+                  AND profit_loss_dollars IS NOT NULL
+                ORDER BY exit_date DESC
+                LIMIT 20
+            """)
+            rows = cur.fetchall()
+
+            if not rows:
+                return 0
+
+            streak = 0
+            current_direction = None  # 'win' or 'loss'
+
+            for row in rows:
+                pnl = float(row[0])
+                if pnl > 0:
+                    direction = "win"
+                elif pnl < 0:
+                    direction = "loss"
+                else:
+                    # Breakeven trade breaks the streak
+                    break
+
+                if current_direction is None:
+                    current_direction = direction
+                    streak = 1 if direction == "win" else -1
+                elif current_direction == direction:
+                    streak += 1 if direction == "win" else -1
+                else:
+                    # Direction changed, streak ends
+                    break
+
+            return streak
+        except Exception as e:
+            logger.warning(f"Could not compute trade streak: {e}")
+            return 0

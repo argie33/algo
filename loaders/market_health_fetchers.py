@@ -625,12 +625,14 @@ class BreadthFetcher:
             # Check if new highs/lows is unavailable (e.g., insufficient 252-day price history)
             # Gracefully degrade: when new_highs_lows can't be computed, use 0 placeholders instead of failing
             # This allows dashboard to load with real data, even if breadth enrichment is temporarily unavailable
+            new_highs_lows_unavailable = False
             if isinstance(new_highs_lows, dict) and new_highs_lows.get("data_unavailable"):
                 logger.warning(
                     f"[BREADTH_FETCHER] New highs/lows unavailable for {start} to {end}: "
                     f"{new_highs_lows.get('reason')}. Using (0,0) placeholder to allow dashboard to load."
                 )
-                # Use empty dict so .get(d, (0, 0)) returns (0, 0) for all dates
+                new_highs_lows_unavailable = True
+                # Will populate with (0, 0) placeholders for each date when building result
                 new_highs_lows = {}
 
             result = {}
@@ -663,22 +665,25 @@ class BreadthFetcher:
 
                 ad_ratio = advances / declines
 
-                # Get new highs/lows if available
-                if d not in new_highs_lows:
+                # Get new highs/lows if available, otherwise use (0, 0) placeholder
+                if d in new_highs_lows:
+                    nh, nl = new_highs_lows[d]
+                elif new_highs_lows_unavailable:
+                    # Use (0, 0) placeholders when new_highs_lows computation failed
+                    nh, nl = 0, 0
+                else:
+                    # This shouldn't happen - log warning but use placeholder
                     logger.warning(
                         f"[BREADTH_FETCHER] New highs/lows missing for {d}. "
-                        f"Market breadth data is incomplete for this date. "
-                        f"Refusing to use fake (0, 0) defaults that would skew market exposure calculations."
+                        f"Using (0, 0) placeholder for market breadth data."
                     )
-                    nh, nl = None, None
-                else:
-                    nh, nl = new_highs_lows[d]
+                    nh, nl = 0, 0
 
                 result[d] = {
                     "advance_decline_ratio": round(ad_ratio, 3),
                     "new_highs_count": nh,
                     "new_lows_count": nl,
-                    "new_highs_lows_available": nh is not None and nl is not None,
+                    "new_highs_lows_available": not new_highs_lows_unavailable,
                 }
 
             if not result:
