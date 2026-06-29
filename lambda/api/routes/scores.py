@@ -128,8 +128,8 @@ def _get_stock_scores(
                 price_prev AS (
                     SELECT DISTINCT ON (symbol) symbol, close
                     FROM price_daily
-                    WHERE date < (SELECT MAX(date) FROM price_daily)
                     ORDER BY symbol, date DESC
+                    OFFSET 1
                 ),
                 tech_latest AS (
                     SELECT DISTINCT ON (symbol) symbol, rsi_14, macd, sma_50, sma_200,
@@ -138,10 +138,10 @@ def _get_stock_scores(
                     ORDER BY symbol, date DESC
                 ),
                 price_52w AS (
-                    SELECT symbol, MAX(high) AS high_52w
+                    SELECT DISTINCT ON (symbol) symbol, high AS high_52w
                     FROM price_daily
                     WHERE date >= CURRENT_DATE - INTERVAL '52 weeks'
-                    GROUP BY symbol
+                    ORDER BY symbol, high DESC
                 )
                 SELECT
                     sc.symbol,

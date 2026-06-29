@@ -462,6 +462,20 @@ module "monitoring" {
   cloudwatch_log_retention_days = var.cloudwatch_log_retention_days
 }
 
+module "orchestration" {
+  source = "./modules/orchestration"
+
+  project_name          = var.project_name
+  environment           = var.environment
+  aws_region            = var.aws_region
+  ecs_cluster_arn       = module.compute.ecs_cluster_arn
+  private_subnet_ids    = module.vpc.private_subnet_ids
+  ecs_security_group_id = module.vpc.ecs_tasks_security_group_id
+  common_tags           = local.common_tags
+
+  depends_on = [module.compute]
+}
+
 module "lifecycle" {
   source = "./modules/lifecycle"
 

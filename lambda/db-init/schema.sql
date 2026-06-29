@@ -487,11 +487,13 @@ CREATE TABLE IF NOT EXISTS quality_metrics (
     quick_ratio DECIMAL(8, 4),
     interest_coverage DECIMAL(8, 4),
     quality_score DECIMAL(5, 2),
+    data_unavailable BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 -- Migration: add new columns for quality scoring
 ALTER TABLE quality_metrics ADD COLUMN IF NOT EXISTS debt_to_assets DECIMAL(8, 4);
 ALTER TABLE quality_metrics ADD COLUMN IF NOT EXISTS quality_score DECIMAL(5, 2);
+ALTER TABLE quality_metrics ADD COLUMN IF NOT EXISTS data_unavailable BOOLEAN DEFAULT FALSE;
 
 -- Growth metrics
 CREATE TABLE IF NOT EXISTS growth_metrics (
@@ -502,8 +504,10 @@ CREATE TABLE IF NOT EXISTS growth_metrics (
     eps_growth_5y DECIMAL(8, 4),
     eps_growth_3y DECIMAL(8, 4),
     eps_growth_1y DECIMAL(8, 4),
+    data_unavailable BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+ALTER TABLE growth_metrics ADD COLUMN IF NOT EXISTS data_unavailable BOOLEAN DEFAULT FALSE;
 
 -- Stability metrics
 CREATE TABLE IF NOT EXISTS stability_metrics (
@@ -513,8 +517,10 @@ CREATE TABLE IF NOT EXISTS stability_metrics (
     volatility_252d DECIMAL(14, 4),
     beta DECIMAL(14, 4),
     debt_to_assets DECIMAL(14, 4),
+    data_unavailable BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+ALTER TABLE stability_metrics ADD COLUMN IF NOT EXISTS data_unavailable BOOLEAN DEFAULT FALSE;
 
 -- Value metrics
 CREATE TABLE IF NOT EXISTS value_metrics (
@@ -529,9 +535,11 @@ CREATE TABLE IF NOT EXISTS value_metrics (
     fcf_yield DECIMAL(14, 4),
     held_percent_insiders DECIMAL(14, 4),
     held_percent_institutions DECIMAL(14, 4),
+    data_unavailable BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+ALTER TABLE value_metrics ADD COLUMN IF NOT EXISTS data_unavailable BOOLEAN DEFAULT FALSE;
 
 -- Positioning metrics
 CREATE TABLE IF NOT EXISTS positioning_metrics (
@@ -541,8 +549,10 @@ CREATE TABLE IF NOT EXISTS positioning_metrics (
     short_interest_percent DECIMAL(8, 4),
     shares_short_prior_month BIGINT,
     short_interest_trend VARCHAR(20),
+    data_unavailable BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+ALTER TABLE positioning_metrics ADD COLUMN IF NOT EXISTS data_unavailable BOOLEAN DEFAULT FALSE;
 
 --
 -- COMPOSITE SCORES
@@ -2778,6 +2788,44 @@ WHERE growth_score IS NOT NULL;
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_stock_scores_symbol
 ON stock_scores (symbol)
 WHERE composite_score >= 0;
+
+-- METRIC TABLE INDEXES — Fast joins from scores endpoint (8 LEFT JOINs)
+-- These support efficient lookups by symbol when fetching scores
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_quality_metrics_symbol
+ON quality_metrics (symbol);
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_growth_metrics_symbol
+ON growth_metrics (symbol);
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_value_metrics_symbol
+ON value_metrics (symbol);
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_positioning_metrics_symbol
+ON positioning_metrics (symbol);
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_stability_metrics_symbol
+ON stability_metrics (symbol);
+
+-- Covering indexes for data_unavailable flag checks in scores query
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_quality_metrics_symbol_unavailable
+ON quality_metrics (symbol, data_unavailable)
+WHERE data_unavailable = TRUE;
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_growth_metrics_symbol_unavailable
+ON growth_metrics (symbol, data_unavailable)
+WHERE data_unavailable = TRUE;
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_value_metrics_symbol_unavailable
+ON value_metrics (symbol, data_unavailable)
+WHERE data_unavailable = TRUE;
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_positioning_metrics_symbol_unavailable
+ON positioning_metrics (symbol, data_unavailable)
+WHERE data_unavailable = TRUE;
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_stability_metrics_symbol_unavailable
+ON stability_metrics (symbol, data_unavailable)
+WHERE data_unavailable = TRUE;
 
 -- POSITION TRACKING INDEXES — Phase 3-7 position lifecycle
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_algo_positions_status

@@ -92,7 +92,7 @@ resource "aws_db_instance" "main" {
 
   # Performance & Optimization
   multi_az            = var.db_multi_az
-  storage_type        = "gp3" # gp3 provides good performance baseline for dev
+  storage_type        = "gp3"                                   # gp3 provides good performance baseline for dev
   publicly_accessible = var.environment == "dev" ? true : false # Enable for dev CI/CD (GitHub Actions), disable for prod
 
   # Encryption

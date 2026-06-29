@@ -8,14 +8,14 @@
 # Lambda function for AAII Sentiment loading
 # ZIP file is pre-built by GitHub Actions workflow before Terraform runs
 resource "aws_lambda_function" "aaii_loader" {
-  filename            = "${path.module}/aaii_loader.zip"
-  function_name       = "${var.project_name}-aaii-loader-${var.environment}"
-  role                = aws_iam_role.aaii_loader.arn
-  handler             = "lambda_function.lambda_handler"
-  runtime             = "python3.12"
-  timeout             = 60
-  source_code_hash    = filebase64sha256("${path.module}/aaii_loader.zip")
-  layers              = try([aws_lambda_layer_version.psycopg2[0].arn], [])
+  filename         = "${path.module}/aaii_loader.zip"
+  function_name    = "${var.project_name}-aaii-loader-${var.environment}"
+  role             = aws_iam_role.aaii_loader.arn
+  handler          = "lambda_function.lambda_handler"
+  runtime          = "python3.12"
+  timeout          = 60
+  source_code_hash = filebase64sha256("${path.module}/aaii_loader.zip")
+  layers           = try([aws_lambda_layer_version.psycopg2[0].arn], [])
 
   vpc_config {
     subnet_ids         = var.private_subnet_ids
