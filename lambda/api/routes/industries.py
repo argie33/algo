@@ -26,15 +26,20 @@ from shared_contracts.response_validator import ResponseValidator
 logger = logging.getLogger(__name__)
 
 
-def _sf(v: Any) -> float | None:
-    """Safe float conversion — returns None for null/missing values."""
+def _sf(v: Any) -> float | dict[str, Any]:
+    """Safe float conversion with explicit data unavailability markers.
+
+    Returns:
+        float: converted value if successful
+        dict: {"data_unavailable": True, "reason": "<reason>"} if conversion fails or value is None
+    """
     if v is None:
-        return None
+        return {"data_unavailable": True, "reason": "value_is_none"}
     try:
         return float(v)
     except (TypeError, ValueError) as e:
         logger.debug(f"Failed to convert industry value to float: {v!r} - {e}")
-        return None
+        return {"data_unavailable": True, "reason": "conversion_failed"}
 
 
 def handle(
@@ -200,8 +205,10 @@ def _industry_list(cur: cursor, params: dict[str, Any]) -> Any:
     industries = []
     for _idx, row in enumerate(industries_data):
         ind = safe_json_serialize(dict(row))
-        composite = _sf(ind.get("composite_score"))
-        perf_20d = _sf(ind.get("perf_20d"))
+        composite_result = _sf(ind.get("composite_score"))
+        composite = composite_result if isinstance(composite_result, float) else None
+        perf_20d_result = _sf(ind.get("perf_20d"))
+        perf_20d = perf_20d_result if isinstance(perf_20d_result, float) else None
 
         momentum_label = (
             "Strong"
@@ -226,6 +233,10 @@ def _industry_list(cur: cursor, params: dict[str, Any]) -> Any:
                 f"Industry {ind.get('industry')} missing current_rank",
             )
 
+        # Helper function to extract float value from _sf result
+        def _extract_float(result: float | dict[str, Any]) -> float | None:
+            return result if isinstance(result, float) else None
+
         industries.append(
             {
                 "industry": ind.get("industry"),
@@ -237,20 +248,20 @@ def _industry_list(cur: cursor, params: dict[str, Any]) -> Any:
                 "rank_12w_ago": (int(ind.get("rank_12w_ago")) if ind.get("rank_12w_ago") is not None else None),
                 "stock_count": (int(ind.get("stock_count")) if ind.get("stock_count") is not None else None),
                 "composite_score": composite,
-                "momentum_score": _sf(ind.get("momentum_score")),
-                "value_score": _sf(ind.get("value_score")),
-                "quality_score": _sf(ind.get("quality_score")),
-                "growth_score": _sf(ind.get("growth_score")),
-                "stability_score": _sf(ind.get("stability_score")),
-                "performance_1d": _sf(ind.get("perf_1d")),
-                "performance_5d": _sf(ind.get("perf_5d")),
+                "momentum_score": _extract_float(_sf(ind.get("momentum_score"))),
+                "value_score": _extract_float(_sf(ind.get("value_score"))),
+                "quality_score": _extract_float(_sf(ind.get("quality_score"))),
+                "growth_score": _extract_float(_sf(ind.get("growth_score"))),
+                "stability_score": _extract_float(_sf(ind.get("stability_score"))),
+                "performance_1d": _extract_float(_sf(ind.get("perf_1d"))),
+                "performance_5d": _extract_float(_sf(ind.get("perf_5d"))),
                 "performance_20d": perf_20d,
                 "current_momentum": momentum_label,
                 "current_trend": trend_label,
                 "pe": {
-                    "trailing": _sf(ind.get("avg_trailing_pe")),
-                    "forward": _sf(ind.get("avg_forward_pe")),
-                    "percentile": _sf(ind.get("pe_percentile")),
+                    "trailing": _extract_float(_sf(ind.get("avg_trailing_pe"))),
+                    "forward": _extract_float(_sf(ind.get("avg_forward_pe"))),
+                    "percentile": _extract_float(_sf(ind.get("pe_percentile"))),
                 },
             }
         )
@@ -298,15 +309,20 @@ def _industry_detail(cur: cursor, industry_name: str) -> Any:
 
     r = safe_json_serialize(dict(row))
     freshness = check_data_freshness(cur, "stock_scores", "date", warning_days=1)
+
+    # Helper function to extract float value from _sf result
+    def _extract_float(result: float | dict[str, Any]) -> float | None:
+        return result if isinstance(result, float) else None
+
     result = {
         "industry_name": r.get("industry_name"),
         "stock_count": (int(r.get("stock_count")) if r.get("stock_count") is not None else None),
-        "composite_score": _sf(r.get("composite_score")),
-        "momentum_score": _sf(r.get("momentum_score")),
-        "value_score": _sf(r.get("value_score")),
-        "quality_score": _sf(r.get("quality_score")),
-        "growth_score": _sf(r.get("growth_score")),
-        "stability_score": _sf(r.get("stability_score")),
+        "composite_score": _extract_float(_sf(r.get("composite_score"))),
+        "momentum_score": _extract_float(_sf(r.get("momentum_score"))),
+        "value_score": _extract_float(_sf(r.get("value_score"))),
+        "quality_score": _extract_float(_sf(r.get("quality_score"))),
+        "growth_score": _extract_float(_sf(r.get("growth_score"))),
+        "stability_score": _extract_float(_sf(r.get("stability_score"))),
         "data_freshness": freshness,
     }
 

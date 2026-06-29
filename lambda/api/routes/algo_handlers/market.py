@@ -274,10 +274,11 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                     status = "stale" if (today - data_date).days > max_age else "ok"
 
             # Calculate age in hours for display
-            last_updated_utc = normalize_to_utc_datetime(last_updated)
-            if last_updated_utc:
-                age_h = (datetime.now(timezone.utc) - last_updated_utc).total_seconds() / 3600
+            utc_result = normalize_to_utc_datetime(last_updated)
+            if isinstance(utc_result, datetime):
+                age_h = (datetime.now(timezone.utc) - utc_result).total_seconds() / 3600
             else:
+                # data_unavailable marker returned
                 age_h = None
 
             # Determine role based on criticality and freshness requirement

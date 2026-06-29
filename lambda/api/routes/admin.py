@@ -188,10 +188,11 @@ def _get_loader_status(cur: cursor) -> Any:
     now = datetime.now(timezone.utc)
     loaders = []
     for row in rows:
-        last_updated = normalize_to_utc_datetime(row["last_updated"])
-        if last_updated:
-            age_hours = (now - last_updated).total_seconds() / 3600
+        utc_result = normalize_to_utc_datetime(row["last_updated"])
+        if isinstance(utc_result, datetime):
+            age_hours = (now - utc_result).total_seconds() / 3600
         else:
+            # data_unavailable marker returned
             age_hours = None
         # Loaders run on weekdays only; allow up to 72h (covers 3-day weekends)
         health = "stale" if (age_hours is not None and age_hours > 72) else ("fresh" if age_hours is not None else None)
@@ -201,7 +202,7 @@ def _get_loader_status(cur: cursor) -> Any:
             {
                 "name": row["table_name"],
                 "table": row["table_name"],
-                "last_run": last_updated.isoformat() if last_updated else None,
+                "last_run": utc_result.isoformat() if isinstance(utc_result, datetime) else None,
                 "row_count": row["row_count"],
                 "latest_date": (row["latest_date"].isoformat() if row["latest_date"] else None),
                 "status": status,

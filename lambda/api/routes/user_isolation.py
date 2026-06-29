@@ -23,21 +23,26 @@ T = TypeVar("T")
 logger = logging.getLogger(__name__)
 
 
-def get_user_id(jwt_claims: dict[str, Any] | None) -> str | None:
+def get_user_id(jwt_claims: dict[str, Any] | None) -> str:
     """Extract user ID (Cognito sub) from JWT claims.
 
     Args:
         jwt_claims: JWT claims dictionary from API Gateway or Lambda authorizer
 
     Returns:
-        Cognito sub (user ID) or None if not authenticated
+        Cognito sub (user ID)
+
+    Raises:
+        ValueError: If JWT claims missing or sub claim not present
     """
     if not jwt_claims:
-        return None
+        raise ValueError("[AUTH] JWT claims missing — authentication required")
 
     user_id = jwt_claims.get("sub")
-    if user_id:
-        logger.debug(f"[USER] Authenticated as {user_id}")
+    if not user_id:
+        raise ValueError("[AUTH] Cognito sub (user ID) missing from JWT claims")
+
+    logger.debug(f"[USER] Authenticated as {user_id}")
     return user_id
 
 
@@ -53,10 +58,8 @@ def require_user(jwt_claims: dict[str, Any] | None) -> str:
     Raises:
         ValueError: If user not authenticated
     """
-    user_id = get_user_id(jwt_claims)
-    if not user_id:
-        raise ValueError("Authentication required for this endpoint")
-    return user_id
+    # get_user_id now raises on missing/invalid claims
+    return get_user_id(jwt_claims)
 
 
 def scope_query(sql: str, user_id: str, table_alias: str | None = None) -> tuple[str, dict]:
@@ -118,7 +121,7 @@ def _validate_credentials_structure(creds: Any) -> bool:
     return True
 
 
-def get_user_alpaca_credentials(cur: cursor, user_id: str, default_to_shared: bool = True) -> dict[str, str] | None:
+def get_user_alpaca_credentials(cur: cursor, user_id: str, default_to_shared: bool = True) -> dict[str, str]:
     """Get Alpaca credentials for a specific user.
 
     Attempts to fetch user-scoped Alpaca credentials. Falls back to shared
@@ -131,7 +134,10 @@ def get_user_alpaca_credentials(cur: cursor, user_id: str, default_to_shared: bo
         default_to_shared: If True, fall back to shared algo/alpaca secret if user has no specific secret
 
     Returns:
-        {'key': api_key, 'secret': api_secret} or None if not found
+        {'key': api_key, 'secret': api_secret}
+
+    Raises:
+        RuntimeError: If credentials not found, invalid, or load fails
     """
     try:
         from config.credential_manager import get_alpaca_credentials
@@ -143,13 +149,15 @@ def get_user_alpaca_credentials(cur: cursor, user_id: str, default_to_shared: bo
         if creds and not _validate_credentials_structure(creds):
             logger.error(f"[ALPACA] User-scoped credentials for {user_id} failed validation")
             if not default_to_shared:
-                return None
+                raise RuntimeError(f"[ALPACA] User credentials for {user_id} invalid and default_to_shared=False")
             logger.debug("[ALPACA] Falling back to shared credentials after validation failure")
             creds = None
 
         if creds:
             return creds
 
+    except RuntimeError:
+        raise
     except Exception as e:
         logger.warning(f"[ALPACA] Could not load user-scoped credentials for {user_id}: {e}")
 
@@ -163,13 +171,18 @@ def get_user_alpaca_credentials(cur: cursor, user_id: str, default_to_shared: bo
             # Validate shared credentials structure
             if creds and not _validate_credentials_structure(creds):
                 logger.error("[ALPACA] Shared credentials failed validation")
-                return None
+                raise RuntimeError("[CRITICAL] Shared Alpaca credentials invalid — trading unavailable")
+
+            if not creds:
+                raise RuntimeError("[CRITICAL] Shared Alpaca credentials not found — trading unavailable")
 
             return creds
+        except RuntimeError:
+            raise
         except Exception as fallback_err:
-            raise RuntimeError(f"Operation failed: {fallback_err}") from fallback_err
+            raise RuntimeError(f"[ALPACA] Could not load shared credentials: {fallback_err}") from fallback_err
 
-    return None
+    raise RuntimeError(f"[ALPACA] No Alpaca credentials available for {user_id} and default_to_shared=False")
 
 
 def validate_user_resource_access(cur: cursor, user_id: str, resource_type: str, resource_id: str) -> bool:

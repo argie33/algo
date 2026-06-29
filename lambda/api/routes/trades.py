@@ -47,10 +47,13 @@ def _compute_request_signature(idempotency_key: str, body: dict[str, Any]) -> st
     return hashlib.sha256(content.encode()).hexdigest()
 
 
-def _check_idempotency(cur: cursor, signature: str) -> dict[str, Any] | None:
+def _check_idempotency(cur: cursor, signature: str) -> dict[str, Any]:
     """Check if this request signature has been processed before.
 
-    Returns the cached response if found, None otherwise.
+    Returns the cached response if found, or marker dict indicating cache miss.
+
+    Returns:
+        Cached response dict with cached_response=True, or {"cached_response": False} if not found
     """
     try:
         cur.execute(
@@ -63,8 +66,10 @@ def _check_idempotency(cur: cursor, signature: str) -> dict[str, Any] | None:
         )
         row = cur.fetchone()
         if row:
-            return dict(_json.loads(row[0]))
-        return None
+            cached = dict(_json.loads(row[0]))
+            cached["cached_response"] = True
+            return cached
+        return {"cached_response": False}
     except (psycopg2.Error, _json.JSONDecodeError) as e:
         raise RuntimeError(
             f"IDEMPOTENCY INFRASTRUCTURE FAILURE: Cannot check idempotency cache: {type(e).__name__}: {e}. "
@@ -209,10 +214,10 @@ def _create_manual_trade(cur: cursor, body: dict[str, Any], idempotency_key: str
         signature = None
         if idempotency_key:
             signature = _compute_request_signature(idempotency_key, body)
-            cached = _check_idempotency(cur, signature)
-            if cached:
+            cache_check = _check_idempotency(cur, signature)
+            if cache_check.get("cached_response", False):
                 logger.info(f"Returning cached response for idempotent request: {idempotency_key}")
-                return cached
+                return cache_check
 
         try:
             req = ManualTradeRequest(**body)

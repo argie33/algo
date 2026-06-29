@@ -64,22 +64,23 @@ def set_query_timeout(cur: Any, timeout_ms: int | None = None, timeout_name: str
     cur.execute(f"SET LOCAL statement_timeout = '{timeout_ms}ms'")
 
 
-def normalize_to_utc_datetime(dt: date | datetime | None) -> datetime | None:
+def normalize_to_utc_datetime(dt: date | datetime | None) -> dict[str, Any] | datetime:
     """Convert date or naive/aware datetime to UTC-aware datetime.
 
     Handles three cases:
     - date: converted to datetime at 00:00 UTC
     - naive datetime: assumed to be UTC, tzinfo added
     - aware datetime: returned as-is
+    - None: returns explicit unavailability marker
 
     Args:
             dt: datetime, date, or None
 
     Returns:
-            UTC-aware datetime or None
+            UTC-aware datetime or {"data_unavailable": True, "reason": "input_is_none"}
     """
     if dt is None:
-        return None
+        return {"data_unavailable": True, "reason": "input_is_none"}
 
     if isinstance(dt, date) and not isinstance(dt, datetime):
         dt = datetime.combine(dt, datetime.min.time())
@@ -89,7 +90,7 @@ def normalize_to_utc_datetime(dt: date | datetime | None) -> datetime | None:
             dt = dt.replace(tzinfo=timezone.utc)
         return dt
 
-    raise TypeError(f"normalize_to_utc_datetime requires date or datetime, got {type(dt).__name__}")
+    return {"data_unavailable": True, "reason": f"invalid_type_{type(dt).__name__}"}
 
 
 def safe_limit(limit_str: str | None, max_val: int = 5000, default: int | None = None) -> int:
