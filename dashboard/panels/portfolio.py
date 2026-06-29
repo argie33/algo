@@ -285,10 +285,16 @@ def panel_performance_spark(  # noqa: C901
     if err_panel:
         return err_panel
 
-    streak_val: int | Any = perf.get("streak") if perf.get("streak") is not None else 0
-    streak = int(streak_val) if isinstance(streak_val, (int, float)) else 0
-    str_s = f"+{streak}W" if streak >= 0 else f"{abs(streak)}L"
-    str_c = G if streak >= 0 else R
+    streak_val = perf.get("streak")
+    if streak_val is None:
+        logger.warning("[PORTFOLIO] Performance streak metric missing - using default")
+        streak = 0
+        str_s = "No data"
+        str_c = "dim"
+    else:
+        streak = int(streak_val) if isinstance(streak_val, (int, float)) else 0
+        str_s = f"+{streak}W" if streak >= 0 else f"{abs(streak)}L"
+        str_c = G if streak >= 0 else R
     unrlzd = perf.get("unrealized_pnl")
     pnl_val_raw = perf.get("pnl")
     pnl_val = safe_float(pnl_val_raw, default=None)

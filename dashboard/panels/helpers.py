@@ -194,7 +194,10 @@ def _error_panel(data_name: str, data: Any, title: str, border: str = "magenta")
         )
 
     if has_error(data):
-        error_msg = data.get("_error") or "API error (no details available)"
+        error_msg = data.get("_error")
+        if not error_msg:
+            logger.warning(f"Error marker present but _error field empty for {data_name}")
+            error_msg = "Error (details unavailable)"
         return Panel(
             Text.from_markup(f"[{R}]{data_name}[/] fetch failed:\n[dim]{error_msg}[/]"),
             title=f"[bold]{title}[/]",

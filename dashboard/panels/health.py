@@ -1775,9 +1775,13 @@ def panel_status(  # noqa: C901
             rows.append(Rule(style="dim"))
             rows.append(Text.from_markup("[red]Loader data unavailable[/]"))
     if valid_loader is not None:
-        problem_loader = [r for r in valid_loader if (r.get("status") or "") in ("error", "failed", "stale")]
-        running_loader = [r for r in valid_loader if (r.get("status") or "") == "loading"]
-        ok_count = len(valid_loader) - len(problem_loader) - len(running_loader)
+        problem_loader = [r for r in valid_loader if r.get("status") in ("error", "failed", "stale")]
+        running_loader = [r for r in valid_loader if r.get("status") == "loading"]
+        # Count loaders with missing/unknown status separately for diagnostics
+        unknown_status = [r for r in valid_loader if r.get("status") is None]
+        if unknown_status:
+            logger.warning(f"[HEALTH] {len(unknown_status)} loaders with missing status field")
+        ok_count = len(valid_loader) - len(problem_loader) - len(running_loader) - len(unknown_status)
     else:
         problem_loader = []
         running_loader = []
@@ -2079,8 +2083,15 @@ def panel_algo_health(  # noqa: C901
         rows.append(Rule(style="dim"))
         notif_parts = []
         for n in valid_notifs[:5]:
-            sc = SEV_COLORS.get((n.get("severity") or "info"), DIM)
-            title_val = n.get("title") or ""
+            severity = n.get("severity")
+            if severity is None:
+                logger.warning("[HEALTH] Notification missing severity field")
+                severity = "info"
+            sc = SEV_COLORS.get(severity, DIM)
+            title_val = n.get("title")
+            if title_val is None:
+                logger.warning("[HEALTH] Notification missing title field")
+                title_val = ""
             raw_t = title_val if title_val else ""
             title = next(
                 (v for k, v in NOTIF_SHORT_NAMES.items() if k in raw_t.lower()),

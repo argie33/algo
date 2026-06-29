@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Diagnostic tool to identify data loading and display issues in the dashboard."""
 
+import logging
 import os
 import sys
 from datetime import datetime
@@ -10,6 +11,8 @@ from dashboard.api_data_layer import set_api_url, set_cognito_auth
 from dashboard.cognito_auth import get_cognito_auth as get_cognito_auth_instance
 from dashboard.error_boundary import has_error
 from dashboard.fetchers import load_all
+
+logger = logging.getLogger(__name__)
 
 ET = ZoneInfo("America/New_York")
 
@@ -80,7 +83,13 @@ def diagnose_data_issues() -> bool:
             value = data.get(key)
 
             if has_error(value):
-                error_msg = (value.get("_error") or "API error (no details available)") if isinstance(value, dict) else "API error (no details available)"
+                if isinstance(value, dict):
+                    error_msg = value.get("_error")
+                    if not error_msg:
+                        logger.warning(f"Error marker for {label} but _error field empty")
+                        error_msg = "Error (details unavailable)"
+                else:
+                    error_msg = "Error (invalid response format)"
                 print(f"[X] {label:30} - ERROR")
                 print(f"     {error_msg}")
                 error_count += 1
