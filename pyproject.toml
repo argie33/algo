@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Stock Analytics Platform"
 requires-python = ">=3.10"
 dependencies = [
-    "psycopg2-binary==2.9.9",
+    "psycopg2-binary==2.9.12",
     "yfinance==1.4.1",
     "requests==2.33.0",
     "pandas==2.1.4",
