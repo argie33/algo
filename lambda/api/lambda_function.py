@@ -84,7 +84,12 @@ def fetch_cloudfront_domain_from_secrets() -> tuple[str | None, str | None]:
             from config.credential_manager import get_secret
 
             try:
-                secret = get_secret("algo/cloudfront-domain", default="")
+                secret = get_secret("algo/cloudfront-domain")
+                if not secret:
+                    logger.info(
+                        "[CloudFront] Secret 'algo/cloudfront-domain' not found in Secrets Manager (OK on first deploy)"
+                    )
+                    return None, "Secret not found"
 
                 if isinstance(secret, str) and not secret.startswith("{"):
                     # Plain string secret (just the domain)
@@ -92,25 +97,25 @@ def fetch_cloudfront_domain_from_secrets() -> tuple[str | None, str | None]:
                 else:
                     # JSON secret with domain key
                     secret_dict = json.loads(secret) if isinstance(secret, str) else secret
-                    domain = secret_dict.get("domain", "").strip()
+                    domain = secret_dict.get("domain")
+                    if not domain:
+                        raise ValueError("[CloudFront] Domain key missing or empty in secret")
+                    domain = domain.strip()
 
-                if domain:
-                    logger.info(f"[CloudFront] Fetched domain from Secrets Manager: {domain}")
-                    _CLOUDFRONT_DOMAIN_CACHE = domain
-                    _CLOUDFRONT_DOMAIN_CACHE_TIME = datetime.now(timezone.utc)
-                    return domain, None
-                else:
-                    logger.warning("[CloudFront] Secret exists but domain is empty")
-                    return None, "Secret exists but domain is empty"
+                logger.info(f"[CloudFront] Fetched domain from Secrets Manager: {domain}")
+                _CLOUDFRONT_DOMAIN_CACHE = domain
+                _CLOUDFRONT_DOMAIN_CACHE_TIME = datetime.now(timezone.utc)
+                return domain, None
 
             except json.JSONDecodeError as e:
                 logger.warning(f"[CloudFront] Failed to parse secret JSON: {e}")
                 return None, f"Invalid secret format: {e}"
-            except ValueError:
-                logger.info(
-                    "[CloudFront] Secret 'algo/cloudfront-domain' not found in Secrets Manager (OK on first deploy)"
-                )
-                return None, "Secret not found"
+            except ValueError as ve:
+                if "not found" in str(ve).lower():
+                    logger.info("[CloudFront] Secret not found (OK on first deploy)")
+                    return None, "Secret not found"
+                logger.error(f"[CloudFront] Validation error: {ve}")
+                return None, str(ve)
 
         except ImportError:
             logger.warning("[CloudFront] boto3 not available, skipping Secrets Manager fetch")

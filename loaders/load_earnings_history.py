@@ -127,16 +127,18 @@ class EarningsHistoryLoader(OptimalLoader):
             else:
                 # No new earnings records since watermark (not an error, just no new data)
                 if since:
-                    logger.warning(
+                    logger.info(
                         f"[EARNINGS_HISTORY] {symbol}: No new earnings records since {since.isoformat()}. "
-                        "Existing records will not be re-fetched."
+                        "Existing records will not be re-fetched — data unavailable this cycle."
                     )
+                    reason = f"No new earnings since {since.isoformat()}"
                 else:
                     logger.warning(
                         f"[EARNINGS_HISTORY] {symbol}: No earnings records found in full history. "
                         "Symbol may have no earnings data available."
                     )
-                return []
+                    reason = "No earnings history available"
+                return [{"symbol": symbol, "data_unavailable": True, "reason": reason}]
         except (ValueError, ZeroDivisionError, TypeError) as e:
             error_msg = f"[EARNINGS_HISTORY] {symbol}: Failed to fetch earnings history: {e}"
             logger.error(error_msg)

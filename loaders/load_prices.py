@@ -59,8 +59,10 @@ class PriceLoader(OptimalLoader):
 
     def __init__(self, interval: str = "1d", asset_class: str = "stock", *args: Any, **kwargs: Any) -> None:
         """Initialize with interval (1d/1wk/1mo) and asset class (stock/etf)."""
-        assert interval in ("1d", "1wk", "1mo"), f"Invalid interval: {interval}"
-        assert asset_class in ("stock", "etf"), f"Invalid asset_class: {asset_class}"
+        if interval not in ("1d", "1wk", "1mo"):
+            raise ValueError(f"Invalid interval: {interval!r}; must be one of: 1d, 1wk, 1mo")
+        if asset_class not in ("stock", "etf"):
+            raise ValueError(f"Invalid asset_class: {asset_class!r}; must be one of: stock, etf")
 
         self.interval = interval
         self.asset_class = asset_class

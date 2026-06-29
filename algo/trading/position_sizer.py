@@ -160,16 +160,15 @@ class PositionSizer:
             from config.credential_manager import get_credential_manager as _get_cm
 
             _creds = _get_cm().get_alpaca_credentials()
-            key = _creds.get("key")
-            secret = _creds.get("secret")
-        except (ImportError, AttributeError, KeyError) as e:
-            logger.warning(
+        except (ImportError, AttributeError) as e:
+            raise RuntimeError(
                 f"CRITICAL: Credential manager unavailable ({type(e).__name__}: {e}). "
-                f"Falling back to environment variables (LESS SECURE). "
-                f"Production deployments must use AWS Secrets Manager."
-            )
-            key = os.getenv("APCA_API_KEY_ID")
-            secret = os.getenv("APCA_API_SECRET_KEY")
+                f"Cannot fall back to environment variables — must use centralized AWS Secrets Manager. "
+                f"Ensure AWS credentials are configured and credential_manager is importable."
+            ) from e
+
+        key = _creds.get("key")
+        secret = _creds.get("secret")
         base = os.getenv("APCA_API_BASE_URL")
         if not base:
             try:

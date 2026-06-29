@@ -88,7 +88,8 @@ class CashFlowLoader(OptimalLoader):
 
     def __init__(self, period: str | None = None):
         period = _resolve_period(period)
-        assert period in ("annual", "quarterly")
+        if period not in ("annual", "quarterly"):
+            raise ValueError(f"Invalid period: {period!r}; must be 'annual' or 'quarterly'")
         cfg = _PERIOD_CONFIG[period]
         self.period = period
         self.table_name: str = cast(str, cfg["table_name"])

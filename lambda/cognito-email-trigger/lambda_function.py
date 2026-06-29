@@ -60,8 +60,14 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             "Cognito trigger must provide user attributes. Check trigger configuration."
         )
 
-    code_parameter = request_data.get("codeParameter", "")
-    email = user_attributes.get("email", "")
+    code_parameter = request_data.get("codeParameter")
+    if not code_parameter:
+        raise RuntimeError(
+            "[COGNITO_EMAIL_TRIGGER] CRITICAL: Confirmation code missing from Cognito request. "
+            "Cannot send authentication code without valid codeParameter. Check Cognito trigger configuration."
+        )
+
+    email = user_attributes.get("email")
     if not email:
         raise RuntimeError(
             "[COGNITO_EMAIL_TRIGGER] CRITICAL: User email missing from attributes. "
