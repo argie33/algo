@@ -469,38 +469,12 @@ locals {
       description = "Pre-compute performance metrics - Daily 4:45pm ET"
     }
 
-    # Earnings — run Sunday night only (data changes quarterly)
-    "earnings_history" = {
-      schedule    = "cron(15 4 ? * MON *)"
-      description = "Earnings history - Sunday 11:15pm ET"
-    }
-
-    # Company and analyst data — yfinance API calls, run daily at 4am ET (after market close previous day)
-    # Data sources update frequently, daily refresh captures more coverage (analyst sentiment, earnings calendar changes, etc.)
-    "company_profile" = {
-      schedule    = "cron(20 4 ? * MON-FRI *)"
-      description = "Company profile (sector, industry, name) - Daily 4:20am ET"
-    }
-    "positioning_metrics" = {
-      schedule    = "cron(22 4 ? * MON-FRI *)"
-      description = "Positioning metrics (institutional ownership, short interest) - Daily 4:22am ET"
-    }
-    "analyst_sentiment" = {
-      schedule    = "cron(25 4 ? * MON-FRI *)"
-      description = "Analyst recommendations - Daily 4:25am ET"
-    }
-    "analyst_upgrades_downgrades" = {
-      schedule    = "cron(27 4 ? * MON-FRI *)"
-      description = "Analyst upgrades/downgrades - Daily 4:27am ET"
-    }
-    "industry_ranking" = {
-      schedule    = "cron(10 6 ? * MON-FRI *)"
-      description = "Industry rankings - Daily 1:10am ET"
-    }
-    "earnings_calendar" = {
-      schedule    = "cron(29 4 ? * MON-FRI *)"
-      description = "Earnings calendar (next 180 days) - Daily 4:29am ET"
-    }
+    # FIXED Issue #32: Reference data loaders now run via Step Functions pipeline at 4:15 AM ET daily
+    # (were running staggered via EventBridge)
+    # Task definitions remain in all_loaders; EventBridge rules below are DISABLED
+    # Removed from scheduled_loaders: earnings_history, earnings_calendar, company_profile,
+    #   positioning_metrics, analyst_sentiment, analyst_upgrades_downgrades
+    # NOTE: industry_ranking still on EventBridge (1:10 AM) - runs independently
 
     # Market sentiment data — run daily (data published at irregular intervals, daily refresh is fine)
     # STAGGERED: Prevent simultaneous API calls
