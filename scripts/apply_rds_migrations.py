@@ -2,16 +2,19 @@
 """
 Direct RDS Migration Application Script
 
-This script connects to the AWS RDS database and applies critical migrations
-needed to fix the scores API 503 errors.
+Connects to the AWS RDS database and applies pending migrations.
 
 Usage:
-    python3 apply_rds_migrations.py
+    python3 scripts/apply_rds_migrations.py
 
 Requirements:
-    - AWS credentials configured (IAM user with Secrets Manager and RDS access)
+    - AWS credentials configured (IAM user with Secrets Manager access)
     - psycopg2 installed: pip install psycopg2-binary boto3
-    - Environment: Must run from the project root directory
+    - Must run from a machine with VPC access (bastion, EC2, or Lambda in same VPC)
+      OR with an SSM port-forward tunnel active:
+        aws ssm start-session --target <bastion-instance-id> \
+          --document-name AWS-StartPortForwardingSessionToRemoteHost \
+          --parameters '{"host":["<rds-endpoint>"],"portNumber":["5432"],"localPortNumber":["5432"]}'
 """
 
 import json
@@ -25,7 +28,7 @@ def get_rds_credentials():
     """Get RDS credentials from AWS Secrets Manager."""
     try:
         client = boto3.client('secretsmanager', region_name='us-east-1')
-        response = client.get_secret_value(SecretId='arn:aws:secretsmanager:us-east-1:626216981288:secret:algo/database-kymxp8')
+        response = client.get_secret_value(SecretId='algo-db-credentials-dev')
         secret = json.loads(response['SecretString'])
 
         if 'host' not in secret:
@@ -47,19 +50,92 @@ def get_rds_credentials():
         print(f"ERROR: Failed to get RDS credentials: {e}")
         sys.exit(1)
 
+
+# All migrations to apply, in order.
+# Each entry: (description, check_query, check_args, migration_sql)
+MIGRATIONS = [
+    # Migration 102: data_unavailable on metric tables
+    (
+        "quality_metrics.data_unavailable",
+        "SELECT 1 FROM information_schema.columns WHERE table_name='quality_metrics' AND column_name='data_unavailable'",
+        (),
+        "ALTER TABLE quality_metrics ADD COLUMN IF NOT EXISTS data_unavailable BOOLEAN DEFAULT FALSE",
+    ),
+    (
+        "growth_metrics.data_unavailable",
+        "SELECT 1 FROM information_schema.columns WHERE table_name='growth_metrics' AND column_name='data_unavailable'",
+        (),
+        "ALTER TABLE growth_metrics ADD COLUMN IF NOT EXISTS data_unavailable BOOLEAN DEFAULT FALSE",
+    ),
+    (
+        "value_metrics.data_unavailable",
+        "SELECT 1 FROM information_schema.columns WHERE table_name='value_metrics' AND column_name='data_unavailable'",
+        (),
+        "ALTER TABLE value_metrics ADD COLUMN IF NOT EXISTS data_unavailable BOOLEAN DEFAULT FALSE",
+    ),
+    (
+        "positioning_metrics.data_unavailable",
+        "SELECT 1 FROM information_schema.columns WHERE table_name='positioning_metrics' AND column_name='data_unavailable'",
+        (),
+        "ALTER TABLE positioning_metrics ADD COLUMN IF NOT EXISTS data_unavailable BOOLEAN DEFAULT FALSE",
+    ),
+    (
+        "stability_metrics.data_unavailable",
+        "SELECT 1 FROM information_schema.columns WHERE table_name='stability_metrics' AND column_name='data_unavailable'",
+        (),
+        "ALTER TABLE stability_metrics ADD COLUMN IF NOT EXISTS data_unavailable BOOLEAN DEFAULT FALSE",
+    ),
+    # Migration 103: data_unavailable columns on market_health_daily
+    (
+        "market_health_daily.put_call_ratio_data_unavailable",
+        "SELECT 1 FROM information_schema.columns WHERE table_name='market_health_daily' AND column_name='put_call_ratio_data_unavailable'",
+        (),
+        "ALTER TABLE market_health_daily ADD COLUMN IF NOT EXISTS put_call_ratio_data_unavailable BOOLEAN DEFAULT FALSE",
+    ),
+    (
+        "market_health_daily.put_call_ratio_unavailable_reason",
+        "SELECT 1 FROM information_schema.columns WHERE table_name='market_health_daily' AND column_name='put_call_ratio_unavailable_reason'",
+        (),
+        "ALTER TABLE market_health_daily ADD COLUMN IF NOT EXISTS put_call_ratio_unavailable_reason VARCHAR(255)",
+    ),
+    (
+        "market_health_daily.yield_curve_data_unavailable",
+        "SELECT 1 FROM information_schema.columns WHERE table_name='market_health_daily' AND column_name='yield_curve_data_unavailable'",
+        (),
+        "ALTER TABLE market_health_daily ADD COLUMN IF NOT EXISTS yield_curve_data_unavailable BOOLEAN DEFAULT FALSE",
+    ),
+    (
+        "market_health_daily.yield_curve_unavailable_reason",
+        "SELECT 1 FROM information_schema.columns WHERE table_name='market_health_daily' AND column_name='yield_curve_unavailable_reason'",
+        (),
+        "ALTER TABLE market_health_daily ADD COLUMN IF NOT EXISTS yield_curve_unavailable_reason VARCHAR(255)",
+    ),
+    (
+        "market_health_daily.fed_rate_data_unavailable",
+        "SELECT 1 FROM information_schema.columns WHERE table_name='market_health_daily' AND column_name='fed_rate_data_unavailable'",
+        (),
+        "ALTER TABLE market_health_daily ADD COLUMN IF NOT EXISTS fed_rate_data_unavailable BOOLEAN DEFAULT FALSE",
+    ),
+    (
+        "market_health_daily.fed_rate_unavailable_reason",
+        "SELECT 1 FROM information_schema.columns WHERE table_name='market_health_daily' AND column_name='fed_rate_unavailable_reason'",
+        (),
+        "ALTER TABLE market_health_daily ADD COLUMN IF NOT EXISTS fed_rate_unavailable_reason VARCHAR(255)",
+    ),
+]
+
+
 def apply_migrations():
-    """Connect to RDS and apply critical migrations."""
+    """Connect to RDS and apply pending migrations."""
 
-    print("="*70)
+    print("=" * 70)
     print("AWS RDS Migration Application")
-    print("="*70)
+    print("=" * 70)
 
-    # Get credentials
     print("\n1. Getting RDS credentials from AWS Secrets Manager...")
     creds = get_rds_credentials()
-    print(f"   Connected to: {creds['host']}")
+    print(f"   Host: {creds['host']}")
 
-    # Connect to RDS
     print("\n2. Connecting to AWS RDS database...")
     try:
         conn = psycopg2.connect(
@@ -68,94 +144,53 @@ def apply_migrations():
             database=creds['database'],
             user=creds['user'],
             password=creds['password'],
-            sslmode='require'
+            sslmode='require',
+            connect_timeout=10,
         )
         cur = conn.cursor()
-
-        # Verify connection
-        cur.execute("SELECT current_database(), inet_server_addr()")
-        db_name, server_addr = cur.fetchone()
-        print(f"   SUCCESS! Connected to: {db_name} on {server_addr}")
-
+        cur.execute("SELECT current_database()")
+        db_name = cur.fetchone()[0]
+        print(f"   Connected to: {db_name}")
     except Exception as e:
         print(f"   ERROR: Failed to connect to RDS: {e}")
-        print("\n   NOTE: If you're running this locally, you may need:")
-        print("   - VPN connection to the AWS VPC")
-        print("   - Or run this script from an EC2 instance/Lambda in the VPC")
+        print("\n   NOTE: RDS is in a private VPC. Connect via:")
+        print("   - SSM port-forward tunnel from bastion/EC2 in the VPC")
+        print("   - Or run this from inside the VPC (EC2, Lambda, etc.)")
         sys.exit(1)
 
-    # Check current schema
-    print("\n3. Checking current database schema...")
-    tables = {
-        'quality_metrics': 'Quality metrics (ROE, margins, debt ratios)',
-        'growth_metrics': 'Growth metrics (revenue/EPS growth)',
-        'value_metrics': 'Value metrics (P/E, P/B, dividend)',
-        'positioning_metrics': 'Positioning metrics (institutional ownership)',
-        'stability_metrics': 'Stability metrics (volatility, beta)',
-    }
+    print(f"\n3. Checking and applying {len(MIGRATIONS)} migrations...")
+    applied = 0
+    skipped = 0
+    failed = 0
 
-    missing_tables = []
-    for table, _description in tables.items():
-        cur.execute(f"""
-            SELECT column_name FROM information_schema.columns
-            WHERE table_name = '{table}' AND column_name = 'data_unavailable'
-        """)
-        if cur.fetchone():
-            print(f"   ✓ {table}: data_unavailable column exists")
-        else:
-            print(f"   ✗ {table}: data_unavailable column MISSING")
-            missing_tables.append(table)
+    for desc, check_sql, check_args, migration_sql in MIGRATIONS:
+        cur.execute(check_sql, check_args)
+        exists = cur.fetchone()
+        if exists:
+            print(f"   SKIP {desc} (already exists)")
+            skipped += 1
+            continue
 
-    # Apply migrations
-    if missing_tables:
-        print(f"\n4. Applying migrations to {len(missing_tables)} tables...")
+        try:
+            cur.execute(migration_sql)
+            conn.commit()
+            print(f"   OK   {desc}")
+            applied += 1
+        except Exception as e:
+            print(f"   FAIL {desc}: {e}")
+            conn.rollback()
+            failed += 1
 
-        migrations = {
-            'quality_metrics': 'ALTER TABLE quality_metrics ADD COLUMN IF NOT EXISTS data_unavailable BOOLEAN DEFAULT FALSE',
-            'growth_metrics': 'ALTER TABLE growth_metrics ADD COLUMN IF NOT EXISTS data_unavailable BOOLEAN DEFAULT FALSE',
-            'value_metrics': 'ALTER TABLE value_metrics ADD COLUMN IF NOT EXISTS data_unavailable BOOLEAN DEFAULT FALSE',
-            'positioning_metrics': 'ALTER TABLE positioning_metrics ADD COLUMN IF NOT EXISTS data_unavailable BOOLEAN DEFAULT FALSE',
-            'stability_metrics': 'ALTER TABLE stability_metrics ADD COLUMN IF NOT EXISTS data_unavailable BOOLEAN DEFAULT FALSE',
-        }
-
-        for table in missing_tables:
-            try:
-                print(f"   Applying: {table}...")
-                cur.execute(migrations[table])
-                conn.commit()
-                print(f"   ✓ {table}: migration applied")
-            except Exception as e:
-                print(f"   ✗ {table}: migration failed - {e}")
-                conn.rollback()
-
-        # Verify migrations
-        print("\n5. Verifying migrations...")
-        for table in missing_tables:
-            cur.execute(f"""
-                SELECT column_name FROM information_schema.columns
-                WHERE table_name = '{table}' AND column_name = 'data_unavailable'
-            """)
-            if cur.fetchone():
-                print(f"   ✓ {table}: data_unavailable column verified")
-            else:
-                print(f"   ✗ {table}: data_unavailable column still missing!")
-
-        print("\n" + "="*70)
-        print("MIGRATIONS APPLIED SUCCESSFULLY!")
-        print("="*70)
-        print("\nNext steps:")
-        print("1. The scores API should now return 200 OK instead of 503")
-        print("2. The dashboard scores panel should display component scores")
-        print("3. Verify by calling: https://2iqq1qhltj.execute-api.us-east-1.amazonaws.com/api/scores")
-
-    else:
-        print("\n✓ ALL MIGRATIONS ALREADY APPLIED!")
-        print("   The database schema is up to date.")
-        print("\n   If the API is still returning 503 errors,")
-        print("   the issue may be with the Lambda deployment.")
+    print(f"\n{'='*70}")
+    print(f"COMPLETE: {applied} applied, {skipped} skipped, {failed} failed")
+    print("=" * 70)
 
     cur.close()
     conn.close()
+
+    if failed > 0:
+        sys.exit(1)
+
 
 if __name__ == '__main__':
     apply_migrations()
