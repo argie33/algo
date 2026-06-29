@@ -114,17 +114,3 @@ class EarningsBlackout:
             return [{"date": row[0]} for row in rows]
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise ValueError(f"Failed to fetch earnings for {symbol}: {str(e)[:50]} — explicit halt") from e
-
-
-if __name__ == "__main__":
-    from algo.infrastructure import get_config
-
-    config = get_config()
-    eb = EarningsBlackout(config=config)
-
-    # Test
-    result = eb.run("AAPL", _date(2026, 5, 15))
-    logger.info(f"AAPL earnings check (2026-05-15): {result}")
-
-    upcoming = eb.get_upcoming_earnings("AAPL")
-    logger.info(f"AAPL upcoming earnings: {upcoming}")

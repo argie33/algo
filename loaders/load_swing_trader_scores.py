@@ -93,9 +93,10 @@ class VectorizedSwingScoresLoader:
             # STEP 4: Fetch sector ranking data (sector health metric — may be empty if sector ranking not yet run)
             sector_data = self._fetch_sector_and_ranking_data(symbols, start_date, end_date)
             if sector_data.empty:
-                logger.warning(
-                    "[SECTOR RANKING] No sector ranking data found. "
-                    "sector_ranking table may be empty. Sector scores will be omitted from computation."
+                raise RuntimeError(
+                    "[SECTOR RANKING CRITICAL] No sector ranking data found. "
+                    "sector_ranking table may be empty. Cannot compute swing trader scores without sector data. "
+                    "Run load_sector_ranking.py first."
                 )
 
             # STEP 5: Compute scores for ALL symbols vectorized

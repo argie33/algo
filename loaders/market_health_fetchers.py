@@ -1,6 +1,7 @@
 """Market health data fetchers separated by data source."""
 
 import logging
+import time
 from datetime import date
 from typing import Any
 

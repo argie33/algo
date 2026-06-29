@@ -101,44 +101,21 @@ class DailyReconciliation:
                     "Mock data rejected to prevent accidental trading. Set ORCHESTRATOR_DRY_RUN=true to enable dry-run mode."
                 )
 
-            # CRITICAL: Dry-run mode detected. This must NEVER continue to trading/position sizing.
-            # Mock data ($100k hardcoded portfolio) should ONLY be used for development testing.
-            logger.critical(
-                "[RECONCILIATION] CRITICAL: DRY RUN MODE ACTIVE. "
-                "Returning synthetic portfolio data ONLY for testing. "
-                "ORCHESTRATOR_DRY_RUN should be false in production. "
-                "If you see this in production logs, investigate immediately."
-            )
-
-            # Return mock data with EXPLICIT markers and error flag
-            mock_result = {
-                "success": False,  # Mark as failed - should not proceed
-                "error": "DRY_RUN_MODE_ACTIVE",
-                "error_message": (
-                    "Dry-run mode is enabled (ORCHESTRATOR_DRY_RUN=true). "
-                    "Mock portfolio data cannot be used for real trading. "
-                    "Disable dry-run mode or use in development environment only."
-                ),
-                # Include mock data for inspection only
-                "_mock_portfolio_value": 100000.0,
-                "_mock_cash": 50000.0,
-                "_mock_positions": 0,
-                "_is_mock_data": True,
-                "_is_testing_only": True,
-                "snapshot_date": reconcile_date or datetime.now(timezone.utc).date(),
-            }
-
-            # Raise error if not in test environment
+            # CRITICAL: Dry-run mode is incompatible with live reconciliation.
+            # Fail immediately instead of returning mock data.
             import os
 
             env = os.getenv("ENVIRONMENT", "unknown").lower()
-            if env not in ("development", "test", "local"):
-                raise RuntimeError(
-                    f"[RECONCILIATION] CRITICAL: Dry-run mode detected in {env} environment. "
-                    f"Mock data cannot be used for trading. Set ORCHESTRATOR_DRY_RUN=false."
-                )
-
-            return mock_result
+            logger.critical(
+                f"[RECONCILIATION] Dry-run mode enabled (ORCHESTRATOR_DRY_RUN=true) in {env} environment. "
+                "Reconciliation requires live broker connection and cannot proceed with dry-run adapter. "
+                "Set ORCHESTRATOR_DRY_RUN=false to disable dry-run mode."
+            )
+            raise RuntimeError(
+                "Dry-run mode incompatible with reconciliation. "
+                "Cannot reconcile with mock broker adapter. "
+                "Set ORCHESTRATOR_DRY_RUN=false to proceed."
+            )
 
         if not reconcile_date:
             reconcile_date = datetime.now(timezone.utc).date()

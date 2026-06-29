@@ -1474,15 +1474,3 @@ class ExitEngine:
             raise ValueError(f"Invalid price data for {symbol}: prior close = {prior}")
 
         return float(((current - prior) / prior * Decimal(100)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
-
-
-if __name__ == "__main__":
-    from algo.infrastructure import get_config
-
-    config = get_config()
-
-    engine = ExitEngine(config)
-
-    exits = engine.check_and_execute_exits()
-
-    logger.info(f"Exits executed: {exits}")

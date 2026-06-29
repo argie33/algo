@@ -933,21 +933,3 @@ class CircuitBreaker:
             )
         except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.warning(f"Warning: Could not send circuit breaker notification: {e}")
-
-
-if __name__ == "__main__":
-    from algo.infrastructure import get_config
-
-    cb = CircuitBreaker(get_config())
-    result = cb.check_all()
-    logger.info(f"\n{'HALTED' if result['halted'] else 'CLEAR'}\n")
-    for name, state in result["checks"].items():
-        if "halted" not in state:
-            raise ValueError(f"State dict for check '{name}' missing 'halted' field: {state}")
-        flag = "[HALT]" if state["halted"] else "[OK]  "
-        label = state.get("label", name)
-        logger.info(f"  {flag} {label:40s} : {state.get('reason', 'no detail')}")
-    if result["halted"]:
-        logger.info("\nHALT REASONS:")
-        for r in result["halt_reasons"]:
-            logger.info(f"  - {r}")
