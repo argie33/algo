@@ -521,50 +521,32 @@ def _get_algo_portfolio(cur: cursor) -> Any:
         breakeven_count_val = data.get("unrealized_pnl_breakeven_count")
         breakeven_count = int(breakeven_count_val) if breakeven_count_val is not None else 0
 
-        # Calculate data_age_seconds from created_at timestamp (not snapshot_date date)
+        # Calculate data_age_seconds from created_at timestamp (REQUIRED, no fallback)
         # CRITICAL: snapshot_date is a DATE column (midnight), created_at is TIMESTAMP (actual freshness)
-        # Using snapshot_date makes recent data appear 6+ hours stale (midnight to current time)
+        # Must use created_at; fallback to snapshot_date made data appear stale
         from datetime import datetime, timezone
         now = datetime.now(timezone.utc)
-        data_age_seconds = None
 
-        # Try to get created_at first (if available in query result)
+        # MUST have created_at in query result - query includes it explicitly
         created_at = data.get("created_at")
-        if created_at:
-            # Handle both datetime.datetime and string
-            if isinstance(created_at, datetime):
-                created_dt = created_at if created_at.tzinfo else created_at.replace(tzinfo=timezone.utc)
-            elif isinstance(created_at, str):
-                try:
-                    created_dt = datetime.fromisoformat(created_at).replace(tzinfo=timezone.utc)
-                except ValueError:
-                    created_dt = None
-            else:
-                created_dt = None
+        if not created_at:
+            logger.error("CRITICAL: created_at missing from portfolio snapshot query result")
+            return error_response(503, "incomplete_data", "Portfolio snapshot missing created_at timestamp")
 
-            if created_dt:
-                data_age_seconds = int((now - created_dt).total_seconds())
+        # Convert to datetime with timezone
+        if isinstance(created_at, datetime):
+            created_dt = created_at if created_at.tzinfo else created_at.replace(tzinfo=timezone.utc)
+        elif isinstance(created_at, str):
+            try:
+                created_dt = datetime.fromisoformat(created_at).replace(tzinfo=timezone.utc)
+            except ValueError:
+                logger.error(f"CRITICAL: Cannot parse created_at timestamp: {created_at}")
+                return error_response(503, "data_corruption", f"Portfolio created_at unparseable: {created_at}")
+        else:
+            logger.error(f"CRITICAL: created_at has unexpected type: {type(created_at).__name__}")
+            return error_response(503, "data_corruption", f"Portfolio created_at type invalid: {type(created_at).__name__}")
 
-        # Fallback to snapshot_date if created_at unavailable (for backward compat)
-        if data_age_seconds is None:
-            snapshot_date = data.get("snapshot_date")
-            if snapshot_date:
-                from datetime import date as date_type
-                # Handle both datetime.date and datetime.datetime objects
-                if isinstance(snapshot_date, datetime):
-                    snapshot_dt = snapshot_date if snapshot_date.tzinfo else snapshot_date.replace(tzinfo=timezone.utc)
-                elif isinstance(snapshot_date, date_type):
-                    snapshot_dt = datetime.combine(snapshot_date, datetime.min.time()).replace(tzinfo=timezone.utc)
-                elif isinstance(snapshot_date, str):
-                    try:
-                        snapshot_dt = datetime.fromisoformat(snapshot_date).replace(tzinfo=timezone.utc)
-                    except ValueError:
-                        snapshot_dt = None
-                else:
-                    snapshot_dt = None
-
-                if snapshot_dt:
-                    data_age_seconds = int((now - snapshot_dt).total_seconds())
+        data_age_seconds = int((now - created_dt).total_seconds())
 
         response_data = {
             "total_portfolio_value": pv,
