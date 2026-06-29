@@ -136,19 +136,33 @@ def handle(
                             "ETF price data validation failed; prices ETF query returned invalid data",
                         )
 
+                    null_count = 0
                     for row in etf_rows:
-                        # Validate row is not None before accessing
+                        # CRITICAL: NULL rows indicate data corruption or query error
                         if row is None:
-                            logger.warning("NULL row in prices ETF query result")
+                            null_count += 1
                             continue
 
                         # Safely extract symbol
                         sym = row.get("symbol")
                         if not sym:
                             logger.warning("Row missing symbol in prices ETF query")
+                            null_count += 1
                             continue
 
                         result[sym].append(safe_json_serialize(dict(row)))
+
+                    # Validate data completeness - if we skipped rows, data is incomplete
+                    if null_count > 0:
+                        logger.critical(
+                            f"[PRICES] ETF query returned {null_count} NULL/invalid rows. "
+                            f"Data is incomplete and cannot be used for trading decisions."
+                        )
+                        raise_api_error(
+                            503,
+                            "incomplete_data",
+                            f"ETF price data incomplete - {null_count} NULL rows in result",
+                        )
 
                 price_result = {"symbols": result, "limit": limit}
                 is_valid, error_msg = ResponseValidator.validate_endpoint_response("prices", price_result)

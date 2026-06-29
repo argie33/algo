@@ -13,6 +13,12 @@ from typing import Any
 import pandas as pd
 import requests
 
+try:
+    from playwright.sync_api import sync_playwright
+    HAS_PLAYWRIGHT = True
+except ImportError:
+    HAS_PLAYWRIGHT = False
+
 from config.api_endpoints import get_aaii_sentiment_url
 from loaders.runner import run_loader
 from utils.infrastructure.url_validator import validate_redirect_url, validate_url
@@ -28,12 +34,67 @@ class AAIISentimentLoader(OptimalLoader):
     primary_key = ("date",)
     watermark_field = "date"
 
+    @staticmethod
+    def _fetch_with_playwright(aaii_url: str) -> bytes | None:
+        """Fetch AAII sentiment file using Playwright to bypass bot detection.
+
+        AAII website uses Imperva bot protection that blocks regular HTTP requests.
+        Playwright renders JavaScript which bypasses the Imperva challenge.
+
+        Args:
+            aaii_url: URL to fetch
+
+        Returns:
+            File content bytes if successful, None on failure
+        """
+        if not HAS_PLAYWRIGHT:
+            logger.debug("Playwright not available for bot detection bypass")
+            return None
+
+        try:
+            logger.debug("Attempting fetch with Playwright (JavaScript rendering)...")
+            with sync_playwright() as p:
+                # Launch headless browser with minimal overhead
+                browser = p.chromium.launch(headless=True)
+                page = browser.new_page(
+                    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+                )
+
+                try:
+                    # First visit sentiment survey page to establish cookies/session
+                    logger.debug("Visiting AAII sentiment page to establish session...")
+                    page.goto("https://www.aaii.com/sentiment-survey", timeout=30000)
+
+                    # Now fetch the file with proper session/cookies
+                    logger.debug(f"Downloading file from {aaii_url}...")
+                    response = page.goto(aaii_url, timeout=30000)
+
+                    if response and response.status == 200:
+                        logger.debug("File response received")
+                        body = response.body()
+                        if body and len(body) > 1000:
+                            logger.debug(f"Successfully fetched {len(body)} bytes with Playwright")
+                            return body
+
+                except Exception as e:
+                    logger.debug(f"Playwright page navigation error: {e}")
+                finally:
+                    page.close()
+                    browser.close()
+
+        except Exception as e:
+            logger.debug(f"Playwright fetch failed: {e}")
+
+        return None
+
     def fetch_global(self, since: date | None) -> list[dict[str, Any]] | None:  # noqa: C901
         """Fetch AAII sentiment data from Excel file.
 
         Complexity justified: Data integrity checks (SSRF validation, zip structure,
         coerce validation, date validation) are essential for financial data
         security and correctness. Cannot be factored without losing failure context.
+
+        Falls back to Playwright for Imperva bot detection bypass if regular requests fail.
         """
         # Set socket-level timeout to catch hanging connections early
         socket.setdefaulttimeout(20.0)
@@ -74,7 +135,7 @@ class AAIISentimentLoader(OptimalLoader):
                     logger.error("Missing Content-Type header in AAII response")
                     raise ValueError("Missing Content-Type header in AAII response (cannot verify Excel file)")
                 if "html" in content_type.lower():
-                    logger.error("Server returned HTML instead of Excel")
+                    logger.error("Server returned HTML instead of Excel (likely Imperva bot detection)")
                     raise ValueError("Server returned HTML instead of Excel")
 
                 if len(response.content) < 1000:
@@ -208,6 +269,50 @@ class AAIISentimentLoader(OptimalLoader):
                         "created_at": datetime.now().isoformat(),
                     }]
             except ValueError as e:
+                # If getting HTML (Imperva bot detection), try Playwright fallback on last attempt
+                error_str = str(e)
+                if "HTML instead of Excel" in error_str and attempt == 3 and HAS_PLAYWRIGHT:
+                    logger.info("Regular request failed with bot detection, trying Playwright fallback...")
+                    file_content = self._fetch_with_playwright(aaii_url)
+                    if file_content:
+                        try:
+                            # Parse the Playwright-fetched content
+                            excel_data = BytesIO(file_content)
+                            xl_engine = "openpyxl" if file_content.startswith(b"PK") else "xlrd"
+                            df = pd.read_excel(excel_data, skiprows=3, engine=xl_engine)
+
+                            df.columns = df.columns.str.strip()
+                            required_cols = ["Date", "Bullish", "Neutral", "Bearish"]
+                            df = df[required_cols]
+
+                            for col in ["Bullish", "Neutral", "Bearish"]:
+                                df[col] = df[col].astype(str).str.replace("%", "", regex=False).str.strip()
+                                df[col] = pd.to_numeric(df[col], errors="coerce")
+
+                            df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
+                            df["Date"] = df["Date"].dt.strftime("%Y-%m-%d")
+                            df.sort_values("Date", inplace=True)
+                            df.reset_index(drop=True, inplace=True)
+
+                            logger.info(f"Playwright fallback succeeded! Parsed {len(df)} records")
+
+                            rows = []
+                            for _, row in df.iterrows():
+                                rows.append({
+                                    "date": row["Date"],
+                                    "bullish": (None if pd.isna(row["Bullish"]) else float(row["Bullish"])),
+                                    "neutral": (None if pd.isna(row["Neutral"]) else float(row["Neutral"])),
+                                    "bearish": (None if pd.isna(row["Bearish"]) else float(row["Bearish"])),
+                                })
+                            return rows if rows else [{
+                                "data_unavailable": True,
+                                "reason": "No sentiment data in Playwright fallback file",
+                                "created_at": datetime.now().isoformat(),
+                            }]
+                        except Exception as pw_error:
+                            logger.warning(f"Playwright fallback parsing failed: {pw_error}")
+
+                # Standard ValueError handling
                 logger.warning(f"Download attempt {attempt} data format error: {e}")
                 if attempt < 3:
                     import time

@@ -64,6 +64,22 @@ def main() -> int:
                 )
             return 1
 
+        # CRITICAL: Only compute market exposure for trading days
+        # Loading on weekend/holiday should not create entries for non-trading days (corrupts position sizing logic)
+        from algo.infrastructure import MarketCalendar
+        if not MarketCalendar.is_trading_day(latest_date):
+            logger.error(
+                f"[MARKET_EXPOSURE LOADER CRITICAL] Latest price_daily date {latest_date} is not a trading day. "
+                f"Cannot compute market exposure for non-trading days (would corrupt position sizing logic). "
+                f"Check: (1) Is yfinance loader running correctly? (2) Did market holidays get misconfigured?"
+            )
+            with DatabaseContext("write") as cur:
+                cur.execute(
+                    "UPDATE data_loader_status SET status = %s, last_updated = NOW(), error_message = %s WHERE table_name = %s",
+                    ("FAILED", f"Latest date {latest_date} is not a trading day", table_name),
+                )
+            return 1
+
         logger.info(f"Computing market exposure for {latest_date}")
 
         # Compute market exposure (this persists to DB automatically)

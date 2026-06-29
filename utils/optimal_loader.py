@@ -400,8 +400,7 @@ class OptimalLoader:
             raise RuntimeError(f"[{self.table_name}] {len(failed_symbols)} symbols failed—incomplete dataset. Failed: {failed_symbols[:10]}{'...' if len(failed_symbols) > 10 else ''}")
 
     def _run_parallel(self, symbols: list[str], workers: int) -> None:
-        from concurrent.futures import ThreadPoolExecutor, as_completed, wait, FIRST_COMPLETED
-        from concurrent.futures import TimeoutError as FutureTimeoutError
+        from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 
         per_symbol_timeout = int(os.getenv("LOADER_PER_SYMBOL_TIMEOUT_SECONDS", "120"))
         max_batch_time = int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", "10800"))

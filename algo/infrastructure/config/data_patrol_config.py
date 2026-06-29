@@ -254,10 +254,10 @@ class DataPatrolConfig:
                 "description": "Trend template covers 4900+ symbols x 14 days",
             },
             "market_exposure_daily": {
-                "condition": "date >= CURRENT_DATE - INTERVAL '2 days'",
-                "min_rows": self.get("patrol_market_exposure_daily_2d_min", 2),
+                "condition": "date >= (SELECT MAX(date) - INTERVAL '1 day' FROM price_daily)",
+                "min_rows": self.get("patrol_market_exposure_daily_min", 1),
                 "severity": severity_error,
-                "description": "Market regime indicators updated after market close",
+                "description": "Market regime indicators must match latest trading day in price_daily (within 1 day lag)",
             },
         }
 
