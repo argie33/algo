@@ -25,7 +25,7 @@ class EarningsHistoryLoader(OptimalLoader):
     primary_key = ("symbol", "quarter")
     watermark_field = "earnings_date"
 
-    def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, str | float | None]]:
+    def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Fetch earnings history from yfinance earnings_dates.
 
         Returns list of earnings records since the watermark date.
@@ -93,6 +93,8 @@ class EarningsHistoryLoader(OptimalLoader):
                         q = (dt.month - 1) // 3 + 1
                         qstart_month = (q - 1) * 3 + 1
                         quarter_str = f"{dt.year}-{qstart_month:02d}-01"
+                        fiscal_quarter = q
+                        fiscal_year = dt.year
                     except (ValueError, ZeroDivisionError, TypeError) as e:
                         error_msg = (
                             f"[{symbol}] Failed to derive quarter from earnings date {ed!r}: {e}. "
@@ -102,14 +104,38 @@ class EarningsHistoryLoader(OptimalLoader):
                         logger.error(error_msg)
                         raise ValueError(error_msg) from e
 
+                    # Determine if estimate (future) or actual (past)
+                    estimated = eps_actual is None or (isinstance(eps_actual, float) and eps_actual == 0)
+
+                    # Calculate surprise difference if both values present
+                    eps_diff = None
+                    if eps_actual is not None and eps_est is not None:
+                        try:
+                            eps_diff = float(eps_actual) - float(eps_est)
+                        except (ValueError, TypeError):
+                            pass
+
                     rows.append(
                         {
                             "symbol": symbol,
                             "quarter": quarter_str,
+                            "fiscal_quarter": fiscal_quarter,
+                            "fiscal_year": fiscal_year,
                             "earnings_date": ed,
-                            "eps_estimate": _float(eps_est, "eps_estimate"),
+                            "estimated": estimated,
                             "eps_actual": _float(eps_actual, "eps_actual"),
+                            "revenue_actual": None,
+                            "eps_estimate": _float(eps_est, "eps_estimate"),
+                            "revenue_estimate": None,
+                            "eps_surprise_pct": _float(surprise_pct, "eps_surprise_pct"),
+                            "revenue_surprise_pct": None,
+                            "eps_difference": eps_diff,
+                            "revenue_difference": None,
+                            "beat_miss_flag": None,
                             "surprise_percent": _float(surprise_pct, "surprise_pct"),
+                            "estimate_revision_days": None,
+                            "estimate_revision_count": None,
+                            "fetched_at": None,
                         }
                     )
                 except (ValueError, ZeroDivisionError, TypeError) as e:
@@ -117,7 +143,7 @@ class EarningsHistoryLoader(OptimalLoader):
 
             # Deduplicate by (symbol, quarter) - keep most recent earnings_date
             if rows:
-                seen: dict[tuple[str, str], dict[str, str | float | None]] = {}
+                seen: dict[tuple[str, str], dict[str, Any]] = {}
                 for row in rows:
                     key = (row["symbol"], row["quarter"])
                     if key not in seen or row["earnings_date"] > seen[key]["earnings_date"]:
@@ -143,7 +169,7 @@ class EarningsHistoryLoader(OptimalLoader):
             logger.error(error_msg)
             raise RuntimeError(error_msg) from e
 
-    def transform(self, rows: list[dict[str, str | float | None]]) -> list[dict[str, str | float | None]]:
+    def transform(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         return rows
 
     def _validate_row(self, row: dict[str, Any]) -> bool:
