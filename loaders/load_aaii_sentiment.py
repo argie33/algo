@@ -402,11 +402,13 @@ class AAIISentimentLoader(OptimalLoader):
 
         logger.warning(
             "[AAII_SENTIMENT] Failed to fetch AAII sentiment data after exhausting all retries. "
-            "AAII server is unreachable."
+            "AAII server is unreachable (Imperva bot protection blocking all automation)."
         )
+        # Return explicit unavailable marker (caller should use this to show status to user)
         return [{
             "data_unavailable": True,
-            "reason": "Failed to fetch AAII sentiment after exhausting all retries",
+            "reason": "AAII server blocked by Imperva bot protection; cannot fetch fresh data",
+            "remedy": "Retry when Imperva protection is relaxed or network changes allow access",
             "created_at": datetime.now().isoformat(),
         }]
 

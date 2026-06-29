@@ -242,11 +242,12 @@ module.exports = {
   },
 
   // Placeholder response - returns empty data with metadata flags so frontend knows data is unavailable
-  // Format: { success: true, statusCode: 200, items: [], _is_placeholder: true, _error: "message", timestamp }
+  // Format: { success: false, statusCode: 503, items: [], _is_placeholder: true, _error: "message", timestamp }
+  // Data unavailability must return error status code (503), not 200 OK
   sendPlaceholder: (
     res,
     errorMessage = "Data unavailable",
-    statusCode = 200,
+    statusCode = 503,
     dataType = "items"
   ) => {
     const response = {

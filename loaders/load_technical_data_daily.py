@@ -37,6 +37,7 @@ from loaders.technical_indicators import (
     compute_rsi,
     compute_volume_ma,
 )
+from utils.data.age_validator import DataAgeValidator
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.loaders.helpers import get_active_symbols
@@ -71,6 +72,15 @@ class VectorizedTechnicalLoader:
         logger.info(f"VectorizedTechnicalLoader: {len(symbols)} symbols, date range {start_date} to {end_date}")
 
         try:
+            # Validate upstream price data freshness before computing indicators
+            price_freshness = DataAgeValidator.check("price_daily")
+            if not price_freshness["is_fresh"]:
+                raise RuntimeError(
+                    f"[TECHNICAL_DATA CRITICAL] Price source data is stale: {price_freshness['message']}. "
+                    f"Cannot compute technical indicators from stale prices. "
+                    f"Check price_daily loader and ensure it completed recently."
+                )
+
             all_prices = self._fetch_all_prices(symbols, start_date, end_date)
             if not all_prices:
                 raise RuntimeError(

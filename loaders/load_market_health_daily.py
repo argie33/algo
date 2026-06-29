@@ -23,9 +23,11 @@ from loaders.market_health_fetchers import (
     YieldCurveFetcher,
 )
 from loaders.technical_indicators import compute_moving_averages
+from utils.data.age_validator import DataAgeValidator
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.optimal_loader import OptimalLoader
+from utils.validation.freshness_config import get_freshness_rule
 
 logger = logging.getLogger(__name__)
 
@@ -165,7 +167,17 @@ class MarketHealthDailyLoader(OptimalLoader):
 
         Breadth data (% stocks > 200-DMA, advance/decline ratio) is CRITICAL for market exposure scoring.
         Fail-fast if unavailable; don't silently skip.
+        FRESHNESS: Validate that advance_decline_daily and technical_data_daily are recent.
         """
+        # Validate upstream data freshness
+        tech_freshness = DataAgeValidator.check("technical_data_daily")
+        if not tech_freshness["is_fresh"]:
+            raise RuntimeError(
+                f"[MARKET_HEALTH CRITICAL] Technical data is stale: {tech_freshness['message']}. "
+                f"Cannot compute market breadth metrics without fresh technical indicators. "
+                f"Check technical_data_daily loader completion."
+            )
+
         breadth = self._breadth_fetcher.fetch(start, end)
 
         if not breadth or len(breadth) == 0:
@@ -211,7 +223,17 @@ class MarketHealthDailyLoader(OptimalLoader):
         VIX is CRITICAL for circuit breaker logic. NEVER forward-fill missing dates—they indicate
         data corruption or loader failure. All trading dates MUST have valid VIX.
         FAIL-FAST: Raise error if any date missing or has NULL vix_close.
+        FRESHNESS: Validate that vix_history table was updated recently before using data.
         """
+        # Validate upstream data freshness before using it
+        vix_freshness = DataAgeValidator.check("vix_history")
+        if not vix_freshness["is_fresh"]:
+            raise RuntimeError(
+                f"[MARKET_HEALTH CRITICAL] VIX source data is stale: {vix_freshness['message']}. "
+                f"Cannot compute circuit breaker decisions with stale volatility data. "
+                f"Check vix_history loader and ensure it ran recently."
+            )
+
         vix = self._vix_fetcher.fetch(start, end)
         if not isinstance(vix, dict) or len(vix) == 0:
             raise RuntimeError(
@@ -299,11 +321,21 @@ class MarketHealthDailyLoader(OptimalLoader):
         Yield curve slope (10Y-2Y spread) is optional enrichment for market regime detection.
         If yield curve data is unavailable, market regime detection is skipped (graceful degradation).
         If data DOES exist, it must be complete (no forward-fill, no stale fallbacks).
+        FRESHNESS: Validate upstream data is recent before using (don't accept week-old Treasury data).
 
         On data unavailability: Log and return early (no error).
         This allows market health metrics to continue without regime classification.
         """
         try:
+            # Check freshness of economic_metrics (contains yield curve data)
+            econ_freshness = DataAgeValidator.check("economic_metrics_daily")
+            if not econ_freshness["is_fresh"]:
+                logger.warning(
+                    f"[MARKET_HEALTH] Yield curve source data is stale: {econ_freshness['message']}. "
+                    f"Market regime will skip yield curve inversion detection. Continuing with other metrics."
+                )
+                return
+
             yield_curve = self._yield_curve_fetcher.fetch(start, end)
 
             # YieldCurveFetcher now returns explicit data_unavailable flag

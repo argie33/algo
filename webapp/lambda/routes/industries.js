@@ -365,7 +365,7 @@ router.get("/:industry/trend", async (req, res) => {
       return sendPlaceholder(
         res,
         `No trend data available for industry: ${industry}`,
-        200,
+        503,
         "object"
       );
     }

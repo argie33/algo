@@ -107,11 +107,15 @@ def _load_credentials():
             if not host:
                 logger.error("ERROR: 'host' is required in credentials JSON (no localhost fallback for safety)")
                 sys.exit(1)
+            password = creds.get("password")
+            if not password:
+                logger.error("[CRITICAL] Password missing from credentials JSON — cannot authenticate to database")
+                sys.exit(1)
             return (
                 host,
                 int(creds.get("port", 5432)),
                 creds.get("username", "postgres"),
-                creds.get("password", ""),
+                password,
                 creds.get("dbname", "algo"),
             )
         except (json.JSONDecodeError, ValueError) as e:
@@ -124,11 +128,16 @@ def _load_credentials():
         logger.error("ERROR: DB_HOST environment variable is required (no localhost fallback for safety)")
         sys.exit(1)
 
+    db_password = os.getenv("DB_PASSWORD")
+    if not db_password:
+        logger.error("[CRITICAL] DB_PASSWORD environment variable is required — cannot authenticate to database")
+        sys.exit(1)
+
     return (
         db_host,
         int(os.getenv("DB_PORT", 5432)),
         os.getenv("DB_USER", "postgres"),
-        os.getenv("DB_PASSWORD", ""),
+        db_password,
         os.getenv("DB_NAME", "algo"),
     )
 

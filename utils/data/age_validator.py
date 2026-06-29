@@ -107,13 +107,26 @@ class DataAgeValidator:
         # Calculate age
         age_days = (current_date - max_date).days
 
-        # Adjust for weekends: Friday data stays "fresh" through Sunday
-        weekday = current_date.weekday()  # 0=Mon ... 6=Sun
+        # Strictly enforce freshness thresholds
+        # Markets are closed on weekends, so data from Friday may be used on Saturday/Sunday
+        # BUT only if max_age_days explicitly allows it (e.g., price_weekly allows 7 days)
+        # For daily data (max_age_days=1), we should NOT accept 2-day-old data on Sunday
+        # just because markets are closed.
         threshold_days = rule["max_age_days"]
-        if weekday == 5:  # Saturday: Friday data is 1 day old → +1
-            adjusted_threshold = threshold_days + 1
-        elif weekday == 6:  # Sunday: Friday data is 2 days old → +2
-            adjusted_threshold = threshold_days + 2
+
+        # Apply strict threshold: only give slight grace for same-day-of-week data on weekends
+        # (E.g., Friday data can be used Saturday morning, but not 2+ days old on Sunday)
+        weekday = current_date.weekday()  # 0=Mon ... 6=Sun
+        if weekday in (5, 6):  # Saturday or Sunday
+            # Weekend data grace: allow data from 1 more day ago if markets are closed
+            # But only for tables specifically marked as "market_data" (prices, ETF data)
+            # For computed data (signals, scores, risk), enforce strict threshold
+            if rule.get("critical", False) and "price" in rule.get("description", "").lower():
+                # Price/market data can be 1 extra day old on weekends (Saturday allows Fri, Sunday allows Fri)
+                adjusted_threshold = threshold_days + 1
+            else:
+                # Computed data must meet strict threshold regardless of day
+                adjusted_threshold = threshold_days
         else:
             adjusted_threshold = threshold_days
 

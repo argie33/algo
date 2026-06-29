@@ -119,7 +119,7 @@ router.get("/leading-indicators", async (req, res) => {
           fetchError
             ? "Economic data tables not available"
             : "No economic data available",
-          200,
+          503,
           "object"
         );
       }

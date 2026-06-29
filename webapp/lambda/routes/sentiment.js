@@ -97,7 +97,7 @@ router.get("/data", async (req, res) => {
     }
 
     if (!result.rows || result.rows.length === 0) {
-      return sendPlaceholder(res, "No sentiment data available", 200, "items");
+      return sendPlaceholder(res, "No sentiment data available", 503, "items");
     }
 
     return sendPaginated(res, result.rows ?? [], {

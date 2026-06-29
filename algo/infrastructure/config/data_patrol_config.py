@@ -22,6 +22,8 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from algo.infrastructure.config import AlgoConfig
 
+from utils.validation.freshness_config import get_freshness_rule
+
 logger = logging.getLogger(__name__)
 
 
@@ -82,45 +84,56 @@ class DataPatrolConfig:
     def get_staleness_windows(self) -> dict[str, int]:
         """Get data patrol staleness thresholds (days) for all data types.
 
+        CRITICAL: Thresholds are derived from utils/validation/freshness_config.py
+        to ensure data_patrol and freshness_config agree on what "stale" means.
+        Do NOT hardcode separate thresholds here — always reference freshness_config.
+
         Returns:
             {
-                "price_daily": 7,
-                "technical_data_daily": 7,
-                "buy_sell_daily": 7,
-                "trend_data": 7,
-                "signal_quality_scores": 7,
-                "market_health": 7,
-                "sector_ranking": 7,
-                "industry_ranking": 7,
-                "insider_transactions": 30,
-                "analyst_upgrades": 30,
-                "stock_scores": 7,
-                "aaii_sentiment": 7,
-                "growth_metrics": 30,
-                "earnings_history": 120,
+                "price_daily": 1,          # from freshness_config
+                "technical_data_daily": 1,
+                "buy_sell_daily": 1,
+                "trend_template_data": 1,
+                "signal_quality_scores": 1,
+                "market_health_daily": 1,
+                "stock_scores": 1,
+                "algo_risk_daily": 1,
+                ...
             }
         """
-        windows = {
-            "price_daily": self.get("patrol_staleness_price_daily", 7),
-            "technical_data_daily": self.get("patrol_staleness_technical_daily", 7),
-            "buy_sell_daily": self.get("patrol_staleness_buy_sell_daily", 7),
-            "trend_data": self.get("patrol_staleness_trend_data", 7),
-            "signal_quality_scores": self.get("patrol_staleness_signal_quality_scores", 7),
-            "market_health": self.get("patrol_staleness_market_health", 7),
-            "sector_ranking": self.get("patrol_staleness_sector_ranking", 7),
-            "industry_ranking": self.get("patrol_staleness_industry_ranking", 7),
-            "insider_transactions": self.get("patrol_staleness_insider_transactions", 30),
-            "analyst_upgrades": self.get("patrol_staleness_analyst_upgrades", 30),
-            "stock_scores": self.get("patrol_staleness_stock_scores", 7),
-            "aaii_sentiment": self.get("patrol_staleness_aaii_sentiment", 7),
-            "growth_metrics": self.get("patrol_staleness_growth_metrics", 30),
-            "earnings_history": self.get("patrol_staleness_earnings_history", 120),
+        # Map patrol table names to freshness_config table names
+        table_name_map = {
+            "price_daily": "price_daily",
+            "technical_data_daily": "technical_data_daily",
+            "buy_sell_daily": "buy_sell_daily",
+            "trend_data": "trend_template_data",
+            "signal_quality_scores": "signal_quality_scores",
+            "market_health": "market_health_daily",
+            "stock_scores": "stock_scores",
+            "aaii_sentiment": "aaii_sentiment",
+            "growth_metrics": "growth_metrics_daily",
+            "earnings_history": "earnings_history_daily",
+            "sector_ranking": "sector_ranking_daily",
+            "industry_ranking": "industry_ranking_daily",
+            "insider_transactions": "insider_transactions_daily",
+            "analyst_upgrades": "analyst_upgrades_daily",
         }
-        # Log if using defaults (indicates config DB may be down or incomplete)
-        defaults_used = [k for k, v in windows.items() if (v == 7 or v == 30 or v == 120)]
-        if defaults_used:
-            logger.debug(f"[CONFIG] Data patrol staleness using defaults for {len(defaults_used)} tables; "
-                        f"override with patrol_staleness_* config keys if needed")
+
+        windows = {}
+        for patrol_name, fresh_table_name in table_name_map.items():
+            # Try to get from freshness_config first
+            rule = get_freshness_rule(fresh_table_name)
+            if rule:
+                windows[patrol_name] = rule.get("max_age_days", 7)
+            else:
+                # Fallback to conservative default if table not in freshness_config
+                windows[patrol_name] = self.get(f"patrol_staleness_{patrol_name}", 7)
+                logger.warning(
+                    f"[CONFIG] Table '{fresh_table_name}' not found in freshness_config. "
+                    f"Using patrol default of 7 days for '{patrol_name}'. "
+                    f"Consider adding to freshness_config.py FRESHNESS_RULES."
+                )
+
         return windows
 
     def get_coverage_thresholds(self) -> dict[str, int]:

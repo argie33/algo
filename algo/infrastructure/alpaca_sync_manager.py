@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """Alpaca account synchronization and position management.
 
 Extracted from DailyReconciliation to reduce monolithic design and enable

@@ -3673,7 +3673,7 @@ router.get("/naaim", async (req, res) => {
     `);
 
     if (!result.rows.length)
-      return sendPlaceholder(res, "NAAIM data not available", 200, "data");
+      return sendPlaceholder(res, "NAAIM data not available", 503, "data");
 
     const latest = result.rows[0];
     const history = result.rows

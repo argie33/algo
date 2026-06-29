@@ -56,7 +56,7 @@ router.get("/covered-calls", async (req, res) => {
       return sendPlaceholder(
         res,
         "No covered call opportunities available - data may not be populated yet",
-        200,
+        503,
         "items"
       );
     }

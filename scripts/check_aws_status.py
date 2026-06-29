@@ -7,12 +7,16 @@ import psycopg2
 import psycopg2.extras
 
 try:
+    db_password = os.environ.get('DB_PASSWORD')
+    if not db_password:
+        raise ValueError("[CRITICAL] DB_PASSWORD environment variable required — cannot authenticate to database")
+
     conn = psycopg2.connect(
         host=os.environ.get('DB_HOST', 'localhost'),
         port=int(os.environ.get('DB_PORT', '5432')),
         database=os.environ.get('DB_NAME', 'algo_trading'),
         user=os.environ.get('DB_USER', 'algo_user'),
-        password=os.environ.get('DB_PASSWORD', '')
+        password=db_password
     )
 
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)

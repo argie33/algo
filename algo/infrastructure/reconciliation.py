@@ -79,7 +79,7 @@ class DailyReconciliation:
             self.audit_logger = TradeAuditLogger()
             self.trading_client = False  # Dry-run broker, no real credentials
 
-    def run_daily_reconciliation(self, reconcile_date: Any = None, dry_run: bool = False) -> dict[str, Any]:  # noqa: C901
+    def run_daily_reconciliation(self, reconcile_date: Any = None, dry_run: bool = False) -> dict[str, Any]:
         """Run full daily reconciliation. If dry_run=True, skip Alpaca API calls and return mock data.
 
         CRITICAL SAFETY: dry_run mode must be explicitly enabled via ORCHESTRATOR_DRY_RUN environment variable
@@ -811,8 +811,17 @@ class DailyReconciliation:
             return {"updated": 0, "message": f"Error: {e}"}
 
     def audit_stale_estimated_prices(self, cur: Any) -> dict[str, Any]:
-        """Audit for trades with estimated exit prices (stub - returns empty result)."""
-        return {"status": "OK", "stale_count": 0, "stale_symbols": [], "details": {}}
+        """Audit for trades with estimated exit prices.
+
+        Raises:
+            NotImplementedError: Method not yet fully implemented
+        """
+        raise NotImplementedError(
+            "[STALE_PRICE_AUDIT] audit_stale_estimated_prices() not yet implemented. "
+            "Price staleness auditing is critical for position reconciliation accuracy. "
+            "This method must check for estimated exit prices that have not been updated "
+            "within the freshness window before production use."
+        )
 
     def sync_positions(self, cur: Any) -> dict[str, Any]:
         """Sync broker positions via BrokerAdapter."""
@@ -1053,20 +1062,30 @@ class DailyReconciliation:
         return retried
 
     def compute_analytics_metrics(self, cur: Any) -> dict[str, Any]:
-        """Compute analytics metrics (stub - returns empty result)."""
-        return {
-            "ic": {"valid": False, "ic": 0.0, "trade_count": 0},
-            "expectancy": {
-                "valid": False,
-                "expectancy": 0.0,
-                "win_rate": 0.0,
-                "kelly_fraction": 0.0,
-            },
-        }
+        """Compute analytics metrics (Information Coefficient, expectancy, Sharpe ratio).
+
+        Raises:
+            NotImplementedError: Method not yet fully implemented
+        """
+        raise NotImplementedError(
+            "[ANALYTICS_METRICS] compute_analytics_metrics() not yet fully implemented. "
+            "Trade analytics computation (IC, expectancy, Sharpe ratio) is required for "
+            "performance dashboard and algorithmic monitoring. This method was returning "
+            "fake metrics (ic: 0.0, valid: False) — now raises error to prevent silent failure."
+        )
 
     def compute_closed_trade_metrics(self, cur: Any) -> dict[str, Any]:
-        """Compute closed trade metrics (stub - returns reason message)."""
-        return {"reason": "Analytics not yet implemented"}
+        """Compute closed trade metrics (win rate, R-multiples, profit factor).
+
+        Raises:
+            NotImplementedError: Method not yet fully implemented
+        """
+        raise NotImplementedError(
+            "[CLOSED_TRADE_METRICS] compute_closed_trade_metrics() not yet fully implemented. "
+            "Closed trade analysis (win rate, R-multiples, profit factor) is required for "
+            "algorithmic performance evaluation and risk analysis. This placeholder must be "
+            "implemented before production use."
+        )
 
     def check_partial_fills(self, cur: Any) -> dict[str, Any]:
         """Check for partial fills that haven't been reconciled with Alpaca.
