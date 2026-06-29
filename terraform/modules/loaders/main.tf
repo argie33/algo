@@ -449,30 +449,10 @@ locals {
     # Task definitions remain in all_loaders; EventBridge rules below are DISABLED
     # Removed from scheduled_loaders: financials_annual_*, financials_quarterly_*, financials_ttm_*
 
-    # Computed metrics — run daily after market close (4pm ET) so issues can be fixed before next trading day
-    # 21:00 UTC = 5pm EDT / 6pm EST (safe margin after 4pm market close)
-    # STAGGERED: 2-minute intervals to prevent simultaneous runs
-    "growth_metrics" = {
-      schedule    = "cron(0 21 ? * MON-FRI *)"
-      description = "Growth metrics (revenue/EPS growth) - Daily 5:00pm ET"
-    }
-    "quality_metrics" = {
-      schedule    = "cron(2 21 ? * MON-FRI *)"
-      description = "Quality metrics (ROE, margins, D/E) - Daily 5:02pm ET"
-    }
-    "value_metrics" = {
-      schedule    = "cron(4 21 ? * MON-FRI *)"
-      description = "Value metrics (P/E, P/B, P/S ratios) - Daily 5:04pm ET"
-    }
-    "stability_metrics" = {
-      schedule    = "cron(6 21 ? * MON-FRI *)"
-      description = "Stability metrics (beta, volatility) - Daily 5:06pm ET"
-    }
-    # stock_scores runs after all per-symbol metric tables (quality/growth/value/stability) are populated
-    "stock_scores" = {
-      schedule    = "cron(30 21 ? * MON-FRI *)"
-      description = "Multi-factor composite stock scores - Daily 5:30pm ET (after all metrics)"
-    }
+    # FIXED Issue #31: Computed metrics loaders now run via Step Functions pipeline at 5:00 PM ET daily
+    # (were running staggered via EventBridge, but depended on financial data that only ran Monday)
+    # Task definitions remain in all_loaders; EventBridge rules below are DISABLED
+    # Removed from scheduled_loaders: growth_metrics, quality_metrics, value_metrics, stability_metrics, stock_scores
 
     # sector_ranking is now part of the EOD Step Functions pipeline (runs after swing_trader_scores)
     # Removed from EventBridge to ensure it completes BEFORE the orchestrator runs
