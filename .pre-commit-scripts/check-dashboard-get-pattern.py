@@ -127,7 +127,7 @@ if __name__ == "__main__":
             all_violations.extend(violations)
 
     if all_violations:
-        print("❌ .get() pattern violations found (fail-fast discipline violation):")
+        print("[FAIL-FAST VIOLATION] .get() pattern violations found:")
         print("\n".join(all_violations))
         print(
             "\nFix:\n"

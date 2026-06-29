@@ -525,6 +525,8 @@ def _get_algo_portfolio(cur: cursor) -> Any:
         # CRITICAL: snapshot_date is a DATE column (midnight), created_at is TIMESTAMP (actual freshness)
         # Must use created_at; fallback to snapshot_date made data appear stale
         # Use database's NOW() to avoid timezone mismatch with Python datetime
+        # DEBUG: Testing deployment - this code path must run for fix to work
+        logger.info("[DEPLOYMENT-TEST-MARKER] Portfolio endpoint hit with new code")
         try:
             cur.execute("SELECT NOW() at time zone 'UTC'")
             now_row = cur.fetchone()
