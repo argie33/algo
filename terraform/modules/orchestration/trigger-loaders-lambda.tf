@@ -24,7 +24,7 @@ resource "aws_lambda_function" "trigger_loaders" {
   }
 
   depends_on = [
-    aws_iam_role_policy_attachment.trigger_loaders_ecs,
+    aws_iam_role_policy.trigger_loaders_ecs_policy,
     aws_iam_role_policy_attachment.trigger_loaders_db
   ]
 
@@ -56,11 +56,8 @@ resource "aws_iam_role" "trigger_loaders" {
   }
 }
 
-# Allow Lambda to invoke ECS tasks
-resource "aws_iam_role_policy_attachment" "trigger_loaders_ecs" {
-  role       = aws_iam_role.trigger_loaders.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceRoleForEC2"
-}
+# Note: ECS permissions provided via inline policy trigger_loaders_ecs_policy below
+# The managed policy AmazonEC2ContainerServiceRoleForEC2 is for EC2 instances only
 
 # Allow Lambda to describe ECS tasks and run tasks
 resource "aws_iam_role_policy" "trigger_loaders_ecs_policy" {
