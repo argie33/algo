@@ -1912,11 +1912,21 @@ CREATE TABLE IF NOT EXISTS algo_tca (
 -- Migration: See AWS-INFRASTRUCTURE-AUDIT.md for cleanup notes
 -- Table is no longer populated and can be dropped after migration of any dependent reports
 
--- DEPRECATED: algo_risk_daily
--- Replaced by: algo_performance_metrics (populated by compute_performance_metrics.py)
--- Reason: Risk metrics now included in performance_metrics; load_algo_risk_daily.py removed
--- Note: Risk data (sharpe, sortino, max_drawdown, calmar) available in algo_performance_metrics
--- Table is no longer populated and can be dropped after migration
+-- Portfolio Risk Metrics (Daily)
+-- Updated by: ValueAtRisk.generate_daily_risk_report() in Phase 9 reconciliation
+-- Contains: VaR, CVaR, stressed VaR, portfolio beta, concentration metrics
+CREATE TABLE IF NOT EXISTS algo_risk_daily (
+    report_date DATE PRIMARY KEY,
+    var_pct_95 NUMERIC(8, 2),          -- Value at Risk (95% confidence) as % of portfolio
+    cvar_pct_95 NUMERIC(8, 2),         -- Conditional VaR (expected loss beyond VaR) as %
+    stressed_var_pct NUMERIC(8, 2),    -- VaR using worst 12-month historical window
+    portfolio_beta NUMERIC(8, 3),      -- Portfolio beta vs S&P 500 (systematic risk)
+    top_5_concentration NUMERIC(8, 2), -- Top 5 holdings as % of portfolio
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_algo_risk_daily_report_date ON algo_risk_daily(report_date DESC);
 
 -- Economic Metrics Daily - Pre-computed derived economic indicators (MEDIUM ISSUE FIX)
 CREATE TABLE IF NOT EXISTS economic_metrics_daily (

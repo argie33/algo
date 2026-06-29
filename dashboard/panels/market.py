@@ -422,11 +422,7 @@ def panel_header_market(
             nhnl = (nh - nl) if (nh is not None and nl is not None) else None
             nhnl_c = (G if (nhnl is not None and nhnl >= 50) else (Y if (nhnl is not None and nhnl >= 0) else R)) if nhnl is not None else DIM
             adr_s = f"  [dim]Adv/Dec:[/][white]{adr:.1f}[/]" if adr is not None else ""
-            nhnl_s = (
-                f"[dim]New Hi-Lo:[/][{nhnl_c}]{sign(nhnl)}{int(nhnl)}[/]"
-                if nhnl is not None
-                else "[dim]New Hi-Lo: --[/]"
-            )
+            nhnl_s = f"[dim]New Hi-Lo:[/][{nhnl_c}]{sign(nhnl)}{int(nhnl)}[/]" if nhnl is not None else ""
             rows.append(
                 Text.from_markup(
                     f"[dim]Up Volume:[/][{uvc}]{upvol:.0f}%[/]{adr_s}  "
@@ -448,8 +444,6 @@ def panel_header_market(
         if bmom is not None:
             bmc = G if bmom >= 0.5 else (Y if bmom >= 0 else R)
             parts4.append(f"[dim]Breadth Mom:[/][{bmc}]{bmom:.2f}[/]")
-        else:
-            parts4.append("[dim]Breadth Mom:[/][dim]--[/]")
         if ycs is not None:
             yc_c = G if ycs >= 0.5 else (Y if ycs >= 0 else R)
             parts4.append(f"[dim]Yield Curve:[/][{yc_c}]{ycs:+.2f}[/]")
