@@ -1544,6 +1544,7 @@ class PriceLoader(OptimalLoader):
             )
             logger.critical(msg)
             raise RuntimeError(msg)
+        return None
 
     def _monitor_and_enforce_timeouts(
         self,
@@ -1687,6 +1688,7 @@ class PriceLoader(OptimalLoader):
             )
             logger.critical(error_msg)
             raise RuntimeError(error_msg)
+        return None
 
     def _finalize_execution_metrics(self) -> None:
         """Finalize execution: publish metrics, update loader status, attempt final symbol retry."""

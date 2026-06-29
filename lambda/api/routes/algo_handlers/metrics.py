@@ -557,6 +557,7 @@ def _get_algo_portfolio(cur: cursor) -> Any:
             "total_cash": format_decimal_string(data.get("total_cash"), precision=2, allow_none=True),
             "position_count": position_count,
             "daily_return_pct": format_decimal_string(data.get("daily_return_pct"), precision=2, allow_none=True),
+            "debug_code_version": "v2-using-created-at-timestamp",
             "unrealized_pnl": {
                 "total_dollars": format_decimal_string(data.get("unrealized_pnl_total"), precision=2, allow_none=True),
                 "total_pct": format_decimal_string(data.get("unrealized_pnl_pct"), precision=2, allow_none=True),

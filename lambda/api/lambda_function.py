@@ -321,7 +321,7 @@ def redact_sensitive_headers(headers_dict: dict[str, str]) -> dict[str, str]:
     return redacted
 
 
-def validate_query_param_type(value: str, expected_type: str) -> tuple:
+def validate_query_param_type(value: str, expected_type: str) -> tuple[bool, Any]:
     """Validate and convert query parameter to expected type.
 
     Args:
@@ -352,7 +352,7 @@ def validate_query_param_type(value: str, expected_type: str) -> tuple:
         return True, value
 
 
-def parse_query_params(event: dict) -> dict:
+def parse_query_params(event: dict[str, Any]) -> dict[str, str | None]:
     """Parse query parameters from API Gateway v1 or v2 events."""
     params = {}
     # Try v1 format first (REST API)
@@ -512,7 +512,7 @@ def get_cache_headers(cache_type: str = "no-cache") -> dict[str, str]:
         return {"Cache-Control": "no-cache"}
 
 
-def get_bearer_token(event: dict) -> str | None:
+def get_bearer_token(event: dict[str, Any]) -> str | None:
     """Extract Bearer token from Authorization header. CRITICAL: Missing auth header must be explicit None."""
     headers = event.get("headers")
     if headers is None:
@@ -784,7 +784,7 @@ def categorize_error(e: Exception) -> str:
     return "unknown_error"
 
 
-def get_client_ip(event: dict) -> str:
+def get_client_ip(event: dict[str, Any]) -> str:
     """Extract client IP for audit logging.
 
     Uses API Gateway's requestContext.identity.sourceIp as the authoritative source —
@@ -865,7 +865,7 @@ def log_api_request(
         logger.error(f"Failed to log API request: {e!s}")
 
 
-def require_auth(event: dict, path: str) -> tuple:
+def require_auth(event: dict[str, Any], path: str) -> tuple[bool, bool, str | None, dict[str, Any] | None]:
     """
     Check if path requires authentication.
     Returns: (requires_auth: bool, is_authorized: bool, error_msg: str or None, jwt_claims: dict or None)
