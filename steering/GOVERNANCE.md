@@ -141,7 +141,7 @@ Finance applications cannot silently fall back to secondary data sources or acce
 
 ## Credentials & Deployment
 
-**Local:** `scripts/setup-local-dev.ps1` (one-time), then `scripts/refresh-aws-credentials.ps1` if expired.
+**Local:** PostgreSQL setup + `python scripts/apply-database-schema.py` (one-time), then `scripts/refresh-aws-credentials.ps1` if expired.
 
 **Production:** `git push main` → deploy-all-infrastructure.yml (auto)
 
@@ -172,4 +172,4 @@ Finance applications cannot silently fall back to secondary data sources or acce
 See:
 - `steering/LINT_POLICY.md` — Lint discipline, what can/cannot be ignored, audit procedures (critical: enforced per PR)
 - `steering/OPERATIONS.md` — CI/CD procedures, deployments, dashboard diagnostics
-- **Credential setup:** Run `scripts/setup-local-dev.ps1` (one-time) for Alpaca/Cognito keys
+- **Credentials:** Use AWS Secrets Manager. Rotate with `scripts/refresh-aws-credentials.ps1`
