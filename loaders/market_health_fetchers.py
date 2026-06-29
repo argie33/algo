@@ -318,7 +318,11 @@ class BreadthFetcher:
         )
         result = {}
         for row in cur.fetchall():
-            d = row[0].isoformat() if hasattr(row[0], "isoformat") else str(row[0])
+            date_val = row[0]
+            # Convert datetime to date if necessary for consistent formatting
+            if hasattr(date_val, "date"):
+                date_val = date_val.date()
+            d = date_val.isoformat() if hasattr(date_val, "isoformat") else str(date_val)
             result[d] = (int(row[1]) if row[1] is not None else 0, int(row[2]) if row[2] is not None else 0)
         return result
 
@@ -362,7 +366,11 @@ class BreadthFetcher:
 
             result = {}
             for row in rows:
-                d = row[0].isoformat() if hasattr(row[0], "isoformat") else str(row[0])
+                date_val = row[0]
+                # Convert datetime to date if necessary for consistent formatting
+                if hasattr(date_val, "date"):
+                    date_val = date_val.date()
+                d = date_val.isoformat() if hasattr(date_val, "isoformat") else str(date_val)
                 if row[1] is None or row[2] is None:
                     logger.debug(
                         f"[BREADTH_FETCHER] Data quality issue: advances/declines NULL for {d}. "
