@@ -81,6 +81,7 @@ class TestMarketPanelValidation:
             "vix": "18.5",  # String instead of float - safe_float handles
             "spy": 450.25,
             "halts": [],  # CRITICAL: halt_reasons now required
+            "pcr": 0.85,  # CRITICAL: put/call ratio required for sentiment analysis
         }
         panel = panel_market_full(mkt=malformed_mkt)
 

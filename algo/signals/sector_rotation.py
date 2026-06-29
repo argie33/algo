@@ -257,6 +257,24 @@ class SectorRotationDetector:
 
     def _persist(self, eval_date: _date, result: dict[str, Any]) -> None:
         try:
+            # CRITICAL FAIL-FAST: sector_data is required for sector rotation signals
+            # Empty sector data will silently disable sector rotation signals in position sizing
+            if "sector_data" not in result or result["sector_data"] is None:
+                raise ValueError(
+                    f"[CRITICAL] Sector rotation result missing required 'sector_data' for {eval_date}. "
+                    "Cannot persist sector rotation signal without sector breakdown. "
+                    "This data is required for exposure calculation."
+                )
+            if not isinstance(result["sector_data"], dict):
+                raise TypeError(
+                    f"[CRITICAL] sector_data must be dict, got {type(result['sector_data']).__name__} for {eval_date}"
+                )
+            if not result["sector_data"]:
+                raise ValueError(
+                    f"[CRITICAL] sector_data is empty dict for {eval_date}. "
+                    "Sector data is required; cannot proceed with empty sector breakdown."
+                )
+
             details_dict: dict[str, Any] = {
                 "defensive_lead_score": result.get("defensive_lead_score"),
                 "cyclical_weak_score": result.get("cyclical_weak_score"),
@@ -265,7 +283,7 @@ class SectorRotationDetector:
                 "spread_4w": result.get("spread_4w"),
                 "weeks_persistent": result.get("weeks_persistent"),
                 "reduce_exposure_pts": result.get("reduce_exposure_pts"),
-                "sector_data": (result.get("sector_data") if result.get("sector_data") is not None else {}),
+                "sector_data": result["sector_data"],
             }
 
             details_json = json.dumps(details_dict)

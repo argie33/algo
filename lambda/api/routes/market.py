@@ -1347,6 +1347,19 @@ def _get_cap_distribution(cur: cursor) -> Any:
         }
 
     freshness = check_data_freshness(cur, "stock_symbols", "created_at", warning_days=7)
+
+    # CRITICAL FAIL-FAST: Market cap extremes must exist, no defaults to 0
+    market_caps = [s["market_cap"] for s in stocks if s["market_cap"] and s["market_cap"] > 0]
+    if not market_caps:
+        raise ValueError(
+            "[MARKET DATA CRITICAL] No valid market cap values found in stocks list. "
+            "Cannot compute largest/smallest market cap without data. "
+            "Check price_daily loader populated valid market caps."
+        )
+
+    largest_cap = max(market_caps)
+    smallest_cap = min(market_caps)
+
     return json_response(
         200,
         {
@@ -1363,8 +1376,8 @@ def _get_cap_distribution(cur: cursor) -> Any:
             "summary": {
                 "total_stocks": len(stocks),
                 "total_market_cap": total_cap,
-                "largest_cap": max((s["market_cap"] for s in stocks), default=0),
-                "smallest_cap": min((s["market_cap"] for s in stocks if s["market_cap"] > 0), default=0),
+                "largest_cap": largest_cap,
+                "smallest_cap": smallest_cap,
                 "category_distribution": category_dist,
             },
         },

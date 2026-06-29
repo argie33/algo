@@ -254,9 +254,14 @@ def _get_leading_indicators(cur: cursor) -> Any:
             """)
         latest_data = cur.fetchall()
 
-        # Validate latest data
+        # CRITICAL FAIL-FAST: Economic data validation must not silently fallback
+        # Economic indicators are CRITICAL for portfolio decisions
         if not DatabaseResultValidator.validate_rows_not_empty(latest_data, "economic latest indicators query"):
-            latest_data = []
+            raise ValueError(
+                "[CRITICAL] Economic latest indicators data validation failed — no data returned from query. "
+                "Cannot provide economic indicators without data. "
+                "Check economic_data table and data loader."
+            )
 
         latest_rows = {}
         for row in latest_data:
@@ -267,8 +272,12 @@ def _get_leading_indicators(cur: cursor) -> Any:
             if not series_id:
                 logger.warning("Row missing series_id in economic latest data")
                 continue
-            # Safely convert value to float
-            value = DatabaseResultValidator.safe_get_float(row, "value", default=0.0, strict=False)
+            # CRITICAL: Economic values must NOT default to 0.0 (that's factually false)
+            # Use strict=True to fail-fast on missing/invalid values
+            value = DatabaseResultValidator.safe_get_float(row, "value", default=None, strict=True)
+            if value is None:
+                logger.warning(f"[ECONOMIC] Series {series_id} has missing value — skipping indicator")
+                continue
             date = row.get("date")
             latest_rows[series_id] = (value, date)
 

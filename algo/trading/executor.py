@@ -431,12 +431,14 @@ class TradeExecutor:
                 f"status={order_status}, executed_price=${executed_price}"
             )
 
+            # FAIL-FAST: executed_price is guaranteed by validation above (line 423)
+            # No fallback to entry_price — use captured execution price directly
             return (
                 True,
                 alpaca_order_id,
                 order_status,
                 "",
-                Decimal(str(executed_price)) if executed_price else entry_price,
+                Decimal(str(executed_price)),
                 None,
             )
 

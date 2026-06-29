@@ -50,7 +50,7 @@ CRITICAL_INCOMPLETE_LOADERS = {
     # Other critical loaders
     "stock_scores",
     "technical_data_daily",
-    "swing_trader_scores",
+    # NOTE: swing_trader_scores is optional enrichment (legacy), not critical
 }
 
 # Loaders that are auxiliary (warn if incomplete after retry, but allow proceeding)

@@ -75,7 +75,7 @@ class TestVIXFetcherFailFast:
             mock_db.return_value = mock_cursor
 
             # Should raise RuntimeError
-            with pytest.raises(RuntimeError, match="VIX data unavailable"):
+            with pytest.raises(RuntimeError, match=r"\[CRITICAL\].*Failed to fetch VIX"):
                 fetcher._fetch_vix_data(date(2026, 1, 1), date(2026, 1, 31))
 
 
@@ -261,11 +261,16 @@ class TestHaltFlagManagerFailFast:
 
     def test_halt_flag_missing_reason_raises(self):
         """Missing halt reason should raise, not default to 'Unknown'."""
+        from datetime import datetime, timezone
+
         from algo.orchestration.halt_flag_manager import HaltFlagManager
 
         mock_alerts = Mock()
         mock_log_phase_result = Mock()
         manager = HaltFlagManager(mock_alerts, mock_log_phase_result)
+
+        # Use today's date for triggered_at so it matches the market open check
+        today_utc = datetime.now(timezone.utc).isoformat()
 
         # Mock DynamoDB returning halt flag without reason
         with patch("boto3.resource") as mock_boto_resource:
@@ -276,7 +281,7 @@ class TestHaltFlagManagerFailFast:
                     "key": manager.HALT_FLAG_DYNAMODB_KEY,
                     "halt_flag": True,
                     "reason": None,  # Missing reason should cause error
-                    "triggered_at": "2026-06-28T14:30:00+00:00",
+                    "triggered_at": today_utc,
                 }
             }
 
