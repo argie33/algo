@@ -242,7 +242,7 @@ class SwingTraderScore:
                     "eval_date": str(eval_date),
                     "pass": False,
                     "reason": f"Database error during computation: {str(e)[:100]}",
-                    "swing_score": 0.0,
+                    "swing_score": None,
                 }
 
     # ============= HARD GATES =============
