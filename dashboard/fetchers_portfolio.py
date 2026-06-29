@@ -330,6 +330,7 @@ def fetch_perf(c: None) -> dict[str, Any]:
 
         def _f(v: object) -> float | None:
             if v is None:
+                logger.debug("Performance metric value is None - cannot convert to float")
                 return None
             try:
                 return float(v)  # type: ignore[arg-type]

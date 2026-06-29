@@ -247,6 +247,7 @@ def _error_panel(data_name: str, data: Any, title: str, border: str = "magenta")
             padding=(0, 1),
         )
 
+    logger.debug(f"_error_panel: {data_name} has no errors - no panel needed")
     return None
 
 

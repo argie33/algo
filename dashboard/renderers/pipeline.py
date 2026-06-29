@@ -86,6 +86,7 @@ def check_auth_lost() -> Panel | None:
             title="[bold red]RE-AUTHENTICATION REQUIRED[/]",
             border_style="red",
         )
+    logger.debug("Authentication status check: auth valid")
     return None
 
 
@@ -224,6 +225,7 @@ def render_expanded_view(  # noqa: C901
 ) -> Layout | None:
     """Render expanded detail view for given mode."""
     if view_mode == "normal":
+        logger.debug("Expanded view mode is 'normal' - returning normal dashboard")
         return None
 
     _exp_top = (hdr_panel, exp_panel, mascot_panel)
@@ -300,6 +302,10 @@ def render_expanded_view(  # noqa: C901
             )
         case "errors":
             error_panel_exp = error_summary_panel_expanded(ctx.data)
-            return _expanded_layout(*_exp_top, error_panel_exp) if error_panel_exp else None
+            if error_panel_exp:
+                return _expanded_layout(*_exp_top, error_panel_exp)
+            logger.warning("Error summary panel not available for expanded view")
+            return _expanded_layout(*_exp_top, Panel("[red]Error data unavailable[/]", border_style="red"))
 
-    return None
+    logger.warning(f"Unmatched expanded view mode: {view_mode}")
+    return _expanded_layout(*_exp_top, Panel(f"[red]Unknown view mode: {view_mode}[/]", border_style="red"))
