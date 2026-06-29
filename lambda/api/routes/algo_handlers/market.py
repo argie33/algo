@@ -474,6 +474,14 @@ def _get_market(cur: cursor) -> Any:
             return error_response(503, "data_unavailable", "SPY price data unavailable")
         spy_close = float(spy_row["close"])
 
+        # Handle optional fields that may be None or missing (marked with data_unavailable flag)
+        nh_val = market_health.get("new_highs_count")
+        nl_val = market_health.get("new_lows_count")
+        pcr_val = market_health.get("put_call_ratio")
+        bm_val = market_health.get("breadth_momentum_10d")
+        ycs_val = market_health.get("yield_curve_slope")
+
+        # Convert to appropriate types, allowing None for optional fields
         data = {
             "exposure_pct": float(exposure["exposure_pct"]),
             "regime": exposure["regime"],
@@ -486,12 +494,12 @@ def _get_market(cur: cursor) -> Any:
             "spy_change_pct": float(market_health["spy_change_pct"]),
             "up_volume_percent": float(market_health["up_volume_percent"]),
             "advance_decline_ratio": float(market_health["advance_decline_ratio"]),
-            "new_highs_count": int(market_health["new_highs_count"]),
-            "new_lows_count": int(market_health["new_lows_count"]),
-            "put_call_ratio": float(market_health["put_call_ratio"]),
-            "breadth_momentum_10d": float(market_health["breadth_momentum_10d"]),
-            "yield_curve_slope": float(market_health["yield_curve_slope"]),
-            "fed_rate_environment": market_health["fed_rate_environment"],
+            "new_highs_count": int(nh_val) if nh_val is not None else None,
+            "new_lows_count": int(nl_val) if nl_val is not None else None,
+            "put_call_ratio": float(pcr_val) if pcr_val is not None else None,
+            "breadth_momentum_10d": float(bm_val) if bm_val is not None else None,
+            "yield_curve_slope": float(ycs_val) if ycs_val is not None else None,
+            "fed_rate_environment": market_health.get("fed_rate_environment"),
         }
 
         return json_response(200, data)
