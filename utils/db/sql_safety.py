@@ -47,6 +47,7 @@ SAFE_TABLES = {
     "market_events",
     "market_exposure_daily",
     "market_breadth_daily",
+    "ad_line_daily",
     "market_calendar",
     "sector_performance",
     "industry_performance",
