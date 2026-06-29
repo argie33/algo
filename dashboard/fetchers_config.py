@@ -430,10 +430,8 @@ def fetch_circuit(c: None) -> dict[str, Any]:
                 return FetcherValidator.build_error_response(error_msg)
             cur_val = r["current"]
             if cur_val is None:
-                error_msg = f"Circuit breaker {label}: current is None"
-                logger.error(error_msg)
-                record_data_quality_issue("cb", "validation", "null_current", label)
-                return FetcherValidator.build_error_response(error_msg)
+                logger.debug(f"Circuit breaker {label}: current is None (optional data unavailable)")
+                record_data_quality_issue("cb", "validation", "null_current_optional", label)
 
             # Threshold field (REQUIRED: threshold)
             if "threshold" not in r:
@@ -443,10 +441,8 @@ def fetch_circuit(c: None) -> dict[str, Any]:
                 return FetcherValidator.build_error_response(error_msg)
             thr_val = r["threshold"]
             if thr_val is None:
-                error_msg = f"Circuit breaker {label}: threshold is None"
-                logger.error(error_msg)
-                record_data_quality_issue("cb", "validation", "null_threshold", label)
-                return FetcherValidator.build_error_response(error_msg)
+                logger.debug(f"Circuit breaker {label}: threshold is None (optional data unavailable)")
+                record_data_quality_issue("cb", "validation", "null_threshold_optional", label)
 
             # Triggered field (REQUIRED: triggered)
             if "triggered" not in r:
@@ -467,8 +463,8 @@ def fetch_circuit(c: None) -> dict[str, Any]:
                 {
                     "id": r.get("id"),
                     "label": label,
-                    "current": float(cur_val),
-                    "threshold": float(thr_val),
+                    "current": float(cur_val) if cur_val is not None else None,
+                    "threshold": float(thr_val) if thr_val is not None else None,
                     "unit": unit_display,
                     "unit_available": unit is not None,
                     "triggered": safe_bool(is_triggered),
@@ -491,9 +487,10 @@ def fetch_circuit(c: None) -> dict[str, Any]:
             return FetcherValidator.build_error_response(error_msg)
 
         return {
-            "bs": formatted_bs,
-            "any": any_triggered,
-            "n": triggered_count,
+            "breakers": formatted_bs,
+            "any_triggered": any_triggered,
+            "triggered_count": triggered_count,
+            "data_freshness": result.get("data_freshness"),
         }
     except Exception as e:
         error_msg = format_fetcher_error("cb", e)

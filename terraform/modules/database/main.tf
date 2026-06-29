@@ -109,10 +109,9 @@ resource "aws_db_instance" "main" {
   performance_insights_enabled          = true
   performance_insights_retention_period = 7
 
-  # Apply parameter changes during maintenance window to avoid production disruptions
-  # Parameter group changes (max_connections, etc.) may require database reboot
-  # Setting to false prevents mid-market reboots; changes apply during scheduled maintenance
-  apply_immediately = false
+  # Apply parameter changes immediately to fix connection pool exhaustion
+  # max_connections is set to apply_method=immediate, so no reboot is required
+  apply_immediately = true
 
   # Deletion Protection — controlled explicitly, not by environment label
   deletion_protection = var.db_deletion_protection
@@ -152,7 +151,7 @@ resource "aws_db_parameter_group" "postgres" {
   parameter {
     name         = "max_connections"
     value        = "500"
-    apply_method = "pending-reboot"
+    apply_method = "immediate"
   }
 
   # Set statement_timeout at the cluster level so every connection respects the limit
