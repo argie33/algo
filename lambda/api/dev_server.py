@@ -269,8 +269,8 @@ class APIHandler(BaseHTTPRequestHandler):
             # Parse query params
             params = parse_qs(query_string) if query_string else {}
 
-            # Get Authorization header
-            auth_header = self.headers.get("Authorization", "")
+            # Get Authorization header (may be None/missing for CORS preflight or unauthenticated requests)
+            auth_header = self.headers.get("Authorization")
 
             # Simulate Lambda event (API Gateway v2 HTTP API format)
             event: dict[str, Any] = {
