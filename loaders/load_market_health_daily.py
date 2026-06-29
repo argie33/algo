@@ -27,7 +27,6 @@ from utils.data.age_validator import DataAgeValidator
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.optimal_loader import OptimalLoader
-from utils.validation.freshness_config import get_freshness_rule
 
 logger = logging.getLogger(__name__)
 
