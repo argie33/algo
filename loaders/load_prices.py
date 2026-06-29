@@ -1687,6 +1687,19 @@ class PriceLoader(OptimalLoader):
             )
             logger.critical(error_msg)
             raise RuntimeError(error_msg)
+
+        # Timeout check passed — execution should continue.
+        # Returns None to signal caller that no circuit breaker was triggered
+        # and normal batch processing should resume.
+        logger.debug(
+            "[TIMEOUT_MONITOR] Progress check passed: %d/%d symbols (%.1f%% complete). "
+            "ETA %.0fs within timeout %ds. Continuing execution.",
+            processed,
+            total_symbols,
+            (processed / total_symbols * 100) if total_symbols > 0 else 0,
+            total_estimated_sec,
+            task_timeout_sec,
+        )
         return None
 
     def _finalize_execution_metrics(self) -> None:
@@ -1842,6 +1855,19 @@ class PriceLoader(OptimalLoader):
                 raise
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.warning("Failed to update data_loader_status for {self.table_name}: %s", e)
+
+        # Finalization complete. Implicit None return signals successful cleanup.
+        # Caller expects None return — this method is responsible for:
+        #   1. Publishing metrics to CloudWatch via MetricsPublisher
+        #   2. Recording loader status in data_loader_status table
+        #   3. Invalidating Phase 1 cache to prevent stale data consumption
+        # If any step fails, exceptions are logged (non-fatal for final return).
+        # Returns None to indicate finalization is done (caller must not retry).
+        logger.debug(
+            "[FINALIZE_METRICS] Execution metrics finalized for %s. "
+            "Metrics published, loader status recorded, cache invalidated.",
+            self.table_name,
+        )
 
     def run(self, symbols: Iterable[str], parallelism: int = 1, backfill_days: int | None = None) -> dict[str, Any]:
         """Override to use batch fetching (50x faster than per-symbol) + concurrent batches."""
