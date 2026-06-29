@@ -149,7 +149,11 @@ def fetch_signal_eval(c: None) -> dict[str, Any]:
 
 
 def fetch_scores(c: None) -> dict[str, Any]:
-    """Fetch top stock scores from /api/scores. Used by signals panel for composite score display."""
+    """Fetch top stock scores from /api/scores. Used by signals panel for composite score display.
+
+    On 503 transient errors, falls back to cached scores if available (optional data).
+    """
+    from dashboard.api_data_layer import get_cached_response
     from dashboard.fetcher_validator import FetcherValidator
 
     try:
@@ -158,6 +162,20 @@ def fetch_scores(c: None) -> dict[str, Any]:
         # Check for API error
         is_error, error_msg = FetcherValidator.check_api_error(top_data)
         if is_error:
+            # On 503 transient error, try cached scores (optional data can use stale cache)
+            if top_data.get("_is_transient_503"):
+                logger.warning("Scores API returned 503, attempting cache fallback")
+                try:
+                    cached = get_cached_response("/api/scores")
+                    if cached and isinstance(cached, dict) and "items" in cached:
+                        items = cached["items"]
+                        if items:
+                            logger.info("Scores: Using cached data due to API 503 (stale cache acceptable for optional data)")
+                            return {"top": items, "_stale_cache": True}
+                except RuntimeError as cache_err:
+                    logger.warning(f"Scores cache fallback failed (stale cache): {cache_err}")
+                    # Cache is too old or corrupted, continue to error response below
+
             record_data_quality_issue("scores", "api_call", "api_error", error_msg)
             return FetcherValidator.build_error_response(error_msg)
 
