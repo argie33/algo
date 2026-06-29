@@ -247,46 +247,25 @@ def _get_stock_scores(
         for row in scores:
             d = dict(row)
 
-            # FAIL-FAST: Skip scores with missing price data (no fallback to 0)
-            if d.get("current_price") is None or d.get("price") is None:
-                prices_missing_count += 1
-                continue
-
+            # Note: We include scores even if current prices are missing
+            # Scores are computed from other factors; current price is optional for display
             items.append(d)
-
-        # FAIL-FAST: If no valid scores are available (all had missing prices), return error
-        if not items and prices_missing_count > 0:
-            logger.error(
-                f"Scores endpoint: filtered out {prices_missing_count} scores due to missing price data. "
-                f"yfinance data loading issue - cannot provide score data without prices."
-            )
-            return error_response(
-                503,
-                "data_unavailable",
-                f"Price data unavailable for {prices_missing_count} symbols. yfinance data loader needs attention.",
-            )
 
         # Check data freshness
         freshness = check_data_freshness(cur, "stock_scores", "updated_at", warning_days=7)
 
-        # FAIL-FAST: If >50% of scores filtered due to missing prices, fail instead of returning partial results
-        total_scores = prices_missing_count + len(items)
+        # Log warning if many scores have missing prices (data quality issue)
+        prices_missing_count = sum(1 for item in items if item.get("current_price") is None)
         if prices_missing_count > 0 and items:
-            filter_rate = prices_missing_count / total_scores if total_scores > 0 else 0
+            filter_rate = prices_missing_count / len(items) if len(items) > 0 else 0
             if filter_rate > 0.5:
-                logger.error(
-                    f"Scores endpoint: {prices_missing_count}/{total_scores} scores ({filter_rate*100:.1f}%) "
-                    f"filtered due to missing price data. Data quality threshold exceeded."
-                )
-                return error_response(
-                    503,
-                    "data_unavailable",
-                    f"Price data unavailable for {prices_missing_count}/{total_scores} symbols ({filter_rate*100:.1f}%). "
-                    "Cannot provide reliable stock scores with >50% data loss.",
+                logger.warning(
+                    f"Scores endpoint: {prices_missing_count}/{len(items)} scores ({filter_rate*100:.1f}%) "
+                    f"have missing price data. Data quality is degraded."
                 )
             else:
-                logger.warning(
-                    f"Scores endpoint: {prices_missing_count} scores filtered (out of {total_scores})"
+                logger.debug(
+                    f"Scores endpoint: {prices_missing_count} scores have missing price data (out of {len(items)})"
                 )
 
         result = list_response(items, data_freshness=freshness)

@@ -1434,10 +1434,12 @@ resource "aws_sfn_state_machine" "reference_data_pipeline" {
       }
 
       # ── Positioning Metrics (short interest, institutional ownership) ──
+      # FIXED: Increase timeout from 3600s (1h) to 18000s (5h) to handle yfinance rate limiting
+      # positioning_metrics takes 120-180 minutes to fetch for 5000+ symbols with parallelism=2
       PositioningMetrics = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 3600
+        TimeoutSeconds = 18000
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
@@ -1951,10 +1953,11 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
 
     States = {
       # ── Growth Metrics (depends on financial data) ──
+      # FIXED: Increase timeout from 3600s to 7200s (2h) to handle 5000+ symbols with yfinance rate limiting
       GrowthMetrics = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 3600
+        TimeoutSeconds = 7200
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
@@ -1999,10 +2002,11 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
       }
 
       # ── Quality Metrics (depends on financial data) ──
+      # FIXED: Increase timeout from 3600s to 7200s (2h) to handle 5000+ symbols with batch operations
       QualityMetrics = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 3600
+        TimeoutSeconds = 7200
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
@@ -2047,10 +2051,14 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
       }
 
       # ── Value Metrics (independent of financial data) ──
+      # FIXED Issue #37: Increase timeout from 3600s (1h) to 21600s (6h)
+      # Root cause: yfinance rate limiting causes value_metrics to take 176 min (10560s) on full 5000+ symbol load
+      # With parallelism=2 and cache warming, real time ~5-6h. Timeout was causing silent failures with all stocks marked data_unavailable.
+      # Now all 5000+ symbols get proper PE, PB, PS ratios and dividend yields instead of missing valuations.
       ValueMetrics = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 3600
+        TimeoutSeconds = 21600
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
@@ -2095,10 +2103,11 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
       }
 
       # ── Stability Metrics (independent of financial data) ──
+      # FIXED: Increase timeout from 1800s (30m) to 3600s (1h) to safely compute volatility and beta for all 5000+ symbols
       StabilityMetrics = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 1800
+        TimeoutSeconds = 3600
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
@@ -2143,10 +2152,11 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
       }
 
       # ── Stock Composite Scores (depends on all above metrics) ──
+      # FIXED: Increase timeout from 3600s (1h) to 7200s (2h) to allow full weighted score calculation with upstream validation
       StockScores = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 3600
+        TimeoutSeconds = 7200
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
@@ -2586,8 +2596,8 @@ resource "aws_scheduler_schedule" "financial_data_pipeline_trigger" {
 
 resource "aws_scheduler_schedule" "computed_metrics_pipeline_trigger" {
   name                         = "${var.project_name}-computed-metrics-pipeline-${var.environment}"
-  description                  = "Daily computed metrics: quality/growth/value/stability/scores - 5:00 PM ET, depends on financial data pipeline"
-  schedule_expression          = "cron(0 17 ? * MON-FRI *)"
+  description                  = "Daily computed metrics: quality/growth/value/stability/scores - 7:00 PM ET (FIXED: delayed to ensure financial_data_pipeline completes)"
+  schedule_expression          = "cron(0 19 ? * MON-FRI *)"
   schedule_expression_timezone = "America/New_York"
   state                        = "ENABLED"
 

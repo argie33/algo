@@ -22,6 +22,7 @@ from loaders.loader_helper import setup_imports
 setup_imports()
 
 import logging  # noqa: E402
+from collections.abc import Iterable  # noqa: E402
 from datetime import date, datetime, timezone  # noqa: E402
 from typing import Any  # noqa: E402
 
@@ -40,6 +41,68 @@ class StockScoresLoader(OptimalLoader):
     table_name = "stock_scores"
     primary_key = ("symbol",)
     watermark_field: str = ""  # No date watermark, we compute all at once
+
+    def run(self, symbols: Iterable[str], parallelism: int = 1, backfill_days: int | None = None) -> dict[str, Any]:
+        """Override run to validate upstream metrics are ready before computing scores.
+
+        CRITICAL: Fail fast if upstream metric loaders haven't populated data.
+        If quality/growth/value/positioning/stability metrics are all missing,
+        stock_scores will be empty (no actual factor scores, just metadata).
+        """
+        self._validate_upstream_metrics_ready()
+        return super().run(symbols, parallelism=parallelism, backfill_days=backfill_days)
+
+    def _validate_upstream_metrics_ready(self) -> None:
+        """Check that upstream metric tables have sufficient coverage.
+
+        Raises RuntimeError if critical metric loaders haven't populated data yet.
+        Prevents silent score computation failure when metrics are missing due to loader timeouts.
+        """
+        try:
+            with DatabaseContext("read") as cur:
+                metric_tables = {
+                    "quality_metrics": 0.75,  # Require 75% coverage for SEC filings
+                    "growth_metrics": 0.75,   # Require 75% coverage for SEC filings
+                    "value_metrics": 0.80,    # Require 80% (less dependent on financials)
+                    "positioning_metrics": 0.70,  # Require 70% (many don't have short interest data)
+                    "stability_metrics": 0.85,    # Require 85% (computed from price data, nearly complete)
+                }
+
+                for table_name, min_coverage in metric_tables.items():
+                    cur.execute(f"SELECT COUNT(*) FROM {table_name} WHERE data_unavailable = false")
+                    row = cur.fetchone()
+                    available_count = row[0] if row else 0
+
+                    cur.execute(f"SELECT COUNT(*) FROM {table_name}")
+                    row = cur.fetchone()
+                    total_count = row[0] if row else 0
+
+                    if total_count == 0:
+                        raise RuntimeError(
+                            f"[STOCK_SCORES] Pre-flight validation failed: {table_name} is empty. "
+                            f"Upstream metric loader may not have run yet. "
+                            f"Cannot compute stock scores without metric data."
+                        )
+
+                    coverage = available_count / total_count if total_count > 0 else 0
+                    if coverage < min_coverage:
+                        raise RuntimeError(
+                            f"[STOCK_SCORES] Pre-flight validation failed: {table_name} only {coverage:.1%} coverage "
+                            f"({available_count}/{total_count} stocks with data). "
+                            f"Requires minimum {min_coverage:.0%} coverage. "
+                            f"Upstream metric loader may have timed out or failed. "
+                            f"Check step function logs and metric loader CloudWatch logs."
+                        )
+
+                logger.info(
+                    f"[STOCK_SCORES] Pre-flight validation passed: "
+                    f"All upstream metric loaders have sufficient coverage (>={min(metric_tables.values()):.0%}). "
+                    f"Proceeding with stock score computation."
+                )
+        except RuntimeError:
+            raise
+        except Exception as e:
+            logger.warning(f"[STOCK_SCORES] Pre-flight validation skipped due to query error: {e}")
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Compute stock scores for this symbol.
@@ -248,8 +311,7 @@ class StockScoresLoader(OptimalLoader):
                     "quick_ratio": self._safe_float(row[6], f"{symbol}.quick_ratio"),
                 }
             # Explicitly log when quality data unavailable (optional enrichment)
-            import logging
-            logging.debug(f"[LOAD_STOCK_SCORES] No quality metrics available for {symbol} — will reduce score completeness")
+            logger.debug(f"[LOAD_STOCK_SCORES] No quality metrics available for {symbol} — will reduce score completeness")
             return None
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Database operation failed fetching quality metrics for {symbol}: {e}") from e
@@ -276,8 +338,7 @@ class StockScoresLoader(OptimalLoader):
                     "eps_growth_5y": self._safe_float(row[5], f"{symbol}.eps_growth_5y"),
                 }
             # Explicitly log when growth data unavailable (optional enrichment)
-            import logging
-            logging.debug(f"[LOAD_STOCK_SCORES] No growth metrics available for {symbol} — will reduce score completeness")
+            logger.debug(f"[LOAD_STOCK_SCORES] No growth metrics available for {symbol} — will reduce score completeness")
             return None
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Database operation failed fetching growth metrics for {symbol}: {e}") from e

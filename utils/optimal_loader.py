@@ -400,43 +400,72 @@ class OptimalLoader:
             raise RuntimeError(f"[{self.table_name}] {len(failed_symbols)} symbols failed—incomplete dataset. Failed: {failed_symbols[:10]}{'...' if len(failed_symbols) > 10 else ''}")
 
     def _run_parallel(self, symbols: list[str], workers: int) -> None:
-        from concurrent.futures import ThreadPoolExecutor, as_completed
+        from concurrent.futures import ThreadPoolExecutor, as_completed, wait, FIRST_COMPLETED
         from concurrent.futures import TimeoutError as FutureTimeoutError
 
-        per_symbol_timeout = int(os.getenv("LOADER_PER_SYMBOL_TIMEOUT_SECONDS", "600"))
+        per_symbol_timeout = int(os.getenv("LOADER_PER_SYMBOL_TIMEOUT_SECONDS", "120"))
         max_batch_time = int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", "10800"))
         batch_start = time.time()
 
         with ThreadPoolExecutor(max_workers=workers) as exe:
             futures = {exe.submit(self._safe_load_symbol, s): s for s in symbols}
             done = 0
-            try:
-                for fut in as_completed(futures, timeout=per_symbol_timeout):
-                    elapsed_batch = time.time() - batch_start
-                    if elapsed_batch > max_batch_time:
-                        logger.critical(f"[{self.table_name}] HARD LIMIT: Batch exceeded {max_batch_time}s SLA. Killing all workers.")
-                        for f in futures:
-                            f.cancel()
-                        raise RuntimeError(f"Loader exceeded hard SLA limit ({max_batch_time}s)")
-                    if self._infrastructure.check_shutdown_requested():
-                        logger.warning(f"[{self.table_name}] Graceful shutdown - cancelling remaining tasks")
-                        for f in futures:
-                            f.cancel()
-                        break
+            pending_futures = set(futures.keys())
+            symbol_start_times = {f: time.time() for f in futures.keys()}
+
+            while pending_futures:
+                elapsed_batch = time.time() - batch_start
+                if elapsed_batch > max_batch_time:
+                    logger.critical(f"[{self.table_name}] HARD LIMIT: Batch exceeded {max_batch_time}s SLA. Killing all workers.")
+                    for f in pending_futures:
+                        f.cancel()
+                    self._stats.increment("symbols_failed", len(pending_futures))
+                    raise RuntimeError(f"Loader exceeded hard SLA limit ({max_batch_time}s)")
+
+                if self._infrastructure.check_shutdown_requested():
+                    logger.warning(f"[{self.table_name}] Graceful shutdown - cancelling remaining tasks")
+                    for f in pending_futures:
+                        f.cancel()
+                    self._stats.increment("symbols_failed", len(pending_futures))
+                    break
+
+                # Wait for the next future to complete, with a short polling timeout
+                # to detect stalled workers every 5 seconds
+                try:
+                    done_futures, pending_futures = wait(
+                        pending_futures,
+                        timeout=5.0,
+                        return_when=FIRST_COMPLETED
+                    )
+                except Exception as e:
+                    logger.error(f"[{self.table_name}] Wait failed: {e}")
+                    break
+
+                # Process completed futures
+                for fut in done_futures:
                     try:
-                        fut.result(timeout=5)
+                        fut.result(timeout=1)
                         done += 1
                     except Exception as fut_err:
                         logger.error(f"[{self.table_name}] Future task failed: {fut_err}")
                         done += 1
                     if done % 100 == 0:
                         logger.info(f"  Progress: {done}/{len(symbols)}")
-            except FutureTimeoutError:
-                pending = [s for f, s in futures.items() if not f.done()]
-                logger.error(f"[{self.table_name}] Per-symbol timeout ({per_symbol_timeout}s) reached. {len(pending)} symbols hung.")
-                self._stats.increment("symbols_failed", len(pending))
-                for f in futures.keys():
-                    f.cancel()
+
+                # Check for stalled workers (symbols taking >per_symbol_timeout)
+                stalled = []
+                for fut in pending_futures:
+                    elapsed = time.time() - symbol_start_times.get(fut, time.time())
+                    symbol = futures.get(fut, "unknown")
+                    if elapsed > per_symbol_timeout:
+                        logger.warning(
+                            f"[{self.table_name}] Symbol {symbol} exceeded timeout ({elapsed:.0f}s > {per_symbol_timeout}s). Cancelling."
+                        )
+                        fut.cancel()
+                        stalled.append(fut)
+                        self._stats.increment("symbols_failed")
+
+                pending_futures -= set(stalled)
 
         failed_count = self._stats.get("symbols_failed", 0)
         fail_rate = (failed_count / len(symbols)) * 100 if symbols else 0

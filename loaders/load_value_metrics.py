@@ -100,10 +100,16 @@ class ValueMetricsLoader(OptimalLoader):
         within days due to earnings announcements, ex-dividend dates, and stock splits.
         Stale cached data masks real price discovery and risks incorrect valuations.
         """
+        import time
+        start_time = time.time()
         try:
+            elapsed = time.time() - start_time
+            if elapsed > 10:
+                logger.warning(f"[VALUE_METRICS] {symbol}: get_ticker took {elapsed:.1f}s")
             ticker = get_ticker(symbol)
             if not ticker:
-                logger.info(f"[VALUE_METRICS] Ticker not found for {symbol} — metrics unavailable")
+                elapsed = time.time() - start_time
+                logger.info(f"[VALUE_METRICS] Ticker not found for {symbol} — metrics unavailable (total: {elapsed:.1f}s)")
                 return [
                     {
                         "symbol": symbol,
@@ -225,6 +231,9 @@ class ValueMetricsLoader(OptimalLoader):
             if held_institutions is not None:
                 held_institutions_pct = float(held_institutions) * 100
 
+            elapsed = time.time() - start_time
+            if elapsed > 5:
+                logger.warning(f"[VALUE_METRICS] {symbol}: fetch took {elapsed:.1f}s total")
             return [
                 {
                     "symbol": symbol,
@@ -265,10 +274,12 @@ class ValueMetricsLoader(OptimalLoader):
                 }
             ]
         except (requests.Timeout, requests.ConnectionError) as e:
-            logger.warning(f"[VALUE_METRICS] API timeout/connection error for {symbol} (transient, will retry): {e}")
+            elapsed = time.time() - start_time
+            logger.warning(f"[VALUE_METRICS] API timeout/connection error for {symbol} (transient, will retry) after {elapsed:.1f}s: {e}")
             raise TransientAPIError(f"yfinance timeout fetching value metrics for {symbol}") from e
         except Exception as e:
-            logger.error(f"[VALUE_METRICS] Unexpected error for {symbol} (not data unavailability): {type(e).__name__}: {e}")
+            elapsed = time.time() - start_time
+            logger.error(f"[VALUE_METRICS] Unexpected error for {symbol} (not data unavailability) after {elapsed:.1f}s: {type(e).__name__}: {e}")
             raise
 
     def pre_run(self) -> None:
