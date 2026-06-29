@@ -447,7 +447,7 @@ class Orchestrator:
                                 f"Loader health check failed: {table_name} is stale but has no last_updated timestamp. "
                                 f"Loader execution tracking may be corrupted."
                             )
-                        age_hours = (now_utc - last_updated_utc).total_seconds() / 3600
+                        age_hours = (now_utc - last_updated.replace(tzinfo=timezone.utc)).total_seconds() / 3600
                         logger.warning(f"[LOADER HEALTH] {table_name} is STALE (last run {age_hours:.1f}h ago)")
                     elif not is_complete:
                         if completion_pct is None:

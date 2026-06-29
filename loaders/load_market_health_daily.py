@@ -916,6 +916,34 @@ class MarketHealthDailyLoader(OptimalLoader):
                 logger.info(f"[MARKET_HEALTH] No new dates to process (all dates before watermark {since_str})")
                 return health_metrics
 
+        # Cap health_metrics to the latest date for which VIX data is available in price_daily.
+        # VIX is populated by a separate daily load; on trading days the intraday run of
+        # market_health_daily often runs before VIX data for today exists. Attempting to merge
+        # VIX for "today" when it hasn't been loaded yet causes a hard failure. Instead, we only
+        # compute health metrics up to the latest date VIX is available — today's row is computed
+        # on the next run once VIX data lands.
+        try:
+            with DatabaseContext("read") as cur:
+                cur.execute("SELECT MAX(date) FROM price_daily WHERE symbol = '^VIX'")
+                vix_max_row = cur.fetchone()
+                max_vix_date: date | None = vix_max_row[0] if vix_max_row else None
+        except Exception as e:
+            logger.warning(f"[MARKET_HEALTH] Could not query max VIX date: {e} — proceeding without cap")
+            max_vix_date = None
+
+        if max_vix_date is not None:
+            max_vix_str = max_vix_date.isoformat()
+            before_vix_cap = len(health_metrics)
+            health_metrics = [m for m in health_metrics if m["date"] <= max_vix_str]
+            if len(health_metrics) < before_vix_cap:
+                logger.info(
+                    f"[MARKET_HEALTH] Capped health_metrics to VIX availability: {before_vix_cap} -> {len(health_metrics)} "
+                    f"(VIX in price_daily through {max_vix_str}; skipping dates beyond that)"
+                )
+            if not health_metrics:
+                logger.info("[MARKET_HEALTH] No dates with VIX coverage — all metrics deferred to next run")
+                return []
+
         # Derive the actual date range for external data fetches (only covers retained dates)
         merge_start = date.fromisoformat(health_metrics[0]["date"]) if health_metrics else start
         merge_end = date.fromisoformat(health_metrics[-1]["date"]) if health_metrics else end
