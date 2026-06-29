@@ -663,12 +663,14 @@ def check_data_freshness(
         data_age = (today - max_date).days
 
         # Financial market data only updates on trading days (Mon-Fri).
-        # Adjust the staleness threshold on weekends so Friday's data stays
-        # "fresh" through Sunday without triggering false stale warnings.
+        # Adjust the staleness threshold so Friday's data stays "fresh" through
+        # the weekend and into Monday morning (before EOD loaders run).
         weekday = today.weekday()  # 0=Mon … 6=Sun
         if weekday == 5:  # Saturday: Friday data is 1 day old → +1
             effective_warning = warning_days + 1
         elif weekday == 6:  # Sunday:   Friday data is 2 days old → +2
+            effective_warning = warning_days + 2
+        elif weekday == 0:  # Monday:   Friday data is 3 days old → +2
             effective_warning = warning_days + 2
         else:
             effective_warning = warning_days
