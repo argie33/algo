@@ -14,6 +14,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -22,7 +23,7 @@ logger.setLevel(logging.INFO)
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 
-def get_credentials():
+def get_credentials() -> dict[str, Any]:
     """Get DB credentials from Secrets Manager via credential_manager."""
     try:
         from config.credential_manager import get_db_credentials
@@ -107,7 +108,7 @@ def get_credentials():
         }
 
 
-def run_migrations(creds: dict) -> dict:
+def run_migrations(creds: dict[str, Any]) -> dict[str, Any]:
     """Execute migrations/run.py apply --all with credentials from Secrets Manager."""
     try:
         # Build credentials JSON to pass to run.py
@@ -176,7 +177,7 @@ def run_migrations(creds: dict) -> dict:
         }
 
 
-def lambda_handler(event, context):
+def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
     """Lambda entry point for database migrations."""
     try:
         logger.info("Starting database migrations")
