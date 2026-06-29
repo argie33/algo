@@ -141,7 +141,7 @@ from models.responses import (
     ListResponse,
     ErrorResponse,
     DataFreshness,
-    
+
     # Specific response types
     HealthResponse,
     StockProfileResponse,
@@ -425,16 +425,16 @@ async function fetchSignalsWithRetry(maxAttempts = 3): Promise<ListResponse<Sign
   for (let i = 0; i < maxAttempts; i++) {
     const response = await fetch('/api/signals');
     const data = await response.json();
-    
+
     if (data.data_freshness?.status !== 'STALE') {
       return data;
     }
-    
+
     if (i < maxAttempts - 1) {
       await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
     }
   }
-  
+
   throw new Error('Unable to fetch fresh data');
 }
 ```

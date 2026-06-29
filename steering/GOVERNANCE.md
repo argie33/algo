@@ -53,7 +53,7 @@ Finance applications cannot silently fall back to secondary data sources or acce
    - Price history < 30 days (cannot calculate volatility)
    - No SEC filings available (cannot calculate quality/growth)
    - Missing upstream metric data
-   
+
 3. **No secondary fallbacks:** Never use:
    - yfinance beta instead of calculated volatility (incomplete risk picture)
    - Short-term momentum when long-term unavailable (different signal)

@@ -70,7 +70,7 @@ describe("Concurrent Database Transaction Integration", () => {
       const concurrentReads = Array.from({ length: 5 }, () =>
         transaction(async (client) => {
           const result = await client.query(`
-            SELECT COUNT(*) as count, SUM(value) as total 
+            SELECT COUNT(*) as count, SUM(value) as total
             FROM test_concurrent_reads
           `);
           return {
@@ -121,8 +121,8 @@ describe("Concurrent Database Transaction Integration", () => {
         transaction(async (client) => {
           const result = await client.query(
             `
-            INSERT INTO test_concurrent_inserts (transaction_id, value) 
-            VALUES ($1, $2) 
+            INSERT INTO test_concurrent_inserts (transaction_id, value)
+            VALUES ($1, $2)
             RETURNING id
           `,
             [i, `value_${i}`]
@@ -187,9 +187,9 @@ describe("Concurrent Database Transaction Integration", () => {
           // Update with incremented value
           const updateResult = await client.query(
             `
-            UPDATE test_concurrent_updates 
-            SET counter = $1, last_updated_by = $2 
-            WHERE id = 1 
+            UPDATE test_concurrent_updates
+            SET counter = $1, last_updated_by = $2
+            WHERE id = 1
             RETURNING counter
           `,
             [currentValue + 1, i]

@@ -34,7 +34,7 @@
   ```python
   # ❌ Unsafe — mypy passes but fails at runtime
   if data.get("price") >= 0:  # price could be dict
-  
+
   # ✅ Safe — Pylint catches, runtime safe
   price = safe_float(data.get("price"))  # Returns float | None
   if price is not None and price >= 0:  # Type-safe now

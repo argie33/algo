@@ -85,11 +85,11 @@ jobs:
           API_URL=$(terraform output -raw api_url 2>/dev/null || echo "")
           POOL_ID=$(terraform output -raw cognito_user_pool_id 2>/dev/null || echo "")
           CLIENT_ID=$(terraform output -raw cognito_user_pool_client_id 2>/dev/null || echo "")
-          
+
           echo "api_url=$API_URL" >> $GITHUB_OUTPUT
           echo "cognito_user_pool_id=$POOL_ID" >> $GITHUB_OUTPUT
           echo "cognito_user_pool_client_id=$CLIENT_ID" >> $GITHUB_OUTPUT
-          
+
           echo "Dashboard Config:"
           echo "  API URL: $API_URL"
           echo "  Cognito Pool: ${POOL_ID:0:20}..."
@@ -143,9 +143,9 @@ jobs:
         run: |
           SECRET_NAME=$(jq -r '.rds_credentials_secret_name.value' outputs.json)
           SECRET=$(aws secretsmanager get-secret-value --secret-id "$SECRET_NAME" --query SecretString --output text)
-          
+
           echo "::add-mask::$(echo $SECRET | jq -r '.password')"
-          
+
           echo "DB_HOST=$(echo $SECRET | jq -r '.host')" >> $GITHUB_ENV
           echo "DB_PORT=$(echo $SECRET | jq -r '.port')" >> $GITHUB_ENV
           echo "DB_USER=$(echo $SECRET | jq -r '.username')" >> $GITHUB_ENV
@@ -200,4 +200,3 @@ jobs:
           echo "\$env:COGNITO_USER_POOL_ID = '$(jq -r '.cognito_user_pool_id.value' outputs.json)'"
           echo "\$env:COGNITO_CLIENT_ID = '$(jq -r '.cognito_user_pool_client_id.value' outputs.json)'"
           echo "```"
-

@@ -1,7 +1,7 @@
 # Test Data Governance
 
-**Effective Date:** 2026-06-29  
-**Status:** Active  
+**Effective Date:** 2026-06-29
+**Status:** Active
 **Remediation Phase:** Complete (Phases 1-2, consolidation underway)
 
 ---
@@ -14,7 +14,7 @@ This document defines how test/mock data is managed in the algo finance applicat
 
 ### ✅ Completed
 
-1. **Price seeding removed from production orchestrator Lambda** 
+1. **Price seeding removed from production orchestrator Lambda**
    - Removed 80+ lines of price seeding code from `lambda/algo_orchestrator/lambda_function.py`
    - Now raises RuntimeError if seed_prices passed to orchestrator
    - Replacement: Separate `algo-test-seed-prices-dev` Lambda for development
@@ -256,19 +256,19 @@ algo/
 ## Troubleshooting
 
 ### "DryRunBrokerAdapter requires ORCHESTRATOR_DRY_RUN=true"
-**Cause:** Trying to use dry-run adapter without explicitly enabling test mode  
+**Cause:** Trying to use dry-run adapter without explicitly enabling test mode
 **Fix:** Set `ORCHESTRATOR_DRY_RUN=true` in environment before using
 
 ### "Test mode is enabled but ENVIRONMENT is production"
-**Cause:** Test flags set in production environment  
+**Cause:** Test flags set in production environment
 **Fix:** Set `ENVIRONMENT=development` or disable test mode flags
 
 ### "Mock data detected in production path"
-**Cause:** TestDataDetector found markers in critical trading path  
+**Cause:** TestDataDetector found markers in critical trading path
 **Fix:** Ensure test data is not being passed to position sizer/executor
 
 ### "seed_prices feature is for development only"
-**Cause:** Trying to seed prices in orchestrator Lambda  
+**Cause:** Trying to seed prices in orchestrator Lambda
 **Fix:** Use separate `algo-test-seed-prices-dev` Lambda for price seeding
 
 ---

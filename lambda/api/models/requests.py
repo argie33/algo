@@ -2,9 +2,9 @@
 
 import logging
 import re
-from typing import cast
+from typing import Any, cast
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +42,7 @@ class TradePreviewRequest(BaseModel):
 
     @field_validator("stop_loss_price")
     @classmethod
-    def validate_stop_loss(cls, v, info) -> float | None:
+    def validate_stop_loss(cls, v: Any, info: ValidationInfo) -> float | None:
         if v is not None and "entry_price" in info.data:
             entry_price = info.data["entry_price"]
             if v >= entry_price:
@@ -61,7 +61,7 @@ class ContactSubmissionRequest(BaseModel):
 
     @field_validator("email")
     @classmethod
-    def validate_email(cls, v) -> str:
+    def validate_email(cls, v: Any) -> str:
         if not EMAIL_PATTERN.match(v):
             raise ValueError("Invalid email format")
         return cast(str, v)
@@ -92,17 +92,17 @@ class ContactSubmissionRequest(BaseModel):
 
     @field_validator("message", "name", "subject")
     @classmethod
-    def check_dangerous_content(cls, v: str | None, info) -> str | None:
+    def check_dangerous_content(cls, v: Any, info: ValidationInfo) -> str | None:
         """Check for XSS patterns (plaintext input that will be rendered as HTML)."""
         if v is None:
-            return v
+            return None
 
         field_name = info.field_name
         for pattern in XSS_PATTERNS:
             if re.search(pattern, v, re.IGNORECASE):
                 raise ValueError(f"{field_name} contains invalid content")
 
-        return v
+        return cast(str, v)
 
 
 class VerifyUserEmailRequest(BaseModel):
@@ -112,7 +112,7 @@ class VerifyUserEmailRequest(BaseModel):
 
     @field_validator("username")
     @classmethod
-    def validate_username(cls, v) -> str:
+    def validate_username(cls, v: Any) -> str:
         # Allow email format or standard username format
         if not re.match(r"^[a-zA-Z0-9._\-@+]+$", v):
             raise ValueError("Username must contain only alphanumeric characters, dots, underscores, dashes, @ or +")
@@ -175,10 +175,10 @@ class ManualTradeRequest(BaseModel):
 
     @field_validator("stop_loss_price")
     @classmethod
-    def validate_stop_loss(cls, v: float | None, info) -> float | None:
+    def validate_stop_loss(cls, v: Any, info: ValidationInfo) -> float | None:
         if v is not None and v <= 0:
             raise ValueError("Stop loss price must be greater than 0")
-        return v
+        return cast(float | None, v)
 
 
 class PositionUpdateRequest(BaseModel):

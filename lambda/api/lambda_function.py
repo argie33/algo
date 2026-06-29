@@ -55,16 +55,78 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 # Apply critical database migrations on Lambda cold start
-try:
-    import schema_manager
+def _apply_critical_migrations():
+    """Apply critical schema migrations directly in Lambda startup.
 
-    success, msg = schema_manager.apply_critical_migrations()
-    if success:
-        logger.info(f"[STARTUP] Schema migrations applied: {msg}")
-    else:
-        logger.warning(f"[STARTUP] Schema migration issue: {msg}")
+    Adds data_unavailable columns to metric tables that the scores query requires.
+    This is a self-healing mechanism - if columns already exist, ALTER TABLE ... IF NOT EXISTS does nothing.
+    """
+    try:
+        # Import psycopg2 for direct database access (no ORM complexity)
+        import os
+
+        import psycopg2
+
+        # Get credentials from environment (Lambda sets these via Secrets Manager injection)
+        db_host = os.getenv("DB_HOST")
+        db_port = os.getenv("DB_PORT", "5432")
+        db_name = os.getenv("DB_NAME", "stocks")
+        db_user = os.getenv("DB_USER")
+        db_password = os.getenv("DB_PASSWORD")
+
+        if not all([db_host, db_user, db_password]):
+            logger.warning("[STARTUP] Database credentials not available in environment - skipping migrations")
+            return False, "Credentials missing"
+
+        # Connect to database
+        conn = psycopg2.connect(
+            host=db_host,
+            port=int(db_port),
+            database=db_name,
+            user=db_user,
+            password=db_password,
+            sslmode='require'
+        )
+        cur = conn.cursor()
+
+        # Apply migrations for data_unavailable columns
+        tables = [
+            "quality_metrics",
+            "growth_metrics",
+            "value_metrics",
+            "positioning_metrics",
+            "stability_metrics"
+        ]
+
+        for table in tables:
+            try:
+                sql = f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS data_unavailable BOOLEAN DEFAULT FALSE"
+                cur.execute(sql)
+                conn.commit()
+                logger.info(f"[STARTUP] Ensured {table}.data_unavailable exists")
+            except Exception as e:
+                logger.warning(f"[STARTUP] Could not update {table}: {e}")
+                conn.rollback()
+
+        cur.close()
+        conn.close()
+        logger.info("[STARTUP] Critical schema migrations completed")
+        return True, "Migrations applied"
+
+    except ImportError:
+        logger.warning("[STARTUP] psycopg2 not available - migrations skipped")
+        return False, "psycopg2 missing"
+    except Exception as e:
+        logger.warning(f"[STARTUP] Migration initialization failed: {e}")
+        return False, str(e)
+
+# Execute migrations on cold start
+try:
+    success, msg = _apply_critical_migrations()
+    if not success:
+        logger.info(f"[STARTUP] Migrations could not be applied: {msg}")
 except Exception as e:
-    logger.warning(f"[STARTUP] Failed to apply schema migrations on startup: {e}")
+    logger.warning(f"[STARTUP] Unexpected error during migration: {e}")
 
 
 def fetch_cloudfront_domain_from_secrets() -> tuple[str | None, str | None]:
@@ -134,7 +196,9 @@ def fetch_cloudfront_domain_from_secrets() -> tuple[str | None, str | None]:
             return None, "boto3 not available"
         except (json.JSONDecodeError, ValueError) as e:
             logger.error(
-                f"[CloudFront] Error fetching from Secrets Manager: {type(e).__name__}: {e}\n  Operation: Fetch CloudFront domain from AWS Secrets Manager\n  Secret name: algo/cloudfront-domain"
+                f"[CloudFront] Error fetching from Secrets Manager: {type(e).__name__}: {e}"
+                "\n  Operation: Fetch CloudFront domain from AWS Secrets Manager"
+                "\n  Secret name: algo/cloudfront-domain"
             )
             return None, f"Error: {e}"
 
@@ -179,7 +243,8 @@ def validate_environment() -> tuple[bool, list[str], list[str]]:
             "FATAL: DB_HOST appears to be direct RDS, not proxy. Connection pooling REQUIRED. Use RDS Proxy endpoint."
         )
         errors.append(
-            "DB_HOST invalid: Must use RDS Proxy endpoint (contains 'proxy'), not direct RDS. Connection pooling is required for production."
+            "DB_HOST invalid: Must use RDS Proxy endpoint (contains 'proxy'), not direct RDS. "
+            "Connection pooling is required for production."
         )
 
     # CRITICAL: Database credentials (one of the two must be set)
@@ -187,7 +252,8 @@ def validate_environment() -> tuple[bool, list[str], list[str]]:
     missing_password = not os.getenv("DB_PASSWORD")
     if missing_secret_arn and missing_password:
         errors.append(
-            "DB_PASSWORD missing: Provide either DB_PASSWORD directly or DB_SECRET_ARN pointing to Secrets Manager secret"
+            "DB_PASSWORD missing: Provide either DB_PASSWORD directly or "
+            "DB_SECRET_ARN pointing to Secrets Manager secret"
         )
 
     # OPTIONAL: DB_NAME and DB_USER (use defaults if not set)
@@ -227,7 +293,9 @@ def validate_environment() -> tuple[bool, list[str], list[str]]:
                     logger.info("[CloudFront] Secret not found (OK on first deploy), ALLOW_LOCALHOST_CORS=true")
                 else:
                     warnings.append(
-                        "FRONTEND_URL missing: Set to frontend domain (e.g., https://myapp.example.com) for CORS, or enable ALLOW_LOCALHOST_CORS=true for dev"
+                        "FRONTEND_URL missing: Set to frontend domain "
+                        "(e.g., https://myapp.example.com) for CORS, or enable "
+                        "ALLOW_LOCALHOST_CORS=true for dev"
                     )
             else:
                 warnings.append(f"[CloudFront] Fetch attempt returned error (may be first deploy): {cf_error}")
@@ -489,7 +557,10 @@ def get_security_headers() -> dict[str, str]:
         "X-XSS-Protection": "1; mode=block",
         "Referrer-Policy": "strict-origin-when-cross-origin",
         "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
-        "Content-Security-Policy": "default-src 'self'; img-src 'self' data: https:; frame-ancestors 'none'; base-uri 'self'",
+        "Content-Security-Policy": (
+            "default-src 'self'; img-src 'self' data: https:; "
+            "frame-ancestors 'none'; base-uri 'self'"
+        ),
         **get_api_version_headers(),
     }
 
@@ -709,7 +780,8 @@ def validate_bearer_token(token: str | None) -> tuple:
             logger.warning(f"JWT client_id/aud mismatch: expected {cognito_client_id}, got {actual_client}")
             return (False, None, "Token client mismatch")
 
-        # SECURITY FIX S-21: Explicit expiration validation (PyJWT checks via verify_exp=True, but explicit check adds defense-in-depth)
+        # SECURITY FIX S-21: Explicit expiration validation
+        # (PyJWT checks via verify_exp=True, but explicit check adds defense-in-depth)
         exp = payload.get("exp")
         if not exp:
             logger.warning("JWT missing 'exp' (expiration) claim")
@@ -1176,7 +1248,8 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         # Check authorization for protected endpoints
         requires_auth, is_authorized, auth_error, jwt_claims = require_auth(event, path)
         logger.info(
-            f"[REQUIRE_AUTH] path={path}, requires_auth={requires_auth}, is_authorized={is_authorized}, error={auth_error}"
+            f"[REQUIRE_AUTH] path={path}, requires_auth={requires_auth}, "
+            f"is_authorized={is_authorized}, error={auth_error}"
         )
 
         if requires_auth and not is_authorized:

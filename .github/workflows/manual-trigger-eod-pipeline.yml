@@ -14,20 +14,20 @@ jobs:
         with:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-github-actions-dev
           aws-region: us-east-1
-      
+
       - name: Trigger EOD Pipeline
         run: |
           STATE_MACHINE_ARN="arn:aws:states:us-east-1:$(aws sts get-caller-identity --query Account --output text):stateMachine:algo-eod-pipeline-dev"
-          
+
           echo "Invoking: $STATE_MACHINE_ARN"
-          
+
           EXEC_ARN=$(aws stepfunctions start-execution \
             --state-machine-arn "$STATE_MACHINE_ARN" \
             --name "manual-loader-test-$(date +%s)" \
             --region us-east-1 \
             --query 'executionArn' \
             --output text)
-          
+
           echo "Pipeline triggered: $EXEC_ARN"
           echo ""
           echo "Loaders executing:"

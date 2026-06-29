@@ -257,10 +257,10 @@ All models use Pydantic v2 defaults:
 class Config:
     # Allow extra fields from database queries
     extra = "allow"
-    
+
     # Serialize aliases in output
     by_alias = True
-    
+
     # Use field definitions for schema
     json_schema_extra = {...}
 ```
@@ -288,16 +288,16 @@ def handle(
     try:
         # Fetch data
         data = fetch_data()
-        
+
         # Create response
         response = SuccessResponse(
             statusCode=200,
             data={"result": data}
         )
-        
+
         # Return serialized (routes expect dict, not model)
         return response.model_dump(by_alias=True)
-    
+
     except Exception as e:
         # Error response
         response = ErrorResponse(
@@ -342,7 +342,7 @@ def test_signals_response():
             "total": 1,
         }
     )
-    
+
     assert response.statusCode == 200
     assert len(response.data.items) == 1
     assert response.data.items[0]["symbol"] == "AAPL"
@@ -352,17 +352,17 @@ def test_signals_response():
 def test_error_response():
     """Test error response model."""
     from models.responses import ErrorResponse
-    
+
     response = ErrorResponse(
         statusCode=400,
         errorType="bad_request",
         message="Invalid input",
         error="bad_request"  # alias for _error
     )
-    
+
     assert response.statusCode == 400
     assert response.errorType == "bad_request"
-    
+
     # Verify _error is used in JSON
     json_dict = response.model_dump(by_alias=True)
     assert "_error" in json_dict

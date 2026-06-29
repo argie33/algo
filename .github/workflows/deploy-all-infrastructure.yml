@@ -131,9 +131,9 @@ jobs:
           aws s3api head-bucket --bucket "$TF_BACKEND_BUCKET" && echo "[OK] S3 bucket verified: $TF_BACKEND_BUCKET"
           aws dynamodb describe-table --table-name terraform-locks --region $AWS_REGION && echo "[OK] DynamoDB table verified"
 
-  # 
+  #
   # STEP 1 -- Infrastructure (Terraform)
-  # 
+  #
   terraform:
     name: "1. Terraform Apply"
     runs-on: ubuntu-latest
@@ -1153,9 +1153,9 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Authentication**: Using GitHub Actions OIDC (secure, no long-lived secrets)" >> $GITHUB_STEP_SUMMARY
 
-  # 
+  #
   # STEP 2a -- Docker image for ECS loaders
-  # 
+  #
   build-image:
     name: "2a. Build & Push Loader Image"
     needs: terraform
@@ -1220,9 +1220,9 @@ jobs:
         if: steps.ecr.outputs.ecr_url == ''
         run: echo "[WARN]  Skipping Docker image build -- ECR URL not resolved"
 
-  # 
+  #
   # STEP 2b -- Algo Lambda
-  # 
+  #
   deploy-algo:
     name: "2b. Deploy Algo Lambda"
     needs: terraform
@@ -1300,9 +1300,9 @@ jobs:
           aws lambda wait function-updated --function-name "$FUNC" --region $AWS_REGION
           echo "[OK] Algo Lambda updated: $FUNC"
 
-  # 
+  #
   # STEP 2c -- API Lambda
-  # 
+  #
   deploy-api:
     name: "2c. Deploy API Lambda"
     needs: terraform
@@ -1358,9 +1358,9 @@ jobs:
           aws lambda wait function-updated --function-name "$FUNC" --region $AWS_REGION
           echo "[OK] API Lambda: $FUNC"
 
-  # 
+  #
   # STEP 2d -- Frontend
-  # 
+  #
   deploy-frontend:
     name: "2d. Build & Deploy Frontend"
     needs: terraform

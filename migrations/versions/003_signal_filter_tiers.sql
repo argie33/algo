@@ -39,4 +39,3 @@ INSERT INTO signal_filter_tiers (
     'migration',
     'Initial seed from hardcoded values'
 ) ON CONFLICT (tier_name) DO NOTHING;
-

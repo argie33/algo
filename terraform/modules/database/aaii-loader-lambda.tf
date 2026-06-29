@@ -84,4 +84,3 @@ resource "aws_iam_role_policy_attachment" "aaii_loader_vpc" {
   role       = aws_iam_role.aaii_loader.id
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
 }
-

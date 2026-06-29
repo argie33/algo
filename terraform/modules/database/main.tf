@@ -1005,4 +1005,3 @@ resource "aws_cloudwatch_metric_alarm" "rds_rotation_duration" {
 
   tags = var.common_tags
 }
-

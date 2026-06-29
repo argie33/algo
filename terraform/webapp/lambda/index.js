@@ -1,8 +1,8 @@
 exports.handler = async (event) => {
-  
+
   const method = event.requestContext?.http?.method || event.httpMethod || 'GET';
   const path = event.rawPath || event.path || '/';
-  
+
   // Health check endpoint
   if (path === '/health' || path === '/api/health') {
     return {
@@ -11,7 +11,7 @@ exports.handler = async (event) => {
       body: JSON.stringify({ status: 'healthy', timestamp: new Date().toISOString() })
     };
   }
-  
+
   // Default response
   return {
     statusCode: 200,

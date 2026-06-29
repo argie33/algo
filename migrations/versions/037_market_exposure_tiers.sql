@@ -115,4 +115,3 @@ SET active_tier_id = (
     LIMIT 1
 )
 WHERE active_tier_id IS NULL AND exposure_pct IS NOT NULL;
-

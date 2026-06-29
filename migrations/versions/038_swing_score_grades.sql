@@ -1,8 +1,8 @@
--- 
+--
 -- MIGRATION 037: Create Swing Score Grade Thresholds Configuration
 -- Purpose: Move hardcoded grade assignment logic from API to database
 -- References: ARCHITECTURAL_AUDIT_CALCULATIONS.md violation #6
--- 
+--
 
 -- Swing Score Grade Configuration: Define grade thresholds and logic
 -- Consolidates hardcoded grade assignment from:
@@ -50,4 +50,3 @@ ADD COLUMN IF NOT EXISTS grade_id INT REFERENCES swing_score_grades(grade_id);
 
 CREATE INDEX IF NOT EXISTS idx_swing_trader_scores_grade_id
 ON swing_trader_scores(grade_id);
-

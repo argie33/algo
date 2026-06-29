@@ -3126,8 +3126,8 @@ CREATE INDEX IF NOT EXISTS idx_exit_rules_exit_rule
 -- Idempotent - no-op if missing. Uses IF NOT EXISTS pattern to prevent duplicate constraint errors.
 DO $$ BEGIN
     IF NOT EXISTS (
-        SELECT 1 FROM information_schema.table_constraints 
-        WHERE constraint_name = 'fk_algo_trades_symbol' 
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE constraint_name = 'fk_algo_trades_symbol'
         AND table_name = 'algo_trades'
     ) THEN
         ALTER TABLE algo_trades
@@ -3141,8 +3141,8 @@ END $$;
 -- Idempotent - no-op if missing. Uses IF NOT EXISTS pattern to prevent duplicate constraint errors.
 DO $$ BEGIN
     IF NOT EXISTS (
-        SELECT 1 FROM information_schema.table_constraints 
-        WHERE constraint_name = 'fk_algo_positions_symbol' 
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE constraint_name = 'fk_algo_positions_symbol'
         AND table_name = 'algo_positions'
     ) THEN
         ALTER TABLE algo_positions

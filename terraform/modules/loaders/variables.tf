@@ -169,4 +169,3 @@ variable "alert_webhook_url" {
   default     = ""
   sensitive   = true
 }
-

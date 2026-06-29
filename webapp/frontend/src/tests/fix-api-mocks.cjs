@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Fix API Mocking Issues Across All Tests
- * 
+ *
  * This script automatically fixes common API mocking issues in test files
  * by replacing incomplete mocks with our comprehensive API service mock.
  */
@@ -14,10 +14,10 @@ const TESTS_DIR = path.join(__dirname);
 const API_MOCK_PATTERNS = [
   // Pattern 1: Simple vi.mock with basic methods
   /vi\.mock\(['"`]\.\.\/.*?\/services\/api['"`],\s*\(\)\s*=>\s*\(\{[^}]*get:\s*vi\.fn\(\)[^}]*\}\)\);?/gs,
-  
-  // Pattern 2: vi.mock with default export containing basic methods  
+
+  // Pattern 2: vi.mock with default export containing basic methods
   /vi\.mock\(['"`]\.\.\/.*?\/services\/api['"`],\s*\(\)\s*=>\s*\(\{[\s\S]*?default:\s*\{[\s\S]*?get:\s*vi\.fn\(\)[\s\S]*?\}[\s\S]*?\}\)\);?/gs,
-  
+
   // Pattern 3: async vi.mock with importOriginal but incomplete
   /vi\.mock\(['"`]\.\.\/.*?\/services\/api['"`],\s*async\s*\(importOriginal\)\s*=>\s*\{[\s\S]*?return\s*\{[\s\S]*?get:\s*vi\.fn\(\)[\s\S]*?\};?[\s\S]*?\}\);?/gs
 ];
@@ -44,9 +44,9 @@ function fixApiMocks() {
   console.log('🔧 Fixing API mocks across all test files...\n');
 
   // Find all test files
-  const testFiles = glob.sync('**/*.test.{js,jsx}', { 
+  const testFiles = glob.sync('**/*.test.{js,jsx}', {
     cwd: TESTS_DIR,
-    absolute: true 
+    absolute: true
   });
 
   let fixedFiles = 0;
@@ -62,12 +62,12 @@ function fixApiMocks() {
       const matches = content.match(pattern);
       if (matches) {
         fileIssues += matches.length;
-        
+
         // Determine correct mock based on file path depth
         const relativePath = path.relative(TESTS_DIR, filePath);
         const depth = relativePath.split(path.sep).length - 1;
         const mockToUse = depth >= 3 ? COMPREHENSIVE_MOCK : COMPREHENSIVE_MOCK_2_LEVELS;
-        
+
         // Replace the incomplete mock
         updatedContent = updatedContent.replace(pattern, mockToUse);
       }

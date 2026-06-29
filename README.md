@@ -407,4 +407,3 @@ python -c "import lambda.api; print('OK')"
 ## 📄 License
 
 Proprietary - All rights reserved
-

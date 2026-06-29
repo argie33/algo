@@ -1072,7 +1072,7 @@ router.get("/seasonality", async (req, res) => {
       const yearStart = new Date(currentYear, 0, 1);
       const spyQuery = `
         SELECT close, date
-        FROM price_daily 
+        FROM price_daily
         WHERE symbol = 'SPY' AND date >= $1
         ORDER BY date DESC LIMIT 1
       `;
@@ -1082,7 +1082,7 @@ router.get("/seasonality", async (req, res) => {
 
       if (spyResult.rows.length > 0) {
         const yearStartQuery = `
-          SELECT close FROM price_daily 
+          SELECT close FROM price_daily
           WHERE symbol = 'SPY' AND date >= $1
           ORDER BY date ASC LIMIT 1
         `;
@@ -2082,7 +2082,7 @@ router.get("/internals", async (req, res) => {
             AND close IS NOT NULL
             AND open IS NOT NULL
           GROUP BY date
-          
+
         )
         SELECT
           (SELECT advancing_percent FROM breadth_history ORDER BY date DESC LIMIT 1) as current_advancing_pct,

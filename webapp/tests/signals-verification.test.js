@@ -7,7 +7,7 @@ const { test, expect } = require('@playwright/test');
 const { execSync } = require('child_process');
 
 test.describe('Trading Signals - Complete Data Verification', () => {
-  
+
   test('✅ Daily table has signal data', async () => {
     const result = execSync(
       `psql -h localhost -U postgres -d stocks -c "SELECT COUNT(*) as cnt FROM buy_sell_daily WHERE signal IN ('Buy','Sell')" -t`,

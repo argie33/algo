@@ -10,7 +10,7 @@
 
 **Problem:** Code throughout algo and dashboard returns `None`, `{}`, `[]`, or placeholder markers when data is missing, instead of raising exceptions. This violates CLAUDE.md fail-fast rule and GOVERNANCE.md explicit markers rule.
 
-**Impact:** 
+**Impact:**
 - Fake/placeholder data silently mixed with real data → skewed financial decisions
 - Missing data treated as "unavailable" instead of "critical error"
 - Position sizing, risk calculations proceed with incomplete data
@@ -251,11 +251,11 @@ algo_secrets_arn = env_vars.get('ALGO_SECRETS_ARN', '')
 ## Comprehensive Agent Audit Results (2026-06-29)
 
 ### Agent Findings Summary
-**Total Issues Found**: 8 credential-related violations  
-**Critical Severity**: 2  
-**High Severity**: 3  
-**Medium Severity**: 3  
-**Faker/Mock Data**: None found in production code ✅  
+**Total Issues Found**: 8 credential-related violations
+**Critical Severity**: 2
+**High Severity**: 3
+**Medium Severity**: 3
+**Faker/Mock Data**: None found in production code ✅
 **Test Data**: Properly managed through migrations ✅
 
 ### Detailed Agent Findings
@@ -334,4 +334,3 @@ Latest commits show loaders already hardened:
 - load_stock_scores.py - Requires minimum 50% metrics, raises on insufficient data
 - load_stability_metrics.py - Validates beta exists, raises on missing price history
 - Pattern: Explicit dict with `data_unavailable=True` for optional enrichment
-

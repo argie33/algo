@@ -9,11 +9,20 @@ import logging
 import os
 import re
 from datetime import datetime, timezone
+from typing import Any, TypedDict
 
 import boto3
 import psycopg2
 import psycopg2.sql
 from botocore.exceptions import ClientError
+
+
+class PasswordValidationResult(TypedDict):
+    """Type definition for password validation result."""
+
+    valid: bool
+    errors: list[str]
+
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -22,7 +31,7 @@ cloudwatch = boto3.client("cloudwatch")
 sns = boto3.client("sns")
 
 
-def validate_password_strength(password: str) -> dict:
+def validate_password_strength(password: str) -> PasswordValidationResult:
     """Validate password meets minimum strength requirements.
 
     Returns dict with 'valid' bool and 'errors' list of failure reasons.
@@ -56,7 +65,7 @@ def validate_password_strength(password: str) -> dict:
     return {"valid": len(errors) == 0, "errors": errors}
 
 
-def lambda_handler(event, context):  # noqa: C901
+def lambda_handler(event: Any, context: Any) -> dict[str, int | str]:  # noqa: C901
     """Reset RDS master password with strength validation and audit trail."""
 
     timestamp = datetime.now(timezone.utc).isoformat()
@@ -366,6 +375,7 @@ def lambda_handler(event, context):  # noqa: C901
 
     except (json.JSONDecodeError, ValueError) as e:
         logger.error(f"✗ Error executing ALTER USER: {e!s}")
+        reset_error = e
 
         # Log failed reset attempt to CloudWatch
         cloudwatch.put_metric_data(
@@ -379,7 +389,7 @@ def lambda_handler(event, context):  # noqa: C901
                     "Dimensions": [
                         {"Name": "Database", "Value": db_host},
                         {"Name": "User", "Value": db_user},
-                        {"Name": "ErrorType", "Value": type(e).__name__},
+                        {"Name": "ErrorType", "Value": type(reset_error).__name__},
                     ],
                 }
             ],
@@ -392,7 +402,7 @@ def lambda_handler(event, context):  # noqa: C901
             "status": "FAILED",
             "database_host": db_host,
             "database_user": db_user,
-            "error": str(e),
+            "error": str(reset_error),
             "message": f"Failed to reset RDS password for {db_user}@{db_host}",
         }
 
@@ -408,5 +418,5 @@ def lambda_handler(event, context):  # noqa: C901
 
         return {
             "statusCode": 500,
-            "body": json.dumps({"error": f"Failed to reset password: {e!s}"}),
+            "body": json.dumps({"error": f"Failed to reset password: {reset_error!s}"}),
         }

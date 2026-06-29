@@ -825,5 +825,3 @@ module.exports = app;
 // AWS Lambda handler - CRITICAL FOR LAMBDA TO WORK
 // This MUST be exported for Lambda to find the handler function
 module.exports.handler = serverlessHttp(app);
-
-

@@ -2722,5 +2722,3 @@ resource "aws_cloudwatch_metric_alarm" "morning_pipeline_slow" {
   treat_missing_data  = "notBreaching"
   tags                = var.common_tags
 }
-
-

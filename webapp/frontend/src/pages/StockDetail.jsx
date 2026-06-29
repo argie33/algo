@@ -1898,6 +1898,3 @@ export default function StockDetail() {
     </ErrorBoundary>
   );
 }
-
-
-

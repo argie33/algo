@@ -10,18 +10,18 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 0 : 0,
   workers: 1,
-  
+
   reporter: [
     ['html', { outputFolder: 'playwright-report' }],
     ['json', { outputFile: 'test-results/results.json' }],
     process.env.CI ? ['github'] : ['list'],
   ],
-  
+
   timeout: 300000,
   expect: {
     timeout: 60000,
   },
-  
+
   use: {
     baseURL: 'http://localhost:5173',
     trace: 'on-first-retry',

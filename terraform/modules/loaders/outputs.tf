@@ -103,4 +103,3 @@ output "loader_execution_status_table_name" {
   description = "DynamoDB table name for loader execution status tracking"
   value       = aws_dynamodb_table.loader_execution_status.name
 }
-

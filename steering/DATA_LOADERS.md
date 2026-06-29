@@ -96,8 +96,8 @@ Live data pipeline: 40+ loaders organized into 5 Step Functions pipelines, sched
 
 **Query:** Check actual parallelism in use:
 ```sql
-SELECT loader_name, parallelism_override, batch_size_override 
-FROM algo_config 
+SELECT loader_name, parallelism_override, batch_size_override
+FROM algo_config
 WHERE loader_name IN ('load_quality_metrics', 'load_growth_metrics', 'load_prices');
 ```
 
@@ -120,9 +120,9 @@ WHERE loader_name IN ('load_quality_metrics', 'load_growth_metrics', 'load_price
 1. Check CloudWatch: `/ecs/algo-cluster` for loader task logs
 2. Query data_loader_status:
    ```sql
-   SELECT table_name, completion_pct, last_updated, reason 
-   FROM data_loader_status 
-   WHERE table_name = 'quality_metrics' 
+   SELECT table_name, completion_pct, last_updated, reason
+   FROM data_loader_status
+   WHERE table_name = 'quality_metrics'
    ORDER BY last_updated DESC LIMIT 1;
    ```
 3. If completion_pct < 70%: Increase ECS memory to 2048 MB, reduce batch to 50

@@ -828,4 +828,3 @@ export { AuthContext };
 
 // Make AuthProvider the default export for Fast Refresh compatibility
 export default AuthProvider;
-

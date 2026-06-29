@@ -4163,5 +4163,3 @@ router.get("/signals/stocks", async (req, res) => {
 });
 
 module.exports = router;
-
-

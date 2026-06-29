@@ -43,7 +43,7 @@ The following permissions are required to deploy and manage infrastructure:
 
 Contact your AWS account admin and request these additional actions added to `algo-developer` user:
 - `ecs:DescribeTaskDefinition`
-- `ecs:RegisterTaskDefinition`  
+- `ecs:RegisterTaskDefinition`
 - `s3:GetBucketPolicy`
 - `ec2:DescribeVpcAttribute`
 
@@ -176,17 +176,17 @@ GitHub Actions now routes all loader triggers through the `algo-trigger-loaders`
 **Verify Fix Working:**
 ```bash
 # Check metric loader completion (should be > 75% in last hour)
-SELECT table_name, completion_pct, last_updated 
-FROM data_loader_status 
+SELECT table_name, completion_pct, last_updated
+FROM data_loader_status
 WHERE table_name IN ('quality_metrics', 'growth_metrics', 'value_metrics', 'positioning_metrics', 'stability_metrics')
 ORDER BY last_updated DESC;
 
 # Check factor scores calculated (should be 2000+ with avg 45-65)
-SELECT COUNT(*) as total, 
+SELECT COUNT(*) as total,
        ROUND(AVG(composite_score), 2) as avg_score,
        MIN(composite_score) as min_score,
        MAX(composite_score) as max_score
-FROM stock_scores 
+FROM stock_scores
 WHERE composite_score > 0;
 ```
 
@@ -229,8 +229,8 @@ WHERE composite_score > 0;
 
 **Update Config (live change, no restart):**
 ```sql
-UPDATE algo_config 
-SET value = '75' 
+UPDATE algo_config
+SET value = '75'
 WHERE key = 'signal_score_threshold';
 
 -- Verify
@@ -339,16 +339,16 @@ Circuit breakers auto-recover when condition improves:
 If CB falsely triggered (bad data, calculation error):
 ```sql
 -- Disable halt (allows new entries despite active CB)
-UPDATE algo_config 
-SET value = 'false' 
+UPDATE algo_config
+SET value = 'false'
 WHERE key = 'orchestrator_halt_enabled';
 
 -- Verify next orchestrator run ignores CB (dangerous, use cautiously)
 SELECT value FROM algo_config WHERE key = 'orchestrator_halt_enabled';
 
 -- Re-enable when safe
-UPDATE algo_config 
-SET value = 'true' 
+UPDATE algo_config
+SET value = 'true'
 WHERE key = 'orchestrator_halt_enabled';
 ```
 
@@ -401,8 +401,8 @@ Comprehensive audit found 13 major anti-patterns where missing critical financia
 
 ## Comprehensive Fallback Data Audit Results (June 29, 2026)
 
-**Total Codebase Scan**: 150+ files across all major areas  
-**Issues Found**: 5 major anti-patterns  
+**Total Codebase Scan**: 150+ files across all major areas
+**Issues Found**: 5 major anti-patterns
 **Remediation Status**: 2 CRITICAL fixed ✅, 2 in progress 🔄, 1 conditional ⚠️
 
 ### CRITICAL Issues - Dashboard (4)
@@ -435,8 +435,8 @@ Comprehensive audit found 13 major anti-patterns where missing critical financia
 
 ### CLEAN Areas
 
-✅ **algo/** — No fallback issues, fail-fast governance compliant  
-✅ **lambda/api/** — All handlers properly validated, no synthetic data  
+✅ **algo/** — No fallback issues, fail-fast governance compliant
+✅ **lambda/api/** — All handlers properly validated, no synthetic data
 ✅ **signals/** — Strong hard-fail gates, explicit data_unavailable markers
 
 ### Prevention Going Forward
