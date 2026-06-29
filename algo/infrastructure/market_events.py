@@ -95,10 +95,41 @@ class MarketEventHandler:
                 }
 
             logger.debug(f"[HALT_CHECK] {symbol} is tradable and active (no halt)")
-            return None
+            return {
+                "halted": False,
+                "symbol": symbol,
+                "status": status,
+                "tradable": tradable,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
 
+        except requests.Timeout as e:
+            logger.error(f"[HALT_CHECK] API timeout for {symbol}: {e}")
+            return {
+                "error": "halt_check_failed",
+                "reason": "api_timeout",
+                "symbol": symbol,
+                "description": f"Timeout checking halt status for {symbol}: {e}",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
         except requests.RequestException as e:
-            raise RuntimeError(f"Operation failed: {e}") from e
+            logger.error(f"[HALT_CHECK] API error for {symbol}: {e}")
+            return {
+                "error": "halt_check_failed",
+                "reason": "api_error",
+                "symbol": symbol,
+                "description": f"Cannot verify halt status for {symbol}: {e}",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+        except (RuntimeError, TypeError, ValueError) as e:
+            logger.error(f"[HALT_CHECK] Data validation error for {symbol}: {e}")
+            return {
+                "error": "halt_check_failed",
+                "reason": "data_validation_error",
+                "symbol": symbol,
+                "description": f"Cannot verify halt status for {symbol}: {e}",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
 
     def check_market_circuit_breaker(self) -> dict[str, Any] | None:
         """Check if market circuit breaker is active (S&P 500 down 7%+) with concurrent API calls.
@@ -111,24 +142,26 @@ class MarketEventHandler:
         Fetches quotes and bars concurrently to reduce timeout latency from 15s sequential
         to ~10s concurrent (both timeout at 10s, run in parallel).
 
-        CRITICAL: If Alpaca credentials are not configured (e.g., paper trading mode),
-        fail-closed and return None (skip the check). The circuit breaker validation is
-        a safety gate, but if we can't verify the status, proceeding with trading is
-        safer than halting the algorithm when credentials are just not configured.
-
         Returns:
             dict with level, % down, timestamp if triggered (level 1-3)
-            None: if market is within normal ranges or credentials not configured (no circuit breaker active)
+            dict with error details if check failed (credentials missing, API timeout, etc.)
+            None: if market is within normal ranges (no circuit breaker active)
 
         """
         try:
             # CRITICAL: Check if Alpaca credentials are available
-            # If credentials not configured (e.g., paper trading mode), skip the check and return None
+            # Must fail fast with explicit error if credentials not configured (cannot verify circuit breaker status)
             if not self.alpaca_key or not self.alpaca_secret:
-                logger.warning(
-                    "[MARKET_CIRCUIT_BREAKER] Alpaca credentials not configured. Market circuit breaker check skipped."
+                logger.error(
+                    "[MARKET_CIRCUIT_BREAKER CRITICAL] Alpaca credentials not configured. "
+                    "Cannot verify circuit breaker status. Must have valid credentials to check market safety gates."
                 )
-                return None
+                return {
+                    "error": "circuit_breaker_check_failed",
+                    "reason": "credentials_not_configured",
+                    "description": "Alpaca API credentials missing - cannot verify circuit breaker status",
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }
 
             headers = {
                 "APCA-API-KEY-ID": self.alpaca_key,
@@ -221,10 +254,38 @@ class MarketEventHandler:
                 }
 
             logger.debug(f"[CIRCUIT_BREAKER] Market within normal ranges (down {pct_down:.2f}%, threshold 7%)")
-            return None
+            return {
+                "circuit_breaker_inactive": True,
+                "pct_down": round(pct_down, 2),
+                "threshold": 7.0,
+                "status": "normal_trading",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
 
+        except requests.Timeout as e:
+            logger.error(f"[MARKET_CIRCUIT_BREAKER] API timeout checking circuit breaker: {e}")
+            return {
+                "error": "circuit_breaker_check_failed",
+                "reason": "api_timeout",
+                "description": f"Timeout checking market circuit breaker status: {e}",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+        except requests.RequestException as e:
+            logger.error(f"[MARKET_CIRCUIT_BREAKER] API error checking circuit breaker: {e}")
+            return {
+                "error": "circuit_breaker_check_failed",
+                "reason": "api_error",
+                "description": f"Failed to check market circuit breaker status: {e}",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
         except (RuntimeError, TypeError, ValueError) as e:
-            raise RuntimeError(f"Operation failed: {e}") from e
+            logger.error(f"[MARKET_CIRCUIT_BREAKER] Data validation error: {e}")
+            return {
+                "error": "circuit_breaker_check_failed",
+                "reason": "data_validation_error",
+                "description": f"Cannot verify circuit breaker status: {e}",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
 
     def check_early_close(self, check_date: date | None = None) -> bool:
         """Check if market closes early today (3 hours early = 13:00 ET instead of 16:00).
@@ -404,6 +465,7 @@ class MarketEventHandler:
 
         Returns:
             dict with delisting info (delisted=True, status, action fields) if delisted
+            dict with error details if check failed (API error, credentials missing, timeout)
             None: if symbol is active and not delisted (normal state)
 
         """
@@ -452,8 +514,33 @@ class MarketEventHandler:
             logger.debug(f"[DELISTING_CHECK] {symbol} is active (status={status}, not delisted)")
             return None
 
+        except requests.Timeout as e:
+            logger.error(f"[DELISTING_CHECK] API timeout for {symbol}: {e}")
+            return {
+                "error": "delisting_check_failed",
+                "reason": "api_timeout",
+                "symbol": symbol,
+                "description": f"Timeout checking delisting status for {symbol}: {e}",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+        except requests.RequestException as e:
+            logger.error(f"[DELISTING_CHECK] API error for {symbol}: {e}")
+            return {
+                "error": "delisting_check_failed",
+                "reason": "api_error",
+                "symbol": symbol,
+                "description": f"Cannot verify delisting status for {symbol}: {e}",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
         except (RuntimeError, TypeError, ValueError, KeyError) as e:
-            raise RuntimeError(f"Operation failed: {e}") from e
+            logger.error(f"[DELISTING_CHECK] Data validation error for {symbol}: {e}")
+            return {
+                "error": "delisting_check_failed",
+                "reason": "data_validation_error",
+                "symbol": symbol,
+                "description": f"Cannot verify delisting status for {symbol}: {e}",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
 
     def run_pre_market_checks(self) -> dict[str, Any]:
         """Run all pre-market checks at start of trading day (concurrent execution).

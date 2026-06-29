@@ -17,22 +17,23 @@ logger = logging.getLogger(__name__)
 
 
 class PipelineHealthMonitor:
-    """Monitor data pipeline health and freshness."""
+    """Monitor data pipeline health and freshness.
+
+    DEPRECATED: This class contained only stubbed methods that returned hardcoded
+    fake values (always False/None/True) without performing actual health checks.
+    The real health monitoring is handled by PipelineHealth class below.
+    Use PipelineHealth for all production health monitoring.
+    """
 
     def __init__(self) -> None:
-        """Initialize pipeline health monitor."""
+        """Initialize pipeline health monitor.
 
-    def check_loader_staleness(self, loader_name: str, hours_threshold: int = 4) -> bool:
-        """Check if loader data is stale."""
-        return False
-
-    def get_last_run_time(self, loader_name: str) -> Any:
-        """Get last run time for a loader."""
-        return None
-
-    def check_data_available(self, table_name: str) -> bool:
-        """Check if data is available for a table."""
-        return True
+        DEPRECATED: This class is not used. Use PipelineHealth instead.
+        """
+        raise NotImplementedError(
+            "PipelineHealthMonitor is deprecated. Use PipelineHealth class for production health monitoring. "
+            "This stubbed class was returning hardcoded fake health status values."
+        )
 
 
 class HealthStatus(str, Enum):

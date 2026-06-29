@@ -279,101 +279,19 @@ resource "aws_iam_role_policy" "eventbridge_run_task_policy" {
 // Loaders read LOADER_PARALLELISM env var and must respect it in their run() method.
 locals {
   loader_file_map = {
-    "market_constituents" = "load_market_constituents.py"
-    "stock_prices_daily"  = "load_prices.py"
-
-    "financials_annual_income"      = "load_income_statement.py"
-    "financials_annual_balance"     = "load_balance_sheet.py"
-    "financials_annual_cashflow"    = "load_cash_flow.py"
-    "financials_quarterly_income"   = "load_income_statement.py"
-    "financials_quarterly_balance"  = "load_balance_sheet.py"
-    "financials_quarterly_cashflow" = "load_cash_flow.py"
-    "financials_ttm_income"         = "load_income_statement.py"
-    "financials_ttm_cashflow"       = "load_cash_flow.py"
-    "growth_metrics"                = "load_growth_metrics.py"
-    "quality_metrics"               = "load_quality_metrics.py"
-    "value_metrics"                 = "load_value_metrics.py"
-    "positioning_metrics"           = "load_positioning_metrics.py"
-    "stability_metrics"             = "load_stability_metrics.py"
-    "stock_scores"                  = "load_stock_scores.py"
-    "sector_ranking"                = "load_sector_ranking.py"
-    "earnings_history"              = "load_earnings_history.py"
-    "earnings_calendar"             = "load_earnings_calendar.py"
-    "company_profile"               = "load_company_profile.py"
-    "analyst_sentiment"             = "load_analyst_sentiment_analysis.py"
-    "analyst_upgrades_downgrades"   = "load_analyst_upgrade_downgrade.py"
-    "industry_ranking"              = "load_industry_ranking.py"
-    "feargreed"                     = "load_fear_greed_index.py"
-    "aaiidata"                      = "load_aaii_sentiment.py"
-    "naaim_data"                    = "load_naaim.py"
-    "signal_themes"                 = "load_signal_themes.py"
-    "signal_quality_scores"         = "load_signal_quality_scores.py"
-    "buy_sell_daily"                = "load_buy_sell_daily.py"
-    "technical_data_daily"          = "load_technical_data_daily.py"
-    "algo_metrics_daily"            = "load_algo_metrics_daily.py"
-    "swing_trader_scores"           = "load_swing_trader_scores.py"
-    "market_health_daily"           = "load_market_health_daily.py"
-    "market_exposure_daily"         = "load_market_exposure_daily.py"
-    "options_chains"                = "load_options_chains.py"
-    "fred_economic_data"            = "load_fred_economic_data.py"
-    "dxy_index"                     = "load_dxy_index.py"
-    "economic_metrics_daily"        = "load_economic_metrics_daily.py"
-    "trend_template_data"           = "load_trend_criteria_data.py"
-    "compute_circuit_breakers"      = "compute_circuit_breakers.py"
-    "compute_performance_metrics"   = "compute_performance_metrics.py"
-
+    "stock_prices_daily"    = "load_prices.py"
+    "technical_data_daily"  = "load_technical_data_daily.py"
+    "swing_trader_scores"   = "load_swing_trader_scores.py"
+    "market_exposure_daily" = "load_market_exposure_daily.py"
+    "growth_metrics"        = "load_growth_metrics.py"
+    "quality_metrics"       = "load_quality_metrics.py"
+    "value_metrics"         = "load_value_metrics.py"
+    "positioning_metrics"   = "load_positioning_metrics.py"
+    "stability_metrics"     = "load_stability_metrics.py"
+    "stock_scores"          = "load_stock_scores.py"
   }
 
-  scheduled_loaders = {
-    "market_constituents" = {
-      schedule    = "cron(25 8 ? * MON-FRI *)"
-      description = "Market constituents - 3:25am ET"
-    }
-    "stock_prices_daily" = {
-      schedule    = "cron(0 9 ? * MON-FRI *)"
-      description = "Stock prices (daily, weekly, monthly) - 4:00am ET"
-    }
-    "fred_economic_data" = {
-      schedule    = "cron(30 20 ? * MON *)"
-      description = "FRED economic indicators - Monday 4:30pm ET"
-    }
-    "dxy_index" = {
-      schedule    = "cron(35 20 ? * MON-FRI *)"
-      description = "ICE DXY (USD Dollar Index) from Yahoo Finance - 4:35pm ET"
-    }
-    "economic_metrics_daily" = {
-      schedule    = "cron(5 9 ? * MON-FRI *)"
-      description = "Economic metrics aggregation - 4:05am ET"
-    }
-    "compute_circuit_breakers" = {
-      schedule    = "cron(30 20 ? * MON-FRI *)"
-      description = "Pre-compute circuit breaker metrics - 4:30pm ET"
-    }
-    "compute_performance_metrics" = {
-      schedule    = "cron(45 20 ? * MON-FRI *)"
-      description = "Pre-compute performance metrics - 4:45pm ET"
-    }
-    "feargreed" = {
-      schedule    = "cron(2 22 ? * MON-FRI *)"
-      description = "CNN Fear & Greed index - Daily 6:02pm ET"
-    }
-    "aaiidata" = {
-      schedule    = "cron(0 4 ? * FRI *)"
-      description = "AAII investor sentiment survey - Weekly Friday 12am ET (survey publishes Thursday)"
-    }
-    "naaim_data" = {
-      schedule    = "cron(5 4 ? * FRI *)"
-      description = "NAAIM exposure index - Weekly Friday 12:05am ET"
-    }
-    "signal_themes" = {
-      schedule    = "cron(0 10 ? * MON-FRI *)"
-      description = "Signal themes - 5:00am ET"
-    }
-    "options_chains" = {
-      schedule    = "cron(0 20 ? * MON-FRI *)"
-      description = "Options chains - 4:00pm ET"
-    }
-  }
+  scheduled_loaders = {}
 }
 
 resource "aws_cloudwatch_event_rule" "scheduled_loader" {

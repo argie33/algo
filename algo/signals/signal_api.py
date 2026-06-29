@@ -79,10 +79,13 @@ class SignalAPI:
             Percentile rank (0-100) where 100 = best momentum in universe
 
         Raises:
-            ValueError: If symbol has insufficient price history
+            ValueError: If symbol has insufficient price history or RS data unavailable
         """
         rs_data = self._computer.mansfield_rs(symbol, eval_date, lookback)
-        if rs_data and rs_data.get("mansfield_rs") is not None:
-            mrs = float(rs_data["mansfield_rs"])
-            return max(0.0, min(100.0, (mrs + 1) * 50))
-        return 0.0
+        if not rs_data or rs_data.get("mansfield_rs") is None:
+            raise ValueError(
+                f"RS percentile data unavailable for {symbol} on {eval_date} "
+                f"(lookback={lookback}d). Insufficient price history or data missing."
+            )
+        mrs = float(rs_data["mansfield_rs"])
+        return max(0.0, min(100.0, (mrs + 1) * 50))

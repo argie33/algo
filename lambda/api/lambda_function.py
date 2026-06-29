@@ -63,20 +63,26 @@ def _apply_critical_migrations():
     """
     try:
         # Import psycopg2 for direct database access (no ORM complexity)
-        import os
-
         import psycopg2
 
-        # Get credentials from environment (Lambda sets these via Secrets Manager injection)
-        db_host = os.getenv("DB_HOST")
-        db_port = os.getenv("DB_PORT", "5432")
-        db_name = os.getenv("DB_NAME", "stocks")
-        db_user = os.getenv("DB_USER")
-        db_password = os.getenv("DB_PASSWORD")
+        # Use credential_manager to fetch DB credentials from Secrets Manager or environment
+        # This is the same source that DatabaseContext uses for all other DB operations
+        try:
+            from config.credential_manager import get_db_config
+            db_config = get_db_config()
+        except Exception as e:
+            logger.warning(f"[STARTUP] Could not fetch credentials from credential_manager: {e} - skipping migrations")
+            return False, f"Credential fetch failed: {str(e)[:50]}"
+
+        db_host = db_config.get("host")
+        db_port = db_config.get("port", 5432)
+        db_name = db_config.get("database", "stocks")
+        db_user = db_config.get("user")
+        db_password = db_config.get("password")
 
         if not all([db_host, db_user, db_password]):
-            logger.warning("[STARTUP] Database credentials not available in environment - skipping migrations")
-            return False, "Credentials missing"
+            logger.warning("[STARTUP] Database configuration incomplete - skipping migrations")
+            return False, "Configuration incomplete"
 
         # Connect to database
         conn = psycopg2.connect(
@@ -251,12 +257,14 @@ def validate_environment() -> tuple[bool, list[str], list[str]]:
         )
 
     # CRITICAL: Database credentials (one of the two must be set)
+    # In AWS Lambda: DB_SECRET_ARN is set by Terraform (preferred)
+    # In local dev: DB_PASSWORD can be set directly in environment
     missing_secret_arn = not os.getenv("DB_SECRET_ARN")
     missing_password = not os.getenv("DB_PASSWORD")
     if missing_secret_arn and missing_password:
         errors.append(
-            "DB_PASSWORD missing: Provide either DB_PASSWORD directly or "
-            "DB_SECRET_ARN pointing to Secrets Manager secret"
+            "Database credentials missing: Provide either DB_SECRET_ARN (AWS Secrets Manager) "
+            "or DB_PASSWORD (environment variable). credential_manager requires one source."
         )
 
     # OPTIONAL: DB_NAME and DB_USER (use defaults if not set)

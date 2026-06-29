@@ -513,7 +513,15 @@ class Orchestrator:
                 f"Halting trading - unable to confirm data freshness."
             ) from e
         except Exception as e:
-            logger.debug(f"[LOADER HEALTH] Unexpected error checking loader health: {e}")
+            logger.error(
+                f"[LOADER HEALTH] UNEXPECTED ERROR checking loader health: {e}. "
+                f"This indicates an unexpected runtime error in the health check logic. "
+                f"Halting trading to prevent operating with unverified loader state."
+            )
+            raise RuntimeError(
+                f"[ORCHESTRATOR] Unexpected error during loader health check: {e}. "
+                f"Cannot proceed with trading until loader health verification succeeds."
+            ) from e
 
     def _validate_required_tables(self, cur: Any) -> bool:
         """FIXED Issue #23: Validate that all required tables exist before running phases.

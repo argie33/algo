@@ -4,6 +4,8 @@ import logging
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
+from dashboard.error_boundary import has_error
+
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
@@ -85,8 +87,9 @@ def _calculate_adjusted_win_rate(
     Counts open positions with unrealized_pnl_pct < 0 as losses.
     """
     # CRITICAL: Fail-fast if performance data unavailable (don't return all zeros which masks missing data)
-    if perf is None or perf.get("_error"):
-        raise ValueError(f"Performance data unavailable: {perf.get('_error') if perf else 'perf is None'}")
+    if perf is None or has_error(perf):
+        error_msg = perf.get("_error") if (perf and has_error(perf)) else "perf is None"
+        raise ValueError(f"Performance data unavailable: {error_msg}")
 
     wr_val = perf.get("wr")
     w_val = perf.get("w")
@@ -101,7 +104,7 @@ def _calculate_adjusted_win_rate(
     closed_losses = l_i
     losing_open = 0
 
-    if pos and not pos.get("_error"):
+    if pos and not has_error(pos):
         pos_items, _, _ = normalize_positions_data(pos)
         for p in pos_items:
             if isinstance(p, dict):
@@ -239,7 +242,7 @@ def panel_portfolio(
 
     # Risk metrics (VaR, CVaR, Beta, concentration, Stressed VaR)
     # CRITICAL: Fail-fast on missing risk metrics — don't silently hide them!
-    if risk and not risk.get("_error"):
+    if risk and not has_error(risk):
         var_v = safe_float(risk["var95"], strict=True, field_name="var95")
         cvar_v = safe_float(risk["cvar95"], strict=True, field_name="cvar95")
         beta_v = safe_float(risk["beta"], strict=True, field_name="beta")
@@ -366,7 +369,7 @@ def panel_performance_spark(  # noqa: C901
     )
 
     # Rolling analytics
-    if perf_anl and not perf_anl.get("_error"):
+    if perf_anl and not has_error(perf_anl):
         sharpe252 = perf_anl.get("sharpe252")
         sortino = perf_anl.get("sortino")
         calmar = perf_anl.get("calmar")
@@ -484,13 +487,16 @@ def panel_portfolio_perf_expanded(  # noqa: C901
     pos: dict[str, Any] | None = None,
 ) -> Panel:
     """Full-screen portfolio + performance deep dive — all metrics, risk, concentration."""
+    # ── Error boundary checks at function entry ──────────────────────────────
+    # CRITICAL: Check for error markers in primary data endpoints before processing
+    # Fail-fast pattern: if core data has errors, partial rendering is better than silent failure
     rows: list[Any] = [
         Text.from_markup("[dim]press [/][bold green]f[/][dim] to return to dashboard[/]"),
         Rule(style="dim"),
     ]
 
     # ── Portfolio snapshot ────────────────────────────────────────────────────
-    if port and not port.get("_error"):
+    if port and not has_error(port):
         pv_val: Any = port.get("total_portfolio_value")
         cash_val: Any = port.get("total_cash")
         npos_val: Any = port.get("position_count")
@@ -553,7 +559,7 @@ def panel_portfolio_perf_expanded(  # noqa: C901
     rows.append(Rule(style="dim"))
 
     # ── Performance metrics ────────────────────────────────────────────────────
-    if perf and not perf.get("_error") and not perf.get("_no_data"):
+    if perf and not has_error(perf) and not perf.get("_no_data"):
         rows.append(Text.from_markup("[dim bold]PERFORMANCE METRICS[/]"))
         n_val = perf.get("n")
         n = safe_int(n_val, strict=True, field_name="total_trades_n")
@@ -691,7 +697,7 @@ def panel_portfolio_perf_expanded(  # noqa: C901
     rows.append(Rule(style="dim"))
 
     # ── Performance Analytics (rolling) ──────────────────────────────────────
-    if perf_anl and not perf_anl.get("_error"):
+    if perf_anl and not has_error(perf_anl):
         rows.append(Text.from_markup("[dim bold]ROLLING ANALYTICS[/]"))
         anl = Table.grid(padding=(0, 3), expand=False)
         anl.add_column("label", style="dim")
@@ -776,7 +782,7 @@ def panel_portfolio_perf_expanded(  # noqa: C901
         rows.append(Rule(style="dim"))
 
     # ── Risk metrics ──────────────────────────────────────────────────────────
-    var95_val = risk.get("var95") if risk and not risk.get("_error") else None
+    var95_val = risk.get("var95") if risk and not has_error(risk) else None
     if var95_val is not None:
         try:
             var95_f = float(var95_val)
@@ -844,7 +850,7 @@ def panel_portfolio_perf_expanded(  # noqa: C901
         if pos_items:
             rows.append(Rule(style="dim"))
             rows.append(Text.from_markup("[dim bold]POSITION CONCENTRATION[/]"))
-            pv_total_val = port.get("total_portfolio_value") if port and not port.get("_error") else None
+            pv_total_val = port.get("total_portfolio_value") if port and not has_error(port) else None
             if pv_total_val is None:
                 rows.append(Text("[red]Portfolio value unavailable — cannot compute concentration[/]", style="dim"))
             else:

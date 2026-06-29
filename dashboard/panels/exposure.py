@@ -6,6 +6,8 @@ from typing import TYPE_CHECKING, Any, cast
 
 from rich.console import ConsoleRenderable, RichCast
 
+from .. import error_boundary
+
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
@@ -115,10 +117,16 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
 
     def factor_detail(key: Any) -> str:  # noqa: C901 - key dispatch lookup table is inherently complex
         """Return a short value string for a factor key."""
+        # Early return if factors dict has error markers
+        if error_boundary.has_error(factors):
+            return ""
         if not factors or key not in factors:
             return ""
         f = factors[key]
         if not isinstance(f, dict):
+            return ""
+        # Early return if factor data has error markers
+        if error_boundary.has_error(f):
             return ""
         if key == "trend_30wk":
             v = f.get("price_vs_ma_pct")
@@ -309,9 +317,20 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
         Text.from_markup("[dim]press [/][bold blue]x[/][dim] to return to dashboard[/]"),
         Rule(style="dim"),
     ]
+    # Check for error markers on response object
     err_panel = _error_panel("exposure factors", exp_f, "EXPOSURE SCORE - EXPANDED", border="blue")
     if err_panel:
         return err_panel
+
+    # Early exit if exp_f has error markers
+    if error_boundary.has_error(exp_f):
+        error_msg = error_boundary.get_error_message(exp_f)
+        return Panel(
+            Text.from_markup(f"[red]Exposure data fetch failed[/]\n[dim]{error_msg}[/]"),
+            title="[bold blue]EXPOSURE SCORE - EXPANDED[/]  [dim][x] return[/]",
+            border_style="blue",
+            padding=(0, 1),
+        )
 
     if "factors" not in exp_f:
         logger.error("[EXPOSURE_EXPANDED] factors field missing from API response")
@@ -413,7 +432,11 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
     tbl.add_column("Context", style="dim", no_wrap=False)
 
     for key, label, max_pts, context in factor_map_exp:
-        if key not in factors:
+        # Early exit if factors dict has error markers
+        if error_boundary.has_error(factors):
+            logger.debug("[EXPOSURE_EXPANDED] factors dict has error markers, skipping factor %s", key)
+            f = {}
+        elif key not in factors:
             # Factor missing from API response — log and skip
             logger.debug("[EXPOSURE_EXPANDED] factor %s not in response", key)
             f = {}
@@ -423,6 +446,10 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
                 logger.warning(
                     "[EXPOSURE_EXPANDED] factor %s has invalid type: %s, expected dict", key, type(f).__name__
                 )
+                f = {}
+            # Early exit if individual factor has error markers
+            elif error_boundary.has_error(f):
+                logger.debug("[EXPOSURE_EXPANDED] factor %s has error markers", key)
                 f = {}
 
         pts_raw = f.get("pts") if f else None
@@ -535,9 +562,9 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
     # Penalty/bonus adjustments
     sr = None
     eco = None
-    if factors and isinstance(factors, dict):
+    if factors and isinstance(factors, dict) and not error_boundary.has_error(factors):
         sr_raw = factors.get("sector_rotation")
-        if isinstance(sr_raw, dict):
+        if isinstance(sr_raw, dict) and not error_boundary.has_error(sr_raw):
             sr = sr_raw
         else:
             logger.debug(
@@ -545,7 +572,7 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
                 type(sr_raw).__name__ if sr_raw is not None else "None",
             )
         eco_raw = factors.get("economic_overlay")
-        if isinstance(eco_raw, dict):
+        if isinstance(eco_raw, dict) and not error_boundary.has_error(eco_raw):
             eco = eco_raw
         else:
             logger.debug(

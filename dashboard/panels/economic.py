@@ -187,6 +187,13 @@ def panel_economic_pulse(eco: Any, econ_cal: Any = None) -> Panel:  # noqa: C901
     err_panel = _error_panel("economic pulse", eco, "ECONOMIC INPUTS", border="bright_magenta")
     if err_panel:
         return err_panel
+
+    # Fail-fast: check for error conditions before extracting indicators
+    if has_error(eco):
+        error_msg = eco.get("_error", "unknown error") if isinstance(eco, dict) else "invalid data structure"
+        logger.error(f"Economic pulse: data error detected: {error_msg}")
+        return _error_panel("economic pulse", eco, "ECONOMIC INPUTS", border="bright_magenta")
+
     rows: list[Any] = []
 
     indicators = extract_economic_indicators(eco)
@@ -317,6 +324,12 @@ def panel_economic_expanded(eco: Any, econ_cal: Any = None) -> Any:  # noqa: C90
     err_panel = _error_panel("economic pulse", eco, "ECONOMIC INPUTS", border="bright_magenta")
     if err_panel:
         return err_panel
+
+    # Fail-fast: check for error conditions before extracting indicators
+    if has_error(eco):
+        error_msg = eco.get("_error", "unknown error") if isinstance(eco, dict) else "invalid data structure"
+        logger.error(f"Economic expanded view: data error detected: {error_msg}")
+        return _error_panel("economic pulse", eco, "ECONOMIC INPUTS", border="bright_magenta")
 
     rows: list[Text | Rule | Table | Group] = [
         Text.from_markup("[dim]press [/][bold bright_magenta]e[/][dim] to return to dashboard[/]"),

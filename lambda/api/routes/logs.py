@@ -130,20 +130,27 @@ def handle(
             # CloudWatch expects unix timestamp in milliseconds
             from datetime import datetime
 
-            timestamp_str = log_entry.get("timestamp", "")
+            if "timestamp" not in log_entry:
+                raise ValueError(
+                    "[CRITICAL] Log entry missing required 'timestamp' field. "
+                    "Cannot audit log without timestamp — audit trail integrity compromised."
+                )
+
+            timestamp_str = log_entry["timestamp"]
+            if not timestamp_str or (isinstance(timestamp_str, str) and not timestamp_str.strip()):
+                raise ValueError(
+                    "[CRITICAL] Log entry has empty/None timestamp. "
+                    f"Received: {timestamp_str!r}. Audit trail must have valid timestamp."
+                )
+
             try:
-                if timestamp_str:
-                    dt = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
-                    timestamp_ms = int(dt.timestamp() * 1000)
-                else:
-                    from datetime import datetime, timezone
-
-                    timestamp_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+                dt = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
+                timestamp_ms = int(dt.timestamp() * 1000)
             except (ValueError, AttributeError, TypeError) as e:
-                logger.warning(f"Failed to parse log entry timestamp '{timestamp_str}': {e}, using current time")
-                from datetime import datetime, timezone
-
-                timestamp_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+                raise ValueError(
+                    f"[CRITICAL] Cannot parse log timestamp '{timestamp_str}': {e}. "
+                    "Audit trail requires valid ISO format timestamp."
+                ) from e
 
             log_events.append(
                 {
