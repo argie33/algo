@@ -131,7 +131,12 @@ class LambdaHandler(ABC):
         """Get a database connection with proper error handling."""
         try:
             db_host = host or os.environ.get("DB_HOST")
-            db_port = port or int(os.environ.get("DB_PORT", "5432"))
+            # CRITICAL: Port must be explicitly configured, no defaults
+            db_port_str = str(port) if port else os.environ.get("DB_PORT")
+            if not db_port_str:
+                raise ValueError("Database port (DB_PORT) not configured — cannot establish connection")
+            db_port = int(db_port_str)
+
             db_name = database or os.environ.get("DB_NAME")
             db_user = user or os.environ.get("DB_USER")
             db_password = password or os.environ.get("DB_PASSWORD")

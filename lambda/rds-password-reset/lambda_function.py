@@ -63,7 +63,8 @@ def lambda_handler(event, context):
 
     # All credentials must come from Secrets Manager or env vars, never hardcoded defaults
     db_host = os.environ.get("DB_HOST")
-    db_port_str = os.environ.get("DB_PORT", "5432")
+    # CRITICAL: Port must be explicitly configured, no defaults
+    db_port_str = os.environ.get("DB_PORT")
     db_user = os.environ.get("DB_USER")
     db_name = os.environ.get("DB_SYSTEM_DB", "postgres")
     new_password = os.environ.get("NEW_PASSWORD")
@@ -147,7 +148,24 @@ def lambda_handler(event, context):
             ),
         }
 
-    db_port = int(db_port_str)
+    # CRITICAL: Port must be explicitly provided
+    if not db_port_str:
+        error_msg = "DB_PORT environment variable is required"
+        logger.error(error_msg)
+        return {
+            "statusCode": 400,
+            "body": json.dumps({"error": error_msg}),
+        }
+
+    try:
+        db_port = int(db_port_str)
+    except ValueError:
+        error_msg = f"DB_PORT must be a valid integer, got: {db_port_str}"
+        logger.error(error_msg)
+        return {
+            "statusCode": 400,
+            "body": json.dumps({"error": error_msg}),
+        }
 
     # SECURITY FIX: Only retrieve current password from Secrets Manager, never guess
     if not secret_arn:
