@@ -5,8 +5,7 @@ import re
 from typing import Any, cast
 
 from pydantic import BaseModel, Field, ValidationInfo, field_validator
-
-from ..security_validators import (
+from security_validators import (
     ValidationError,
     validate_email,
     validate_symbol,
