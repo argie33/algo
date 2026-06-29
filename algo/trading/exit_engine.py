@@ -920,6 +920,16 @@ class ExitEngine:
             elif response.status_code == 401:
                 raise RuntimeError(f"Alpaca quote API authentication failed for {symbol}")
 
+            elif response.status_code == 404:
+                # Symbol not found in Alpaca (delisted, unavailable in paper, or not tradeable).
+                # Fall back to daily closes rather than crashing Phase 6.
+                logger.warning(
+                    f"[EXIT_ENGINE] Alpaca quote API returned 404 for {symbol} — "
+                    "symbol unavailable (possibly delisted or not in paper trading). "
+                    "Falling back to daily close prices."
+                )
+                return None
+
             else:
                 raise RuntimeError(f"Alpaca quote API error for {symbol}: status {response.status_code}")
 
