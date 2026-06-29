@@ -250,32 +250,9 @@ module.exports = {
     statusCode = 503,
     dataType = "items"
   ) => {
-    const response = {
-      success: true,
-      statusCode: statusCode,
-      _is_placeholder: true,
-      _error: errorMessage,
-      timestamp: new Date().toISOString(),
-    };
-
-    // Support both paginated (items) and single-data responses
-    if (dataType === "items") {
-      response.items = [];
-      response.pagination = {
-        limit: 0,
-        offset: 0,
-        total: 0,
-        page: 1,
-        totalPages: 0,
-        hasNext: false,
-        hasPrev: false,
-      };
-    } else if (dataType === "data") {
-      response.data = null;
-    } else if (dataType === "object") {
-      response.data = {};
-    }
-
-    return res.status(statusCode).json(response);
+    // FAIL-FAST: sendPlaceholder should send proper errors, not success with placeholders
+    // This violates fail-fast governance: must return success: false to indicate failure
+    // The dataType parameter is ignored - we now always return error responses
+    return sendError(res, errorMessage, statusCode);
   },
 };
