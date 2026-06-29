@@ -98,10 +98,20 @@ class StabilityMetricsLoader(OptimalLoader):
                 actual_rows = len(rows) if rows else 0
                 logger.warning(
                     f"[STABILITY_METRICS] Insufficient data for {symbol} "
-                    f"({actual_rows}/30 days required) — metrics unavailable. "
-                    f"New symbols without price history should return explicit data_unavailable marker."
+                    f"({actual_rows}/30 days required) — metrics unavailable"
                 )
-                return None
+                return [
+                    {
+                        "symbol": symbol,
+                        "volatility_30d": None,
+                        "volatility_60d": None,
+                        "volatility_252d": None,
+                        "beta": None,
+                        "data_unavailable": True,
+                        "reason": f"insufficient_price_history ({actual_rows}/30 days)",
+                        "updated_at": datetime.now(timezone.utc).isoformat(),
+                    }
+                ]
 
             # Sort chronologically (oldest to newest)
             prices = sorted(
@@ -124,10 +134,20 @@ class StabilityMetricsLoader(OptimalLoader):
             if not returns:
                 logger.warning(
                     f"[STABILITY_METRICS] Cannot calculate returns for {symbol} "
-                    f"(no valid price transitions found). "
-                    f"Metrics unavailable with explicit data_unavailable marker."
+                    f"(no valid price transitions found)"
                 )
-                return None
+                return [
+                    {
+                        "symbol": symbol,
+                        "volatility_30d": None,
+                        "volatility_60d": None,
+                        "volatility_252d": None,
+                        "beta": None,
+                        "data_unavailable": True,
+                        "reason": "invalid_price_transitions",
+                        "updated_at": datetime.now(timezone.utc).isoformat(),
+                    }
+                ]
 
             # Calculate volatilities (annualized: sqrt(252) * daily_std)
             volatility_30d = self._calculate_volatility(returns[-30:]) if len(returns) >= 30 else None
@@ -150,10 +170,20 @@ class StabilityMetricsLoader(OptimalLoader):
         except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.warning(
                 f"[STABILITY_METRICS] Calculation error for {symbol} "
-                f"(volatility/beta unavailable): {type(e).__name__}: {e}. "
-                f"Returning explicit data_unavailable marker in caller."
+                f"({type(e).__name__}: {e})"
             )
-            return None
+            return [
+                {
+                    "symbol": symbol,
+                    "volatility_30d": None,
+                    "volatility_60d": None,
+                    "volatility_252d": None,
+                    "beta": None,
+                    "data_unavailable": True,
+                    "reason": f"calculation_error_{type(e).__name__.lower()}",
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }
+            ]
 
     @staticmethod
     def _calculate_volatility(returns: list[float]) -> float | None:

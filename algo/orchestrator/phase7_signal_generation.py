@@ -429,10 +429,14 @@ def _get_candidates_from_buysell(
                 }
             )
 
-        swing_score_positive = sum(1 for c in candidates if c["swing_score"] > 0)
+        # Count swing_scores that are valid and positive (None indicates failed gate)
+        swing_score_positive = sum(
+            1 for c in candidates
+            if c.get("swing_score") is not None and c["swing_score"] > 0
+        )
         logger.info(
             f"[PHASE 7] {len(candidates)} candidates from buy_sell_daily + stock_scores + swing_trader_scores "
-            f"(swing_scores: {swing_score_positive}, lookback: {lookback_date} to {run_date}, "
+            f"(swing_scores: {swing_score_positive} valid+positive, lookback: {lookback_date} to {run_date}, "
             f"SQL filters: trend & close_quality applied at query level)"
         )
 

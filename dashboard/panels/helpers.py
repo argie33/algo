@@ -67,35 +67,33 @@ def _score_cell(v: Any) -> Text:
 def _build_buy_sig_map(buy_sigs: Any) -> dict[str, float]:
     """Map symbol -> signal-quality (swing) score from buy-signal records. Uses normalized symbols.
 
-    Validates buy_sigs is iterable before processing.
+    FAIL-FAST: buy_sigs must not be None; caller must validate.
     """
-    out: dict[str, float] = {}
-    if not isinstance(buy_sigs, (list, tuple)):
-        logger.warning(
-            f"buy_sigs is not a list/tuple (got {type(buy_sigs).__name__}). "
-            f"Cannot build signal map."
+    if buy_sigs is None:
+        raise ValueError(
+            "[BUY_SIGNALS] Cannot build signal map: buy_sigs is None. Upstream pipeline did not return buy signal data."
         )
-        return out
+    out: dict[str, float] = {}
     for bs in buy_sigs:
         if not isinstance(bs, dict):
-            logger.debug(f"Skipping non-dict buy signal record: {type(bs).__name__}")
             continue
         sym = bs.get("symbol")
-        if sym is None:
-            logger.debug("Skipping buy signal record with missing symbol field")
+        if not sym:
             continue
         sym_norm = str(sym).upper().strip()
+
         score = bs.get("signal_quality_score")
         if score is None:
             score = bs.get("swing_score")
-        if score is None:
-            logger.debug(f"No scoring field found for symbol {sym_norm}; using 0")
-            score = 0
-        try:
-            out[sym_norm] = float(score)
-        except (ValueError, TypeError) as e:
-            logger.debug(f"Failed to convert score to float for {sym_norm}: {e}; using 0.0")
-            out[sym_norm] = 0.0
+
+        if score is not None:
+            try:
+                out[sym_norm] = float(score)
+            except (ValueError, TypeError) as e:
+                logger.warning(f"Failed to convert score for {sym}: {e}")
+        else:
+            logger.warning(f"Buy signal {sym}: missing signal_quality_score and swing_score")
+
     return out
 
 

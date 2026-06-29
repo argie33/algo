@@ -133,25 +133,24 @@ class SwingTraderScore:
                     gates = self._check_hard_gates(symbol, eval_date, industry, cur)
                 except (psycopg2.DatabaseError, psycopg2.OperationalError) as gate_err:
                     logger.warning(f"Swing score hard gates unavailable for {symbol}: {gate_err} — blocking")
+                    # CRITICAL FAIL-FAST: Return None for swing_score when gates fail (not 0.0)
+                    # This prevents confusion with a valid (poor) score of 0.
                     return {
                         "symbol": symbol,
                         "eval_date": str(eval_date),
                         "pass": False,
                         "reason": f"Hard gates unavailable: {str(gate_err)[:60]}",
-                        "swing_score": 0.0,
+                        "swing_score": None,  # FAIL-FAST: None indicates invalid score
                     }
 
                 if not gates["pass"]:
                     logger.debug(f"Swing score {symbol}: hard gate failed - {gates.get('reason', 'unknown')}")
-                    # CRITICAL: pass=False indicates gate failure. swing_score=0.0 is a placeholder value only.
-                    # Callers MUST check `pass == False` before using swing_score. Never trade based on score if pass=False.
-                    # Example correct usage:
+                    # CRITICAL: When pass=False, swing_score MUST be None (not 0.0)
+                    # This prevents silent confusion with a valid (poor) score of 0.
+                    # Callers MUST check `pass == True` before using swing_score.
+                    # Correct usage:
                     #   result = score.compute(symbol, eval_date)
-                    #   if result['pass'] and result['swing_score'] >= 50:
-                    #       ... trade ...
-                    # Example INCORRECT (will make bad trades):
-                    #   result = score.compute(symbol, eval_date)
-                    #   if result['swing_score'] >= 50:  # Missing pass check!
+                    #   if result['pass'] and result['swing_score'] is not None and result['swing_score'] >= 50:
                     #       ... trade ...
                     return {
                         "symbol": symbol,
@@ -159,7 +158,7 @@ class SwingTraderScore:
                         "pass": False,
                         "reason": gates["reason"],
                         "hard_gates": gates,
-                        "swing_score": 0.0,
+                        "swing_score": None,  # FAIL-FAST: None indicates invalid score, never trade
                     }
 
                 # Compute critical components (fail-hard if data unavailable)
