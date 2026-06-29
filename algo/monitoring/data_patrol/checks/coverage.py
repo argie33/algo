@@ -253,7 +253,9 @@ class CoverageChecker(BaseCheck):
             row = cur.fetchone()
             if row and row[1] > 0:
                 clean_pct = (row[0] / row[1]) * 100
-                threshold = self.config.get("patrol_buy_sell_clean_pct_threshold", 80)
+                # EXPLICIT THRESHOLD: buy_sell_daily signals must be ≥80% clean (not NULL)
+                # This is a fixed contract, not a configurable setting
+                threshold = 80
                 if clean_pct < threshold:
                     self.log(
                         "contract_signal_quality",

@@ -11,6 +11,7 @@ This loader fetches the real DXY (^DXY ticker) from Yahoo Finance.
 import sys
 from datetime import date, timedelta
 from pathlib import Path
+from typing import Any
 
 project_root = str(Path(__file__).parent.parent)
 sys.path.insert(0, project_root)
@@ -26,16 +27,18 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def fetch_dxy_from_yahoo():
-    """Fetch actual ICE DXY from Yahoo Finance API.
+def fetch_dxy_from_yahoo() -> list[dict[str, Any]]:
+    """Fetch actual ICE DXY (US Dollar Index) from Yahoo Finance API.
+
+    Returns gracefully empty if Yahoo Finance is unavailable - the API and dashboard
+    will handle missing economic data via explicit data_unavailable markers.
 
     Returns:
-        list: [{"date": "2026-06-29", "value": 101.13}, ...]
+        list: [{"date": "2026-06-29", "value": 101.13}, ...] or empty list if unavailable
     """
     try:
         import yfinance as yf
 
-        # Fetch DXY (^DXY on Yahoo)
         logger.info("Fetching DXY (^DXY) from Yahoo Finance...")
 
         end_date = date.today()
@@ -44,11 +47,13 @@ def fetch_dxy_from_yahoo():
         dxy = yf.download("^DXY", start=start_date, end=end_date, progress=False)
 
         if dxy is None or len(dxy) == 0:
-            logger.warning("Yahoo Finance returned no data for DXY - using bootstrap value")
-            # Return bootstrap value with today's date
-            return [{"date": date.today().isoformat(), "value": 101.13}]
+            logger.warning(
+                "[DXY] Yahoo Finance returned no data. "
+                "Economic dashboard will skip DXY. "
+                "Check Yahoo Finance API availability."
+            )
+            return []
 
-        # Convert to FRED format (date, value)
         rows = []
         for idx, row in dxy.iterrows():
             if idx.tz_aware:
@@ -56,7 +61,6 @@ def fetch_dxy_from_yahoo():
             else:
                 date_str = idx.date().isoformat()
 
-            # Use Close price as the DXY value
             value = float(row["Close"])
             rows.append({"date": date_str, "value": value})
 
@@ -64,14 +68,14 @@ def fetch_dxy_from_yahoo():
         return rows
 
     except ImportError as e:
-        logger.warning(f"yfinance not installed: {e} - using bootstrap value")
-        return [{"date": date.today().isoformat(), "value": 101.13}]
+        logger.warning(f"[DXY] yfinance not installed: {e}. Skipping DXY data.")
+        return []
     except Exception as e:
-        logger.warning(f"Failed to fetch DXY from Yahoo: {e} - using bootstrap value")
-        return [{"date": date.today().isoformat(), "value": 101.13}]
+        logger.warning(f"[DXY] Failed to fetch from Yahoo Finance: {e}. Skipping DXY data.")
+        return []
 
 
-def store_dxy_data(rows: list) -> int:
+def store_dxy_data(rows: list[dict[str, Any]]) -> int:
     """Store DXY data in economic_data table."""
     if not rows:
         return 0
@@ -100,7 +104,7 @@ def store_dxy_data(rows: list) -> int:
         return 0
 
 
-def main():
+def main() -> int:
     """Fetch and store actual ICE DXY data."""
     logger.info("Starting DXY (ICE) data fetch...")
 

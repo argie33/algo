@@ -47,6 +47,7 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
     cur.execute("""
             SELECT
             symbol,
+            company_name,
             quantity,
             avg_entry_price,
             current_price,

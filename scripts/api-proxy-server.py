@@ -22,10 +22,30 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 # --- Set DB env vars for local Docker PostgreSQL BEFORE importing lambda modules ---
-os.environ.setdefault("DB_HOST", os.environ.get("LOCAL_DB_HOST", "localhost"))
-os.environ.setdefault("DB_PORT", "5432")
-os.environ.setdefault("DB_NAME", "stocks")
-os.environ.setdefault("DB_PASSWORD", os.environ.get("LOCAL_DB_PASSWORD", "stocks"))
+# FAIL-FAST: Require explicit database configuration for local dev
+# Do NOT cascade to fake defaults like "localhost" or "stocks" password
+if not os.environ.get("DB_HOST") and not os.environ.get("LOCAL_DB_HOST"):
+    raise RuntimeError(
+        "[CRITICAL] Database configuration required for local API server.\n"
+        "Set either:\n"
+        "  DB_HOST (preferred for production-like config)\n"
+        "  LOCAL_DB_HOST (for local Docker PostgreSQL)\n"
+        "Do not allow silent fallback to fake/default values."
+    )
+if not os.environ.get("DB_PASSWORD") and not os.environ.get("LOCAL_DB_PASSWORD"):
+    raise RuntimeError(
+        "[CRITICAL] Database password required for local API server.\n"
+        "Set either:\n"
+        "  DB_PASSWORD (preferred for production-like config)\n"
+        "  LOCAL_DB_PASSWORD (for local Docker PostgreSQL)\n"
+        "Do not use placeholder passwords like 'stocks'."
+    )
+
+# Now set explicit values from provided env vars or LOCAL_* variants
+os.environ.setdefault("DB_HOST", os.environ.get("LOCAL_DB_HOST", ""))
+os.environ.setdefault("DB_PORT", os.environ.get("LOCAL_DB_PORT", ""))
+os.environ.setdefault("DB_NAME", os.environ.get("LOCAL_DB_NAME", ""))
+os.environ.setdefault("DB_PASSWORD", os.environ.get("LOCAL_DB_PASSWORD", ""))
 os.environ.setdefault("ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:3000")
 os.environ.setdefault("FRONTEND_URL", "http://localhost:5173")
 

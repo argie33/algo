@@ -8,15 +8,36 @@ import psycopg2
 import psycopg2.extras
 
 try:
+    # FAIL-FAST: All database credentials must be explicitly provided
+    db_host = os.environ.get("DB_HOST")
+    db_port_str = os.environ.get("DB_PORT")
+    db_name = os.environ.get("DB_NAME")
+    db_user = os.environ.get("DB_USER")
     db_password = os.environ.get("DB_PASSWORD")
+
+    missing = []
+    if not db_host:
+        missing.append("DB_HOST")
+    if not db_port_str:
+        missing.append("DB_PORT")
+    if not db_name:
+        missing.append("DB_NAME")
+    if not db_user:
+        missing.append("DB_USER")
     if not db_password:
-        raise ValueError("[CRITICAL] DB_PASSWORD environment variable required — cannot authenticate to database")
+        missing.append("DB_PASSWORD")
+
+    if missing:
+        raise ValueError(
+            f"[CRITICAL] Missing required database environment variables: {', '.join(missing)}. "
+            "Cannot proceed without explicit database configuration."
+        )
 
     conn = psycopg2.connect(
-        host=os.environ.get("DB_HOST", "localhost"),
-        port=int(os.environ.get("DB_PORT", "5432")),
-        database=os.environ.get("DB_NAME", "algo_trading"),
-        user=os.environ.get("DB_USER", "algo_user"),
+        host=db_host,
+        port=int(db_port_str),
+        database=db_name,
+        user=db_user,
         password=db_password,
     )
 

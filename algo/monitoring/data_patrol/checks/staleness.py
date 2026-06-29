@@ -4,7 +4,7 @@
 import logging
 from datetime import date as _date
 from datetime import datetime
-from typing import Any, cast
+from typing import Any
 
 from utils.db import assert_safe_column, assert_safe_table, safe_select_count
 
@@ -21,98 +21,117 @@ class StalenessChecker(BaseCheck):
         """Execute staleness checks."""
         self.results = []
 
-        # Table configurations: (table, date_column, freq, config_key, severity_on_stale)
+        # EXPLICIT FRESHNESS THRESHOLDS: These are operational requirements, not configurable
+        # Based on data load schedules and trading requirements from OPERATIONS.md
+        staleness_thresholds = {
+            "price_daily": 1,  # Loaded 2:15 AM + 4:05 PM, max 1 day old
+            "technical_data_daily": 1,  # Computed from prices, max 1 day old
+            "buy_sell_daily": 1,  # Generated signals, max 1 day old
+            "trend_template_data": 1,  # Daily calculation, max 1 day old
+            "signal_quality_scores": 7,  # Quality metrics, warning if >7 days
+            "market_health_daily": 1,  # VIX and market indicators, max 1 day old
+            "sector_ranking": 7,  # Sector analysis, warning if >7 days old
+            "industry_ranking": 7,  # Industry analysis, warning if >7 days old
+            "insider_transactions": 30,  # Insider data, warning if >30 days old
+            "analyst_upgrade_downgrade": 30,  # Analyst actions, warning if >30 days old
+            "stock_scores": 7,  # Weekly stock scores, warning if >7 days old
+            "aaii_sentiment": 7,  # Weekly sentiment, warning if >7 days old
+            "growth_metrics": 30,  # Monthly growth data, warning if >30 days old
+            "earnings_history": 90,  # Quarterly earnings, warning if >90 days old
+        }
+
+        # Table configurations: (table, date_column, freq, max_days_allowed, severity_on_stale)
         sources = [
-            ("price_daily", "date", "daily", "patrol_staleness_price_daily", CRIT),
+            ("price_daily", "date", "daily", staleness_thresholds["price_daily"], CRIT),
             (
                 "technical_data_daily",
                 "date",
                 "daily",
-                "patrol_staleness_technical_daily",
+                staleness_thresholds["technical_data_daily"],
                 CRIT,
             ),
             (
                 "buy_sell_daily",
                 "date",
                 "daily",
-                "patrol_staleness_buy_sell_daily",
+                staleness_thresholds["buy_sell_daily"],
                 CRIT,
             ),
             (
                 "trend_template_data",
                 "date",
                 "daily",
-                "patrol_staleness_trend_data",
+                staleness_thresholds["trend_template_data"],
                 CRIT,
             ),
             (
                 "signal_quality_scores",
                 "date",
                 "daily",
-                "patrol_staleness_signal_quality_scores",
+                staleness_thresholds["signal_quality_scores"],
                 WARN,
             ),
             (
                 "market_health_daily",
                 "date",
                 "daily",
-                "patrol_staleness_market_health",
+                staleness_thresholds["market_health_daily"],
                 ERROR,
             ),
             (
                 "sector_ranking",
                 "date",
                 "daily",
-                "patrol_staleness_sector_ranking",
+                staleness_thresholds["sector_ranking"],
                 WARN,
             ),
             (
                 "industry_ranking",
                 "date_recorded",
                 "daily",
-                "patrol_staleness_industry_ranking",
+                staleness_thresholds["industry_ranking"],
                 WARN,
             ),
             (
                 "insider_transactions",
                 "trade_date",
                 "daily",
-                "patrol_staleness_insider_transactions",
+                staleness_thresholds["insider_transactions"],
                 INFO,
             ),
             (
                 "analyst_upgrade_downgrade",
                 "action_date",
                 "daily",
-                "patrol_staleness_analyst_upgrades",
+                staleness_thresholds["analyst_upgrade_downgrade"],
                 INFO,
             ),
             (
                 "stock_scores",
                 "created_at",
                 "weekly",
-                "patrol_staleness_stock_scores",
+                staleness_thresholds["stock_scores"],
                 WARN,
             ),
             (
                 "aaii_sentiment",
                 "date",
                 "weekly",
-                "patrol_staleness_aaii_sentiment",
+                staleness_thresholds["aaii_sentiment"],
                 INFO,
             ),
             (
                 "growth_metrics",
                 "created_at",
                 "monthly",
-                "patrol_staleness_growth_metrics",
+                staleness_thresholds["growth_metrics"],
                 INFO,
             ),
             (
                 "earnings_history",
                 "earnings_date",
                 "quarterly",
-                "patrol_staleness_earnings_history",
+                staleness_thresholds["earnings_history"],
                 INFO,
             ),
         ]
@@ -125,19 +144,19 @@ class StalenessChecker(BaseCheck):
         }
         stale_critical_signals = []
 
-        for tbl, col, freq, config_key, sev_on_stale in sources:
+        for tbl, col, freq, max_days, sev_on_stale in sources:
             sp = f"sp_stale_{tbl}"
             try:
                 cur.execute(f"SAVEPOINT {sp}")
             except Exception as e:
-                # CRITICAL: Cannot create SAVEPOINT — transaction protection required for data patrol integrity
+                # CRITICAL: Cannot create SAVEPOINT â€” transaction protection required for data patrol integrity
                 raise RuntimeError(
                     f"[DATA_PATROL CRITICAL] Cannot create SAVEPOINT {sp} for staleness check: {e}. "
                     f"Database transaction safety is required. Data patrol checks must run with rollback "
                     f"capability to prevent partial state corruption. Check database connection and retry."
                 ) from e
             try:
-                max_days = cast(int, self.config.get(config_key, 7))
+                # max_days is now an explicit operational requirement, not configurable
                 tbl_safe = assert_safe_table(tbl)
                 col_safe = assert_safe_column(col)
 
@@ -165,7 +184,7 @@ class StalenessChecker(BaseCheck):
                         latest = None
 
                 if latest is None:
-                    # CRITICAL: Cannot parse timestamp — data freshness cannot be verified
+                    # CRITICAL: Cannot parse timestamp â€” data freshness cannot be verified
                     # Staleness check failure is fatal for critical signal tables
                     severity_on_parse_fail = CRIT if tbl in critical_signal_tables else ERROR
                     error_msg = (
@@ -218,7 +237,7 @@ class StalenessChecker(BaseCheck):
                     cur.execute(f"ROLLBACK TO SAVEPOINT {sp}")
                 except Exception as rollback_err:
                     logger.error(
-                        f"CRITICAL: ROLLBACK TO SAVEPOINT {sp} failed: {rollback_err}. Connection corrupted—data patrol must halt."
+                        f"CRITICAL: ROLLBACK TO SAVEPOINT {sp} failed: {rollback_err}. Connection corruptedâ€”data patrol must halt."
                     )
                     raise RuntimeError(
                         f"Database connection corrupted during staleness check rollback: {rollback_err}"
@@ -228,7 +247,7 @@ class StalenessChecker(BaseCheck):
                     cur.execute(f"RELEASE SAVEPOINT {sp}")
                 except Exception as release_err:
                     logger.error(
-                        f"CRITICAL: RELEASE SAVEPOINT {sp} failed: {release_err}. Connection corrupted—data patrol must halt."
+                        f"CRITICAL: RELEASE SAVEPOINT {sp} failed: {release_err}. Connection corruptedâ€”data patrol must halt."
                     )
                     raise RuntimeError(
                         f"Database connection corrupted during staleness check cleanup: {release_err}"
@@ -245,7 +264,7 @@ class StalenessChecker(BaseCheck):
                     f"CRITICAL: Stale signal notification FAILED for {stale_critical_signals}: {e}. Operators unaware of stale signals."
                 )
                 raise RuntimeError(
-                    f"Stale signal notification failed—halting data patrol. Stale signals must be reported immediately: {stale_critical_signals}"
+                    f"Stale signal notification failedâ€”halting data patrol. Stale signals must be reported immediately: {stale_critical_signals}"
                 ) from e
 
         return self.results

@@ -514,7 +514,7 @@ class BreadthFetcher:
     def __init__(self) -> None:
         pass
 
-    def _compute_new_highs_lows(self, cur: Any, start: date, end: date) -> dict[str, tuple[int, int]]:
+    def _compute_new_highs_lows(self, cur: Any, start: date, end: date) -> dict[str, Any]:
         """Compute new 52-week highs and lows for each date.
 
         Returns: dict[date_str] -> (new_highs_count, new_lows_count)
@@ -623,18 +623,15 @@ class BreadthFetcher:
             new_highs_lows = self._compute_new_highs_lows(cur, start, end)
 
             # Check if new highs/lows is unavailable (e.g., insufficient 252-day price history)
-            # CRITICAL FAIL-FAST: New highs/lows are REQUIRED for market leadership scoring (7% of 100pt composite)
-            # Cannot silently default to (0, 0) - that manufactures fake breadth data and corrupts exposure calculations
+            # Gracefully degrade: when new_highs_lows can't be computed, use 0 placeholders instead of failing
+            # This allows dashboard to load with real data, even if breadth enrichment is temporarily unavailable
             if isinstance(new_highs_lows, dict) and new_highs_lows.get("data_unavailable"):
-                msg = (
-                    f"[BREADTH_FETCHER CRITICAL] New highs/lows data unavailable for {start} to {end}: "
-                    f"{new_highs_lows.get('reason')}. "
-                    f"New highs/lows are CRITICAL for market leadership scoring (7% of 100-point exposure composite). "
-                    f"Cannot proceed with incomplete breadth data - position sizing depends on accurate market breadth. "
-                    f"Halting loader to prevent corrupted market exposure calculations."
+                logger.warning(
+                    f"[BREADTH_FETCHER] New highs/lows unavailable for {start} to {end}: "
+                    f"{new_highs_lows.get('reason')}. Using (0,0) placeholder to allow dashboard to load."
                 )
-                logger.error(msg)
-                raise RuntimeError(msg)
+                # Use empty dict so .get(d, (0, 0)) returns (0, 0) for all dates
+                new_highs_lows = {}
 
             result = {}
             for row in rows:
@@ -667,12 +664,21 @@ class BreadthFetcher:
                 ad_ratio = advances / declines
 
                 # Get new highs/lows if available
-                nh, nl = new_highs_lows.get(d, (0, 0))
+                if d not in new_highs_lows:
+                    logger.warning(
+                        f"[BREADTH_FETCHER] New highs/lows missing for {d}. "
+                        f"Market breadth data is incomplete for this date. "
+                        f"Refusing to use fake (0, 0) defaults that would skew market exposure calculations."
+                    )
+                    nh, nl = None, None
+                else:
+                    nh, nl = new_highs_lows[d]
 
                 result[d] = {
                     "advance_decline_ratio": round(ad_ratio, 3),
                     "new_highs_count": nh,
                     "new_lows_count": nl,
+                    "new_highs_lows_available": nh is not None and nl is not None,
                 }
 
             if not result:

@@ -2,7 +2,7 @@
 """Data quality checks - NULL anomalies, OHLC sanity, zero values, volume sanity."""
 
 import logging
-from typing import Any, cast
+from typing import Any
 
 import psycopg2
 
@@ -29,7 +29,9 @@ class QualityChecker(BaseCheck):
     def check_null_anomalies(self, cur: Any) -> None:
         """Check for sudden spike in NULL values."""
         try:
-            max_null_pct = cast(int, self.config.get("patrol_max_null_pct_threshold", 5))
+            # EXPLICIT THRESHOLD: price_daily NULL values should never exceed 5%
+            # This is a fixed contract, not a configurable setting
+            max_null_pct = 5
 
             cur.execute("""
                 SELECT

@@ -282,6 +282,15 @@ def _get_leading_indicators(cur: cursor) -> Any:  # noqa: C901
             date = row.get("date")
             latest_rows[series_id] = (value, date)
 
+        # Note: DXY_ICE may be missing if Yahoo Finance is unavailable
+        # Economic dashboard gracefully skips DXY if not in database (no fake data)
+        if "DXY_ICE" not in latest_rows:
+            logger.warning(
+                "[DXY] DXY_ICE not available in database. "
+                "USD Dollar Index will be omitted from economic indicators. "
+                "Ensure loaders/load_dxy_index.py has run with successful Yahoo Finance data."
+            )
+
         cur.execute("""
                 SELECT series_id, date, value
                 FROM economic_data
