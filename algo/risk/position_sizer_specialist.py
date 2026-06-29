@@ -4,6 +4,8 @@
 from decimal import Decimal
 from typing import Any
 
+from utils.test_data_detector import TestDataDetector
+
 
 class PositionSizerSpecialist:
     """Handles position sizing calculations independently."""
@@ -41,7 +43,14 @@ class PositionSizerSpecialist:
 
         Returns:
             Number of shares to trade
+
+        Raises:
+            RuntimeError: If test/mock data markers detected in portfolio_value
         """
+        TestDataDetector.assert_not_test_data(
+            {"portfolio_value": portfolio_value},
+            location="PositionSizerSpecialist.calculate_shares"
+        )
         risk_amount = float(portfolio_value) * (self.base_risk_pct / 100)
         price_diff = float(entry_price) - float(stop_loss)
 
