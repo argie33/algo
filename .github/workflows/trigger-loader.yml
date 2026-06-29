@@ -39,14 +39,16 @@ jobs:
       - name: Invoke algo-trigger-loaders Lambda (applies LOADER_CHUNK_SIZE=100, LOADER_TIMEOUT_SEC=600)
         id: lambda
         run: |
-          # Build JSON payload using printf to avoid encoding issues
-          PAYLOAD=$(printf '{"loader_name": "%s"}' "${{ inputs.loader_name }}")
+          # Write JSON payload to file to avoid encoding issues
+          cat > /tmp/payload.json << EOF
+          {"loader_name": "${{ inputs.loader_name }}"}
+          EOF
 
           # Invoke Lambda which applies correct environment overrides
           aws lambda invoke \
             --function-name algo-trigger-loaders \
             --region us-east-1 \
-            --payload "$PAYLOAD" \
+            --payload file:///tmp/payload.json \
             /tmp/response.json
 
           # Extract task ARN from Lambda response
