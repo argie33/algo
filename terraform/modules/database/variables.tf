@@ -184,6 +184,18 @@ variable "rds_security_group_id" {
   type        = string
 }
 
+variable "db_host" {
+  description = "RDS database host for Lambda access"
+  type        = string
+  default     = ""
+}
+
+variable "db_port" {
+  description = "RDS database port"
+  type        = number
+  default     = 5432
+}
+
 # ============================================================
 # Secrets Configuration
 # ============================================================

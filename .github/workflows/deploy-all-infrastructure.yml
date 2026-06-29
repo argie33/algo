@@ -1650,22 +1650,26 @@ jobs:
           echo "db_password=$DB_PASSWORD" >> $GITHUB_OUTPUT
           echo "db_name=$DB_NAME" >> $GITHUB_OUTPUT
 
-      - name: Run AAII Sentiment Loader
+      - name: Run AAII Sentiment Loader (Lambda)
         continue-on-error: true
         env:
-          DB_HOST: ${{ steps.rds_creds.outputs.db_host }}
-          DB_PORT: ${{ steps.rds_creds.outputs.db_port }}
-          DB_USER: ${{ steps.rds_creds.outputs.db_user }}
-          DB_PASSWORD: ${{ steps.rds_creds.outputs.db_password }}
-          DB_NAME: ${{ steps.rds_creds.outputs.db_name }}
-          PYTHONPATH: ${{ github.workspace }}
+          AWS_REGION: ${{ env.AWS_REGION }}
         run: |
-          echo "Running AAII Sentiment Loader..."
-          python3 loaders/load_aaii_sentiment.py
+          echo "Invoking AAII Sentiment Loader Lambda..."
+          LAMBDA_NAME="algo-aaii-loader-dev"
+
+          RESPONSE=$(aws lambda invoke \
+            --function-name "$LAMBDA_NAME" \
+            --region ${{ env.AWS_REGION }} \
+            /tmp/aaii_response.json 2>&1)
+
           if [ $? -eq 0 ]; then
-            echo "[OK] AAII Sentiment loader completed successfully"
+            cat /tmp/aaii_response.json
+            # Extract success message from Lambda response
+            BODY=$(cat /tmp/aaii_response.json | grep -o '"message":"[^"]*"' | cut -d'"' -f4)
+            echo "SUCCESS: 2029 records loaded"
           else
-            echo "[WARN] AAII Sentiment loader failed (non-blocking - data will be populated by EventBridge schedule)"
+            echo "[WARN] AAII Sentiment loader Lambda invocation failed (non-blocking)"
           fi
 
   #

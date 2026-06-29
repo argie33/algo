@@ -147,3 +147,8 @@ output "watermark_access_policy_arn" {
   description = "IAM policy ARN for watermark access (attach to loader roles)"
   value       = aws_iam_policy.watermark_access.arn
 }
+
+output "aaii_loader_function_name" {
+  value       = try(aws_lambda_function.aaii_loader.function_name, "")
+  description = "AAII Sentiment Loader Lambda function name"
+}
