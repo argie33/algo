@@ -424,9 +424,9 @@ def _insert_default_metrics(cur: Any, metric_date: date) -> None:
             win_rate_pct, profit_factor, total_pnl_dollars, total_pnl_pct,
             avg_trade_pct, best_trade_pct, worst_trade_pct, avg_win_pct, avg_loss_pct,
             avg_holding_days, sharpe_ratio, sortino_ratio, max_drawdown_pct, calmar_ratio,
-            cagr_pct, best_win_streak, worst_loss_streak
+            cagr_pct, best_win_streak, worst_loss_streak, avg_win_r, avg_loss_r, expectancy
         ) VALUES (%s, 0, 0, 0, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-                  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0, 0)
+                  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0, 0, 0.0, 0.0, 0.0)
         ON CONFLICT (metric_date) DO NOTHING
     """,
         (metric_date,),
