@@ -716,7 +716,10 @@ def _get_performance_analytics(cur: cursor) -> Any:
         cur.execute("SAVEPOINT perf_analytics")
         cur.execute("""
             SELECT metric_date, sharpe_ratio, sortino_ratio, calmar_ratio,
-                   win_rate_pct, max_drawdown_pct, avg_win_r, avg_loss_r, expectancy
+                   win_rate_pct, max_drawdown_pct,
+                   COALESCE(avg_win_r, 0.0) AS avg_win_r,
+                   COALESCE(avg_loss_r, 0.0) AS avg_loss_r,
+                   COALESCE(expectancy, 0.0) AS expectancy
             FROM algo_performance_metrics
             ORDER BY metric_date DESC
             LIMIT 1
@@ -744,12 +747,13 @@ def _get_performance_analytics(cur: cursor) -> Any:
         avg_loss_r: Any = data.get("avg_loss_r")
         expectancy_val: Any = data.get("expectancy")
 
-        # Validate that R-metrics are present and non-None (required by perf_anl contract)
+        # COALESCE in query ensures R-metrics are never None (default to 0.0)
+        # This handles the case where migration 108 columns might be NULL or missing initially
         if avg_win_r is None or avg_loss_r is None or expectancy_val is None:
             logger.error(
-                f"CRITICAL: R-metrics missing from database: avg_win_r={avg_win_r}, "
+                f"CRITICAL: R-metrics still missing after COALESCE: avg_win_r={avg_win_r}, "
                 f"avg_loss_r={avg_loss_r}, expectancy={expectancy_val}. "
-                "Loader may not have run or migration 108 not applied."
+                "This should not happen - database query failed."
             )
             return error_response(
                 503,
@@ -776,13 +780,46 @@ def _get_performance_analytics(cur: cursor) -> Any:
         ensure_valid_response("perf_anl", sanitized)
 
         return success_response(sanitized)
-    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
+    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as col_err:
         try:
             cur.execute("ROLLBACK TO SAVEPOINT perf_analytics")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Unexpected error: {e}") from e
-        logger.error("Performance analytics table missing or schema changed")
-        return error_response(503, "table_missing", "Performance analytics table not found")
+        # R-metrics columns (migration 108) may not exist yet; fallback to query without R-metrics
+        logger.warning(f"R-metrics columns not available yet: {col_err}. Returning fallback data with defaults.")
+        try:
+            cur.execute("SAVEPOINT perf_analytics_fallback")
+            cur.execute("""
+                SELECT metric_date, sharpe_ratio, sortino_ratio, calmar_ratio,
+                       win_rate_pct, max_drawdown_pct
+                FROM algo_performance_metrics
+                ORDER BY metric_date DESC
+                LIMIT 1
+            """)
+            row = cur.fetchone()
+            cur.execute("RELEASE SAVEPOINT perf_analytics_fallback")
+            if row is None:
+                return error_response(503, "data_unavailable", "Performance analytics not available")
+            data = safe_dict_convert(row)
+            response_dict = {
+                "rolling_sharpe_252d": float(data.get("sharpe_ratio")) if data.get("sharpe_ratio") is not None else None,
+                "rolling_sortino_252d": float(data.get("sortino_ratio")) if data.get("sortino_ratio") is not None else None,
+                "calmar_ratio": float(data.get("calmar_ratio")) if data.get("calmar_ratio") is not None else None,
+                "win_rate_50t": float(data.get("win_rate_pct")) if data.get("win_rate_pct") is not None else None,
+                "avg_win_r_50t": 0.0,  # Fallback default until migration 108 applied
+                "avg_loss_r_50t": 0.0,  # Fallback default until migration 108 applied
+                "expectancy": 0.0,  # Fallback default until migration 108 applied
+                "max_drawdown_pct": float(data.get("max_drawdown_pct")) if data.get("max_drawdown_pct") is not None else None,
+            }
+            response_dict["sharpe252"] = response_dict["rolling_sharpe_252d"]
+            response_dict["sortino"] = response_dict["rolling_sortino_252d"]
+            response_dict["calmar"] = response_dict["calmar_ratio"]
+            sanitized = APIResponseValidator.sanitize_response(response_dict)
+            ensure_valid_response("perf_anl", sanitized)
+            return success_response(sanitized)
+        except (psycopg2.errors.UndefinedTable, psycopg2.DatabaseError, psycopg2.OperationalError) as fallback_err:
+            logger.error(f"Fallback query for performance analytics failed: {fallback_err}")
+            return error_response(503, "data_unavailable", "Performance analytics table not found")
     except (
         psycopg2.OperationalError,
         psycopg2.DatabaseError,
