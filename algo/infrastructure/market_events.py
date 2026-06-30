@@ -198,6 +198,13 @@ class MarketEventHandler:
                 url = f"{alpaca_data_url}/v2/stocks/SPY/bars/latest"
                 try:
                     resp = requests.get(url, headers=headers, timeout=get_market_data_timeout())
+                    if resp.status_code == 400:
+                        # Paper trading accounts may require feed=iex (SIP feed returns 400)
+                        resp = requests.get(
+                            url, headers=headers,
+                            params={"feed": "iex"},
+                            timeout=get_market_data_timeout(),
+                        )
                     if resp.status_code != 200:
                         raise RuntimeError(f"Bars API error: status {resp.status_code}")
                     data = resp.json()

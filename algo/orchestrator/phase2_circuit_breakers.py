@@ -70,7 +70,7 @@ def run(
 
             meh = MarketEventHandler(config)
             cb_result = meh.check_market_circuit_breaker()
-            if cb_result:  # If not None, market circuit breaker triggered
+            if cb_result and "error" not in cb_result:  # None = clear; error dict = API failure (skip halt)
                 halt_level = cb_result.get("level", "?")
                 halt_reason = cb_result.get("description", "market circuit breaker triggered")
                 if verbose:
@@ -92,6 +92,12 @@ def run(
                     f"L{halt_level} breaker active: {halt_reason}",
                 )
                 return PhaseResult(2, "market_circuit_breaker", "halted", {}, True, halt_reason)
+            elif cb_result and "error" in cb_result:
+                logger.warning(
+                    f"[CIRCUIT_BREAKER] Market circuit breaker API check failed (treating as non-fatal): "
+                    f"{cb_result.get('description', cb_result.get('reason', 'unknown'))}. "
+                    f"Proceeding with account circuit breakers only."
+                )
         except (OSError, RuntimeError, ValueError) as e:
             error = PhaseError(
                 category=ErrorCategory.DEPENDENCY_FAILED,
