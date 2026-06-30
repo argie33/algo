@@ -112,7 +112,7 @@ def _handle_basic(cur: cursor) -> Any:
         # MAX(date) uses the btree index on date; ORDER BY created_at had no index and scanned
         # the full table, timing out on every health request.
         try:
-            from utils.infrastructure import MarketCalendar
+            from algo.infrastructure import MarketCalendar
 
             market_cal = MarketCalendar()
             market_is_open = market_cal.is_market_open(datetime.now(timezone.utc))

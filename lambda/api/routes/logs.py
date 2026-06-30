@@ -52,10 +52,17 @@ def ensure_log_stream(stream_name: str) -> None:
     try:
         client = _get_logs_client()
         client.create_log_stream(logGroupName=LOG_GROUP, logStreamName=stream_name)
-    except _get_logs_client().exceptions.ResourceAlreadyExistsException:
-        pass  # Stream already exists
     except Exception as e:
-        logger.error(f"Critical: Failed to create log stream {stream_name}: {e}")
+        e_name = type(e).__name__
+        # ResourceAlreadyExistsException means the stream exists — that's fine
+        if "ResourceAlreadyExists" in e_name:
+            return
+        # AccessDeniedException means IAM role lacks logs:CreateLogStream — log and continue
+        # (frontend logs are best-effort; missing permission should not fail the request)
+        if "AccessDenied" in e_name or "AccessDenied" in str(e):
+            logger.warning(f"Cannot create log stream {stream_name}: {e_name} — logs:CreateLogStream permission missing")
+            return
+        logger.error(f"Failed to create log stream {stream_name}: {e}")
         raise RuntimeError(f"Failed to create CloudWatch log stream: {e}") from e
 
 

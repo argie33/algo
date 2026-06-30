@@ -9,7 +9,6 @@ import psycopg2
 import psycopg2.errors
 import psycopg2.extras
 import psycopg2.sql
-import yfinance as yf
 from psycopg2.extensions import cursor
 from routes.utils import (
     check_data_freshness,
@@ -650,6 +649,8 @@ def _seed_dxy_ice(cur: cursor) -> Any:
     """
     try:
         logger.info("[SEED] Attempting to fetch real DXY data from Yahoo Finance...")
+
+        import yfinance as yf
 
         # Fetch real DXY data
         end_date = date_module.today()
