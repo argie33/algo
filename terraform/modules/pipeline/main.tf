@@ -594,7 +594,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
           Next        = "LogSectorRankingFailure"
           ResultPath  = "$.loaderError"
         }]
-        Next = "DataPatrol"
+        Next = "MarketExposureDaily"
       }
 
       LogSectorRankingFailure = {
