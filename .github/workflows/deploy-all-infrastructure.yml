@@ -564,7 +564,46 @@ jobs:
             echo "[OK] AAII Loader Lambda ZIP: $(du -sh $TERRAFORM_MODULES/aaii_loader.zip | cut -f1)"
             unzip -l $TERRAFORM_MODULES/aaii_loader.zip | head -10
           else
-            echo "[WARN] scripts/aaii_loader_function.py not found — skipping AAII loader"
+            echo "[WARN] scripts/aaii_loader_function.py not found — creating stub ZIP"
+            python3 -c "
+import zipfile, os
+path = '$TERRAFORM_MODULES/aaii_loader.zip'
+os.makedirs(os.path.dirname(path), exist_ok=True)
+with zipfile.ZipFile(path, 'w') as z:
+    z.writestr('lambda_function.py', 'def lambda_handler(e,c): return {\"statusCode\": 501}')
+print(f'Created stub: {path}')
+"
+          fi
+
+      - name: Build Trigger Loaders Lambda
+        run: |
+          # Build trigger-loaders Lambda ZIP from source before Terraform needs it
+          SOURCE=$GITHUB_WORKSPACE/lambda/trigger-loaders/lambda_function.py
+          TERRAFORM_MODULES=$GITHUB_WORKSPACE/terraform/modules/orchestration
+          PKG_DIR=/tmp/trigger-loaders-pkg
+
+          mkdir -p $PKG_DIR $TERRAFORM_MODULES
+
+          if [ -f "$SOURCE" ]; then
+            cp $SOURCE $PKG_DIR/lambda_function.py
+            cp $GITHUB_WORKSPACE/lambda/base_handler.py $PKG_DIR/ 2>/dev/null || true
+            cp -r $GITHUB_WORKSPACE/utils/. $PKG_DIR/utils/ 2>/dev/null || true
+            cp -r $GITHUB_WORKSPACE/config/ $PKG_DIR/config/ 2>/dev/null || true
+            find $PKG_DIR -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+            rm -f $TERRAFORM_MODULES/trigger-loaders.zip
+            cd $PKG_DIR
+            zip -r $TERRAFORM_MODULES/trigger-loaders.zip . -q -x "*.pyc" "__pycache__/*"
+            echo "[OK] trigger-loaders Lambda ZIP: $(du -sh $TERRAFORM_MODULES/trigger-loaders.zip | cut -f1)"
+          else
+            echo "[WARN] lambda/trigger-loaders/lambda_function.py not found — creating stub"
+            python3 -c "
+import zipfile, os
+path = '$TERRAFORM_MODULES/trigger-loaders.zip'
+os.makedirs(os.path.dirname(path), exist_ok=True)
+with zipfile.ZipFile(path, 'w') as z:
+    z.writestr('lambda_function.py', 'def lambda_handler(e,c): return {\"statusCode\": 501}')
+print(f'Created stub: {path}')
+"
           fi
 
       - name: Terraform Validate
