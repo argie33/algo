@@ -232,6 +232,7 @@ class VectorizedSwingScoresLoader:
         results = []
 
         for symbol in symbols:
+            unavailable_reason = None
             try:
                 # Get latest data for this symbol
                 sig_df = signal_scores[signal_scores["symbol"] == symbol]
@@ -245,14 +246,17 @@ class VectorizedSwingScoresLoader:
 
                 # trend_template_data (always in pipeline) is the only hard requirement
                 if trend is None:
+                    unavailable_reason = "upstream_dependency_missing:trend_template_data"
                     raise ValueError(f"{symbol}: No trend template data found (critical upstream requirement)")
 
                 # Apply hard gate: minimum trend score
                 # (consistent with SwingTraderScore.compute)
                 if "minervini_trend_score" not in trend:
+                    unavailable_reason = "upstream_data_incomplete:minervini_missing"
                     raise ValueError(f"{symbol}: trend data missing required 'minervini_trend_score' field")
                 minervini = trend["minervini_trend_score"]
                 if not pd.notna(minervini):
+                    unavailable_reason = "upstream_data_quality:minervini_nan"
                     raise ValueError(
                         f"{symbol}: minervini_trend_score is NaN on {end_date} — required for trend-based scoring"
                     )
@@ -260,8 +264,9 @@ class VectorizedSwingScoresLoader:
 
                 # Skip stocks with insufficient trend strength (gate: minervini >= 5)
                 if minervini < 5:
-                    logger.debug(f"{symbol}: minervini={minervini} < 5, skipping (trend too weak)")
-                    continue
+                    unavailable_reason = f"filtered_by_minervini_gate:score={minervini}"
+                    logger.warning(f"{symbol}: minervini={minervini} < 5 (below gate minimum 5). Swing trader score not computed.")
+                    raise ValueError(f"{symbol}: minervini={minervini} < 5 — insufficient trend strength")
 
                 # Compute component scores; use defaults when upstream tables are empty
                 # Handle NaN values from pandas (convert to defaults)
@@ -270,34 +275,41 @@ class VectorizedSwingScoresLoader:
                 # Apply hard gate: Weinstein stage must be 2
                 # (uptrend phase)
                 if "weinstein_stage" not in trend:
+                    unavailable_reason = "upstream_data_incomplete:weinstein_missing"
                     raise ValueError(f"{symbol}: trend data missing required 'weinstein_stage' field")
                 weinstein = trend["weinstein_stage"]
                 if not pd.notna(weinstein):
+                    unavailable_reason = "upstream_data_quality:weinstein_nan"
                     raise ValueError(
                         f"{symbol}: weinstein_stage is NaN on {end_date} — required for market stage filtering"
                     )
                 weinstein = int(weinstein)
                 if weinstein != 2:
-                    logger.debug(f"{symbol}: stage={weinstein} != 2, skipping (not uptrend)")
-                    continue
+                    unavailable_reason = f"filtered_by_weinstein_gate:stage={weinstein}"
+                    logger.warning(f"{symbol}: Weinstein stage={weinstein} (requires 2 for uptrend). Swing trader score not computed.")
+                    raise ValueError(f"{symbol}: stage={weinstein} != 2 — not in uptrend phase")
 
                 trend_score = float(weinstein) * 25.0
 
                 if tech is None or "rsi" not in tech:
-                    raise ValueError(f"RSI data missing for {symbol} on {date}")
+                    unavailable_reason = "upstream_dependency_missing:technical_data_daily" if tech is None else "upstream_data_incomplete:rsi_missing"
+                    raise ValueError(f"RSI data missing for {symbol}")
                 rsi = tech["rsi"]
                 if not pd.notna(rsi):
-                    raise ValueError(f"RSI value is NaN for {symbol} on {date}")
+                    unavailable_reason = "upstream_data_quality:rsi_nan"
+                    raise ValueError(f"RSI value is NaN for {symbol}")
                 rsi = float(rsi)
                 momentum_score = self._calculate_momentum_score(rsi)
 
                 volume_score = 70.0  # From price ROC
 
                 if sig is None or "composite_sqs" not in sig:
-                    raise ValueError(f"Signal quality score missing for {symbol} on {end_date}")
+                    unavailable_reason = "upstream_dependency_missing:signal_quality_scores" if sig is None else "upstream_data_incomplete:composite_sqs_missing"
+                    raise ValueError(f"Signal quality score missing for {symbol}")
                 sqs = sig["composite_sqs"]
                 if not pd.notna(sqs):
-                    raise ValueError(f"Signal quality score is NaN for {symbol} on {end_date}")
+                    unavailable_reason = "upstream_data_quality:composite_sqs_nan"
+                    raise ValueError(f"Signal quality score is NaN for {symbol}")
                 fundamentals_score = float(sqs)
 
                 # Fetch sector momentum score (real sector health metric, not mock data)
@@ -313,6 +325,7 @@ class VectorizedSwingScoresLoader:
                 if sector_score is None:
                     if sector is None:
                         # Sector data completely missing — sector_ranking table may not have run
+                        unavailable_reason = "upstream_dependency_missing:sector_ranking"
                         logger.warning(
                             f"{symbol}: No sector data available from sector_ranking. "
                             f"Sector ranking loader may not have completed for this date."
@@ -323,6 +336,7 @@ class VectorizedSwingScoresLoader:
                         )
                     else:
                         # Sector data exists but momentum score is missing
+                        unavailable_reason = "upstream_data_quality:sector_momentum_null"
                         logger.warning(
                             f"{symbol}: Sector record exists but sector_momentum_score is NULL or missing. "
                             f"Data quality issue in sector_ranking table."
@@ -375,8 +389,31 @@ class VectorizedSwingScoresLoader:
                 )
 
             except (ValueError, ZeroDivisionError, TypeError) as e:
-                logger.warning(f"Error computing swing trader score for {symbol}: {e}. This symbol will be skipped.")
-                continue
+                # INSERT unavailable marker instead of skipping — allows API to distinguish
+                # "not computed" from "no data" and provides visibility into WHY scoring failed
+                if unavailable_reason is None:
+                    unavailable_reason = f"compute_error:{str(e)[:100]}"
+                logger.warning(
+                    f"[SWING_SCORES] {symbol}: Score not computed ({unavailable_reason}). "
+                    f"Inserting unavailable marker for visibility."
+                )
+                # Use trend date if available, otherwise today
+                score_date = trend.get("date") if trend else end_date
+                results.append({
+                    "symbol": symbol,
+                    "date": score_date,
+                    "setup_score": None,
+                    "trend_score": None,
+                    "momentum_score": None,
+                    "volume_score": None,
+                    "fundamentals_score": None,
+                    "sector_score": None,
+                    "multi_tf_score": None,
+                    "total_score": 0.0,
+                    "grade": None,
+                    "data_unavailable": True,
+                    "unavailability_reason": unavailable_reason,
+                })
 
         return pd.DataFrame(results) if results else pd.DataFrame()
 
@@ -424,6 +461,7 @@ class VectorizedSwingScoresLoader:
             )
 
         # Validate required score fields exist
+        # Note: For unavailable scores, these fields will be None/NULL
         required_score_fields = [
             "grade",
             "setup_score",
@@ -438,6 +476,10 @@ class VectorizedSwingScoresLoader:
         missing_fields = [f for f in required_score_fields if f not in df.columns]
         if missing_fields:
             raise ValueError(f"DataFrame missing required score fields: {missing_fields}")
+
+        # Validate required core fields for all rows (computed and unavailable)
+        if "symbol" not in df.columns or "date" not in df.columns:
+            raise ValueError("DataFrame must have 'symbol' and 'date' columns")
 
         import json
         from io import StringIO
@@ -469,8 +511,13 @@ class VectorizedSwingScoresLoader:
                 df["components"] = components_list
                 df["score"] = df["total_score"].astype(float)
 
-                # Select only columns needed for COPY
+                # Select columns for insert: add data_unavailable if present
                 insert_columns = ["symbol", "date", "score", "components"]
+                if "data_unavailable" in df.columns:
+                    insert_columns.append("data_unavailable")
+                if "unavailability_reason" in df.columns:
+                    insert_columns.append("unavailability_reason")
+
                 insert_df = df[insert_columns].copy()
 
                 # Lock table for atomic delete/insert (prevents concurrent loader corruption)
