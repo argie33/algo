@@ -2,8 +2,6 @@
 
 Live trading system: Minervini trend-following + fundamental quality filters. Up to 15 concurrent positions, daily reconciliation with Alpaca.
 
-**AWS credential error?** Run: `scripts/refresh-aws-credentials.ps1`
-
 ---
 
 ## Core Governance Rules
@@ -151,19 +149,7 @@ Finance applications cannot silently fall back to secondary data sources or acce
 
 ## Rule Enforcement & Audit
 
-**These rules CANNOT be disabled or weakened:**
-1. `mypy strict = true` with `disallow_any_expr` and `disallow_any_unimported`
-2. Pylint: `comparison-with-callable`, `unsupported-binary-operation`
-
-**Pre-commit hook blocks commits that attempt to:**
-- Set `disallow_any_expr = false` in pyproject.toml
-- Add `# pylint: disable=comparison-with-callable` or `unsupported-binary-operation`
-
-**Why:** These catch dict-vs-int type errors before production. Disabling them has caused production incidents.
-
-**Audit (weekly):** See `steering/LINT_POLICY.md` audit section. Report findings in #eng Slack.
-
-**Enforcement:** PRs that bypass these rules are rejected with note to requestor.
+See "Code Cleanliness" section above for protected rules. Weekly audit: `steering/LINT_POLICY.md`.
 
 ---
 

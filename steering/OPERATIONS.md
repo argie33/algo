@@ -283,22 +283,6 @@ UPDATE algo_config SET value = '0.85' WHERE key = 'data_completeness_threshold';
 
 Run: `python -m dashboard.circuit_breaker_monitor`
 
-Shows:
-```
-Circuit Breaker Status (as of 2026-06-29 14:30 ET)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Drawdown:         0.5% (threshold: 20%)  ✓ OK
-Daily Loss:       0.1% (threshold: 2%)   ✓ OK
-Loss Streak:      0 days (threshold: 3)  ✓ OK
-Open Risk:        2.1% (threshold: 4%)   ✓ OK
-VIX Level:        18.5 (threshold: 35)   ✓ OK
-Market Stage:     2 (threshold: 4)       ✓ OK
-Weekly Loss:      1.2% (threshold: 5%)   ✓ OK
-Win Rate:         62% (threshold: 40%)   ✓ OK
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Overall:          🟢 TRADING (all green)
-```
-
 If any circuit breaker triggers:
 ```
 Circuit Breaker Status (as of 2026-06-29 14:45 ET)

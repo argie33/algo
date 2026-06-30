@@ -37,20 +37,7 @@
 
 ## Optional Data Contracts (Explicit Unavailability Markers)
 
-**Optional enrichment** (growth metrics, sentiment, quality data):
-- ❌ **Never** return `None` without context: `if not data: return None`
-- ✅ **Always** return explicit markers when data unavailable:
-  ```python
-  if not data:
-      return {
-          "symbol": symbol,
-          "data_unavailable": True,
-          "reason": "insufficient_price_history"
-      }
-  ```
-- **Rationale**: Callers need to distinguish "no data available" from "error occurred". Explicit markers enable proper handling.
-- **Pattern**: Optional loaders (AAII sentiment, stock scores, etc.) return dict with `data_unavailable` flag
-- **Implementation**: All 20+ loaders use explicit unavailability markers instead of None returns
+Return explicit `data_unavailable: True` markers instead of `None` for optional data (sentiment, quality metrics, etc.). See `GOVERNANCE.md` "Data Quality" section for full rules.
 
 ## Logging Discipline (Missing Data Visibility)
 
