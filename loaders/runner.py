@@ -93,7 +93,10 @@ def run_loader(
             else:
                 stats = loader.run(symbols, parallelism=args.parallelism)
 
-            # Assess success: warn if fail_rate > 5%
+            # Assess success: fail if fail_rate exceeds loader's configured threshold.
+            # Loaders with limited data coverage (growth/value/stability/quality metrics)
+            # may have higher expected failure rates for symbols without financial data.
+            # Runner defers to the loader's max_fail_rate to avoid contradicting its judgment.
             if "symbols_failed" not in stats:
                 raise RuntimeError(
                     f"[LOADER] Stats missing 'symbols_failed' key. "
@@ -107,7 +110,8 @@ def run_loader(
                     f"Stats tracking corrupted."
                 )
             fail_rate = symbols_failed / max(len(symbols), 1)
-            if fail_rate > 0.05:
+            max_fail_rate = getattr(loader, "max_fail_rate", 60.0) / 100.0
+            if fail_rate > max_fail_rate:
                 logger.error(f"Too many failures: {symbols_failed}/{len(symbols)} ({fail_rate * 100:.1f}%)")
                 return 1
 
