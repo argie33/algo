@@ -26,7 +26,6 @@ from zoneinfo import ZoneInfo
 
 import pandas as pd
 import psycopg2
-from pandas.tseries.offsets import CustomBusinessDay
 
 from loaders.technical_indicators import (
     compute_adx,
@@ -305,8 +304,6 @@ class VectorizedTechnicalLoader:
 
                 import numpy as np
 
-                from algo.infrastructure.market_calendar import US_HOLIDAYS
-
                 spy_df = pd.DataFrame(spy_prices_cached)
                 spy_df["date"] = pd.to_datetime(spy_df["date"])
                 spy_closes = spy_df.set_index("date")["close"]
@@ -317,9 +314,7 @@ class VectorizedTechnicalLoader:
                         f"Cannot compute relative strength with invalid price data."
                     )
 
-                holidays = list(US_HOLIDAYS.keys())
-                cbd = CustomBusinessDay(holidays=holidays)
-                target_index = pd.DatetimeIndex(symbol_df["date"].values, freq=cbd)
+                target_index = pd.DatetimeIndex(symbol_df["date"].values)
                 spy_aligned = spy_closes.reindex(target_index)
 
                 # Require complete SPY data alignment (no forward-filling stale prices)

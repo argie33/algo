@@ -23,6 +23,7 @@ from zoneinfo import ZoneInfo
 
 import pandas as pd
 import psycopg2
+import psycopg2.sql
 
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
@@ -438,13 +439,14 @@ class VectorizedSwingScoresLoader:
         if missing_fields:
             raise ValueError(f"DataFrame missing required score fields: {missing_fields}")
 
-        try:
-            import json
-            from io import StringIO
+        import json
+        from io import StringIO
 
+        try:
             with DatabaseContext("write") as cur:
                 # Prepare data: build JSON components and format for insertion
-                df["date"] = df["date"].dt.date.astype(str)
+                # Use isoformat() for datetime.date objects; handles mixed types safely
+                df["date"] = df["date"].apply(lambda d: d.isoformat() if hasattr(d, "isoformat") else str(d))
 
                 # Build components JSON for each row
                 components_list = []
@@ -482,8 +484,6 @@ class VectorizedSwingScoresLoader:
                 logger.info(f"Deleted {cur.rowcount} stale rows for {len(symbols_to_load)} symbols")
 
                 # Build COPY command
-                import psycopg2.sql
-
                 col_ids = [psycopg2.sql.Identifier(c) for c in insert_columns]
                 sql = psycopg2.sql.SQL(
                     "COPY {table} ({fields}) FROM STDIN WITH (FORMAT CSV, FORCE_NULL ({fields}))"
