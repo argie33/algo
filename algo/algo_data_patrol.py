@@ -12,6 +12,7 @@ import sys
 from pathlib import Path
 
 from algo.monitoring.data_patrol import DataPatrol
+from algo.monitoring.data_patrol.config import PatrolConfig
 from utils.infrastructure.timeout import ExecutionTimeout, ExecutionTimeoutError
 
 root = Path(__file__).parent.parent
@@ -34,7 +35,7 @@ if __name__ == "__main__":
             parser.add_argument("--json", action="store_true", help="JSON output")
             args = parser.parse_args()
 
-            p = DataPatrol()
+            p = DataPatrol(config=PatrolConfig())
             summary = p.run(quick=args.quick, validate_alpaca=args.validate_alpaca)
 
             if args.json:
