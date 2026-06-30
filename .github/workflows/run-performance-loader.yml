@@ -48,12 +48,12 @@ jobs:
 
           # List task definitions and get the latest one
           task_defs = ecs.list_task_definitions(
-              familyPrefix='algo-compute_performance_metrics',
+              familyPrefix='stocks-compute_performance_metrics',
               sort='DESC'
           )
 
           if not task_defs['taskDefinitionArns']:
-              # Try alternate search in case prefix doesn't work
+              # Try alternate search
               task_defs = ecs.list_task_definitions(
                   familyPrefix='compute_performance_metrics',
                   sort='DESC'
@@ -107,8 +107,8 @@ jobs:
           echo "  - Populates data needed by perf_anl endpoint"
           echo ""
           echo "Monitor logs:"
-          echo "  CloudWatch: /aws/lambda/algo-orchestrator"
-          echo "  ECS Loader: /ecs/algo-compute_performance_metrics-loader"
+          echo "  CloudWatch: /aws/lambda/stocks-orchestrator"
+          echo "  ECS Loader: /ecs/stocks-compute_performance_metrics-loader"
 
       - name: Check orchestrator logs
         if: always()
