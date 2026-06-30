@@ -142,32 +142,17 @@ Goal: Keep under 100 total; every entry must have a comment.
 
 ## Configuration Structure
 
-### Ruff: Specific Files Only
-✅ **GOOD:**
+Use specific file paths only (not wildcards like `load*.py`). Keep all ignores per-file or inline:
+
 ```toml
 [tool.ruff.lint.per-file-ignores]
 "scripts/setup.py" = ["E402"]
 "loaders/load_prices.py" = ["E402"]
 ```
 
-❌ **BAD:**
-```toml
-[tool.ruff.lint.per-file-ignores]
-"load*.py" = ["E402"]
-"*config*.py" = ["E402"]
-```
-
-### Pylint: Move to Inline or Specific Files
-✅ **GOOD:**
 ```python
 def complex_function():  # pylint: disable=too-many-arguments
     ...
-```
-
-❌ **BAD:**
-```toml
-[tool.pylint.messages_control]
-disable = ["too-many-arguments", "too-many-locals"]
 ```
 
 ---
