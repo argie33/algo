@@ -1,0 +1,62 @@
+name: Run Performance Metrics Loader
+
+# Manually invoke the orchestrator Lambda to run Phase 7 (performance metrics loader)
+# This populates the R-metrics data needed by perf_anl API endpoint
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run-loader:
+    name: Trigger Performance Metrics Loader
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a  # v4
+        with:
+          role-to-assume: ${{ secrets.GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/{1}', secrets.AWS_ACCOUNT_ID, secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev') }}
+          aws-region: us-east-1
+
+      - name: Invoke orchestrator Lambda to run Phase 7
+        run: |
+          echo "Invoking algo-orchestrator Lambda..."
+
+          # Create minimal test event for orchestrator
+          cat > /tmp/orchestrator_event.json << 'EOF'
+          {
+            "source": "github-actions",
+            "action": "manual-trigger",
+            "run_id": "${{ github.run_id }}",
+            "message": "Manually triggered via GitHub Actions workflow"
+          }
+          EOF
+
+          # Invoke Lambda asynchronously (don't wait for response)
+          aws lambda invoke \
+            --function-name algo-orchestrator \
+            --invocation-type Event \
+            --payload file:///tmp/orchestrator_event.json \
+            --region us-east-1 \
+            /tmp/invoke_response.json
+
+          echo "Orchestrator Lambda invoked successfully!"
+          echo ""
+          echo "The orchestrator will run Phase 7 (performance metrics loader):"
+          echo "  - Computes performance metrics from trades"
+          echo "  - Inserts R-metrics (avg_win_r, avg_loss_r, expectancy)"
+          echo "  - Populates data needed by perf_anl endpoint"
+          echo ""
+          echo "Monitor logs:"
+          echo "  CloudWatch: /aws/lambda/algo-orchestrator"
+          echo "  ECS Loader: /ecs/algo-compute_performance_metrics-loader"
+
+      - name: Check orchestrator logs
+        if: always()
+        run: |
+          echo "To monitor the loader, check:"
+          echo "  1. AWS Console: https://console.aws.amazon.com/cloudwatch/home#logStream:group=/aws/lambda/algo-orchestrator"
+          echo "  2. Or: aws logs tail /aws/lambda/algo-orchestrator --follow"
