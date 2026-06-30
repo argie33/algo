@@ -335,16 +335,24 @@ class DataPatrolConfig:
         lookback = self.get("patrol_corporate_action_lookback_days")
         drop = self.get("patrol_corporate_action_drop_ratio")
 
+        import logging as _logging
+
+        _log = _logging.getLogger(__name__)
+
         if lookback is None:
-            raise RuntimeError(
-                "[CONFIG CRITICAL] patrol_corporate_action_lookback_days is missing. "
-                "Corporate action detection must be explicitly configured."
+            # Default documented in docstring; migration 106 adds this key to algo_config.
+            # Log CRITICAL so ops can see the missing key but don't crash DataPatrol entirely.
+            _log.critical(
+                "[CONFIG CRITICAL] patrol_corporate_action_lookback_days missing from algo_config — "
+                "using default 90. Apply migration 106 to fix."
             )
+            lookback = 90
         if drop is None:
-            raise RuntimeError(
-                "[CONFIG CRITICAL] patrol_corporate_action_drop_ratio is missing. "
-                "Split/dividend drop detection must be explicitly configured."
+            _log.critical(
+                "[CONFIG CRITICAL] patrol_corporate_action_drop_ratio missing from algo_config — "
+                "using default -0.30. Apply migration 106 to fix."
             )
+            drop = -0.30
 
         return {
             "lookback_days": lookback,

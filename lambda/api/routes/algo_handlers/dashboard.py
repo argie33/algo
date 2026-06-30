@@ -83,6 +83,125 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
         """)
     positions = cur.fetchall()
 
+    if not positions:
+        # algo_positions_with_risk is empty — fall back to algo_trades as source of truth.
+        # This happens when algo_positions was cleared by sync cleanup but algo_trades
+        # still has open entries. Use the same query the reconciliation uses.
+        logger.warning("[POSITIONS] algo_positions_with_risk returned 0 rows — falling back to algo_trades")
+        cur.execute("""
+            WITH latest_prices AS (
+                SELECT DISTINCT ON (symbol)
+                    symbol,
+                    close AS current_price
+                FROM price_daily
+                ORDER BY symbol, date DESC
+            ),
+            latest_technical AS (
+                SELECT DISTINCT ON (symbol)
+                    symbol,
+                    minervini_trend_score,
+                    weinstein_stage,
+                    percent_from_52w_low,
+                    percent_from_52w_high
+                FROM trend_template_data
+                ORDER BY symbol, date DESC
+            )
+            SELECT
+                at.symbol,
+                NULL AS company_name,
+                at.entry_quantity AS quantity,
+                at.entry_price AS avg_entry_price,
+                lp.current_price,
+                CASE
+                    WHEN lp.current_price IS NOT NULL
+                    THEN (at.entry_quantity * lp.current_price)
+                    ELSE NULL
+                END AS position_value,
+                CASE
+                    WHEN lp.current_price IS NOT NULL
+                    THEN at.entry_quantity * (lp.current_price - at.entry_price)
+                    ELSE NULL
+                END AS unrealized_pnl,
+                CASE
+                    WHEN lp.current_price IS NOT NULL AND at.entry_price > 0
+                    THEN (lp.current_price - at.entry_price) / at.entry_price * 100
+                    ELSE NULL
+                END AS unrealized_pnl_pct,
+                at.status,
+                (CURRENT_DATE - at.trade_date) AS days_since_entry,
+                at.stop_loss_price,
+                at.target_1_price,
+                at.target_2_price,
+                at.target_3_price,
+                at.target_1_r_multiple,
+                at.target_2_r_multiple,
+                at.target_3_r_multiple,
+                at.sector,
+                at.industry,
+                CASE
+                    WHEN lp.current_price IS NOT NULL AND at.entry_price > 0
+                         AND at.stop_loss_price IS NOT NULL
+                         AND (at.entry_price - at.stop_loss_price) > 0
+                    THEN (lp.current_price - at.entry_price) /
+                         (at.entry_price - at.stop_loss_price)
+                    ELSE NULL
+                END AS r_multiple,
+                CASE
+                    WHEN at.stop_loss_price IS NOT NULL
+                    THEN at.entry_price - at.stop_loss_price
+                    ELSE NULL
+                END AS initial_risk_per_share,
+                CASE
+                    WHEN at.stop_loss_price IS NOT NULL
+                    THEN at.entry_quantity * (at.entry_price - at.stop_loss_price)
+                    ELSE NULL
+                END AS open_risk_dollars,
+                CASE
+                    WHEN lp.current_price IS NOT NULL AND lp.current_price > 0
+                         AND at.stop_loss_price IS NOT NULL
+                    THEN (lp.current_price - at.stop_loss_price) / lp.current_price * 100
+                    ELSE NULL
+                END AS distance_to_stop_pct,
+                CASE
+                    WHEN lp.current_price IS NOT NULL AND lp.current_price > 0
+                         AND at.target_1_price IS NOT NULL
+                    THEN (at.target_1_price - lp.current_price) / lp.current_price * 100
+                    ELSE NULL
+                END AS distance_to_t1_pct,
+                CASE
+                    WHEN lp.current_price IS NOT NULL AND lp.current_price > 0
+                         AND at.target_2_price IS NOT NULL
+                    THEN (at.target_2_price - lp.current_price) / lp.current_price * 100
+                    ELSE NULL
+                END AS distance_to_t2_pct,
+                CASE
+                    WHEN lp.current_price IS NOT NULL AND lp.current_price > 0
+                         AND at.target_3_price IS NOT NULL
+                    THEN (at.target_3_price - lp.current_price) / lp.current_price * 100
+                    ELSE NULL
+                END AS distance_to_t3_pct,
+                lt.minervini_trend_score,
+                lt.weinstein_stage,
+                lt.percent_from_52w_low,
+                lt.percent_from_52w_high,
+                NULL AS stage_in_exit_plan
+            FROM algo_trades at
+            LEFT JOIN latest_prices lp ON at.symbol = lp.symbol
+            LEFT JOIN latest_technical lt ON at.symbol = lt.symbol
+            WHERE at.status IN ('open', 'filled', 'active', 'partially_filled')
+              AND at.exit_date IS NULL
+              AND at.entry_quantity > 0
+            ORDER BY
+                CASE WHEN lp.current_price IS NOT NULL
+                     THEN at.entry_quantity * lp.current_price
+                     ELSE 0
+                END DESC
+            LIMIT 1000
+        """)
+        positions = cur.fetchall()
+        if positions:
+            logger.info("[POSITIONS] algo_trades fallback returned %d open positions", len(positions))
+
     items = []
     sector_risk: dict[str, float] = {}  # For aggregating sector allocation
 
@@ -98,16 +217,14 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
                 "Check algo_positions table for NULL symbol fields."
             )
 
-        # CRITICAL: Validate position_value exists and is valid - required for dashboard display
-        # All positions must have position_value; missing or invalid data indicates data quality issue
+        # position_value is required for display; positions without current price data are skipped
         pos_val_raw = d.get("position_value")
         if pos_val_raw is None:
-            raise RuntimeError(
-                f"[DASHBOARD CRITICAL] Position {symbol} has missing position_value. "
-                f"Cannot display portfolio without complete position data. "
-                f"All positions must have valid position_value for accurate risk assessment. "
-                f"Check algo_positions table for NULL or missing position_value fields."
+            logger.warning(
+                "[POSITIONS] %s: position_value is NULL (current price missing from price_daily) — skipping",
+                symbol,
             )
+            continue
         try:
             pos_val = float(pos_val_raw)
         except (ValueError, TypeError) as e:

@@ -176,7 +176,12 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
         if key == "aaii_sentiment":
             bull = f.get("bullish_pct")
             bear = f.get("bearish_pct")
-            return f" B:{bull:.0f}/Be:{bear:.0f}" if bull is not None and bear is not None else ""
+            if bull is not None and bear is not None:
+                # Values are fractions (0.4 = 40%); multiply to display as percentages
+                b_pct = bull * 100 if bull <= 1.0 else bull
+                be_pct = bear * 100 if bear <= 1.0 else bear
+                return f" B:{b_pct:.0f}%/Be:{be_pct:.0f}%"
+            return ""
         if key == "naaim":
             v = f.get("value")
             return f" {v:.0f}" if v is not None else ""
@@ -544,7 +549,12 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
         elif key == "aaii_sentiment":
             bull = f.get("bullish_pct")
             bear = f.get("bearish_pct")
-            val_s = f"B:{bull:.0f}% Bear:{bear:.0f}%" if (bull is not None and bear is not None) else "--"
+            if bull is not None and bear is not None:
+                b_pct = bull * 100 if bull <= 1.0 else bull
+                be_pct = bear * 100 if bear <= 1.0 else bear
+                val_s = f"Bull:{b_pct:.0f}% Bear:{be_pct:.0f}%"
+            else:
+                val_s = "--"
         elif key == "naaim":
             v = f.get("value")
             val_s = f"{v:.0f}% allocated" if v is not None else "--"

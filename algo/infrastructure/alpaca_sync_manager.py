@@ -160,7 +160,8 @@ class AlpacaSyncManager:
             # Inserting with asset_id as position_id creates duplicate NULL-stop records
             # that trip the circuit breaker. Only update price/qty for existing positions.
             try:
-                cur.execute("""
+                cur.execute(
+                    """
                     UPDATE algo_positions
                     SET quantity = %s,
                         current_price = %s,
@@ -178,18 +179,23 @@ class AlpacaSyncManager:
                 if cur.rowcount > 0:
                     synced_count += 1
                 else:
-                    logger.warning(f"[POSITION_SYNC] No existing open position for {symbol} — skipping (not algo-tracked)")
+                    logger.warning(
+                        f"[POSITION_SYNC] No existing open position for {symbol} — skipping (not algo-tracked)"
+                    )
             except Exception as e:
                 logger.error(f"[POSITION_SYNC] Failed to update position {symbol}: {e}")
                 raise RuntimeError(f"[POSITION_SYNC] Database error updating position {symbol}: {e}") from e
 
         # Mark positions as closed if they exist in DB but not in Alpaca
         try:
-            cur.execute("""
+            cur.execute(
+                """
                 UPDATE algo_positions
                 SET status = 'closed', closed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
                 WHERE symbol NOT IN %s AND status = 'open'
-            """, (tuple(alpaca_symbols) if alpaca_symbols else (None,),))
+            """,
+                (tuple(alpaca_symbols) if alpaca_symbols else (None,),),
+            )
             closed_count = cur.rowcount
         except Exception as e:
             logger.error(f"[POSITION_SYNC] Failed to mark closed positions: {e}")
@@ -199,15 +205,20 @@ class AlpacaSyncManager:
         # These were created by a prior sync bug that INSERTed positions using Alpaca's
         # asset_id (UUID) as position_id. They have NULL current_stop_price and no
         # trade_ids_arr, which trips the circuit breaker's missing-stop check.
+        # GUARD: only delete rows where position_id is a UUID (old bug signature).
+        # Valid algo positions may also lack current_stop_price but must NOT be deleted.
         cur.execute("""
             DELETE FROM algo_positions
             WHERE status = 'open'
               AND current_stop_price IS NULL
               AND (trade_ids_arr IS NULL OR array_length(trade_ids_arr, 1) IS NULL)
+              AND position_id ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
         """)
         cleaned_count = cur.rowcount
         if cleaned_count > 0:
-            logger.info(f"[POSITION_SYNC] Removed {cleaned_count} stale Alpaca-imported positions with no trade associations")
+            logger.info(
+                f"[POSITION_SYNC] Removed {cleaned_count} stale Alpaca-imported positions with no trade associations"
+            )
 
         # Identify orphan positions (in Alpaca but not in our algo_positions table)
         cur.execute("""

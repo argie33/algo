@@ -849,7 +849,7 @@ data "aws_iam_policy_document" "lambda_api" {
     ]
   }
 
-  # CloudWatch Logs
+  # CloudWatch Logs (Lambda execution logs + frontend error log shipping)
   statement {
     sid    = "CloudWatchLogs"
     effect = "Allow"
@@ -861,7 +861,9 @@ data "aws_iam_policy_document" "lambda_api" {
     ]
 
     resources = [
-      "arn:aws:logs:${var.aws_region}:${var.aws_account_id}:log-group:/aws/lambda/${var.project_name}-*"
+      "arn:aws:logs:${var.aws_region}:${var.aws_account_id}:log-group:/aws/lambda/${var.project_name}-*",
+      "arn:aws:logs:${var.aws_region}:${var.aws_account_id}:log-group:/aws/frontend/${var.project_name}-*",
+      "arn:aws:logs:${var.aws_region}:${var.aws_account_id}:log-group:/aws/frontend/${var.project_name}-*:*"
     ]
   }
 
