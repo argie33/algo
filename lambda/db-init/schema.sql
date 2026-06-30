@@ -494,6 +494,7 @@ CREATE TABLE IF NOT EXISTS quality_metrics (
 ALTER TABLE quality_metrics ADD COLUMN IF NOT EXISTS debt_to_assets DECIMAL(8, 4);
 ALTER TABLE quality_metrics ADD COLUMN IF NOT EXISTS quality_score DECIMAL(5, 2);
 ALTER TABLE quality_metrics ADD COLUMN IF NOT EXISTS data_unavailable BOOLEAN DEFAULT FALSE;
+ALTER TABLE quality_metrics ADD COLUMN IF NOT EXISTS reason VARCHAR(500);
 
 -- Growth metrics
 CREATE TABLE IF NOT EXISTS growth_metrics (
@@ -521,6 +522,7 @@ CREATE TABLE IF NOT EXISTS stability_metrics (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 ALTER TABLE stability_metrics ADD COLUMN IF NOT EXISTS data_unavailable BOOLEAN DEFAULT FALSE;
+ALTER TABLE stability_metrics ADD COLUMN IF NOT EXISTS reason VARCHAR(500);
 
 -- Value metrics
 CREATE TABLE IF NOT EXISTS value_metrics (
@@ -540,6 +542,15 @@ CREATE TABLE IF NOT EXISTS value_metrics (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 ALTER TABLE value_metrics ADD COLUMN IF NOT EXISTS data_unavailable BOOLEAN DEFAULT FALSE;
+ALTER TABLE value_metrics ADD COLUMN IF NOT EXISTS market_cap_unavailable_reason VARCHAR(255);
+ALTER TABLE value_metrics ADD COLUMN IF NOT EXISTS pe_ratio_unavailable_reason VARCHAR(255);
+ALTER TABLE value_metrics ADD COLUMN IF NOT EXISTS pb_ratio_unavailable_reason VARCHAR(255);
+ALTER TABLE value_metrics ADD COLUMN IF NOT EXISTS ps_ratio_unavailable_reason VARCHAR(255);
+ALTER TABLE value_metrics ADD COLUMN IF NOT EXISTS peg_ratio_unavailable_reason VARCHAR(255);
+ALTER TABLE value_metrics ADD COLUMN IF NOT EXISTS dividend_yield_unavailable_reason VARCHAR(255);
+ALTER TABLE value_metrics ADD COLUMN IF NOT EXISTS fcf_yield_unavailable_reason VARCHAR(255);
+ALTER TABLE value_metrics ADD COLUMN IF NOT EXISTS held_percent_insiders_unavailable_reason VARCHAR(255);
+ALTER TABLE value_metrics ADD COLUMN IF NOT EXISTS held_percent_institutions_unavailable_reason VARCHAR(255);
 
 -- Positioning metrics
 CREATE TABLE IF NOT EXISTS positioning_metrics (

@@ -85,6 +85,73 @@ MIGRATIONS = [
         (),
         "ALTER TABLE stability_metrics ADD COLUMN IF NOT EXISTS data_unavailable BOOLEAN DEFAULT FALSE",
     ),
+    # Migration 104: reason and _unavailable_reason columns on metric tables
+    (
+        "quality_metrics.reason",
+        "SELECT 1 FROM information_schema.columns WHERE table_name='quality_metrics' AND column_name='reason'",
+        (),
+        "ALTER TABLE quality_metrics ADD COLUMN IF NOT EXISTS reason VARCHAR(500)",
+    ),
+    (
+        "stability_metrics.reason",
+        "SELECT 1 FROM information_schema.columns WHERE table_name='stability_metrics' AND column_name='reason'",
+        (),
+        "ALTER TABLE stability_metrics ADD COLUMN IF NOT EXISTS reason VARCHAR(500)",
+    ),
+    (
+        "value_metrics.market_cap_unavailable_reason",
+        "SELECT 1 FROM information_schema.columns WHERE table_name='value_metrics' AND column_name='market_cap_unavailable_reason'",
+        (),
+        "ALTER TABLE value_metrics ADD COLUMN IF NOT EXISTS market_cap_unavailable_reason VARCHAR(255)",
+    ),
+    (
+        "value_metrics.pe_ratio_unavailable_reason",
+        "SELECT 1 FROM information_schema.columns WHERE table_name='value_metrics' AND column_name='pe_ratio_unavailable_reason'",
+        (),
+        "ALTER TABLE value_metrics ADD COLUMN IF NOT EXISTS pe_ratio_unavailable_reason VARCHAR(255)",
+    ),
+    (
+        "value_metrics.pb_ratio_unavailable_reason",
+        "SELECT 1 FROM information_schema.columns WHERE table_name='value_metrics' AND column_name='pb_ratio_unavailable_reason'",
+        (),
+        "ALTER TABLE value_metrics ADD COLUMN IF NOT EXISTS pb_ratio_unavailable_reason VARCHAR(255)",
+    ),
+    (
+        "value_metrics.ps_ratio_unavailable_reason",
+        "SELECT 1 FROM information_schema.columns WHERE table_name='value_metrics' AND column_name='ps_ratio_unavailable_reason'",
+        (),
+        "ALTER TABLE value_metrics ADD COLUMN IF NOT EXISTS ps_ratio_unavailable_reason VARCHAR(255)",
+    ),
+    (
+        "value_metrics.peg_ratio_unavailable_reason",
+        "SELECT 1 FROM information_schema.columns WHERE table_name='value_metrics' AND column_name='peg_ratio_unavailable_reason'",
+        (),
+        "ALTER TABLE value_metrics ADD COLUMN IF NOT EXISTS peg_ratio_unavailable_reason VARCHAR(255)",
+    ),
+    (
+        "value_metrics.dividend_yield_unavailable_reason",
+        "SELECT 1 FROM information_schema.columns WHERE table_name='value_metrics' AND column_name='dividend_yield_unavailable_reason'",
+        (),
+        "ALTER TABLE value_metrics ADD COLUMN IF NOT EXISTS dividend_yield_unavailable_reason VARCHAR(255)",
+    ),
+    (
+        "value_metrics.fcf_yield_unavailable_reason",
+        "SELECT 1 FROM information_schema.columns WHERE table_name='value_metrics' AND column_name='fcf_yield_unavailable_reason'",
+        (),
+        "ALTER TABLE value_metrics ADD COLUMN IF NOT EXISTS fcf_yield_unavailable_reason VARCHAR(255)",
+    ),
+    (
+        "value_metrics.held_percent_insiders_unavailable_reason",
+        "SELECT 1 FROM information_schema.columns WHERE table_name='value_metrics' AND column_name='held_percent_insiders_unavailable_reason'",
+        (),
+        "ALTER TABLE value_metrics ADD COLUMN IF NOT EXISTS held_percent_insiders_unavailable_reason VARCHAR(255)",
+    ),
+    (
+        "value_metrics.held_percent_institutions_unavailable_reason",
+        "SELECT 1 FROM information_schema.columns WHERE table_name='value_metrics' AND column_name='held_percent_institutions_unavailable_reason'",
+        (),
+        "ALTER TABLE value_metrics ADD COLUMN IF NOT EXISTS held_percent_institutions_unavailable_reason VARCHAR(255)",
+    ),
     # Migration 103: data_unavailable columns on market_health_daily
     (
         "market_health_daily.put_call_ratio_data_unavailable",

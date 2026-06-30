@@ -36,6 +36,7 @@ class StabilityMetricsLoader(OptimalLoader):
     table_name = "stability_metrics"
     primary_key = ("symbol",)
     watermark_field = "created_at"
+    exclude_etfs_from_symbols = True  # ETFs have no beta/volatility data in yfinance
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Compute stability metrics for this symbol.

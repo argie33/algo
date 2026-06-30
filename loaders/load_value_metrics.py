@@ -30,6 +30,7 @@ class ValueMetricsLoader(OptimalLoader):
     table_name = "value_metrics"
     primary_key = ("symbol",)
     watermark_field = "updated_at"
+    exclude_etfs_from_symbols = True  # ETFs have no PE/PB/PS ratio data in yfinance
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
