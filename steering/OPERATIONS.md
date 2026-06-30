@@ -2,9 +2,25 @@
 
 ## AWS Account Setup (Prerequisites)
 
-**Required IAM:** ECS task management + S3 Terraform access for `algo-developer` user.
+**Required IAM:** ECS task management + S3 Terraform access + CloudWatch Logs access for `algo-developer` user.
 
-**Permission Error:** If you see `AccessDeniedException` (e.g., `ecs:DescribeTaskDefinition`), contact AWS admin to grant: `ecs:RegisterTaskDefinition`, `s3:GetBucketPolicy`, `ec2:DescribeVpcAttribute`. See `terraform/` for full policy definition.
+**Core Permissions Needed:**
+- `ecs:*` — ECS task management (describe, run, list tasks)
+- `s3:*` — S3 Terraform access (get/put bucket policy)
+- `ec2:*` — VPC networking (describe subnets, security groups)
+- `logs:GetLogEvents` — Read CloudWatch logs (for local CLI diagnostics)
+- `logs:DescribeLogStreams` — List log streams (to find latest logs)
+- `logs:DescribeLogGroups` — List log groups (for log discovery)
+
+**CLI Access for Logs:**
+```bash
+# Check if you have CloudWatch Logs access
+aws logs describe-log-groups --query 'logGroups[0].logGroupName' --region us-east-1
+
+# If you get AccessDenied, contact AWS admin to grant logs:GetLogEvents and logs:DescribeLogStreams
+```
+
+**Permission Error:** If you see `AccessDeniedException` (e.g., `ecs:DescribeTaskDefinition` or `logs:GetLogEvents`), contact AWS admin to grant the missing permissions. See `terraform/` for full policy definition and `steering/PERF_ANL_DEPLOYMENT_STATUS.md` for CloudWatch access example.
 
 ---
 
@@ -39,6 +55,58 @@ make ci-local       # All checks (simulates full CI)
 | Coverage dropped | Run `make coverage`, write tests for uncovered lines |
 
 **Skip (local only, not recommended):** `git commit --no-verify`
+
+---
+
+## AWS Deployment via GitHub Actions
+
+**Standard Deployment Flow:** All AWS infrastructure updates go through GitHub Actions workflows (automated on push to main).
+
+**Available Workflows:**
+
+| Workflow | File | Trigger | Purpose |
+|----------|------|---------|---------|
+| Deploy API Lambda | `.github/workflows/deploy-api-lambda.yml` | Manual (workflow_dispatch) | Update `algo-api-dev` function code |
+| Deploy Orchestrator Lambda | `.github/workflows/deploy-orchestrator-lambda.yml` | Manual (workflow_dispatch) | Update `algo-orchestrator` function code |
+| Deploy ECS Image | `.github/workflows/deploy-ecs-image.yml` | Manual (workflow_dispatch) | Build and push ECS task images |
+| Deploy All Infrastructure | `.github/workflows/deploy-all-infrastructure.yml` | Manual (workflow_dispatch) | Full Terraform apply + Lambda updates |
+
+**How to Trigger Deployment (Example: API Lambda):**
+
+```bash
+# Method 1: Using GitHub CLI (from terminal)
+gh workflow run deploy-api-lambda.yml -R owner/algo
+
+# Method 2: Via GitHub Web UI
+# 1. Go to Actions tab
+# 2. Select workflow (e.g., "Deploy API Lambda")
+# 3. Click "Run workflow" button
+```
+
+**Monitor Deployment:**
+```bash
+# Watch workflow status
+gh run list -R owner/algo --workflow deploy-api-lambda.yml
+
+# View specific run (replace RUN_ID)
+gh run view RUN_ID -R owner/algo
+
+# Stream logs (real-time)
+gh run view RUN_ID --log -R owner/algo
+```
+
+**Verify in AWS (After Successful Deployment):**
+```bash
+# Check API Lambda was updated
+aws lambda get-function --function-name algo-api-dev --query 'Configuration.LastModified'
+
+# Check CloudWatch logs for new activity
+aws logs describe-log-streams \
+  --log-group-name /aws/lambda/algo-api-dev \
+  --order-by LastEventTime \
+  --descending \
+  --region us-east-1
+```
 
 ---
 
