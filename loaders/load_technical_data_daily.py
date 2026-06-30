@@ -294,52 +294,53 @@ class VectorizedTechnicalLoader:
                 # Volume MA
                 symbol_df["volume_ma_50"] = compute_volume_ma(symbol_df["volume"], 50)
 
-                # Mansfield RS (SPY comparison) — requires current SPY prices
-                if not spy_prices_cached:
-                    raise RuntimeError(
-                        f"[MANSFIELD_RS] SPY price data unavailable for {symbol}. "
-                        f"Mansfield relative strength is critical for trend analysis and cannot be computed without current SPY data. "
-                        f"Ensure SPY prices are loaded before computing technical indicators."
-                    )
-
+                # Mansfield RS (SPY comparison) — optional; NaN if SPY unavailable or insufficient history
                 import numpy as np
+                try:
+                    if not spy_prices_cached:
+                        raise RuntimeError(
+                            f"[MANSFIELD_RS] SPY price data unavailable for {symbol}. "
+                            f"Mansfield relative strength is critical for trend analysis and cannot be computed without current SPY data. "
+                            f"Ensure SPY prices are loaded before computing technical indicators."
+                        )
 
-                spy_df = pd.DataFrame(spy_prices_cached)
-                spy_df["date"] = pd.to_datetime(spy_df["date"])
-                spy_closes = spy_df.set_index("date")["close"]
+                    spy_df = pd.DataFrame(spy_prices_cached)
+                    spy_df["date"] = pd.to_datetime(spy_df["date"])
+                    spy_closes = spy_df.set_index("date")["close"]
 
-                if (spy_closes == 0).any() or spy_closes.isna().all():
-                    raise RuntimeError(
-                        f"[MANSFIELD_RS] SPY price data invalid for {symbol}: contains zeros or all NaN. "
-                        f"Cannot compute relative strength with invalid price data."
-                    )
+                    if (spy_closes == 0).any() or spy_closes.isna().all():
+                        raise RuntimeError(
+                            f"[MANSFIELD_RS] SPY price data invalid for {symbol}: contains zeros or all NaN. "
+                            f"Cannot compute relative strength with invalid price data."
+                        )
 
-                target_index = pd.DatetimeIndex(symbol_df["date"].values)
-                spy_aligned = spy_closes.reindex(target_index)
+                    target_index = pd.DatetimeIndex(symbol_df["date"].values)
+                    spy_aligned = spy_closes.reindex(target_index)
 
-                # Require complete SPY data alignment (no forward-filling stale prices)
-                if spy_aligned.isna().any():
-                    raise RuntimeError(
-                        f"[MANSFIELD_RS] SPY price data incomplete for {symbol}: missing dates in alignment. "
-                        f"Cannot use forward-filled (stale) prices for relative strength calculations. "
-                        f"Require complete current SPY data for accurate trend analysis."
-                    )
+                    if spy_aligned.isna().any():
+                        raise RuntimeError(
+                            f"[MANSFIELD_RS] SPY price data incomplete for {symbol}: missing dates in alignment. "
+                            f"Cannot compute relative strength without complete SPY alignment."
+                        )
 
-                rs_line = symbol_df["close"].values / spy_aligned.values
-                rs_line_s = pd.Series(rs_line, index=symbol_df.index)
-                rs_line_s = rs_line_s.replace([np.inf, -np.inf], np.nan)
+                    rs_line = symbol_df["close"].values / spy_aligned.values
+                    rs_line_s = pd.Series(rs_line, index=symbol_df.index)
+                    rs_line_s = rs_line_s.replace([np.inf, -np.inf], np.nan)
 
-                rs_line_52w_ma = rs_line_s.rolling(window=252, min_periods=126).mean()
+                    rs_line_52w_ma = rs_line_s.rolling(window=252, min_periods=126).mean()
 
-                if rs_line_52w_ma.isna().all():
-                    raise RuntimeError(
-                        f"[MANSFIELD_RS] Insufficient data history for {symbol}: need 126+ days for rolling mean. "
-                        f"Cannot compute relative strength trend without adequate historical data."
-                    )
+                    if rs_line_52w_ma.isna().all():
+                        raise RuntimeError(
+                            f"[MANSFIELD_RS] Insufficient data history for {symbol}: need 126+ days for rolling mean. "
+                            f"Cannot compute relative strength trend without adequate historical data."
+                        )
 
-                mansfield_result = (rs_line_s / rs_line_52w_ma - 1) * 100
-                mansfield_result = mansfield_result.replace([np.inf, -np.inf], np.nan)
-                symbol_df["mansfield_rs"] = mansfield_result
+                    mansfield_result = (rs_line_s / rs_line_52w_ma - 1) * 100
+                    mansfield_result = mansfield_result.replace([np.inf, -np.inf], np.nan)
+                    symbol_df["mansfield_rs"] = mansfield_result
+                except RuntimeError as _mansfield_err:
+                    logger.warning(str(_mansfield_err) + f" Skipping mansfield_rs for {symbol}.")
+                    symbol_df["mansfield_rs"] = np.nan
 
                 # Format for insertion
                 symbol_df["price_data_age_days"] = 0  # Mark as current
