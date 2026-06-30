@@ -118,6 +118,11 @@ def _get_stock_scores(
                 return error_response(400, "bad_request", "Invalid symbol format")
             where_clause += " AND sc.symbol = %s"
             params_list.append(symbol.upper())
+        else:
+            # Bulk queries: filter out rights/warrants that inflate composite_score
+            # with a single factor (value) but no market data. At least 2 factors
+            # required (33.33% of 6) to be considered a real trading candidate.
+            where_clause += " AND sc.data_completeness >= 33.33"
 
         # Use LATERAL joins instead of CTEs: CTEs scan all symbols before filtering
         # (full table scans on price_daily/technical_data_daily = timeout for bulk queries).
