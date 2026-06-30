@@ -290,6 +290,26 @@ locals {
     "positioning_metrics"   = "load_positioning_metrics.py"
     "stability_metrics"     = "load_stability_metrics.py"
     "stock_scores"          = "load_stock_scores.py"
+
+    "market_constituents"         = "load_market_constituents.py"
+    "market_health_daily"         = "load_market_health_daily.py"
+    "sector_ranking"              = "load_sector_ranking.py"
+    "algo_metrics_daily"          = "load_algo_metrics_daily.py"
+    "buy_sell_daily"              = "load_buy_sell_daily.py"
+    "earnings_history"            = "load_earnings_history.py"
+    "earnings_calendar"           = "load_earnings_calendar.py"
+    "company_profile"             = "load_company_profile.py"
+    "analyst_sentiment"           = "load_analyst_sentiment_analysis.py"
+    "analyst_upgrades_downgrades" = "load_analyst_upgrade_downgrade.py"
+
+    "financials_annual_income"      = "load_income_statement.py"
+    "financials_annual_balance"     = "load_balance_sheet.py"
+    "financials_annual_cashflow"    = "load_cash_flow.py"
+    "financials_quarterly_income"   = "load_income_statement.py"
+    "financials_quarterly_balance"  = "load_balance_sheet.py"
+    "financials_quarterly_cashflow" = "load_cash_flow.py"
+    "financials_ttm_income"         = "load_income_statement.py"
+    "financials_ttm_cashflow"       = "load_cash_flow.py"
   }
 
   scheduled_loaders = {}
@@ -308,24 +328,46 @@ resource "aws_cloudwatch_event_rule" "scheduled_loader" {
 
 locals {
   all_loaders = {
-    "stock_prices_daily"   = { cpu = 1024, memory = 2048, timeout = 5400, parallelism = 1 }
-    "technical_data_daily" = { cpu = 2048, memory = 4096, timeout = 2400, parallelism = 1 }
-    "trend_template_data"  = { cpu = 1024, memory = 2048, timeout = 5400, parallelism = 1 }
-    "swing_trader_scores"  = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 1 }
+    "stock_prices_daily"    = { cpu = 1024, memory = 2048, timeout = 5400, parallelism = 1 }
+    "technical_data_daily"  = { cpu = 2048, memory = 4096, timeout = 2400, parallelism = 1 }
+    "trend_template_data"   = { cpu = 1024, memory = 2048, timeout = 5400, parallelism = 1 }
+    "swing_trader_scores"   = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 1 }
     "market_exposure_daily" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
-    "growth_metrics"       = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
-    "quality_metrics"      = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
-    "value_metrics"        = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
-    "positioning_metrics"  = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 2 }
-    "stability_metrics"    = { cpu = 1024, memory = 2048, timeout = 1800, parallelism = 2 }
-    "stock_scores"         = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
+    "growth_metrics"        = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
+    "quality_metrics"       = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
+    "value_metrics"         = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
+    "positioning_metrics"   = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 2 }
+    "stability_metrics"     = { cpu = 1024, memory = 2048, timeout = 1800, parallelism = 2 }
+    "stock_scores"          = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
+
+    "market_constituents"         = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
+    "market_health_daily"         = { cpu = 256, memory = 512, timeout = 1200, parallelism = 1 }
+    "sector_ranking"              = { cpu = 512, memory = 1024, timeout = 900, parallelism = 1 }
+    "algo_metrics_daily"          = { cpu = 1024, memory = 2048, timeout = 10800, parallelism = 1 }
+    "buy_sell_daily"              = { cpu = 2048, memory = 4096, timeout = 2400, parallelism = 2 }
+    "earnings_history"            = { cpu = 512, memory = 1024, timeout = 7200, parallelism = 1 }
+    "earnings_calendar"           = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
+    "company_profile"             = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 3 }
+    "analyst_sentiment"           = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 3 }
+    "analyst_upgrades_downgrades" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 3 }
+
+    "financials_annual_income"      = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
+    "financials_annual_balance"     = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
+    "financials_annual_cashflow"    = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
+    "financials_quarterly_income"   = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
+    "financials_quarterly_balance"  = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
+    "financials_quarterly_cashflow" = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
+    "financials_ttm_income"         = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
+    "financials_ttm_cashflow"       = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
   }
   default_loaders = local.all_loaders
 
   # Loaders that must run on on-demand FARGATE (cannot tolerate interruption)
   critical_loaders = toset([
     "stock_prices_daily",
+    "algo_metrics_daily",
     "stock_scores",
+    "buy_sell_daily",
     "growth_metrics",
     "quality_metrics",
     "value_metrics",
