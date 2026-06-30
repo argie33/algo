@@ -310,6 +310,8 @@ locals {
     "financials_quarterly_cashflow" = "load_cash_flow.py"
     "financials_ttm_income"         = "load_income_statement.py"
     "financials_ttm_cashflow"       = "load_cash_flow.py"
+
+    "compute_performance_metrics" = "compute_performance_metrics.py"
   }
 
   scheduled_loaders = {}
@@ -359,6 +361,8 @@ locals {
     "financials_quarterly_cashflow" = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
     "financials_ttm_income"         = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
     "financials_ttm_cashflow"       = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
+
+    "compute_performance_metrics" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 1 }
   }
   default_loaders = local.all_loaders
 
