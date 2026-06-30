@@ -78,6 +78,7 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
             percent_from_52w_high,
             stage_in_exit_plan
             FROM algo_positions_with_risk
+            WHERE status = 'open'
             ORDER BY position_value DESC
             LIMIT 1000
         """)
