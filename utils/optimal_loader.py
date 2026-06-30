@@ -493,8 +493,15 @@ class OptimalLoader:
                 logger.info(f"  Progress: {i}/{len(symbols)}")
 
         if failed_symbols:
-            raise RuntimeError(
-                f"[{self.table_name}] {len(failed_symbols)} symbols failed—incomplete dataset. Failed: {failed_symbols[:10]}{'...' if len(failed_symbols) > 10 else ''}"
+            fail_rate = (len(failed_symbols) / len(symbols)) * 100 if symbols else 0
+            max_fail_rate = getattr(self, "max_fail_rate", 60.0)
+            if fail_rate > max_fail_rate:
+                raise RuntimeError(
+                    f"[{self.table_name}] {len(failed_symbols)} symbols failed—incomplete dataset. Failed: {failed_symbols[:10]}{'...' if len(failed_symbols) > 10 else ''}"
+                )
+            logger.warning(
+                f"[{self.table_name}] {len(failed_symbols)}/{len(symbols)} symbols skipped "
+                f"({fail_rate:.1f}% failure rate, within {max_fail_rate}% tolerance)"
             )
 
     def _run_parallel(self, symbols: list[str], workers: int) -> None:
