@@ -25,16 +25,29 @@ jobs:
         run: |
           echo "Invoking algo-orchestrator Lambda..."
 
-          # Invoke Lambda asynchronously with inline JSON (Event invocation type)
-          aws lambda invoke \
-            --function-name algo-orchestrator \
-            --invocation-type Event \
-            --payload '{"source":"github-actions","action":"manual-trigger","run_id":"${{ github.run_id }}"}' \
-            --region us-east-1 \
-            /tmp/invoke_response.json
+          python3 << 'PYTHON_EOF'
+          import boto3
+          import json
 
-          echo "Lambda invoked successfully."
-          cat /tmp/invoke_response.json
+          client = boto3.client('lambda', region_name='us-east-1')
+
+          # Event payload for orchestrator
+          payload = {
+              'source': 'github-actions',
+              'action': 'manual-trigger',
+              'run_id': '${{ github.run_id }}'
+          }
+
+          # Invoke Lambda asynchronously (Event type means fire-and-forget)
+          response = client.invoke(
+              FunctionName='algo-orchestrator',
+              InvocationType='Event',
+              Payload=json.dumps(payload)
+          )
+
+          print("Orchestrator Lambda invoked successfully!")
+          print(f"Status Code: {response['StatusCode']}")
+          PYTHON_EOF
 
           echo "Orchestrator Lambda invoked successfully!"
           echo ""
