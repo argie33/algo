@@ -23,51 +23,6 @@ logger = logging.getLogger()
 class TriggerLoadersHandler(LambdaHandler):
     """Triggers ECS loader tasks."""
 
-    def _validate_stock_scores_dependencies(self) -> tuple[bool, str]:
-        """Validate that upstream metric loaders are ready before triggering stock_scores.
-
-        Returns: (is_valid, error_message) tuple.
-        is_valid=True means dependencies are met and stock_scores can proceed.
-        is_valid=False means dependencies missing; error_message explains why.
-        """
-        try:
-            # Import here to avoid circular dependency
-            from utils.db.context import DatabaseContext
-
-            with DatabaseContext("read") as cur:
-                cur.execute("""
-                    SELECT table_name, completion_pct, status
-                    FROM data_loader_status
-                    WHERE table_name IN ('value_metrics', 'positioning_metrics', 'stability_metrics')
-                    AND last_updated >= CURRENT_TIMESTAMP - INTERVAL '1 hour'
-                """)
-
-                metric_status = cur.fetchall()
-                if not metric_status:
-                    return False, "No recent metric loader status found. Metric loaders may not have run yet."
-
-                # Check that critical metrics have >= 90% completion
-                min_coverage_pct = 90.0
-                for table_name, completion_pct, _status in metric_status:
-                    if completion_pct is None:
-                        return (
-                            False,
-                            f"Metric loader {table_name} status unclear (completion_pct is NULL). "
-                            f"Wait for loader to complete before triggering stock_scores.",
-                        )
-
-                    if completion_pct < min_coverage_pct:
-                        return (
-                            False,
-                            f"Metric loader {table_name} only {completion_pct:.1f}% complete. "
-                            f"Wait for >= {min_coverage_pct}% completion before triggering stock_scores.",
-                        )
-
-            return True, ""
-        except Exception as e:
-            logger.error(f"Error validating stock_scores dependencies: {e}")
-            return False, f"Failed to validate dependencies: {e}"
-
     def handle(self, event: dict[str, Any], context: Any) -> LambdaResponse:
         """Handle loader trigger request.
 
@@ -148,12 +103,6 @@ class TriggerLoadersHandler(LambdaHandler):
             # Increase memory limit flag for batch processing
             "ECS_TASK_MEMORY_LIMIT": "1024" if loader_name in critical_loaders else "512",
         }
-
-        # Validate dependencies before triggering stock_scores
-        if loader_name == "stock_scores":
-            is_valid, error_msg = self._validate_stock_scores_dependencies()
-            if not is_valid:
-                return LambdaResponse.validation_error("stock_scores", f"Cannot trigger stock_scores: {error_msg}")
 
         task_def = f"{project_name}-{loader_name}-loader"
         logger.info(f"Triggering loader: {loader_name} (task_def={task_def}, count={task_count})")
