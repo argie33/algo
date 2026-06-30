@@ -874,7 +874,7 @@ resource "aws_sfn_state_machine" "financial_data_pipeline" {
       AnnualIncome = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 1200
+        TimeoutSeconds = 7200
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
@@ -921,7 +921,7 @@ resource "aws_sfn_state_machine" "financial_data_pipeline" {
       AnnualBalance = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 1200
+        TimeoutSeconds = 7200
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
@@ -968,7 +968,7 @@ resource "aws_sfn_state_machine" "financial_data_pipeline" {
       AnnualCashFlow = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 1200
+        TimeoutSeconds = 7200
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
@@ -1016,7 +1016,7 @@ resource "aws_sfn_state_machine" "financial_data_pipeline" {
       QuarterlyIncome = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 1200
+        TimeoutSeconds = 7200
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
@@ -1063,7 +1063,7 @@ resource "aws_sfn_state_machine" "financial_data_pipeline" {
       QuarterlyBalance = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 1200
+        TimeoutSeconds = 7200
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
@@ -1110,7 +1110,7 @@ resource "aws_sfn_state_machine" "financial_data_pipeline" {
       QuarterlyCashFlow = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 1200
+        TimeoutSeconds = 7200
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
@@ -1158,7 +1158,7 @@ resource "aws_sfn_state_machine" "financial_data_pipeline" {
       TTMIncome = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 1200
+        TimeoutSeconds = 7200
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
@@ -1205,7 +1205,7 @@ resource "aws_sfn_state_machine" "financial_data_pipeline" {
       TTMCashFlow = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 1200
+        TimeoutSeconds = 7200
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
