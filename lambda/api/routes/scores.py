@@ -119,29 +119,12 @@ def _get_stock_scores(
             where_clause += " AND sc.symbol = %s"
             params_list.append(symbol.upper())
 
+        # Use LATERAL joins instead of CTEs: CTEs scan all symbols before filtering
+        # (full table scans on price_daily/technical_data_daily = timeout for bulk queries).
+        # LATERAL evaluates per-row after WHERE, using (symbol, date) indexes efficiently.
         query = f"""
-                WITH price_latest AS (
-                    SELECT DISTINCT ON (symbol) symbol, close, date
-                    FROM price_daily
-                    ORDER BY symbol, date DESC
-                ),
-                price_prev AS (
-                    SELECT DISTINCT ON (symbol) symbol, close
-                    FROM price_daily
-                    WHERE date < (SELECT MAX(date) FROM price_daily)
-                    ORDER BY symbol, date DESC
-                ),
-                tech_latest AS (
-                    SELECT DISTINCT ON (symbol) symbol, rsi_14, macd, sma_50, sma_200,
-                           roc_20d, roc_60d, roc_120d, roc_252d, date
-                    FROM technical_data_daily
-                    ORDER BY symbol, date DESC
-                ),
-                price_52w AS (
-                    SELECT DISTINCT ON (symbol) symbol, high AS high_52w
-                    FROM price_daily
-                    WHERE date >= CURRENT_DATE - INTERVAL '52 weeks'
-                    ORDER BY symbol, high DESC
+                WITH max_price_date AS (
+                    SELECT MAX(date) AS max_date FROM price_daily
                 )
                 SELECT
                     sc.symbol,
@@ -214,10 +197,35 @@ def _get_stock_scores(
                 LEFT JOIN growth_metrics gm ON gm.symbol = sc.symbol
                 LEFT JOIN stability_metrics sm ON sm.symbol = sc.symbol
                 LEFT JOIN positioning_metrics pm ON pm.symbol = sc.symbol
-                LEFT JOIN price_latest pl ON pl.symbol = sc.symbol
-                LEFT JOIN price_prev pp ON pp.symbol = sc.symbol
-                LEFT JOIN tech_latest tl ON tl.symbol = sc.symbol
-                LEFT JOIN price_52w p52 ON p52.symbol = sc.symbol
+                LEFT JOIN LATERAL (
+                    SELECT close, date
+                    FROM price_daily
+                    WHERE symbol = sc.symbol
+                    ORDER BY date DESC
+                    LIMIT 1
+                ) pl ON true
+                LEFT JOIN LATERAL (
+                    SELECT close
+                    FROM price_daily
+                    WHERE symbol = sc.symbol
+                      AND date < (SELECT max_date FROM max_price_date)
+                    ORDER BY date DESC
+                    LIMIT 1
+                ) pp ON true
+                LEFT JOIN LATERAL (
+                    SELECT rsi_14, macd, sma_50, sma_200,
+                           roc_20d, roc_60d, roc_120d, roc_252d, date
+                    FROM technical_data_daily
+                    WHERE symbol = sc.symbol
+                    ORDER BY date DESC
+                    LIMIT 1
+                ) tl ON true
+                LEFT JOIN LATERAL (
+                    SELECT MAX(high) AS high_52w
+                    FROM price_daily
+                    WHERE symbol = sc.symbol
+                      AND date >= CURRENT_DATE - INTERVAL '52 weeks'
+                ) p52 ON true
                 {where_clause}
                 ORDER BY {sort_col} {sort_direction}
                 LIMIT %s OFFSET %s
