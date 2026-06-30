@@ -25,23 +25,16 @@ jobs:
         run: |
           echo "Invoking algo-orchestrator Lambda..."
 
-          # Create minimal test event for orchestrator
-          cat > /tmp/orchestrator_event.json << 'EOF'
-          {
-            "source": "github-actions",
-            "action": "manual-trigger",
-            "run_id": "${{ github.run_id }}",
-            "message": "Manually triggered via GitHub Actions workflow"
-          }
-          EOF
-
-          # Invoke Lambda asynchronously (don't wait for response)
+          # Invoke Lambda asynchronously with inline JSON (Event invocation type)
           aws lambda invoke \
             --function-name algo-orchestrator \
             --invocation-type Event \
-            --payload file:///tmp/orchestrator_event.json \
+            --payload '{"source":"github-actions","action":"manual-trigger","run_id":"${{ github.run_id }}"}' \
             --region us-east-1 \
             /tmp/invoke_response.json
+
+          echo "Lambda invoked successfully."
+          cat /tmp/invoke_response.json
 
           echo "Orchestrator Lambda invoked successfully!"
           echo ""
