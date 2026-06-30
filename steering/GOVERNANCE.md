@@ -67,6 +67,25 @@ Finance applications cannot silently fall back to secondary data sources or acce
 
 **Result:** Some stocks (new IPOs, micro-caps without SEC filings) will not score. This is correct—incomplete data is a risk signal, not a problem to hide.
 
+**CRITICAL PRIORITY — FIX ROOT CAUSES FIRST:**
+
+When seeing `data_unavailable=TRUE` markers appearing for a new class of symbols (REITs, micro-caps, foreign stocks, etc.):
+1. **DO NOT immediately add fallback/degradation logic** ("use signal score when quality missing", "skip sector data", etc)
+2. **INVESTIGATE first:** Why is the upstream loader skipping/failing for these symbols?
+   - Is the loader filtering them out explicitly? (exclude_etfs, exclude_micro_caps, etc)
+   - Is the upstream data quality issue? (NULL values, missing API responses, etc)
+   - Is it a feature design issue? (Minervini gate too strict for certain asset classes)
+3. **FIX the loader** to process all tradeable symbols, OR
+4. **Add explicit data quality gate** ("skip REITs with <3 years SEC data"), then ALLOW the data_unavailable marker
+
+**Antipattern (DO NOT DO):** Adding fallback scores when upstream data missing. Examples to avoid:
+- ❌ "Use quality_score as proxy for missing growth_score" → score is no longer comparable
+- ❌ "Skip sector momentum check if unavailable" → removes important risk filter
+- ❌ "Return 50.0 default for missing metric" → hides data quality issues
+- ❌ "Combine available metrics with double weight" → survivor bias
+
+**Correct pattern:** `data_unavailable=TRUE` + `reason="upstream_loader_gap:sector_ranking"` + FIX the upstream loader.
+
 **Status:** All fail-fast patterns implemented and tested. See git log for remediation commits: `git log --all --oneline | grep -i "fail-fast\|fallback"`
 
 ---
