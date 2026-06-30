@@ -140,9 +140,15 @@ class SignalsDailyLoader(OptimalLoader):
                         "Upstream loader failed. Cannot generate signals without price data."
                     )
 
+                # Count symbols with tech data within 10 calendar days of end.
+                # On days when TechnicalDataDaily loads partial coverage (e.g., new symbols added
+                # mid-cycle, or price loader ran in two batches), some symbols have end-1d tech data
+                # instead of exact end-date data. Those symbols still generate valid signals since
+                # _fetch_signal_data queries t.date <= end (uses best available tech row).
                 cur.execute(
-                    "SELECT COUNT(DISTINCT symbol), MAX(date) FROM technical_data_daily WHERE date = %s",
-                    (end,),
+                    """SELECT COUNT(DISTINCT symbol), MAX(date) FROM technical_data_daily
+                       WHERE date >= %s AND date <= %s""",
+                    (end - timedelta(days=10), end),
                 )
                 tech_row = cur.fetchone()
                 if tech_row is None:
@@ -163,7 +169,7 @@ class SignalsDailyLoader(OptimalLoader):
                 tech_coverage_symbols = int(tech_row[0])
                 if tech_coverage_symbols == 0:
                     raise RuntimeError(
-                        f"CRITICAL: No symbols found in technical_data_daily for {end}. "
+                        f"CRITICAL: No symbols found in technical_data_daily within 10 days of {end}. "
                         "Upstream loader failed. Cannot generate signals."
                     )
                 tech_max_date = tech_row[1]
@@ -300,22 +306,22 @@ class SignalsDailyLoader(OptimalLoader):
         # creating inconsistent signal coverage which breaks Phase 5 filtering
         try:
             with DatabaseContext("read") as cur:
-                # First, verify technical_data_daily has sufficient data for symbol on end date
+                # Verify this symbol has recent technical data (within 10 days of end_date).
+                # On partial-coverage days some symbols' latest tech date is end-1d because
+                # TechnicalDataDaily ran before all prices were available. Accept any tech data
+                # within the window — _fetch_signal_data queries t.date <= end so it will use
+                # the most recent available row for signal computation.
                 cur.execute(
-                    "SELECT COUNT(*) FROM technical_data_daily WHERE symbol = %s AND date = %s",
-                    (symbol, end),
+                    """SELECT MAX(date) FROM technical_data_daily
+                       WHERE symbol = %s AND date >= %s AND date <= %s""",
+                    (symbol, end - timedelta(days=10), end),
                 )
                 row = cur.fetchone()
                 if row is None or row[0] is None:
-                    raise RuntimeError(f"Technical count query failed for {symbol} on {end}")
-                tech_count = row[0]
-
-                if tech_count == 0:
                     raise RuntimeError(
-                        f"[BUY_SELL_DAILY] {symbol}: No technical data for {end}. "
+                        f"[BUY_SELL_DAILY] {symbol}: No technical data within 10 days of {end}. "
                         "Technical data is CRITICAL for buy/sell signal generation. "
-                        "Coverage validation passed (≥70% overall), but this symbol has no data. "
-                        "Indicates incomplete upstream loader or data corruption. Cannot proceed."
+                        "Indicates symbol was never processed by TechnicalDataDaily. Cannot proceed."
                     )
 
                 # Validate upstream loader completeness before generating signals.
