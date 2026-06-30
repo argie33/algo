@@ -572,6 +572,19 @@ def _tech_heartbeat_worker(stop_event: threading.Event) -> None:
             )
 
 
+def _apply_schema_migrations() -> None:
+    """Add columns that were missing from initial schema deployment."""
+    migrations = [
+        "ALTER TABLE technical_data_daily ADD COLUMN IF NOT EXISTS atr_50 DECIMAL(12, 4)",
+    ]
+    try:
+        with DatabaseContext("write") as cur:
+            for sql in migrations:
+                cur.execute(sql)
+    except Exception as e:
+        logger.warning(f"Schema migration failed (non-fatal, will retry next run): {e}")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Vectorized Technical Data Loader")
     parser.add_argument("--limit", type=int, default=None, help="Limit to N symbols (for testing)")
@@ -584,6 +597,9 @@ def main() -> int:
         now_et = datetime.now(EASTERN_TZ)
         args.since = now_et.date().isoformat()
         logger.info(f"[ENV] INTRADAY_MODE=true, loading data since {args.since}")
+
+    # Apply any pending schema migrations before running
+    _apply_schema_migrations()
 
     # Update status to RUNNING before fetching symbols
     _update_tech_loader_status("RUNNING")

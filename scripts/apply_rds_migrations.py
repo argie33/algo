@@ -152,6 +152,13 @@ MIGRATIONS = [
         (),
         "ALTER TABLE value_metrics ADD COLUMN IF NOT EXISTS held_percent_institutions_unavailable_reason VARCHAR(255)",
     ),
+    # Migration 105: atr_50 column on technical_data_daily
+    (
+        "technical_data_daily.atr_50",
+        "SELECT 1 FROM information_schema.columns WHERE table_name='technical_data_daily' AND column_name='atr_50'",
+        (),
+        "ALTER TABLE technical_data_daily ADD COLUMN IF NOT EXISTS atr_50 DECIMAL(12, 4)",
+    ),
     # Migration 103: data_unavailable columns on market_health_daily
     (
         "market_health_daily.put_call_ratio_data_unavailable",

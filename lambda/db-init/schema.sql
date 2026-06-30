@@ -217,6 +217,7 @@ CREATE TABLE IF NOT EXISTS technical_data_daily (
     ema_26 DECIMAL(12, 4),
     atr DECIMAL(12, 4),
     atr_14 DECIMAL(12, 4),
+    atr_50 DECIMAL(12, 4),
     bb_upper DECIMAL(12, 4),
     bb_middle DECIMAL(12, 4),
     bb_lower DECIMAL(12, 4),
@@ -3233,6 +3234,7 @@ ALTER TABLE technical_data_daily ADD COLUMN IF NOT EXISTS rsi_14 DECIMAL(8, 4);
 ALTER TABLE technical_data_daily ADD COLUMN IF NOT EXISTS macd_histogram DECIMAL(12, 4);
 ALTER TABLE technical_data_daily ADD COLUMN IF NOT EXISTS sma_150 DECIMAL(12, 4);
 ALTER TABLE technical_data_daily ADD COLUMN IF NOT EXISTS atr_14 DECIMAL(12, 4);
+ALTER TABLE technical_data_daily ADD COLUMN IF NOT EXISTS atr_50 DECIMAL(12, 4);
 ALTER TABLE technical_data_daily ADD COLUMN IF NOT EXISTS bb_upper DECIMAL(12, 4);
 ALTER TABLE technical_data_daily ADD COLUMN IF NOT EXISTS bb_middle DECIMAL(12, 4);
 ALTER TABLE technical_data_daily ADD COLUMN IF NOT EXISTS bb_lower DECIMAL(12, 4);
