@@ -449,13 +449,20 @@ class OrderManager:
                             "message": "Alpaca response missing order id",
                         }
                     filled_price_raw = data.get("filled_avg_price")
+                    order_status = data.get("status", "")
                     if not filled_price_raw:
-                        logger.error(
-                            f"[SEND_EXIT] {symbol}: Alpaca response missing filled_avg_price for order {order_id}"
+                        # Market orders return null filled_avg_price when status is "new" or "pending_new"
+                        # — the fill comes asynchronously. Treat as success with pending fill price;
+                        # Phase 9 reconciliation will poll for the actual fill price.
+                        logger.info(
+                            f"[SEND_EXIT] {symbol}: Exit order {order_id} submitted (status={order_status}), "
+                            f"fill price pending (will be reconciled)"
                         )
                         return {
-                            "success": False,
-                            "message": "Alpaca response missing filled_avg_price",
+                            "success": True,
+                            "order_id": order_id,
+                            "filled_price": None,
+                            "message": f"Order submitted, fill pending: {order_id}",
                         }
                     try:
                         filled_price = float(filled_price_raw)
@@ -465,12 +472,12 @@ class OrderManager:
                             "success": False,
                             "message": f"filled_avg_price not numeric: {e}",
                         }
-                    logger.info(f"[SEND_EXIT] {symbol}: Exit order {order_id} created, fill=${filled_price}")
+                    logger.info(f"[SEND_EXIT] {symbol}: Exit order {order_id} filled at ${filled_price}")
                     return {
                         "success": True,
                         "order_id": order_id,
                         "filled_price": filled_price,
-                        "message": f"Order sent: {order_id}",
+                        "message": f"Order filled: {order_id}",
                     }
                 elif resp.status_code == 422:
                     logger.error(f"[SEND_EXIT] {symbol}: Alpaca 422 (unprocessable) - {resp.text[:200]}")
