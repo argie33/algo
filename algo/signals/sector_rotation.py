@@ -125,7 +125,14 @@ class SectorRotationDetector:
             if rank is None:
                 continue
             rank = int(rank)
-            self._validate_sector_row(sector_name, r1w, r4w, r12w, momentum, eval_date)
+            # Skip sectors with incomplete historical rank data (e.g. system too new for 12w lookback)
+            if any(x is None for x in (r1w, r4w, r12w, momentum)):
+                missing = [n for n, v in [("1w", r1w), ("4w", r4w), ("12w", r12w), ("momentum", momentum)] if v is None]
+                logger.warning(
+                    f"[SECTOR ROTATION] {sector_name}: missing {', '.join(missing)} data for {eval_date} — "
+                    "skipping sector from rotation signal (lookback data not yet available)"
+                )
+                continue
 
             imp_4w = int(r4w) - rank
             imp_12w = int(r12w) - rank

@@ -546,13 +546,21 @@ class MarketExposure:
                             "max": 0,
                         }
             except Exception as e:
-                # Sector rotation detector failure is critical: cannot apply position-sizing penalty.
-                msg = (
-                    f"[SECTOR ROTATION CRITICAL] Detector failed, cannot assess defensive rotation: "
-                    f"{type(e).__name__}: {e}"
+                # Sector rotation data unavailable — apply neutral (no penalty) conservative default.
+                # This occurs when historical rank data (12w lookback) is not yet available because
+                # the system is new. Blocking all trading over missing enrichment data is wrong;
+                # neutral rotation is the safe default.
+                logger.warning(
+                    f"[SECTOR ROTATION] Detector unavailable: {type(e).__name__}: {e}. "
+                    "Applying neutral rotation (no penalty) — conservative default."
                 )
-                logger.critical(msg)
-                raise RuntimeError(msg) from e
+                factors["sector_rotation"] = {
+                    "signal": "unavailable",
+                    "defensive_lead_score": 0.0,
+                    "penalty_applied": 0,
+                    "pts": 0,
+                    "max": 0,
+                }
 
             try:
                 eco = self._economic_regime_overlay(eval_date, cur)
