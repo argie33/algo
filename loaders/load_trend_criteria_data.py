@@ -103,95 +103,46 @@ def _fetch_price_data(cur: psycopg2.extensions.cursor, dates: list[date]) -> pd.
     return pd.DataFrame(rows, columns=["symbol", "date", "close"])
 
 
-def _compute_minervini_score(row: pd.Series) -> int:
-    """Return integer Minervini trend score (0-8) from a merged row."""
-    close = row.get("close")
-    sma50 = row.get("sma_50")
-    sma200 = row.get("sma_200")
-    roc20 = row.get("roc_20d")
-    roc60 = row.get("roc_60d")
-    roc252 = row.get("roc_252d")
-    rsi = row.get("rsi_14")
+def _compute_scores_vectorized(merged: pd.DataFrame) -> pd.DataFrame:
+    """Compute Minervini scores, Weinstein stages, trend direction, and price_above_sma50 on the full DataFrame at once."""
+    # Cast to float for vectorized comparisons; NaN propagates safely for fillna
+    close = pd.to_numeric(merged["close"], errors="coerce")
+    sma50 = pd.to_numeric(merged["sma_50"], errors="coerce")
+    sma200 = pd.to_numeric(merged["sma_200"], errors="coerce")
+    roc20 = pd.to_numeric(merged["roc_20d"], errors="coerce")
+    roc60 = pd.to_numeric(merged["roc_60d"], errors="coerce")
+    roc252 = pd.to_numeric(merged["roc_252d"], errors="coerce")
+    rsi = pd.to_numeric(merged["rsi_14"], errors="coerce")
 
-    if close is None or sma50 is None or sma200 is None:
-        return 0
+    # Minervini score (0-8)
+    merged["minervini_trend_score"] = (
+        (close > sma200).astype(int)
+        + (close > sma50).astype(int)
+        + (sma50 > sma200).astype(int)
+        + (roc60 > 0).fillna(False).astype(int)
+        + (roc252 > 10).fillna(False).astype(int)
+        + (rsi > 50).fillna(False).astype(int)
+        + (close > sma200 * 1.10).astype(int)
+        + (roc20 > 0).fillna(False).astype(int)
+    ).astype(float)
 
-    score = 0
-    try:
-        close_f = float(close)
-        sma50_f = float(sma50)
-        sma200_f = float(sma200)
+    # Weinstein stage (1-4)
+    above200 = close > sma200
+    sma50_above_sma200 = sma50 > sma200
+    merged["weinstein_stage"] = 4  # default: downtrend
+    merged.loc[above200 & sma50_above_sma200, "weinstein_stage"] = 2   # uptrend
+    merged.loc[above200 & ~sma50_above_sma200, "weinstein_stage"] = 3  # topping
+    merged.loc[~above200 & sma50_above_sma200, "weinstein_stage"] = 1  # basing
 
-        if sma200_f > 0:
-            if close_f > sma200_f:
-                score += 1
-            if sma50_f > sma200_f:
-                score += 1
-            if close_f > sma200_f * 1.10:
-                score += 1
+    # Trend direction
+    merged["trend_direction"] = "sideways"
+    merged.loc[roc60 > 5, "trend_direction"] = "up"
+    merged.loc[roc60 < -5, "trend_direction"] = "down"
 
-        if sma50_f > 0 and close_f > sma50_f:
-            score += 1
+    # price_above_sma50
+    merged["price_above_sma50"] = (close > sma50).fillna(False)
 
-        if roc60 is not None and not pd.isna(roc60) and float(roc60) > 0:
-            score += 1
-        if roc252 is not None and not pd.isna(roc252) and float(roc252) > 10:
-            score += 1
-        if rsi is not None and not pd.isna(rsi) and float(rsi) > 50:
-            score += 1
-        if roc20 is not None and not pd.isna(roc20) and float(roc20) > 0:
-            score += 1
-
-    except (TypeError, ValueError, ZeroDivisionError):
-        return 0
-
-    return score
-
-
-def _compute_weinstein_stage(row: pd.Series) -> int:
-    """Return Weinstein stage (1-4) from a merged row."""
-    close = row.get("close")
-    sma50 = row.get("sma_50")
-    sma200 = row.get("sma_200")
-
-    if close is None or sma50 is None or sma200 is None:
-        return 4  # default to downtrend when data missing (conservative)
-
-    try:
-        close_f = float(close)
-        sma50_f = float(sma50)
-        sma200_f = float(sma200)
-
-        above200 = close_f > sma200_f
-        sma50_above_sma200 = sma50_f > sma200_f
-
-        if above200 and sma50_above_sma200:
-            return 2  # uptrend
-        elif not above200 and not sma50_above_sma200:
-            return 4  # downtrend
-        elif above200 and not sma50_above_sma200:
-            return 3  # topping
-        else:
-            return 1  # basing
-    except (TypeError, ValueError):
-        return 4
-
-
-def _compute_trend_direction(row: pd.Series) -> str:
-    """Return 'up', 'down', or 'sideways' based on roc_60d."""
-    roc60 = row.get("roc_60d")
-    if roc60 is None or pd.isna(roc60):
-        return "sideways"
-    try:
-        r = float(roc60)
-        if r > 5:
-            return "up"
-        elif r < -5:
-            return "down"
-        else:
-            return "sideways"
-    except (TypeError, ValueError):
-        return "sideways"
+    return merged
 
 
 def _upsert_batch(cur: psycopg2.extensions.cursor, rows: list[tuple]) -> int:
@@ -225,7 +176,7 @@ def run() -> dict:
             if not dates:
                 raise RuntimeError("[TREND] No dates found in price_daily — cannot compute trend data")
 
-            logger.info(f"[TREND] Computing trend template data for {len(dates)} dates: {dates[-1]} → {dates[0]}")
+            logger.info(f"[TREND] Computing trend template data for {len(dates)} dates: {dates[-1]} to {dates[0]}")
 
             tech_df = _fetch_technical_data(read_cur, dates)
             price_df = _fetch_price_data(read_cur, dates)
@@ -233,26 +184,19 @@ def run() -> dict:
         if tech_df.empty or price_df.empty:
             raise RuntimeError("[TREND] No technical or price data available — check upstream loaders")
 
-        # Merge on symbol + date
         merged = price_df.merge(tech_df, on=["symbol", "date"], how="inner")
         if merged.empty:
             raise RuntimeError("[TREND] No matching rows after price/technical join")
 
-        logger.info(f"[TREND] Computing scores for {len(merged)} symbol-date pairs")
+        logger.info(f"[TREND] Computing scores for {len(merged)} symbol-date pairs (vectorized)")
 
-        rows = []
-        for _, row in merged.iterrows():
-            symbol = row["symbol"]
-            dt = row["date"]
-            minervini = _compute_minervini_score(row)
-            weinstein = _compute_weinstein_stage(row)
-            direction = _compute_trend_direction(row)
-            price_above_sma50 = (
-                bool(float(row["close"]) > float(row["sma_50"]))
-                if row.get("close") is not None and row.get("sma_50") is not None
-                else False
+        merged = _compute_scores_vectorized(merged)
+
+        rows = list(
+            merged[["symbol", "date", "weinstein_stage", "minervini_trend_score", "trend_direction", "price_above_sma50"]].itertuples(
+                index=False, name=None
             )
-            rows.append((symbol, dt, weinstein, float(minervini), direction, price_above_sma50))
+        )
 
         with DatabaseContext("write") as write_cur:
             inserted = _upsert_batch(write_cur, rows)
