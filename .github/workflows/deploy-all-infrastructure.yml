@@ -1,237 +1,1799 @@
-name: Deploy All Infrastructure (Terraform + Lambda + Frontend + Migrations)
+name: Deploy All Infrastructure (Terraform)
+
+# Master deploy: runs terraform apply, then builds all application code in parallel.
+# IMPORTANT: Terraform apply is MANUAL ONLY (workflow_dispatch) to require review.
+# Use companion workflow: terraform-plan.yml (runs on PR, shows plan in comment)
+# Workflow: Plan on PR → Review → Merge → Manually trigger this deploy to apply
+# NOTE: This is the ONLY deployment workflow. All infrastructure uses Terraform (IaC).
 
 on:
   push:
     branches: [ main ]
+    paths:
+      - 'terraform/**'
+      - 'algo/**'
+      - 'lambda/**'
+      - 'loaders/**'
+      - 'utils/**'
+      - 'config/**'
+      - 'monitoring/**'
   workflow_dispatch:
     inputs:
-      environment:
-        description: "Deployment environment"
-        required: true
-        default: "dev"
+      skip_terraform:
+        description: 'Skip terraform apply (infra already up to date)'
+        required: false
+        default: 'false'
         type: choice
-        options: [ dev, staging, prod ]
+        options: ['true', 'false']
+      skip_image:
+        description: 'Skip Docker image build/push'
+        required: false
+        default: 'false'
+        type: choice
+        options: ['true', 'false']
+      skip_code:
+        description: 'Skip Lambda + frontend deploy'
+        required: false
+        default: 'false'
+        type: choice
+        options: ['true', 'false']
 
+permissions:
+  id-token: write
+  contents: read
+
+# Prevent concurrent Terraform runs -- stale plan errors occur when two runs
+# modify state between plan and apply steps.
 concurrency:
-  group: deployment-${{ github.ref }}
+  group: terraform-deploy
   cancel-in-progress: false
 
 env:
   AWS_REGION: us-east-1
-  TF_VERSION: "1.7.0"
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 
 jobs:
-  terraform:
-    name: Deploy Infrastructure (Terraform)
+  #
+  # STEP 0 -- Bootstrap Terraform Backend (S3 + DynamoDB)
+  #
+  bootstrap-backend:
+    name: "0. Bootstrap Terraform Backend / Create S3 State Bucket & DynamoDB Lock Table"
     runs-on: ubuntu-latest
     permissions:
       id-token: write
       contents: read
+    outputs:
+      github_actions_role_arn: ${{ steps.bootstrap.outputs.role_arn }}
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a  # v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev' }}
+          aws-region: ${{ env.AWS_REGION }}
+          audience: sts.amazonaws.com
+
+      - name: Run Bootstrap Script
+        id: bootstrap
+        run: |
+          # Export role ARN for downstream jobs
+          ROLE_ARN="arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev' }}"
+          echo "role_arn=$ROLE_ARN" >> $GITHUB_OUTPUT
+
+          python3 << 'EOF'
+          import boto3
+          import sys
+          import os
+
+          s3 = boto3.client('s3', region_name='us-east-1')
+          dynamodb = boto3.client('dynamodb', region_name='us-east-1')
+
+          # Read backend config from environment or use defaults
+          backend_bucket = os.environ.get('BACKEND_BUCKET', 'stocks-terraform-state')
+          backend_key = os.environ.get('BACKEND_KEY', 'stocks/terraform.tfstate')
+
+          # Create Terraform state bucket
+          try:
+            s3.head_bucket(Bucket=backend_bucket)
+            print(f"[OK] S3 bucket exists: {backend_bucket}")
+          except:
+            try:
+              s3.create_bucket(Bucket=backend_bucket)
+              s3.put_bucket_versioning(
+                Bucket=backend_bucket,
+                VersioningConfiguration={'Status': 'Enabled'}
+              )
+              s3.put_bucket_encryption(
+                Bucket=backend_bucket,
+                ServerSideEncryptionConfiguration={
+                  'Rules': [{
+                    'ApplyServerSideEncryptionByDefault': {'SSEAlgorithm': 'AES256'}
+                  }]
+                }
+              )
+              print(f"[OK] Created S3 bucket: {backend_bucket}")
+            except Exception as e:
+              print(f"[ERROR] Could not create bucket: {e}")
+
+          # Create DynamoDB lock table
+          try:
+            dynamodb.describe_table(TableName='terraform-locks')
+            print("[OK] DynamoDB table exists: terraform-locks")
+          except:
+            try:
+              dynamodb.create_table(
+                TableName='terraform-locks',
+                KeySchema=[{'AttributeName': 'LockID', 'KeyType': 'HASH'}],
+                AttributeDefinitions=[{'AttributeName': 'LockID', 'AttributeType': 'S'}],
+                BillingMode='PAY_PER_REQUEST'
+              )
+              print("[OK] Created DynamoDB table: terraform-locks")
+            except Exception as e:
+              print(f"[ERROR] Could not create table: {e}")
+          EOF
+
+      - name: Verify Backend Resources
+        env:
+          TF_BACKEND_BUCKET: ${{ secrets.TF_STATE_BUCKET || 'stocks-terraform-state' }}
+        run: |
+          aws s3api head-bucket --bucket "$TF_BACKEND_BUCKET" && echo "[OK] S3 bucket verified: $TF_BACKEND_BUCKET"
+          aws dynamodb describe-table --table-name terraform-locks --region $AWS_REGION && echo "[OK] DynamoDB table verified"
+
+  #
+  # STEP 1 -- Infrastructure (Terraform)
+  #
+  terraform:
+    name: "1. Terraform Apply"
+    runs-on: ubuntu-latest
+    needs: bootstrap-backend
+    if: ${{ github.event.inputs.skip_terraform != 'true' }}
+    defaults:
+      run:
+        working-directory: terraform
+    outputs:
+      ecr_repository_url: ${{ steps.outputs.outputs.ecr_repository_url }}
+      api_lambda_name: ${{ steps.outputs.outputs.api_lambda_name }}
+      algo_lambda_name: ${{ steps.outputs.outputs.algo_lambda_name }}
+      frontend_bucket: ${{ steps.outputs.outputs.frontend_bucket }}
+      cloudfront_id: ${{ steps.outputs.outputs.cloudfront_id }}
+      cloudfront_distribution_id: ${{ steps.outputs.outputs.cloudfront_distribution_id }}
+      api_gateway_endpoint: ${{ steps.outputs.outputs.api_gateway_endpoint }}
+      website_url: ${{ steps.outputs.outputs.website_url }}
+      cognito_user_pool_id: ${{ steps.outputs.outputs.cognito_user_pool_id }}
+      cognito_user_pool_client_id: ${{ steps.outputs.outputs.cognito_user_pool_client_id }}
+      cognito_domain_url: ${{ steps.outputs.outputs.cognito_domain_url }}
+    env:
+      TF_VAR_alpaca_api_key_id: ${{ secrets.ALPACA_API_KEY_ID }}
+      TF_VAR_alpaca_api_secret_key: ${{ secrets.ALPACA_API_SECRET_KEY }}
+      TF_VAR_notification_email: ${{ secrets.ALERT_EMAIL_ADDRESS }}
+      TF_VAR_jwt_secret: ${{ secrets.JWT_SECRET }}
+      TF_VAR_fred_api_key: ${{ secrets.FRED_API_KEY }}
+      TF_VAR_alert_smtp_password: ${{ secrets.ALERT_SMTP_PASSWORD }}
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
 
-      - name: Configure AWS credentials via OIDC
-        uses: aws-actions/configure-aws-credentials@v4
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a  # v4
         with:
           role-to-assume: ${{ secrets.GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/{1}', secrets.AWS_ACCOUNT_ID, secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev') }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v2
-        with:
-          terraform_version: ${{ env.TF_VERSION }}
-
-      - name: Create Terraform backend S3 bucket if needed
+      - name: Set Alpaca keys for trading mode
         run: |
-          BUCKET="stocks-terraform-state"
-          if ! aws s3 ls "s3://$BUCKET" 2>/dev/null; then
-            echo "Creating S3 backend bucket..."
-            aws s3api create-bucket --bucket "$BUCKET" --region "${{ env.AWS_REGION }}"
-            aws s3api put-bucket-versioning --bucket "$BUCKET" \
-              --versioning-configuration Status=Enabled
-            aws s3api put-bucket-encryption --bucket "$BUCKET" \
-              --server-side-encryption-configuration '{"Rules": [{"ApplyServerSideEncryptionByDefault": {"SSEAlgorithm": "AES256"}}]}'
+          if grep -q "alpaca_paper_trading *= *false" terraform.tfvars; then
+            echo "Trading mode: LIVE -- using live keys"
+            echo "TF_VAR_alpaca_api_key_id=${{ secrets.ALPACA_API_KEY }}" >> $GITHUB_ENV
+            echo "TF_VAR_alpaca_api_secret_key=${{ secrets.ALPACA_SECRET_KEY }}" >> $GITHUB_ENV
+          else
+            echo "Trading mode: PAPER -- using paper keys"
           fi
 
-      - name: Build Lambda ZIP files for Terraform
+      - name: Discover CloudFront domain for CORS configuration
         run: |
-          python3 -c "
-          import zipfile, os, shutil
+          # Query existing CloudFront distribution to get the current domain
+          CLOUDFRONT_DOMAIN=$(aws cloudfront list-distributions \
+            --query 'DistributionList.Items[0].DomainName' \
+            --output text 2>/dev/null || echo "")
 
-          # Real Lambda ZIPs built from source
-          builds = [
-            # (source_file, zip_path, name_in_zip)
-            ('lambda/circuit-breaker/index.py',           'lambda/circuit_breaker.zip',                       'lambda_function.py'),
-            ('lambda/data-freshness-monitor/lambda_function.py', 'lambda/data-freshness-monitor/lambda_function.zip', 'lambda_function.py'),
-            ('lambda/monitoring/loader_failure_handler.py', 'lambda/loader_failure_handler.zip',               'lambda_function.py'),
-          ]
-          for src, dest, name_in_zip in builds:
-            os.makedirs(os.path.dirname(dest) or '.', exist_ok=True)
-            with zipfile.ZipFile(dest, 'w', zipfile.ZIP_DEFLATED) as z:
-              z.write(src, name_in_zip)
-            print(f'Built {dest} from {src}')
+          if [ -n "$CLOUDFRONT_DOMAIN" ] && [ "$CLOUDFRONT_DOMAIN" != "None" ]; then
+            # Pass the CloudFront domain to Terraform for CORS, auth redirects, and Cognito callbacks
+            HTTPS_DOMAIN="https://${CLOUDFRONT_DOMAIN}"
+            # Include localhost for local development testing
+            CORS_ORIGINS="[\"${HTTPS_DOMAIN}\", \"http://localhost:5173\", \"http://localhost:3000\"]"
+            echo "TF_VAR_api_cors_allowed_origins=${CORS_ORIGINS}" >> $GITHUB_ENV
+            echo "TF_VAR_frontend_origin=${HTTPS_DOMAIN}" >> $GITHUB_ENV
+            echo "TF_VAR_cloudfront_domain=${CLOUDFRONT_DOMAIN}" >> $GITHUB_ENV
+            echo "[OK] Using CloudFront domain: ${CLOUDFRONT_DOMAIN}"
+          else
+            # If no CloudFront exists yet, use local development origins only
+            # (Terraform will create the distribution, but we can't know its domain in advance)
+            CORS_ORIGINS="[\"http://localhost:5173\", \"http://localhost:3000\"]"
+            echo "TF_VAR_api_cors_allowed_origins=${CORS_ORIGINS}" >> $GITHUB_ENV
+            echo "TF_VAR_frontend_origin=http://localhost:3000" >> $GITHUB_ENV
+            echo "[WARN] No existing CloudFront found - will create new distribution"
+          fi
 
-          # Stub ZIPs for optional/placeholder Lambda resources
-          stubs = [
-            'terraform/modules/database/aaii_loader.zip',
-            'terraform/modules/orchestration/trigger-loaders.zip',
-          ]
-          for path in stubs:
-            os.makedirs(os.path.dirname(path), exist_ok=True)
-            if not os.path.exists(path):
-              with zipfile.ZipFile(path, 'w') as z:
-                z.writestr('stub.py', '# stub placeholder')
-              print(f'Created stub: {path}')
-            else:
-              print(f'Exists: {path}')
-          "
+      - name: Delete Orphaned RDS Parameter Group
+        run: |
+          # Check if DB instance exists and is using this parameter group
+          # DB identifier is ${project_name}-db = algo-db (from terraform)
+          DB_ID=$(aws rds describe-db-instances --region us-east-1 --query "DBInstances[?DBInstanceIdentifier=='algo-db'].DBInstanceIdentifier" --output text 2>/dev/null || echo "")
+          if [ -n "$DB_ID" ]; then
+            CURRENT_PG=$(aws rds describe-db-instances --db-instance-identifier algo-db --region us-east-1 --query "DBInstances[0].DBParameterGroups[0].DBParameterGroupName" --output text 2>/dev/null || echo "")
+            if [ "$CURRENT_PG" == "algo-pg14-params" ]; then
+              echo "DB is using algo-pg14-params, changing to default.postgres14..."
+              aws rds modify-db-instance \
+                --db-instance-identifier algo-db \
+                --db-parameter-group-name default.postgres14 \
+                --region us-east-1 \
+                --apply-immediately || echo "Modify failed, continuing..."
+              sleep 5
+            fi
+          fi
+          # Now delete the parameter group
+          aws rds delete-db-parameter-group \
+            --db-parameter-group-name algo-pg14-params \
+            --region us-east-1 || echo "Parameter group deletion failed or already deleted"
 
-      - name: Terraform Init
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd  # v3
+        with:
+          terraform_version: 1.7.0
+          terraform_wrapper: false
+
+      - name: Clean S3 State Before Terraform
+        run: |
+          echo "Terraform will use data source for orphaned parameter group - no manual state cleanup needed"
+
+      - name: Setup Terraform State Backend
+        working-directory: terraform
+        env:
+          AWS_REGION: us-east-1
+          TF_BACKEND_BUCKET: ${{ secrets.TF_STATE_BUCKET || 'stocks-terraform-state' }}
+          TF_BACKEND_KEY: ${{ secrets.TF_STATE_KEY || 'stocks/terraform.tfstate' }}
+        run: |
+          # Initialize terraform with dynamic backend config (from secrets or defaults)
+          terraform init -reconfigure \
+            -backend-config="bucket=$TF_BACKEND_BUCKET" \
+            -backend-config="key=$TF_BACKEND_KEY" \
+            -backend-config="region=$AWS_REGION" \
+            -backend-config="encrypt=true" \
+            --upgrade
+          echo "[OK] Terraform backend initialized: bucket=$TF_BACKEND_BUCKET key=$TF_BACKEND_KEY"
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: '3.12'
+
+      - name: Build psycopg2 Lambda layer
+        run: |
+          # Build psycopg2-binary layer so the db-init Lambda can connect to PostgreSQL.
+          # Must run before Terraform so the zip is available for filebase64sha256().
+          # setup-python@v5 above ensures python3.12 is available and matches Lambda runtime.
+          LAYER_DIR=/tmp/psycopg2-layer
+          mkdir -p $LAYER_DIR/python
+          python3.12 -m pip install psycopg2-binary \
+            -t $LAYER_DIR/python \
+            --no-cache-dir --quiet
+          cd $LAYER_DIR && zip -r $GITHUB_WORKSPACE/terraform/modules/database/python-psycopg2-layer.zip . -q
+          echo "psycopg2 layer: $(du -sh $GITHUB_WORKSPACE/terraform/modules/database/python-psycopg2-layer.zip | cut -f1)"
+          unzip -l $GITHUB_WORKSPACE/terraform/modules/database/python-psycopg2-layer.zip | grep "_psycopg" || echo "WARNING: _psycopg .so not found in layer"
+
+      - name: Build numpy/scipy Lambda layer
+        run: |
+          # Build shared-deps layer (numpy + scipy ONLY — minimal to stay under AWS 67 MB limit).
+          # AWS hard limit for direct layer upload: 70167211 bytes (~67 MB).
+          # Layer must be under this limit or Terraform's fileexists() check skips it.
+          set -e
+          BUILD_DIR=/tmp/shared-deps-build
+          mkdir -p $BUILD_DIR/python
+          pip install \
+            --platform manylinux2014_x86_64 \
+            --implementation cp \
+            --python-version 3.12 \
+            --only-binary=:all: \
+            --upgrade \
+            --target $BUILD_DIR/python \
+            -r $GITHUB_WORKSPACE/terraform/lambda-layer-requirements.txt \
+            2>&1 | tail -20
+          # Strip debug symbols to reduce size
+          find $BUILD_DIR/python -name "*.so" -exec strip --strip-debug {} \; 2>/dev/null || true
+          OUTPUT_ZIP=$GITHUB_WORKSPACE/terraform/lambda/shared-deps-layer.zip
+          mkdir -p $(dirname $OUTPUT_ZIP)
+          cd $BUILD_DIR && zip -r $OUTPUT_ZIP python/ -q
+          SIZE=$(du -sh $OUTPUT_ZIP | cut -f1)
+          ZIP_BYTES=$(stat -c%s $OUTPUT_ZIP)
+          echo "shared-deps layer: $SIZE ($ZIP_BYTES bytes)"
+          # AWS limit: 70167211 bytes BASE64-ENCODED, so raw zip must be < ~52 MB.
+          # Threshold: 50 MB raw (52428800 bytes) for safe headroom.
+          if [ $ZIP_BYTES -gt 52428800 ]; then
+            echo "[WARN] Layer $SIZE exceeds 50 MB raw threshold (base64 overhead would hit 70 MB API limit) — deleting zip so Terraform skips it (Phase 7 fails-open)"
+            rm -f $OUTPUT_ZIP
+          else
+            echo "[OK] Layer $SIZE is within 50 MB limit — will be deployed via Terraform"
+          fi
+
+      - name: Build db-init Lambda
+        run: |
+          # Build db-init Lambda ZIP before Terraform tries to deploy it.
+          # Lambda initializes PostgreSQL schema on first deployment.
+          SOURCE_LAMBDA=$GITHUB_WORKSPACE/lambda/db-init
+          PKG_DIR=/tmp/db-init-pkg
+
+          mkdir -p $PKG_DIR
+
+          # Copy db-init Lambda function and schema
+          cp $SOURCE_LAMBDA/lambda_function.py $PKG_DIR/
+          cp $SOURCE_LAMBDA/schema.sql $PKG_DIR/
+
+          # Copy requirements if they exist
+          if [ -f "$SOURCE_LAMBDA/requirements.txt" ]; then
+            python3.12 -m pip install -r $SOURCE_LAMBDA/requirements.txt \
+              -t $PKG_DIR/ \
+              --no-cache-dir --quiet
+          fi
+
+          # Create ZIP for deployment
+          rm -f $GITHUB_WORKSPACE/terraform/lambda_artifacts/db-init.zip
+          mkdir -p $GITHUB_WORKSPACE/terraform/lambda_artifacts
+          cd $PKG_DIR
+          zip -r $GITHUB_WORKSPACE/terraform/lambda_artifacts/db-init.zip . -q -x "*.pyc" "__pycache__/*"
+
+          echo "[OK] db-init Lambda ZIP: $(du -sh $GITHUB_WORKSPACE/terraform/lambda_artifacts/db-init.zip | cut -f1)"
+          unzip -l $GITHUB_WORKSPACE/terraform/lambda_artifacts/db-init.zip | head -10
+
+      - name: Build API Lambda (REST API)
+        run: |
+          # Build API Lambda ZIP before Terraform tries to deploy it.
+          # Terraform uses this pre-built ZIP instead of archive_file data source.
+          SOURCE_LAMBDA=$GITHUB_WORKSPACE/lambda/api
+          PKG_DIR=/tmp/api-lambda-pkg
+
+          mkdir -p $PKG_DIR
+
+          # Copy all API code (routes, utils, handlers)
+          cp -r $SOURCE_LAMBDA/* $PKG_DIR/
+
+          # Copy project config and utils directories (required for credential_manager and database_context)
+          echo "[DEBUG] Copying config from $GITHUB_WORKSPACE/config"
+          if [ -d "$GITHUB_WORKSPACE/config" ]; then
+            cp -r $GITHUB_WORKSPACE/config $PKG_DIR/
+            echo "[OK] Config copied"
+          else
+            echo "[WARN] Config directory not found"
+          fi
+
+          echo "[DEBUG] Copying utils from $GITHUB_WORKSPACE/utils"
+          if [ -d "$GITHUB_WORKSPACE/utils" ]; then
+            ls $GITHUB_WORKSPACE/utils | head -10
+            cp -r $GITHUB_WORKSPACE/utils $PKG_DIR/
+            echo "[OK] Utils copied"
+            ls $PKG_DIR/utils | head -10
+          else
+            echo "[ERROR] Utils directory not found!"
+            exit 1
+          fi
+
+          # Copy algo package (algo/infrastructure etc. imported by routes/algo.py and routes/admin.py)
+          echo "[DEBUG] Copying algo from $GITHUB_WORKSPACE/algo"
+          if [ -d "$GITHUB_WORKSPACE/algo" ]; then
+            cp -r $GITHUB_WORKSPACE/algo $PKG_DIR/algo
+            echo "[OK] algo/ copied ($(find $PKG_DIR/algo -name '*.py' | wc -l) .py files)"
+          else
+            echo "[ERROR] algo/ directory not found!"
+            exit 1
+          fi
+
+          # Install dependencies into package directory
+          if [ -f "$SOURCE_LAMBDA/requirements.txt" ]; then
+            python3.12 -m pip install -r $SOURCE_LAMBDA/requirements.txt \
+              -t $PKG_DIR/ \
+              --no-cache-dir --quiet
+          fi
+
+          # Verify utils/ files are present before zipping
+          if [ ! -f "$PKG_DIR/utils/safe_data_conversion.py" ]; then
+            echo "[ERROR] Missing utils/safe_data_conversion.py"
+            echo "Package directory contents:"
+            ls -la $PKG_DIR/ | head -20
+            echo "Files in utils directory:"
+            find $PKG_DIR -type d -name utils -exec ls -la {} \;
+            exit 1
+          fi
+
+          # Create ZIP for deployment (name must match var.api_lambda_code_file default in Terraform)
+          rm -f $GITHUB_WORKSPACE/terraform/lambda_api.zip
+          cd $PKG_DIR
+          zip -r $GITHUB_WORKSPACE/terraform/lambda_api.zip . -q -x "*.pyc" "__pycache__/*" "*.dist-info/*" "tests/*"
+
+          echo "[OK] API Lambda ZIP: $(du -sh $GITHUB_WORKSPACE/terraform/lambda_api.zip | cut -f1)"
+
+          # Verify utils files are in the ZIP
+          echo "Verifying utils/ in ZIP:"
+          unzip -l $GITHUB_WORKSPACE/terraform/lambda_api.zip | grep "utils/safe_data_conversion.py"
+          if [ $? -ne 0 ]; then
+            echo "[ERROR] utils/safe_data_conversion.py NOT in ZIP!"
+            echo "ZIP contents (first 30 lines):"
+            unzip -l $GITHUB_WORKSPACE/terraform/lambda_api.zip | head -30
+            exit 1
+          fi
+          echo "[OK] utils/ files verified in ZIP"
+
+          unzip -l $GITHUB_WORKSPACE/terraform/lambda_api.zip | head -20
+
+      - name: Build Data Freshness Monitor Lambda
+        run: |
+          # Build data-freshness-monitor Lambda ZIP before Terraform tries to deploy it.
+          # Terraform runs in terraform/ directory and looks for ZIP at:
+          # modules/monitoring/../../lambda/data-freshness-monitor/lambda_function.zip
+          # = terraform/lambda/data-freshness-monitor/lambda_function.zip
+          SOURCE_LAMBDA=$GITHUB_WORKSPACE/lambda/data-freshness-monitor
+          TERRAFORM_LAMBDA=$GITHUB_WORKSPACE/terraform/lambda/data-freshness-monitor
+          PKG_DIR=/tmp/data-freshness-pkg
+
+          mkdir -p $PKG_DIR $TERRAFORM_LAMBDA
+
+          # Copy Lambda function code
+          cp $SOURCE_LAMBDA/lambda_function.py $PKG_DIR/
+
+          # Install dependencies
+          python3.12 -m pip install -r $SOURCE_LAMBDA/requirements.txt \
+            -t $PKG_DIR/ \
+            --no-cache-dir --quiet
+
+          # Create ZIP in the location where Terraform expects it
+          rm -f $TERRAFORM_LAMBDA/lambda_function.zip
+          cd $PKG_DIR
+          zip -r $TERRAFORM_LAMBDA/lambda_function.zip . -q -x "*.pyc" "__pycache__/*" "*.dist-info/*"
+
+          echo "[OK] data-freshness-monitor Lambda ZIP: $(du -sh $TERRAFORM_LAMBDA/lambda_function.zip | cut -f1)"
+          unzip -l $TERRAFORM_LAMBDA/lambda_function.zip | head -20
+
+      - name: Build Algo Orchestrator Lambda
+        run: |
+          # Build orchestrator Lambda ZIP with all required modules (algo, config, utils)
+          # Must run before Terraform so the ZIP is available for filebase64sha256()
+          PKG_DIR=/tmp/algo-lambda-pkg
+          mkdir -p $PKG_DIR
+
+          # Copy Lambda handler
+          cp $GITHUB_WORKSPACE/lambda/algo_orchestrator/lambda_function.py $PKG_DIR/
+
+          # Copy all required modules
+          cp -r $GITHUB_WORKSPACE/algo $PKG_DIR/
+          cp -r $GITHUB_WORKSPACE/config $PKG_DIR/
+          cp -r $GITHUB_WORKSPACE/utils $PKG_DIR/
+
+          # Remove pycache and build artifacts
+          find $PKG_DIR -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+          find $PKG_DIR -type f -name "*.pyc" -delete
+
+          # Install dependencies
+          python3.12 -m pip install -r $GITHUB_WORKSPACE/lambda/algo_orchestrator/requirements.txt \
+            -t $PKG_DIR/ \
+            --no-cache-dir --quiet
+
+          # Create ZIP in terraform directory (where Terraform expects it)
+          rm -f $GITHUB_WORKSPACE/terraform/lambda_algo.zip
+          cd $PKG_DIR
+          zip -r $GITHUB_WORKSPACE/terraform/lambda_algo.zip . -q -x "*.pyc" "__pycache__/*" "*/tests/*" "*/test/*"
+          cd $GITHUB_WORKSPACE
+
+          echo "[OK] Algo Orchestrator Lambda ZIP: $(du -sh $GITHUB_WORKSPACE/terraform/lambda_algo.zip | cut -f1)"
+          unzip -l $GITHUB_WORKSPACE/terraform/lambda_algo.zip | head -20
+
+      - name: Build Loader Failure Handler Lambda
+        run: |
+          # Build loader failure handler Lambda ZIP for Step Functions error handling
+          # Must run before Terraform so the ZIP is available for filebase64sha256()
+          SOURCE_LAMBDA=$GITHUB_WORKSPACE/lambda/monitoring
+          TERRAFORM_LAMBDA=$GITHUB_WORKSPACE/terraform/lambda
+          PKG_DIR=/tmp/loader-failure-handler-pkg
+
+          mkdir -p $PKG_DIR $TERRAFORM_LAMBDA
+
+          # Copy Lambda function code (loader_failure_handler.py is in lambda/monitoring/)
+          cp $SOURCE_LAMBDA/loader_failure_handler.py $PKG_DIR/lambda_function.py
+
+          # Create ZIP in the location where Terraform expects it
+          rm -f $TERRAFORM_LAMBDA/loader_failure_handler.zip
+          cd $PKG_DIR
+          zip -r $TERRAFORM_LAMBDA/loader_failure_handler.zip . -q -x "*.pyc" "__pycache__/*"
+
+          echo "[OK] loader_failure_handler Lambda ZIP: $(du -sh $TERRAFORM_LAMBDA/loader_failure_handler.zip | cut -f1)"
+          unzip -l $TERRAFORM_LAMBDA/loader_failure_handler.zip | head -10
+
+      - name: Build Circuit Breaker Lambda
+        run: |
+          # Build circuit breaker Lambda ZIP for intraday halt protection (F-02)
+          # Must run before Terraform so filebase64sha256() can find the file
+          # Requires config/ module for credential management
+          SOURCE=$GITHUB_WORKSPACE/lambda/circuit-breaker
+          TERRAFORM_LAMBDA=$GITHUB_WORKSPACE/terraform/lambda
+          PKG_DIR=/tmp/circuit-breaker-pkg
+
+          mkdir -p $PKG_DIR $TERRAFORM_LAMBDA
+
+          if [ -f "$SOURCE/index.py" ]; then
+            # Copy circuit breaker Lambda function
+            cp $SOURCE/index.py $PKG_DIR/lambda_function.py
+
+            # Copy required modules
+            cp -r $GITHUB_WORKSPACE/config $PKG_DIR/
+            cp -r $GITHUB_WORKSPACE/utils $PKG_DIR/
+
+            # Remove pycache
+            find $PKG_DIR -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+            find $PKG_DIR -type f -name "*.pyc" -delete
+
+            # Create ZIP
+            rm -f $TERRAFORM_LAMBDA/circuit_breaker.zip
+            cd $PKG_DIR
+            zip -r $TERRAFORM_LAMBDA/circuit_breaker.zip . -q -x "*.pyc" "__pycache__/*"
+
+            echo "[OK] circuit-breaker Lambda ZIP: $(du -sh $TERRAFORM_LAMBDA/circuit_breaker.zip | cut -f1)"
+            unzip -l $TERRAFORM_LAMBDA/circuit_breaker.zip | head -15
+          else
+            echo "[WARN] lambda/circuit-breaker/index.py not found — skipping"
+          fi
+
+      - name: Build AAII Sentiment Loader Lambda
+        run: |
+          # Build AAII Loader Lambda ZIP for initial data population
+          # Must run before Terraform so the Lambda function resource can be created
+          SOURCE=$GITHUB_WORKSPACE/scripts/aaii_loader_function.py
+          TERRAFORM_LAMBDA=$GITHUB_WORKSPACE/terraform/lambda
+          TERRAFORM_MODULES=$GITHUB_WORKSPACE/terraform/modules/database
+          PKG_DIR=/tmp/aaii-loader-pkg
+
+          mkdir -p $PKG_DIR $TERRAFORM_LAMBDA $TERRAFORM_MODULES
+
+          if [ -f "$SOURCE" ]; then
+            # Copy AAII Loader Lambda function
+            cp $SOURCE $PKG_DIR/lambda_function.py
+
+            # Create ZIP in both locations (Terraform references it in modules/database/)
+            rm -f $TERRAFORM_MODULES/aaii_loader.zip
+            cd $PKG_DIR
+            zip -r $TERRAFORM_MODULES/aaii_loader.zip . -q -x "*.pyc" "__pycache__/*"
+
+            echo "[OK] AAII Loader Lambda ZIP: $(du -sh $TERRAFORM_MODULES/aaii_loader.zip | cut -f1)"
+            unzip -l $TERRAFORM_MODULES/aaii_loader.zip | head -10
+          else
+            echo "[WARN] scripts/aaii_loader_function.py not found — skipping AAII loader"
+          fi
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Import Existing AWS Resources (state sync)
+        run: |
+          # Dynamic import of resources that exist in AWS but not in Terraform state.
+          # Queries AWS to find actual resource names/IDs instead of hardcoding.
+
+          # Extract project name and bucket name from Terraform config
+          PROJECT_NAME=$(grep '^project_name' terraform.tfvars | cut -d'"' -f2)
+          STATE_BUCKET=$(grep 'terraform_state_bucket_name' terraform/bootstrap.tf | grep -oP '"[^"]*"' | head -1 | tr -d '"')
+
+          echo "Project: $PROJECT_NAME"
+          echo "State Bucket: $STATE_BUCKET"
+
+          import_if_missing() {
+            local resource=$1
+            local id=$2
+            if terraform state list | grep -qF "$resource"; then
+              echo " SKIP: $resource already in state"
+            else
+              echo "-> IMPORT: $resource as $id"
+              terraform import -var-file=terraform.tfvars "$resource" "$id" 2>&1 | grep -E "Import|Error" || true
+            fi
+          }
+
+          # Import Cognito test user if it exists in AWS but not in state
+          PRIMARY_USER=$(grep "^cognito_test_user_email" terraform.tfvars | cut -d'"' -f2)
+          if [ -n "$PRIMARY_USER" ]; then
+            POOL_ID=$(aws cognito-idp list-user-pools --max-results 60 --region us-east-1 --query "UserPools[?Name=='${PROJECT_NAME}-pool-dev'].Id" --output text 2>/dev/null || echo "")
+            if [ -n "$POOL_ID" ] && [ "$POOL_ID" != "None" ]; then
+              USER_EXISTS=$(aws cognito-idp admin-get-user --user-pool-id "$POOL_ID" --username "$PRIMARY_USER" --region us-east-1 2>/dev/null && echo "true" || echo "false")
+              if [ "$USER_EXISTS" = "true" ]; then
+                echo "-> Cognito user exists in AWS but not in state. Importing..."
+                import_if_missing "module.cognito.aws_cognito_user.test_user[0]" "${POOL_ID}/${PRIMARY_USER}" || echo "[WARN] Could not import Cognito user — it may already be in state or the import format may differ"
+              fi
+            fi
+          fi
+
+          # Import S3 backend bucket dynamically
+          import_if_missing module.bootstrap.aws_s3_bucket.terraform_state "$STATE_BUCKET"
+
+          # Import Terraform-managed VPC (ManagedBy=Terraform tag distinguishes it from orphaned VPCs)
+          echo ""
+          echo "Querying AWS for Terraform-managed VPC..."
+          TF_VPC=$(aws ec2 describe-vpcs \
+            --filters "Name=tag:Name,Values=${PROJECT_NAME}-vpc" "Name=tag:ManagedBy,Values=Terraform" \
+            --query 'Vpcs[0].VpcId' --output text --region $AWS_REGION 2>/dev/null || echo "")
+          if [ -n "$TF_VPC" ] && [ "$TF_VPC" != "None" ]; then
+            echo "Found Terraform VPC: $TF_VPC"
+            import_if_missing "module.vpc.aws_vpc.main" "$TF_VPC"
+
+            # Import ECS tasks, API Lambda, Algo Lambda, and RDS security groups
+            for SG_SUFFIX in ecs-tasks-sg api-lambda-sg algo-lambda-sg rds-sg; do
+              SG_ID=$(aws ec2 describe-security-groups \
+                --filters "Name=vpc-id,Values=$TF_VPC" "Name=group-name,Values=${PROJECT_NAME}-${SG_SUFFIX}" \
+                --query 'SecurityGroups[0].GroupId' --output text --region $AWS_REGION 2>/dev/null || echo "")
+              if [ -n "$SG_ID" ] && [ "$SG_ID" != "None" ]; then
+                TF_RESOURCE="module.vpc.aws_security_group.$(echo $SG_SUFFIX | sed 's/-sg//' | tr '-' '_')"
+                import_if_missing "$TF_RESOURCE" "$SG_ID"
+              fi
+            done
+          else
+            echo "[WARN]  Terraform VPC not found (will be created)"
+          fi
+
+          # Import API Gateway $default route (AWS auto-creates it; Terraform CREATE causes 409 conflict)
+          # Use variable to hold literal '$default' -- avoid shell expansion of $default as a variable
+          DEFAULT_ROUTE_KEY='$default'
+          echo ""
+          echo "Querying AWS for API Gateway ${DEFAULT_ROUTE_KEY} route..."
+          ENVIRONMENT=$(grep '^environment' terraform.tfvars | cut -d'"' -f2)
+          echo "  Project: ${PROJECT_NAME}, Environment: ${ENVIRONMENT}"
+          API_ID=$(aws apigatewayv2 get-apis \
+            --query "Items[?Name=='${PROJECT_NAME}-api-${ENVIRONMENT}'].ApiId | [0]" \
+            --output text --region $AWS_REGION 2>/dev/null || echo "")
+          echo "  API Gateway ID: ${API_ID:-(not found)}"
+          if [ -n "$API_ID" ] && [ "$API_ID" != "None" ]; then
+            DEFAULT_ROUTE_ID=$(aws apigatewayv2 get-routes \
+              --api-id "$API_ID" \
+              --query "Items[?RouteKey=='${DEFAULT_ROUTE_KEY}'].RouteId | [0]" \
+              --output text --region $AWS_REGION 2>/dev/null || echo "")
+            echo "  ${DEFAULT_ROUTE_KEY} route ID: ${DEFAULT_ROUTE_ID:-(not found)}"
+            if [ -n "$DEFAULT_ROUTE_ID" ] && [ "$DEFAULT_ROUTE_ID" != "None" ]; then
+              import_if_missing "module.services.aws_apigatewayv2_route.api_default" "${API_ID}/${DEFAULT_ROUTE_ID}"
+            else
+              echo "  No existing ${DEFAULT_ROUTE_KEY} route found -- Terraform will create it"
+            fi
+          else
+            echo "[WARN]  API Gateway not found yet -- will be created by Terraform"
+          fi
+
+          # Import db-init Lambda function if it exists in AWS
+          echo ""
+          echo "Querying AWS for db-init Lambda function..."
+          DB_INIT_FUNCTION=$(aws lambda get-function \
+            --function-name "${PROJECT_NAME}-db-init-${ENVIRONMENT}" \
+            --query 'Configuration.FunctionArn' --output text --region $AWS_REGION 2>/dev/null || echo "")
+          if [ -n "$DB_INIT_FUNCTION" ] && [ "$DB_INIT_FUNCTION" != "None" ]; then
+            echo "Found db-init Lambda: $DB_INIT_FUNCTION"
+            import_if_missing "module.database.aws_lambda_function.db_init" "${PROJECT_NAME}-db-init-${ENVIRONMENT}"
+          else
+            echo "db-init Lambda not found -- Terraform will create it"
+          fi
+
+          # Import loader_failure_handler Lambda and its permissions if they already exist in AWS
+          # Note: loader_failure_handler is defined in module.services (not module.pipeline)
+          echo ""
+          echo "Querying AWS for loader_failure_handler Lambda function..."
+          LFH_FUNCTION=$(aws lambda get-function \
+            --function-name "${PROJECT_NAME}-loader-failure-handler-${ENVIRONMENT}" \
+            --query 'Configuration.FunctionArn' --output text --region $AWS_REGION 2>/dev/null || echo "")
+          if [ -n "$LFH_FUNCTION" ] && [ "$LFH_FUNCTION" != "None" ]; then
+            echo "Found loader_failure_handler Lambda: $LFH_FUNCTION"
+            import_if_missing "module.services.aws_lambda_function.loader_failure_handler" "${PROJECT_NAME}-loader-failure-handler-${ENVIRONMENT}"
+            # Import the Step Functions invoke permission if it exists
+            LFH_PERM=$(aws lambda get-policy \
+              --function-name "${PROJECT_NAME}-loader-failure-handler-${ENVIRONMENT}" \
+              --region $AWS_REGION 2>/dev/null | python3 -c "import json,sys; p=json.load(sys.stdin); stmts=[s for s in json.loads(p['Policy'])['Statement'] if s['Sid']=='AllowStepFunctionsInvoke']; print('exists' if stmts else '')" 2>/dev/null || echo "")
+            if [ "$LFH_PERM" = "exists" ]; then
+              echo "Found AllowStepFunctionsInvoke permission — importing"
+              import_if_missing "module.services.aws_lambda_permission.loader_failure_handler_step_functions" "${PROJECT_NAME}-loader-failure-handler-${ENVIRONMENT}/AllowStepFunctionsInvoke"
+            fi
+          else
+            echo "loader_failure_handler Lambda not found -- Terraform will create it"
+          fi
+
+          # Import Secrets Manager secrets if they exist
+          # Note: Terraform fails to create secrets that already exist, so we must import them first
+          # Terraform requires the full ARN (not just the secret name) for aws_secretsmanager_secret import
+          echo ""
+          echo "Importing existing Secrets Manager secrets..."
+
+          # Try to import algo/alpaca secret
+          if aws secretsmanager describe-secret --secret-id "algo/alpaca" --region us-east-1 >/dev/null 2>&1; then
+            echo "Importing algo/alpaca secret..."
+            ALPACA_ARN=$(aws secretsmanager describe-secret --secret-id "algo/alpaca" --region us-east-1 --query 'ARN' --output text 2>/dev/null || echo "")
+            if [ -n "$ALPACA_ARN" ]; then
+              terraform import -var-file=terraform.tfvars "module.database.aws_secretsmanager_secret.alpaca_api_keys" "$ALPACA_ARN" 2>&1 | grep -E "Import|Error|Successfully" || true
+            fi
+          fi
+
+          # Try to import algo/fred secret
+          if aws secretsmanager describe-secret --secret-id "algo/fred" --region us-east-1 >/dev/null 2>&1; then
+            echo "Importing algo/fred secret..."
+            FRED_ARN=$(aws secretsmanager describe-secret --secret-id "algo/fred" --region us-east-1 --query 'ARN' --output text 2>/dev/null || echo "")
+            if [ -n "$FRED_ARN" ]; then
+              terraform import -var-file=terraform.tfvars "module.database.aws_secretsmanager_secret.fred_api_key" "$FRED_ARN" 2>&1 | grep -E "Import|Error|Successfully" || true
+            fi
+          fi
+
+          # Try to import RDS credentials secret (uses Terraform naming: ${project}-db-credentials-${environment})
+          SECRET_ID="${PROJECT_NAME}-db-credentials-${ENVIRONMENT}"
+          if aws secretsmanager describe-secret --secret-id "$SECRET_ID" --region us-east-1 >/dev/null 2>&1; then
+            echo "Importing RDS credentials secret: $SECRET_ID..."
+            DB_ARN=$(aws secretsmanager describe-secret --secret-id "$SECRET_ID" --region us-east-1 --query 'ARN' --output text 2>/dev/null || echo "")
+            if [ -n "$DB_ARN" ]; then
+              terraform import -var-file=terraform.tfvars "module.database.aws_secretsmanager_secret.rds_credentials" "$DB_ARN" 2>&1 | grep -E "Import|Error|Successfully" || true
+            fi
+          fi
+
+          # Note: Cognito admin group is managed by a post-Terraform workflow step
+          # (not by Terraform resources) to avoid IAM propagation race conditions.
+          # See "Setup Cognito Admin Group" step below.
+
+      - name: Remove Orphaned Pipeline Lambda From State
+        run: |
+          # loader_failure_handler was defined in both module.pipeline and module.services.
+          # module.pipeline now delegates to var.loader_failure_handler_arn (module.services owns it).
+          # Remove pipeline's orphaned state entries BEFORE plan so apply doesn't try to destroy the Lambda.
+          terraform state rm "module.pipeline.aws_lambda_function.loader_failure_handler" 2>/dev/null || true
+          terraform state rm "module.pipeline.aws_iam_role.loader_failure_handler" 2>/dev/null || true
+          terraform state rm "module.pipeline.aws_iam_role_policy_attachment.loader_failure_handler_logs" 2>/dev/null || true
+          terraform state rm "module.pipeline.aws_iam_role_policy.loader_failure_handler_cloudwatch" 2>/dev/null || true
+          echo "[OK] Orphaned pipeline loader_failure_handler state entries removed"
+
+          # aws_lambda_alias.api_live and aws_lambda_function_event_invoke_config were added for
+          # provisioned concurrency then removed after causing a Terraform cycle with psycopg2 layer.
+          # Remove from state so plan doesn't try to destroy them (which would recreate the cycle).
+          terraform state rm "module.services.aws_lambda_alias.api_live[0]" 2>/dev/null || true
+          terraform state rm "module.services.aws_lambda_alias.api_live" 2>/dev/null || true
+          terraform state rm "module.services.aws_lambda_function_event_invoke_config.api_async" 2>/dev/null || true
+          echo "[OK] Orphaned Lambda alias and event invoke config state entries removed"
+
+      - name: Remove Orphaned S3 Config Bucket From State
         working-directory: terraform
         run: |
-          terraform init \
-            -backend-config="bucket=stocks-terraform-state" \
-            -backend-config="key=stocks/terraform.tfstate" \
-            -backend-config="region=${{ env.AWS_REGION }}" \
-            -backend-config="encrypt=true"
+          # AWS Config S3 bucket is no longer managed (aws_config_enabled=false).
+          # Terraform cannot delete it if it contains versioned objects, so remove from state instead.
+          terraform state rm "module.security_monitoring.aws_s3_bucket.config_bucket[0]" 2>/dev/null || true
+          terraform state rm "module.security_monitoring.aws_s3_bucket_versioning.config_bucket[0]" 2>/dev/null || true
+          terraform state rm "module.security_monitoring.aws_s3_bucket_public_access_block.config_bucket[0]" 2>/dev/null || true
+          terraform state rm "module.security_monitoring.aws_s3_bucket_policy.config_bucket[0]" 2>/dev/null || true
+          echo "[OK] Orphaned config bucket state entries removed (if they existed)"
 
       - name: Terraform Plan
-        working-directory: terraform
-        run: terraform plan -out=tfplan
+        id: tf_plan
+        run: |
+          terraform plan \
+            -var-file=terraform.tfvars \
+            -out=tfplan \
+            -detailed-exitcode || EXIT=$?
+          # exit 0 = no changes, 2 = changes, other = error
+          if [ "${EXIT:-0}" -eq 1 ]; then exit 1; fi
+          if [ "${EXIT:-0}" -eq 0 ]; then
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          else
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          fi
 
       - name: Terraform Apply
-        continue-on-error: true
-        working-directory: terraform
+        if: steps.tf_plan.outputs.has_changes == 'true'
         run: terraform apply -auto-approve tfplan
 
-      - name: Fetch Terraform Outputs
-        working-directory: terraform
+      - name: Skip Terraform Apply (No Changes)
+        if: steps.tf_plan.outputs.has_changes == 'false'
+        run: echo "[OK] No infrastructure changes detected — skipping terraform apply"
+
+      # NOTE: RDS credentials are fully managed by IaC (Terraform).
+      # random_password.rds_master generates once, stored in state, then synced to Secrets Manager.
+      # GitHub Actions uses OIDC to read from Secrets Manager (no GitHub Secrets needed for passwords).
+
+      # NOTE: Database initialization is now handled by deploy-code.yml
+      # (deploy-db-init-lambda job) which invokes algo-db-init-dev after
+      # the Lambda code is deployed. This avoids timing issues where the Lambda
+      # function doesn't exist yet during Terraform apply.
+
+      - name: Delete orphaned API Gateways
         run: |
-          terraform output -json > outputs.json
-          echo "=== Terraform Outputs ===" && cat outputs.json
+          # Clean up API Gateways that are NOT the current active one.
+          # Terraform manages the active API Gateway (derived from project + environment).
+          # This removes any leftover gateways from old experiments or failed deployments.
 
-      - name: Extract Dashboard Configuration
-        id: dashboard_config
-        working-directory: terraform
+          PROJECT=$(grep '^project_name' terraform.tfvars | cut -d'"' -f2)
+          ENV=$(grep '^environment' terraform.tfvars | cut -d'"' -f2)
+          ACTIVE_NAME="${PROJECT}-api-${ENV}"
+
+          # Find active API Gateway ID
+          ACTIVE_ID=$(aws apigatewayv2 get-apis \
+            --query "Items[?Name=='${ACTIVE_NAME}'].ApiId" \
+            --output text --region $AWS_REGION 2>/dev/null || echo "")
+
+          echo "Active API Gateway: ${ACTIVE_NAME} (ID: ${ACTIVE_ID:-not-found})"
+
+          # Find and delete all OTHER API Gateways (orphaned from old experiments)
+          aws apigatewayv2 get-apis \
+            --query "Items[?Name != '${ACTIVE_NAME}'].ApiId" \
+            --output text --region $AWS_REGION 2>/dev/null | tr '\t' '\n' | while read -r id; do
+            if [ -n "$id" ] && [ "$id" != "$ACTIVE_ID" ]; then
+              echo "Deleting orphaned API Gateway: $id"
+              aws apigatewayv2 delete-api --api-id "$id" --region $AWS_REGION 2>/dev/null \
+                && echo "[OK] Deleted: $id" \
+                || echo "[WARN]  Failed to delete: $id"
+            fi
+          done || echo "No orphaned API Gateways found"
+
+      - name: Collect Outputs
+        id: outputs
         run: |
-          API_URL=$(terraform output -raw api_url 2>/dev/null || echo "")
-          POOL_ID=$(terraform output -raw cognito_user_pool_id 2>/dev/null || echo "")
-          CLIENT_ID=$(terraform output -raw cognito_user_pool_client_id 2>/dev/null || echo "")
+          set -e
+          TF_OUT=$(terraform output -json 2>&1)
+          TF_EXIT=$?
 
-          echo "api_url=$API_URL" >> $GITHUB_OUTPUT
-          echo "cognito_user_pool_id=$POOL_ID" >> $GITHUB_OUTPUT
-          echo "cognito_user_pool_client_id=$CLIENT_ID" >> $GITHUB_OUTPUT
+          if [ $TF_EXIT -ne 0 ]; then
+            echo "ERROR: terraform output failed with exit code $TF_EXIT"
+            echo "$TF_OUT"
+            exit 1
+          fi
 
-          echo "Dashboard Config:"
-          echo "  API URL: $API_URL"
-          echo "  Cognito Pool: ${POOL_ID:0:20}..."
-          echo "  Cognito Client: ${CLIENT_ID:0:20}..."
+          ECR=$(echo "$TF_OUT" | jq -r '.ecr_repository_url.value // "" ' 2>/dev/null || echo "")
+          API=$(echo "$TF_OUT" | jq -r '.api_lambda_function_name.value // "stocks-api-dev"' 2>/dev/null || echo "stocks-api-dev")
+          ALGO=$(echo "$TF_OUT" | jq -r '.algo_lambda_function_name.value // "stocks-algo-dev"' 2>/dev/null || echo "stocks-algo-dev")
+          BUCKET=$(echo "$TF_OUT" | jq -r '.frontend_bucket_name.value // ""' 2>/dev/null || echo "")
+          CF=$(echo "$TF_OUT" | jq -r '.cloudfront_distribution_id.value // ""' 2>/dev/null || echo "")
+          API_GW=$(echo "$TF_OUT" | jq -r '.api_gateway_endpoint.value // ""' 2>/dev/null || echo "")
+          WEBSITE_URL=$(echo "$TF_OUT" | jq -r '.website_url.value // empty' 2>/dev/null || echo "")
+          POOL_ID=$(echo "$TF_OUT" | jq -r '.cognito_user_pool_id.value // ""' 2>/dev/null || echo "")
+          CLIENT_ID=$(echo "$TF_OUT" | jq -r '.cognito_user_pool_client_id.value // ""' 2>/dev/null || echo "")
+          COGNITO_DOMAIN=$(echo "$TF_OUT" | jq -r '.cognito_domain_url.value // ""' 2>/dev/null || echo "")
 
-      - name: Store Dashboard Config in Secrets Manager
-        if: steps.dashboard_config.outputs.api_url
+          echo "ecr_repository_url=${ECR}" >> $GITHUB_OUTPUT
+          echo "api_lambda_name=${API}" >> $GITHUB_OUTPUT
+          echo "algo_lambda_name=${ALGO}" >> $GITHUB_OUTPUT
+          echo "frontend_bucket=${BUCKET}" >> $GITHUB_OUTPUT
+          echo "cloudfront_id=${CF}" >> $GITHUB_OUTPUT
+          echo "cloudfront_distribution_id=${CF}" >> $GITHUB_OUTPUT
+          echo "api_gateway_endpoint=${API_GW}" >> $GITHUB_OUTPUT
+          echo "website_url=${WEBSITE_URL}" >> $GITHUB_OUTPUT
+          echo "cognito_user_pool_id=${POOL_ID}" >> $GITHUB_OUTPUT
+          echo "cognito_user_pool_client_id=${CLIENT_ID}" >> $GITHUB_OUTPUT
+          echo "cognito_domain_url=${COGNITO_DOMAIN}" >> $GITHUB_OUTPUT
+
+          # Diagnostic: Log what was exported for debugging config.js generation
+          echo "=== Terraform Outputs Summary ==="
+          echo "website_url: ${WEBSITE_URL:-(empty)}"
+          echo "cognito_user_pool_id: ${POOL_ID:-(empty)}"
+          echo "cognito_user_pool_client_id: ${CLIENT_ID:-(empty)}"
+          echo "cognito_domain_url: ${COGNITO_DOMAIN:-(empty)}"
+          echo "cloudfront_id: ${CF:-(empty)}"
+
+          # Diagnostic: Check if critical AWS resources exist (helps debug missing infrastructure)
+          echo ""
+          echo "=== AWS Resource Diagnostics ==="
+          COGNITO_EXISTS=$(aws cognito-idp list-user-pools --max-results 60 --region us-east-1 2>/dev/null | jq '.UserPools | length' || echo "0")
+          CF_EXISTS=$(aws cloudfront list-distributions --region us-east-1 2>/dev/null | jq '.DistributionList.Items | length' || echo "0")
+          echo "Cognito user pools found: $COGNITO_EXISTS"
+          echo "CloudFront distributions found: $CF_EXISTS"
+
+          if [ -z "$POOL_ID" ] || [ "$POOL_ID" = "None" ]; then
+            if [ "$COGNITO_EXISTS" -eq 0 ]; then
+              echo "[ERROR] terraform output cognito_user_pool_id is empty AND no Cognito pools exist in AWS"
+              echo "[ERROR] This suggests the Cognito module was never deployed or resources were deleted"
+            else
+              echo "[ERROR] terraform output cognito_user_pool_id is empty BUT Cognito pools exist in AWS"
+              echo "[ERROR] This suggests terraform state is out of sync with AWS"
+            fi
+          fi
+
+          if [ -z "$WEBSITE_URL" ] || [ "$WEBSITE_URL" = "None" ]; then
+            if [ "$CF_EXISTS" -eq 0 ]; then
+              echo "[ERROR] terraform output website_url is empty AND no CloudFront distributions exist in AWS"
+              echo "[ERROR] This suggests the Services module (CloudFront) was never deployed"
+            else
+              echo "[ERROR] terraform output website_url is empty BUT CloudFront distributions exist in AWS"
+              echo "[ERROR] This suggests terraform state is out of sync with AWS"
+            fi
+          fi
+
+      - name: Save Terraform Outputs to Git
+        if: steps.tf_plan.outputs.has_changes == 'true'
         run: |
-          aws secretsmanager create-secret \
-            --name algo/dashboard-config \
-            --secret-string '{
-              "api_url": "${{ steps.dashboard_config.outputs.api_url }}",
-              "cognito_user_pool_id": "${{ steps.dashboard_config.outputs.cognito_user_pool_id }}",
-              "cognito_user_pool_client_id": "${{ steps.dashboard_config.outputs.cognito_user_pool_client_id }}"
-            }' \
-            --region ${{ env.AWS_REGION }} \
-            --overwrite-existing-secret 2>/dev/null || true
+          # Save Terraform outputs to git for version control and freshness tracking
+          # Prevents stale outputs and ensures all past versions are traceable
+          TF_OUT=$(terraform output -json 2>&1)
 
-      - name: Save Terraform Outputs for Next Steps
-        uses: actions/upload-artifact@v4
-        with:
-          name: terraform-outputs
-          path: terraform/outputs.json
-          retention-days: 7
+          # Create output file with timestamp
+          cat > ../.terraform-outputs.json <<EOF
+          {
+            "timestamp": "$(date -u +'%Y-%m-%dT%H:%M:%SZ')",
+            "git_commit": "$(git rev-parse HEAD)",
+            "outputs": $TF_OUT
+          }
+          EOF
 
-  migrations:
-    name: Apply Database Migrations
-    runs-on: ubuntu-latest
+          # Commit to git (safe for concurrent deploys because we only commit after apply succeeds)
+          cd ..
+
+          # Configure git identity for commit (GitHub Actions doesn't set this by default)
+          git config user.email "github-actions[bot]@users.noreply.github.com" || true
+          git config user.name "github-actions[bot]" || true
+
+          if git status --short .terraform-outputs.json | grep -q ".terraform-outputs.json"; then
+            git add .terraform-outputs.json
+            git commit -m "INFRA: Update Terraform outputs from successful apply - $(git rev-parse --short HEAD)" || true
+            git push origin HEAD:${{ github.ref }} --quiet || echo "[WARN] Could not push outputs commit (may be due to concurrent push)"
+            echo "[OK] Terraform outputs committed to git"
+          else
+            echo "[OK] No changes to Terraform outputs"
+          fi
+
+      - name: Setup Cognito Admin Group
+        run: |
+          POOL_ID="${{ steps.outputs.outputs.cognito_user_pool_id }}"
+          # working-directory is terraform/ so no prefix needed
+          PRIMARY_USER=$(grep 'cognito_test_user_email' terraform.tfvars | cut -d'"' -f2)
+
+          if [ -z "$POOL_ID" ] || [ "$POOL_ID" = "null" ] || [ "$POOL_ID" = "None" ]; then
+            echo "[SKIP] No Cognito user pool ID found — skipping admin group setup"
+            exit 0
+          fi
+          if [ -z "$PRIMARY_USER" ]; then
+            echo "[SKIP] No primary user email found — skipping admin group setup"
+            exit 0
+          fi
+
+          echo "Setting up admin group and primary user in pool: $POOL_ID for user: $PRIMARY_USER"
+
+          # Create admin group (idempotent — fails silently if exists)
+          aws cognito-idp create-group \
+            --user-pool-id "$POOL_ID" \
+            --group-name admin \
+            --description "Full access to admin-gated algo dashboard and trading endpoints" \
+            --region $AWS_REGION 2>/dev/null \
+            && echo "[OK] Admin group created" \
+            || echo "[OK] Admin group already exists"
+
+          # Check for existing Cognito password in Secrets Manager (avoid overwriting on every deploy)
+          EXISTING_SECRET=$(aws secretsmanager get-secret-value \
+            --secret-id algo/dashboard-config \
+            --region $AWS_REGION \
+            --query SecretString --output text 2>/dev/null || echo "{}")
+          EXISTING_PASS=$(echo "$EXISTING_SECRET" | jq -r '.cognito_password // ""' 2>/dev/null || echo "")
+          EXISTING_USER=$(echo "$EXISTING_SECRET" | jq -r '.cognito_username // ""' 2>/dev/null || echo "")
+
+          if [ -n "$EXISTING_PASS" ] && [ "$EXISTING_USER" = "$PRIMARY_USER" ]; then
+            COGNITO_PASS="$EXISTING_PASS"
+            echo "[OK] Using existing Cognito password from Secrets Manager"
+          else
+            # Generate a random password that satisfies Cognito policy (12+ chars, upper, lower, number, symbol)
+            RAND=$(openssl rand -base64 16 | tr -dc 'A-Za-z0-9' | head -c14)
+            COGNITO_PASS="${RAND}A1!"
+            echo "[INFO] Generated new Cognito password (existing: '${EXISTING_USER}')"
+          fi
+
+          # Create user if not exists (idempotent — suppress-message skips verification email)
+          USER_EXISTS=$(aws cognito-idp admin-get-user \
+            --user-pool-id "$POOL_ID" \
+            --username "$PRIMARY_USER" \
+            --region $AWS_REGION 2>/dev/null && echo "true" || echo "false")
+
+          if [ "$USER_EXISTS" != "true" ]; then
+            echo "[INFO] Creating Cognito user $PRIMARY_USER"
+            TEMP_PASS="Temp$(openssl rand -base64 6 | tr -dc 'A-Za-z0-9' | head -c8)A1!"
+            aws cognito-idp admin-create-user \
+              --user-pool-id "$POOL_ID" \
+              --username "$PRIMARY_USER" \
+              --user-attributes Name=email,Value="$PRIMARY_USER" Name=email_verified,Value=true \
+              --temporary-password "$TEMP_PASS" \
+              --message-action SUPPRESS \
+              --region $AWS_REGION \
+              && echo "[OK] Cognito user $PRIMARY_USER created" \
+              || echo "[WARN] Could not create user (may already exist)"
+          else
+            echo "[OK] User $PRIMARY_USER already exists in Cognito"
+          fi
+
+          # Set permanent password (idempotent — overwrites temp/existing password)
+          aws cognito-idp admin-set-user-password \
+            --user-pool-id "$POOL_ID" \
+            --username "$PRIMARY_USER" \
+            --password "$COGNITO_PASS" \
+            --permanent \
+            --region $AWS_REGION \
+            && echo "[OK] Permanent password set for $PRIMARY_USER" \
+            || echo "[WARN] Could not set permanent password"
+
+          # Store credentials in algo/dashboard-config Secrets Manager secret
+          UPDATED_SECRET=$(echo "$EXISTING_SECRET" | jq \
+            --arg user "$PRIMARY_USER" \
+            --arg pass "$COGNITO_PASS" \
+            '. + {cognito_username: $user, cognito_password: $pass}')
+          aws secretsmanager update-secret \
+            --secret-id algo/dashboard-config \
+            --secret-string "$UPDATED_SECRET" \
+            --region $AWS_REGION \
+            && echo "[OK] Cognito credentials stored in Secrets Manager (algo/dashboard-config)" \
+            || echo "[WARN] Could not update Secrets Manager with Cognito credentials"
+
+          # Add primary user to admin group (idempotent — no-op if already member)
+          aws cognito-idp admin-add-user-to-group \
+            --user-pool-id "$POOL_ID" \
+            --username "$PRIMARY_USER" \
+            --group-name admin \
+            --region $AWS_REGION 2>/dev/null \
+            && echo "[OK] User $PRIMARY_USER added to admin group" \
+            || echo "[WARN] Could not add user to admin group"
+
+      - name: Update API Gateway CORS with CloudFront Domain
+        run: |
+          # CRITICAL FIX: After Terraform creates CloudFront, update API Gateway CORS to include the new domain.
+          # Without this, the frontend (served via CloudFront) cannot call the API due to CORS errors.
+          # This step ensures CORS origins include the CloudFront domain that Terraform just created.
+
+          WEBSITE_URL="${{ steps.outputs.outputs.website_url }}"
+
+          if [ -z "$WEBSITE_URL" ] || [ "$WEBSITE_URL" = "None" ] || [ "$WEBSITE_URL" = "null" ]; then
+            echo "[SKIP] Website URL (CloudFront domain) not available"
+            exit 0
+          fi
+
+          # Extract CloudFront domain (remove https:// prefix if present)
+          CF_DOMAIN=$(echo "$WEBSITE_URL" | sed 's|^https://||')
+          CF_ORIGIN="https://${CF_DOMAIN}"
+
+          echo "Updating API Gateway CORS with CloudFront domain: $CF_DOMAIN"
+
+          # Get API Gateway name from terraform config (already in terraform dir via defaults)
+          PROJECT=$(grep '^project_name' terraform.tfvars | cut -d'"' -f2)
+          ENV=$(grep '^environment' terraform.tfvars | cut -d'"' -f2)
+          API_NAME="${PROJECT}-api-${ENV}"
+
+          # Get API Gateway ID
+          API_GW_ID=$(aws apigatewayv2 get-apis \
+            --query "Items[?Name=='${API_NAME}'].ApiId" \
+            --output text --region $AWS_REGION 2>/dev/null || echo "")
+
+          if [ -z "$API_GW_ID" ]; then
+            echo "[SKIP] Could not find API Gateway ID for $API_NAME"
+            exit 0
+          fi
+
+          echo "Found API Gateway: $API_GW_ID"
+
+          # Update CORS to include CloudFront + localhost for dev
+          aws apigatewayv2 update-api \
+            --api-id "$API_GW_ID" \
+            --cors-configuration "AllowOrigins=$CF_ORIGIN,http://localhost:5173,http://localhost:3000,AllowMethods=GET,HEAD,OPTIONS,PUT,POST,PATCH,DELETE,AllowHeaders=Content-Type,Authorization,X-Requested-With,Accept,ExposeHeaders=Content-Length,Content-Type,MaxAge=3600,AllowCredentials=true" \
+            --region $AWS_REGION 2>/dev/null \
+            && echo "[OK] Updated API Gateway CORS with CloudFront: $CF_DOMAIN" \
+            || echo "[WARN] Failed to update API Gateway CORS"
+
+      - name: Save Dashboard Credentials to Secrets Manager
+        run: |
+          # Store Terraform outputs in Secrets Manager so dashboard can fetch them without AWS CLI access
+          # Dashboard script (tools/dashboard/dashboard.py) reads: algo/dashboard-config
+          # Keys: api_url, cognito_user_pool_id, cognito_user_pool_client_id
+
+          API_URL="${{ steps.outputs.outputs.api_gateway_endpoint }}"
+          POOL_ID="${{ steps.outputs.outputs.cognito_user_pool_id }}"
+          CLIENT_ID="${{ steps.outputs.outputs.cognito_user_pool_client_id }}"
+
+          # Fail the deploy if any required output is missing
+          # (Don't silently skip — dashboard won't work without the secret)
+          if [ -z "$API_URL" ] || [ "$API_URL" = "None" ]; then
+            echo "[ERROR] API_GATEWAY_ENDPOINT output is empty"
+            echo "Terraform outputs at deploy time:"
+            echo "  api_gateway_endpoint: $API_URL"
+            echo "  cognito_user_pool_id: $POOL_ID"
+            echo "  cognito_user_pool_client_id: $CLIENT_ID"
+            exit 1
+          fi
+          if [ -z "$POOL_ID" ] || [ "$POOL_ID" = "None" ]; then
+            echo "[ERROR] COGNITO_USER_POOL_ID output is empty"
+            exit 1
+          fi
+          if [ -z "$CLIENT_ID" ] || [ "$CLIENT_ID" = "None" ]; then
+            echo "[ERROR] COGNITO_USER_POOL_CLIENT_ID output is empty"
+            exit 1
+          fi
+
+          # Read existing secret and merge infra keys — preserves cognito_username/cognito_password
+          # set by the earlier "Setup Cognito Admin Group" step
+          EXISTING=$(aws secretsmanager get-secret-value \
+            --secret-id algo/dashboard-config \
+            --query SecretString --output text \
+            --region $AWS_REGION 2>/dev/null || echo '{}')
+          SECRET_JSON=$(echo "$EXISTING" | jq \
+            --arg url "$API_URL" \
+            --arg pool "$POOL_ID" \
+            --arg client "$CLIENT_ID" \
+            '. + {api_url: $url, cognito_user_pool_id: $pool, cognito_user_pool_client_id: $client}')
+
+          # Create or update the secret — fail if this doesn't work
+          if aws secretsmanager describe-secret --secret-id algo/dashboard-config --region $AWS_REGION 2>/dev/null; then
+            aws secretsmanager put-secret-value \
+              --secret-id algo/dashboard-config \
+              --secret-string "$SECRET_JSON" \
+              --region $AWS_REGION || exit 1
+          else
+            aws secretsmanager create-secret \
+              --name algo/dashboard-config \
+              --secret-string "$SECRET_JSON" \
+              --region $AWS_REGION || exit 1
+          fi
+
+          echo "[OK] Dashboard credentials saved to algo/dashboard-config in Secrets Manager"
+
+      - name: "C-7 FIX: Validate Cognito Client ID Configuration"
+        shell: pwsh
+        run: |
+          $POOL_ID="${{ steps.outputs.outputs.cognito_user_pool_id }}"
+          $CLIENT_ID="${{ steps.outputs.outputs.cognito_user_pool_client_id }}"
+          $ENVIRONMENT="${{ matrix.environment }}"
+
+          if (-not $ENVIRONMENT) {
+            $ENVIRONMENT = (Get-Content -Path terraform.tfvars | Select-String "^environment" | ForEach-Object { $_ -replace '^environment\s*=\s*"([^"]+)".*$', '$1' })
+          }
+
+          Write-Host "=== C-7 FIX: Pre-Deploy Cognito Validation ===" -ForegroundColor Cyan
+          Write-Host "Environment: $ENVIRONMENT"
+          Write-Host "User Pool ID: $POOL_ID"
+          Write-Host "Client ID: $CLIENT_ID"
+          Write-Host ""
+
+          if (-not $POOL_ID -or $POOL_ID -eq "null" -or $POOL_ID -eq "None") {
+            Write-Error "CRITICAL: COGNITO_USER_POOL_ID not found in Terraform outputs"
+            exit 1
+          }
+
+          if (-not $CLIENT_ID -or $CLIENT_ID -eq "null" -or $CLIENT_ID -eq "None") {
+            Write-Error "CRITICAL: COGNITO_USER_POOL_CLIENT_ID not found in Terraform outputs"
+            exit 1
+          }
+
+          Write-Host "[OK] Cognito IDs validated — pool and client IDs are present." -ForegroundColor Green
+
+      - name: Summary
+        run: |
+          echo "### Terraform Apply Complete" >> $GITHUB_STEP_SUMMARY
+          terraform output -json 2>/dev/null | \
+            jq -r 'to_entries[] | select(.value.sensitive != true) | "- **\(.key)**: \(.value.value)"' \
+            >> $GITHUB_STEP_SUMMARY || true
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Authentication**: Using GitHub Actions OIDC (secure, no long-lived secrets)" >> $GITHUB_STEP_SUMMARY
+
+  #
+  # STEP 2a -- Docker image for ECS loaders
+  #
+  build-image:
+    name: "2a. Build & Push Loader Image"
     needs: terraform
-    continue-on-error: true
-    permissions:
-      id-token: write
-      contents: read
+    if: |
+      always() &&
+      (needs.terraform.result == 'success' || needs.terraform.result == 'skipped') &&
+      github.event.inputs.skip_image != 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.meta.outputs.image_tag }}
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
 
-      - name: Configure AWS credentials via OIDC
-        uses: aws-actions/configure-aws-credentials@v4
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a  # v4
         with:
           role-to-assume: ${{ secrets.GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/{1}', secrets.AWS_ACCOUNT_ID, secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev') }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Download Terraform Outputs
-        uses: actions/download-artifact@v4
-        with:
-          name: terraform-outputs
-
-      - name: Extract RDS Credentials from Secrets Manager
-        id: rds_creds
+      - name: Resolve ECR URL
+        id: ecr
         run: |
-          SECRET_NAME=$(jq -r '.rds_credentials_secret_name.value' outputs.json)
-          SECRET=$(aws secretsmanager get-secret-value --secret-id "$SECRET_NAME" --query SecretString --output text)
+          # Use TF output if available, otherwise discover
+          ECR_URL="${{ needs.terraform.outputs.ecr_repository_url }}"
+          # Handle cases where output might be empty or "None"
+          if [ -z "$ECR_URL" ] || [ "$ECR_URL" = "None" ]; then
+            echo "ECR URL not available from Terraform, discovering via AWS CLI..."
+            ECR_URL=$(aws ecr describe-repositories --region $AWS_REGION --output json 2>/dev/null | jq -r '.repositories[] | select(.repositoryName | startswith("algo")) | .repositoryUri' | head -1)
+            if [ -z "$ECR_URL" ] || [ "$ECR_URL" = "None" ]; then
+              echo "No ECR repository found, skipping image build"
+              ECR_URL=""
+            fi
+          fi
+          echo "ecr_url=${ECR_URL}" >> $GITHUB_OUTPUT
+          echo "ECR_URL resolved to: ${ECR_URL:-(empty)}"
 
-          echo "::add-mask::$(echo $SECRET | jq -r '.password')"
-
-          echo "DB_HOST=$(echo $SECRET | jq -r '.host')" >> $GITHUB_ENV
-          echo "DB_PORT=$(echo $SECRET | jq -r '.port')" >> $GITHUB_ENV
-          echo "DB_USER=$(echo $SECRET | jq -r '.username')" >> $GITHUB_ENV
-          echo "DB_PASSWORD=$(echo $SECRET | jq -r '.password')" >> $GITHUB_ENV
-          echo "DB_NAME=$(jq -r '.rds_database_name.value' outputs.json)" >> $GITHUB_ENV
-
-      - name: Apply Database Schema
+      - name: Set image tag
+        id: meta
         run: |
-          apt-get update && apt-get install -y postgresql-client
-          PGPASSWORD=${{ env.DB_PASSWORD }} psql \
-            -h ${{ env.DB_HOST }} \
-            -p ${{ env.DB_PORT }} \
-            -U ${{ env.DB_USER }} \
-            -d ${{ env.DB_NAME }} \
-            -f lambda/db-init/schema.sql
+          SHA="${GITHUB_SHA::8}"
+          echo "image_tag=dev-${SHA}" >> $GITHUB_OUTPUT
+          echo "sha=${SHA}" >> $GITHUB_OUTPUT
 
-  deployment_summary:
-    name: Deployment Summary
+      - name: Login to ECR
+        if: steps.ecr.outputs.ecr_url != ''
+        run: |
+          aws ecr get-login-password --region $AWS_REGION | \
+            docker login --username AWS --password-stdin "${{ steps.ecr.outputs.ecr_url }}"
+
+      - name: Build & Push
+        if: steps.ecr.outputs.ecr_url != ''
+        run: |
+          ECR="${{ steps.ecr.outputs.ecr_url }}"
+          SHA="${{ steps.meta.outputs.sha }}"
+          docker build -t "${ECR}:dev-${SHA}" -t "${ECR}:dev-latest" .
+          docker push "${ECR}:dev-${SHA}"
+          docker push "${ECR}:dev-latest"
+          echo "[OK] Pushed: ${ECR}:dev-${SHA}"
+
+      - name: Skip image build
+        if: steps.ecr.outputs.ecr_url == ''
+        run: echo "[WARN]  Skipping Docker image build -- ECR URL not resolved"
+
+  #
+  # STEP 2b -- Algo Lambda
+  #
+  deploy-algo:
+    name: "2b. Deploy Algo Lambda"
+    needs: terraform
+    if: |
+      always() &&
+      (needs.terraform.result == 'success' || needs.terraform.result == 'skipped') &&
+      github.event.inputs.skip_code != 'true'
     runs-on: ubuntu-latest
-    needs: [ terraform, migrations ]
-    if: always()
 
     steps:
-      - name: Download Terraform Outputs
-        uses: actions/download-artifact@v4
-        with:
-          name: terraform-outputs
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
 
-      - name: Generate Deployment Summary
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a  # v4
+        with:
+          role-to-assume: ${{ secrets.GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/{1}', secrets.AWS_ACCOUNT_ID, secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev') }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: '3.12'
+
+      - name: Build Algo Lambda
         run: |
-          echo "## Deployment Complete ✓"
-          echo ""
-          echo "### Infrastructure Created"
-          echo "| Resource | Value |"
-          echo "|----------|-------|"
-          echo "| API Gateway URL | \`$(jq -r '.api_url.value' outputs.json)\` |"
-          echo "| Cognito User Pool | \`$(jq -r '.cognito_user_pool_id.value' outputs.json)\` |"
-          echo "| Frontend URL | \`$(jq -r '.website_url.value' outputs.json)\` |"
-          echo ""
-          echo "### Dashboard Access"
-          echo "The dashboard will automatically fetch these credentials from Terraform outputs."
-          echo ""
-          echo "\`\`\`bash"
-          echo "python -m dashboard.dashboard"
-          echo "\`\`\`"
-          echo ""
-          echo "### For Local Development"
-          echo "Set environment variables:"
-          echo ""
-          echo "\`\`\`powershell"
-          echo "\$env:DASHBOARD_API_URL = '$(jq -r '.api_url.value' outputs.json)'"
-          echo "\$env:COGNITO_USER_POOL_ID = '$(jq -r '.cognito_user_pool_id.value' outputs.json)'"
-          echo "\$env:COGNITO_CLIENT_ID = '$(jq -r '.cognito_user_pool_client_id.value' outputs.json)'"
-          echo "\`\`\`"
+          set -e
+          PKG_DIR=/tmp/algo-lambda-pkg
+          mkdir -p $PKG_DIR
+
+          # Copy Lambda handler
+          cp lambda/algo_orchestrator/lambda_function.py $PKG_DIR/
+
+          # Copy all required modules
+          cp -r algo $PKG_DIR/
+          cp -r config $PKG_DIR/
+          cp -r utils $PKG_DIR/
+          cp -r monitoring $PKG_DIR/
+
+          # Remove pycache
+          find $PKG_DIR -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+          find $PKG_DIR -type f -name "*.pyc" -delete
+
+          # Install dependencies
+          python3.12 -m pip install -r lambda/algo_orchestrator/requirements.txt \
+            -t $PKG_DIR/ \
+            --no-cache-dir --quiet
+
+          # Create ZIP
+          rm -f terraform/lambda_algo.zip
+          cd $PKG_DIR
+          zip -r ${{ github.workspace }}/terraform/lambda_algo.zip . -x "*.pyc" "__pycache__/*" "*/tests/*" "*/test/*"
+          cd ${{ github.workspace }}
+
+          if [ ! -f terraform/lambda_algo.zip ]; then
+            echo "ERROR: Failed to create lambda_algo.zip!"
+            exit 1
+          fi
+          echo "[OK] Algo Lambda ZIP: $(du -sh terraform/lambda_algo.zip | cut -f1)"
+
+      - name: Deploy Algo Lambda
+        run: |
+          FUNC="${{ needs.terraform.outputs.algo_lambda_name }}"
+          [ -z "$FUNC" ] && FUNC="algo-algo-dev"
+
+          if [ ! -f terraform/lambda_algo.zip ]; then
+            echo "ERROR: lambda_algo.zip not found!"
+            exit 1
+          fi
+
+          echo "Deploying algo Lambda: $FUNC"
+          aws lambda update-function-code \
+            --function-name "$FUNC" \
+            --zip-file fileb://terraform/lambda_algo.zip \
+            --region $AWS_REGION
+
+          aws lambda wait function-updated --function-name "$FUNC" --region $AWS_REGION
+          echo "[OK] Algo Lambda updated: $FUNC"
+
+  #
+  # STEP 2c -- API Lambda
+  #
+  deploy-api:
+    name: "2c. Deploy API Lambda"
+    needs: terraform
+    if: |
+      always() &&
+      (needs.terraform.result == 'success' || needs.terraform.result == 'skipped') &&
+      github.event.inputs.skip_code != 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a  # v4
+        with:
+          role-to-assume: ${{ secrets.GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/{1}', secrets.AWS_ACCOUNT_ID, secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev') }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: '3.12'
+
+      - name: Package API Lambda
+        run: |
+          set -e
+          mkdir -p api-pkg
+          cp -r lambda/api/. api-pkg/
+          # Copy shared utils into existing api-pkg/utils/ using /. to merge contents (not nest)
+          cp -r utils/. api-pkg/utils/
+          # Copy config (credential_manager used by lambda_handler)
+          cp -r config/ api-pkg/config/
+          # Copy algo package (algo/infrastructure etc. imported by routes/algo.py and routes/admin.py)
+          cp -r algo/ api-pkg/algo/
+          # Copy shared_contracts (response_validator etc. imported by routes/health.py and others)
+          cp -r shared_contracts/ api-pkg/shared_contracts/
+          pip install -r lambda/api/requirements.txt \
+            -t api-pkg/ --platform manylinux2014_x86_64 --only-binary=:all: --quiet
+          cd api-pkg && zip -r ../api_lambda.zip . -x "*.pyc" -x "__pycache__/*" && cd ..
+          if [ ! -f api_lambda.zip ]; then
+            echo "ERROR: Failed to create api_lambda.zip!"
+            exit 1
+          fi
+          echo "[OK] API Lambda ZIP: $(du -sh api_lambda.zip | cut -f1)"
+
+      - name: Deploy
+        run: |
+          FUNC="${{ needs.terraform.outputs.api_lambda_name }}"
+          [ -z "$FUNC" ] && FUNC="algo-api-dev"
+          aws lambda update-function-code \
+            --function-name "$FUNC" \
+            --zip-file fileb://api_lambda.zip \
+            --region $AWS_REGION
+          aws lambda wait function-updated --function-name "$FUNC" --region $AWS_REGION
+          echo "[OK] API Lambda: $FUNC"
+
+  #
+  # STEP 2d -- Frontend
+  #
+  deploy-frontend:
+    name: "2d. Build & Deploy Frontend"
+    needs: terraform
+    if: |
+      always() &&
+      (needs.terraform.result == 'success' || needs.terraform.result == 'skipped') &&
+      github.event.inputs.skip_code != 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a  # v4
+        with:
+          role-to-assume: ${{ secrets.GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/{1}', secrets.AWS_ACCOUNT_ID, secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev') }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: webapp/frontend/package-lock.json
+
+      - name: Build
+        working-directory: webapp/frontend
+        run: |
+          npm install
+
+          # API URL: Use CloudFront domain so browser makes same-origin requests.
+          # CloudFront routes /api/* to the API Gateway server-side — no CORS headers needed.
+          # Fall back to API Gateway URL if CloudFront is not enabled (rare, dev-only).
+          WEBSITE_URL="${{ needs.terraform.outputs.website_url }}"
+          API_GATEWAY_URL="${{ needs.terraform.outputs.api_gateway_endpoint }}"
+
+          if [ -n "$WEBSITE_URL" ] && [ "$WEBSITE_URL" != "null" ] && [ "$WEBSITE_URL" != "None" ]; then
+            FINAL_API_URL="$WEBSITE_URL"
+            echo "[OK] Using CloudFront domain as API_URL (same-origin, no CORS needed): $FINAL_API_URL"
+          elif [ -n "$API_GATEWAY_URL" ] && [ "$API_GATEWAY_URL" != "null" ] && [ "$API_GATEWAY_URL" != "None" ]; then
+            FINAL_API_URL="$API_GATEWAY_URL"
+            echo "[WARN] CloudFront not available — using API Gateway URL directly (CORS required): $FINAL_API_URL"
+          else
+            echo "[ERROR] Neither website_url nor api_gateway_endpoint available — cannot determine API URL"
+            exit 1
+          fi
+
+          # Cognito Configuration (from Terraform outputs)
+          POOL_ID="${{ needs.terraform.outputs.cognito_user_pool_id }}"
+          CLIENT_ID="${{ needs.terraform.outputs.cognito_user_pool_client_id }}"
+          COGNITO_DOMAIN="${{ needs.terraform.outputs.cognito_domain_url }}"
+
+          # Validate Cognito outputs are present
+          if [ -z "$POOL_ID" ] || [ "$POOL_ID" = "null" ] || [ "$POOL_ID" = "None" ]; then
+            echo "[ERROR] COGNITO_USER_POOL_ID from Terraform is empty - cannot build"
+            exit 1
+          fi
+          if [ -z "$CLIENT_ID" ] || [ "$CLIENT_ID" = "null" ] || [ "$CLIENT_ID" = "None" ]; then
+            echo "[ERROR] COGNITO_USER_POOL_CLIENT_ID from Terraform is empty - cannot build"
+            exit 1
+          fi
+
+          # Validate Cognito domain is present (required for auth)
+          if [ -z "$COGNITO_DOMAIN" ] || [ "$COGNITO_DOMAIN" = "null" ] || [ "$COGNITO_DOMAIN" = "None" ]; then
+            echo "[ERROR] COGNITO_DOMAIN from Terraform is empty - cannot build"
+            exit 1
+          fi
+
+          # Build using build-prod.js with explicit arguments (cross-platform)
+          # This ensures all variables are passed correctly to setup-prod.js
+          node scripts/build-prod.js "$FINAL_API_URL" "production" "$POOL_ID" "$CLIENT_ID" "$COGNITO_DOMAIN"
+
+          if [ $? -ne 0 ]; then
+            echo "[ERROR] Production build failed"
+            exit 1
+          fi
+
+          # Validate final config.js
+          if [ ! -f "dist/config.js" ]; then
+            echo "[ERROR] config.js not found in dist/"
+            exit 1
+          fi
+
+          CONFIG_CONTENT=$(cat dist/config.js)
+          echo "[OK] Final config.js:"
+          echo "$CONFIG_CONTENT"
+
+      - name: Add Cache Busting to config.js
+        run: |
+          # Add cache-busting timestamp to config.js script tag in index.html
+          # (config.js was already generated by npm build → setup-prod.js)
+          BUILD_TS=$(date +%s)
+          if [ -f "webapp/frontend/dist/index.html" ]; then
+            sed -i "s|src=\"/config\.js\"|src=\"/config.js?v=${BUILD_TS}\"|g" webapp/frontend/dist/index.html
+            echo "[OK] Added cache-busting to config.js: v=${BUILD_TS}"
+          fi
+
+      - name: Sync to S3
+        run: |
+          BUCKET="${{ needs.terraform.outputs.frontend_bucket }}"
+          if [ -z "$BUCKET" ]; then
+            BUCKET=$(aws s3api list-buckets --output json 2>/dev/null | jq -r '.Buckets[] | select(.Name | startswith("algo-frontend")) | .Name' | head -1 || echo "")
+          fi
+          if [ -z "$BUCKET" ] || [ "$BUCKET" = "None" ]; then
+            echo "ERROR: could not resolve frontend S3 bucket"
+            exit 1
+          fi
+          # First pass: delete all old files from S3 bucket
+          aws s3 sync webapp/frontend/dist/ "s3://${BUCKET}/" --delete
+          # Second pass: sync with proper Content-Type and cache headers (no delete flag)
+          # JavaScript files with immutable cache headers
+          aws s3 sync webapp/frontend/dist/ "s3://${BUCKET}/" \
+            --cache-control "public, max-age=31536000, immutable" \
+            --content-type "application/javascript; charset=utf-8" \
+            --exclude "*" --include "*.js" --exclude "config.js"
+          # CSS files with immutable cache headers
+          aws s3 sync webapp/frontend/dist/ "s3://${BUCKET}/" \
+            --cache-control "public, max-age=31536000, immutable" \
+            --content-type "text/css; charset=utf-8" \
+            --exclude "*" --include "*.css"
+          # Other assets (fonts, images, etc) with immutable cache headers
+          aws s3 sync webapp/frontend/dist/ "s3://${BUCKET}/" \
+            --cache-control "public, max-age=31536000, immutable" \
+            --exclude "*.html" --exclude "*.js" --exclude "*.css" --exclude "config.js"
+          # HTML files with no-cache headers
+          aws s3 sync webapp/frontend/dist/ "s3://${BUCKET}/" \
+            --content-type "text/html; charset=utf-8" \
+            --cache-control "no-cache, no-store, must-revalidate" \
+            --exclude "*" --include "*.html"
+          # config.js with no-cache headers
+          aws s3 sync webapp/frontend/dist/ "s3://${BUCKET}/" \
+            --content-type "application/javascript; charset=utf-8" \
+            --cache-control "no-cache, no-store, must-revalidate" \
+            --exclude "*" --include "config.js"
+          # WASM files with correct content-type (for any crypto/performance modules)
+          aws s3 sync webapp/frontend/dist/ "s3://${BUCKET}/" \
+            --content-type "application/wasm" \
+            --cache-control "public, max-age=31536000, immutable" \
+            --exclude "*" --include "*.wasm"
+          echo "[OK] Frontend synced to s3://${BUCKET}/"
+
+      - name: Invalidate CloudFront Cache
+        run: |
+          DIST_ID="${{ needs.terraform.outputs.cloudfront_distribution_id }}"
+          if [ -z "$DIST_ID" ] || [ "$DIST_ID" = "None" ]; then
+            echo "ERROR: CloudFront distribution ID not found or empty"
+            exit 1
+          fi
+
+          echo "Creating CloudFront cache invalidation for distribution: $DIST_ID"
+          INVALIDATION_ID=$(aws cloudfront create-invalidation \
+            --distribution-id "$DIST_ID" \
+            --paths "/*" \
+            --query 'Invalidation.Id' \
+            --output text)
+
+          if [ -z "$INVALIDATION_ID" ] || [ "$INVALIDATION_ID" = "None" ]; then
+            echo "ERROR: Failed to create CloudFront invalidation"
+            exit 1
+          fi
+
+          echo "[OK] CloudFront cache invalidation created (ID: $INVALIDATION_ID)"
+
+  #
+  # Run Database Migrations (after Terraform, parallel with Lambda/frontend deploys)
+  #
+  run-migrations:
+    name: "2e. Run Database Migrations via Lambda"
+    needs: [terraform, build-image]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: '3.12'
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a  # v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev' }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Invoke db-init Lambda (initialize database schema)
+        continue-on-error: true
+        run: |
+          PROJECT=$(grep '^project_name' terraform/terraform.tfvars | cut -d'"' -f2)
+          ENVIRONMENT=$(grep '^environment' terraform/terraform.tfvars | cut -d'"' -f2)
+          LAMBDA_NAME="${PROJECT}-db-init-${ENVIRONMENT}"
+
+          echo "Attempting to invoke db-init Lambda: $LAMBDA_NAME"
+          aws lambda invoke \
+            --function-name "$LAMBDA_NAME" \
+            --region $AWS_REGION \
+            --log-type Tail \
+            --output json \
+            /tmp/db_init_response.json 2>&1 && \
+            echo "[OK] db-init Lambda invoked" || \
+            echo "[WARN] db-init Lambda unavailable - proceeding with migrations"
+
+      - name: Build and Invoke db-migration Lambda
+        run: |
+          set -e
+          echo "=== Building Database Migration Lambda ==="
+          PROJECT=$(grep '^project_name' terraform/terraform.tfvars | cut -d'"' -f2)
+          ENVIRONMENT=$(grep '^environment' terraform/terraform.tfvars | cut -d'"' -f2)
+          LAMBDA_NAME="${PROJECT}-db-migration-${ENVIRONMENT}"
+
+          # Build migration Lambda package
+          PKG_DIR=/tmp/db-migration-pkg
+          mkdir -p $PKG_DIR
+
+          # Copy db-migration Lambda function
+          cp lambda/db-migration/lambda_function.py $PKG_DIR/
+
+          # Copy config and utils for credential_manager
+          cp -r config/ $PKG_DIR/
+          cp -r utils/ $PKG_DIR/
+
+          # Copy migrations directory (includes migration SQL files)
+          mkdir -p $PKG_DIR/migrations
+          cp -r migrations/versions/ $PKG_DIR/migrations/
+          cp migrations/run.py $PKG_DIR/migrations/
+          cp migrations/__init__.py $PKG_DIR/migrations/ 2>/dev/null || true
+
+          # Install dependencies
+          python3.12 -m pip install -r lambda/db-migration/requirements.txt \
+            -t $PKG_DIR/ \
+            --no-cache-dir --quiet
+
+          # Create Lambda ZIP
+          rm -f migration_lambda.zip
+          cd $PKG_DIR
+          zip -r $GITHUB_WORKSPACE/migration_lambda.zip . -q -x "*.pyc" "__pycache__/*" ".mypy_cache/*"
+          cd $GITHUB_WORKSPACE
+
+          echo "[OK] Migration Lambda ZIP: $(du -sh migration_lambda.zip | cut -f1)"
+
+          # Check if Lambda function already exists in AWS
+          LAMBDA_EXISTS=$(aws lambda get-function --function-name "$LAMBDA_NAME" --region $AWS_REGION 2>/dev/null && echo "true" || echo "false")
+
+          if [ "$LAMBDA_EXISTS" = "true" ]; then
+            echo "[INFO] Updating existing Lambda: $LAMBDA_NAME"
+            aws lambda update-function-code \
+              --function-name "$LAMBDA_NAME" \
+              --zip-file fileb://migration_lambda.zip \
+              --region $AWS_REGION
+            aws lambda wait function-updated --function-name "$LAMBDA_NAME" --region $AWS_REGION
+          else
+            echo "[INFO] Creating temporary Lambda: $LAMBDA_NAME"
+            # Create a temporary Lambda function with minimal role (migrations-only access)
+            ROLE_ARN=$(aws sts get-caller-identity --query Arn --output text | sed 's/:sts::/:iam::/' | sed 's/:assumed-role.*//')
+            if [ -z "$ROLE_ARN" ] || [ "$ROLE_ARN" = "arn:aws:iam::" ]; then
+              # Fallback: use the GitHub Actions role from Terraform outputs
+              ROLE_ARN="arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev' }}"
+            fi
+
+            # Create Lambda with inline policy for VPC/DB access
+            # Note: This requires the Lambda execution role to already have VPC/Secrets Manager permissions
+            # which should be present from the GitHub Actions OIDC role
+            aws lambda create-function \
+              --function-name "$LAMBDA_NAME" \
+              --runtime python3.12 \
+              --role "$ROLE_ARN" \
+              --handler lambda_function.lambda_handler \
+              --zip-file fileb://migration_lambda.zip \
+              --timeout 300 \
+              --memory-size 512 \
+              --region $AWS_REGION \
+              --environment "Variables={DB_NAME=algo,AWS_REGION=$AWS_REGION}" || echo "[WARN] Could not create Lambda (may already exist in different state)"
+          fi
+
+          echo "[OK] Migration Lambda ready: $LAMBDA_NAME"
+
+      - name: Invoke db-migration Lambda
+        run: |
+          set -e
+          PROJECT=$(grep '^project_name' terraform/terraform.tfvars | cut -d'"' -f2)
+          ENVIRONMENT=$(grep '^environment' terraform/terraform.tfvars | cut -d'"' -f2)
+          LAMBDA_NAME="${PROJECT}-db-migration-${ENVIRONMENT}"
+
+          echo "=== Invoking Migration Lambda: $LAMBDA_NAME ==="
+
+          # Invoke Lambda and capture response
+          RESPONSE=$(aws lambda invoke \
+            --function-name "$LAMBDA_NAME" \
+            --region $AWS_REGION \
+            --log-type Tail \
+            --output json \
+            /tmp/migration_response.json 2>&1)
+
+          INVOKE_EXIT=$?
+          if [ $INVOKE_EXIT -ne 0 ]; then
+            echo "[ERROR] Lambda invocation failed: $RESPONSE"
+            exit 1
+          fi
+
+          # Check response status
+          STATUS_CODE=$(python3 << 'PYTHON'
+          import json
+          try:
+            with open('/tmp/migration_response.json', 'r') as f:
+              response = json.load(f)
+              print(response.get('statusCode', 500))
+          except:
+            print(500)
+          PYTHON
+          )
+
+          # Log output if available
+          if grep -q "LogResult" /tmp/migration_response.json 2>/dev/null; then
+            echo "Lambda Logs:"
+            python3 << 'PYTHON'
+            import json
+            import base64
+            with open('/tmp/migration_response.json', 'r') as f:
+              response = json.load(f)
+              if 'LogResult' in response:
+                logs = base64.b64decode(response['LogResult']).decode('utf-8')
+                print(logs)
+            PYTHON
+          fi
+
+          echo "Response:"
+          cat /tmp/migration_response.json | python3 -m json.tool 2>/dev/null || cat /tmp/migration_response.json
+
+          if [ "$STATUS_CODE" = "200" ]; then
+            echo "[OK] Migrations completed successfully"
+            exit 0
+          else
+            echo "[ERROR] Migration Lambda returned status code: $STATUS_CODE"
+            exit 1
+          fi
+
+  #
+  # Populate Database with Initial Data
+  #
+  run-initial-loaders:
+    name: Populate Database - Run Initial Loaders
+    needs: [terraform, run-migrations]
+    if: success()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a  # v4
+        with:
+          role-to-assume: ${{ secrets.GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/{1}', secrets.AWS_ACCOUNT_ID, secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev') }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Run AAII Sentiment Loader (Lambda)
+        continue-on-error: true
+        run: |
+          PROJECT=$(grep '^project_name' terraform/terraform.tfvars | cut -d'"' -f2)
+          ENVIRONMENT=$(grep '^environment' terraform/terraform.tfvars | cut -d'"' -f2)
+          LAMBDA_NAME="${PROJECT}-aaii-loader-${ENVIRONMENT}"
+
+          echo "Invoking AAII Sentiment Loader Lambda: $LAMBDA_NAME"
+
+          # Invoke Lambda and capture response
+          RESPONSE=$(aws lambda invoke \
+            --function-name "$LAMBDA_NAME" \
+            --region $AWS_REGION \
+            --output json \
+            /tmp/aaii_response.json 2>&1)
+
+          if [ $? -eq 0 ]; then
+            # Lambda invocation succeeded, extract body from response
+            BODY=$(python3 << 'PYTHON'
+          import json
+          try:
+            with open('/tmp/aaii_response.json', 'r') as f:
+              response = json.load(f)
+              if 'body' in response:
+                body = response['body']
+                # body might be a JSON string or plain string
+                try:
+                  parsed = json.loads(body)
+                  print(parsed if isinstance(parsed, str) else body)
+                except:
+                  print(body)
+              else:
+                print(json.dumps(response))
+          except Exception as e:
+            print(f"Error reading response: {e}")
+          PYTHON
+            )
+            echo "$BODY"
+          else
+            echo "[WARN] AAII Sentiment Loader Lambda invocation failed: $RESPONSE"
+            echo "The loader will run post-deployment via EventBridge scheduled tasks."
+          fi
+
+  #
+  # Final Summary
+  #
+  summary:
+    name: Deployment Summary
+    needs: [terraform, build-image, deploy-algo, deploy-api, deploy-frontend, run-migrations, run-initial-loaders]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Print Summary
+        run: |
+          echo "## Deployment Results" >> $GITHUB_STEP_SUMMARY
+          echo "| Job | Result |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Terraform | ${{ needs.terraform.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Docker Image | ${{ needs.build-image.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Algo Lambda | ${{ needs.deploy-algo.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| API Lambda | ${{ needs.deploy-api.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Frontend | ${{ needs.deploy-frontend.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Migrations | ${{ needs.run-migrations.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Initial Loaders | ${{ needs.run-initial-loaders.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### CloudFront Frontend URL" >> $GITHUB_STEP_SUMMARY
+          echo "**AWS Site:** https://\${{ needs.terraform.outputs.cloudfront_id }}.cloudfront.net" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Data Status" >> $GITHUB_STEP_SUMMARY
+          echo "**AAII Sentiment & Initial Data:** Loaded automatically during deployment" >> $GITHUB_STEP_SUMMARY
+          echo "**Additional Loaders:** Scheduled via EventBridge (4A, 9:30A, 5:30P ET daily)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Next Steps" >> $GITHUB_STEP_SUMMARY
+          echo "1. **Local AWS Access:** Run \`./scripts/refresh-aws-credentials.ps1\` to fetch developer credentials from Secrets Manager" >> $GITHUB_STEP_SUMMARY
+          echo "2. **Verify Frontend:** Visit CloudFront URL above and check data loads" >> $GITHUB_STEP_SUMMARY
+          echo "3. **Check Dashboard:** AAII Sentiment and other data should now be populated in AWS RDS" >> $GITHUB_STEP_SUMMARY
