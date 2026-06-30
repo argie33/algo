@@ -2,52 +2,9 @@
 
 ## AWS Account Setup (Prerequisites)
 
-**Required IAM Permissions for `algo-developer` User:**
+**Required IAM:** ECS task management + S3 Terraform access for `algo-developer` user.
 
-The following permissions are required to deploy and manage infrastructure:
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Sid": "ECSTaskManagement",
-      "Effect": "Allow",
-      "Action": [
-        "ecs:DescribeTaskDefinition",
-        "ecs:RegisterTaskDefinition",
-        "ecs:ListTaskDefinitions",
-        "ecs:DescribeClusters",
-        "ecs:RunTask",
-        "ecs:ListTasks",
-        "ecs:DescribeTasks"
-      ],
-      "Resource": "*"
-    },
-    {
-      "Sid": "TerraformBasic",
-      "Effect": "Allow",
-      "Action": [
-        "s3:GetObject",
-        "s3:GetObjectVersion",
-        "s3:ListBucket",
-        "s3:GetBucketVersioning"
-      ],
-      "Resource": "*"
-    }
-  ]
-}
-```
-
-**If you see `AccessDeniedException` for `ecs:DescribeTaskDefinition` or `s3:GetBucketPolicy`:**
-
-Contact your AWS account admin and request these additional actions added to `algo-developer` user:
-- `ecs:DescribeTaskDefinition`
-- `ecs:RegisterTaskDefinition`
-- `s3:GetBucketPolicy`
-- `ec2:DescribeVpcAttribute`
-
-**Status:** Code fixes deployed to main. ECS task definitions require manual update via AWS Console or elevated IAM permissions.
+**Permission Error:** If you see `AccessDeniedException` (e.g., `ecs:DescribeTaskDefinition`), contact AWS admin to grant: `ecs:RegisterTaskDefinition`, `s3:GetBucketPolicy`, `ec2:DescribeVpcAttribute`. See `terraform/` for full policy definition.
 
 ---
 
