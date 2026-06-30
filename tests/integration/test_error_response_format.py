@@ -43,13 +43,14 @@ class TestErrorResponseFormat:
         assert response["_error"] == "Server error occurred"
 
     def test_error_response_503(self):
-        """error_response() with 503 should include _error field."""
+        """error_response() with 503 should include _error field and mark as transient."""
         response = error_response(503, "service_unavailable", "Database connection failed")
 
         assert response["statusCode"] == 503
         assert response["errorType"] == "service_unavailable"
         assert response["message"] == "Database connection failed"
         assert response["_error"] == "Database connection failed"
+        assert response.get("_is_transient_503") is True, "503 errors must be marked as transient for retry logic"
 
     def test_json_response_success_format(self):
         """json_response(200, data) should return {statusCode, data}."""
@@ -115,7 +116,9 @@ class TestErrorResponseFormat:
             assert response["errorType"] == f"error_type_{code}"
             assert response["message"] == f"Message {code}"
             assert response["_error"] == f"Message {code}"
-            assert len(response) == 4
+            # 503 errors have an extra _is_transient_503 flag for retry logic
+            expected_len = 5 if code == 503 else 4
+            assert len(response) == expected_len, f"Code {code} should have {expected_len} fields, got {len(response)}: {response.keys()}"
 
 
 class TestErrorResponseInConsistentScenarios:
