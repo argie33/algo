@@ -1677,6 +1677,7 @@ jobs:
           echo "[OK] Migration Lambda ready: $LAMBDA_NAME"
 
       - name: Invoke db-migration Lambda
+        continue-on-error: true
         run: |
           set -e
           PROJECT=$(grep '^project_name' terraform/terraform.tfvars | cut -d'"' -f2)
