@@ -565,19 +565,15 @@ jobs:
             unzip -l $TERRAFORM_MODULES/aaii_loader.zip | head -10
           else
             echo "[WARN] scripts/aaii_loader_function.py not found — creating stub ZIP"
-            python3 -c "
-import zipfile, os
-path = '$TERRAFORM_MODULES/aaii_loader.zip'
-os.makedirs(os.path.dirname(path), exist_ok=True)
-with zipfile.ZipFile(path, 'w') as z:
-    z.writestr('lambda_function.py', 'def lambda_handler(e,c): return {\"statusCode\": 501}')
-print(f'Created stub: {path}')
-"
+            echo 'def lambda_handler(e,c): return {"statusCode": 501}' > /tmp/stub_lambda.py
+            mkdir -p "$TERRAFORM_MODULES"
+            cd /tmp && cp stub_lambda.py lambda_function.py
+            zip "$TERRAFORM_MODULES/aaii_loader.zip" lambda_function.py -q
+            echo "[OK] AAII stub ZIP created: $(du -sh $TERRAFORM_MODULES/aaii_loader.zip | cut -f1)"
           fi
 
       - name: Build Trigger Loaders Lambda
         run: |
-          # Build trigger-loaders Lambda ZIP from source before Terraform needs it
           SOURCE=$GITHUB_WORKSPACE/lambda/trigger-loaders/lambda_function.py
           TERRAFORM_MODULES=$GITHUB_WORKSPACE/terraform/modules/orchestration
           PKG_DIR=/tmp/trigger-loaders-pkg
@@ -595,15 +591,12 @@ print(f'Created stub: {path}')
             zip -r $TERRAFORM_MODULES/trigger-loaders.zip . -q -x "*.pyc" "__pycache__/*"
             echo "[OK] trigger-loaders Lambda ZIP: $(du -sh $TERRAFORM_MODULES/trigger-loaders.zip | cut -f1)"
           else
-            echo "[WARN] lambda/trigger-loaders/lambda_function.py not found — creating stub"
-            python3 -c "
-import zipfile, os
-path = '$TERRAFORM_MODULES/trigger-loaders.zip'
-os.makedirs(os.path.dirname(path), exist_ok=True)
-with zipfile.ZipFile(path, 'w') as z:
-    z.writestr('lambda_function.py', 'def lambda_handler(e,c): return {\"statusCode\": 501}')
-print(f'Created stub: {path}')
-"
+            echo "[WARN] trigger-loaders source not found — creating stub"
+            echo 'def lambda_handler(e,c): return {"statusCode": 501}' > /tmp/trigger_stub.py
+            mkdir -p "$TERRAFORM_MODULES"
+            cd /tmp && cp trigger_stub.py lambda_function.py
+            zip "$TERRAFORM_MODULES/trigger-loaders.zip" lambda_function.py -q
+            echo "[OK] trigger-loaders stub ZIP created"
           fi
 
       - name: Terraform Validate
