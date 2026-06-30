@@ -374,43 +374,35 @@ def _compute_risk_metrics(config: Any, run_date: _date, log_phase_result_fn: Cal
         if risk_report and risk_report.get("status") == "ok":
             risk_status = "success"
             var_metrics = risk_report.get("var_metrics")
-            if var_metrics is None:
-                raise ValueError(
-                    "Risk report succeeded but var_metrics missing. "
-                    "Cannot report VaR without risk metrics data. Check ValueAtRisk.generate_daily_risk_report()."
-                )
-            var_pct = var_metrics.get("var_pct")
-            if var_pct is None:
-                raise ValueError(
-                    f"Risk metrics missing 'var_pct' field. Cannot report portfolio value at risk. "
-                    f"Available keys: {list(var_metrics.keys())}"
-                )
-
             concentration = risk_report.get("concentration")
-            if concentration is None:
-                raise ValueError(
-                    "Risk report succeeded but concentration missing. "
-                    "Cannot report portfolio concentration without this field."
-                )
-            conc_pct = concentration.get("top_5_concentration_pct")
-            if conc_pct is None:
-                raise ValueError(
-                    f"Concentration metrics missing 'top_5_concentration_pct' field. "
-                    f"Cannot report concentration risk. Available keys: {list(concentration.keys())}"
-                )
+            beta_exposure = risk_report.get("beta_exposure") or {}
+            alerts = risk_report.get("alerts") or []
 
-            if "alerts" not in risk_report:
-                logger.warning(
-                    f"[PHASE 9] Risk report missing 'alerts' field. "
-                    f"Cannot determine if critical risk alerts present. Available keys: {list(risk_report.keys())}"
-                )
-                alerts = []
+            # Build summary from whatever metrics are available
+            summary_parts: list[str] = []
+            if var_metrics is not None:
+                var_pct = var_metrics.get("var_pct")
+                if var_pct is not None:
+                    summary_parts.append(f"VaR {var_pct}%")
+                else:
+                    logger.warning(f"Risk metrics missing 'var_pct' field. Available keys: {list(var_metrics.keys())}")
             else:
-                alerts = risk_report["alerts"]
-            alerts_count = len(alerts) if alerts else 0
-            risk_summary = f"VaR {var_pct}%, Concentration {conc_pct}%" + (
-                f", {alerts_count} alerts" if alerts_count else ""
-            )
+                # VaR unavailable due to insufficient historical data — row was still inserted with NULLs
+                logger.warning(
+                    "Risk report status=ok but var_metrics unavailable (insufficient historical data). "
+                    "Row inserted with NULL VaR values — will populate as data accumulates."
+                )
+            if concentration is not None:
+                conc_pct = concentration.get("top_5_concentration_pct")
+                if conc_pct is not None:
+                    summary_parts.append(f"Conc {conc_pct:.1f}%")
+            beta_val = beta_exposure.get("portfolio_beta")
+            if beta_val is not None:
+                summary_parts.append(f"beta={beta_val:.2f}")
+            alerts_count = len(alerts)
+            if alerts_count:
+                summary_parts.append(f"{alerts_count} alerts")
+            risk_summary = ", ".join(summary_parts) if summary_parts else "row inserted (no metrics available yet)"
         elif risk_report:
             risk_summary = risk_report.get("message", "insufficient data")
         else:

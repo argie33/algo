@@ -255,7 +255,7 @@ def load_all() -> dict[str, Any]:
         "irank": 3.0,
         "audit": 3.0,
         "exec_hist": 3.0,
-        "scores": 3.0,
+        "scores": 8.0,
     }
 
     # Categorize fetchers by priority to reduce concurrent RDS connections

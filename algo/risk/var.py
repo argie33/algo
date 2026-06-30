@@ -643,11 +643,18 @@ class ValueAtRisk:
                         }
                     )
 
-                    # Require sector/industry fields; use "Unknown" only for truly missing data
+                    # Log warning for missing sector/industry but use "Unknown" fallback
+                    # so a single position's missing enrichment data doesn't block all risk metrics
                     if sector is None:
-                        raise ValueError(f"Position {symbol} missing required 'sector' field")
+                        logger.warning(
+                            f"Position {symbol} missing 'sector' in company_profile — classifying as 'Unknown'"
+                        )
+                        sector = "Unknown"
                     if industry is None:
-                        raise ValueError(f"Position {symbol} missing required 'industry' field")
+                        logger.warning(
+                            f"Position {symbol} missing 'industry' in company_profile — classifying as 'Unknown'"
+                        )
+                        industry = "Unknown"
                     if not sector:
                         sector = "Unknown"
                     if not industry:
@@ -715,8 +722,16 @@ class ValueAtRisk:
                 logger.warning(f"Stressed VaR unavailable (requires 365+ days): {e}")
                 stressed_var = None
 
-            beta = self.beta_exposure()  # Returns None if no positions
-            concentration = self.concentration_report()  # Returns None if no positions
+            try:
+                beta = self.beta_exposure()  # Returns None if no positions
+            except Exception as e:
+                logger.warning(f"Beta exposure unavailable: {e}")
+                beta = None
+            try:
+                concentration = self.concentration_report()  # Returns None if no positions
+            except Exception as e:
+                logger.warning(f"Concentration report unavailable: {e}")
+                concentration = None
 
             logger.debug(f"  VaR: {var_metrics['var_pct']:.3f}%" if var_metrics else "  VaR: <insufficient data>")
             logger.debug(f"  CVaR: {cvar_metrics['cvar_pct']:.3f}%" if cvar_metrics else "  CVaR: <insufficient data>")
