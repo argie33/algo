@@ -211,15 +211,6 @@ Consider adding this to `.pre-commit-config.yaml`:
 
 ---
 
-## Migration from Current State
-
-1. **Delete wildcard per-file-ignores** from `pyproject.toml` ✅
-2. **List specific files** that genuinely need E402 (scripts, loaders, tools) ✅
-3. **Audit existing ignores** — run the grep command above, document each one (ongoing)
-4. **Re-enable Pylint rules** and use inline ignores for edge cases ✅
-
----
-
 ## Related Rules
 - See `GOVERNANCE.md` for type-safety requirements
 - See `OPERATIONS.md` for CI enforcement

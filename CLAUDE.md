@@ -1,14 +1,12 @@
 # Codebase Governance (Quick Reference)
 
-**Complete steering suite in `steering/`:**
+**Steering docs in `steering/`:**
 - `GOVERNANCE.md` — Architecture, safety rules, system map
 - `OPERATIONS.md` — CI/CD, hotload config, circuit breaker monitoring, troubleshooting
 - `DATA_LOADERS.md` — Loader pipeline, parallelism tuning, freshness thresholds
-- `DEPLOYMENT.md` — Full deployment (code, infrastructure, migrations)
-- `API_ARCHITECTURE.md` — Exception hierarchy, error patterns, validation
 - `LINT_POLICY.md` — Type safety, linting enforcement
 
-**Start here:** GOVERNANCE.md + OPERATIONS.md cover 80% of needs. Use others for deep dives.
+**Start here:** GOVERNANCE.md + OPERATIONS.md cover 80% of needs.
 
 ## Quick Start
 
@@ -73,3 +71,15 @@ Before deploying changes touching these areas:
 - ✅ Missing financial data logged at WARNING or ERROR (not DEBUG)
 - ✅ All critical paths validated with `mypy strict`
 - ✅ Pre-commit hooks pass (type safety, linting, format)
+
+## Common Tasks → Quick Reference
+
+| Task | See |
+|------|-----|
+| Understand system map | GOVERNANCE.md (system architecture section) |
+| Add new trading rule | GOVERNANCE.md (trading safety), then OPERATIONS.md (hotload config) |
+| Fix data loader bug | DATA_LOADERS.md (loader model), OPERATIONS.md (troubleshooting) |
+| Debug test failures | OPERATIONS.md (CI/CD pipeline), LINT_POLICY.md (enforcement) |
+| Investigate stale data | DATA_LOADERS.md (freshness thresholds), OPERATIONS.md (diagnostics) |
+| Emergency halt trading | OPERATIONS.md (circuit breaker override) |
+| Rotate credentials | AWS credential refresh: `scripts/refresh-aws-credentials.ps1` |
