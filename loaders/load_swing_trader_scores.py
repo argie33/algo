@@ -254,7 +254,7 @@ class VectorizedSwingScoresLoader:
                 minervini = trend["minervini_trend_score"]
                 if not pd.notna(minervini):
                     raise ValueError(
-                        f"{symbol}: minervini_trend_score is NaN on {date} — required for trend-based scoring"
+                        f"{symbol}: minervini_trend_score is NaN on {end_date} — required for trend-based scoring"
                     )
                 minervini = float(minervini)
 
@@ -274,7 +274,7 @@ class VectorizedSwingScoresLoader:
                 weinstein = trend["weinstein_stage"]
                 if not pd.notna(weinstein):
                     raise ValueError(
-                        f"{symbol}: weinstein_stage is NaN on {date} — required for market stage filtering"
+                        f"{symbol}: weinstein_stage is NaN on {end_date} — required for market stage filtering"
                     )
                 weinstein = int(weinstein)
                 if weinstein != 2:
@@ -294,10 +294,10 @@ class VectorizedSwingScoresLoader:
                 volume_score = 70.0  # From price ROC
 
                 if sig is None or "composite_sqs" not in sig:
-                    raise ValueError(f"Signal quality score missing for {symbol} on {date}")
+                    raise ValueError(f"Signal quality score missing for {symbol} on {end_date}")
                 sqs = sig["composite_sqs"]
                 if not pd.notna(sqs):
-                    raise ValueError(f"Signal quality score is NaN for {symbol} on {date}")
+                    raise ValueError(f"Signal quality score is NaN for {symbol} on {end_date}")
                 fundamentals_score = float(sqs)
 
                 # Fetch sector momentum score (real sector health metric, not mock data)
