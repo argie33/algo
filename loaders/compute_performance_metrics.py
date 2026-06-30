@@ -23,6 +23,7 @@ from datetime import date
 from typing import Any
 
 import psycopg2
+import psycopg2.errors
 import psycopg2.extras
 
 # Add parent directory to path for imports
@@ -115,6 +116,10 @@ def compute_performance_metrics(cur: Any, metric_date: date | None = None) -> di
         total_pnl_dollars: float = sum(pnl_dollars)
         total_pnl_pct: float = sum(pnl_pcts)
 
+        # Best and worst trades
+        biggest_win: float = max(pnl_dollars) if pnl_dollars else 0.0
+        biggest_loss: float = min(pnl_dollars) if pnl_dollars else 0.0
+
         metrics["total_trades"] = total_trades
         metrics["winning_trades"] = winning
         metrics["losing_trades"] = losing
@@ -123,6 +128,10 @@ def compute_performance_metrics(cur: Any, metric_date: date | None = None) -> di
         metrics["profit_factor"] = round(profit_factor, 2)
         metrics["total_pnl_dollars"] = round(total_pnl_dollars, 2)
         metrics["total_pnl_pct"] = round(total_pnl_pct, 2)
+        metrics["gross_win_dollars"] = round(wins_sum, 2)
+        metrics["gross_loss_dollars"] = round(losses_sum, 2)
+        metrics["biggest_win"] = round(biggest_win, 2)
+        metrics["biggest_loss"] = round(biggest_loss, 2)
 
         # Trade statistics — MUST have P&L data to compute meaningful metrics
         if not pnl_pcts:
@@ -133,6 +142,18 @@ def compute_performance_metrics(cur: Any, metric_date: date | None = None) -> di
         metrics["avg_trade_pct"] = round(sum(pnl_pcts) / len(pnl_pcts), 2)
         metrics["best_trade_pct"] = round(max(pnl_pcts), 2)
         metrics["worst_trade_pct"] = round(min(pnl_pcts), 2)
+
+        # Average win/loss dollars
+        wins_dollars = [p for p in pnl_dollars if p > 0]
+        losses_dollars = [p for p in pnl_dollars if p < 0]
+        metrics["avg_win_dollars"] = round(sum(wins_dollars) / len(wins_dollars), 2) if wins_dollars else 0.0
+        metrics["avg_loss_dollars"] = round(sum(losses_dollars) / len(losses_dollars), 2) if losses_dollars else 0.0
+
+        # Average win/loss percentages
+        wins_pcts = [p for p in pnl_pcts if p > 0]
+        losses_pcts = [p for p in pnl_pcts if p < 0]
+        metrics["avg_win_pct"] = round(sum(wins_pcts) / len(wins_pcts), 4) if wins_pcts else 0.0
+        metrics["avg_loss_pct"] = round(sum(losses_pcts) / len(losses_pcts), 4) if losses_pcts else 0.0
 
         # Holding days — MUST have holding period data for meaningful analysis
         if not holding_days_list:
@@ -146,6 +167,21 @@ def compute_performance_metrics(cur: Any, metric_date: date | None = None) -> di
         best_win_streak, worst_loss_streak = _compute_streaks(pnl_dollars)
         metrics["best_win_streak"] = best_win_streak
         metrics["worst_loss_streak"] = worst_loss_streak
+
+        # R-multiple metrics (win/loss R and expectancy) — GUARANTEED floats (0.0 if insufficient data)
+        try:
+            avg_win_r, avg_loss_r, expectancy, avg_r, best_trade_r, worst_trade_r = _compute_r_metrics(cur, metric_date)
+            # Values are guaranteed to be floats, not None (0.0 used for edge cases)
+            metrics["avg_win_r"] = round(float(avg_win_r), 4)
+            metrics["avg_loss_r"] = round(float(avg_loss_r), 4)
+            metrics["expectancy"] = round(float(expectancy), 4)
+            metrics["avg_r"] = round(float(avg_r), 4)
+            metrics["best_trade_r"] = round(float(best_trade_r), 4)
+            metrics["worst_trade_r"] = round(float(worst_trade_r), 4)
+        except (ValueError, psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            # Only database errors reach here — fail-fast, no silent fallbacks
+            logger.error(f"CRITICAL: R-multiple metrics computation failed: {e}")
+            raise
 
         # Advanced metrics from portfolio snapshots (may be None during ramp-up)
         try:
@@ -165,8 +201,9 @@ def compute_performance_metrics(cur: Any, metric_date: date | None = None) -> di
             metrics["cagr_pct"] = None
             metrics["calmar_ratio"] = None
 
-        # Insert or update
+        # Insert or update both algo_performance_metrics and algo_performance_daily
         _insert_performance_metrics(cur, metric_date, metrics)
+        _insert_performance_daily(cur, metric_date, metrics)
 
         logger.info(
             f"Performance metrics computed for {metric_date}: "
@@ -294,6 +331,90 @@ def _compute_streaks(pnl_dollars: list[float]) -> tuple[int, int]:
     return best_win_streak, worst_loss_streak
 
 
+def _compute_r_metrics(cur: Any, metric_date: date) -> tuple[float, float, float, float, float, float]:
+    """Compute R-multiple metrics from closed + open trades.
+
+    Returns:
+        Tuple of (avg_win_r, avg_loss_r, expectancy, avg_r, best_trade_r, worst_trade_r)
+        All values are guaranteed to be float (0.0 for edge cases, never None).
+
+    Raises:
+        ValueError: If data access fails (not if trade data is insufficient)
+    """
+    try:
+        # Fetch all closed trades + open trades with unrealized P&L
+        cur.execute("""
+            SELECT
+                exit_r_multiple,
+                CASE
+                    WHEN exit_r_multiple IS NOT NULL THEN exit_r_multiple
+                    WHEN stop_loss_price IS NOT NULL
+                         AND stop_loss_price < entry_price
+                         AND entry_quantity > 0
+                        THEN (profit_loss_dollars / NULLIF((entry_price - stop_loss_price) * entry_quantity, 0))
+                    ELSE NULL
+                END AS r_multiple,
+                profit_loss_dollars
+            FROM algo_trades
+            WHERE (status = 'closed' AND exit_date IS NOT NULL)
+               OR (status IN ('open', 'filled', 'partially_filled', 'active'))
+            ORDER BY COALESCE(exit_date, CURRENT_DATE) DESC
+            LIMIT 10000
+        """)
+        trades = cur.fetchall()
+
+        if not trades:
+            logger.debug("No trades found for R-multiple calculation — returning zero defaults")
+            return 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
+
+        # Extract R-multiples, filtering out None values
+        r_multiples = [float(t["r_multiple"]) for t in trades if t["r_multiple"] is not None]
+
+        if not r_multiples:
+            logger.debug("No valid R-multiple data in trades — returning zero defaults")
+            return 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
+
+        # Separate wins and losses
+        wins_r = [r for r in r_multiples if r > 0]
+        losses_r = [r for r in r_multiples if r < 0]
+
+        # Calculate averages (use 0.0 for edge cases instead of raising)
+        avg_win_r = (sum(wins_r) / len(wins_r)) if wins_r else 0.0
+        avg_loss_r = (abs(sum(losses_r)) / len(losses_r)) if losses_r else 0.0
+        avg_r = sum(r_multiples) / len(r_multiples) if r_multiples else 0.0
+        best_trade_r = max(r_multiples) if r_multiples else 0.0
+        worst_trade_r = min(r_multiples) if r_multiples else 0.0
+
+        # Calculate win and loss rates
+        total_trades = len(r_multiples)
+        win_count = len(wins_r)
+        loss_count = len(losses_r)
+
+        if total_trades == 0:
+            logger.debug("No trades for win rate calculation — returning zero defaults")
+            return 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
+
+        win_rate = win_count / total_trades
+        loss_rate = loss_count / total_trades
+
+        # Calculate expectancy: E = (WR × Avg Win R) - (LR × Avg Loss R)
+        expectancy = (win_rate * avg_win_r) - (loss_rate * avg_loss_r)
+
+        logger.info(
+            f"R-metrics computed: avg_win_r={avg_win_r:.4f}, avg_loss_r={avg_loss_r:.4f}, "
+            f"expectancy={expectancy:.4f}, win_rate={win_rate:.2%} ({win_count}/{total_trades})"
+        )
+
+        return avg_win_r, avg_loss_r, expectancy, avg_r, best_trade_r, worst_trade_r
+
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+        logger.error(f"CRITICAL: Database error computing R-metrics: {e}")
+        raise ValueError(f"R-multiple metrics calculation failed (database error): {e}") from e
+    except (ValueError, TypeError) as e:
+        logger.error(f"CRITICAL: Data format error computing R-metrics: {e}")
+        raise ValueError(f"R-multiple metrics calculation failed (format error): {e}") from e
+
+
 def _insert_default_metrics(cur: Any, metric_date: date) -> None:
     """Insert default metrics when there are no trades."""
     cur.execute(
@@ -322,8 +443,8 @@ def _insert_performance_metrics(cur: Any, metric_date: date, metrics: dict[str, 
                 win_rate_pct, profit_factor, total_pnl_dollars, total_pnl_pct,
                 avg_trade_pct, best_trade_pct, worst_trade_pct,
                 avg_holding_days, sharpe_ratio, sortino_ratio, max_drawdown_pct, calmar_ratio,
-                cagr_pct, best_win_streak, worst_loss_streak
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                cagr_pct, best_win_streak, worst_loss_streak, avg_win_r, avg_loss_r, expectancy
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (metric_date) DO UPDATE SET
                 total_trades = EXCLUDED.total_trades,
                 winning_trades = EXCLUDED.winning_trades,
@@ -343,7 +464,10 @@ def _insert_performance_metrics(cur: Any, metric_date: date, metrics: dict[str, 
                 calmar_ratio = EXCLUDED.calmar_ratio,
                 cagr_pct = EXCLUDED.cagr_pct,
                 best_win_streak = EXCLUDED.best_win_streak,
-                worst_loss_streak = EXCLUDED.worst_loss_streak
+                worst_loss_streak = EXCLUDED.worst_loss_streak,
+                avg_win_r = EXCLUDED.avg_win_r,
+                avg_loss_r = EXCLUDED.avg_loss_r,
+                expectancy = EXCLUDED.expectancy
         """,
             (
                 metric_date,
@@ -366,10 +490,88 @@ def _insert_performance_metrics(cur: Any, metric_date: date, metrics: dict[str, 
                 metrics["cagr_pct"],
                 metrics["best_win_streak"],
                 metrics["worst_loss_streak"],
+                metrics.get("avg_win_r"),
+                metrics.get("avg_loss_r"),
+                metrics.get("expectancy"),
             ),
         )
     except Exception as e:
         logger.error(f"Failed to insert performance metrics: {e}", exc_info=True)
+        raise
+
+
+def _insert_performance_daily(cur: Any, metric_date: date, metrics: dict[str, Any]) -> None:
+    """Insert or update performance metrics in algo_performance_daily table for API consumption."""
+    try:
+        # Only insert if table exists (it's created by migration 107)
+        cur.execute(
+            """
+            INSERT INTO algo_performance_daily (
+                report_date, total_trades, num_wins, num_losses,
+                gross_win_dollars, gross_loss_dollars, total_pnl_dollars, profit_factor,
+                avg_win, avg_loss, avg_win_pct, avg_loss_pct,
+                avg_r, avg_w_r, avg_l_r, expectancy,
+                avg_hold_days, rolling_sharpe_252d, rolling_sortino_252d, calmar_ratio,
+                max_drawdown_pct, biggest_win, biggest_loss, best_trade_r, worst_trade_r
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (report_date) DO UPDATE SET
+                total_trades = EXCLUDED.total_trades,
+                num_wins = EXCLUDED.num_wins,
+                num_losses = EXCLUDED.num_losses,
+                gross_win_dollars = EXCLUDED.gross_win_dollars,
+                gross_loss_dollars = EXCLUDED.gross_loss_dollars,
+                total_pnl_dollars = EXCLUDED.total_pnl_dollars,
+                profit_factor = EXCLUDED.profit_factor,
+                avg_win = EXCLUDED.avg_win,
+                avg_loss = EXCLUDED.avg_loss,
+                avg_win_pct = EXCLUDED.avg_win_pct,
+                avg_loss_pct = EXCLUDED.avg_loss_pct,
+                avg_r = EXCLUDED.avg_r,
+                avg_w_r = EXCLUDED.avg_w_r,
+                avg_l_r = EXCLUDED.avg_l_r,
+                expectancy = EXCLUDED.expectancy,
+                avg_hold_days = EXCLUDED.avg_hold_days,
+                rolling_sharpe_252d = EXCLUDED.rolling_sharpe_252d,
+                rolling_sortino_252d = EXCLUDED.rolling_sortino_252d,
+                calmar_ratio = EXCLUDED.calmar_ratio,
+                max_drawdown_pct = EXCLUDED.max_drawdown_pct,
+                biggest_win = EXCLUDED.biggest_win,
+                biggest_loss = EXCLUDED.biggest_loss,
+                best_trade_r = EXCLUDED.best_trade_r,
+                worst_trade_r = EXCLUDED.worst_trade_r
+        """,
+            (
+                metric_date,
+                metrics.get("total_trades"),
+                metrics.get("winning_trades"),
+                metrics.get("losing_trades"),
+                metrics.get("gross_win_dollars"),
+                metrics.get("gross_loss_dollars"),
+                metrics.get("total_pnl_dollars"),
+                metrics.get("profit_factor"),
+                metrics.get("avg_win_dollars"),
+                metrics.get("avg_loss_dollars"),
+                metrics.get("avg_win_pct"),
+                metrics.get("avg_loss_pct"),
+                metrics.get("avg_r"),
+                metrics.get("avg_win_r"),
+                metrics.get("avg_loss_r"),
+                metrics.get("expectancy"),
+                metrics.get("avg_holding_days"),
+                metrics.get("sharpe_ratio"),
+                metrics.get("sortino_ratio"),
+                metrics.get("calmar_ratio"),
+                metrics.get("max_drawdown_pct"),
+                metrics.get("biggest_win"),
+                metrics.get("biggest_loss"),
+                metrics.get("best_trade_r"),
+                metrics.get("worst_trade_r"),
+            ),
+        )
+    except psycopg2.errors.UndefinedTable:
+        logger.warning("algo_performance_daily table not found (migration 107 may not have run yet)")
+    except Exception as e:
+        logger.error(f"Failed to insert performance metrics into algo_performance_daily: {e}", exc_info=True)
         raise
 
 

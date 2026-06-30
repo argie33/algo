@@ -716,7 +716,7 @@ def _get_performance_analytics(cur: cursor) -> Any:
         cur.execute("SAVEPOINT perf_analytics")
         cur.execute("""
             SELECT metric_date, sharpe_ratio, sortino_ratio, calmar_ratio,
-                   win_rate_pct, max_drawdown_pct
+                   win_rate_pct, max_drawdown_pct, avg_win_r, avg_loss_r, expectancy
             FROM algo_performance_metrics
             ORDER BY metric_date DESC
             LIMIT 1
@@ -740,56 +740,42 @@ def _get_performance_analytics(cur: cursor) -> Any:
         calmar: Any = data.get("calmar_ratio")
         wr_pct: Any = data.get("win_rate_pct")
         max_dd: Any = data.get("max_drawdown_pct")
+        avg_win_r: Any = data.get("avg_win_r")
+        avg_loss_r: Any = data.get("avg_loss_r")
+        expectancy_val: Any = data.get("expectancy")
 
-        # Compute average R-multiples from recent closed trades for expectancy calculation
-        avg_win_r = None
-        avg_loss_r = None
-        expectancy_val = None
-        try:
-            cur.execute("""
-                SELECT
-                    AVG(CASE WHEN exit_r_multiple > 0 THEN exit_r_multiple END) as avg_win_r,
-                    AVG(CASE WHEN exit_r_multiple < 0 THEN exit_r_multiple END) as avg_loss_r
-                FROM algo_trades
-                WHERE status = 'closed' AND exit_date IS NOT NULL AND exit_r_multiple IS NOT NULL
-                ORDER BY exit_date DESC
-                LIMIT 50
-            """)
-            r_row = cur.fetchone()
-            if r_row:
-                r_data = safe_dict_convert(r_row)
-                avg_win_r = r_data.get("avg_win_r")
-                avg_loss_r = r_data.get("avg_loss_r")
-
-                # Compute expectancy if we have win rate and R-multiples
-                if wr_pct is not None and avg_win_r is not None and avg_loss_r is not None:
-                    try:
-                        wr_frac = float(wr_pct) / 100.0
-                        avg_w = float(avg_win_r)
-                        avg_l = abs(float(avg_loss_r))
-                        expectancy_val = round(wr_frac * avg_w - (1 - wr_frac) * avg_l, 4)
-                    except (ValueError, TypeError, ZeroDivisionError) as exp_err:
-                        logger.warning(
-                            f"Performance analytics: expectancy computation failed "
-                            f"(wr_pct={wr_pct}, avg_win_r={avg_win_r}, avg_loss_r={avg_loss_r}): {type(exp_err).__name__}: {exp_err}"
-                        )
-        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.warning(f"Could not compute R-multiple stats for expectancy: {e}")
+        # Validate that R-metrics are present and non-None (required by perf_anl contract)
+        if avg_win_r is None or avg_loss_r is None or expectancy_val is None:
+            logger.error(
+                f"CRITICAL: R-metrics missing from database: avg_win_r={avg_win_r}, "
+                f"avg_loss_r={avg_loss_r}, expectancy={expectancy_val}. "
+                "Loader may not have run or migration 108 not applied."
+            )
+            return error_response(
+                503,
+                "incomplete_data",
+                "Performance analytics R-metrics not available. Check data loader health.",
+            )
 
         response_dict = {
             "rolling_sharpe_252d": float(sharpe) if sharpe is not None else None,
             "rolling_sortino_252d": float(sortino) if sortino is not None else None,
             "calmar_ratio": float(calmar) if calmar is not None else None,
             "win_rate_50t": float(wr_pct) if wr_pct is not None else None,
-            "avg_win_r_50t": float(avg_win_r) if avg_win_r is not None else None,
-            "avg_loss_r_50t": float(avg_loss_r) if avg_loss_r is not None else None,
-            "expectancy": expectancy_val,
+            "avg_win_r_50t": float(avg_win_r),
+            "avg_loss_r_50t": float(avg_loss_r),
+            "expectancy": float(expectancy_val),
             "max_drawdown_pct": float(max_dd) if max_dd is not None else None,
         }
         response_dict["sharpe252"] = response_dict["rolling_sharpe_252d"]
         response_dict["sortino"] = response_dict["rolling_sortino_252d"]
         response_dict["calmar"] = response_dict["calmar_ratio"]
-        return success_response(response_dict)
+
+        # Validate perf_anl response matches contract schema
+        sanitized = APIResponseValidator.sanitize_response(response_dict)
+        ensure_valid_response("perf_anl", sanitized)
+
+        return success_response(sanitized)
     except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
         try:
             cur.execute("ROLLBACK TO SAVEPOINT perf_analytics")

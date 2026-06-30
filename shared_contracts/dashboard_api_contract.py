@@ -486,10 +486,9 @@ DASHBOARD_ENDPOINTS = {
     "perf_anl": {
         "path": "/api/algo/performance-analytics",
         "method": "GET",
-        "description": "Performance analytics (Sharpe, Sortino, Calmar)",
+        "description": "Performance analytics (Sharpe, Sortino, Calmar, Expectancy, R-multiples)",
         "response_schema": ResponseSchema(
-            required_fields=[],
-            optional_fields=[
+            required_fields=[
                 "rolling_sharpe_252d",
                 "rolling_sortino_252d",
                 "calmar_ratio",
@@ -499,14 +498,30 @@ DASHBOARD_ENDPOINTS = {
                 "expectancy",
                 "max_drawdown_pct",
             ],
+            optional_fields=[],
             field_types={
-                "rolling_sharpe_252d": (float, int),
-                "calmar_ratio": (float, int),
+                "rolling_sharpe_252d": (float, int, type(None)),
+                "rolling_sortino_252d": (float, int, type(None)),
+                "calmar_ratio": (float, int, type(None)),
+                "win_rate_50t": (float, int, type(None)),
+                "avg_win_r_50t": (float, int, type(None)),
+                "avg_loss_r_50t": (float, int, type(None)),
+                "expectancy": (float, int, type(None)),
+                "max_drawdown_pct": (float, int, type(None)),
             },
-            description="Advanced performance metrics",
+            description="Advanced performance metrics (Sharpe, Sortino, Calmar, Win Rate, Avg Win R, Avg Loss R, Expectancy, Max Drawdown)",
         ),
         "freshness_max_age_seconds": 3600,
-        "strict_fields": [],
+        "strict_fields": [
+            "rolling_sharpe_252d",
+            "rolling_sortino_252d",
+            "calmar_ratio",
+            "win_rate_50t",
+            "avg_win_r_50t",
+            "avg_loss_r_50t",
+            "expectancy",
+            "max_drawdown_pct",
+        ],
         "critical": False,
     },
     "sig_eval": {
