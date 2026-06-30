@@ -65,8 +65,16 @@ class SecEdgarStatementLoader(OptimalLoader):
             getter_method = getattr(self._sec_client, f"get_{self.statement_type}")
             rows = getter_method(symbol, period=self.period)
 
+            # CRITICAL FIX: Handle stocks with no SEC financial data gracefully.
+            # REITs, investment trusts, and other special entities often have no
+            # traditional income statement data in SEC EDGAR. Return empty list
+            # so downstream loaders can create data_unavailable markers.
             if not rows:
-                raise RuntimeError(f"[{self.statement_type.upper()}] {symbol}: No {self.period} data in SEC EDGAR.")
+                logger.debug(
+                    f"[{self.statement_type.upper()}] {symbol}: No {self.period} data in SEC EDGAR. "
+                    f"Stock may be REIT, investment trust, or lack SEC filings."
+                )
+                return []  # Empty list triggers fetch_incremental to return data_unavailable marker
 
             logger.info(
                 "%s: Fetched %d %s %s row(s)",

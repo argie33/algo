@@ -116,37 +116,38 @@ def _aggregate_concepts(
 
     # Fetch all facts for this company in a single API call.
     # FileNotFoundError (404) means the CIK has no XBRL filings — mutual funds,
-    # special-purpose vehicles, and some investment trusts never file XBRL.
+    # special-purpose vehicles, REITs, and some investment trusts never file XBRL.
+    # CRITICAL FIX: Return empty list instead of raising exception. This allows
+    # downstream loaders (growth_metrics, quality_metrics) to handle gracefully
+    # with data_unavailable markers instead of crashing.
     try:
         all_facts = client.get_company_facts(cik)
-    except FileNotFoundError as e:
-        error_msg = (
+    except FileNotFoundError:
+        logger.info(
             f"[SEC_STATEMENTS] No XBRL filings found for {symbol} (CIK {cik}). "
-            f"Company may be an ETF, special-purpose vehicle, or investment trust. "
-            f"Cannot fetch SEC financial data without XBRL filings."
+            f"Company may be REIT, investment trust, ETF, or special-purpose vehicle without traditional SEC filings."
         )
-        logger.warning(error_msg)
-        raise RuntimeError(error_msg) from e
+        return []  # Return empty list — downstream loaders handle with data_unavailable marker
 
     # Extract concepts from all_facts (us-gaap taxonomy).
-    # Some entities (ETFs, foreign filers) have CIKs but report under IFRS
-    # or a non-US-GAAP taxonomy — fail fast for those.
+    # Some entities (ETFs, foreign filers, REITs) have CIKs but report under IFRS,
+    # alternative taxonomies, or specialized formats without traditional US-GAAP.
+    # REITs and investment trusts in particular may use real-estate-focused reporting
+    # that doesn't map to standard income statement concepts.
     facts = all_facts.get("facts")
     if facts is None:
-        error_msg = (
+        logger.info(
             f"[SEC_STATEMENTS] SEC API returned no 'facts' for {symbol} (CIK {cik}). "
-            f"Cannot compute financial metrics without SEC filing data."
+            f"Likely REIT, investment trust, or special entity without traditional SEC filing data."
         )
-        logger.warning(error_msg)
-        raise RuntimeError(error_msg)
+        return []  # Return empty list instead of raising — downstream handles gracefully
     us_gaap_facts = facts.get("us-gaap")
     if not us_gaap_facts:
-        error_msg = (
+        logger.info(
             f"[SEC_STATEMENTS] SEC API has no US-GAAP facts for {symbol} (CIK {cik}). "
-            f"Company may be IFRS filer. Cannot compute US financial metrics."
+            f"Company may be REIT, investment trust, or IFRS filer. Cannot extract traditional income statement."
         )
-        logger.warning(error_msg)
-        raise RuntimeError(error_msg)
+        return []  # Return empty list instead of raising — downstream loaders handle with data_unavailable marker
     rows: dict[Any, dict[str, Any]] = {}
     fp_filter = "FY" if period == "annual" else ("Q1", "Q2", "Q3", "Q4")
 

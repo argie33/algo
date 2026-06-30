@@ -108,6 +108,11 @@ class GrowthMetricsLoader(OptimalLoader):
 
         Returns dict with explicit unavailability reasons for each metric when data insufficient.
         Each metric has a corresponding _unavailable_reason field when None.
+
+        CRITICAL FIX: Handle REITs and companies with NULL revenue/EPS values gracefully.
+        Many REITs and special entities in SEC filings have missing or NULL financial data,
+        particularly for concepts like "Revenues" or "EarningsPerShareBasic".
+        Return data_unavailable marker instead of raising exception.
         """
         if not latest or len(latest) != 3:
             raise ValueError(
@@ -117,6 +122,27 @@ class GrowthMetricsLoader(OptimalLoader):
             raise ValueError(f"[GROWTH_METRICS] Malformed all_years for {symbol}: expected list, got {type(all_years)}")
 
         _latest_year, latest_rev, latest_eps = latest
+
+        # CRITICAL FIX: Check if latest_rev is None (happens with REITs that don't report "Revenues")
+        # REITs and investment trusts often have NULL revenue in SEC XBRL data due to different
+        # accounting structures. This is NOT a data error - it's a structural difference.
+        if latest_rev is None or (isinstance(latest_rev, (int, float)) and float(latest_rev) == 0):
+            logger.info(
+                f"[GROWTH_METRICS] {symbol}: Latest revenue is NULL or zero — cannot compute growth metrics. "
+                f"Company may be REIT, investment trust, or special entity with alternative accounting."
+            )
+            return {
+                "symbol": symbol,
+                "revenue_growth_1y": None,
+                "revenue_growth_3y": None,
+                "revenue_growth_5y": None,
+                "eps_growth_1y": None,
+                "eps_growth_3y": None,
+                "eps_growth_5y": None,
+                "data_unavailable": True,
+                "reason": "No valid revenue data in annual statements",
+                "updated_at": date.today(),
+            }
 
         metrics: dict[str, Any] = {"symbol": symbol}
 
