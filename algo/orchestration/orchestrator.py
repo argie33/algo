@@ -239,7 +239,7 @@ class Orchestrator:
                             task=task_arn,
                             reason="Loader hung beyond timeout before next orchestrator run",
                         )
-                    except (ValueError, KeyError, AttributeError) as stop_err:
+                    except Exception as stop_err:
                         logger.error(f"[TASK_TERMINATION] stop_task() call failed: {stop_err}")
                         failed_terminations.append((loader_name, task_arn, str(stop_err)))
                         continue
@@ -278,13 +278,7 @@ class Orchestrator:
                 except (ValueError, ZeroDivisionError, TypeError) as alert_err:
                     logger.error(f"[TASK_TERMINATION] Could not send escalation alert: {alert_err}")
 
-        except (
-            ValueError,
-            KeyError,
-            AttributeError,
-            psycopg2.DatabaseError,
-            psycopg2.OperationalError,
-        ) as e:
+        except Exception as e:
             logger.warning(f"[OOM_PREVENTION] Could not check/kill long-running loaders: {e}")
             # Don't halt trading for this check - it's advisory
 
