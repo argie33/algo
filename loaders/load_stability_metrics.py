@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""Stability Metrics Loader - Volatility (from price_daily) and Beta (from yfinance).
+"""Stability Metrics Loader - Volatility and Beta (both from price_daily).
 
 Computes:
 - 30-day volatility: rolling std dev of daily returns
 - 60-day volatility: rolling std dev of daily returns
 - 252-day volatility: rolling std dev of daily returns (1 year)
-- Beta: relative to S&P 500 (from yfinance)
+- Beta: relative to S&P 500 computed from price_daily (SPY correlation, no yfinance)
 
-Requires: price_daily table populated with at least 252 days of data.
+Requires: price_daily table populated with at least 30 days of data (252 for full year vol).
+Beta is computed as Cov(stock_returns, spy_returns) / Var(spy_returns) from price_daily.
 """
 
 import sys
@@ -36,7 +37,7 @@ class StabilityMetricsLoader(OptimalLoader):
     table_name = "stability_metrics"
     primary_key = ("symbol",)
     watermark_field = "created_at"
-    exclude_etfs_from_symbols = True  # ETFs have no beta/volatility data in yfinance
+    exclude_etfs_from_symbols = True  # ETFs excluded: most lack sufficient price history for beta
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Compute stability metrics for this symbol.
@@ -105,10 +106,14 @@ class StabilityMetricsLoader(OptimalLoader):
             ]
 
     def _compute_stability_metrics(self, symbol: str) -> dict[str, Any]:
-        """Compute volatility from price_daily and beta from yfinance.
+        """Compute volatility from price_daily and beta from price_daily (SPY correlation).
+
+        Beta is computed by regressing stock daily returns against SPY daily returns from
+        price_daily — no yfinance calls. This eliminates yfinance rate-limiting timeouts
+        that caused 95%+ symbol failures when fetching beta via external API.
 
         For OPTIONAL enrichment: Returns explicit data_unavailable marker instead of raising
-        when data cannot be computed (e.g., insufficient price history, yfinance unavailable).
+        when data cannot be computed (e.g., insufficient price history).
 
         Minimum requirement: 30 days of price history for meaningful volatility calculation.
         """
@@ -125,6 +130,25 @@ class StabilityMetricsLoader(OptimalLoader):
                     (symbol,),
                 )
                 rows = cur.fetchall()
+
+                # Fetch SPY prices for the same date range to compute beta from DB.
+                # This replaces the yfinance beta call which caused 95%+ symbol timeouts
+                # due to rate limiting (each yfinance call hung for 60-120s per symbol).
+                spy_rows: list[Any] = []
+                if rows:
+                    stock_dates = [row[0] for row in rows]
+                    min_date = min(stock_dates)
+                    max_date = max(stock_dates)
+                    cur.execute(
+                        """
+                        SELECT date, close FROM price_daily
+                        WHERE symbol = 'SPY'
+                          AND date >= %s AND date <= %s
+                        ORDER BY date ASC
+                        """,
+                        (min_date, max_date),
+                    )
+                    spy_rows = cur.fetchall()
 
             # Require minimum 30 days of data for meaningful volatility calculation
             if not rows or len(rows) < 30:
@@ -161,7 +185,7 @@ class StabilityMetricsLoader(OptimalLoader):
             volatility_30d_result = self._calculate_volatility(returns[-30:], symbol=symbol) if len(returns) >= 30 else None
             volatility_60d_result = self._calculate_volatility(returns[-60:], symbol=symbol) if len(returns) >= 60 else None
             volatility_252d_result = self._calculate_volatility(returns, symbol=symbol)
-            beta_result = self._get_beta_yfinance(symbol)
+            beta_result = self._get_beta_from_db(symbol, prices, spy_rows)
 
             # Unpack results: distinguish between numeric values and marker dicts
             volatility_30d: float | None = None if isinstance(volatility_30d_result, dict) else volatility_30d_result
@@ -346,6 +370,97 @@ class StabilityMetricsLoader(OptimalLoader):
                 "symbol": symbol,
                 "data_unavailable": True,
                 "reason": f"unexpected_error: {type(e).__name__}"
+            }
+
+    @staticmethod
+    def _get_beta_from_db(
+        symbol: str,
+        stock_prices: list[tuple[Any, float]],
+        spy_rows: list[Any],
+    ) -> float | dict[str, Any]:
+        """Compute beta from price_daily by regressing stock returns against SPY returns.
+
+        Replaces yfinance beta fetch to eliminate external API rate-limiting timeouts.
+        Beta = Cov(stock_returns, spy_returns) / Var(spy_returns) over shared trading days.
+
+        Args:
+            symbol: Ticker symbol (for logging/markers).
+            stock_prices: List of (date, close) tuples sorted chronologically from price_daily.
+            spy_rows: SPY price rows from price_daily for the same date range.
+        """
+        import numpy as np
+
+        if not spy_rows or len(spy_rows) < 30:
+            actual = len(spy_rows) if spy_rows else 0
+            logger.debug(
+                f"[STABILITY_METRICS] {symbol}: SPY price data insufficient ({actual} rows). "
+                "Beta unavailable (requires 30+ overlapping days)."
+            )
+            return {
+                "symbol": symbol,
+                "data_unavailable": True,
+                "reason": f"spy_price_data_insufficient: {actual}/30 days",
+            }
+
+        try:
+            stock_by_date = {p[0]: p[1] for p in stock_prices}
+            spy_by_date: dict[Any, float] = {}
+            for row in spy_rows:
+                d = row[0].date() if hasattr(row[0], "date") else row[0]
+                spy_by_date[d] = float(row[1])
+
+            common_dates = sorted(set(stock_by_date.keys()) & set(spy_by_date.keys()))
+            if len(common_dates) < 30:
+                return {
+                    "symbol": symbol,
+                    "data_unavailable": True,
+                    "reason": f"insufficient_common_dates: {len(common_dates)}/30",
+                }
+
+            stock_aligned = [stock_by_date[d] for d in common_dates]
+            spy_aligned = [spy_by_date[d] for d in common_dates]
+
+            stock_returns = np.diff(np.log(np.array(stock_aligned, dtype=float)))
+            spy_returns = np.diff(np.log(np.array(spy_aligned, dtype=float)))
+
+            if len(stock_returns) < 20:
+                return {
+                    "symbol": symbol,
+                    "data_unavailable": True,
+                    "reason": f"insufficient_returns: {len(stock_returns)}/20",
+                }
+
+            spy_var = float(np.var(spy_returns, ddof=1))
+            if spy_var == 0:
+                return {
+                    "symbol": symbol,
+                    "data_unavailable": True,
+                    "reason": "spy_variance_zero",
+                }
+
+            cov_matrix = np.cov(stock_returns, spy_returns)
+            beta = float(cov_matrix[0, 1]) / spy_var
+
+            if abs(beta) > 10:
+                logger.debug(
+                    f"[STABILITY_METRICS] {symbol}: extreme DB beta {beta:.2f} — marking unavailable."
+                )
+                return {
+                    "symbol": symbol,
+                    "data_unavailable": True,
+                    "reason": f"extreme_beta: {beta:.2f}",
+                }
+
+            return round(beta, 4)
+
+        except Exception as e:
+            logger.warning(
+                f"[STABILITY_METRICS] {symbol}: DB beta computation failed: {type(e).__name__}: {e}"
+            )
+            return {
+                "symbol": symbol,
+                "data_unavailable": True,
+                "reason": f"db_beta_error: {type(e).__name__}",
             }
 
     def transform(self, rows: Any) -> list[dict[str, Any]]:

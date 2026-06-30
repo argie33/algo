@@ -699,7 +699,7 @@ def run(
         try:
             with DatabaseContext("write") as cur:
                 cur.execute("REFRESH MATERIALIZED VIEW algo_positions_with_risk")
-            logger.info("[PHASE 7] Refreshed algo_positions_with_risk materialized view")
+            logger.info("[PHASE 9] Refreshed algo_positions_with_risk materialized view")
             log_phase_result_fn(
                 9,
                 "positions_view_refresh",
@@ -707,8 +707,43 @@ def run(
                 "algo_positions_with_risk refreshed",
             )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.warning(f"[PHASE 7] Could not refresh algo_positions_with_risk: {e}")
+            logger.warning(f"[PHASE 9] Could not refresh algo_positions_with_risk: {e}")
             log_phase_result_fn(9, "positions_view_refresh", "warn", f"refresh failed: {str(e)[:60]}")
+
+        # Compute circuit breaker metrics and write to circuit_breaker_status table.
+        # Runs after reconciliation so algo_portfolio_snapshots has today's data.
+        # dashboard /api/algo/circuit-breakers reads from circuit_breaker_status.
+        if reconciliation_succeeded:
+            try:
+                import psycopg2.extras as _extras
+
+                from loaders.compute_circuit_breakers import compute_circuit_breaker_metrics
+
+                with DatabaseContext("write", cursor_factory=_extras.RealDictCursor) as cb_cur:
+                    cb_metrics = compute_circuit_breaker_metrics(cb_cur, today=run_date)
+                triggered = cb_metrics.get("triggered_count", 0)
+                any_triggered = cb_metrics.get("any_triggered", False)
+                logger.info(
+                    f"[PHASE 9] Circuit breaker metrics written: "
+                    f"{triggered} triggered, any_triggered={any_triggered}"
+                )
+                log_phase_result_fn(
+                    9,
+                    "circuit_breaker_metrics",
+                    "success",
+                    f"{triggered} circuit breakers triggered",
+                )
+            except Exception as e:
+                logger.warning(
+                    f"[PHASE 9] Circuit breaker metrics failed (non-blocking): {e}. "
+                    "circuit_breaker_status table not updated — dashboard CB panel will show stale data."
+                )
+                log_phase_result_fn(
+                    9,
+                    "circuit_breaker_metrics",
+                    "warn",
+                    f"failed: {str(e)[:80]}",
+                )
 
         # Degrade gracefully if reconciliation failed (e.g., broker unavailable in dry-run)
         # Phase 9 is always_run, so it should not cause a halt even if broker is unavailable
@@ -745,7 +780,7 @@ def run(
 
         return PhaseResult(9, "reconciliation", phase_status, data, False, None)
 
-    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError, RuntimeError, ValueError) as e:
         traceback.print_exc()
         log_phase_result_fn(9, "reconciliation", "error", str(e))
         return PhaseResult(9, "reconciliation", "error", {}, False, str(e))
