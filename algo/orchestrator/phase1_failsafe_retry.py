@@ -76,7 +76,12 @@ AUXILIARY_INCOMPLETE_LOADERS = {
 RETRY_WAIT_SECONDS = 90
 
 # Timeout for monitoring retry (how long to wait for loader to complete)
-RETRY_MONITOR_TIMEOUT_SECONDS = 15 * 60  # 15 minutes
+# CRITICAL FIX 2026-06-30: Increased from 15 to 25 minutes to accommodate slow metric loaders
+# positioning_metrics and value_metrics make per-symbol yfinance calls: ~0.5-1s each
+# At min parallelism=2: 5000 symbols = ~2500-5000 / 2 = 1250-2500 seconds = 20-41 minutes
+# At parallelism=3: 833-1666 seconds = 13-27 minutes (safer, within 25-min window)
+# With RDS-adaptive parallelism, can exceed parallelism=3 if RDS idle, reducing time further
+RETRY_MONITOR_TIMEOUT_SECONDS = 25 * 60  # 25 minutes (was 15)
 
 
 def check_and_retry_incomplete_loaders(dry_run: bool = False) -> dict[str, Any]:
