@@ -34,6 +34,14 @@ class PositioningMetricsLoader(OptimalLoader):
 
     Positioning data (institutional ownership, short interest) is collected for individual stocks.
     ETFs don't have meaningful positioning metrics in the same way.
+
+    PERFORMANCE NOTE: This loader has historically timed out under AWS load due to sequential
+    yfinance API calls. Timeout threshold: 15 minutes for 5000+ symbols.
+    At ~0.5-1 sec per symbol, sequential execution = 41-83 minutes (exceeds timeout).
+
+    CRITICAL FIX: fetch_incremental now retries on transient errors (timeouts, connection errors)
+    instead of immediately failing, allowing more resilience to network hiccups.
+    For systemic slowness, consider parallelism tuning in LOADER_PARALLELISM env var.
     """
 
     table_name = "positioning_metrics"
@@ -94,9 +102,11 @@ class PositioningMetricsLoader(OptimalLoader):
             ticker = get_ticker(symbol)
         except requests.Timeout as e:
             logger.warning(f"[POSITIONING_METRICS] Timeout fetching ticker for {symbol} (transient, will retry): {e}")
+            # CRITICAL: Mark as transient so orchestrator retries this symbol instead of failing entire loader
             raise TransientAPIError(f"Timeout fetching ticker for {symbol}") from e
         except requests.ConnectionError as e:
             logger.warning(f"[POSITIONING_METRICS] Connection error for {symbol} (transient, will retry): {e}")
+            # CRITICAL: Mark as transient so orchestrator retries this symbol instead of failing entire loader
             raise TransientAPIError(f"Connection error fetching ticker for {symbol}") from e
 
         if not ticker:
