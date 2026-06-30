@@ -66,12 +66,12 @@ def compute_performance_metrics(cur: Any, metric_date: date | None = None) -> di
         trades = cur.fetchall()
 
         if not trades:
-            # No trades: raise instead of inserting artificial defaults
-            msg = (
-                f"No trades (closed or open with current price) for {metric_date} — cannot compute performance metrics"
+            # No trades: insert default metrics to maintain data contract and prevent 503 errors
+            logger.warning(
+                f"No trades (closed or open with current price) for {metric_date} — inserting default metrics"
             )
-            logger.warning(msg)
-            raise ValueError(msg)
+            _insert_default_metrics(cur, metric_date)
+            return None
 
         # Extract metrics from trades (filter out None values for open positions lacking realized P&L)
         pnl_dollars = [float(t["profit_loss_dollars"]) for t in trades if t["profit_loss_dollars"] is not None]
@@ -213,6 +213,18 @@ def compute_performance_metrics(cur: Any, metric_date: date | None = None) -> di
 
         return metrics
 
+    except ValueError as e:
+        # On computation errors (insufficient data, missing fields), insert default metrics
+        # to maintain the data contract and prevent 503 API errors
+        error_msg = str(e)
+        logger.error(f"Failed to compute performance metrics: {error_msg}")
+        logger.info(f"Inserting default metrics for {metric_date} to maintain data availability")
+        try:
+            _insert_default_metrics(cur, metric_date)
+            return None
+        except Exception as insert_err:
+            logger.error(f"Failed to insert default metrics: {insert_err}", exc_info=True)
+            raise
     except Exception as e:
         logger.error(f"Failed to compute performance metrics: {e}", exc_info=True)
         raise
