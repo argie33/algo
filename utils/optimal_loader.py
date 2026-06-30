@@ -505,17 +505,30 @@ class OptimalLoader:
             )
 
     def _run_parallel(self, symbols: list[str], workers: int) -> None:
+        import threading
         from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 
         per_symbol_timeout = int(os.getenv("LOADER_PER_SYMBOL_TIMEOUT_SECONDS", "120"))
         max_batch_time = int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", "10800"))
         batch_start = time.time()
 
+        # Track when each symbol ACTUALLY STARTS executing (not when it's dispatched/queued).
+        # With many symbols queued across N workers, symbols near the end of the queue can
+        # wait for minutes before a worker picks them up. Measuring from dispatch time would
+        # incorrectly timeout queued-but-not-running symbols. We only count the timeout from
+        # when a worker thread actually begins executing the symbol.
+        execution_starts: dict[str, float] = {}
+        execution_starts_lock = threading.Lock()
+
+        def _timed_safe_load(symbol: str) -> None:
+            with execution_starts_lock:
+                execution_starts[symbol] = time.time()
+            self._safe_load_symbol(symbol)
+
         with ThreadPoolExecutor(max_workers=workers) as exe:
-            futures = {exe.submit(self._safe_load_symbol, s): s for s in symbols}
+            futures = {exe.submit(_timed_safe_load, s): s for s in symbols}
             done = 0
             pending_futures = set(futures.keys())
-            symbol_start_times = {f: time.time() for f in futures.keys()}
 
             while pending_futures:
                 elapsed_batch = time.time() - batch_start
@@ -554,11 +567,17 @@ class OptimalLoader:
                     if done % 100 == 0:
                         logger.info(f"  Progress: {done}/{len(symbols)}")
 
-                # Check for stalled workers (symbols taking >per_symbol_timeout)
+                # Check for stalled workers: only timeout symbols that have STARTED executing.
+                # Symbols still queued (not yet picked up by a worker) have no entry in
+                # execution_starts and are skipped — they are not hung, just waiting.
+                now = time.time()
                 stalled = []
                 for fut in pending_futures:
-                    elapsed = time.time() - symbol_start_times.get(fut, time.time())
                     symbol = futures.get(fut, "unknown")
+                    start = execution_starts.get(symbol)
+                    if start is None:
+                        continue  # Not yet running — queued, not stalled
+                    elapsed = now - start
                     if elapsed > per_symbol_timeout:
                         logger.warning(
                             f"[{self.table_name}] Symbol {symbol} exceeded timeout ({elapsed:.0f}s > {per_symbol_timeout}s). Cancelling."

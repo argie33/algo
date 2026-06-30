@@ -235,11 +235,16 @@ class BuySignalGenerationHandler:
             reason = f"Breakout above swing high ({abs(breakout_pct):.1f}%) with price > SMA50"
             buylevel = round(recent_swing_high, 4)
             if not recent_swing_low:
-                raise RuntimeError(
-                    f"[SIGNAL_GENERATION] {symbol}: BUY signal requires recent_swing_low for stop loss calculation. "
-                    "Cannot generate signal without technical pivot data."
+                # Cannot place stop loss without swing low pivot — skip this BUY signal bar
+                # rather than failing the entire symbol (other dates may have valid signals).
+                logger.warning(
+                    f"[SIGNAL_GENERATION] {symbol}: BUY breakout detected but no swing_low pivot "
+                    "found in 50-bar lookback. Skipping BUY signal for this bar."
                 )
-            stoplevel = round(recent_swing_low, 4)
+                signal_type = None
+                buylevel = None
+            else:
+                stoplevel = round(recent_swing_low, 4)
 
         # SELL: Breakdown below swing low (stop loss)
         elif recent_swing_low and low < recent_swing_low:
