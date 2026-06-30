@@ -504,68 +504,49 @@ def _insert_performance_daily(cur: Any, metric_date: date, metrics: dict[str, An
     """Insert or update performance metrics in algo_performance_daily table for API consumption."""
     try:
         # Only insert if table exists (it's created by migration 107)
+        # Insert only columns that are known to exist
         cur.execute(
             """
             INSERT INTO algo_performance_daily (
                 report_date, total_trades, num_wins, num_losses,
-                gross_win_dollars, gross_loss_dollars, total_pnl_dollars, profit_factor,
-                avg_win, avg_loss, avg_win_pct, avg_loss_pct,
-                avg_r, avg_w_r, avg_l_r, expectancy,
-                avg_hold_days, rolling_sharpe_252d, rolling_sortino_252d, calmar_ratio,
-                max_drawdown_pct, biggest_win, biggest_loss, best_trade_r, worst_trade_r
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                profit_factor, avg_win, avg_loss, avg_r, expectancy,
+                rolling_sharpe_252d, rolling_sortino_252d, calmar_ratio,
+                max_drawdown_pct, win_rate_50t, avg_win_r_50t, avg_loss_r_50t
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (report_date) DO UPDATE SET
                 total_trades = EXCLUDED.total_trades,
                 num_wins = EXCLUDED.num_wins,
                 num_losses = EXCLUDED.num_losses,
-                gross_win_dollars = EXCLUDED.gross_win_dollars,
-                gross_loss_dollars = EXCLUDED.gross_loss_dollars,
-                total_pnl_dollars = EXCLUDED.total_pnl_dollars,
                 profit_factor = EXCLUDED.profit_factor,
                 avg_win = EXCLUDED.avg_win,
                 avg_loss = EXCLUDED.avg_loss,
-                avg_win_pct = EXCLUDED.avg_win_pct,
-                avg_loss_pct = EXCLUDED.avg_loss_pct,
                 avg_r = EXCLUDED.avg_r,
-                avg_w_r = EXCLUDED.avg_w_r,
-                avg_l_r = EXCLUDED.avg_l_r,
                 expectancy = EXCLUDED.expectancy,
-                avg_hold_days = EXCLUDED.avg_hold_days,
                 rolling_sharpe_252d = EXCLUDED.rolling_sharpe_252d,
                 rolling_sortino_252d = EXCLUDED.rolling_sortino_252d,
                 calmar_ratio = EXCLUDED.calmar_ratio,
                 max_drawdown_pct = EXCLUDED.max_drawdown_pct,
-                biggest_win = EXCLUDED.biggest_win,
-                biggest_loss = EXCLUDED.biggest_loss,
-                best_trade_r = EXCLUDED.best_trade_r,
-                worst_trade_r = EXCLUDED.worst_trade_r
+                win_rate_50t = EXCLUDED.win_rate_50t,
+                avg_win_r_50t = EXCLUDED.avg_win_r_50t,
+                avg_loss_r_50t = EXCLUDED.avg_loss_r_50t
         """,
             (
                 metric_date,
                 metrics.get("total_trades"),
                 metrics.get("winning_trades"),
                 metrics.get("losing_trades"),
-                metrics.get("gross_win_dollars"),
-                metrics.get("gross_loss_dollars"),
-                metrics.get("total_pnl_dollars"),
                 metrics.get("profit_factor"),
                 metrics.get("avg_win_dollars"),
                 metrics.get("avg_loss_dollars"),
-                metrics.get("avg_win_pct"),
-                metrics.get("avg_loss_pct"),
                 metrics.get("avg_r"),
-                metrics.get("avg_win_r"),
-                metrics.get("avg_loss_r"),
                 metrics.get("expectancy"),
-                metrics.get("avg_holding_days"),
                 metrics.get("sharpe_ratio"),
                 metrics.get("sortino_ratio"),
                 metrics.get("calmar_ratio"),
                 metrics.get("max_drawdown_pct"),
-                metrics.get("biggest_win"),
-                metrics.get("biggest_loss"),
-                metrics.get("best_trade_r"),
-                metrics.get("worst_trade_r"),
+                metrics.get("win_rate_pct"),
+                metrics.get("avg_win_r"),
+                metrics.get("avg_loss_r"),
             ),
         )
     except psycopg2.errors.UndefinedTable:
