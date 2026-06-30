@@ -481,21 +481,73 @@ class OrderManager:
                         "message": f"Alpaca 422 unprocessable: {resp.text[:200]}",
                     }
                 elif resp.status_code == 403:
-                    # Alpaca 403 "insufficient qty available" — DB position may not match Alpaca
-                    # (e.g. fractional fill, partial prior exit not reconciled).
-                    # Parse available qty from error and retry with that amount on first attempt.
+                    # Alpaca 403 "insufficient qty available" — two cases:
+                    # 1. DB qty != Alpaca qty (e.g. fractional fill not reconciled): retry with actual qty
+                    # 2. Shares locked by open bracket order: use close-position endpoint to bypass
                     try:
                         err_data = resp.json()
                         available_str = err_data.get("available")
-                        if available_str and attempt == 0:
+                        if available_str is not None and attempt == 0:
                             available_qty = float(available_str)
                             if 0 < available_qty < shares:
+                                # Case 1: partial availability — retry with actual qty
                                 logger.warning(
                                     f"[SEND_EXIT] {symbol}: DB qty={shares} but Alpaca available={available_qty}. "
                                     f"Retrying with actual available qty (position out-of-sync)."
                                 )
                                 shares = available_qty
-                                continue  # retry immediately with corrected qty
+                                continue
+                            held = float(err_data.get("held_for_orders", 0) or 0)
+                            if available_qty == 0 and held > 0 and attempt < max_attempts - 1:
+                                # Case 2: all shares locked by open orders — use close-position endpoint
+                                logger.warning(
+                                    f"[SEND_EXIT] {symbol}: All {held} shares locked by open orders. "
+                                    f"Using close-position endpoint to override existing bracket."
+                                )
+                                close_resp = requests.delete(
+                                    f"{self.alpaca_base_url}/v2/positions/{symbol}",
+                                    headers={
+                                        "APCA-API-KEY-ID": self.alpaca_key,
+                                        "APCA-API-SECRET-KEY": self.alpaca_secret,
+                                    },
+                                    timeout=get_api_timeout(),
+                                )
+                                if close_resp.status_code in (200, 201):
+                                    close_data = close_resp.json()
+                                    filled_price_raw = close_data.get("filled_avg_price")
+                                    if filled_price_raw:
+                                        try:
+                                            filled_price = float(filled_price_raw)
+                                            order_id = close_data.get("id", "close-position")
+                                            logger.info(
+                                                f"[SEND_EXIT] {symbol}: Close-position succeeded, "
+                                                f"fill=${filled_price} (order {order_id})"
+                                            )
+                                            return {
+                                                "success": True,
+                                                "order_id": order_id,
+                                                "filled_price": filled_price,
+                                                "message": f"Closed via position endpoint: {order_id}",
+                                            }
+                                        except (ValueError, TypeError):
+                                            pass
+                                    # Order placed but price not yet filled (market order in flight)
+                                    order_id = close_data.get("id", "close-position")
+                                    logger.info(
+                                        f"[SEND_EXIT] {symbol}: Close-position order {order_id} submitted, "
+                                        f"fill price pending (market order)"
+                                    )
+                                    return {
+                                        "success": True,
+                                        "order_id": order_id,
+                                        "filled_price": None,
+                                        "message": f"Close-position order submitted: {order_id}",
+                                    }
+                                else:
+                                    logger.warning(
+                                        f"[SEND_EXIT] {symbol}: Close-position endpoint returned "
+                                        f"{close_resp.status_code}: {close_resp.text[:100]}"
+                                    )
                     except (ValueError, TypeError, json.JSONDecodeError):
                         pass
                     last_error = f"Alpaca {resp.status_code}: {resp.text[:200]}"
