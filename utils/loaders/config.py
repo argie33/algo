@@ -48,14 +48,21 @@ class LoaderConfigManager:
         # yfinance-dependent metrics: auxiliary loaders that feed stock_scores
         # Increased parallelism (2026-06-28) to improve throughput and achieve 80%+ coverage
         # stock_scores requires upstream metrics for reliable scoring
+        # CRITICAL FIX 2026-06-30: Increased min from 1 to 2 to prevent 15-min timeout
+        # At parallelism=1, positioning_metrics takes 41-83 min for 5000 symbols (0.5-1s per yfinance call)
+        # Orchestrator timeout = 15 min, so loader fails and all metric data becomes unavailable
+        # Increasing to min=2 reduces time to 20-41 min, but still risks timeout
+        # Consider further to min=3 if RDS load permits, or increase orchestrator timeout to 30+ min
         "positioning_metrics": (
-            1,
+            2,
             3,
-        ),  # Increased from (1,1) to (1,3) - 3x faster throughput with adaptive backoff
+        ),  # Increased min from 1 to 2 (was: from (1,1) to (1,3))
         "value_metrics": (
-            1,
+            2,
             3,
-        ),  # Increased from (1,2) to (1,3) - better throughput with rate limiting
+        ),  # Increased min from 1 to 2 (was: from (1,2) to (1,3))
+        # Note: stability_metrics also slow, but uses price_daily which completes faster
+        # Consider increasing stability_metrics min from 1 to 2 if still timing out
         "company_profile": (1, 2),
         "analyst_sentiment": (1, 3),
         "stability_metrics": (1, 3),
