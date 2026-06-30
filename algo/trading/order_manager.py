@@ -480,6 +480,26 @@ class OrderManager:
                         "filled_price": None,
                         "message": f"Alpaca 422 unprocessable: {resp.text[:200]}",
                     }
+                elif resp.status_code == 403:
+                    # Alpaca 403 "insufficient qty available" — DB position may not match Alpaca
+                    # (e.g. fractional fill, partial prior exit not reconciled).
+                    # Parse available qty from error and retry with that amount on first attempt.
+                    try:
+                        err_data = resp.json()
+                        available_str = err_data.get("available")
+                        if available_str and attempt == 0:
+                            available_qty = float(available_str)
+                            if 0 < available_qty < shares:
+                                logger.warning(
+                                    f"[SEND_EXIT] {symbol}: DB qty={shares} but Alpaca available={available_qty}. "
+                                    f"Retrying with actual available qty (position out-of-sync)."
+                                )
+                                shares = available_qty
+                                continue  # retry immediately with corrected qty
+                    except (ValueError, TypeError, json.JSONDecodeError):
+                        pass
+                    last_error = f"Alpaca {resp.status_code}: {resp.text[:200]}"
+                    logger.warning(f"[SEND_EXIT] {symbol}: {last_error} (attempt {attempt + 1}/{max_attempts})")
                 else:
                     last_error = f"Alpaca {resp.status_code}: {resp.text[:200]}"
                     logger.warning(f"[SEND_EXIT] {symbol}: {last_error} (attempt {attempt + 1}/{max_attempts})")

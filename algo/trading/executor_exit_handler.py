@@ -289,7 +289,7 @@ class ExitHandler:
                 f"Position quantity unavailable for trade {trade_id} (symbol {symbol}). "
                 f"Cannot execute exit without known current position size."
             )
-        current_qty = int(current_qty)
+        current_qty = float(current_qty)  # float preserves fractional shares (int would truncate 0.5→0)
 
         if position_status == "closed":
             return {
