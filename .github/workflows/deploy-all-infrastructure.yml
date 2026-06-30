@@ -1652,16 +1652,14 @@ jobs:
             aws lambda wait function-updated --function-name "$LAMBDA_NAME" --region $AWS_REGION
           else
             echo "[INFO] Creating temporary Lambda: $LAMBDA_NAME"
-            # Create a temporary Lambda function with minimal role (migrations-only access)
-            ROLE_ARN=$(aws sts get-caller-identity --query Arn --output text | sed 's/:sts::/:iam::/' | sed 's/:assumed-role.*//')
-            if [ -z "$ROLE_ARN" ] || [ "$ROLE_ARN" = "arn:aws:iam::" ]; then
-              # Fallback: use the GitHub Actions role from Terraform outputs
-              ROLE_ARN="arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev' }}"
-            fi
+            # Use the existing Lambda execution role that already has VPC/DB/Secrets Manager permissions
+            ROLE_ARN="arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-lambda-execution-dev"
 
-            # Create Lambda with inline policy for VPC/DB access
-            # Note: This requires the Lambda execution role to already have VPC/Secrets Manager permissions
-            # which should be present from the GitHub Actions OIDC role
+            # Create Lambda with existing execution role
+            # The role algo-svc-lambda-execution-dev already has:
+            # - VPC access (ENI management)
+            # - RDS Secrets Manager read permissions
+            # - CloudWatch Logs permissions
             aws lambda create-function \
               --function-name "$LAMBDA_NAME" \
               --runtime python3.12 \
