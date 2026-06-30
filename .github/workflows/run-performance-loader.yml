@@ -46,14 +46,21 @@ jobs:
           ])['SecurityGroups']
           sg_id = sgs[0]['GroupId'] if sgs else None
 
-          # List task definitions and get the latest one
+          # List task definitions and get the latest one (project_name = "algo" in terraform.tfvars)
           task_defs = ecs.list_task_definitions(
-              familyPrefix='stocks-compute_performance_metrics',
+              familyPrefix='algo-compute_performance_metrics',
               sort='DESC'
           )
 
           if not task_defs['taskDefinitionArns']:
-              # Try alternate search
+              # Try legacy project name if needed
+              task_defs = ecs.list_task_definitions(
+                  familyPrefix='stocks-compute_performance_metrics',
+                  sort='DESC'
+              )
+
+          if not task_defs['taskDefinitionArns']:
+              # Try without project prefix as last resort
               task_defs = ecs.list_task_definitions(
                   familyPrefix='compute_performance_metrics',
                   sort='DESC'
@@ -107,8 +114,7 @@ jobs:
           echo "  - Populates data needed by perf_anl endpoint"
           echo ""
           echo "Monitor logs:"
-          echo "  CloudWatch: /aws/lambda/stocks-orchestrator"
-          echo "  ECS Loader: /ecs/stocks-compute_performance_metrics-loader"
+          echo "  ECS Loader: /ecs/algo-compute_performance_metrics-loader"
 
       - name: Check orchestrator logs
         if: always()
