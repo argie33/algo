@@ -281,6 +281,7 @@ locals {
   loader_file_map = {
     "stock_prices_daily"    = "load_prices.py"
     "technical_data_daily"  = "load_technical_data_daily.py"
+    "trend_template_data"   = "load_trend_criteria_data.py"
     "swing_trader_scores"   = "load_swing_trader_scores.py"
     "market_exposure_daily" = "load_market_exposure_daily.py"
     "growth_metrics"        = "load_growth_metrics.py"
@@ -307,16 +308,17 @@ resource "aws_cloudwatch_event_rule" "scheduled_loader" {
 
 locals {
   all_loaders = {
-    "stock_prices_daily" = { cpu = 1024, memory = 2048, timeout = 5400, parallelism = 1 }
+    "stock_prices_daily"   = { cpu = 1024, memory = 2048, timeout = 5400, parallelism = 1 }
     "technical_data_daily" = { cpu = 2048, memory = 4096, timeout = 2400, parallelism = 1 }
-    "swing_trader_scores" = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 1 }
+    "trend_template_data"  = { cpu = 1024, memory = 2048, timeout = 5400, parallelism = 1 }
+    "swing_trader_scores"  = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 1 }
     "market_exposure_daily" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
-    "growth_metrics" = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
-    "quality_metrics" = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
-    "value_metrics" = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
-    "positioning_metrics" = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 2 }
-    "stability_metrics" = { cpu = 1024, memory = 2048, timeout = 1800, parallelism = 2 }
-    "stock_scores" = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
+    "growth_metrics"       = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
+    "quality_metrics"      = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
+    "value_metrics"        = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
+    "positioning_metrics"  = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 2 }
+    "stability_metrics"    = { cpu = 1024, memory = 2048, timeout = 1800, parallelism = 2 }
+    "stock_scores"         = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
   }
   default_loaders = local.all_loaders
 

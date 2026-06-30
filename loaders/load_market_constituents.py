@@ -24,7 +24,6 @@ from io import StringIO
 from typing import Any
 
 import pandas as pd
-import psycopg2
 import requests
 
 from loaders.runner import run_loader
@@ -420,6 +419,8 @@ class MarketConstituentsLoader(OptimalLoader):
                 )
 
         try:
+            import psycopg2
+
             from utils.db.context import DatabaseContext
 
             with DatabaseContext("write") as cur:
