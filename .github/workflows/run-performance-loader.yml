@@ -53,6 +53,18 @@ jobs:
           )
 
           if not task_defs['taskDefinitionArns']:
+              # Try alternate search in case prefix doesn't work
+              task_defs = ecs.list_task_definitions(
+                  familyPrefix='compute_performance_metrics',
+                  sort='DESC'
+              )
+
+          if not task_defs['taskDefinitionArns']:
+              # List all to debug
+              all_tasks = ecs.list_task_definitions(sort='DESC', maxResults=100)
+              print("Available task definitions:")
+              for t in all_tasks['taskDefinitionArns'][:10]:
+                  print(f"  - {t}")
               print("ERROR: No compute_performance_metrics task definition found")
               exit(1)
 
