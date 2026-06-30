@@ -3621,6 +3621,9 @@ CREATE TABLE IF NOT EXISTS algo_performance_metrics (
     cagr_pct NUMERIC(8, 4),                     -- compounded annual growth rate
     best_win_streak INT DEFAULT 0,              -- consecutive wins
     worst_loss_streak INT DEFAULT 0,            -- consecutive losses
+    avg_win_r NUMERIC(8, 4),                    -- average R-multiple on winning trades
+    avg_loss_r NUMERIC(8, 4),                   -- average R-multiple on losing trades (as positive value)
+    expectancy NUMERIC(8, 4),                   -- expectancy = (WR × Avg Win R) - (LR × Avg Loss R)
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
