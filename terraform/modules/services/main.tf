@@ -116,8 +116,6 @@ resource "aws_lambda_function" "api" {
 
   environment {
     variables = {
-      # AWS configuration (required for Secrets Manager and other AWS services)
-      AWS_REGION = var.aws_region
       # Database configuration (dynamic, all variables required for fallback path)
       DB_SECRET_ARN = var.rds_credentials_secret_arn
       DB_ENDPOINT   = var.rds_endpoint
@@ -685,8 +683,6 @@ resource "aws_lambda_function" "algo" {
 
   environment {
     variables = {
-      # AWS configuration (required for Secrets Manager and other AWS services)
-      AWS_REGION = var.aws_region
       # Database configuration (all vars required for fallback path when Secrets Manager unavailable)
       DB_SECRET_ARN = var.rds_credentials_secret_arn
       DB_ENDPOINT   = var.rds_endpoint
