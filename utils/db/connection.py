@@ -175,13 +175,33 @@ def _handle_retry_sleep(attempt: int, max_retries: int, debug: bool, error_type:
 
 
 def _check_connection_health(conn: Any, pool: Any) -> None:
-    """Check if connection is still alive, discard if stale."""
+    """Check if connection is still alive, discard if stale.
+
+    Two checks:
+    1. conn.closed flag (client-side close)
+    2. SELECT 1 ping to detect server-side SSL drops (RDS Proxy idle timeout)
+       Without this, stale connections silently fail on first query with
+       "SSL connection has been closed unexpectedly", causing 503s.
+    """
     if conn.closed:
         logger.warning("[DB_POOL] Stale connection (closed=True) discarded from pool")
         try:
             pool.putconn(conn, close=True)
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"[DB_POOL] Failed to return stale connection to pool: {e}") from e
+
+    # Ping to detect SSL connections dropped server-side (conn.closed stays False until query fails)
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT 1")
+        cur.close()
+    except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
+        logger.warning(f"[DB_POOL] Connection ping failed (SSL dropped), discarding: {str(e)[:100]}")
+        try:
+            pool.putconn(conn, close=True)
+        except Exception:
+            pass
+        raise psycopg2.OperationalError(f"Stale connection (ping failed): {e}") from e
 
 
 def get_db_connection(max_retries: int = 3, timeout: int = 10, debug: bool = False) -> TrackedConnection:
