@@ -509,10 +509,10 @@ def _insert_performance_daily(cur: Any, metric_date: date, metrics: dict[str, An
             """
             INSERT INTO algo_performance_daily (
                 report_date, total_trades, num_wins, num_losses,
-                profit_factor, avg_win, avg_loss, avg_r, expectancy,
+                profit_factor, avg_win, avg_loss, avg_r, avg_w_r, avg_l_r, expectancy,
                 rolling_sharpe_252d, rolling_sortino_252d, calmar_ratio,
                 max_drawdown_pct, win_rate_50t, avg_win_r_50t, avg_loss_r_50t
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (report_date) DO UPDATE SET
                 total_trades = EXCLUDED.total_trades,
                 num_wins = EXCLUDED.num_wins,
@@ -521,6 +521,8 @@ def _insert_performance_daily(cur: Any, metric_date: date, metrics: dict[str, An
                 avg_win = EXCLUDED.avg_win,
                 avg_loss = EXCLUDED.avg_loss,
                 avg_r = EXCLUDED.avg_r,
+                avg_w_r = EXCLUDED.avg_w_r,
+                avg_l_r = EXCLUDED.avg_l_r,
                 expectancy = EXCLUDED.expectancy,
                 rolling_sharpe_252d = EXCLUDED.rolling_sharpe_252d,
                 rolling_sortino_252d = EXCLUDED.rolling_sortino_252d,
@@ -539,6 +541,8 @@ def _insert_performance_daily(cur: Any, metric_date: date, metrics: dict[str, An
                 metrics.get("avg_win_dollars"),
                 metrics.get("avg_loss_dollars"),
                 metrics.get("avg_r"),
+                metrics.get("avg_win_r"),
+                metrics.get("avg_loss_r"),
                 metrics.get("expectancy"),
                 metrics.get("sharpe_ratio"),
                 metrics.get("sortino_ratio"),

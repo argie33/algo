@@ -196,6 +196,25 @@ MIGRATIONS = [
         (),
         "ALTER TABLE market_health_daily ADD COLUMN IF NOT EXISTS fed_rate_unavailable_reason VARCHAR(255)",
     ),
+    # Migration 108: Add R-metrics columns to algo_performance_metrics
+    (
+        "algo_performance_metrics.avg_win_r",
+        "SELECT 1 FROM information_schema.columns WHERE table_name='algo_performance_metrics' AND column_name='avg_win_r'",
+        (),
+        "ALTER TABLE algo_performance_metrics ADD COLUMN IF NOT EXISTS avg_win_r NUMERIC(8, 4)",
+    ),
+    (
+        "algo_performance_metrics.avg_loss_r",
+        "SELECT 1 FROM information_schema.columns WHERE table_name='algo_performance_metrics' AND column_name='avg_loss_r'",
+        (),
+        "ALTER TABLE algo_performance_metrics ADD COLUMN IF NOT EXISTS avg_loss_r NUMERIC(8, 4)",
+    ),
+    (
+        "algo_performance_metrics.expectancy",
+        "SELECT 1 FROM information_schema.columns WHERE table_name='algo_performance_metrics' AND column_name='expectancy'",
+        (),
+        "ALTER TABLE algo_performance_metrics ADD COLUMN IF NOT EXISTS expectancy NUMERIC(8, 4)",
+    ),
 ]
 
 
