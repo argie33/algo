@@ -21,32 +21,70 @@ jobs:
           role-to-assume: ${{ secrets.GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/{1}', secrets.AWS_ACCOUNT_ID, secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev') }}
           aws-region: us-east-1
 
-      - name: Invoke orchestrator Lambda to run Phase 7
+      - name: Trigger ECS Performance Metrics Loader
         run: |
-          echo "Invoking algo-orchestrator Lambda..."
+          echo "Triggering ECS task to run performance metrics loader..."
 
           python3 << 'PYTHON_EOF'
           import boto3
           import json
 
-          client = boto3.client('lambda', region_name='us-east-1')
+          ecs = boto3.client('ecs', region_name='us-east-1')
+          ec2 = boto3.client('ec2', region_name='us-east-1')
 
-          # Event payload for orchestrator
-          payload = {
-              'source': 'github-actions',
-              'action': 'manual-trigger',
-              'run_id': '${{ github.run_id }}'
-          }
+          # Get VPC info
+          vpcs = ec2.describe_vpcs()['Vpcs']
+          vpc_id = vpcs[0]['VpcId']
 
-          # Invoke Lambda asynchronously (Event type means fire-and-forget)
-          response = client.invoke(
-              FunctionName='algo-orchestrator',
-              InvocationType='Event',
-              Payload=json.dumps(payload)
+          subnets = ec2.describe_subnets(Filters=[
+              {'Name': 'vpc-id', 'Values': [vpc_id]}
+          ])['Subnets']
+          subnet_id = subnets[0]['SubnetId']
+
+          sgs = ec2.describe_security_groups(Filters=[
+              {'Name': 'vpc-id', 'Values': [vpc_id]}
+          ])['SecurityGroups']
+          sg_id = sgs[0]['GroupId'] if sgs else None
+
+          # List task definitions and get the latest one
+          task_defs = ecs.list_task_definitions(
+              familyPrefix='compute_performance_metrics',
+              sort='DESC'
           )
 
-          print("Orchestrator Lambda invoked successfully!")
-          print(f"Status Code: {response['StatusCode']}")
+          if not task_defs['taskDefinitionArns']:
+              print("ERROR: No compute_performance_metrics task definition found")
+              exit(1)
+
+          task_def_arn = task_defs['taskDefinitionArns'][0]
+          print(f"Using task definition: {task_def_arn}")
+
+          # Run the ECS task
+          response = ecs.run_task(
+              cluster='algo-cluster',
+              taskDefinition=task_def_arn,
+              launchType='FARGATE',
+              networkConfiguration={
+                  'awsvpcConfiguration': {
+                      'subnets': [subnet_id],
+                      'securityGroups': [sg_id] if sg_id else [],
+                      'assignPublicIp': 'DISABLED'
+                  }
+              }
+          )
+
+          if response.get('failures'):
+              print(f"ERROR launching task:")
+              for failure in response['failures']:
+                  print(f"  {failure['reason']}")
+              exit(1)
+
+          task_arn = response['tasks'][0]['taskArn']
+          task_id = task_arn.split('/')[-1]
+
+          print(f"✓ ECS task launched successfully!")
+          print(f"Task ID: {task_id}")
+          print(f"Monitor at: https://console.aws.amazon.com/ecs/home#/clusters/algo-cluster/tasks/{task_id}")
           PYTHON_EOF
 
           echo "Orchestrator Lambda invoked successfully!"
