@@ -48,7 +48,7 @@ jobs:
 
           # List task definitions and get the latest one
           task_defs = ecs.list_task_definitions(
-              familyPrefix='compute_performance_metrics',
+              familyPrefix='algo-compute_performance_metrics',
               sort='DESC'
           )
 
