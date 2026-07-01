@@ -148,6 +148,17 @@ def get_active_symbols(
                               AND security_name NOT ILIKE '%Warrant%'
                               AND security_name NOT ILIKE '%UNIT%'
                               AND security_name NOT ILIKE '%Contingent Value%'
+                              AND security_name NOT ILIKE '%ETN%'
+                              AND security_name NOT ILIKE '%Exchange Traded Note%'
+                              AND security_name NOT ILIKE '%Double Long%'
+                              AND security_name NOT ILIKE '%Double Short%'
+                              AND security_name NOT ILIKE '%Inverse%'
+                              AND security_name NOT ILIKE '%Leveraged%'
+                              AND security_name NOT ILIKE '%Acquisition Corp%'
+                              AND security_name NOT ILIKE '%Acquisition Corp.%'
+                              AND security_name NOT ILIKE '%SPAC%'
+                              AND security_name NOT ILIKE '%Bitcoin%'
+                              AND security_name NOT ILIKE '%Crypto%'
                               AND symbol !~ '[A-Z]+R$'
                             ORDER BY symbol
                         """
