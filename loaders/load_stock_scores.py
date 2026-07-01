@@ -41,6 +41,7 @@ class StockScoresLoader(OptimalLoader):
     table_name = "stock_scores"
     primary_key = ("symbol",)
     watermark_field: str = "updated_at"
+    exclude_etfs_from_symbols = True  # Metric loaders (quality, growth, value, positioning, stability) exclude ETFs
 
     def run(self, symbols: Iterable[str], parallelism: int = 1, backfill_days: int | None = None) -> dict[str, Any]:
         """Override run to validate upstream metrics are ready before computing scores.
@@ -155,26 +156,15 @@ class StockScoresLoader(OptimalLoader):
                 # This should not occur (internal _compute_stock_score raises on failure),
                 # but safeguard against unexpected None returns
                 logger.warning(f"[STOCK_SCORES] Unexpected None return for {symbol} — marking data unavailable")
-                return [
-                    {
-                        "symbol": symbol,
-                        "data_unavailable": True,
-                        "reason": "internal_computation_returned_none",
-                        "updated_at": date.today(),
-                    }
-                ]
+                # Catastrophic failure - skip rather than store zeros
+                logger.error(f"[STOCK_SCORES] Internal failure for {symbol}: {score_result is None}")
+                return []
             return [score_result]
         except RuntimeError as e:
-            # Upstream metric loaders insufficient data: convert to explicit data_unavailable marker
+            # Upstream metric loaders insufficient data: skip this symbol
+            # (empty list means watermark not updated; stock won't appear in scores)
             logger.warning(f"[STOCK_SCORES] Cannot compute score for {symbol}: {e!s}")
-            return [
-                {
-                    "symbol": symbol,
-                    "data_unavailable": True,
-                    "reason": "insufficient_upstream_metrics",
-                    "updated_at": date.today(),
-                }
-            ]
+            return []
 
     def _compute_stock_score(self, symbol: str) -> dict[str, Any]:
         """Compute composite stock score from REAL metrics only (no fake defaults).
