@@ -396,8 +396,8 @@ def _build_buy_signals_table(
         rr_ratio: float | None = None
         if buy_lvl is not None and stop_lvl is not None:
             try:
-                buy_lvl_ratio = safe_float(buy_lvl, strict=True, field_name="buylevel")
-                stop_lvl_ratio = safe_float(stop_lvl, strict=True, field_name="stoplevel")
+                buy_lvl_ratio = safe_float(buy_lvl, field_name="buylevel")
+                stop_lvl_ratio = safe_float(stop_lvl, field_name="stoplevel")
                 if stop_lvl_ratio is not None and stop_lvl_ratio > 0 and buy_lvl_ratio is not None:
                     rr_ratio = (buy_lvl_ratio - stop_lvl_ratio) / stop_lvl_ratio
             except (StrictValidationError, ValueError, TypeError, ZeroDivisionError):
@@ -405,7 +405,7 @@ def _build_buy_signals_table(
 
         comp_v: float | None = None
         try:
-            comp_v = safe_float(comp_score, strict=True, field_name="composite_score")
+            comp_v = safe_float(comp_score, field_name="composite_score")
         except (StrictValidationError, ValueError, TypeError):
             pass
         comp_c: str = _composite_score_color(comp_v) if comp_v is not None else "dim"

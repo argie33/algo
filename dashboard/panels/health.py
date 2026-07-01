@@ -50,7 +50,7 @@ def _fmt_age(r: dict[str, Any]) -> str:
     ad = r.get("age")
     if ah is not None:
         try:
-            ah_f = safe_float(ah, 0.0, strict=True, field_name="age_hours")
+            ah_f = safe_float(ah, 0.0, field_name="age_hours")
             return (
                 f"{ah_f:.0f}h" if ah_f is not None and ah_f < 24 else (f"{ah_f / 24:.1f}d" if ah_f is not None else "?")
             )
@@ -58,7 +58,7 @@ def _fmt_age(r: dict[str, Any]) -> str:
             return "?"
     elif ad is not None:
         try:
-            ad_f = safe_float(ad, None, strict=True, field_name="age")
+            ad_f = safe_float(ad, None, field_name="age")
             return f"{ad_f:.1f}d"
         except (StrictValidationError, ValueError, TypeError):
             return "?"

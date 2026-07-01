@@ -109,7 +109,7 @@ def panel_circuit(cb: Any) -> Panel:  # noqa: C901
             padding=(0, 1),
         )
     try:
-        n_f = safe_int(n_raw, strict=True, field_name="circuit_breaker_count")
+        n_f = safe_int(n_raw, field_name="circuit_breaker_count")
     except StrictValidationError as e:
         logger.error("[CIRCUIT] Failed to parse breaker count: %s", e)
         return Panel(
@@ -166,8 +166,8 @@ def panel_circuit(cb: Any) -> Panel:  # noqa: C901
                     unit_display = str(unit_raw)
                 return f"[{R if fired else 'dim'}]{lbl_s}:[/]{cur_s}{unit_display}[dim]/{thr_s}{unit_display}[/]"
             try:
-                thr_f = safe_float(thr, 0.0, strict=True, field_name="circuit_breaker_threshold")
-                cur_f = safe_float(cur, 0.0, strict=True, field_name="circuit_breaker_current")
+                thr_f = safe_float(thr, 0.0, field_name="circuit_breaker_threshold")
+                cur_f = safe_float(cur, 0.0, field_name="circuit_breaker_current")
             except StrictValidationError as e:
                 logger.error("[CIRCUIT] Breaker %s failed validation: %s", lbl_s, e)
                 return f"[{R}]{lbl_s}:[/] [red]✗ BAD DATA[/]"
@@ -328,8 +328,8 @@ def panel_circuit_expanded(cb: Any) -> Panel:  # noqa: C901
                 status = Text("UNKNOWN", style="dim")
             else:
                 try:
-                    thr_f = safe_float(thr, 0.0, strict=True, field_name="circuit_breaker_threshold")
-                    cur_f = safe_float(cur, 0.0, strict=True, field_name="circuit_breaker_current")
+                    thr_f = safe_float(thr, 0.0, field_name="circuit_breaker_threshold")
+                    cur_f = safe_float(cur, 0.0, field_name="circuit_breaker_current")
                 except StrictValidationError as e:
                     logger.error("[CIRCUIT_EXPANDED] Breaker %s failed validation: %s", lbl, e)
                     status = Text("BAD DATA", style=R)
