@@ -98,6 +98,95 @@ These errors indicate real bugs or dangerous code:
 - **F405** (undefined name) — Name was never bound; indicates import/typo error
 - **F841** (unused variables) — Same as unused imports; indicates dead code
 - **E999** (syntax error) — Broken code
+
+---
+
+## Strict Validation Testing (Prevents Runtime Validation Errors)
+
+**Goal:** Catch `StrictValidationError` during pre-commit and CI/CD testing, BEFORE production.
+
+### The Problem
+Validation errors occur when parsers return `None`, which is then passed to strict converters (`safe_float(..., strict=True)`). Without testing, these slip into production.
+
+### Testing Layers
+
+**Layer 1: Unit Tests**
+- File: `tests/test_strict_validation_error_detection.py`
+- Tests `safe_float()`, `safe_int()` with strict mode
+- 30+ test cases covering None detection, invalid data, passthrough
+
+**Layer 2: Integration Tests**
+- File: `tests/test_dashboard_panel_strict_validation.py`
+- Validates data flows through pipeline (fetchers → panels)
+- Common patterns: dict.get, list indexing, attribute access
+
+**Layer 3: Pre-Commit Validation**
+- File: `.pre-commit-scripts/check-strict-validation-tests.py`
+- Ensures test files exist and contain required patterns
+- Blocks commits if validation tests missing
+
+### Developer Patterns
+
+**✅ DO: Use strict mode in finance paths**
+```python
+from utils.safe_data_conversion import safe_float
+vix = safe_float(market_data.get("vix"), strict=True, field_name="vix")
+```
+
+**✅ DO: Validate at data source**
+```python
+def fetch_market_data():
+    data = fetch_from_api()
+    if data.get("vix") is None:
+        logger.error("VIX data missing from API response")
+        return None  # Explicit, not silent
+    return data
+```
+
+**✅ DO: Handle None explicitly in panels**
+```python
+vix_raw = market_data.get("vix")
+if vix_raw is None:
+    vix = None  # or "N/A" for display
+else:
+    vix = safe_float(vix_raw, strict=True, field_name="vix")
+```
+
+**❌ DON'T: Pass dict.get() directly to strict converter**
+```python
+# WRONG: dict.get() can return None, strict converter will raise
+vix = safe_float(data.get("vix"), strict=True)  # Raises if vix is missing!
+```
+
+**❌ DON'T: Use strict mode with fallback defaults**
+```python
+# WRONG: defeats the purpose
+price = safe_float(data.get("price"), default=0.0, strict=True)  # Inconsistent!
+```
+
+### Running Tests
+```bash
+# All strict validation tests
+pytest tests/test_strict_validation_error_detection.py -v
+pytest tests/test_dashboard_panel_strict_validation.py -v
+
+# Pre-commit check
+python .pre-commit-scripts/check-strict-validation-tests.py
+
+# Full CI simulation
+make ci-local
+```
+
+### Checklist Before Committing Strict Validation Code
+
+- [ ] Tests exist for the strict conversion
+- [ ] Tests cover None case
+- [ ] Tests cover invalid type/string case  
+- [ ] Tests cover valid data passthrough
+- [ ] Error messages include `field_name`
+- [ ] Data source validates BEFORE strict conversion (no silent None)
+- [ ] Pre-commit hooks pass
+- [ ] `make test` passes locally
 - **E302/E303** (blank lines) — Formatting, not a real error but enforce consistency
 - **Type errors** (mypy strict mode) — We run mypy strict; all types must be sound
 
