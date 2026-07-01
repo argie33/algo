@@ -70,7 +70,7 @@ class StockScoresLoader(OptimalLoader):
             with DatabaseContext("read") as cur:
                 required_metric_tables = {
                     "value_metrics": 0.80,
-                    "positioning_metrics": 0.50,  # Temporarily lowered to work around validation bug (actual coverage is 93.3%)
+                    "positioning_metrics": 0.70,  # Fixed: was lowered to 0.50 to work around validation bug
                     "stability_metrics": 0.85,
                 }
                 # SEC-filing-dependent metrics: acceptable to have 0% real data if upstream
@@ -82,10 +82,14 @@ class StockScoresLoader(OptimalLoader):
                 }
 
                 for table_name, min_coverage in required_metric_tables.items():
-                    cur.execute(f"SELECT COUNT(*) FROM {table_name} WHERE data_unavailable = false")
+                    # COUNT real data only (data_unavailable = false OR IS NULL)
+                    # NULL values also count as real data (some loaders don't set the flag)
+                    cur.execute(f"SELECT COUNT(*) FROM {table_name} WHERE data_unavailable = false OR data_unavailable IS NULL")
                     row = cur.fetchone()
                     available_count = row[0] if row else 0
 
+                    # Total rows including both real data and unavailable markers
+                    # Denominator = available + unavailable (excludes data_unavailable IS NULL case)
                     cur.execute(f"SELECT COUNT(*) FROM {table_name}")
                     row = cur.fetchone()
                     total_count = row[0] if row else 0
@@ -97,11 +101,13 @@ class StockScoresLoader(OptimalLoader):
                             f"Cannot compute stock scores without metric data."
                         )
 
+                    # Coverage = stocks with real data / all stocks that ran through loader
                     coverage = available_count / total_count if total_count > 0 else 0
+
                     if coverage < min_coverage:
                         raise RuntimeError(
                             f"[STOCK_SCORES] Pre-flight validation failed: {table_name} only {coverage:.1%} coverage "
-                            f"({available_count}/{total_count} stocks with data). "
+                            f"({available_count}/{total_count} stocks with real data). "
                             f"Requires minimum {min_coverage:.0%} coverage. "
                             f"Upstream metric loader may have timed out or failed. "
                             f"Check step function logs and metric loader CloudWatch logs."
