@@ -50,24 +50,26 @@ class LoaderConfigManager:
         # stock_scores requires upstream metrics for reliable scoring
         # CRITICAL FIX 2026-06-30: Increased min from 1 to 2 to prevent 15-min timeout
         # At parallelism=1, positioning_metrics takes 41-83 min for 5000 symbols (0.5-1s per yfinance call)
-        # Orchestrator timeout = 15 min, so loader fails and all metric data becomes unavailable
-        # Increasing to min=2 reduces time to 20-41 min, but still risks timeout
-        # Consider further to min=3 if RDS load permits, or increase orchestrator timeout to 30+ min
+        # CRITICAL FIX 2026-06-30 22:30: Increase min to 3-4 to meet 5:00 PM deadline
+        # With parallelism=3-4: positioning_metrics completes in 13-28 min, value_metrics in 13-20 min
+        # Previous parallelism=2 was still taking 40+ min and causing stock_scores to not run
         "positioning_metrics": (
-            2,
             3,
-        ),  # Increased min from 1 to 2 (was: from (1,1) to (1,3))
+            4,
+        ),  # Increased from 2 to 3 min parallelism (max 4)
         "value_metrics": (
-            2,
             3,
-        ),  # Increased min from 1 to 2 (was: from (1,2) to (1,3))
+            4,
+        ),  # Increased from 2 to 3 min parallelism (max 4)
         # Note: stability_metrics also slow, but uses price_daily which completes faster
-        # Consider increasing stability_metrics min from 1 to 2 if still timing out
+        # CRITICAL FIX 2026-06-30 22:30: Increase min to 2-3 to improve throughput
         "company_profile": (1, 2),
-        "analyst_sentiment": (1, 3),
-        "stability_metrics": (1, 3),
-        "growth_metrics": (1, 3),
-        "quality_metrics": (1, 3),
+        "analyst_sentiment": (1, 2),
+        "stability_metrics": (2, 3),
+        # growth_metrics and quality_metrics depend on financial_data_pipeline; increase min to 2-3
+        # to load faster once financial data arrives
+        "growth_metrics": (2, 3),
+        "quality_metrics": (2, 3),
     }
 
     def __init__(self) -> None:
