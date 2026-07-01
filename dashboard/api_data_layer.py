@@ -494,8 +494,12 @@ def api_call(endpoint: str, params: dict[str, Any] | None = None, method: str = 
             # Validate response BEFORE caching (fail-fast: don't cache invalid responses)
             try:
                 validated = validate_response(endpoint, unwrapped)
-                # Cache only after validation succeeds
-                cache_response(endpoint, data)
+                # CRITICAL: Do NOT cache /api/scores - stock scores drive trading decisions
+                # Cached scores can lead to position sizing on stale/deleted data (e.g., OPI ETF scores)
+                # Scores must always be fresh from database, never served from cache
+                # All other endpoints cached for 30 min to reduce API load
+                if endpoint != "/api/scores":
+                    cache_response(endpoint, data)
                 return validated
             except ResponseValidationError as e:
                 logger.error(f"API response validation failed for {endpoint}: {e}")
