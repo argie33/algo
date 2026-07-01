@@ -16,7 +16,7 @@ from datetime import date, datetime  # noqa: E402
 from typing import Any, cast  # noqa: E402
 
 from loaders.runner import run_loader  # noqa: E402
-from utils.external.sec_edgar import SecEdgarClient  # noqa: E402
+from utils.data.source_router import DataSourceRouter  # noqa: E402
 from utils.optimal_loader import OptimalLoader  # noqa: E402
 
 _PERIOD_CONFIG = {
@@ -84,7 +84,17 @@ def _resolve_period(cli_arg: str | None) -> str:
 
 
 class CashFlowLoader(OptimalLoader):
+    """Cash flow loader with multi-source support for real stocks only (not ETFs/bonds).
+
+    Data sources (in priority order):
+    1. SEC EDGAR (preferred - official, most complete)
+    2. yfinance (fallback for stocks without SEC filings - REITs, micro-caps, etc.)
+
+    Uses DataSourceRouter to handle automatic fallback when SEC EDGAR returns no data.
+    """
+
     watermark_field = "fiscal_year"
+    exclude_etfs_from_symbols = True
 
     def __init__(self, period: str | None = None):
         period = _resolve_period(period)
@@ -97,75 +107,58 @@ class CashFlowLoader(OptimalLoader):
         self._schema_cols: frozenset[str] = cast(frozenset[str], cfg["schema_cols"])
         self._field_mapping: dict[str, str] | None = cast(dict[str, str] | None, cfg.get("field_mapping"))
         super().__init__()
-        self._sec_client = SecEdgarClient()
+        self._router = DataSourceRouter()
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
+        """Fetch cash flow data from multi-source (SEC EDGAR + yfinance fallback)."""
         try:
-            cik = self._sec_client.symbol_to_cik(symbol)
-        except ValueError as e:
-            logger.error(
-                "[CASH_FLOW] %s: CIK resolution failed in SEC ticker cache. Cannot fetch cash flow data.", symbol
-            )
-            raise RuntimeError(
-                f"[CASH_FLOW] {symbol}: CIK not found in SEC ticker cache. "
-                "Cannot fetch cash flow without SEC EDGAR CIK."
-            ) from e
-        if not cik:
-            logger.error(
-                "[CASH_FLOW] %s: CIK resolution returned empty/None. Cannot proceed without SEC EDGAR CIK.", symbol
-            )
-            raise RuntimeError(
-                f"[CASH_FLOW] CIK resolution failed for {symbol}. Cannot fetch cash flow data without SEC EDGAR CIK."
-            )
-        logger.debug("Symbol %s resolved to CIK %s", symbol, cik)
-        try:
-            rows = self._sec_client.get_cash_flow(symbol, period=self.period)
+            rows = self._router.fetch_cash_flow(symbol, period=self.period)
+
             if not rows:
-                logger.error(
-                    "[CASH_FLOW] %s: No %s cash flow data available in SEC EDGAR. "
-                    "Cannot proceed with financial analysis without cash flow fundamentals.",
-                    symbol,
-                    self.period,
+                logger.warning(
+                    f"[CASH_FLOW] {symbol}: No {self.period} cash flow data from any source "
+                    f"(SEC EDGAR + yfinance). Stock may lack SEC filings and yfinance data."
                 )
-                raise RuntimeError(
-                    f"[CASH_FLOW] {symbol}: No {self.period} cash flow data in SEC EDGAR. "
-                    "Cannot proceed without fundamental data."
+                return []
+
+            # Handle data_unavailable marker
+            if isinstance(rows, dict) and rows.get("data_unavailable") is True:
+                logger.info(
+                    f"[CASH_FLOW] {symbol}: {rows.get('reason', 'Data unavailable from all sources')}. "
+                    f"Stock may be micro-cap, REIT, or lack financial data."
                 )
+                return []
+
+            if not isinstance(rows, list):
+                rows = [rows] if rows else []
+
             logger.info("%s: Fetched %d %s cash flow row(s)", symbol, len(rows), self.period)
 
             if since is None:
-                logger.error(
-                    "[CASH_FLOW] %s: Incremental load called without 'since' parameter. "
-                    "Cannot load full historical data in incremental mode.",
-                    symbol,
-                )
                 raise ValueError(
                     f"Cash flow loader for {symbol} requires 'since' parameter for incremental loading. "
                     f"Cannot load full historical data in incremental mode."
                 )
+
             since_year = int(since.year)
             filtered = []
             for r in rows:
-                if "fiscal_year" not in r or r["fiscal_year"] is None:
-                    logger.error(
-                        "[CASH_FLOW] %s: Row missing required 'fiscal_year' field: %s. "
-                        "Cannot apply incremental watermark filter.",
-                        symbol,
-                        r,
-                    )
-                    raise ValueError(
-                        f"Cash flow row missing required 'fiscal_year' field: {r}. "
-                        f"Cannot filter incremental data without fiscal_year."
-                    )
-                if r["fiscal_year"] > since_year:
-                    filtered.append(r)
+                if isinstance(r, dict):
+                    if "fiscal_year" not in r or r["fiscal_year"] is None:
+                        logger.warning(
+                            f"[CASH_FLOW] {symbol}: Row missing required 'fiscal_year' field. Skipping."
+                        )
+                        continue
+                    if r["fiscal_year"] > since_year:
+                        filtered.append(r)
 
-            if len(filtered) < len(rows):
+            if len(filtered) < len(rows) and len(rows) > 0:
                 logger.debug(
                     f"{symbol}: Filtered {len(rows) - len(filtered)} row(s) with fiscal_year <= {since_year} "
                     f"(watermark incremental load — keeping {len(filtered)} newer rows)"
                 )
-            if not filtered:
+
+            if not filtered and len(rows) > 0:
                 logger.info(
                     "[CASH_FLOW] %s: No new cash flow rows after incremental filter (since %s). "
                     "All rows have fiscal_year <= %s.",
@@ -173,58 +166,82 @@ class CashFlowLoader(OptimalLoader):
                     since,
                     since_year,
                 )
+
             return filtered
-        except (ValueError, ZeroDivisionError, TypeError) as e:
+        except Exception as e:
             logger.error(
-                "[CASH_FLOW] %s: Failed to fetch/filter cash flow data: %s. Cannot proceed without fundamental data.",
-                symbol,
-                e,
+                f"[CASH_FLOW] Failed to fetch cash flow for {symbol}: {type(e).__name__}: {e}"
             )
             raise RuntimeError(
                 f"[CASH_FLOW] Failed to fetch cash flow for {symbol}: {e}. Cannot proceed without fundamental data."
             ) from e
+
+    def _process_single_row(self, r: dict[str, Any]) -> dict[str, Any] | None:
+        """Process a single cash flow row from raw data to schema format."""
+        row: dict[str, Any] = {}
+        capex_value = None
+        field_mapping = self._field_mapping
+
+        # Handle both SEC EDGAR dicts and yfinance dicts
+        fields_to_process = r.items()
+        if len(r) == 1:
+            inner_value = next(iter(r.values()))
+            if isinstance(inner_value, dict):
+                # Likely yfinance format: {date_or_period: {field: value, ...}}
+                fields_to_process = inner_value.items()
+            # Try to extract fiscal_year from the date key
+            for key_val in r.keys():
+                if isinstance(key_val, str) and len(key_val) >= 4:
+                    try:
+                        r["fiscal_year"] = int(key_val[-4:])
+                    except (ValueError, TypeError):
+                        pass
+
+        for sec_field, value in fields_to_process:
+            # Apply field mapping first
+            db_field = field_mapping.get(sec_field, sec_field)
+            if db_field == "capex":
+                capex_value = value
+            elif db_field in self._schema_cols:
+                row[db_field] = value
+
+        if "fiscal_quarter" in row and isinstance(row["fiscal_quarter"], str):
+            quarter_map = {"Q1": 1, "Q2": 2, "Q3": 3, "Q4": 4}
+            quarter_value = row["fiscal_quarter"]
+            if quarter_value not in quarter_map:
+                logger.error(
+                    f"[{self.table_name}] Invalid fiscal_quarter value '{quarter_value}' for {r.get('symbol')}. "
+                    f"Expected one of {list(quarter_map.keys())}"
+                )
+                return None
+            row["fiscal_quarter"] = quarter_map[quarter_value]
+
+        # Calculate free_cash_flow: OCF - CapEx (both required; omit FCF if capex missing)
+        if "free_cash_flow" in self._schema_cols:
+            ocf = row.get("operating_cash_flow")
+            if ocf is not None and capex_value is not None:
+                row["free_cash_flow"] = ocf - capex_value
+            elif ocf is not None and capex_value is None:
+                logger.warning(
+                    "[CASH_FLOW] Free cash flow cannot be calculated: capex missing for %s FY%s. "
+                    "Using only operating cash flow.",
+                    row.get("symbol"),
+                    row.get("fiscal_year"),
+                )
+        return row
 
     def transform(self, rows: Any) -> list[dict[str, Any]]:
         if self._field_mapping is None:
             raise RuntimeError(
                 f"[{self.table_name}] Field mapping not initialized. "
                 f"Configuration missing 'field_mapping' key. "
-                f"Cannot transform SEC EDGAR cash flow data without field mapping rules."
+                f"Cannot transform cash flow data without field mapping rules."
             )
         transformed = []
         for r in rows:
-            row: dict[str, Any] = {}
-            capex_value = None
-            field_mapping = self._field_mapping
-            for sec_field, value in r.items():
-                # Apply field mapping first
-                db_field = field_mapping.get(sec_field, sec_field)
-                if db_field == "capex":
-                    capex_value = value
-                elif db_field in self._schema_cols:
-                    row[db_field] = value
-            if "fiscal_quarter" in row and isinstance(row["fiscal_quarter"], str):
-                quarter_map = {"Q1": 1, "Q2": 2, "Q3": 3, "Q4": 4}
-                quarter_value = row["fiscal_quarter"]
-                if quarter_value not in quarter_map:
-                    raise ValueError(
-                        f"Invalid fiscal_quarter value '{quarter_value}' for {r.get('symbol')}. "
-                        f"Expected one of {list(quarter_map.keys())}"
-                    )
-                row["fiscal_quarter"] = quarter_map[quarter_value]
-            # Calculate free_cash_flow: OCF - CapEx (both required; omit FCF if capex missing)
-            if "free_cash_flow" in self._schema_cols:
-                ocf = row.get("operating_cash_flow")
-                if ocf is not None and capex_value is not None:
-                    row["free_cash_flow"] = ocf - capex_value
-                elif ocf is not None and capex_value is None:
-                    logger.warning(
-                        "[CASH_FLOW] Free cash flow cannot be calculated: capex missing for %s FY%s. "
-                        "Using only operating cash flow.",
-                        row.get("symbol"),
-                        row.get("fiscal_year"),
-                    )
-            transformed.append(row)
+            row = self._process_single_row(r)
+            if row is not None:
+                transformed.append(row)
 
         seen = {}
         for row in transformed:

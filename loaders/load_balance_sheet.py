@@ -15,7 +15,7 @@ from datetime import date, datetime
 from typing import Any, cast
 
 from loaders.runner import run_loader
-from utils.external.sec_edgar import SecEdgarClient
+from utils.data.source_router import DataSourceRouter
 from utils.optimal_loader import OptimalLoader
 
 logger = logging.getLogger(__name__)
@@ -97,10 +97,13 @@ def _resolve_period(cli_arg: str | None) -> str:
 
 
 class BalanceSheetLoader(OptimalLoader):
-    """SEC EDGAR balance sheet loader for real stocks only (not ETFs/bonds).
+    """Balance sheet loader with multi-source support for real stocks only (not ETFs/bonds).
 
-    Financial data from SEC EDGAR is only available for companies that file with the SEC.
-    ETFs, bonds, and other securities don't have balance sheets, so we exclude them.
+    Data sources (in priority order):
+    1. SEC EDGAR (preferred - official, most complete)
+    2. yfinance (fallback for stocks without SEC filings - REITs, micro-caps, etc.)
+
+    Uses DataSourceRouter to handle automatic fallback when SEC EDGAR returns no data.
     """
 
     watermark_field = "fiscal_year"
@@ -117,72 +120,97 @@ class BalanceSheetLoader(OptimalLoader):
         self._schema_cols: frozenset[str] = cast(frozenset[str], cfg["schema_cols"])
         self._field_mapping: dict[str, str] | None = cast(dict[str, str] | None, cfg.get("field_mapping"))
         super().__init__()
-        self._sec_client = SecEdgarClient()
+        self._router = DataSourceRouter()
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         try:
-            cik = self._sec_client.symbol_to_cik(symbol)
-        except ValueError as e:
-            raise RuntimeError(
-                f"[BALANCE_SHEET] {symbol}: CIK not found in SEC ticker cache. "
-                "Cannot fetch balance sheet without SEC EDGAR CIK."
-            ) from e
-        if not cik:
-            raise RuntimeError(
-                f"[BALANCE_SHEET] CIK resolution failed for {symbol}. "
-                "Cannot fetch balance sheet data without SEC EDGAR CIK."
-            )
-        logger.debug("Symbol %s resolved to CIK %s", symbol, cik)
-        try:
-            rows = self._sec_client.get_balance_sheet(symbol, period=self.period)
+            rows = self._router.fetch_balance_sheet(symbol, period=self.period)
+
             if not rows:
-                raise RuntimeError(
-                    f"[BALANCE_SHEET] {symbol}: No {self.period} balance sheet data in SEC EDGAR. "
-                    "Cannot proceed without fundamental data."
+                logger.warning(
+                    f"[BALANCE_SHEET] {symbol}: No {self.period} balance sheet data from any source "
+                    f"(SEC EDGAR + yfinance). Stock may lack SEC filings and yfinance data."
                 )
+                return []
+
+            # Handle data_unavailable marker (all sources exhausted, no data available)
+            if isinstance(rows, dict) and rows.get("data_unavailable") is True:
+                logger.info(
+                    f"[BALANCE_SHEET] {symbol}: {rows.get('reason', 'Data unavailable from all sources')}. "
+                    f"Stock may be micro-cap, REIT, or lack financial data."
+                )
+                return []
+
+            if not isinstance(rows, list):
+                rows = [rows] if rows else []
+
             logger.info("%s: Fetched %d %s balance sheet row(s)", symbol, len(rows), self.period)
 
             since_year = int(since.year) if since else 2000
             filtered = []
             for r in rows:
-                if "fiscal_year" not in r or r["fiscal_year"] is None:
-                    raise ValueError(
-                        f"Balance sheet row missing required 'fiscal_year' field: {r}. "
-                        f"Cannot filter incremental data without fiscal_year."
-                    )
-                if r["fiscal_year"] > since_year:
-                    filtered.append(r)
+                if isinstance(r, dict):
+                    if "fiscal_year" not in r or r["fiscal_year"] is None:
+                        logger.warning(
+                            f"[BALANCE_SHEET] {symbol}: Row missing required 'fiscal_year' field. Skipping."
+                        )
+                        continue
+                    if r["fiscal_year"] > since_year:
+                        filtered.append(r)
 
-            if len(filtered) < len(rows):
+            if len(filtered) < len(rows) and len(rows) > 0:
                 logger.debug(
                     f"{symbol}: Filtered {len(rows) - len(filtered)} row(s) with fiscal_year <= {since_year} "
                     f"(watermark incremental load — keeping {len(filtered)} newer rows)"
                 )
             return filtered
-        except (ValueError, ZeroDivisionError, TypeError) as e:
+        except Exception as e:
+            logger.error(
+                f"[BALANCE_SHEET] Failed to fetch balance sheet for {symbol}: {type(e).__name__}: {e}"
+            )
             raise RuntimeError(
                 f"[BALANCE_SHEET] Failed to fetch balance sheet for {symbol}: {e}. "
                 "Cannot proceed without fundamental data."
             ) from e
 
-    def transform(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    def transform(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:  # noqa: C901
         if self._field_mapping is None:
             raise RuntimeError(
                 f"[{self.table_name}] Field mapping not initialized. "
                 f"Configuration missing 'field_mapping' key. "
-                f"Cannot transform SEC EDGAR balance sheet data without field mapping rules."
+                f"Cannot transform balance sheet data without field mapping rules."
             )
         transformed = []
         skipped_invalid_fields = 0
         for r in rows:
             row: dict[str, Any] = {}
             field_mapping = self._field_mapping
-            for sec_field, value in r.items():
+
+            # Handle both SEC EDGAR dicts (field: value) and yfinance dicts
+            # yfinance DataFrames converted to dict(orient="index") have dates as keys
+            # Need to flatten if this is a yfinance-style nested dict
+            fields_to_process = r.items()
+            if len(r) == 1:
+                inner_value = next(iter(r.values()))
+                if isinstance(inner_value, dict):
+                    # Likely yfinance format: {date_or_period: {field: value, ...}}
+                    # Extract the inner dict (first and only value)
+                    fields_to_process = inner_value.items()
+                # Also try to extract fiscal_year from the date key
+                for key_val in r.keys():
+                    if isinstance(key_val, str) and len(key_val) >= 4:
+                        try:
+                            r["fiscal_year"] = int(key_val[-4:])  # Extract year from date like "2023-12-31"
+                        except (ValueError, TypeError):
+                            pass
+
+            for sec_field, value in fields_to_process:
                 # Apply field mapping first
                 db_field = field_mapping.get(sec_field, sec_field)
                 # Only keep fields in schema
                 if db_field in self._schema_cols:
                     row[db_field] = value
+
             if "fiscal_quarter" in row and isinstance(row["fiscal_quarter"], str):
                 quarter_str = row["fiscal_quarter"]
                 quarter_map = {"Q1": 1, "Q2": 2, "Q3": 3, "Q4": 4}

@@ -15,8 +15,9 @@ from typing import Any
 import psycopg2
 
 from loaders.runner import run_loader
-from loaders.sec_edgar_statement_loader import SecEdgarStatementLoader
+from utils.data.source_router import DataSourceRouter
 from utils.db.context import DatabaseContext
+from utils.optimal_loader import OptimalLoader
 
 logger = logging.getLogger(__name__)
 
@@ -79,18 +80,41 @@ _PERIOD_CONFIG = {
 }
 
 
-class IncomeStatementLoader(SecEdgarStatementLoader):
-    """SEC EDGAR income statement loader for real stocks only (not ETFs/bonds).
+class IncomeStatementLoader(OptimalLoader):
+    """Income statement loader with multi-source support for real stocks only (not ETFs/bonds).
 
-    Financial data from SEC EDGAR is only available for companies that file with the SEC.
-    ETFs, bonds, and other securities don't have income statements, so we exclude them.
+    Data sources (in priority order):
+    1. SEC EDGAR (preferred - official, most complete)
+    2. yfinance (fallback for stocks without SEC filings - REITs, micro-caps, etc.)
+
+    Uses DataSourceRouter to handle automatic fallback when SEC EDGAR returns no data.
     """
 
+    table_name = "annual_income_statement"
+    primary_key = ("symbol", "fiscal_year")
+    watermark_field = "fiscal_year"
     exclude_etfs_from_symbols = True
     _QUARTER_MAP = {"Q1": 1, "Q2": 2, "Q3": 3, "Q4": 4}
 
     def __init__(self, period: str | None = None):
-        super().__init__("income_statement", _PERIOD_CONFIG, period)
+        # Resolve period from env or CLI
+        if period:
+            self.period = period
+        else:
+            import os
+            self.period = os.getenv("LOADER_PERIOD", "annual")
+
+        if self.period not in ("annual", "quarterly"):
+            raise ValueError(f"Invalid period: {self.period!r}; must be 'annual' or 'quarterly'")
+
+        cfg = _PERIOD_CONFIG[self.period]
+        self.table_name = cfg["table_name"]
+        self.primary_key = cfg["primary_key"]
+        self._schema_cols = cfg["schema_cols"]
+        self._field_mapping = cfg.get("field_mapping")
+
+        super().__init__()
+        self._router = DataSourceRouter()
 
     def _get_null_revenue_years(self, symbol: str) -> set[Any]:
         """Return fiscal years in the DB where revenue is NULL (need backfill)."""
@@ -108,45 +132,78 @@ class IncomeStatementLoader(SecEdgarStatementLoader):
             ) from e
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
-        """Fetch with special handling for revenue NULL backfill."""
-        rows = super().fetch_incremental(symbol, since)
+        """Fetch income statement data from multi-source (SEC EDGAR + yfinance fallback).
 
-        if since is None:
-            raise ValueError(
-                f"Income statement loader for {symbol} requires 'since' parameter for incremental loading. "
-                f"Cannot load full historical data in incremental mode."
+        Includes special handling for revenue NULL backfill (ASC 606 gaps).
+        """
+        try:
+            rows = self._router.fetch_income_statement(symbol, period=self.period)
+
+            if not rows:
+                logger.warning(
+                    f"[INCOME_STATEMENT] {symbol}: No {self.period} income statement data from any source "
+                    f"(SEC EDGAR + yfinance). Stock may lack SEC filings and yfinance data."
+                )
+                return []
+
+            # Handle data_unavailable marker
+            if isinstance(rows, dict) and rows.get("data_unavailable") is True:
+                logger.info(
+                    f"[INCOME_STATEMENT] {symbol}: {rows.get('reason', 'Data unavailable from all sources')}. "
+                    f"Stock may be micro-cap, REIT, or lack financial data."
+                )
+                return []
+
+            if not isinstance(rows, list):
+                rows = [rows] if rows else []
+
+            logger.info("%s: Fetched %d %s income statement row(s)", symbol, len(rows), self.period)
+
+            if since is None:
+                raise ValueError(
+                    f"Income statement loader for {symbol} requires 'since' parameter for incremental loading. "
+                    f"Cannot load full historical data in incremental mode."
+                )
+
+            # Also include years already in DB where revenue is NULL (backfill ASC 606 gaps)
+            null_revenue_years = self._get_null_revenue_years(symbol)
+            filtered = []
+            for r in rows:
+                if isinstance(r, dict):
+                    fiscal_year = r.get("fiscal_year")
+                    if fiscal_year and (fiscal_year > int(since.year) or fiscal_year in null_revenue_years):
+                        filtered.append(r)
+
+            if len(filtered) < len(rows) or null_revenue_years:
+                logger.info(
+                    f"[INCOME_STATEMENT] {symbol}: Filtered {len(rows) - len(filtered)} row(s) "
+                    f"(watermark incremental load — keeping {len(filtered)} newer rows; "
+                    f"{len(null_revenue_years)} null-revenue years also included for backfill)"
+                )
+
+            if not filtered and len(rows) > 0:
+                logger.warning(
+                    f"[INCOME_STATEMENT] {symbol}: No income statement rows after incremental filtering. "
+                    f"Original fetch returned {len(rows)} row(s), but all were filtered by watermark."
+                )
+
+            return filtered
+        except Exception as e:
+            logger.error(
+                f"[INCOME_STATEMENT] Failed to fetch income statement for {symbol}: {type(e).__name__}: {e}"
             )
+            raise RuntimeError(
+                f"[INCOME_STATEMENT] Failed to fetch income statement for {symbol}: {e}. "
+                "Cannot proceed without fundamental data."
+            ) from e
 
-        # Also include years already in DB where revenue is NULL (backfill ASC 606 gaps)
-        null_revenue_years = self._get_null_revenue_years(symbol)
-        filtered = []
-        for r in rows:
-            fiscal_year = r.get("fiscal_year")
-            if fiscal_year > int(since.year) or fiscal_year in null_revenue_years:
-                filtered.append(r)
-
-        if len(filtered) < len(rows) or null_revenue_years:
-            logger.info(
-                f"[INCOME_STATEMENT] {symbol}: Filtered {len(rows) - len(filtered)} row(s) "
-                f"(watermark incremental load — keeping {len(filtered)} newer rows; "
-                f"{len(null_revenue_years)} null-revenue years also included for backfill)"
-            )
-
-        if not filtered:
-            logger.warning(
-                f"[INCOME_STATEMENT] {symbol}: No income statement rows after incremental filtering. "
-                f"Original fetch returned {len(rows)} row(s), but all were filtered by watermark."
-            )
-
-        return filtered
-
-    def transform(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        """Transform with special handling for multiple revenue concepts."""
+    def transform(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:  # noqa: C901
+        """Transform income statement data with special handling for multiple revenue concepts."""
         if self._field_mapping is None:
             raise RuntimeError(
                 f"[{self.table_name}] Field mapping not initialized. "
                 "Configuration missing 'field_mapping' key. "
-                "Cannot transform SEC EDGAR data without field mapping rules."
+                "Cannot transform income statement data without field mapping rules."
             )
 
         transformed = []
@@ -156,7 +213,23 @@ class IncomeStatementLoader(SecEdgarStatementLoader):
         for r in rows:
             row: dict[str, Any] = {}
             field_mapping = self._field_mapping
-            for sec_field, value in r.items():
+
+            # Handle both SEC EDGAR dicts and yfinance dicts
+            fields_to_process = r.items()
+            if len(r) == 1:
+                inner_value = next(iter(r.values()))
+                if isinstance(inner_value, dict):
+                    # Likely yfinance format: {date_or_period: {field: value, ...}}
+                    fields_to_process = inner_value.items()
+                # Try to extract fiscal_year from the date key
+                for key_val in r.keys():
+                    if isinstance(key_val, str) and len(key_val) >= 4:
+                        try:
+                            r["fiscal_year"] = int(key_val[-4:])
+                        except (ValueError, TypeError):
+                            pass
+
+            for sec_field, value in fields_to_process:
                 db_field = field_mapping.get(sec_field, sec_field)
                 # Only keep fields in schema; prefer non-None values
                 if db_field in self._schema_cols:
@@ -178,11 +251,50 @@ class IncomeStatementLoader(SecEdgarStatementLoader):
 
             transformed.append(row)
 
-        # Call parent transform to handle deduplication and validation
-        result = super().transform(transformed)
+        # Deduplication by primary key
+        seen: dict[tuple[Any, ...], dict[str, Any]] = {}
+        skipped_missing_keys = 0
+
+        for row in transformed:
+            symbol = row.get("symbol")
+            fiscal_year = row.get("fiscal_year")
+
+            if not symbol:
+                logger.warning(f"[{self.table_name}] WARNING: Row missing required 'symbol' field. Skipping.")
+                skipped_missing_keys += 1
+                continue
+
+            if fiscal_year is None:
+                logger.warning(f"[{self.table_name}] WARNING: Row missing required 'fiscal_year' field. Skipping.")
+                skipped_missing_keys += 1
+                continue
+
+            if self.period == "annual":
+                key: tuple[Any, ...] = (symbol, fiscal_year)
+            else:
+                fiscal_quarter = row.get("fiscal_quarter")
+                if fiscal_quarter is None:
+                    logger.warning(f"[{self.table_name}] WARNING: Row missing required 'fiscal_quarter'. Skipping.")
+                    skipped_missing_keys += 1
+                    continue
+                key = (symbol, fiscal_year, fiscal_quarter)
+
+            if key not in seen:
+                seen[key] = row
+
+        if not seen:
+            raise RuntimeError(
+                f"[{self.table_name}] CRITICAL: No valid rows after transformation."
+            )
+
+        if skipped_invalid_fields + skipped_missing_keys > 0:
+            logger.warning(
+                f"[{self.table_name}] WARNING: Skipped {skipped_invalid_fields + skipped_missing_keys} rows."
+            )
 
         # Add created_at watermark for downstream loaders
         now = datetime.now().isoformat()
+        result = list(seen.values())
         for row in result:
             row["created_at"] = now
 
