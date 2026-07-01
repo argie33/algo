@@ -58,6 +58,14 @@ repos:
         types: [python]
         stages: [commit]
 
+      - id: check-strict-validation-tests
+        name: Ensure StrictValidationError tests exist (CI/CD detection)
+        entry: python .pre-commit-scripts/check-strict-validation-tests.py
+        language: system
+        pass_filenames: false
+        types: [python]
+        stages: [commit]
+
       - id: check-dashboard-get-pattern
         name: Check dashboard .get() patterns (fail-fast pattern)
         entry: python .pre-commit-scripts/check-dashboard-get-pattern.py
