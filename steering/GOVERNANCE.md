@@ -119,7 +119,7 @@ When seeing `data_unavailable=TRUE` markers appearing for a new class of symbols
 
 ## System Architecture
 
-**Orchestrator:** `algo/algo_orchestrator.py` → Lambda `algo-algo-dev` → EventBridge (9:30 AM, 1 PM, 3 PM, 5:30 PM ET)
+**Orchestrator:** `algo/algo_orchestrator.py` → Lambda `algo-orchestrator` → EventBridge (9:30 AM, 1 PM, 3 PM, 5:30 PM ET)
 
 **Loaders:** `loaders/load_*.py` → ECS Fargate → Step Functions (2:15 AM, 4:05 PM ET)
 

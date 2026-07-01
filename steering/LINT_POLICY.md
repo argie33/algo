@@ -187,8 +187,6 @@ make ci-local
 - [ ] Data source validates BEFORE strict conversion (no silent None)
 - [ ] Pre-commit hooks pass
 - [ ] `make test` passes locally
-- **E302/E303** (blank lines) — Formatting, not a real error but enforce consistency
-- **Type errors** (mypy strict mode) — We run mypy strict; all types must be sound
 
 ---
 
