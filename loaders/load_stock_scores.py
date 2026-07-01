@@ -262,6 +262,17 @@ class StockScoresLoader(OptimalLoader):
                     f"Cannot compute score with incomplete data — failing fast to prevent poor position sizing decisions."
                 )
 
+            # CRITICAL: Reject weird securities (ETFs, preferreds, REITs, etc.) that lack positioning data
+            # Positioning metrics are a key identifier of real stocks vs exotic securities.
+            # Weird securities with no positioning data should not be scored even if they have other metrics.
+            if not is_real_score(positioning_score):
+                raise RuntimeError(
+                    f"[STOCK_SCORES] {symbol}: positioning data unavailable. "
+                    f"This security lacks institutional ownership / insider ownership data, indicating a weird security "
+                    f"(ETF, preferred, depositary share, REIT, or other exotic instrument). "
+                    f"Cannot score non-standard securities — failing fast to prevent spurious position sizing."
+                )
+
             # Compute weighted composite score with NORMALIZED weights
             # When metrics are missing, redistribute their weight to available metrics
             # instead of filling with mean (which would double-count missing factors)
