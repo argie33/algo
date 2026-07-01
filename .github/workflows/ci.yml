@@ -1,0 +1,162 @@
+name: CI
+
+# Run on every push to main and on pull requests
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  validate:
+    name: Lint, Type Check & Test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff mypy pytest pylint bandit trufflehog pre-commit
+
+      - name: Install project dependencies
+        run: |
+          pip install -r requirements.txt 2>/dev/null || true
+          pip install -r lambda/api/requirements.txt 2>/dev/null || true
+
+      - name: Run Ruff linter
+        run: ruff check algo/ tests/ loaders/ utils/ config/ lambda/
+
+      - name: Run Ruff formatter check
+        run: ruff format --check algo/ tests/ loaders/ utils/ config/ lambda/
+
+      - name: Run MyPy type checker
+        run: |
+          mypy algo/ loaders/ utils/ config/ --ignore-missing-imports --show-error-codes
+          mypy lambda/base_handler.py lambda/algo_orchestrator/lambda_function.py lambda/monitoring/health_monitor.py lambda/monitoring/loader_failure_handler.py lambda/monitoring/loader_timeout_guardian.py --ignore-missing-imports --show-error-codes
+          (cd lambda/api && mypy . --ignore-missing-imports --show-error-codes --explicit-package-bases)
+
+      - name: Run Pylint type safety checks
+        run: |
+          pylint algo/ loaders/ utils/ config/ lambda/ \
+            --disable=all \
+            --enable=comparison-with-callable,unsupported-binary-operation \
+            2>/dev/null || true
+
+      - name: Run pre-commit validation hooks
+        run: |
+          python .pre-commit-scripts/check-strict-validation-tests.py
+          python .pre-commit-scripts/check-strict-safe-conversion.py
+          python .pre-commit-scripts/check-credential-defaults.py
+          python .pre-commit-scripts/check-silent-fallbacks.py
+
+      - name: Run unit tests
+        run: |
+          pytest tests/ -m unit -v --tb=short
+
+      - name: Run edge case tests
+        run: |
+          pytest tests/ -m edge -v --tb=short
+
+      - name: Run integration tests
+        run: |
+          pytest tests/ -m integration -v --tb=short
+
+      - name: Run StrictValidationError detection tests
+        run: |
+          pytest tests/test_strict_validation_error_detection.py -v --tb=short
+          pytest tests/test_dashboard_panel_strict_validation.py -v --tb=short
+
+      - name: Run security checks (Bandit)
+        run: |
+          bandit -r algo loaders config lambda --severity-level medium --confidence-level high 2>/dev/null || true
+
+      - name: Run secret detection (TruffleHog)
+        run: |
+          trufflehog filesystem . --only-verified 2>/dev/null || true
+
+  lint-js:
+    name: Lint JavaScript
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Install dependencies
+        working-directory: webapp/lambda
+        run: npm ci
+
+      - name: Run ESLint
+        working-directory: webapp/lambda
+        run: npm run lint
+
+      - name: Run Prettier check
+        working-directory: webapp/lambda
+        run: npm run format:check
+
+      - name: Run npm audit
+        working-directory: webapp/lambda
+        run: npm audit --audit-level=high
+
+  coverage:
+    name: Test Coverage
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest pytest-cov
+          pip install -r requirements.txt 2>/dev/null || true
+
+      - name: Run tests with coverage
+        run: |
+          pytest tests/ \
+            --cov=algo \
+            --cov=loaders \
+            --cov=lambda \
+            --cov-report=term-missing:skip-covered \
+            -v
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./.coverage
+          flags: unittests
+          fail_ci_if_error: false
