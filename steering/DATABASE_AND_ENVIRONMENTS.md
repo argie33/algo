@@ -10,10 +10,10 @@
 
 ### AWS Production Environment
 - **RDS Identifier:** `algo-db` (Terraform resource)
-- **RDS Host:** `algo-db.xxxxx.us-east-1.rds.amazonaws.com` (from Terraform output `rds_address`)
+- **RDS Host:** `algo-db.cojggi2mkthi.us-east-1.rds.amazonaws.com` ← **ACTUAL ENDPOINT**
 - **RDS Port:** 5432
 - **Database Name:** `stocks`
-- **Master User:** From Terraform variable (usually `postgres` or `algo_admin`)
+- **Master User:** From Terraform variable (usually `postgres`)
 - **Credentials Secret:** `algo-rds-credentials` (AWS Secrets Manager)
 - **API Gateway:** `https://2iqq1qhltj.execute-api.us-east-1.amazonaws.com`
 - **Lambda Functions:**
