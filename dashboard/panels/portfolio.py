@@ -233,7 +233,7 @@ def panel_portfolio(
     # Largest position
     if lgpos is not None:
         try:
-            lgpos_f = safe_float(lgpos, 0.0, strict=True, field_name="largest_position_pct")
+            lgpos_f = safe_float(lgpos, 0.0, field_name="largest_position_pct")
             lp_c = R if lgpos_f >= 20 else (Y if lgpos_f >= 15 else "white")
             tbl.add_row(
                 cell("Largest Position:", f"[{lp_c}]{lgpos_f:.1f}%[/]"),
@@ -245,10 +245,10 @@ def panel_portfolio(
     # Risk metrics (VaR, CVaR, Beta, concentration, Stressed VaR)
     # CRITICAL: Fail-fast on missing risk metrics — don't silently hide them!
     if risk and not has_error(risk):
-        var_v = safe_float(risk["var95"], strict=True, field_name="var95")
-        cvar_v = safe_float(risk["cvar95"], strict=True, field_name="cvar95")
-        beta_v = safe_float(risk["beta"], strict=True, field_name="beta")
-        conc5_v = safe_float(risk["conc5"], strict=True, field_name="conc5")
+        var_v = safe_float(risk["var95"], field_name="var95")
+        cvar_v = safe_float(risk["cvar95"], field_name="cvar95")
+        beta_v = safe_float(risk["beta"], field_name="beta")
+        conc5_v = safe_float(risk["conc5"], field_name="conc5")
         svar_v = safe_float(risk.get("svar"), strict=False, field_name="svar", default=None)
 
         # All critical fields available — render
@@ -565,13 +565,13 @@ def panel_portfolio_perf_expanded(  # noqa: C901
     if perf and not has_error(perf) and not perf.get("_no_data"):
         rows.append(Text.from_markup("[dim bold]PERFORMANCE METRICS[/]"))
         n_val = perf.get("n")
-        n = safe_int(n_val, strict=True, field_name="total_trades_n")
+        n = safe_int(n_val, field_name="total_trades_n")
         w_val = perf.get("w")
-        w = safe_int(w_val, strict=True, field_name="closed_wins_w")
+        w = safe_int(w_val, field_name="closed_wins_w")
         l_val = perf.get("l")
-        closed_losses = safe_int(l_val, strict=True, field_name="closed_losses_l")
+        closed_losses = safe_int(l_val, field_name="closed_losses_l")
         streak_val = perf.get("streak")
-        streak = safe_int(streak_val, 0, strict=True, field_name="win_streak")
+        streak = safe_int(streak_val, 0, field_name="win_streak")
         pnl_val = safe_float(perf.get("pnl"), default=None)
         unrlzd_pnl = safe_float(perf.get("unrealized_pnl"), default=None)
         open_cnt = safe_int(perf.get("open_count"), default=None)

@@ -235,7 +235,7 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
             items.append(f"[dim]{label}:[/] [yellow]⚠ {reason[:20]}[/][dim] /{max_pts}[/]")
         else:
             try:
-                pts = safe_float(pts_raw, strict=True, field_name=f"{label}_pts")
+                pts = safe_float(pts_raw, field_name=f"{label}_pts")
             except StrictValidationError as e:
                 items.append(f"[dim]{label}:[/] [yellow]⚠ {str(e)[:30]}[/]")
                 continue
@@ -277,7 +277,7 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
             logger.warning("[EXPOSURE] sector_rotation factor present but missing 'pts' field")
         else:
             try:
-                sr_pen = safe_float(sr_pts_raw, None, strict=True, field_name="sector_rotation_pts")
+                sr_pen = safe_float(sr_pts_raw, None, field_name="sector_rotation_pts")
             except StrictValidationError as e:
                 logger.error("[EXPOSURE] sector_rotation pts conversion failed: %s", e)
     if eco:
@@ -286,7 +286,7 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
             logger.warning("[EXPOSURE] economic_overlay factor present but missing 'pts' field")
         else:
             try:
-                eco_pen = safe_float(eco_pts_raw, None, strict=True, field_name="economic_overlay_pts")
+                eco_pen = safe_float(eco_pts_raw, None, field_name="economic_overlay_pts")
             except StrictValidationError as e:
                 logger.error("[EXPOSURE] economic_overlay pts conversion failed: %s", e)
     if sr_pen is not None and sr_pen < 0 and sr:
@@ -488,7 +488,7 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
             continue
 
         try:
-            pts = safe_float(pts_raw, strict=True, field_name=f"{label}_pts")
+            pts = safe_float(pts_raw, field_name=f"{label}_pts")
         except StrictValidationError as e:
             reason = f"invalid: {str(e)[:12]}"
             bar_s = Text.from_markup(f"[red]✗ ERR{'':>12}[/]  [dim]--/{max_pts}[/]")
@@ -606,7 +606,7 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
             )
         else:
             try:
-                sr_pen = safe_float(sr_pts_raw, strict=True, field_name="sector_rotation_pts")
+                sr_pen = safe_float(sr_pts_raw, field_name="sector_rotation_pts")
             except StrictValidationError as e:
                 logger.error("[EXPOSURE_EXPANDED_ADJ] sector_rotation pts conversion failed: %s", e)
     if eco:
@@ -617,7 +617,7 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
             )
         else:
             try:
-                eco_pen = safe_float(eco_pts_raw, strict=True, field_name="economic_overlay_pts")
+                eco_pen = safe_float(eco_pts_raw, field_name="economic_overlay_pts")
             except StrictValidationError as e:
                 logger.error("[EXPOSURE_EXPANDED_ADJ] economic_overlay pts conversion failed: %s", e)
     if sr_pen is not None or eco_pen is not None:
