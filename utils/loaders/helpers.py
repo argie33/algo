@@ -139,6 +139,7 @@ def get_active_symbols(
                         # For financial data loaders: only real stocks, exclude ETFs/bonds/CLOs/warrants/rights
                         # CRITICAL FIX 2026-07-01: Exclude warrant/rights symbols (e.g., AACBR) from scoring
                         # These illiquid securities lack positioning data and distort completeness metrics
+                        # ENHANCED 2026-07-01: Better symbol pattern detection for rights/warrants/units
                         sql = """
                             SELECT symbol FROM stock_symbols
                             WHERE active = true
@@ -146,6 +147,8 @@ def get_active_symbols(
                               AND security_name NOT ILIKE '%Right%'
                               AND security_name NOT ILIKE '%Warrant%'
                               AND security_name NOT ILIKE '%UNIT%'
+                              AND security_name NOT ILIKE '%Contingent Value%'
+                              AND symbol !~ '[A-Z]+R$'
                             ORDER BY symbol
                         """
                     else:

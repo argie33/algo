@@ -78,7 +78,27 @@ class PositioningMetricsLoader(OptimalLoader):
                 }
             ]
         except Exception as e:
-            # Unexpected errors (database errors, network issues, bugs) should surface immediately
+            # HTTP 404: symbol not found on yfinance (expected for depositary shares, illiquid stocks)
+            # Other errors (database errors, network issues, bugs) should surface immediately
+            import requests as req_module
+            if isinstance(e, req_module.HTTPError) and "404" in str(e):
+                logger.info(
+                    f"[POSITIONING_METRICS] Symbol not found on yfinance for {symbol} (404 Not Found). "
+                    f"Depositary shares and illiquid symbols often unavailable. Marking data unavailable."
+                )
+                return [
+                    {
+                        "symbol": symbol,
+                        "institutional_ownership": None,
+                        "insider_ownership": None,
+                        "short_interest_percent": None,
+                        "short_interest_trend": None,
+                        "data_unavailable": True,
+                        "reason": "Symbol not found on yfinance (depositary share or illiquid security)",
+                        "updated_at": datetime.now(timezone.utc).isoformat(),
+                    }
+                ]
+            # Other unexpected errors should surface immediately
             logger.error(
                 f"[POSITIONING_METRICS] Unexpected error for {symbol} (not data unavailability): {type(e).__name__}: {e}"
             )
