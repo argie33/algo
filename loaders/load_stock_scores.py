@@ -262,15 +262,17 @@ class StockScoresLoader(OptimalLoader):
                     f"Cannot compute score with incomplete data — failing fast to prevent poor position sizing decisions."
                 )
 
-            # CRITICAL: Reject weird securities (ETFs, preferreds, REITs, etc.) that lack positioning data
-            # Positioning metrics are a key identifier of real stocks vs exotic securities.
-            # Weird securities with no positioning data should not be scored even if they have other metrics.
+            # CHANGED 2026-07-01: Removed hard rejection for missing positioning data.
+            # REITs, some international stocks, and other real securities legitimately lack institutional/insider
+            # ownership metrics in yfinance but ARE valid trading candidates. They should NOT be rejected outright.
+            # Instead, scoring uses available metrics (value, growth, quality, stability, momentum) with weight
+            # redistribution below. This allows OPI (REIT), international stocks, and other legitimate securities
+            # to be scored based on real data rather than being silently excluded.
+            # Users can see composite scores and available factors even if positioning is missing.
             if not is_real_score(positioning_score):
-                raise RuntimeError(
-                    f"[STOCK_SCORES] {symbol}: positioning data unavailable. "
-                    f"This security lacks institutional ownership / insider ownership data, indicating a weird security "
-                    f"(ETF, preferred, depositary share, REIT, or other exotic instrument). "
-                    f"Cannot score non-standard securities — failing fast to prevent spurious position sizing."
+                logger.warning(
+                    f"[STOCK_SCORES] {symbol}: positioning data unavailable (yfinance limitation for REITs/certain sectors). "
+                    f"Proceeding with score using available metrics; weight redistribution compensates for missing positioning."
                 )
 
             # Compute weighted composite score with NORMALIZED weights
