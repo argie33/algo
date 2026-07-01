@@ -244,6 +244,60 @@ def check_and_retry_incomplete_loaders(dry_run: bool = False) -> dict[str, Any]:
             "Halting to prevent trading with potentially incomplete data."
         ) from e
 
+    # CRITICAL FIX 2026-07-01: Check if stock_scores has stale upstream dependencies
+    # Upstream metric loaders (positioning_metrics, value_metrics, etc.) may update multiple
+    # times per day, but stock_scores only gets recomputed if it's marked incomplete.
+    # This can leave stock_scores with old data when upstream metrics update.
+    try:
+        with DatabaseContext("read") as cur:
+            # Find the most recent update time among upstream metric tables
+            cur.execute("""
+                SELECT MAX(updated_at) as latest_metric_update
+                FROM (
+                    SELECT updated_at FROM positioning_metrics WHERE updated_at IS NOT NULL
+                    UNION ALL
+                    SELECT updated_at FROM value_metrics WHERE updated_at IS NOT NULL
+                    UNION ALL
+                    SELECT updated_at FROM stability_metrics WHERE updated_at IS NOT NULL
+                    UNION ALL
+                    SELECT updated_at FROM quality_metrics WHERE updated_at IS NOT NULL
+                    UNION ALL
+                    SELECT updated_at FROM growth_metrics WHERE updated_at IS NOT NULL
+                ) metric_updates
+            """)
+            metric_result = cur.fetchone()
+            latest_metric_update = metric_result[0] if metric_result and metric_result[0] else None
+
+            if latest_metric_update:
+                # Check stock_scores update time
+                cur.execute("SELECT MAX(updated_at) FROM stock_scores")
+                score_result = cur.fetchone()
+                latest_score_update = score_result[0] if score_result and score_result[0] else None
+
+                # If any upstream metric is newer than stock_scores, mark stock_scores as needing update
+                if latest_score_update and latest_metric_update > latest_score_update:
+                    age_minutes = (latest_metric_update - latest_score_update).total_seconds() / 60
+                    logger.warning(
+                        f"[PHASE 1 FAILSAFE] stock_scores has stale dependencies: "
+                        f"latest metric update {age_minutes:.0f}m ago, latest score update {age_minutes:.0f}m ago. "
+                        f"Upstream metrics have newer data. Retriggering stock_scores recomputation."
+                    )
+                    # Retrigger stock_scores to pick up new metric data
+                    if not dry_run:
+                        retry_result = retry_loader("stock_scores", symbols_missing=0, is_critical=True)
+                        if retry_result.get("recovered"):
+                            results["recovered"].append("stock_scores (dependency update)")
+                        else:
+                            logger.warning(
+                                "[PHASE 1 FAILSAFE] stock_scores retry did not recover to 95%. "
+                                "May have partial data, but proceeding as auxiliary loader."
+                            )
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+        logger.warning(
+            f"[PHASE 1 FAILSAFE] Could not check stock_scores dependencies due to database error: {e}. "
+            f"Continuing with existing data; stock_scores may be stale."
+        )
+
     return results
 
 

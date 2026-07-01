@@ -24,7 +24,7 @@ setup_imports()
 import json  # noqa: E402
 import logging  # noqa: E402
 from collections.abc import Iterable  # noqa: E402
-from datetime import date  # noqa: E402
+from datetime import date, datetime, timezone  # noqa: E402
 from typing import Any  # noqa: E402
 
 import psycopg2  # noqa: E402
@@ -374,7 +374,7 @@ class StockScoresLoader(OptimalLoader):
                 "rs_percentile": 0.0,
                 "data_completeness": data_completeness,
                 "unavailable_metrics": json.dumps(unavailable_metrics) if unavailable_metrics else None,
-                "updated_at": date.today(),
+                "updated_at": datetime.now(timezone.utc),
             }
             if unavailable_metrics:
                 logger.warning(
