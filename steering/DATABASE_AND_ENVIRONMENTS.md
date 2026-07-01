@@ -1,50 +1,64 @@
 # Database & Environment Configuration
 
-**Purpose:** Single source of truth for database setup, environment selection, and AWS connections. Prevents token waste from repeated explanations.
+**Single source of truth for database setup, AWS credentials, and environment selection.**
+
+**Rule:** When debugging data issues or applying fixes, VERIFY which database you're connected to first. Local fixes don't reach production users.
 
 ---
 
-## Quick Reference: Which Database Am I Using?
+## Project Endpoints (This Project)
+
+### AWS Production Environment
+- **RDS Host:** Get from: `terraform output rds_endpoint` or AWS Secrets Manager
+- **RDS Port:** 5432
+- **Database Name:** `stocks`
+- **User:** Stored in Secrets Manager (`algo-rds-credentials`)
+- **API Gateway:** `https://2iqq1qhltj.execute-api.us-east-1.amazonaws.com`
+- **Lambda Functions:**
+  - API: `algo-api-dev`
+  - Orchestrator: `algo-orchestrator`
+  - Loaders: ECS tasks (not Lambda)
+- **Region:** `us-east-1`
+- **Dashboard:** `python -m dashboard` (connects to API Gateway endpoint via env var)
+
+### Local Development Environment
+- **Database Host:** `localhost:5432` (PostgreSQL)
+- **Database Name:** `stocks`
+- **User:** Local PostgreSQL user (`postgres` or current user)
+- **API:** None (local dev uses direct database connections)
+- **Purpose:** Testing, experimentation, CI/CD (local tests)
+
+---
+
+## Verify Which Database You're Connected To
+
+**Run this immediately when debugging:**
 
 ```bash
-# Check current connection (run this first!)
 python3 << 'EOF'
 import sys
 sys.path.insert(0, '/c/Users/arger/code/algo')
 from utils.db.context import DatabaseContext
 
 with DatabaseContext("read") as cur:
-    cur.execute("SELECT inet_server_addr(), current_database()")
-    host, db = cur.fetchone()
+    cur.execute("SELECT inet_server_addr() as host, current_database() as db, current_user as usr")
+    host, db, usr = cur.fetchone()
+    print(f"Connected to: {host}")
+    print(f"Database: {db}, User: {usr}")
     if '::1' in str(host) or '127.0.0.1' in str(host):
-        print("LOCAL: localhost:5432")
+        print("\n>>> LOCAL DEVELOPMENT <<<")
+        print("Changes here DO NOT reach production users")
     elif 'rds.amazonaws.com' in str(host):
-        print(f"AWS PRODUCTION: {host}")
+        print("\n>>> AWS PRODUCTION <<<") 
+        print("Changes here ARE LIVE for all users")
     else:
-        print(f"UNKNOWN: {host}")
+        print(f"\n>>> UNKNOWN: {host} <<<")
 EOF
 ```
 
----
-
-## Environment Types
-
-### LOCAL Development Database
-- **Host:** `localhost:5432` (IPv6: `::1:5432`)
-- **Database:** `stocks`
-- **User:** (PostgreSQL local user)
-- **Purpose:** Local development, testing, experimentation
-- **Important:** Data here is isolated — changes don't affect production
-- **Connection:** Direct psycopg2 connection in `utils/db/connection.py`
-
-### AWS RDS Production Database
-- **Host:** Check with: `aws rds describe-db-instances --query 'DBInstances[0].Endpoint.Address'`
-- **Port:** 5432
-- **Database:** `stocks` 
-- **User:** Stored in AWS Secrets Manager
-- **Purpose:** Production data served by Lambda API
-- **Important:** **ALL fixes must be applied here for users to see changes**
-- **Access:** Requires AWS credentials + valid IAM permissions
+**Result tells you:**
+- `::1` or `127.0.0.1` = **LOCAL** (safe to experiment, won't affect users)
+- `algo-db.xxxxx.rds.amazonaws.com` = **AWS PRODUCTION** (all changes live immediately)
 
 ---
 
