@@ -21,6 +21,7 @@ from loaders.loader_helper import setup_imports
 
 setup_imports()
 
+import json  # noqa: E402
 import logging  # noqa: E402
 from collections.abc import Iterable  # noqa: E402
 from datetime import date  # noqa: E402
@@ -357,7 +358,7 @@ class StockScoresLoader(OptimalLoader):
                 "stability_score": extract_score_value(clamped_stability),
                 "rs_percentile": 0.0,
                 "data_completeness": data_completeness,
-                "unavailable_metrics": unavailable_metrics,
+                "unavailable_metrics": json.dumps(unavailable_metrics) if unavailable_metrics else None,
                 "updated_at": date.today(),
             }
             if unavailable_metrics:
