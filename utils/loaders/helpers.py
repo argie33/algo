@@ -136,8 +136,18 @@ def get_active_symbols(
             try:
                 with DatabaseContext("read") as cur:
                     if exclude_etfs:
-                        # For financial data loaders: only real stocks, exclude ETFs/bonds/CLOs
-                        sql = "SELECT symbol FROM stock_symbols WHERE active = true AND (etf IS NULL OR etf = 'N') ORDER BY symbol"
+                        # For financial data loaders: only real stocks, exclude ETFs/bonds/CLOs/warrants/rights
+                        # CRITICAL FIX 2026-07-01: Exclude warrant/rights symbols (e.g., AACBR) from scoring
+                        # These illiquid securities lack positioning data and distort completeness metrics
+                        sql = """
+                            SELECT symbol FROM stock_symbols
+                            WHERE active = true
+                              AND (etf IS NULL OR etf = 'N')
+                              AND security_name NOT ILIKE '%Right%'
+                              AND security_name NOT ILIKE '%Warrant%'
+                              AND security_name NOT ILIKE '%UNIT%'
+                            ORDER BY symbol
+                        """
                     else:
                         # For price/market data loaders: include both stocks and ETFs
                         sql = "SELECT symbol FROM stock_symbols WHERE active = true ORDER BY symbol"
