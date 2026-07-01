@@ -150,11 +150,15 @@ class StabilityMetricsLoader(OptimalLoader):
                     )
                     spy_rows = cur.fetchall()
 
-            # Require minimum 30 days of data for meaningful volatility calculation
-            if not rows or len(rows) < 30:
+            # Require minimum 5 days of data for volatility calculation
+            # Rationale: New IPOs with only 1 week of data still need stability scores
+            # 5 days is the minimum for computing a meaningful daily return-based volatility
+            # Most volatility will be calculated from whatever data is available (even <30 days)
+            # For new listings with <30 days, 30d volatility will be unavailable (optional metric)
+            if not rows or len(rows) < 5:
                 actual_rows = len(rows) if rows else 0
                 raise RuntimeError(
-                    f"insufficient_price_history: {actual_rows}/30 days available"
+                    f"insufficient_price_history: {actual_rows}/5 days available"
                 )
 
             # Sort chronologically (oldest to newest)
@@ -181,10 +185,13 @@ class StabilityMetricsLoader(OptimalLoader):
                 )
 
             # Calculate volatilities (annualized: sqrt(252) * daily_std)
+            # For new listings: use whatever data is available (minimum 2 returns for volatility)
             # Helper methods now return float or explicit marker dict for data_unavailable
             volatility_30d_result = self._calculate_volatility(returns[-30:], symbol=symbol) if len(returns) >= 30 else None
             volatility_60d_result = self._calculate_volatility(returns[-60:], symbol=symbol) if len(returns) >= 60 else None
-            volatility_252d_result = self._calculate_volatility(returns, symbol=symbol)
+            # For 252d (full year) volatility: use all available data if present (minimum 2 returns)
+            # Even new listings with 3+ days (2 returns) can compute a volatility estimate
+            volatility_252d_result = self._calculate_volatility(returns, symbol=symbol) if len(returns) >= 2 else None
             beta_result = self._get_beta_from_db(symbol, prices, spy_rows)
 
             # Unpack results: distinguish between numeric values and marker dicts
@@ -199,8 +206,12 @@ class StabilityMetricsLoader(OptimalLoader):
             volatility_252d: float | None = None if volatility_252d_unavailable else (volatility_252d_result if isinstance(volatility_252d_result, float) else None)
             beta: float | None = None if beta_unavailable else (beta_result if isinstance(beta_result, float) else None)
 
-            # Consolidate unavailability reasons (252d volatility and beta are required metrics)
+            # Consolidate unavailability reasons
+            # For new listings with 10-29 days: allow partial stability metrics
+            # Only mark data_unavailable=True if we can't calculate ANY volatility
             unavailability_reasons = []
+            has_any_volatility = volatility_30d is not None or volatility_60d is not None or volatility_252d is not None
+
             if volatility_252d_unavailable:
                 reason = volatility_252d_result.get("reason", "volatility_252d_unavailable") if isinstance(volatility_252d_result, dict) else "volatility_252d_unavailable"
                 unavailability_reasons.append(f"vol_252d: {reason}")
@@ -208,9 +219,10 @@ class StabilityMetricsLoader(OptimalLoader):
                 reason = beta_result.get("reason", "beta_unavailable") if isinstance(beta_result, dict) else "beta_unavailable"
                 unavailability_reasons.append(f"beta: {reason}")
 
-            # Mark data unavailable if any required metric is missing
-            data_unavailable = volatility_252d_unavailable or beta_unavailable
-            reason = "; ".join(unavailability_reasons) if unavailability_reasons else None
+            # Mark data unavailable only if we have NO volatility estimates at all
+            # Allows new listings with <30 days to still contribute to stock scores via partial stability metrics
+            data_unavailable = not has_any_volatility
+            reason = "; ".join(unavailability_reasons) if unavailability_reasons and data_unavailable else None
 
             if data_unavailable:
                 logger.debug(
@@ -390,16 +402,19 @@ class StabilityMetricsLoader(OptimalLoader):
         """
         import numpy as np
 
-        if not spy_rows or len(spy_rows) < 30:
+        # For new listings: allow beta calculation with as few as 5 overlapping days with SPY
+        # Full beta calculation (30+ days) is more accurate, but partial data is better than nothing
+        min_spy_days = 5
+        if not spy_rows or len(spy_rows) < min_spy_days:
             actual = len(spy_rows) if spy_rows else 0
             logger.debug(
                 f"[STABILITY_METRICS] {symbol}: SPY price data insufficient ({actual} rows). "
-                "Beta unavailable (requires 30+ overlapping days)."
+                f"Beta unavailable (requires {min_spy_days}+ overlapping days)."
             )
             return {
                 "symbol": symbol,
                 "data_unavailable": True,
-                "reason": f"spy_price_data_insufficient: {actual}/30 days",
+                "reason": f"spy_price_data_insufficient: {actual}/{min_spy_days} days",
             }
 
         try:
@@ -410,11 +425,13 @@ class StabilityMetricsLoader(OptimalLoader):
                 spy_by_date[d] = float(row[1])
 
             common_dates = sorted(set(stock_by_date.keys()) & set(spy_by_date.keys()))
-            if len(common_dates) < 30:
+            # For new listings: allow beta calculation with as few as 5 common trading dates
+            min_common_dates = 5
+            if len(common_dates) < min_common_dates:
                 return {
                     "symbol": symbol,
                     "data_unavailable": True,
-                    "reason": f"insufficient_common_dates: {len(common_dates)}/30",
+                    "reason": f"insufficient_common_dates: {len(common_dates)}/{min_common_dates}",
                 }
 
             stock_aligned = [stock_by_date[d] for d in common_dates]
@@ -423,11 +440,13 @@ class StabilityMetricsLoader(OptimalLoader):
             stock_returns = np.diff(np.log(np.array(stock_aligned, dtype=float)))
             spy_returns = np.diff(np.log(np.array(spy_aligned, dtype=float)))
 
-            if len(stock_returns) < 20:
+            # For new listings: allow beta calculation with as few as 4 returns (5 common dates)
+            min_returns = 4
+            if len(stock_returns) < min_returns:
                 return {
                     "symbol": symbol,
                     "data_unavailable": True,
-                    "reason": f"insufficient_returns: {len(stock_returns)}/20",
+                    "reason": f"insufficient_returns: {len(stock_returns)}/{min_returns}",
                 }
 
             spy_var = float(np.var(spy_returns, ddof=1))

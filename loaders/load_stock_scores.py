@@ -234,10 +234,25 @@ class StockScoresLoader(OptimalLoader):
             # Cap at 99.99 to fit in NUMERIC(4,2) database column
             data_completeness = min(99.99, round((data_count / 6.0) * 100, 2))
 
-            # CRITICAL: Require minimum 50% (3 of 6) metrics for composite scoring.
-            # Single or dual-metric composites have severe bias and produce unreliable signals.
-            # Upstream metric loaders MUST complete before score computation. Do not degrade silently.
-            min_required_metrics = 3
+            # Determine minimum required metrics based on stock age
+            # New IPOs/listings (<30 days) can't have historical data for momentum/quality/growth
+            # Allow them to compute scores with fewer metrics to avoid bootstrap gap for new securities
+            # Standard stocks: require 3/6 metrics (50% completeness)
+            # New listings: allow 2/6 metrics (33% completeness) if stock is <30 days old
+            try:
+                with DatabaseContext("read") as price_cur:
+                    price_cur.execute(
+                        "SELECT MIN(date) FROM price_daily WHERE symbol = %s",
+                        (symbol,)
+                    )
+                    min_price_date_row = price_cur.fetchone()
+                    min_price_date = min_price_date_row[0] if min_price_date_row and min_price_date_row[0] else date.today()
+                    days_since_inception = (date.today() - min_price_date).days
+                    # For stocks <30 days old: allow 2/6 metrics (33%). Else require 3/6 metrics (50%)
+                    min_required_metrics = 2 if days_since_inception < 30 else 3
+            except Exception:
+                # If unable to determine age, use conservative default of 3
+                min_required_metrics = 3
 
             if data_count < min_required_metrics:
                 raise RuntimeError(
