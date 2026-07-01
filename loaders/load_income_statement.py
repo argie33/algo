@@ -130,10 +130,8 @@ class IncomeStatementLoader(OptimalLoader):
 
             logger.info("%s: Fetched %d %s income statement row(s)", symbol, len(rows), self.period)
 
-            if since is None:
-                raise ValueError(
-                    f"Income statement loader for {symbol} requires 'since' parameter for incremental loading."
-                )
+            # Use default year if since is None (initial load)
+            since_year = int(since.year) if since else 2000
 
             # Also include years already in DB where revenue is NULL (backfill ASC 606 gaps)
             null_revenue_years = self._get_null_revenue_years(symbol)
@@ -141,7 +139,7 @@ class IncomeStatementLoader(OptimalLoader):
             for r in rows:
                 if isinstance(r, dict):
                     fiscal_year = r.get("fiscal_year")
-                    if fiscal_year and (fiscal_year > int(since.year) or fiscal_year in null_revenue_years):
+                    if fiscal_year and (fiscal_year > since_year or fiscal_year in null_revenue_years):
                         filtered.append(r)
 
             if len(filtered) < len(rows) or null_revenue_years:
