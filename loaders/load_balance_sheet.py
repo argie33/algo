@@ -13,7 +13,7 @@ from datetime import date, datetime
 from typing import Any, cast
 
 from loaders.runner import run_loader
-from utils.external import SecEdgarClient
+from utils.external import SecEdgarClient, sec_statements
 from utils.optimal_loader import OptimalLoader
 
 logger = logging.getLogger(__name__)
@@ -106,7 +106,7 @@ class BalanceSheetLoader(OptimalLoader):
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         try:
-            rows = self._sec_client.get_balance_sheet(symbol, period=self.period)
+            rows = sec_statements.get_balance_sheet(self._sec_client, symbol, period=self.period)
 
             if not rows:
                 logger.warning(
@@ -133,7 +133,7 @@ class BalanceSheetLoader(OptimalLoader):
                 logger.debug(
                     f"{symbol}: Filtered {len(rows) - len(filtered)} row(s) with fiscal_year <= {since_year}"
                 )
-            return filtered
+            return self.transform(filtered)
         except Exception as e:
             logger.error(
                 f"[BALANCE_SHEET] Failed to fetch balance sheet for {symbol}: {type(e).__name__}: {e}"

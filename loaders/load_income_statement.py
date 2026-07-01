@@ -15,7 +15,7 @@ import psycopg2
 
 from loaders.runner import run_loader
 from utils.db.context import DatabaseContext
-from utils.external import SecEdgarClient
+from utils.external import SecEdgarClient, sec_statements
 from utils.optimal_loader import OptimalLoader
 
 logger = logging.getLogger(__name__)
@@ -120,7 +120,7 @@ class IncomeStatementLoader(OptimalLoader):
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         try:
-            rows = self._sec_client.get_income_statement(symbol, period=self.period)
+            rows = sec_statements.get_income_statement(self._sec_client, symbol, period=self.period)
 
             if not rows:
                 logger.warning(
@@ -148,7 +148,7 @@ class IncomeStatementLoader(OptimalLoader):
                     f"(keeping {len(filtered)} newer rows; {len(null_revenue_years)} null-revenue years for backfill)"
                 )
 
-            return filtered
+            return self.transform(filtered)
         except Exception as e:
             logger.error(
                 f"[INCOME_STATEMENT] Failed to fetch income statement for {symbol}: {type(e).__name__}: {e}"
