@@ -13,8 +13,6 @@ import ipaddress
 import logging
 from urllib.parse import urlparse
 
-import requests
-
 logger = logging.getLogger(__name__)
 
 
@@ -130,7 +128,7 @@ def validate_redirect_url(
         redir_parsed = urlparse(redirect_url)
         orig_host = orig_parsed.hostname or orig_parsed.netloc.split(":")[0]
         redir_host = redir_parsed.hostname or redir_parsed.netloc.split(":")[0]
-    except (requests.RequestException, requests.Timeout) as e:
+    except (ValueError, Exception) as e:
         return False, f"URL parsing failed: {e}"
 
     # If redirected to a different domain, check it's still in allowlist
