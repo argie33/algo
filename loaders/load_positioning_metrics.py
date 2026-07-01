@@ -212,8 +212,8 @@ class PositioningMetricsLoader(OptimalLoader):
 
                     # Calculate proxy positioning from volume strength
                     if vol_row and vol_row[0] is not None and vol_row[0] > 0:
-                        avg_vol = vol_row[0]
-                        vol_std = vol_row[1] if vol_row[1] is not None else avg_vol * 0.3
+                        avg_vol = float(vol_row[0])
+                        vol_std = float(vol_row[1]) if vol_row[1] is not None else avg_vol * 0.3
                         vol_strength = min(100, (avg_vol / max(avg_vol, vol_std)) * 50) if vol_std > 0 else 50
 
                         # Scale as synthetic positioning metric (represents buying pressure/interest)
@@ -235,7 +235,7 @@ class PositioningMetricsLoader(OptimalLoader):
                             "updated_at": datetime.now(timezone.utc).isoformat(),
                         }
             except Exception as e:
-                logger.debug(f"[POSITIONING_METRICS] Could not compute volume-based proxy for {symbol}: {e}")
+                logger.warning(f"[POSITIONING_METRICS] Failed to compute volume-based proxy for {symbol}: {type(e).__name__}: {e}")
 
             # Fallback: no positioning data available at all
             logger.info(f"[POSITIONING_METRICS] No positioning metrics found for {symbol} (all fields unavailable)")
