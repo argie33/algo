@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
 
 """
+Balance Sheet Loader — annual and quarterly from SEC EDGAR (single authoritative source).
 
-Balance Sheet Loader â€" annual and quarterly from SEC EDGAR.
-
-Period determined by LOADER_PERIOD env var (financials_annual_balance / financials_quarterly_balance)
-or --period CLI flag for manual runs.
+Period determined by LOADER_PERIOD env var or --period CLI flag for manual runs.
 """
 
 import logging
@@ -15,7 +13,7 @@ from datetime import date, datetime
 from typing import Any, cast
 
 from loaders.runner import run_loader
-from utils.data.source_router import DataSourceRouter
+from utils.external import SecEdgarClient
 from utils.optimal_loader import OptimalLoader
 
 logger = logging.getLogger(__name__)
@@ -43,23 +41,16 @@ _PERIOD_CONFIG = {
         ),
         "field_mapping": {
             # SEC EDGAR client converts concept names to snake_case before returning
-            # Total assets
             "assets": "total_assets",
-            # Current assets
             "assets_current": "current_assets",
             "cash_and_cash_equivalents_at_carrying_value": "cash_and_equivalents",
             "accounts_receivable_net_current": "accounts_receivable",
             "inventory_net": "inventory",
-            # Fixed assets
             "property_plant_and_equipment_net": "ppe_net",
             "goodwill": "goodwill",
-            # Total liabilities
             "liabilities": "total_liabilities",
-            # Current liabilities
             "liabilities_current": "current_liabilities",
-            # Equity
             "stockholders_equity": "stockholders_equity",
-            # Long-term debt
             "long_term_debt": "long_term_debt",
         },
     },
@@ -78,8 +69,7 @@ _PERIOD_CONFIG = {
             }
         ),
         "field_mapping": {
-            "fiscal_period": "fiscal_quarter",  # "Q1".."Q4"  ->  integer (converted in transform)
-            # SEC EDGAR client converts concept names to snake_case before returning
+            "fiscal_period": "fiscal_quarter",
             "assets": "total_assets",
             "assets_current": "current_assets",
             "liabilities": "total_liabilities",
@@ -92,19 +82,11 @@ _PERIOD_CONFIG = {
 def _resolve_period(cli_arg: str | None) -> str:
     if cli_arg:
         return cli_arg
-    period_env = os.getenv("LOADER_PERIOD", "annual")
-    return period_env
+    return os.getenv("LOADER_PERIOD", "annual")
 
 
 class BalanceSheetLoader(OptimalLoader):
-    """Balance sheet loader with multi-source support for real stocks only (not ETFs/bonds).
-
-    Data sources (in priority order):
-    1. SEC EDGAR (preferred - official, most complete)
-    2. yfinance (fallback for stocks without SEC filings - REITs, micro-caps, etc.)
-
-    Uses DataSourceRouter to handle automatic fallback when SEC EDGAR returns no data.
-    """
+    """Balance sheet loader from SEC EDGAR (official, authoritative source only)."""
 
     watermark_field = "fiscal_year"
     exclude_etfs_from_symbols = True
@@ -120,29 +102,18 @@ class BalanceSheetLoader(OptimalLoader):
         self._schema_cols: frozenset[str] = cast(frozenset[str], cfg["schema_cols"])
         self._field_mapping: dict[str, str] | None = cast(dict[str, str] | None, cfg.get("field_mapping"))
         super().__init__()
-        self._router = DataSourceRouter()
+        self._sec_client = SecEdgarClient()
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         try:
-            rows = self._router.fetch_balance_sheet(symbol, period=self.period)
+            rows = self._sec_client.get_balance_sheet(symbol, period=self.period)
 
             if not rows:
                 logger.warning(
-                    f"[BALANCE_SHEET] {symbol}: No {self.period} balance sheet data from any source "
-                    f"(SEC EDGAR + yfinance). Stock may lack SEC filings and yfinance data."
+                    f"[BALANCE_SHEET] {symbol}: No {self.period} balance sheet data in SEC EDGAR. "
+                    f"Stock may lack SEC filings."
                 )
                 return []
-
-            # Handle data_unavailable marker (all sources exhausted, no data available)
-            if isinstance(rows, dict) and rows.get("data_unavailable") is True:
-                logger.info(
-                    f"[BALANCE_SHEET] {symbol}: {rows.get('reason', 'Data unavailable from all sources')}. "
-                    f"Stock may be micro-cap, REIT, or lack financial data."
-                )
-                return []
-
-            if not isinstance(rows, list):
-                rows = [rows] if rows else []
 
             logger.info("%s: Fetched %d %s balance sheet row(s)", symbol, len(rows), self.period)
 
@@ -160,8 +131,7 @@ class BalanceSheetLoader(OptimalLoader):
 
             if len(filtered) < len(rows) and len(rows) > 0:
                 logger.debug(
-                    f"{symbol}: Filtered {len(rows) - len(filtered)} row(s) with fiscal_year <= {since_year} "
-                    f"(watermark incremental load — keeping {len(filtered)} newer rows)"
+                    f"{symbol}: Filtered {len(rows) - len(filtered)} row(s) with fiscal_year <= {since_year}"
                 )
             return filtered
         except Exception as e:
@@ -169,45 +139,20 @@ class BalanceSheetLoader(OptimalLoader):
                 f"[BALANCE_SHEET] Failed to fetch balance sheet for {symbol}: {type(e).__name__}: {e}"
             )
             raise RuntimeError(
-                f"[BALANCE_SHEET] Failed to fetch balance sheet for {symbol}: {e}. "
-                "Cannot proceed without fundamental data."
+                f"[BALANCE_SHEET] Failed to fetch balance sheet for {symbol}: {e}"
             ) from e
 
-    def transform(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:  # noqa: C901
+    def transform(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if self._field_mapping is None:
-            raise RuntimeError(
-                f"[{self.table_name}] Field mapping not initialized. "
-                f"Configuration missing 'field_mapping' key. "
-                f"Cannot transform balance sheet data without field mapping rules."
-            )
+            raise RuntimeError(f"[{self.table_name}] Field mapping not initialized.")
+
         transformed = []
         skipped_invalid_fields = 0
+
         for r in rows:
             row: dict[str, Any] = {}
-            field_mapping = self._field_mapping
-
-            # Handle both SEC EDGAR dicts (field: value) and yfinance dicts
-            # yfinance DataFrames converted to dict(orient="index") have dates as keys
-            # Need to flatten if this is a yfinance-style nested dict
-            fields_to_process = r.items()
-            if len(r) == 1:
-                inner_value = next(iter(r.values()))
-                if isinstance(inner_value, dict):
-                    # Likely yfinance format: {date_or_period: {field: value, ...}}
-                    # Extract the inner dict (first and only value)
-                    fields_to_process = inner_value.items()
-                # Also try to extract fiscal_year from the date key
-                for key_val in r.keys():
-                    if isinstance(key_val, str) and len(key_val) >= 4:
-                        try:
-                            r["fiscal_year"] = int(key_val[-4:])  # Extract year from date like "2023-12-31"
-                        except (ValueError, TypeError):
-                            pass
-
-            for sec_field, value in fields_to_process:
-                # Apply field mapping first
-                db_field = field_mapping.get(sec_field, sec_field)
-                # Only keep fields in schema
+            for sec_field, value in r.items():
+                db_field = self._field_mapping.get(sec_field, sec_field)
                 if db_field in self._schema_cols:
                     row[db_field] = value
 
@@ -221,40 +166,31 @@ class BalanceSheetLoader(OptimalLoader):
                         f"Expected Q1-Q4, found '{quarter_str}'. Skipping row."
                     )
                     skipped_invalid_fields += 1
-                    continue  # Skip this row instead of silently setting None
+                    continue
                 row["fiscal_quarter"] = quarter_num
             transformed.append(row)
 
         seen = {}
         skipped_missing_keys = 0
         for row in transformed:
-            key: tuple[Any, ...]
             symbol = row.get("symbol")
             fiscal_year = row.get("fiscal_year")
 
             if not symbol:
-                logger.warning(
-                    f"[{self.table_name}] WARNING: Row missing required 'symbol' field. Row data: {row}. Skipping."
-                )
+                logger.warning(f"[{self.table_name}] Row missing required 'symbol' field. Skipping.")
                 skipped_missing_keys += 1
                 continue
             if fiscal_year is None:
-                logger.warning(
-                    f"[{self.table_name}] WARNING: Row missing required 'fiscal_year' field for symbol '{symbol}'. "
-                    f"Row data: {row}. Skipping."
-                )
+                logger.warning(f"[{self.table_name}] Row missing required 'fiscal_year' field. Skipping.")
                 skipped_missing_keys += 1
                 continue
 
             if self.period == "annual":
-                key = (symbol, fiscal_year)
+                key: tuple[Any, ...] = (symbol, fiscal_year)
             else:
                 fiscal_quarter = row.get("fiscal_quarter")
                 if fiscal_quarter is None:
-                    logger.warning(
-                        f"[{self.table_name}] WARNING: Row missing required 'fiscal_quarter' field for symbol '{symbol}' "
-                        f"fiscal_year {fiscal_year}. Row data: {row}. Skipping."
-                    )
+                    logger.warning(f"[{self.table_name}] Row missing required 'fiscal_quarter'. Skipping.")
                     skipped_missing_keys += 1
                     continue
                 key = (symbol, fiscal_year, fiscal_quarter)
@@ -263,22 +199,13 @@ class BalanceSheetLoader(OptimalLoader):
                 seen[key] = row
 
         if not seen:
-            raise RuntimeError(
-                f"[{self.table_name}] CRITICAL: No valid rows after transformation. "
-                f"All {len(rows)} SEC EDGAR {self.period} balance sheet rows were filtered. "
-                f"Skipped {skipped_invalid_fields} rows with invalid fields, "
-                f"{skipped_missing_keys} rows with missing required keys. "
-                f"Cannot proceed without valid fundamental data."
-            )
+            raise RuntimeError(f"[{self.table_name}] CRITICAL: No valid rows after transformation.")
 
         if skipped_invalid_fields + skipped_missing_keys > 0:
             logger.warning(
-                f"[{self.table_name}] WARNING: Skipped {skipped_invalid_fields + skipped_missing_keys} rows "
-                f"(invalid fields: {skipped_invalid_fields}, missing keys: {skipped_missing_keys}). "
-                f"Balance sheet data completeness may be affected."
+                f"[{self.table_name}] Skipped {skipped_invalid_fields + skipped_missing_keys} rows."
             )
 
-        # Add created_at watermark for downstream loaders (growth_metrics, quality_metrics, etc.)
         now = datetime.now().isoformat()
         result = list(seen.values())
         for row in result:
@@ -286,6 +213,7 @@ class BalanceSheetLoader(OptimalLoader):
         return result
 
     def _validate_row(self, row: dict[str, Any]) -> bool:
+
         if not super()._validate_row(row):
             symbol = row.get("symbol", "UNKNOWN")
             logger.warning(
