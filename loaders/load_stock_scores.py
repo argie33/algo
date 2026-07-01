@@ -440,16 +440,33 @@ class StockScoresLoader(OptimalLoader):
     def _get_quality_metrics(self, cur: Any, symbol: str) -> dict[str, Any]:
         """Fetch quality metrics for symbol.
 
-        Returns explicit marker dict if data is unavailable (quality_metrics table
-        has no entry for this symbol). Raises on database errors.
+        Returns explicit marker dict if data is unavailable (either no row or data_unavailable=True).
+        Raises on database errors.
+
+        CRITICAL FIX 2026-07-01: Now checks data_unavailable flag. Some securities (REITs, etc.)
+        have rows marked data_unavailable=True with NULL values. Previously returned NULLs instead
+        of marker; now properly returns marker dict.
         """
         try:
             cur.execute(
-                "SELECT roe, roa, operating_margin, net_margin, debt_to_equity, current_ratio, quick_ratio FROM quality_metrics WHERE symbol = %s",
+                "SELECT roe, roa, operating_margin, net_margin, debt_to_equity, current_ratio, quick_ratio, data_unavailable FROM quality_metrics WHERE symbol = %s",
                 (symbol,),
             )
             row = cur.fetchone()
             if row:
+                data_unavailable = row[7]
+                # If marked unavailable, return marker even if row exists
+                if data_unavailable:
+                    logger.debug(
+                        f"[LOAD_STOCK_SCORES] {symbol} marked data_unavailable in quality_metrics "
+                        f"(likely REIT or security with missing SEC filings)"
+                    )
+                    return {
+                        "symbol": symbol,
+                        "data_unavailable": True,
+                        "reason": "quality_data_marked_unavailable"
+                    }
+                # Row exists and data is available
                 return {
                     "roe": self._safe_float(row[0], f"{symbol}.roe"),
                     "roa": self._safe_float(row[1], f"{symbol}.roa"),
@@ -459,12 +476,10 @@ class StockScoresLoader(OptimalLoader):
                     "current_ratio": self._safe_float(row[5], f"{symbol}.current_ratio"),
                     "quick_ratio": self._safe_float(row[6], f"{symbol}.quick_ratio"),
                 }
-            # CRITICAL: Quality metrics are HIGH-priority financial data (SEC filings)
-            # Logging at WARNING to ensure ops visibility of degraded scoring
+            # No row exists at all
             logger.warning(
                 f"[LOAD_STOCK_SCORES] No quality metrics available for {symbol} — score completeness will be reduced"
             )
-            logger.debug(f"[LOAD_STOCK_SCORES] Returning data_unavailable marker for quality_metrics({symbol})")
             return {
                 "symbol": symbol,
                 "data_unavailable": True,
@@ -476,16 +491,33 @@ class StockScoresLoader(OptimalLoader):
     def _get_growth_metrics(self, cur: Any, symbol: str) -> dict[str, Any]:
         """Fetch growth metrics for symbol.
 
-        Returns explicit marker dict if data is unavailable (growth_metrics table
-        has no entry for this symbol). Raises on database errors.
+        Returns explicit marker dict if data is unavailable (either no row or data_unavailable=True).
+        Raises on database errors.
+
+        CRITICAL FIX 2026-07-01: Now checks data_unavailable flag. Some securities have rows
+        marked data_unavailable=True with NULL values. Previously returned NULLs instead of
+        marker; now properly returns marker dict.
         """
         try:
             cur.execute(
-                "SELECT revenue_growth_1y, revenue_growth_3y, revenue_growth_5y, eps_growth_1y, eps_growth_3y, eps_growth_5y FROM growth_metrics WHERE symbol = %s",
+                "SELECT revenue_growth_1y, revenue_growth_3y, revenue_growth_5y, eps_growth_1y, eps_growth_3y, eps_growth_5y, data_unavailable FROM growth_metrics WHERE symbol = %s",
                 (symbol,),
             )
             row = cur.fetchone()
             if row:
+                data_unavailable = row[6]
+                # If marked unavailable, return marker even if row exists
+                if data_unavailable:
+                    logger.debug(
+                        f"[LOAD_STOCK_SCORES] {symbol} marked data_unavailable in growth_metrics "
+                        f"(likely security with missing SEC filings)"
+                    )
+                    return {
+                        "symbol": symbol,
+                        "data_unavailable": True,
+                        "reason": "growth_data_marked_unavailable"
+                    }
+                # Row exists and data is available
                 return {
                     "revenue_growth_1y": self._safe_float(row[0], f"{symbol}.revenue_growth_1y"),
                     "revenue_growth_3y": self._safe_float(row[1], f"{symbol}.revenue_growth_3y"),
@@ -494,12 +526,10 @@ class StockScoresLoader(OptimalLoader):
                     "eps_growth_3y": self._safe_float(row[4], f"{symbol}.eps_growth_3y"),
                     "eps_growth_5y": self._safe_float(row[5], f"{symbol}.eps_growth_5y"),
                 }
-            # CRITICAL: Growth metrics are HIGH-priority financial data (SEC filings)
-            # Logging at WARNING to ensure ops visibility of degraded scoring
+            # No row exists at all
             logger.warning(
                 f"[LOAD_STOCK_SCORES] No growth metrics available for {symbol} — score completeness will be reduced"
             )
-            logger.debug(f"[LOAD_STOCK_SCORES] Returning data_unavailable marker for growth_metrics({symbol})")
             return {
                 "symbol": symbol,
                 "data_unavailable": True,
@@ -511,16 +541,33 @@ class StockScoresLoader(OptimalLoader):
     def _get_value_metrics(self, cur: Any, symbol: str) -> dict[str, Any]:
         """Fetch value metrics for symbol.
 
-        Returns explicit marker dict if data is unavailable (value_metrics table
-        has no entry for this symbol). Raises on database errors.
+        Returns explicit marker dict if data is unavailable (either no row or data_unavailable=True).
+        Raises on database errors.
+
+        CRITICAL FIX 2026-07-01: Now checks data_unavailable flag. Some securities have rows
+        marked data_unavailable=True with NULL values. Previously returned NULLs instead of
+        marker; now properly returns marker dict.
         """
         try:
             cur.execute(
-                "SELECT pe_ratio, pb_ratio, ps_ratio, peg_ratio, dividend_yield, fcf_yield FROM value_metrics WHERE symbol = %s",
+                "SELECT pe_ratio, pb_ratio, ps_ratio, peg_ratio, dividend_yield, fcf_yield, data_unavailable FROM value_metrics WHERE symbol = %s",
                 (symbol,),
             )
             row = cur.fetchone()
             if row:
+                data_unavailable = row[6]
+                # If marked unavailable, return marker even if row exists
+                if data_unavailable:
+                    logger.debug(
+                        f"[LOAD_STOCK_SCORES] {symbol} marked data_unavailable in value_metrics "
+                        f"(likely security with missing pricing data)"
+                    )
+                    return {
+                        "symbol": symbol,
+                        "data_unavailable": True,
+                        "reason": "value_data_marked_unavailable"
+                    }
+                # Row exists and data is available
                 return {
                     "pe_ratio": self._safe_float(row[0], f"{symbol}.pe_ratio"),
                     "pb_ratio": self._safe_float(row[1], f"{symbol}.pb_ratio"),
@@ -529,12 +576,10 @@ class StockScoresLoader(OptimalLoader):
                     "dividend_yield": self._safe_float(row[4], f"{symbol}.dividend_yield"),
                     "fcf_yield": self._safe_float(row[5], f"{symbol}.fcf_yield"),
                 }
-            # CRITICAL: Value metrics are HIGH-priority financial data (market pricing)
-            # Logging at WARNING to ensure ops visibility of degraded scoring
+            # No row exists at all
             logger.warning(
                 f"[LOAD_STOCK_SCORES] No value metrics available for {symbol} — score completeness will be reduced"
             )
-            logger.debug(f"[LOAD_STOCK_SCORES] Returning data_unavailable marker for value_metrics({symbol})")
             return {
                 "symbol": symbol,
                 "data_unavailable": True,
@@ -546,27 +591,42 @@ class StockScoresLoader(OptimalLoader):
     def _get_positioning_metrics(self, cur: Any, symbol: str) -> dict[str, Any]:
         """Fetch positioning metrics for symbol.
 
-        Returns explicit marker dict if data is unavailable (positioning_metrics table
-        has no entry for this symbol). Raises on database errors.
+        Returns explicit marker dict if data is unavailable (either no row or data_unavailable=True).
+        Raises on database errors.
+
+        CRITICAL FIX 2026-07-01: Now checks data_unavailable flag. Weird securities (ETFs,
+        preferreds, depositary shares) have rows marked data_unavailable=True with NULL values.
+        Previously returned NULLs instead of marker; now properly returns marker dict.
         """
         try:
             cur.execute(
-                "SELECT institutional_ownership, insider_ownership, short_interest_percent FROM positioning_metrics WHERE symbol = %s",
+                "SELECT institutional_ownership, insider_ownership, short_interest_percent, data_unavailable FROM positioning_metrics WHERE symbol = %s",
                 (symbol,),
             )
             row = cur.fetchone()
             if row:
+                data_unavailable = row[3]
+                # If marked unavailable, return marker even if row exists
+                if data_unavailable:
+                    logger.debug(
+                        f"[LOAD_STOCK_SCORES] {symbol} marked data_unavailable in positioning_metrics "
+                        f"(likely weird security: ETF, preferred, depositary share)"
+                    )
+                    return {
+                        "symbol": symbol,
+                        "data_unavailable": True,
+                        "reason": "positioning_data_marked_unavailable"
+                    }
+                # Row exists and data is available
                 return {
                     "institutional_ownership": self._safe_float(row[0], f"{symbol}.institutional_ownership"),
                     "insider_ownership": self._safe_float(row[1], f"{symbol}.insider_ownership"),
                     "short_interest": self._safe_float(row[2], f"{symbol}.short_interest"),
                 }
-            # Positioning metrics are optional enrichment (institutional ownership, short interest)
-            # Debug level acceptable for optional data
+            # No row exists at all
             logger.debug(
                 f"[LOAD_STOCK_SCORES] No positioning metrics available for {symbol} — will reduce score completeness"
             )
-            logger.debug(f"[LOAD_STOCK_SCORES] Returning data_unavailable marker for positioning_metrics({symbol})")
             return {
                 "symbol": symbol,
                 "data_unavailable": True,
@@ -578,28 +638,43 @@ class StockScoresLoader(OptimalLoader):
     def _get_stability_metrics(self, cur: Any, symbol: str) -> dict[str, Any]:
         """Fetch stability metrics for symbol.
 
-        Returns explicit marker dict if data is unavailable (stability_metrics table
-        has no entry for this symbol). Raises on database errors.
+        Returns explicit marker dict if data is unavailable (either no row or data_unavailable=True).
+        Raises on database errors.
+
+        CRITICAL FIX 2026-07-01: Now checks data_unavailable flag. Some securities have rows
+        marked data_unavailable=True with NULL values. Previously returned NULLs instead of
+        marker; now properly returns marker dict.
         """
         try:
             cur.execute(
-                "SELECT volatility_252d, volatility_60d, volatility_30d, beta FROM stability_metrics WHERE symbol = %s",
+                "SELECT volatility_252d, volatility_60d, volatility_30d, beta, data_unavailable FROM stability_metrics WHERE symbol = %s",
                 (symbol,),
             )
             row = cur.fetchone()
             if row:
+                data_unavailable = row[4]
+                # If marked unavailable, return marker even if row exists
+                if data_unavailable:
+                    logger.debug(
+                        f"[LOAD_STOCK_SCORES] {symbol} marked data_unavailable in stability_metrics "
+                        f"(likely security with insufficient price history)"
+                    )
+                    return {
+                        "symbol": symbol,
+                        "data_unavailable": True,
+                        "reason": "stability_data_marked_unavailable"
+                    }
+                # Row exists and data is available
                 return {
                     "volatility_252d": float(row[0]) if row[0] is not None else None,
                     "volatility_60d": float(row[1]) if row[1] is not None else None,
                     "volatility_30d": float(row[2]) if row[2] is not None else None,
                     "beta": float(row[3]) if row[3] is not None else None,
                 }
-            # CRITICAL: Stability metrics are HIGH-priority financial data (volatility, beta)
-            # Logging at WARNING to ensure ops visibility of degraded scoring
+            # No row exists at all
             logger.warning(
                 f"[LOAD_STOCK_SCORES] No stability metrics available for {symbol} — score completeness will be reduced"
             )
-            logger.debug(f"[LOAD_STOCK_SCORES] Returning data_unavailable marker for stability_metrics({symbol})")
             return {
                 "symbol": symbol,
                 "data_unavailable": True,
