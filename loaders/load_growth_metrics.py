@@ -123,26 +123,15 @@ class GrowthMetricsLoader(OptimalLoader):
 
         _latest_year, latest_rev, latest_eps = latest
 
-        # CRITICAL FIX: Check if latest_rev is None (happens with REITs that don't report "Revenues")
-        # REITs and investment trusts often have NULL revenue in SEC XBRL data due to different
-        # accounting structures. This is NOT a data error - it's a structural difference.
+        # CHANGE: Don't bail out if revenue is NULL. REITs and special entities often have NULL revenue
+        # but DO have EPS data. Let the loop below handle both revenue AND eps growth separately.
+        # If both are NULL, the check at line 194 will mark as unavailable.
+
         if latest_rev is None or (isinstance(latest_rev, (int, float)) and float(latest_rev) == 0):
             logger.info(
-                f"[GROWTH_METRICS] {symbol}: Latest revenue is NULL or zero — cannot compute growth metrics. "
-                f"Company may be REIT, investment trust, or special entity with alternative accounting."
+                f"[GROWTH_METRICS] {symbol}: Revenue is NULL/zero but will attempt EPS-only growth. "
+                f"Company may be REIT, investment trust, or special entity."
             )
-            return {
-                "symbol": symbol,
-                "revenue_growth_1y": None,
-                "revenue_growth_3y": None,
-                "revenue_growth_5y": None,
-                "eps_growth_1y": None,
-                "eps_growth_3y": None,
-                "eps_growth_5y": None,
-                "data_unavailable": True,
-                "reason": "No valid revenue data in annual statements",
-                "updated_at": date.today(),
-            }
 
         metrics: dict[str, Any] = {"symbol": symbol}
 
@@ -151,7 +140,11 @@ class GrowthMetricsLoader(OptimalLoader):
             if len(all_years) > lookback and all_years[idx] and latest_rev:
                 _prev_year, prev_rev, _prev_eps = all_years[idx]
                 try:
-                    if prev_rev is not None and float(prev_rev) > 0 and float(latest_rev) > 0:
+                    # Allow revenue growth even with negative revenue. Only skip if:
+                    # - prev_rev is None (missing data), or
+                    # - prev_rev = 0 (would divide by zero)
+                    # Negative revenue is real data that should be included.
+                    if prev_rev is not None and float(prev_rev) != 0:
                         latest_rev_f = float(latest_rev)
                         prev_rev_f = float(prev_rev)
                         rev_growth = (((latest_rev_f / prev_rev_f) ** (1.0 / lookback)) - 1) * 100
@@ -170,7 +163,11 @@ class GrowthMetricsLoader(OptimalLoader):
             if len(all_years) > lookback and all_years[idx] and latest_eps:
                 _prev_year, _prev_rev, prev_eps = all_years[idx]
                 try:
-                    if prev_eps is not None and float(prev_eps) > 0 and float(latest_eps) > 0:
+                    # Allow EPS growth even with negative earnings. Only skip if:
+                    # - prev_eps is None (missing data), or
+                    # - prev_eps = 0 (would divide by zero)
+                    # Negative earnings are real data that should be included.
+                    if prev_eps is not None and float(prev_eps) != 0:
                         latest_eps_f = float(latest_eps)
                         prev_eps_f = float(prev_eps)
                         eps_growth = (((latest_eps_f / prev_eps_f) ** (1.0 / lookback)) - 1) * 100
