@@ -147,6 +147,11 @@ data_bucket_expiration_days = 7 # OPTIMIZED from 14→7: staging data regenerabl
 enable_rds_proxy = true # CRITICAL: Enables connection pooling for 24+ concurrent loaders (multiplexes to 20-30 RDS connections). Essential for EOD and morning prep pipelines.
 
 # ============================================================
+# VPC Endpoints Configuration
+# ============================================================
+enable_vpc_endpoints = true # CRITICAL FIX: Enable ECR endpoints so ECS tasks can pull Docker images from ECR. Without this, tasks stuck in PROVISIONING forever. Cost: ~$43/month.
+
+# ============================================================
 # Development Machine Access
 # ============================================================
 dev_machine_cidr = "75.250.183.199/32" # Allow local dev_server.py to connect to RDS directly
