@@ -33,8 +33,7 @@ def get_stock_scores(symbols: list[str]) -> None:
                        value_score,
                        positioning_score,
                        stability_score,
-                       rs_pct,
-                       data_unavailable,
+                       rs_percentile,
                        updated_at
                 FROM stock_scores
                 WHERE symbol IN ({placeholders})
@@ -55,7 +54,7 @@ def get_stock_scores(symbols: list[str]) -> None:
             logger.info("-"*100)
 
             for row in rows:
-                symbol, composite, momentum, quality, growth, value, positioning, stability, rs_pct, data_unavail, updated = row
+                symbol, composite, momentum, quality, growth, value, positioning, stability, rs_percentile, updated = row
 
                 # Format each score, showing null as "--"
                 def fmt_score(val):
@@ -70,12 +69,10 @@ def get_stock_scores(symbols: list[str]) -> None:
                 value_str = fmt_score(value)
                 positioning_str = fmt_score(positioning)
                 stability_str = fmt_score(stability)
-                rs_str = fmt_score(rs_pct)
+                rs_str = fmt_score(rs_percentile)
 
                 # Status indicator
-                if data_unavail:
-                    status = "UNAVAILABLE"
-                elif composite is None:
+                if composite is None:
                     status = "NULL"
                 else:
                     status = "OK"
@@ -92,12 +89,10 @@ def get_stock_scores(symbols: list[str]) -> None:
             logger.info("="*100)
 
             null_count = sum(1 for row in rows if row[1] is None)  # composite_score is index 1
-            data_unavail_count = sum(1 for row in rows if row[9])  # data_unavailable is index 9
-            ok_count = len(rows) - null_count - data_unavail_count
+            ok_count = len(rows) - null_count
 
             logger.info(f"✓ Stocks with scores:        {ok_count}")
             logger.info(f"✗ Stocks with NULL scores:   {null_count}")
-            logger.info(f"✗ Stocks data unavailable:   {data_unavail_count}")
 
             if null_count > 0:
                 logger.error("\n⚠ Null scores indicate:")

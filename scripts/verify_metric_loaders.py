@@ -29,19 +29,23 @@ def check_metric_table(table_name: str, min_coverage_pct: float = 0.70) -> dict:
         with DatabaseContext("read", timeout=10) as cur:
             # Total rows
             cur.execute(f"SELECT COUNT(*) FROM {table_name}")
-            total = cur.fetchone()[0] if cur.fetchone() else 0
+            row = cur.fetchone()
+            total = row[0] if row else 0
 
             # Rows with available data (not data_unavailable)
             cur.execute(f"SELECT COUNT(*) FROM {table_name} WHERE data_unavailable = false OR data_unavailable IS NULL")
-            available = cur.fetchone()[0] if cur.fetchone() else 0
+            row = cur.fetchone()
+            available = row[0] if row else 0
 
             # Latest update date
             cur.execute(f"SELECT MAX(updated_at) FROM {table_name}")
-            latest = cur.fetchone()[0] if cur.fetchone() else None
+            row = cur.fetchone()
+            latest = row[0] if row else None
 
             # Rows updated today
             cur.execute(f"SELECT COUNT(*) FROM {table_name} WHERE DATE(updated_at) = %s", (date.today(),))
-            today_count = cur.fetchone()[0] if cur.fetchone() else 0
+            row = cur.fetchone()
+            today_count = row[0] if row else 0
 
             coverage = (available / total * 100) if total > 0 else 0
             meets_threshold = coverage >= (min_coverage_pct * 100)
@@ -75,7 +79,6 @@ def main():
         "stability_metrics": 0.85,
         "growth_metrics": 0.70,  # Optional SEC data, but must have >0%
         "quality_metrics": 0.70,  # Optional SEC data, but must have >0%
-        "stock_scores": 0.80,
     }
 
     results = {}
