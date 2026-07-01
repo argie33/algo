@@ -20,7 +20,7 @@ aws logs describe-log-groups --query 'logGroups[0].logGroupName' --region us-eas
 # If you get AccessDenied, contact AWS admin to grant logs:GetLogEvents and logs:DescribeLogStreams
 ```
 
-**Permission Error:** If you see `AccessDeniedException` (e.g., `ecs:DescribeTaskDefinition` or `logs:GetLogEvents`), contact AWS admin to grant the missing permissions. See `terraform/` for full policy definition and `steering/PERF_ANL_DEPLOYMENT_STATUS.md` for CloudWatch access example.
+**Permission Error:** If you see `AccessDeniedException` (e.g., `ecs:DescribeTaskDefinition` or `logs:GetLogEvents`), contact AWS admin to grant the missing permissions. Check IAM policy for `algo-developer` user — required permissions listed in section above.
 
 ---
 
@@ -171,64 +171,16 @@ Required:
 
 ---
 
-## Factor Scores Data Quality (AWS Metric Loaders)
+## Factor Scores & Metric Loaders
 
-**Problem:** Factor scores showing 0's, NULL, or incomplete (data_completeness < 50%)
+**For troubleshooting factor score issues** (NULL scores, incomplete metrics, timing issues):
+See `steering/FACTOR_SCORES_DATA_FLOW.md` — Contains decision trees, verification queries, and root cause analysis.
 
-**Root Cause:** Metric loaders timing out in AWS
-- Default 300s timeout insufficient for yfinance + SEC filing fetches
-- Rate limiting from parallel loading of 3000+ symbols
-- Batch size 1000 causes rate limit cascade, backoff increases execution time
-- VPC network latency and database connection pooling contention
-
-**Solution (Deployed - Lambda Routing Fix):**
-- Metric loader timeout: 300s → 600s (10 minutes) — ✅ Environment override in Lambda
-- Batch size in AWS: 1000 → 100 (avoids rate limiting) — ✅ Environment override in Lambda
-- ECS task memory: 512MB → 1024MB (sufficient for batches) — ✅ Environment override in Lambda
-- Loader classification: CRITICAL (FARGATE resource guarantee, not SPOT) — ✅ Lambda trigger routing
-
-**How It Works (No ECS Task Definition Changes Needed):**
-GitHub Actions now routes all loader triggers through the `algo-trigger-loaders` Lambda function, which applies the correct environment overrides before launching ECS tasks:
-- `.github/workflows/trigger-loader.yml` modified to invoke Lambda instead of calling ECS directly
-- Lambda applies containerOverrides with LOADER_CHUNK_SIZE=100, LOADER_TIMEOUT_SEC=600
-- ECS task definitions do NOT need to be updated in AWS
-
-**Deployment Status:** ✅ Complete and running
-- Code changes committed to main
-- GitHub Actions workflow updated and deployed
-- Metric loaders running with Lambda routing (batch size 100, timeout 600s)
-
-**Verify Fix Working:**
-```bash
-# Check metric loader completion (should be > 75% in last hour)
-SELECT table_name, completion_pct, last_updated
-FROM data_loader_status
-WHERE table_name IN ('quality_metrics', 'growth_metrics', 'value_metrics', 'positioning_metrics', 'stability_metrics')
-ORDER BY last_updated DESC;
-
-# Check factor scores calculated (should be 2000+ with avg 45-65)
-SELECT COUNT(*) as total,
-       ROUND(AVG(composite_score), 2) as avg_score,
-       MIN(composite_score) as min_score,
-       MAX(composite_score) as max_score
-FROM stock_scores
-WHERE composite_score > 0;
-```
-
-**Expected Results (Fixed):**
-- total: 2000+
-- avg_score: 45-65
-- min_score: > 0
-- max_score: 90-100
-
-**If Still Broken (< 500 scores):**
-1. Check CloudWatch: `/ecs/algo-cluster` — metric loader errors?
-2. Check data_loader_status: completion_pct for each metric table
-3. If < 70% completion: increase ECS memory to 2048MB, reduce parallelism to 2
-4. Monitor next loader run (EventBridge triggers every 5 min trading hours)
-5. Each loader needs ~10 min to complete; allow 60+ min for all 5 metrics + stock_scores
-
-**Auto-Recovery:** EventBridge trigger → Loader execution → Data loaded → Scores calculated
+**Key points:**
+- Metric loaders need ≥70% coverage to trigger stock_scores computation
+- Max parallelism with AWS: 3-4 (avoid rate limiting from yfinance)
+- Orchestrator timeout: 25 min (sufficient for all metric loaders + stock_scores)
+- Check `data_loader_status` table to monitor completion
 
 ---
 
@@ -382,5 +334,4 @@ See:
 - `steering/GOVERNANCE.md` — Architecture, safety rules, system map, fail-fast principles
 - `steering/LINT_POLICY.md` — Code quality, pre-commit enforcement
 - `steering/DATA_LOADERS.md` — Loader orchestration, batch sizing, freshness thresholds
-- `steering/DEPLOYMENT.md` — Infrastructure deployment, database migrations
-- `steering/API_ARCHITECTURE.md` — API error handling, validation patterns
+- `steering/DATABASE_AND_ENVIRONMENTS.md` — Database setup, AWS credentials, production infrastructure
