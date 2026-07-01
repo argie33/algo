@@ -1946,11 +1946,12 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
 
     States = {
       # ── Growth Metrics (depends on financial data) ──
-      # FIXED: Increase timeout from 3600s to 7200s (2h) to handle 5000+ symbols with yfinance rate limiting
+      # FIXED: Increase timeout from 3600s to 14400s (4h) to handle 5000+ symbols with parallelism=2
+      # With parallelism=2, execution takes ~20-41 minutes; 4h provides safe buffer
       GrowthMetrics = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 7200
+        TimeoutSeconds = 14400
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
@@ -1995,11 +1996,12 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
       }
 
       # ── Quality Metrics (depends on financial data) ──
-      # FIXED: Increase timeout from 3600s to 7200s (2h) to handle 5000+ symbols with batch operations
+      # FIXED: Increase timeout from 3600s to 14400s (4h) to handle 5000+ symbols with parallelism=2
+      # With parallelism=2, execution takes ~20-41 minutes; 4h provides safe buffer
       QualityMetrics = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 7200
+        TimeoutSeconds = 14400
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
