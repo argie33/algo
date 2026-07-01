@@ -79,8 +79,9 @@ if ($schedules) {
 Write-Host "`n=== 2. Step Functions Recent Executions ===" -ForegroundColor Yellow
 
 $eodPipelineName = "$ProjectName-eod-pipeline-$Environment"
+$accountId = aws sts get-caller-identity --query Account --output text
 $executions = Invoke-AWSCommand `
-    "aws stepfunctions list-executions --state-machine-arn arn:aws:states:$AWSRegion`:`(aws sts get-caller-identity --query Account --output text)`:stateMachine:$eodPipelineName --region $AWSRegion --max-results 5 --output json" `
+    "aws stepfunctions list-executions --state-machine-arn arn:aws:states:$AWSRegion`:$accountId`:stateMachine:$eodPipelineName --region $AWSRegion --max-results 5 --output json" `
     "Listing last 5 EOD pipeline executions"
 
 if ($executions) {
@@ -209,21 +210,19 @@ if ($schedulerRole) {
         if ($rolesJson.PolicyNames.Count -gt 0) {
             Write-Host "  EventBridge Scheduler role policies:" -ForegroundColor Green
             foreach ($policy in $rolesJson.PolicyNames) {
-                Write-Host "    ✓ $policy"
+                Write-Host ("    OK " + $policy)
             }
-        } else {
+        }
+        else {
             Write-Host "  WARNING: No inline policies found!" -ForegroundColor Yellow
         }
-    } catch {
+    }
+    catch {
         Write-Host "  Failed to parse IAM policies" -ForegroundColor Red
     }
-} else {
+}
+else {
     Write-Host "  Failed to query IAM role" -ForegroundColor Red
 }
 
 Write-Host "`n=== Diagnostics Complete ===" -ForegroundColor Green
-Write-Host "`nNext steps if infrastructure is down:" -ForegroundColor Cyan
-Write-Host "1. Verify RDS is running (not stopped by cost-save scheduler)"
-Write-Host "2. Check EventBridge Scheduler rules are ENABLED"
-Write-Host "3. Verify IAM roles have correct permissions"
-Write-Host "4. Manually trigger EOD pipeline if needed: invoke-stepfunction.ps1"

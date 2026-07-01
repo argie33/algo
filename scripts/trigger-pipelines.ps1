@@ -23,12 +23,15 @@ try {
     exit 1
 }
 
+# Get account ID first
+$accountId = aws sts get-caller-identity --query Account --output text
+
 # Map pipeline names to state machine ARNs
 $pipelineMap = @{
-    "eod"      = "arn:aws:states:$AWSRegion`:`(aws sts get-caller-identity --query Account --output text)`:stateMachine:$ProjectName-eod-pipeline-$Environment"
-    "morning"  = "arn:aws:states:$AWSRegion`:`(aws sts get-caller-identity --query Account --output text)`:stateMachine:$ProjectName-morning-prep-$Environment"
-    "afternoon" = "arn:aws:states:$AWSRegion`:`(aws sts get-caller-identity --query Account --output text)`:stateMachine:$ProjectName-intraday-afternoon-update-$Environment"
-    "preclose" = "arn:aws:states:$AWSRegion`:`(aws sts get-caller-identity --query Account --output text)`:stateMachine:$ProjectName-intraday-preclose-update-$Environment"
+    "eod"      = "arn:aws:states:$AWSRegion`:$accountId`:stateMachine:$ProjectName-eod-pipeline-$Environment"
+    "morning"  = "arn:aws:states:$AWSRegion`:$accountId`:stateMachine:$ProjectName-morning-prep-$Environment"
+    "afternoon" = "arn:aws:states:$AWSRegion`:$accountId`:stateMachine:$ProjectName-intraday-afternoon-update-$Environment"
+    "preclose" = "arn:aws:states:$AWSRegion`:$accountId`:stateMachine:$ProjectName-intraday-preclose-update-$Environment"
 }
 
 function Trigger-Pipeline {
@@ -39,9 +42,8 @@ function Trigger-Pipeline {
 
     Write-Host "→ Triggering $PipelineName pipeline..." -ForegroundColor Cyan
 
-    # Get account ID for ARN
-    $accountId = aws sts get-caller-identity --query Account --output text
-    $arn = $StateMachineArn -replace '\(aws sts get-caller-identity --query Account --output text\)', $accountId
+    # Use ARN directly
+    $arn = $StateMachineArn
 
     $executionName = "manual-trigger-$PipelineName-$(Get-Date -Format 'HHmmss')"
     $input = @{
@@ -156,4 +158,4 @@ Write-Host "`nNext steps:" -ForegroundColor Cyan
 Write-Host "1. Monitor pipeline execution in AWS console"
 Write-Host "2. Check CloudWatch Logs for any errors"
 Write-Host "3. Verify data freshness after execution completes"
-Write-Host "4. If failures occur, run: ./diagnose-infrastructure.ps1" -ForegroundColor Cyan
+Write-Host "4. If failures occur, run: ./diagnose-infrastructure.ps1"
