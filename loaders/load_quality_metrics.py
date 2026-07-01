@@ -217,7 +217,13 @@ class QualityMetricsLoader(OptimalLoader):
             metrics["debt_to_assets"] = None
             metrics["debt_to_assets_unavailable_reason"] = "missing_balance_sheet_data"
 
-        metrics["data_unavailable"] = False
+        # Check if ANY metrics were actually computed (not all NULL)
+        computed_metrics = [metrics.get(k) for k in ["operating_margin", "net_margin", "roe", "roa", "debt_to_equity", "current_ratio", "quick_ratio"]]
+        has_real_data = any(m is not None for m in computed_metrics)
+
+        metrics["data_unavailable"] = not has_real_data
+        if not has_real_data:
+            metrics["reason"] = "Metrics computation failed (insufficient or invalid financial data)"
         metrics["updated_at"] = date.today().isoformat()
 
         return metrics
