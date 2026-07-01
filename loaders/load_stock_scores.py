@@ -613,6 +613,10 @@ class StockScoresLoader(OptimalLoader):
 
         Uses date arithmetic to find approximate prices at 1m/3m/6m/12m ago.
         More robust than OFFSET which breaks on data gaps or different row counts.
+
+        For NEW LISTINGS (<30 days): Falls back to short-term momentum (daily/weekly returns)
+        when 1m/3m/6m/12m prices are unavailable.
+
         Returns None only if no price data available. Raises on database errors.
         """
         try:
@@ -659,6 +663,39 @@ class StockScoresLoader(OptimalLoader):
                     if current is not None and prices["price_12m_ago"] is not None and prices["price_12m_ago"] != 0
                     else None
                 )
+
+                # For new listings: if standard lookbacks unavailable, use short-term returns
+                # This allows IPOs with <30 days history to still contribute momentum scores
+                if momentum_1m is None and momentum_3m is None and momentum_6m is None and momentum_12m is None:
+                    # Fetch last 30 days of prices for short-term momentum calculation
+                    cur.execute(
+                        """
+                        SELECT date, close FROM price_daily
+                        WHERE symbol = %s
+                        ORDER BY date DESC
+                        LIMIT 30
+                        """,
+                        (symbol,),
+                    )
+                    short_term_rows = cur.fetchall()
+                    if short_term_rows and len(short_term_rows) >= 2:
+                        sorted_prices = sorted([(r[0], float(r[1])) for r in short_term_rows], key=lambda x: x[0])
+                        current_price = sorted_prices[-1][1]  # Latest price
+
+                        # Calculate returns from multiple starting points if available
+                        if len(sorted_prices) >= 2:
+                            momentum_1m = ((current_price / sorted_prices[-2][1] - 1) * 100) if sorted_prices[-2][1] != 0 else None
+                        if len(sorted_prices) >= 4:
+                            momentum_3m = ((current_price / sorted_prices[-4][1] - 1) * 100) if sorted_prices[-4][1] != 0 else None
+                        if len(sorted_prices) >= 7:
+                            momentum_6m = ((current_price / sorted_prices[-7][1] - 1) * 100) if sorted_prices[-7][1] != 0 else None
+                        if len(sorted_prices) >= 14:
+                            momentum_12m = ((current_price / sorted_prices[-14][1] - 1) * 100) if sorted_prices[-14][1] != 0 else None
+
+                        logger.debug(
+                            f"[LOAD_STOCK_SCORES] {symbol}: new listing (<30 days), computed short-term momentum "
+                            f"(1m={momentum_1m:.1f}%, 3m={momentum_3m}, 6m={momentum_6m}, 12m={momentum_12m})"
+                        )
 
                 return {
                     "momentum_1m": momentum_1m,

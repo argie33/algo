@@ -197,12 +197,16 @@ class PositioningMetricsLoader(OptimalLoader):
             try:
                 with DatabaseContext("read") as price_cur:
                     # Get volume statistics for recent trading (last 5 days for new listings)
+                    # Subquery to get last 5 rows ordered by date, then aggregate
                     price_cur.execute("""
                         SELECT AVG(volume), STDDEV(volume), MAX(close), MIN(close)
-                        FROM price_daily
-                        WHERE symbol = %s
-                        ORDER BY date DESC
-                        LIMIT 5
+                        FROM (
+                            SELECT volume, close
+                            FROM price_daily
+                            WHERE symbol = %s
+                            ORDER BY date DESC
+                            LIMIT 5
+                        ) sub
                     """, (symbol,))
                     vol_row = price_cur.fetchone()
 
