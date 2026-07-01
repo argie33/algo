@@ -9,17 +9,29 @@
 ## Project Endpoints (This Project)
 
 ### AWS Production Environment
-- **RDS Host:** Get from: `terraform output rds_endpoint` or AWS Secrets Manager
+- **RDS Identifier:** `algo-db` (Terraform resource)
+- **RDS Host:** `algo-db.xxxxx.us-east-1.rds.amazonaws.com` (from Terraform output `rds_address`)
 - **RDS Port:** 5432
 - **Database Name:** `stocks`
-- **User:** Stored in Secrets Manager (`algo-rds-credentials`)
+- **Master User:** From Terraform variable (usually `postgres` or `algo_admin`)
+- **Credentials Secret:** `algo-rds-credentials` (AWS Secrets Manager)
 - **API Gateway:** `https://2iqq1qhltj.execute-api.us-east-1.amazonaws.com`
 - **Lambda Functions:**
   - API: `algo-api-dev`
   - Orchestrator: `algo-orchestrator`
   - Loaders: ECS tasks (not Lambda)
 - **Region:** `us-east-1`
-- **Dashboard:** `python -m dashboard` (connects to API Gateway endpoint via env var)
+- **Dashboard:** `python -m dashboard` (connects to API Gateway endpoint)
+
+**Getting actual RDS endpoint:**
+```bash
+# From Terraform (in terraform/ directory)
+terraform output rds_address -raw
+
+# From AWS CLI
+aws rds describe-db-instances --db-instance-identifier algo-db \
+  --query 'DBInstances[0].Endpoint.Address' --region us-east-1
+```
 
 ### Local Development Environment
 - **Database Host:** `localhost:5432` (PostgreSQL)
@@ -27,6 +39,52 @@
 - **User:** Local PostgreSQL user (`postgres` or current user)
 - **API:** None (local dev uses direct database connections)
 - **Purpose:** Testing, experimentation, CI/CD (local tests)
+
+---
+
+## AWS Production Data Fixes (Critical)
+
+### Issue: Dashboard showing stale/incorrect scores (OPI, ETFs, missing data)
+
+**Fix:** Run these SQL commands against `algo-db` in AWS:
+
+```sql
+-- 1. Remove scores for stocks without positioning data (incomplete scoring)
+DELETE FROM stock_scores
+WHERE symbol IN (
+    SELECT s.symbol FROM stock_scores s
+    WHERE s.positioning_score IS NULL
+);
+
+-- 2. Remove ETF-marked stocks that got scored
+DELETE FROM stock_scores  
+WHERE symbol IN (SELECT symbol FROM stock_symbols WHERE etf = 'Y');
+
+-- 3. Verify cleanup
+SELECT COUNT(*) as total_valid_scores FROM stock_scores WHERE composite_score > 0;
+
+-- 4. Disable caching for scores endpoint in Lambda
+-- (This is code change, not SQL - done via GitHub deployment)
+
+-- 5. Restart dashboard to pick up fresh data
+-- pkill -9 python; python -m dashboard -w
+```
+
+**After running SQL:**
+1. Verify scores count is ~5119
+2. Restart dashboard: `pkill -9 python && python -m dashboard -w`
+3. Check dashboard: should show no OPI, XHS, WCEO and complete factor data
+
+**Connect to AWS RDS to run SQL:**
+```bash
+# Using psql (if installed)
+psql -h algo-db.xxxxx.us-east-1.rds.amazonaws.com \
+     -U postgres \
+     -d stocks
+
+# Or via AWS RDS Query Editor (AWS Console)
+# Or use your favorite SQL client
+```
 
 ---
 
