@@ -115,8 +115,8 @@ def panel_market_full(mkt: Any, sentiment: Any = None) -> Panel:  # noqa: C901
     exp = mkt.get("pct")
     vix = mkt.get("vix")
     spy_raw = mkt.get("spy")
-    vix = safe_float(vix, strict=True, field_name="vix")
-    spy_raw = safe_float(spy_raw, strict=True, field_name="spy")
+    vix = safe_float(vix, default=None, field_name="vix")
+    spy_raw = safe_float(spy_raw, default=None, field_name="spy")
     if vix is None or spy_raw is None:
         missing_fields = []
         if vix is None:
@@ -137,7 +137,7 @@ def panel_market_full(mkt: Any, sentiment: Any = None) -> Panel:  # noqa: C901
     stage = mkt.get("stage")
     if stage is None:
         stage = "--"
-    spy_chg = safe_float(mkt.get("spy_chg"), strict=True, field_name="spy_chg")
+    spy_chg = safe_float(mkt.get("spy_chg"), default=None, field_name="spy_chg")
     trend = mkt.get("trend")
     if trend is None:
         logger.warning(
@@ -154,43 +154,14 @@ def panel_market_full(mkt: Any, sentiment: Any = None) -> Panel:  # noqa: C901
             padding=(0, 1),
         )
 
-    # Optional enrichment fields — use strict=True but catch exceptions gracefully for missing optional data
-    upvol = None
-    try:
-        upvol = safe_float(mkt.get("upvol"), strict=True, field_name="upvol")
-    except Exception:
-        logger.debug("[MARKET_PANEL] Up volume ratio missing or invalid - breadth analysis incomplete")
-
-    adr = None
-    try:
-        adr = safe_float(mkt.get("adr"), strict=True, field_name="adr")
-    except Exception:
-        logger.debug("[MARKET_PANEL] Advance/Decline ratio missing - breadth analysis incomplete")
-
-    nh = None
-    nl = None
-    try:
-        nh = safe_int(mkt.get("nh"), strict=True, field_name="nh")
-    except Exception:
-        logger.debug("[MARKET_PANEL] New highs missing or invalid")
-    try:
-        nl = safe_int(mkt.get("nl"), strict=True, field_name="nl")
-    except Exception:
-        logger.debug("[MARKET_PANEL] New lows missing or invalid")
-    if nh is None or nl is None:
-        logger.debug("[MARKET_PANEL] New Highs/Lows data incomplete - market breadth data unavailable")
-
-    pcr = None
-    try:
-        pcr = safe_float(mkt.get("pcr"), strict=True, field_name="pcr")
-    except Exception:
-        logger.debug("[MARKET_PANEL] Put/call ratio missing from market data - optional enrichment unavailable")
-
-    bmom = None
-    try:
-        bmom = safe_float(mkt.get("bmom"), strict=True, field_name="bmom")
-    except Exception:
-        logger.debug("[MARKET_PANEL] Breadth momentum missing - market sentiment data incomplete")
+    # Optional enrichment fields — no validation in panel layer (fetcher validates)
+    # Simply render with None as fallback if data unavailable
+    upvol = safe_float(mkt.get("upvol"), default=None, field_name="upvol")
+    adr = safe_float(mkt.get("adr"), default=None, field_name="adr")
+    nh = safe_int(mkt.get("nh"), default=None, field_name="nh")
+    nl = safe_int(mkt.get("nl"), default=None, field_name="nl")
+    pcr = safe_float(mkt.get("pcr"), default=None, field_name="pcr")
+    bmom = safe_float(mkt.get("bmom"), default=None, field_name="bmom")
     fed = mkt.get("fed")
     # Exposure data may not be available in some market regimes (optional)
     if exp is None:

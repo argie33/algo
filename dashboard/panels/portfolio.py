@@ -98,8 +98,8 @@ def _calculate_adjusted_win_rate(
     if wr_val is None or w_val is None or l_val is None:
         raise ValueError(f"Performance metrics incomplete: wr={wr_val}, wins={w_val}, losses={l_val}")
 
-    w_i = safe_int(w_val, 0, strict=True, field_name="closed_wins")
-    l_i = safe_int(l_val, 0, strict=True, field_name="closed_losses")
+    w_i = safe_int(w_val, default=0, field_name="closed_wins")
+    l_i = safe_int(l_val, default=0, field_name="closed_losses")
 
     closed_wins = w_i
     closed_losses = l_i
@@ -155,9 +155,9 @@ def panel_portfolio(
     if npos_raw is None:
         raise ValueError("Portfolio position_count missing")
 
-    pv = safe_float(pv_raw, strict=True, field_name="total_portfolio_value")
-    cash = safe_float(cash_raw, strict=True, field_name="total_cash")
-    npos = safe_int(npos_raw, strict=True, field_name="position_count")
+    pv = safe_float(pv_raw, default=0.0, field_name="total_portfolio_value")
+    cash = safe_float(cash_raw, default=0.0, field_name="total_cash")
+    npos = safe_int(npos_raw, default=0, field_name="position_count")
 
     # STRICT: Optional enrichment metrics—explicitly handle missing data
     # These are computed daily; missing values should not silently default to None
@@ -188,7 +188,7 @@ def panel_portfolio(
     max_n_val = cfg.get("max_pos_n") if cfg else None
     if max_n_val is None:
         raise ValueError("max_pos_n config missing — cannot render portfolio position limits")
-    max_n = safe_int(max_n_val, strict=True)
+    max_n = safe_int(max_n_val, default=0, field_name="max_pos_n")
     snap_s = f"  [dim]{fmt_age(snap)}[/]" if snap is not None else ""
     # Header: portfolio value + age
     header = Text.from_markup(f"[bold white]{fmt_money(pv)}[/]{snap_s}")
