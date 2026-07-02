@@ -195,7 +195,7 @@ class PositioningMetricsLoader(OptimalLoader):
                 short_interest_trend = "stable"
                 short_interest_trend_reason = None
 
-            if institutional_ownership or insider_ownership or short_interest_percent:
+            if (institutional_ownership is not None or insider_ownership is not None or short_interest_percent is not None):
                 return {
                     "symbol": symbol,
                     "institutional_ownership": (round(institutional_ownership, 2) if institutional_ownership else None),

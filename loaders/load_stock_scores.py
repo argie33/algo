@@ -176,7 +176,7 @@ class StockScoresLoader(OptimalLoader):
                     }
                 ]
             return [score_result]
-        except RuntimeError as e:
+        except (RuntimeError, ValueError) as e:
             # Upstream metric loaders insufficient data: return explicit data_unavailable marker
             # instead of empty list so symbol appears in DB with clear status flag
             logger.warning(f"[STOCK_SCORES] Cannot compute score for {symbol}: {e!s}")
