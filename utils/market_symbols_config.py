@@ -163,7 +163,7 @@ class MarketSymbolsConfig:
 
         names = MarketSymbolsConfig._fetch_config_from_db("market_index_names", MarketSymbolsConfig.DEFAULT_INDEX_NAMES)
         MarketSymbolsConfig._cache["index_names"] = names
-        return names
+        return names  # type: ignore[no-any-return]
 
     @staticmethod
     def get_essential_stocks() -> list[str]:
@@ -230,7 +230,7 @@ class MarketSymbolsConfig:
             "orchestrator_schedule", MarketSymbolsConfig.DEFAULT_ORCHESTRATOR_SCHEDULE
         )
         MarketSymbolsConfig._cache["orchestrator_schedule"] = schedule
-        return schedule
+        return schedule  # type: ignore[no-any-return]
 
     @staticmethod
     def get_index_name(symbol: str) -> str:

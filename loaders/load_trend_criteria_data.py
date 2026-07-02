@@ -143,7 +143,7 @@ def _compute_scores_vectorized(merged: pd.DataFrame) -> pd.DataFrame:
     return merged
 
 
-def _upsert_batch(cur: psycopg2.extensions.cursor, rows: list[tuple]) -> int:
+def _upsert_batch(cur: psycopg2.extensions.cursor, rows: list) -> int:  # type: ignore[type-arg]
     """Upsert a batch of rows into trend_template_data."""
     if not rows:
         return 0
@@ -163,7 +163,7 @@ def _upsert_batch(cur: psycopg2.extensions.cursor, rows: list[tuple]) -> int:
     return len(rows)
 
 
-def run() -> dict:
+def run() -> dict:  # type: ignore[type-arg]
     """Compute and persist trend template data for recent trading dates."""
     _update_loader_status("RUNNING")
     start = time.time()

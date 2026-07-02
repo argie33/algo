@@ -2273,7 +2273,7 @@ def main() -> int:
     # SIGALRM only available on Unix; skip on Windows
     if hasattr(signal, "SIGALRM"):
         signal.signal(signal.SIGALRM, timeout_handler)
-        signal.alarm(execution_timeout_sec)  # type: ignore[attr-defined]
+        signal.alarm(execution_timeout_sec)
     else:
         logger.debug("[TIMEOUT] SIGALRM not available (Windows). Using process-level timeout instead.")
 
