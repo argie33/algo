@@ -70,6 +70,13 @@ class LoaderConfigManager:
         # to load faster once financial data arrives
         "growth_metrics": (2, 3),
         "quality_metrics": (2, 3),
+        # SEC EDGAR financial statement loaders: rate-limited by SEC API (10 req/sec shared)
+        # CRITICAL FIX 2026-07-01: Constrain to parallelism=1-2 to prevent rate limiting
+        # SEC EDGAR allows ~10 requests/second globally. With parallelism=32, we hit 429 Too Many Requests
+        # and retry indefinitely, causing 5-8 hour hangs. Parallelism=1-2 keeps us well under limit.
+        "income_statements": (1, 2),
+        "balance_sheets": (1, 2),
+        "cash_flow_statements": (1, 2),
     }
 
     def __init__(self) -> None:
