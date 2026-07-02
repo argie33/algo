@@ -58,7 +58,7 @@ def get_recent_runs(days: int = 7, limit: int | None = None) -> list[dict[str, A
             ]
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.error(f"Error querying recent runs: {e}")
-        raise RuntimeError(f"[ORCHESTRATOR_QUERY] Cannot fetch recent runs: {e}")
+        raise RuntimeError(f"[ORCHESTRATOR_QUERY] Cannot fetch recent runs: {e}") from e
 
 
 def get_run_details(run_id: str) -> dict[str, Any]:
@@ -153,7 +153,7 @@ def get_failed_runs(days: int = 30) -> list[dict[str, Any]]:
             ]
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.error(f"Error querying failed runs: {e}")
-        raise RuntimeError(f"[ORCHESTRATOR_QUERY] Cannot fetch failed runs: {e}")
+        raise RuntimeError(f"[ORCHESTRATOR_QUERY] Cannot fetch failed runs: {e}") from e
 
 
 def get_halt_patterns(days: int = 30) -> list[dict[str, Any]]:
@@ -202,7 +202,7 @@ def get_halt_patterns(days: int = 30) -> list[dict[str, Any]]:
             return patterns
     except (json.JSONDecodeError, ValueError) as e:
         logger.error(f"Error analyzing halt patterns: {e}")
-        raise RuntimeError(f"[ORCHESTRATOR_QUERY] Cannot analyze halt patterns: {e}")
+        raise RuntimeError(f"[ORCHESTRATOR_QUERY] Cannot analyze halt patterns: {e}") from e
 
 
 def get_success_rate(days: int = 7) -> dict[str, Any]:

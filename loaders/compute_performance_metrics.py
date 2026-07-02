@@ -409,7 +409,7 @@ def _compute_r_metrics(cur: Any, metric_date: date) -> tuple[float, float, float
         win_rate = win_count / total_trades
         loss_rate = loss_count / total_trades
 
-        # Calculate expectancy: E = (WR × Avg Win R) - (LR × Avg Loss R)
+        # Calculate expectancy: E = (WR x Avg Win R) - (LR x Avg Loss R)
         expectancy = (win_rate * avg_win_r) - (loss_rate * avg_loss_r)
 
         logger.info(

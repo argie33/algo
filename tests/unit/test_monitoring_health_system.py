@@ -74,7 +74,7 @@ class TestPipelineHealthMonitoring:
 
     def test_pipeline_health_check_table_health(self):
         """Test that health monitor can check individual table health."""
-        from algo.monitoring.pipeline_health import PipelineHealth, TableHealth, HealthStatus
+        from algo.monitoring.pipeline_health import HealthStatus, PipelineHealth, TableHealth
 
         monitor = PipelineHealth()
         assert hasattr(monitor, "check_table_health")

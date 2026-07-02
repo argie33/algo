@@ -2,7 +2,7 @@
 
 import contextlib
 import logging
-from typing import Generator
+from collections.abc import Generator
 
 import psycopg2
 

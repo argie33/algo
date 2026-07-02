@@ -7,6 +7,7 @@ strict validation modes, and don't pass None to strict converters.
 from typing import Any
 
 import pytest
+
 from utils.safe_data_conversion import StrictValidationError
 
 

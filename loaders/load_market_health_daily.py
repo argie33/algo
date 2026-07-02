@@ -1191,7 +1191,7 @@ INDEX_SYMBOLS_FOR_PRICE_DAILY = [
 ]
 
 
-def _write_vix_family_prices(start: date, end: date) -> int:
+def _write_vix_family_prices(start: date, end: date) -> int:  # noqa: C901
     """Download VIX-family and market-index prices via wrapper and upsert into price_daily.
 
     Supplies data for:

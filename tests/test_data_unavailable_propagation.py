@@ -9,9 +9,10 @@ Verifies that when data is unavailable:
 4. Financial decisions degrade explicitly (not silently)
 """
 
-import pytest
-from unittest.mock import MagicMock, patch
 from datetime import date
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 
 class TestDataUnavailableMarkers:
@@ -35,7 +36,7 @@ class TestDataUnavailableMarkers:
 
     def test_critical_loader_raises_on_missing_data(self):
         """CRITICAL data loaders must raise exception on missing data, not return 0/[]."""
-        with pytest.raises(RuntimeError, match="unavailable|missing|failed"):
+        with pytest.raises(RuntimeError, match=r"unavailable|missing|failed"):
             # Simulate critical loader failure
             raise RuntimeError(
                 "[CRITICAL] Market health data unavailable: VIX data missing from price_daily"
@@ -234,7 +235,7 @@ class TestSilentFallbackPrevention:
             with pytest.raises(RuntimeError):
                 raise RuntimeError("Database unavailable")
         else:
-            result = 0  # Valid 0 (count, score, etc.)
+            _result = 0  # Valid 0 (count, score, etc.)
 
     def test_no_silent_none_returns(self):
         """Functions must not return None without context."""
@@ -261,7 +262,7 @@ class TestSilentFallbackPrevention:
             if row.get("close") is None:
                 raise ValueError("Close price missing")
             else:
-                vix_close = float(row["close"])
+                _vix_close = float(row["close"])
 
 
 class TestCircuitBreakerProtection:

@@ -10,6 +10,7 @@ specifically catching cases where data parsers pass None to strict converters.
 from typing import Any
 
 import pytest
+
 from utils.safe_data_conversion import StrictValidationError, safe_float, safe_int
 
 
