@@ -1,0 +1,163 @@
+name: Run Loader
+
+# Manually trigger any loader (DXY, FRED economic data, custom, etc.)
+# Usage: gh workflow run run-loader.yml -f loader_name=load_dxy_index
+
+on:
+  workflow_dispatch:
+    inputs:
+      loader_name:
+        description: 'Loader to run (e.g., load_dxy_index, load_fred_economic_data)'
+        required: true
+        type: string
+
+jobs:
+  run-loader:
+    name: Run ${{ inputs.loader_name }}
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a  # v4
+        with:
+          role-to-assume: ${{ secrets.GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/{1}', secrets.AWS_ACCOUNT_ID, secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev') }}
+          aws-region: us-east-1
+
+      - name: Run ${{ inputs.loader_name }} in ECS
+        run: |
+          echo "Triggering ECS task to run: ${{ inputs.loader_name }}"
+
+          python3 << 'PYTHON_EOF'
+          import boto3
+          import sys
+
+          loader_name = "${{ inputs.loader_name }}"
+          ecs = boto3.client('ecs', region_name='us-east-1')
+          ec2 = boto3.client('ec2', region_name='us-east-1')
+
+          # Get VPC info
+          vpcs = ec2.describe_vpcs()['Vpcs']
+          if not vpcs:
+              print("ERROR: No VPCs found")
+              sys.exit(1)
+          vpc_id = vpcs[0]['VpcId']
+
+          subnets = ec2.describe_subnets(Filters=[
+              {'Name': 'vpc-id', 'Values': [vpc_id]},
+              {'Name': 'tag:Type', 'Values': ['Private']}
+          ])['Subnets']
+
+          if not subnets:
+              # Fallback to any subnet in VPC
+              subnets = ec2.describe_subnets(Filters=[
+                  {'Name': 'vpc-id', 'Values': [vpc_id]}
+              ])['Subnets']
+
+          subnet_id = subnets[0]['SubnetId'] if subnets else None
+          if not subnet_id:
+              print("ERROR: No subnets found")
+              sys.exit(1)
+
+          sgs = ec2.describe_security_groups(Filters=[
+              {'Name': 'vpc-id', 'Values': [vpc_id]}
+          ])['SecurityGroups']
+          sg_id = sgs[0]['GroupId'] if sgs else None
+
+          # Try to find task definition for this loader
+          # Format: algo-{loader_name}-loader
+          task_def_arn = None
+          potential_names = [
+              f"algo-{loader_name}-loader",
+              loader_name,
+              f"stocks-{loader_name}-loader"
+          ]
+
+          for name in potential_names:
+              try:
+                  response = ecs.describe_task_definition(taskDefinition=name)
+                  if response.get('taskDefinition'):
+                      task_def_arn = response['taskDefinition']['taskDefinitionArn']
+                      print(f"✓ Found task definition: {task_def_arn}")
+                      break
+              except ecs.exceptions.ClientError:
+                  continue
+
+          if not task_def_arn:
+              # Fallback: use a generic loader task and override command
+              print(f"⚠ No dedicated task definition found for {loader_name}")
+              print(f"  Attempting to use generic loader task...")
+
+              # Try to find any stock_prices_daily or generic loader task
+              for prefix in ['algo-stock_prices_daily-loader', 'algo-market_exposure_daily-loader']:
+                  try:
+                      response = ecs.describe_task_definition(taskDefinition=prefix)
+                      if response.get('taskDefinition'):
+                          task_def_arn = response['taskDefinition']['taskDefinitionArn']
+                          print(f"✓ Using generic task: {task_def_arn}")
+                          break
+                  except ecs.exceptions.ClientError:
+                      continue
+
+          if not task_def_arn:
+              print("ERROR: No loader task definition found")
+              print("Available task definitions (sample):")
+              task_defs = ecs.list_task_definitions(sort='DESC', maxResults=20)
+              for t in task_defs['taskDefinitionArns']:
+                  print(f"  - {t}")
+              sys.exit(1)
+
+          # Run the ECS task with loader command override
+          container_name = "algo-loader"  # Standard container name in loader tasks
+          response = ecs.run_task(
+              cluster='algo-cluster',
+              taskDefinition=task_def_arn,
+              launchType='FARGATE',
+              networkConfiguration={
+                  'awsvpcConfiguration': {
+                      'subnets': [subnet_id],
+                      'securityGroups': [sg_id] if sg_id else [],
+                      'assignPublicIp': 'DISABLED'
+                  }
+              },
+              overrides={
+                  'containerOverrides': [
+                      {
+                          'name': container_name,
+                          'command': ['python3', f'loaders/{loader_name}.py']
+                      }
+                  ]
+              }
+          )
+
+          if response.get('failures'):
+              print("ERROR launching task:")
+              for failure in response['failures']:
+                  print(f"  {failure['reason']}")
+              sys.exit(1)
+
+          task_arn = response['tasks'][0]['taskArn']
+          task_id = task_arn.split('/')[-1]
+
+          print(f"✓ ECS task launched successfully!")
+          print(f"Task ID: {task_id}")
+          print(f"")
+          print(f"Monitor progress:")
+          print(f"  AWS Console: https://console.aws.amazon.com/ecs/home#/clusters/algo-cluster/tasks/{task_id}")
+          print(f"  CloudWatch:  aws logs tail /ecs/algo-cluster/{loader_name}-loader --follow")
+          PYTHON_EOF
+
+      - name: Show monitoring instructions
+        if: always()
+        run: |
+          echo "📊 Loader Task Summary"
+          echo "======================"
+          echo "Loader: ${{ inputs.loader_name }}"
+          echo "Cluster: algo-cluster"
+          echo ""
+          echo "Monitor logs:"
+          echo "  gh run view ${{ github.run_id }} --log"
+          echo "  OR"
+          echo "  aws logs tail /ecs/algo-cluster/${{ inputs.loader_name }}-loader --follow"

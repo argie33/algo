@@ -131,6 +131,19 @@ WHERE loader_name IN ('load_quality_metrics', 'load_growth_metrics', 'load_price
 5. If still failing: Check rate limit logs (yfinance errors), wait 5 minutes, re-trigger manually
 
 **Manual Loader Re-Trigger:**
+
+**Option 1: GitHub Actions (Recommended)**
+```bash
+# Run any loader via GitHub Actions workflow
+gh workflow run run-loader.yml \
+  -f loader_name=load_dxy_index \
+  -R owner/algo
+
+# Or use the web UI:
+# GitHub → Actions → "Run Loader" → Run workflow → Enter loader name
+```
+
+**Option 2: AWS CLI (Direct)**
 ```bash
 # Trigger morning pipeline (2:15 AM re-run)
 aws stepfunctions start-execution \
@@ -142,6 +155,8 @@ aws stepfunctions start-execution \
   --state-machine-arn arn:aws:states:us-east-1:xxx:stateMachine:algo-eod-pipeline \
   --name "manual-trigger-$(date +%s)"
 ```
+
+**Why GitHub Actions?** Logs visible in GitHub UI, no AWS CLI needed, easier audit trail.
 
 ---
 
