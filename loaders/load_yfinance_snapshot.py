@@ -35,7 +35,6 @@ class YFinanceSnapshotLoader(OptimalLoader):
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
-        self._ensure_schema_ready()
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Fetch all yfinance data for a symbol, store as single snapshot record.
