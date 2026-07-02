@@ -248,6 +248,11 @@ def _get_leading_indicators(cur: cursor) -> Any:  # noqa: C901
     }
 
     try:
+        # DEBUG: Log what database we're connected to
+        cur.execute("SELECT current_database(), current_user")
+        db_info = cur.fetchone()
+        logger.info(f"[DB] Connected to: {db_info[0]} as {db_info[1]}")
+
         cur.execute("""
                 WITH latest AS (
                     SELECT series_id, date, value,
@@ -259,6 +264,9 @@ def _get_leading_indicators(cur: cursor) -> Any:  # noqa: C901
                 WHERE rn = 1
             """)
         latest_data = cur.fetchall()
+
+        # Log total count
+        logger.info(f"[QUERY] Latest values query returned {len(latest_data)} rows")
 
         # CRITICAL FAIL-FAST: Economic data validation must not silently fallback
         # Economic indicators are CRITICAL for portfolio decisions
