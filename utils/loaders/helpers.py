@@ -112,8 +112,8 @@ def get_active_symbols(
     old_handler: Any = None
     if sys.platform != "win32":
         try:
-            old_handler = signal.signal(signal.SIGALRM, timeout_handler) 
-            signal.alarm(timeout_secs) 
+            old_handler = signal.signal(signal.SIGALRM, timeout_handler)
+            signal.alarm(timeout_secs)
         except (AttributeError, ValueError):
             # signal.SIGALRM not available on this platform, use threading timeout instead
             pass
@@ -205,8 +205,8 @@ def get_active_symbols(
         # Cancel alarm (only on Unix/Linux where SIGALRM is available)
         if old_handler is not None and sys.platform != "win32":
             try:
-                signal.alarm(0) 
-                signal.signal(signal.SIGALRM, old_handler) 
+                signal.alarm(0)
+                signal.signal(signal.SIGALRM, old_handler)
             except (AttributeError, ValueError):
                 pass
 

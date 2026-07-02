@@ -109,8 +109,8 @@ def external_api_handler(
                 def timeout_handler(signum: Any, frame: Any) -> None:
                     raise TimeoutError(f"{operation_name} exceeded {timeout}s timeout")
 
-                signal.signal(signal.SIGALRM, timeout_handler) 
-                signal.alarm(timeout) 
+                signal.signal(signal.SIGALRM, timeout_handler)
+                signal.alarm(timeout)
                 try:
                     return retry_with_backoff(
                         execute_with_timeout,
@@ -119,7 +119,7 @@ def external_api_handler(
                         backoff_multiplier=backoff_multiplier,
                     )
                 finally:
-                    signal.alarm(0) 
+                    signal.alarm(0)
             except (
                 requests.RequestException,
                 requests.Timeout,
@@ -231,8 +231,8 @@ def timeout_handler(
 
             # Set timeout signal (Unix only)
             try:
-                signal.signal(signal.SIGALRM, timeout_signal_handler) 
-                signal.alarm(timeout_sec) 
+                signal.signal(signal.SIGALRM, timeout_signal_handler)
+                signal.alarm(timeout_sec)
             except (AttributeError, ValueError):
                 # Windows or already set
                 pass
@@ -247,7 +247,7 @@ def timeout_handler(
                 return make_error_response(e, operation_name, context)
             finally:
                 try:
-                    signal.alarm(0) 
+                    signal.alarm(0)
                 except (AttributeError, ValueError):
                     pass
 
