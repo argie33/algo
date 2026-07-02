@@ -271,22 +271,43 @@ def _get_leading_indicators(cur: cursor) -> Any:  # noqa: C901
             )
 
         # Workaround: RDS Proxy doesn't return DXY_ICE even though it's in the database
-        # Check if DXY_ICE is missing and fetch it directly if needed
+        # Check if DXY_ICE is missing and fetch it via direct RDS connection
         latest_series = [row.get("series_id") for row in latest_data if row.get("series_id")]
         if "DXY_ICE" not in latest_series:
-            logger.warning("[DXY] DXY_ICE missing from query results, fetching directly...")
+            logger.warning("[DXY] DXY_ICE missing from Proxy results, trying direct RDS...")
             try:
-                cur.execute("""
-                    SELECT series_id, date, value FROM economic_data
-                    WHERE series_id = 'DXY_ICE'
-                    ORDER BY date DESC LIMIT 1
+                import psycopg2
+                # Connect directly to RDS (bypass proxy) to get DXY_ICE
+                rds_host = "algo-db.cojggi2mkthi.us-east-1.rds.amazonaws.com"
+                rds_port = 5432
+                db_config = cur.connection.get_dsn_parameters()
+
+                direct_conn = psycopg2.connect(
+                    host=rds_host,
+                    port=rds_port,
+                    database=db_config.get('dbname', 'stocks'),
+                    user=db_config.get('user'),
+                    password=db_config.get('password'),
+                    sslmode='require'
+                )
+                direct_cur = direct_conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+                direct_cur.execute("""
+                    WITH latest AS (
+                        SELECT series_id, date, value,
+                               ROW_NUMBER() OVER (PARTITION BY series_id ORDER BY date DESC) as rn
+                        FROM economic_data
+                        WHERE series_id = 'DXY_ICE'
+                    )
+                    SELECT series_id, date, value FROM latest WHERE rn = 1
                 """)
-                dxy_row = cur.fetchone()
+                dxy_row = direct_cur.fetchone()
                 if dxy_row:
                     latest_data = list(latest_data) + [dxy_row]
-                    logger.info(f"[DXY] Successfully fetched DXY_ICE directly: {dxy_row['value']}")
+                    logger.info(f"[DXY] Got DXY_ICE via direct RDS: {dxy_row['value']}")
+                direct_cur.close()
+                direct_conn.close()
             except Exception as e:
-                logger.warning(f"[DXY] Failed to fetch DXY_ICE directly: {e}")
+                logger.warning(f"[DXY] Direct RDS fetch failed: {e}")
 
         latest_rows = {}
         for row in latest_data:
