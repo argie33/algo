@@ -231,6 +231,7 @@ def _get_leading_indicators(cur: cursor) -> Any:  # noqa: C901
         "BUSLOANS": "Business Loans",
         # Global / commodities
         "DXY_ICE": "USD Dollar Index (ICE)",
+        "DTWEXBGS": "USD Trade-Weighted Index (FRED fallback)",
         "DCOILWTICO": "WTI Crude Oil",
     }
     # Series that report absolute levels but should be shown as YoY % change
@@ -248,11 +249,6 @@ def _get_leading_indicators(cur: cursor) -> Any:  # noqa: C901
     }
 
     try:
-        # DEBUG: Log what database we're connected to
-        cur.execute("SELECT current_database(), current_user")
-        db_info = cur.fetchone()
-        logger.info(f"[DB] Connected to: {db_info[0]} as {db_info[1]}")
-
         cur.execute("""
                 WITH latest AS (
                     SELECT series_id, date, value,
@@ -265,11 +261,6 @@ def _get_leading_indicators(cur: cursor) -> Any:  # noqa: C901
             """)
         latest_data = cur.fetchall()
 
-        # Log total count and all series returned
-        logger.info(f"[QUERY] Latest values query returned {len(latest_data)} rows")
-        all_series = [row['series_id'] for row in latest_data]
-        logger.info(f"[SERIES] Lambda sees: {sorted(all_series)}")
-
         # CRITICAL FAIL-FAST: Economic data validation must not silently fallback
         # Economic indicators are CRITICAL for portfolio decisions
         if not DatabaseResultValidator.validate_rows_not_empty(latest_data, "economic latest indicators query"):
@@ -280,7 +271,6 @@ def _get_leading_indicators(cur: cursor) -> Any:  # noqa: C901
             )
 
         latest_rows = {}
-        dxy_found = False
         for row in latest_data:
             if row is None:
                 logger.warning("NULL row in economic latest data")
@@ -297,12 +287,6 @@ def _get_leading_indicators(cur: cursor) -> Any:  # noqa: C901
                 continue
             date = row.get("date")
             latest_rows[series_id] = (value, date)
-            if series_id == "DXY_ICE":
-                dxy_found = True
-                logger.info(f"[DXY] Found DXY_ICE in latest_data: {value} on {date}")
-
-        if not dxy_found:
-            logger.error(f"[DXY] DXY_ICE NOT in latest_data. Got {len(latest_rows)} series: {list(latest_rows.keys())[:15]}")
 
 
         cur.execute("""
