@@ -1,6 +1,8 @@
 """Route: economic"""
 
+import json as _json
 import logging
+import os
 from datetime import date as date_module
 from datetime import timedelta
 from typing import Any
@@ -21,6 +23,7 @@ from routes.utils import (
     safe_json_serialize,
 )
 
+from config.credential_manager import CredentialManager, get_db_config
 from shared_contracts.response_validator import ResponseValidator
 from utils.validation import DatabaseResultValidator
 
@@ -270,6 +273,69 @@ def _get_leading_indicators(cur: cursor) -> Any:  # noqa: C901
                 "Check economic_data table and data loader."
             )
 
+        # Workaround: RDS Proxy sometimes doesn't return DXY_ICE even though it's in the database
+        # Try to fetch it directly from RDS if missing from Proxy results
+        latest_series = [row.get("series_id") for row in latest_data if row.get("series_id")]
+        if "DXY_ICE" not in latest_series:
+            logger.warning("[DXY] DXY_ICE missing from RDS Proxy results, attempting direct RDS fetch...")
+            try:
+                db_config = get_db_config()
+                proxy_host = db_config.get("host", "")
+
+                # Try to get the direct RDS endpoint from Secrets Manager
+                # The secret contains both proxy and direct connection info
+                direct_host = proxy_host
+                try:
+                    secret_arn = os.getenv("DB_SECRET_ARN")
+                    if secret_arn:
+                        cm = CredentialManager()
+                        if cm._is_aws:
+                            try:
+                                secret_json = cm._fetch_from_secrets_manager(secret_arn)
+                                if secret_json:
+                                    secret_data = _json.loads(secret_json)
+                                    # The actual RDS endpoint is stored in the secret
+                                    direct_host = secret_data.get("host", proxy_host)
+                                    logger.debug(f"[DXY] Extracted RDS endpoint from secret: {direct_host}")
+                            except Exception as e:
+                                logger.debug(f"[DXY] Could not extract from secret: {e}, using current host")
+                except Exception as e:
+                    logger.debug(f"[DXY] Secret lookup failed: {e}, using current host")
+
+                # Try to connect directly to the actual RDS endpoint
+                logger.debug(f"[DXY] Attempting direct connection to {direct_host}...")
+                direct_conn = psycopg2.connect(
+                    host=direct_host,
+                    port=int(db_config.get("port", 5432)),
+                    database=db_config.get("database", "stocks"),
+                    user=db_config.get("user", "algo_user"),
+                    password=db_config.get("password"),
+                    sslmode="require",
+                    connect_timeout=5,
+                )
+                direct_cur = direct_conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+
+                # Query specifically for DXY_ICE
+                direct_cur.execute("""
+                    WITH latest AS (
+                        SELECT series_id, date, value,
+                               ROW_NUMBER() OVER (PARTITION BY series_id ORDER BY date DESC) as rn
+                        FROM economic_data
+                        WHERE series_id = 'DXY_ICE'
+                    )
+                    SELECT series_id, date, value FROM latest WHERE rn = 1
+                """)
+                dxy_row = direct_cur.fetchone()
+                if dxy_row:
+                    latest_data = [*list(latest_data), dxy_row]
+                    logger.info(f"[DXY] Fetched DXY_ICE via direct RDS connection: {dxy_row['value']}")
+                else:
+                    logger.warning("[DXY] DXY_ICE not found even via direct RDS connection")
+
+                direct_cur.close()
+                direct_conn.close()
+            except Exception as e:
+                logger.warning(f"[DXY] Direct RDS fetch attempt failed (will use RDS Proxy result): {str(e)[:100]}")
 
         latest_rows = {}
         for row in latest_data:
@@ -288,7 +354,6 @@ def _get_leading_indicators(cur: cursor) -> Any:  # noqa: C901
                 continue
             date = row.get("date")
             latest_rows[series_id] = (value, date)
-
 
         cur.execute("""
                 SELECT series_id, date, value
@@ -666,7 +731,7 @@ def _seed_dxy_ice(cur: cursor) -> Any:
         count = 0
         for idx, row in dxy.iterrows():
             # idx is a pandas Timestamp; convert to date string
-            if hasattr(idx, 'tz') and idx.tz is not None:
+            if hasattr(idx, "tz") and idx.tz is not None:
                 date_str = idx.tz_localize(None).date().isoformat()
             else:
                 date_str = idx.date().isoformat()
