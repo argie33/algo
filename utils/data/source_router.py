@@ -390,11 +390,11 @@ class DataSourceRouter:
                 )
 
             logger.info(
-                f"[yfinance] Batch calling yf.download for {len(symbols)} symbols with 180s timeout (BLOCK-006 DEBUG)"
+                f"[yfinance] Batch calling yf.download for {len(symbols)} symbols with 180s timeout"
             )
             try:
                 hist = _call_with_timeout(do_download, timeout_sec=180, retries=3)
-                logger.info("[yfinance] Batch download completed successfully in timeout")
+                logger.debug("[yfinance] Batch download completed successfully")
             except TimeoutError as timeout_e:
                 logger.critical(f"[yfinance] BATCH TIMEOUT EXCEEDED: {timeout_e}")
                 raise

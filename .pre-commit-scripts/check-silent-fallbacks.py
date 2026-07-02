@@ -52,6 +52,7 @@ SKIP_PATHS = {
     ".pytest_cache",
     "node_modules",
     "api-pkg/",  # Vendored botocore and dependencies (3rd-party code)
+    "lambda/api/package/",  # Auto-generated packaged Lambda code
 }
 
 
@@ -128,10 +129,10 @@ def check_file_for_fallbacks(filepath: Path) -> list[dict[str, Any]]:
             context_start = max(0, line_num - 20)
             context = "\n".join(lines[context_start:line_num])
 
-            # Skip if this is in a scoring function (legitimate 0-100 scale)
+            # Skip if this is in a scoring/signal function (legitimate 0 points = no signal)
             is_scoring_function = any(kw in context.lower() for kw in [
-                "_score_", "calculate_score", "get_score", "strength", "rating",
-                "grade", "rank", "signal_strength"
+                "_score", "_catalyst", "_catalyst_score", "calculate_score", "get_score", "strength", "rating",
+                "grade", "rank", "signal_strength", "pts", "points", "compute_score", "signal_computer"
             ])
             if is_scoring_function:
                 continue

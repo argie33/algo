@@ -1,8 +1,6 @@
 """Route: economic"""
 
-import json as _json
 import logging
-import os
 from datetime import date as date_module
 from datetime import timedelta
 from typing import Any
@@ -48,10 +46,6 @@ _ROUTE_REGISTRY = {
     ("/api/economic/calendar",): {
         "handler": "_get_calendar",
         "needs_params": True,
-    },
-    ("/api/economic/seed-dxy",): {
-        "handler": "_seed_dxy_ice",
-        "needs_params": False,
     },
 }
 
@@ -272,70 +266,6 @@ def _get_leading_indicators(cur: cursor) -> Any:  # noqa: C901
                 "Cannot provide economic indicators without data. "
                 "Check economic_data table and data loader."
             )
-
-        # Workaround: RDS Proxy sometimes doesn't return DXY_ICE even though it's in the database
-        # Try to fetch it directly from RDS if missing from Proxy results
-        latest_series = [row.get("series_id") for row in latest_data if row.get("series_id")]
-        if "DXY_ICE" not in latest_series:
-            logger.warning("[DXY] DXY_ICE missing from RDS Proxy results, attempting direct RDS fetch...")
-            try:
-                db_config = get_db_config()
-                proxy_host = db_config.get("host", "")
-
-                # Try to get the direct RDS endpoint from Secrets Manager
-                # The secret contains both proxy and direct connection info
-                direct_host = proxy_host
-                try:
-                    secret_arn = os.getenv("DB_SECRET_ARN")
-                    if secret_arn:
-                        cm = CredentialManager()
-                        if cm._is_aws:
-                            try:
-                                secret_json = cm._fetch_from_secrets_manager(secret_arn)
-                                if secret_json:
-                                    secret_data = _json.loads(secret_json)
-                                    # The actual RDS endpoint is stored in the secret
-                                    direct_host = secret_data.get("host", proxy_host)
-                                    logger.debug(f"[DXY] Extracted RDS endpoint from secret: {direct_host}")
-                            except Exception as e:
-                                logger.debug(f"[DXY] Could not extract from secret: {e}, using current host")
-                except Exception as e:
-                    logger.debug(f"[DXY] Secret lookup failed: {e}, using current host")
-
-                # Try to connect directly to the actual RDS endpoint
-                logger.debug(f"[DXY] Attempting direct connection to {direct_host}...")
-                direct_conn = psycopg2.connect(
-                    host=direct_host,
-                    port=int(db_config.get("port", 5432)),
-                    database=db_config.get("database", "stocks"),
-                    user=db_config.get("user", "algo_user"),
-                    password=db_config.get("password"),
-                    sslmode="require",
-                    connect_timeout=5,
-                )
-                direct_cur = direct_conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
-
-                # Query specifically for DXY_ICE
-                direct_cur.execute("""
-                    WITH latest AS (
-                        SELECT series_id, date, value,
-                               ROW_NUMBER() OVER (PARTITION BY series_id ORDER BY date DESC) as rn
-                        FROM economic_data
-                        WHERE series_id = 'DXY_ICE'
-                    )
-                    SELECT series_id, date, value FROM latest WHERE rn = 1
-                """)
-                dxy_row = direct_cur.fetchone()
-                if dxy_row:
-                    latest_data = [*list(latest_data), dxy_row]
-                    logger.info(f"[DXY] Fetched DXY_ICE via direct RDS connection: {dxy_row['value']}")
-                else:
-                    logger.warning("[DXY] DXY_ICE not found even via direct RDS connection")
-
-                direct_cur.close()
-                direct_conn.close()
-            except Exception as e:
-                logger.warning(f"[DXY] Direct RDS fetch attempt failed (will use RDS Proxy result): {str(e)[:100]}")
 
         latest_rows = {}
         for row in latest_data:
@@ -694,60 +624,3 @@ def _get_yield_curve_full(cur: cursor) -> Any:  # noqa: C901
         return error_response(code, error_type, message)
 
 
-def _seed_dxy_ice(cur: cursor) -> Any:
-    """Seed real DXY_ICE data into economic_data table.
-
-    CRITICAL: This endpoint fetches REAL DXY data from Yahoo Finance (ticker: DX-Y.NYB).
-    Per governance rule: "Fail-fast on missing data. No silent fallbacks."
-    No hardcoded values are used - only actual market data.
-
-    Returns:
-        - 200 with success message if real data was fetched and stored
-        - 503 if real data unavailable (expected during Yahoo Finance downtime)
-    """
-    try:
-        logger.info("[SEED] Attempting to fetch real DXY data from Yahoo Finance (DX-Y.NYB)...")
-
-        import yfinance as yf
-
-        # Fetch real DXY data
-        end_date = date_module.today()
-        start_date = end_date - timedelta(days=365)
-
-        dxy = yf.download("DX-Y.NYB", start=start_date, end=end_date, progress=False)
-
-        if dxy is None or len(dxy) == 0:
-            logger.warning("[SEED] Yahoo Finance returned no DXY data - ^DXY ticker currently unavailable")
-            return error_response(
-                503,
-                "data_unavailable",
-                "DXY data currently unavailable from Yahoo Finance. Will try again on next run.",
-            )
-
-        # Delete existing DXY_ICE to avoid duplicates
-        cur.execute("DELETE FROM economic_data WHERE series_id = %s", ("DXY_ICE",))
-
-        # Insert real DXY data
-        count = 0
-        for idx, row in dxy.iterrows():
-            # idx is a pandas Timestamp; convert to date string
-            if hasattr(idx, "tz") and idx.tz is not None:
-                date_str = idx.tz_localize(None).date().isoformat()
-            else:
-                date_str = idx.date().isoformat()
-
-            value = float(row["Close"])
-            cur.execute(
-                "INSERT INTO economic_data (series_id, date, value) VALUES (%s, %s, %s)", ("DXY_ICE", date_str, value)
-            )
-            count += 1
-
-        logger.info(f"[SEED] Seeded {count} real DXY_ICE records from Yahoo Finance")
-        return json_response(200, {"success": True, "message": f"Seeded {count} real DXY_ICE records"})
-
-    except ImportError as e:
-        logger.error(f"[SEED] yfinance library not available: {e}")
-        return error_response(500, "dependency_error", "yfinance library not available")
-    except Exception as e:
-        logger.error(f"[SEED] Failed to fetch/seed DXY_ICE: {e}")
-        return error_response(500, "seed_error", f"Failed to seed DXY_ICE: {e!s}")

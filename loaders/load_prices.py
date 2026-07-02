@@ -2258,7 +2258,6 @@ def main() -> int:
 
     # Set execution timeout (ECS task timeout for price loader is 1800s = 30m per terraform config)
     # Use 1700s to allow 100s buffer before ECS force-kill to ensure graceful shutdown
-    # BLOCK-006 FIX: Add timeout enforcement with signal handler to prevent hanging
     execution_timeout_sec = 1700
 
     import signal

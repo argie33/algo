@@ -146,10 +146,10 @@ def fetch_economic_pulse(c: None) -> dict[str, Any]:  # noqa: C901
 
         # CRITICAL: Use ONLY DXY_ICE (actual ICE Dollar Index)
         # DTWEXBGS is a trade-weighted proxy—NOT the same index, must not silently swap
-        # Lambda has direct RDS fetch workaround to ensure DXY_ICE is returned
+        # DXY_ICE fetched by load_dxy_index.py from Yahoo Finance (ticker: DX-Y.NYB)
         dxy = by_series.get("DXY_ICE")
         if dxy is None:
-            logger.error("[DXY] DXY_ICE missing from economic indicators (API should have fetched from direct RDS)")
+            logger.error("[DXY] DXY_ICE missing from economic indicators (check load_dxy_index.py loader status)")
 
         oil = by_series.get("DCOILWTICO")  # Oil price (optional)
         if oil is None:
