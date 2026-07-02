@@ -1075,7 +1075,7 @@ def _age_h(r: dict[str, Any]) -> float | dict[str, Any]:
 def _age_fmt_c(r: dict[str, Any]) -> str:
     """Format age with hours/days suffix."""
     h = _age_h(r)
-    if h is None:
+    if h is None or isinstance(h, dict):
         return "?"
     return f"{h:.0f}h" if h < 24 else f"{h / 24:.1f}d"
 

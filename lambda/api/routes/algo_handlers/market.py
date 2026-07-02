@@ -309,7 +309,7 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                     "role": role,
                     "status": status,
                     "last_updated": last_updated.isoformat() if last_updated else None,
-                    "age_hours": round(age_h, 1),
+                    "age_hours": round(age_h, 1) if age_h is not None else None,
                     "row_count": row_count,
                 }
             )
