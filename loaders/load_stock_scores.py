@@ -84,11 +84,20 @@ class StockScoresLoader(OptimalLoader):
                 }
 
                 for table_name, min_coverage in required_metric_tables.items():
-                    # COUNT real data only (data_unavailable = false OR IS NULL)
-                    # NULL values also count as real data (some loaders don't set the flag)
-                    cur.execute(
-                        f"SELECT COUNT(*) FROM {table_name} WHERE data_unavailable = false OR data_unavailable IS NULL"
-                    )
+                    # Check if data_unavailable column exists (migration 102 may not have been applied yet)
+                    try:
+                        # COUNT real data only (data_unavailable = false OR IS NULL)
+                        # NULL values also count as real data (some loaders don't set the flag)
+                        cur.execute(
+                            f"SELECT COUNT(*) FROM {table_name} WHERE data_unavailable = false OR data_unavailable IS NULL"
+                        )
+                    except psycopg2.ProgrammingError:
+                        # Column doesn't exist; assume all rows are available (no data_unavailable markers yet)
+                        logger.warning(
+                            f"[STOCK_SCORES] {table_name} missing data_unavailable column; assuming all rows are available data"
+                        )
+                        cur.execute(f"SELECT COUNT(*) FROM {table_name}")
+
                     row = cur.fetchone()
                     available_count = row[0] if row else 0
 
@@ -129,7 +138,15 @@ class StockScoresLoader(OptimalLoader):
                             f"Cannot compute stock scores without metric data."
                         )
 
-                    cur.execute(f"SELECT COUNT(*) FROM {table_name} WHERE data_unavailable = false")
+                    try:
+                        cur.execute(f"SELECT COUNT(*) FROM {table_name} WHERE data_unavailable = false")
+                    except psycopg2.ProgrammingError:
+                        # Column doesn't exist; assume all rows with values are real data
+                        logger.warning(
+                            f"[STOCK_SCORES] {table_name} missing data_unavailable column; skipping availability check"
+                        )
+                        cur.execute(f"SELECT COUNT(*) FROM {table_name} WHERE data_unavailable IS NULL OR data_unavailable = false")
+
                     row = cur.fetchone()
                     available_count = row[0] if row else 0
                     coverage = available_count / total_count if total_count > 0 else 0
