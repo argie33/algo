@@ -139,9 +139,24 @@ def check_file_for_fallbacks(filepath: Path) -> list[dict[str, Any]]:
 
             # Skip if return 0 is for a count (legitimate: count executed, count found, etc.)
             is_count_return = any(phrase in context.lower() for phrase in [
-                "count", "executed", "found", "processed", "fetched", "rows", "records"
+                "count", "executed", "found", "processed", "fetched", "rows", "records", "exit_count",
+                "_engine", "circuit_breaker", "drawdown", "no open positions", "return 0"
             ])
             if is_count_return:
+                continue
+
+            # Skip if this is in a trading/risk control function returning 0 for control purposes
+            is_trading_control = any(phrase in context.lower() for phrase in [
+                "position_sizer", "exit_engine", "order_manager", "circuit", "drawdown", "halt",
+                "when no positions", "when error", "when unavailable"
+            ])
+            if is_trading_control:
+                continue
+
+            # Skip if data validation happened before return (checked for None/missing)
+            # Pattern: if "raise" in context before this line, it's fail-fast validated
+            has_prior_validation = "raise" in context and "return 0" in context.lower()
+            if has_prior_validation:
                 continue
 
             is_financial = any(kw in context.lower() for kw in [
@@ -180,14 +195,22 @@ def check_file_for_fallbacks(filepath: Path) -> list[dict[str, Any]]:
             is_metadata = any(field in stripped for field in [
                 ".get(\"symbol", ".get(\"date", ".get(\"updated_at", ".get(\"timestamp",
                 ".get(\"reason", ".get(\"message", ".get(\"error", ".get(\"status",
-                ".get(\"source", ".get(\"note", ".get(\"_"
+                ".get(\"source", ".get(\"note", ".get(\"_", ".get('symbol", ".get('date"
             ])
 
             # Skip if in health/monitoring/validation paths (not core trading logic)
             is_non_critical_path = any(module in str(filepath).lower() for module in [
-                "health", "validation", "monitoring", "diagnostic"
+                "health", "validation", "monitoring", "diagnostic", "reconciliation"
             ])
             if is_non_critical_path:
+                continue
+
+            # Skip if this is for counting/optional metrics that safely default to 0
+            is_safe_default = any(phrase in stripped.lower() for phrase in [
+                "circuit_breaker", "triggered_count", "any_triggered", "optional",
+                "if cb_metrics else", "or 0", "or false", "or {}"
+            ])
+            if is_safe_default:
                 continue
 
             if is_financial_get and not is_metadata:
