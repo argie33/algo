@@ -39,6 +39,8 @@ class GrowthMetricsLoader(OptimalLoader):
         Growth metrics are optional enrichment; their absence does not prevent trading.
         But unavailability should be explicit (data_unavailable flag), not silent skips.
         """
+        from decimal import Decimal
+
         try:
             # Fetch up to 10 years of financials to calculate 1Y, 3Y, 5Y growth
             rows = execute_query(
@@ -51,6 +53,17 @@ class GrowthMetricsLoader(OptimalLoader):
             """,
                 (symbol,),
             )
+
+            # Convert NaN Decimal values to None (SEC data quality issue)
+            if rows:
+                rows = [
+                    (
+                        fy,
+                        None if isinstance(rev, Decimal) and rev.is_nan() else rev,
+                        None if isinstance(eps, Decimal) and eps.is_nan() else eps,
+                    )
+                    for fy, rev, eps in rows
+                ]
 
             if not rows or len(rows) < 1:
                 logger.info(
