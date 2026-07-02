@@ -52,6 +52,7 @@ Live data pipeline: 40+ loaders organized into 5 Step Functions pipelines, sched
 **Stage 1 (Parallel, ~5 min):**
 - `load_prices` — Close and volume
 - `load_market_exposure_daily` — Computes 12 market factors (12-month yield, VIX, SPY price, etc.)
+- `load_fred_economic_data` — Fetches FRED economic series + DXY_ICE from Yahoo Finance
 
 **Stage 2 (Parallel, ~15 min, after Stage 1):**
 - `load_quality_metrics` — yfinance + SEC filings (quality score, debt/equity, ROA, etc.)

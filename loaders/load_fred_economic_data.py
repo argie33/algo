@@ -77,9 +77,9 @@ SERIES = [
     "T5YIE",  # 5-Year Breakeven Inflation Rate (daily)
     "T10YIE",  # 10-Year Breakeven Inflation Rate (daily)
     # Dollar strength
-    # NOTE: Real DXY is published by ICE, not FRED. DTWEXBGS is a FRED proxy (trade-weighted broad index)
-    # TODO: Replace with actual ICE DXY from Yahoo Finance or IEX Cloud API
-    "DTWEXBGS",  # USD Broad Trade-Weighted Index (PROXY - NOT actual DXY) - daily
+    # NOTE: Real DXY is published by ICE. DTWEXBGS is a FRED proxy (trade-weighted broad index).
+    # DXY_ICE now fetched from Yahoo Finance (ticker: DX-Y.NYB) - see _fetch_dxy_from_yahoo()
+    "DTWEXBGS",  # USD Broad Trade-Weighted Index (FRED proxy for comparison) - daily
     # Commodities
     "DCOILWTICO",  # WTI Crude Oil, Cushing OK ($/barrel, daily)
     # Financial stress (broader than credit spreads alone)
@@ -140,6 +140,50 @@ class FredEconomicDataLoader(OptimalLoader):
                 "economic_data": 48.0,  # 48 hours for FRED weekly updates
             }
         )
+
+    def _fetch_dxy_from_yahoo(self) -> list[dict[str, Any]]:
+        """Fetch actual ICE DXY (US Dollar Index) from Yahoo Finance.
+
+        Uses ticker DX-Y.NYB (Intercontinental Exchange listing on Yahoo Finance).
+        Returns gracefully empty if Yahoo Finance is unavailable - economic data has fallback (DTWEXBGS).
+
+        Returns:
+            list: [{"series_id": "DXY_ICE", "date": "2026-06-29", "value": 101.13}, ...] or empty list if unavailable
+        """
+        try:
+            import yfinance as yf
+
+            logger.debug("Attempting to fetch DXY (DX-Y.NYB) from Yahoo Finance...")
+
+            end_date_val = date.today()
+            start_date_val = end_date_val - timedelta(days=365)
+
+            dxy = yf.download("DX-Y.NYB", start=start_date_val, end=end_date_val, progress=False)
+
+            if dxy is None or len(dxy) == 0:
+                logger.warning("[DXY] Yahoo Finance returned no data for DX-Y.NYB ticker — using DTWEXBGS fallback")
+                return []
+
+            rows = []
+            for idx, row in dxy.iterrows():
+                # idx is a pandas Timestamp; convert to date string
+                if hasattr(idx, "tz") and idx.tz is not None:
+                    date_str = idx.tz_localize(None).date().isoformat()
+                else:
+                    date_str = idx.date().isoformat()
+
+                value = float(row["Close"])
+                rows.append({"series_id": "DXY_ICE", "date": date_str, "value": value})
+
+            logger.info(f"Fetched {len(rows)} DXY values from Yahoo Finance (DX-Y.NYB)")
+            return rows
+
+        except ImportError as e:
+            logger.warning(f"[DXY] yfinance not available: {e} — using DTWEXBGS fallback")
+            return []
+        except Exception as e:
+            logger.warning(f"[DXY] Failed to fetch from Yahoo Finance: {e} — using DTWEXBGS fallback")
+            return []
 
     def fetch_global(self, since: date | None) -> list[dict[str, Any]]:  # noqa: C901
         """Fetch FRED economic data for all configured series with circuit breaker and freshness validation."""
@@ -278,6 +322,7 @@ class FredEconomicDataLoader(OptimalLoader):
                         "T5YIE",
                         "T10YIE",
                         "DTWEXBGS",
+                        "DXY_ICE",
                         "DCOILWTICO",
                     }
 
@@ -384,6 +429,12 @@ class FredEconomicDataLoader(OptimalLoader):
 
         if failed_series:
             logger.warning(f"Failed to fetch {len(failed_series)} series: {', '.join(failed_series)}")
+
+        # Fetch DXY_ICE from Yahoo Finance (real ICE index, preferred over FRED proxy)
+        dxy_rows = self._fetch_dxy_from_yahoo()
+        if dxy_rows:
+            all_rows.extend(dxy_rows)
+            logger.info(f"Added {len(dxy_rows)} DXY_ICE records to economic data")
 
         if not all_rows:
             raise RuntimeError(
