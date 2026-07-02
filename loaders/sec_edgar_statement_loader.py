@@ -149,12 +149,16 @@ class SecEdgarStatementLoader(OptimalLoader):
             fiscal_year = row.get("fiscal_year")
 
             if not symbol:
-                logger.warning(f"[{self.table_name}] Row missing required 'symbol' field. Row keys: {list(row.keys())}. Skipping.")
+                logger.warning(
+                    f"[{self.table_name}] Row missing required 'symbol' field. Row keys: {list(row.keys())}. Skipping."
+                )
                 skipped_missing_keys += 1
                 continue
 
             if fiscal_year is None:
-                logger.warning(f"[{self.table_name}] Row missing required 'fiscal_year' field for {symbol}. Row keys: {list(row.keys())}. Skipping.")
+                logger.warning(
+                    f"[{self.table_name}] Row missing required 'fiscal_year' field for {symbol}. Row keys: {list(row.keys())}. Skipping."
+                )
                 skipped_missing_keys += 1
                 continue
 
@@ -180,8 +184,6 @@ class SecEdgarStatementLoader(OptimalLoader):
             raise RuntimeError(f"[{self.table_name}] CRITICAL: No valid rows after transformation.")
 
         if skipped_invalid_fields + skipped_missing_keys > 0:
-            logger.warning(
-                f"[{self.table_name}] Skipped {skipped_invalid_fields + skipped_missing_keys} rows."
-            )
+            logger.warning(f"[{self.table_name}] Skipped {skipped_invalid_fields + skipped_missing_keys} rows.")
 
         return list(seen.values())

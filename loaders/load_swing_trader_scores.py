@@ -265,7 +265,9 @@ class VectorizedSwingScoresLoader:
                 # Skip stocks with insufficient trend strength (gate: minervini >= 5)
                 if minervini < 5:
                     unavailable_reason = f"filtered_by_minervini_gate:score={minervini}"
-                    logger.warning(f"{symbol}: minervini={minervini} < 5 (below gate minimum 5). Swing trader score not computed.")
+                    logger.warning(
+                        f"{symbol}: minervini={minervini} < 5 (below gate minimum 5). Swing trader score not computed."
+                    )
                     raise ValueError(f"{symbol}: minervini={minervini} < 5 — insufficient trend strength")
 
                 # Compute component scores; use defaults when upstream tables are empty
@@ -286,13 +288,19 @@ class VectorizedSwingScoresLoader:
                 weinstein = int(weinstein)
                 if weinstein != 2:
                     unavailable_reason = f"filtered_by_weinstein_gate:stage={weinstein}"
-                    logger.warning(f"{symbol}: Weinstein stage={weinstein} (requires 2 for uptrend). Swing trader score not computed.")
+                    logger.warning(
+                        f"{symbol}: Weinstein stage={weinstein} (requires 2 for uptrend). Swing trader score not computed."
+                    )
                     raise ValueError(f"{symbol}: stage={weinstein} != 2 — not in uptrend phase")
 
                 trend_score = float(weinstein) * 25.0
 
                 if tech is None or "rsi" not in tech:
-                    unavailable_reason = "upstream_dependency_missing:technical_data_daily" if tech is None else "upstream_data_incomplete:rsi_missing"
+                    unavailable_reason = (
+                        "upstream_dependency_missing:technical_data_daily"
+                        if tech is None
+                        else "upstream_data_incomplete:rsi_missing"
+                    )
                     raise ValueError(f"RSI data missing for {symbol}")
                 rsi = tech["rsi"]
                 if not pd.notna(rsi):
@@ -304,7 +312,11 @@ class VectorizedSwingScoresLoader:
                 volume_score = 70.0  # From price ROC
 
                 if sig is None or "composite_sqs" not in sig:
-                    unavailable_reason = "upstream_dependency_missing:signal_quality_scores" if sig is None else "upstream_data_incomplete:composite_sqs_missing"
+                    unavailable_reason = (
+                        "upstream_dependency_missing:signal_quality_scores"
+                        if sig is None
+                        else "upstream_data_incomplete:composite_sqs_missing"
+                    )
                     raise ValueError(f"Signal quality score missing for {symbol}")
                 sqs = sig["composite_sqs"]
                 if not pd.notna(sqs):
@@ -399,21 +411,23 @@ class VectorizedSwingScoresLoader:
                 )
                 # Use trend date if available, otherwise today
                 score_date = trend.get("date") if trend else end_date
-                results.append({
-                    "symbol": symbol,
-                    "date": score_date,
-                    "setup_score": None,
-                    "trend_score": None,
-                    "momentum_score": None,
-                    "volume_score": None,
-                    "fundamentals_score": None,
-                    "sector_score": None,
-                    "multi_tf_score": None,
-                    "total_score": 0.0,
-                    "grade": None,
-                    "data_unavailable": True,
-                    "unavailability_reason": unavailable_reason,
-                })
+                results.append(
+                    {
+                        "symbol": symbol,
+                        "date": score_date,
+                        "setup_score": None,
+                        "trend_score": None,
+                        "momentum_score": None,
+                        "volume_score": None,
+                        "fundamentals_score": None,
+                        "sector_score": None,
+                        "multi_tf_score": None,
+                        "total_score": 0.0,
+                        "grade": None,
+                        "data_unavailable": True,
+                        "unavailability_reason": unavailable_reason,
+                    }
+                )
 
         return pd.DataFrame(results) if results else pd.DataFrame()
 

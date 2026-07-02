@@ -175,6 +175,7 @@ class TestStrictModeDataFlow:
 
     def test_error_not_swallowed_in_strict_mode(self) -> None:
         """StrictValidationError should propagate, not be caught silently."""
+
         def fetch_data_strict(value: Any) -> Any:
             """Simulate strict data fetching."""
             return safe_float(value, strict=True, field_name="critical_metric")
@@ -229,6 +230,7 @@ class TestIntegrationWithRealDataPatterns:
 
     def test_chained_getattr_returns_none_with_strict_float(self) -> None:
         """Pattern: nested attribute access returns None, strict=True raises."""
+
         class DataObj:
             def __init__(self, value: Any) -> None:
                 self.value = value

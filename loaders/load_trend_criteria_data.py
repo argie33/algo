@@ -82,9 +82,7 @@ def _fetch_technical_data(cur: psycopg2.extensions.cursor, dates: list[date]) ->
     )
     rows = cur.fetchall()
     if not rows:
-        return pd.DataFrame(
-            columns=["symbol", "date", "rsi_14", "sma_50", "sma_200", "roc_20d", "roc_60d", "roc_252d"]
-        )
+        return pd.DataFrame(columns=["symbol", "date", "rsi_14", "sma_50", "sma_200", "roc_20d", "roc_60d", "roc_252d"])
     return pd.DataFrame(
         rows,
         columns=["symbol", "date", "rsi_14", "sma_50", "sma_200", "roc_20d", "roc_60d", "roc_252d"],
@@ -130,7 +128,7 @@ def _compute_scores_vectorized(merged: pd.DataFrame) -> pd.DataFrame:
     above200 = close > sma200
     sma50_above_sma200 = sma50 > sma200
     merged["weinstein_stage"] = 4  # default: downtrend
-    merged.loc[above200 & sma50_above_sma200, "weinstein_stage"] = 2   # uptrend
+    merged.loc[above200 & sma50_above_sma200, "weinstein_stage"] = 2  # uptrend
     merged.loc[above200 & ~sma50_above_sma200, "weinstein_stage"] = 3  # topping
     merged.loc[~above200 & sma50_above_sma200, "weinstein_stage"] = 1  # basing
 
@@ -193,9 +191,9 @@ def run() -> dict:
         merged = _compute_scores_vectorized(merged)
 
         rows = list(
-            merged[["symbol", "date", "weinstein_stage", "minervini_trend_score", "trend_direction", "price_above_sma50"]].itertuples(
-                index=False, name=None
-            )
+            merged[
+                ["symbol", "date", "weinstein_stage", "minervini_trend_score", "trend_direction", "price_above_sma50"]
+            ].itertuples(index=False, name=None)
         )
 
         with DatabaseContext("write") as write_cur:

@@ -16,32 +16,24 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 # RDS connection details from environment
-RDS_HOST = os.getenv('RDS_HOST', 'algo-db.cojggi2mkthi.us-east-1.rds.amazonaws.com')
-RDS_PORT = int(os.getenv('RDS_PORT', '5432'))
-RDS_DB = os.getenv('RDS_DB', 'algo_prod')
-RDS_USER = os.getenv('RDS_USER', 'algo_admin')
-RDS_PASSWORD = os.getenv('RDS_PASSWORD')
+RDS_HOST = os.getenv("RDS_HOST", "algo-db.cojggi2mkthi.us-east-1.rds.amazonaws.com")
+RDS_PORT = int(os.getenv("RDS_PORT", "5432"))
+RDS_DB = os.getenv("RDS_DB", "algo_prod")
+RDS_USER = os.getenv("RDS_USER", "algo_admin")
+RDS_PASSWORD = os.getenv("RDS_PASSWORD")
 
 
 def lambda_handler(event, context):
     """Apply pending migrations to AWS RDS."""
 
     if not RDS_PASSWORD:
-        return {
-            'statusCode': 400,
-            'body': json.dumps({'error': 'RDS_PASSWORD environment variable not set'})
-        }
+        return {"statusCode": 400, "body": json.dumps({"error": "RDS_PASSWORD environment variable not set"})}
 
     try:
         logger.info(f"Connecting to RDS at {RDS_HOST}:{RDS_PORT}/{RDS_DB}")
 
         conn = psycopg2.connect(
-            host=RDS_HOST,
-            port=RDS_PORT,
-            database=RDS_DB,
-            user=RDS_USER,
-            password=RDS_PASSWORD,
-            connect_timeout=10
+            host=RDS_HOST, port=RDS_PORT, database=RDS_DB, user=RDS_USER, password=RDS_PASSWORD, connect_timeout=10
         )
         conn.autocommit = True
         cur = conn.cursor()
@@ -94,24 +86,20 @@ def lambda_handler(event, context):
         conn.close()
 
         return {
-            'statusCode': 200,
-            'body': json.dumps({
-                'status': 'success',
-                'message': 'Migration 0044 applied successfully',
-                'columns_created': columns,
-                'timestamp': datetime.utcnow().isoformat()
-            })
+            "statusCode": 200,
+            "body": json.dumps(
+                {
+                    "status": "success",
+                    "message": "Migration 0044 applied successfully",
+                    "columns_created": columns,
+                    "timestamp": datetime.utcnow().isoformat(),
+                }
+            ),
         }
 
     except psycopg2.Error as e:
         logger.error(f"Database error: {e}")
-        return {
-            'statusCode': 500,
-            'body': json.dumps({'error': f'Database error: {e!s}'})
-        }
+        return {"statusCode": 500, "body": json.dumps({"error": f"Database error: {e!s}"})}
     except Exception as e:
         logger.error(f"Error: {e}")
-        return {
-            'statusCode': 500,
-            'body': json.dumps({'error': f'Unexpected error: {e!s}'})
-        }
+        return {"statusCode": 500, "body": json.dumps({"error": f"Unexpected error: {e!s}"})}

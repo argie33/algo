@@ -81,6 +81,7 @@ class PositioningMetricsLoader(OptimalLoader):
             # HTTP 404: symbol not found on yfinance (expected for depositary shares, illiquid stocks)
             # Other errors (database errors, network issues, bugs) should surface immediately
             import requests as req_module
+
             if isinstance(e, req_module.HTTPError) and "404" in str(e):
                 logger.info(
                     f"[POSITIONING_METRICS] Symbol not found on yfinance for {symbol} (404 Not Found). "
@@ -195,7 +196,11 @@ class PositioningMetricsLoader(OptimalLoader):
                 short_interest_trend = "stable"
                 short_interest_trend_reason = None
 
-            if (institutional_ownership is not None or insider_ownership is not None or short_interest_percent is not None):
+            if (
+                institutional_ownership is not None
+                or insider_ownership is not None
+                or short_interest_percent is not None
+            ):
                 return {
                     "symbol": symbol,
                     "institutional_ownership": (round(institutional_ownership, 2) if institutional_ownership else None),

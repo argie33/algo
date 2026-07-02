@@ -118,7 +118,9 @@ class TestErrorResponseFormat:
             assert response["_error"] == f"Message {code}"
             # 503 errors have an extra _is_transient_503 flag for retry logic
             expected_len = 5 if code == 503 else 4
-            assert len(response) == expected_len, f"Code {code} should have {expected_len} fields, got {len(response)}: {response.keys()}"
+            assert len(response) == expected_len, (
+                f"Code {code} should have {expected_len} fields, got {len(response)}: {response.keys()}"
+            )
 
 
 class TestErrorResponseInConsistentScenarios:

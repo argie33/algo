@@ -87,10 +87,7 @@ class SLAMonitor:
                     "is_critical": percent > 80,  # Flag if >80% of budget used
                 }
 
-        return {
-            "data_unavailable": True,
-            "reason": "not_in_sla_window"
-        }
+        return {"data_unavailable": True, "reason": "not_in_sla_window"}
 
     @classmethod
     def log_sla_status(cls, operation_name: str, elapsed_sec: float | None = None) -> dict[str, Any]:

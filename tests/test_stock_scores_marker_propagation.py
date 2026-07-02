@@ -34,11 +34,7 @@ class TestMarkerPropagation(unittest.TestCase):
         self.assertEqual(result, 100.0)
 
         # CRITICAL: Test that markers are NOT silenced
-        marker: dict[str, Any] = {
-            "symbol": "AAPL",
-            "data_unavailable": True,
-            "reason": "no_quality_metrics"
-        }
+        marker: dict[str, Any] = {"symbol": "AAPL", "data_unavailable": True, "reason": "no_quality_metrics"}
         result = clamp_score(marker)
         self.assertIsInstance(result, dict)
         self.assertEqual(result, marker)  # ✅ Marker preserved
@@ -58,14 +54,14 @@ class TestMarkerPropagation(unittest.TestCase):
             "growth": {  # Marker: data unavailable
                 "symbol": "AAPL",
                 "data_unavailable": True,
-                "reason": "no_growth_metrics_data"
+                "reason": "no_growth_metrics_data",
             },
             "value": 72.5,  # Float score
             "positioning": None,  # None (no score)
             "stability": {  # Marker: data unavailable
                 "symbol": "AAPL",
                 "data_unavailable": True,
-                "reason": "insufficient_price_history"
+                "reason": "insufficient_price_history",
             },
             "momentum": 68.0,  # Float score
         }
@@ -129,7 +125,7 @@ class TestMarkerPropagation(unittest.TestCase):
             "unavailable_metrics": {
                 "growth": "no_growth_metrics_data",
                 "positioning": "no_positioning_metrics_data",
-                "stability": "insufficient_price_history"
+                "stability": "insufficient_price_history",
             },
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
@@ -151,4 +147,3 @@ class TestMarkerPropagation(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

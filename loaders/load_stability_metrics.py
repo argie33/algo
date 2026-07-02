@@ -71,10 +71,7 @@ class StabilityMetricsLoader(OptimalLoader):
             ]
         except RuntimeError as e:
             # Insufficient data (< 30 days) or validation error
-            logger.debug(
-                f"[STABILITY_METRICS] {symbol}: {e}. "
-                f"Stability metrics unavailable (optional enrichment)."
-            )
+            logger.debug(f"[STABILITY_METRICS] {symbol}: {e}. Stability metrics unavailable (optional enrichment).")
             return [
                 {
                     "symbol": symbol,
@@ -157,9 +154,7 @@ class StabilityMetricsLoader(OptimalLoader):
             # For new listings with <30 days, 30d volatility will be unavailable (optional metric)
             if not rows or len(rows) < 5:
                 actual_rows = len(rows) if rows else 0
-                raise RuntimeError(
-                    f"insufficient_price_history: {actual_rows}/5 days available"
-                )
+                raise RuntimeError(f"insufficient_price_history: {actual_rows}/5 days available")
 
             # Sort chronologically (oldest to newest)
             prices = sorted(
@@ -180,15 +175,17 @@ class StabilityMetricsLoader(OptimalLoader):
                     returns.append(ret)
 
             if not returns:
-                raise RuntimeError(
-                    "invalid_price_data: no valid price transitions"
-                )
+                raise RuntimeError("invalid_price_data: no valid price transitions")
 
             # Calculate volatilities (annualized: sqrt(252) * daily_std)
             # For new listings: use whatever data is available (minimum 2 returns for volatility)
             # Helper methods now return float or explicit marker dict for data_unavailable
-            volatility_30d_result = self._calculate_volatility(returns[-30:], symbol=symbol) if len(returns) >= 30 else None
-            volatility_60d_result = self._calculate_volatility(returns[-60:], symbol=symbol) if len(returns) >= 60 else None
+            volatility_30d_result = (
+                self._calculate_volatility(returns[-30:], symbol=symbol) if len(returns) >= 30 else None
+            )
+            volatility_60d_result = (
+                self._calculate_volatility(returns[-60:], symbol=symbol) if len(returns) >= 60 else None
+            )
             # For 252d (full year) volatility: use all available data if present (minimum 2 returns)
             # Even new listings with 3+ days (2 returns) can compute a volatility estimate
             volatility_252d_result = self._calculate_volatility(returns, symbol=symbol) if len(returns) >= 2 else None
@@ -199,11 +196,17 @@ class StabilityMetricsLoader(OptimalLoader):
             volatility_60d: float | None = None if isinstance(volatility_60d_result, dict) else volatility_60d_result
 
             # For 252d and beta, check if they're marker dicts indicating unavailability
-            volatility_252d_unavailable = isinstance(volatility_252d_result, dict) and volatility_252d_result.get("data_unavailable")
+            volatility_252d_unavailable = isinstance(volatility_252d_result, dict) and volatility_252d_result.get(
+                "data_unavailable"
+            )
             beta_unavailable = isinstance(beta_result, dict) and beta_result.get("data_unavailable")
 
             # Type narrow: if not dict, must be float (or None for 252d)
-            volatility_252d: float | None = None if volatility_252d_unavailable else (volatility_252d_result if isinstance(volatility_252d_result, float) else None)
+            volatility_252d: float | None = (
+                None
+                if volatility_252d_unavailable
+                else (volatility_252d_result if isinstance(volatility_252d_result, float) else None)
+            )
             beta: float | None = None if beta_unavailable else (beta_result if isinstance(beta_result, float) else None)
 
             # Consolidate unavailability reasons
@@ -213,10 +216,18 @@ class StabilityMetricsLoader(OptimalLoader):
             has_any_volatility = volatility_30d is not None or volatility_60d is not None or volatility_252d is not None
 
             if volatility_252d_unavailable:
-                reason = volatility_252d_result.get("reason", "volatility_252d_unavailable") if isinstance(volatility_252d_result, dict) else "volatility_252d_unavailable"
+                reason = (
+                    volatility_252d_result.get("reason", "volatility_252d_unavailable")
+                    if isinstance(volatility_252d_result, dict)
+                    else "volatility_252d_unavailable"
+                )
                 unavailability_reasons.append(f"vol_252d: {reason}")
             if beta_unavailable:
-                reason = beta_result.get("reason", "beta_unavailable") if isinstance(beta_result, dict) else "beta_unavailable"
+                reason = (
+                    beta_result.get("reason", "beta_unavailable")
+                    if isinstance(beta_result, dict)
+                    else "beta_unavailable"
+                )
                 unavailability_reasons.append(f"beta: {reason}")
 
             # Mark data unavailable only if we have NO volatility estimates at all
@@ -246,9 +257,7 @@ class StabilityMetricsLoader(OptimalLoader):
             # Data unavailability (insufficient history, invalid data)
             raise RuntimeError(str(e)) from e
         except (ValueError, ZeroDivisionError, TypeError) as e:
-            raise RuntimeError(
-                f"calculation_error: {type(e).__name__}"
-            ) from e
+            raise RuntimeError(f"calculation_error: {type(e).__name__}") from e
 
     @staticmethod
     def _calculate_volatility(returns: list[float], symbol: str = "") -> float | dict[str, Any]:
@@ -272,9 +281,7 @@ class StabilityMetricsLoader(OptimalLoader):
             # For full year (252d) used in scoring, this shouldn't happen
             actual_returns = len(returns) if returns else 0
             if symbol:
-                raise ValueError(
-                    f"insufficient_returns: {actual_returns} returns (minimum 2 required)"
-                )
+                raise ValueError(f"insufficient_returns: {actual_returns} returns (minimum 2 required)")
             # Return explicit marker for optional period without sufficient data
             logger.debug(
                 f"[STABILITY_METRICS] {symbol or 'unknown'}: insufficient returns ({actual_returns}) "
@@ -283,7 +290,7 @@ class StabilityMetricsLoader(OptimalLoader):
             return {
                 "symbol": symbol or "unknown",
                 "data_unavailable": True,
-                "reason": f"insufficient_returns: {actual_returns}/2 minimum required"
+                "reason": f"insufficient_returns: {actual_returns}/2 minimum required",
             }
 
         mean_return = sum(returns) / len(returns)
@@ -314,34 +321,26 @@ class StabilityMetricsLoader(OptimalLoader):
         ticker = get_ticker(symbol)
         if not ticker:
             logger.warning(f"[STABILITY_METRICS] {symbol}: cannot fetch yfinance ticker data (beta metric unavailable)")
-            return {
-                "symbol": symbol,
-                "data_unavailable": True,
-                "reason": "yfinance_ticker_unavailable"
-            }
+            return {"symbol": symbol, "data_unavailable": True, "reason": "yfinance_ticker_unavailable"}
 
         try:
             info = ticker.info
 
             # Validate 'beta' field exists explicitly (not using .get() default)
             if "beta" not in info:
-                logger.warning(f"[STABILITY_METRICS] {symbol}: beta field missing from yfinance data (market risk metric unavailable)")
-                return {
-                    "symbol": symbol,
-                    "data_unavailable": True,
-                    "reason": "beta_field_missing_from_yfinance"
-                }
+                logger.warning(
+                    f"[STABILITY_METRICS] {symbol}: beta field missing from yfinance data (market risk metric unavailable)"
+                )
+                return {"symbol": symbol, "data_unavailable": True, "reason": "beta_field_missing_from_yfinance"}
 
             beta_raw = info["beta"]
 
             # Validate value is not None
             if beta_raw is None:
-                logger.warning(f"[STABILITY_METRICS] {symbol}: beta field is None (unavailable from yfinance, market risk metric missing)")
-                return {
-                    "symbol": symbol,
-                    "data_unavailable": True,
-                    "reason": "beta_value_is_none"
-                }
+                logger.warning(
+                    f"[STABILITY_METRICS] {symbol}: beta field is None (unavailable from yfinance, market risk metric missing)"
+                )
+                return {"symbol": symbol, "data_unavailable": True, "reason": "beta_value_is_none"}
 
             # Convert to float and validate
             beta = float(beta_raw)
@@ -352,37 +351,25 @@ class StabilityMetricsLoader(OptimalLoader):
                     f"[STABILITY_METRICS] {symbol}: extreme beta value {beta} (out of range [-200, 200]). "
                     f"Data appears corrupted - marking beta unavailable."
                 )
-                return {
-                    "symbol": symbol,
-                    "data_unavailable": True,
-                    "reason": f"extreme_beta_value: {beta}"
-                }
+                return {"symbol": symbol, "data_unavailable": True, "reason": f"extreme_beta_value: {beta}"}
 
             return beta
         except (ValueError, TypeError) as e:
-            logger.warning(f"[STABILITY_METRICS] {symbol}: failed to parse beta ({type(e).__name__}: {e}), market risk metric unavailable")
-            return {
-                "symbol": symbol,
-                "data_unavailable": True,
-                "reason": f"beta_parse_error: {type(e).__name__}"
-            }
+            logger.warning(
+                f"[STABILITY_METRICS] {symbol}: failed to parse beta ({type(e).__name__}: {e}), market risk metric unavailable"
+            )
+            return {"symbol": symbol, "data_unavailable": True, "reason": f"beta_parse_error: {type(e).__name__}"}
         except ZeroDivisionError as e:
-            logger.warning(f"[STABILITY_METRICS] {symbol}: division error parsing beta: {e}, market risk metric unavailable")
-            return {
-                "symbol": symbol,
-                "data_unavailable": True,
-                "reason": "beta_calculation_division_error"
-            }
+            logger.warning(
+                f"[STABILITY_METRICS] {symbol}: division error parsing beta: {e}, market risk metric unavailable"
+            )
+            return {"symbol": symbol, "data_unavailable": True, "reason": "beta_calculation_division_error"}
         except Exception as e:
             logger.warning(
                 f"[STABILITY_METRICS] {symbol}: unexpected error fetching beta: {type(e).__name__}: {e}. "
                 f"Beta calculation failed - stability metrics may be incomplete for this symbol."
             )
-            return {
-                "symbol": symbol,
-                "data_unavailable": True,
-                "reason": f"unexpected_error: {type(e).__name__}"
-            }
+            return {"symbol": symbol, "data_unavailable": True, "reason": f"unexpected_error: {type(e).__name__}"}
 
     @staticmethod
     def _get_beta_from_db(
@@ -461,9 +448,7 @@ class StabilityMetricsLoader(OptimalLoader):
             beta = float(cov_matrix[0, 1]) / spy_var
 
             if abs(beta) > 10:
-                logger.debug(
-                    f"[STABILITY_METRICS] {symbol}: extreme DB beta {beta:.2f} — marking unavailable."
-                )
+                logger.debug(f"[STABILITY_METRICS] {symbol}: extreme DB beta {beta:.2f} — marking unavailable.")
                 return {
                     "symbol": symbol,
                     "data_unavailable": True,
@@ -473,9 +458,7 @@ class StabilityMetricsLoader(OptimalLoader):
             return round(beta, 4)
 
         except Exception as e:
-            logger.warning(
-                f"[STABILITY_METRICS] {symbol}: DB beta computation failed: {type(e).__name__}: {e}"
-            )
+            logger.warning(f"[STABILITY_METRICS] {symbol}: DB beta computation failed: {type(e).__name__}: {e}")
             return {
                 "symbol": symbol,
                 "data_unavailable": True,

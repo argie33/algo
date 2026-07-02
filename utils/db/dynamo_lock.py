@@ -34,10 +34,7 @@ class DynamoDBLockManager:
     """
 
     def __init__(
-        self,
-        table_name: str | None = None,
-        lock_duration_seconds: int = 600,
-        enable_auto_cleanup: bool = True
+        self, table_name: str | None = None, lock_duration_seconds: int = 600, enable_auto_cleanup: bool = True
     ):
         """Initialize lock manager.
 
@@ -126,7 +123,7 @@ class DynamoDBLockManager:
             except self._throttling_exception:
                 # DynamoDB throttled due to capacity — back off more aggressively
                 logger.warning(f"[LOCK] DynamoDB throttled on attempt {attempt} for {lock_key}")
-                time.sleep(min(0.1 * (2 ** attempt), 2.0))
+                time.sleep(min(0.1 * (2**attempt), 2.0))
 
             except Exception as e:
                 # Check if this is a permission error (AccessDeniedException)
@@ -138,7 +135,7 @@ class DynamoDBLockManager:
                 else:
                     # Transient error — retry with backoff
                     logger.debug(f"[LOCK] Transient error on attempt {attempt} acquiring {lock_key}: {e}")
-                    time.sleep(min(0.1 * (2 ** attempt), 1.0))
+                    time.sleep(min(0.1 * (2**attempt), 1.0))
 
         logger.error(
             f"[LOCK] Failed to acquire {lock_key} after {timeout_seconds}s ({attempt} attempts). "

@@ -724,8 +724,7 @@ def run(
                 triggered = cb_metrics.get("triggered_count", 0)
                 any_triggered = cb_metrics.get("any_triggered", False)
                 logger.info(
-                    f"[PHASE 9] Circuit breaker metrics written: "
-                    f"{triggered} triggered, any_triggered={any_triggered}"
+                    f"[PHASE 9] Circuit breaker metrics written: {triggered} triggered, any_triggered={any_triggered}"
                 )
                 log_phase_result_fn(
                     9,

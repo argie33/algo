@@ -246,22 +246,26 @@ def _get_stock_scores(
             # This handles the transition period before database migration is applied
             if "data_unavailable" in str(e):
                 logger.warning(
-                    f"data_unavailable columns not found in metrics tables. "
-                    f"Retrying with fallback query. Error: {e}"
+                    f"data_unavailable columns not found in metrics tables. Retrying with fallback query. Error: {e}"
                 )
                 # Build fallback query without data_unavailable checks
-                fallback_query = query.replace(
-                    "(qm.symbol IS NULL OR qm.data_unavailable = TRUE OR (qm.roe IS NULL AND qm.operating_margin IS NULL AND qm.net_margin IS NULL)) AS _financial_data_unavailable,",
-                    "(qm.symbol IS NULL OR (qm.roe IS NULL AND qm.operating_margin IS NULL AND qm.net_margin IS NULL)) AS _financial_data_unavailable,"
-                ).replace(
-                    "(gm.symbol IS NULL OR gm.data_unavailable = TRUE) AS _growth_data_unavailable,",
-                    "(gm.symbol IS NULL) AS _growth_data_unavailable,"
-                ).replace(
-                    "(pm.symbol IS NULL OR pm.data_unavailable = TRUE) AS _positioning_data_unavailable,",
-                    "(pm.symbol IS NULL) AS _positioning_data_unavailable,"
-                ).replace(
-                    "(sm.symbol IS NULL OR sm.data_unavailable = TRUE) AS _stability_data_unavailable,",
-                    "(sm.symbol IS NULL) AS _stability_data_unavailable,"
+                fallback_query = (
+                    query.replace(
+                        "(qm.symbol IS NULL OR qm.data_unavailable = TRUE OR (qm.roe IS NULL AND qm.operating_margin IS NULL AND qm.net_margin IS NULL)) AS _financial_data_unavailable,",
+                        "(qm.symbol IS NULL OR (qm.roe IS NULL AND qm.operating_margin IS NULL AND qm.net_margin IS NULL)) AS _financial_data_unavailable,",
+                    )
+                    .replace(
+                        "(gm.symbol IS NULL OR gm.data_unavailable = TRUE) AS _growth_data_unavailable,",
+                        "(gm.symbol IS NULL) AS _growth_data_unavailable,",
+                    )
+                    .replace(
+                        "(pm.symbol IS NULL OR pm.data_unavailable = TRUE) AS _positioning_data_unavailable,",
+                        "(pm.symbol IS NULL) AS _positioning_data_unavailable,",
+                    )
+                    .replace(
+                        "(sm.symbol IS NULL OR sm.data_unavailable = TRUE) AS _stability_data_unavailable,",
+                        "(sm.symbol IS NULL) AS _stability_data_unavailable,",
+                    )
                 )
                 scores = execute_with_timeout(cur, fallback_query, params_list, timeout_sec=20, max_attempts=1)
             else:

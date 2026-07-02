@@ -96,7 +96,7 @@ class ReconciliationAnalytics:
                 if expectancy < 0:
                     alert = f"Negative expectancy: {expectancy:.4f}% - Strategy is losing"
                 elif win_rate < 0.40:
-                    alert = f"Win rate below 40%: {win_rate*100:.1f}%"
+                    alert = f"Win rate below 40%: {win_rate * 100:.1f}%"
 
                 result["expectancy"] = {
                     "valid": True,
@@ -171,19 +171,21 @@ class ReconciliationAnalytics:
                 win_rate = wins / total_closed if total_closed > 0 else 0.0
                 profit_factor = gross_profit / gross_loss if gross_loss > 0 else 0.0
 
-                result.update({
-                    "win_count": wins,
-                    "loss_count": losses,
-                    "win_rate": win_rate,
-                    "profit_factor": profit_factor,
-                    "avg_r_multiple": float(row[4]) if row[4] else 0.0,
-                    "best_trade_pct": float(row[5]) if row[5] else 0.0,
-                    "worst_trade_pct": float(row[6]) if row[6] else 0.0,
-                    "best_mae": float(row[7]) if row[7] else 0.0,
-                    "best_mfe": float(row[8]) if row[8] else 0.0,
-                    "reason": f"Closed trades: {wins}W {losses}L (win rate {win_rate*100:.1f}%), "
-                    f"Profit factor {profit_factor:.2f}x, Avg R-multiple {float(row[4]) if row[4] else 0.0:.2f}",
-                })
+                result.update(
+                    {
+                        "win_count": wins,
+                        "loss_count": losses,
+                        "win_rate": win_rate,
+                        "profit_factor": profit_factor,
+                        "avg_r_multiple": float(row[4]) if row[4] else 0.0,
+                        "best_trade_pct": float(row[5]) if row[5] else 0.0,
+                        "worst_trade_pct": float(row[6]) if row[6] else 0.0,
+                        "best_mae": float(row[7]) if row[7] else 0.0,
+                        "best_mfe": float(row[8]) if row[8] else 0.0,
+                        "reason": f"Closed trades: {wins}W {losses}L (win rate {win_rate * 100:.1f}%), "
+                        f"Profit factor {profit_factor:.2f}x, Avg R-multiple {float(row[4]) if row[4] else 0.0:.2f}",
+                    }
+                )
             else:
                 result["reason"] = "No closed trades yet"
 

@@ -54,6 +54,7 @@ except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
+
 # Apply critical database migrations on Lambda cold start
 def _apply_critical_migrations():
     """Apply critical schema migrations directly in Lambda startup.
@@ -69,6 +70,7 @@ def _apply_critical_migrations():
         # This is the same source that DatabaseContext uses for all other DB operations
         try:
             from config.credential_manager import get_db_config
+
             db_config = get_db_config()
         except Exception as e:
             logger.warning(f"[STARTUP] Could not fetch credentials from credential_manager: {e} - skipping migrations")
@@ -86,12 +88,7 @@ def _apply_critical_migrations():
 
         # Connect to database
         conn = psycopg2.connect(
-            host=db_host,
-            port=int(db_port),
-            database=db_name,
-            user=db_user,
-            password=db_password,
-            sslmode='require'
+            host=db_host, port=int(db_port), database=db_name, user=db_user, password=db_password, sslmode="require"
         )
         cur = conn.cursor()
 
@@ -104,7 +101,7 @@ def _apply_critical_migrations():
             "stability_metrics",
             "aaii_sentiment",
             "fear_greed_index",
-            "naaim"
+            "naaim",
         ]
 
         for table in tables:
@@ -128,6 +125,7 @@ def _apply_critical_migrations():
     except Exception as e:
         logger.warning(f"[STARTUP] Migration initialization failed: {e}")
         return False, str(e)
+
 
 # Execute migrations on cold start
 try:
@@ -569,8 +567,7 @@ def get_security_headers() -> dict[str, str]:
         "Referrer-Policy": "strict-origin-when-cross-origin",
         "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
         "Content-Security-Policy": (
-            "default-src 'self'; img-src 'self' data: https:; "
-            "frame-ancestors 'none'; base-uri 'self'"
+            "default-src 'self'; img-src 'self' data: https:; frame-ancestors 'none'; base-uri 'self'"
         ),
         **get_api_version_headers(),
     }

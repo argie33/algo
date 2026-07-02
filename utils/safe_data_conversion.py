@@ -455,7 +455,9 @@ def safe_parse_date(value: Any, context: str = "") -> date | None:
             except ValueError:
                 pass
 
-        logger.error(f"Failed to parse date {value!r} {context} - no format matched (returning None, caller must handle)")
+        logger.error(
+            f"Failed to parse date {value!r} {context} - no format matched (returning None, caller must handle)"
+        )
         return None
 
     logger.error(f"Cannot parse {type(value).__name__} as date {context} (returning None, caller must handle)")

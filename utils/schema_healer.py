@@ -16,9 +16,7 @@ import psycopg2
 logger = logging.getLogger(__name__)
 
 
-def ensure_columns_exist(
-    cur: Any, table_name: str, required_columns: dict[str, str]
-) -> tuple[bool, list[str]]:
+def ensure_columns_exist(cur: Any, table_name: str, required_columns: dict[str, str]) -> tuple[bool, list[str]]:
     """Ensure all required columns exist in table, creating missing ones.
 
     Args:
@@ -61,9 +59,7 @@ def ensure_columns_exist(
             created.append(col_name)
         except psycopg2.Error as e:
             logger.error(f"[SCHEMA_HEALER] Failed to create {table_name}.{col_name}: {e}")
-            raise RuntimeError(
-                f"[SCHEMA_HEALER] Failed to auto-create schema for {table_name}.{col_name}: {e}"
-            ) from e
+            raise RuntimeError(f"[SCHEMA_HEALER] Failed to auto-create schema for {table_name}.{col_name}: {e}") from e
 
     logger.warning(f"[SCHEMA_HEALER] {table_name}: Created {len(created)} columns. Loader will proceed.")
     return True, created

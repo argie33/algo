@@ -58,18 +58,12 @@ class MetricsCalculator:
         """
         if total_trades is None or total_trades <= 0:
             logger.warning(f"Cannot calculate win rate: insufficient trades (total_trades={total_trades})")
-            return {
-                "data_unavailable": True,
-                "reason": "insufficient_trades"
-            }
+            return {"data_unavailable": True, "reason": "insufficient_trades"}
         if wins is None:
             raise ValueError("Cannot calculate win rate: wins count is None")
         if wins < 0 or wins > total_trades:
             logger.warning(f"Cannot calculate win rate: invalid win count (wins={wins}, total={total_trades})")
-            return {
-                "data_unavailable": True,
-                "reason": "invalid_trade_counts"
-            }
+            return {"data_unavailable": True, "reason": "invalid_trade_counts"}
         wr = (wins / total_trades) * 100
         return round(wr, 2)
 
@@ -301,10 +295,7 @@ class MetricsCalculator:
                 f"Cannot calculate profit factor: missing data "
                 f"(wins={total_wins_dollars}, losses={total_losses_dollars})"
             )
-            return {
-                "data_unavailable": True,
-                "reason": "missing_data"
-            }
+            return {"data_unavailable": True, "reason": "missing_data"}
 
         total_losses = float(total_losses_dollars)
         total_wins = float(total_wins_dollars)
@@ -313,10 +304,7 @@ class MetricsCalculator:
             if total_wins > 1e-6:
                 return float("inf")  # Perfect record (only wins, no losses)
             logger.warning("Cannot calculate profit factor: no trades or all breakeven")
-            return {
-                "data_unavailable": True,
-                "reason": "no_trades"
-            }
+            return {"data_unavailable": True, "reason": "no_trades"}
 
         pf = total_wins / total_losses
         return round(pf, 3)

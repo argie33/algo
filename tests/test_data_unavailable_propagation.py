@@ -21,11 +21,7 @@ class TestDataUnavailableMarkers:
     def test_optional_loader_returns_marker_not_empty(self):
         """OPTIONAL enrichment loaders must return data_unavailable marker, not empty result."""
         # Simulate optional loader with missing data
-        loader_result = {
-            "data_unavailable": True,
-            "reason": "insufficient_price_history",
-            "date": "2026-06-29"
-        }
+        loader_result = {"data_unavailable": True, "reason": "insufficient_price_history", "date": "2026-06-29"}
 
         # Must be dict with data_unavailable key (not None, [], or {})
         assert isinstance(loader_result, dict)
@@ -38,9 +34,7 @@ class TestDataUnavailableMarkers:
         """CRITICAL data loaders must raise exception on missing data, not return 0/[]."""
         with pytest.raises(RuntimeError, match=r"unavailable|missing|failed"):
             # Simulate critical loader failure
-            raise RuntimeError(
-                "[CRITICAL] Market health data unavailable: VIX data missing from price_daily"
-            )
+            raise RuntimeError("[CRITICAL] Market health data unavailable: VIX data missing from price_daily")
 
     def test_position_sizer_distinguishes_zero_from_error(self):
         """Position sizer must distinguish between 'no positions' (valid 0) and 'DB error' (exception)."""
@@ -53,9 +47,7 @@ class TestDataUnavailableMarkers:
 
         # Case 2: DB error (would raise exception, not return 0)
         with pytest.raises(RuntimeError):
-            raise RuntimeError(
-                "Portfolio value unavailable due to database error: connection lost"
-            )
+            raise RuntimeError("Portfolio value unavailable due to database error: connection lost")
 
     def test_exit_engine_zero_is_count_not_error(self):
         """Exit engine returning 0 means 0 exits executed (valid count), not 'error'."""
@@ -66,9 +58,7 @@ class TestDataUnavailableMarkers:
 
         # Case 2: Data error would raise exception
         with pytest.raises(RuntimeError):
-            raise RuntimeError(
-                "[EXIT ENGINE] Critical: current price unavailable for AAPL"
-            )
+            raise RuntimeError("[EXIT ENGINE] Critical: current price unavailable for AAPL")
 
     def test_vix_placeholder_validation_rejects_zero(self):
         """VIX loader must reject 0.0 placeholder with exception, not use silently."""
@@ -101,11 +91,7 @@ class TestDataPropagation:
     def test_loader_output_used_by_orchestrator(self):
         """Orchestrator must check for data_unavailable before proceeding."""
         # Simulate loader output with marker
-        loader_output = {
-            "symbol": "AAPL",
-            "data_unavailable": True,
-            "reason": "insufficient_data"
-        }
+        loader_output = {"symbol": "AAPL", "data_unavailable": True, "reason": "insufficient_data"}
 
         # Orchestrator logic
         if loader_output.get("data_unavailable"):
@@ -118,11 +104,7 @@ class TestDataPropagation:
 
     def test_score_unavailable_blocks_trading(self):
         """Unavailable score must prevent trade signal generation."""
-        stock_score = {
-            "symbol": "XYZ",
-            "data_unavailable": True,
-            "reason": "missing_valuation_metrics"
-        }
+        stock_score = {"symbol": "XYZ", "data_unavailable": True, "reason": "missing_valuation_metrics"}
 
         # Trading logic must check before using score
         if stock_score.get("data_unavailable"):
@@ -142,7 +124,7 @@ class TestDataPropagation:
             # Optional enrichment unavailable
             "yield_curve_slope": None,
             "yield_curve_data_unavailable": True,
-            "yield_curve_unavailable_reason": "source_data_stale"
+            "yield_curve_unavailable_reason": "source_data_stale",
         }
 
         # Market health still valid
@@ -177,9 +159,7 @@ class TestErrorPropagation:
         except psycopg2.OperationalError as e:
             # Must re-raise or raise new exception, not return 0
             with pytest.raises(RuntimeError):
-                raise RuntimeError(
-                    f"Portfolio snapshot count unavailable due to database error: {e}"
-                ) from e
+                raise RuntimeError(f"Portfolio snapshot count unavailable due to database error: {e}") from e
 
     def test_missing_critical_data_raises_not_continues(self):
         """Missing critical data must raise, not silently proceed."""
@@ -190,9 +170,7 @@ class TestErrorPropagation:
 
         if critical_data is None:
             with pytest.raises(ValueError):
-                raise ValueError(
-                    "[CRITICAL] VIX data unavailable - circuit breaker decisions require VIX"
-                )
+                raise ValueError("[CRITICAL] VIX data unavailable - circuit breaker decisions require VIX")
 
     def test_validation_failure_not_silenced(self):
         """Data validation failures must be visible, not silenced."""

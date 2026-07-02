@@ -183,28 +183,36 @@ class QualityMetricsLoader(OptimalLoader):
             metrics["operating_margin_unavailable_reason"] = None
         else:
             metrics["operating_margin"] = None
-            metrics["operating_margin_unavailable_reason"] = "insufficient_income_statement_data" if not revenue or revenue <= 0 else "missing_operating_income"
+            metrics["operating_margin_unavailable_reason"] = (
+                "insufficient_income_statement_data" if not revenue or revenue <= 0 else "missing_operating_income"
+            )
 
         if revenue and revenue > 0 and net_income is not None:
             metrics["net_margin"] = float(round((net_income / revenue) * 100, 2))
             metrics["net_margin_unavailable_reason"] = None
         else:
             metrics["net_margin"] = None
-            metrics["net_margin_unavailable_reason"] = "insufficient_income_statement_data" if not revenue or revenue <= 0 else "missing_net_income"
+            metrics["net_margin_unavailable_reason"] = (
+                "insufficient_income_statement_data" if not revenue or revenue <= 0 else "missing_net_income"
+            )
 
         if stockholders_equity and stockholders_equity > 0 and net_income is not None:
             metrics["roe"] = float(round((net_income / stockholders_equity) * 100, 2))
             metrics["roe_unavailable_reason"] = None
         else:
             metrics["roe"] = None
-            metrics["roe_unavailable_reason"] = "missing_equity_data" if not stockholders_equity or stockholders_equity <= 0 else "missing_net_income"
+            metrics["roe_unavailable_reason"] = (
+                "missing_equity_data" if not stockholders_equity or stockholders_equity <= 0 else "missing_net_income"
+            )
 
         if total_assets and total_assets > 0 and net_income is not None:
             metrics["roa"] = float(round((net_income / total_assets) * 100, 2))
             metrics["roa_unavailable_reason"] = None
         else:
             metrics["roa"] = None
-            metrics["roa_unavailable_reason"] = "missing_asset_data" if not total_assets or total_assets <= 0 else "missing_net_income"
+            metrics["roa_unavailable_reason"] = (
+                "missing_asset_data" if not total_assets or total_assets <= 0 else "missing_net_income"
+            )
 
         if stockholders_equity and stockholders_equity > 0 and total_liabilities is not None:
             metrics["debt_to_equity"] = float(round(total_liabilities / stockholders_equity, 2))
@@ -256,7 +264,10 @@ class QualityMetricsLoader(OptimalLoader):
             metrics["debt_to_assets_unavailable_reason"] = "missing_balance_sheet_data"
 
         # Check if ANY metrics were actually computed (not all NULL)
-        computed_metrics = [metrics.get(k) for k in ["operating_margin", "net_margin", "roe", "roa", "debt_to_equity", "current_ratio", "quick_ratio"]]
+        computed_metrics = [
+            metrics.get(k)
+            for k in ["operating_margin", "net_margin", "roe", "roa", "debt_to_equity", "current_ratio", "quick_ratio"]
+        ]
         has_real_data = any(m is not None for m in computed_metrics)
 
         metrics["data_unavailable"] = not has_real_data

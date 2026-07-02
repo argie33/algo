@@ -802,14 +802,20 @@ def _get_performance_analytics(cur: cursor) -> Any:
                 return error_response(503, "data_unavailable", "Performance analytics not available")
             data = safe_dict_convert(row)
             response_dict = {
-                "rolling_sharpe_252d": float(data.get("sharpe_ratio")) if data.get("sharpe_ratio") is not None else None,
-                "rolling_sortino_252d": float(data.get("sortino_ratio")) if data.get("sortino_ratio") is not None else None,
+                "rolling_sharpe_252d": float(data.get("sharpe_ratio"))
+                if data.get("sharpe_ratio") is not None
+                else None,
+                "rolling_sortino_252d": float(data.get("sortino_ratio"))
+                if data.get("sortino_ratio") is not None
+                else None,
                 "calmar_ratio": float(data.get("calmar_ratio")) if data.get("calmar_ratio") is not None else None,
                 "win_rate_50t": float(data.get("win_rate_pct")) if data.get("win_rate_pct") is not None else None,
                 "avg_win_r_50t": 0.0,  # Fallback default until migration 108 applied
                 "avg_loss_r_50t": 0.0,  # Fallback default until migration 108 applied
                 "expectancy": 0.0,  # Fallback default until migration 108 applied
-                "max_drawdown_pct": float(data.get("max_drawdown_pct")) if data.get("max_drawdown_pct") is not None else None,
+                "max_drawdown_pct": float(data.get("max_drawdown_pct"))
+                if data.get("max_drawdown_pct") is not None
+                else None,
             }
             response_dict["sharpe252"] = response_dict["rolling_sharpe_252d"]
             response_dict["sortino"] = response_dict["rolling_sortino_252d"]

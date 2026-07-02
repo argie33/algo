@@ -86,7 +86,9 @@ class StockScoresLoader(OptimalLoader):
                 for table_name, min_coverage in required_metric_tables.items():
                     # COUNT real data only (data_unavailable = false OR IS NULL)
                     # NULL values also count as real data (some loaders don't set the flag)
-                    cur.execute(f"SELECT COUNT(*) FROM {table_name} WHERE data_unavailable = false OR data_unavailable IS NULL")
+                    cur.execute(
+                        f"SELECT COUNT(*) FROM {table_name} WHERE data_unavailable = false OR data_unavailable IS NULL"
+                    )
                     row = cur.fetchone()
                     available_count = row[0] if row else 0
 
@@ -258,9 +260,7 @@ class StockScoresLoader(OptimalLoader):
             real_scores = [s for s in all_scores.values() if is_real_score(s)]
             data_count = len(real_scores)
             unavailable_metrics = {
-                name: get_marker_reason(score)
-                for name, score in all_scores.items()
-                if not is_real_score(score)
+                name: get_marker_reason(score) for name, score in all_scores.items() if not is_real_score(score)
             }
             # Cap at 99.99 to fit in NUMERIC(4,2) database column
             data_completeness = min(99.99, round((data_count / 6.0) * 100, 2))
@@ -272,12 +272,11 @@ class StockScoresLoader(OptimalLoader):
             # New listings: allow 2/6 metrics (33% completeness) if stock is <30 days old
             try:
                 with DatabaseContext("read") as price_cur:
-                    price_cur.execute(
-                        "SELECT MIN(date) FROM price_daily WHERE symbol = %s",
-                        (symbol,)
-                    )
+                    price_cur.execute("SELECT MIN(date) FROM price_daily WHERE symbol = %s", (symbol,))
                     min_price_date_row = price_cur.fetchone()
-                    min_price_date = min_price_date_row[0] if min_price_date_row and min_price_date_row[0] else date.today()
+                    min_price_date = (
+                        min_price_date_row[0] if min_price_date_row and min_price_date_row[0] else date.today()
+                    )
                     days_since_inception = (date.today() - min_price_date).days
                     # For stocks <30 days old: allow 2/6 metrics (33%). Else require 3/6 metrics (50%)
                     min_required_metrics = 2 if days_since_inception < 30 else 3
@@ -510,11 +509,7 @@ class StockScoresLoader(OptimalLoader):
                         f"[LOAD_STOCK_SCORES] {symbol} marked data_unavailable in quality_metrics "
                         f"(likely REIT or security with missing SEC filings)"
                     )
-                    return {
-                        "symbol": symbol,
-                        "data_unavailable": True,
-                        "reason": "quality_data_marked_unavailable"
-                    }
+                    return {"symbol": symbol, "data_unavailable": True, "reason": "quality_data_marked_unavailable"}
                 # Row exists and data is available
                 return {
                     "roe": self._safe_float(row[0], f"{symbol}.roe"),
@@ -530,11 +525,7 @@ class StockScoresLoader(OptimalLoader):
             logger.warning(
                 f"[LOAD_STOCK_SCORES] No quality metrics available for {symbol} — score completeness will be reduced"
             )
-            return {
-                "symbol": symbol,
-                "data_unavailable": True,
-                "reason": "no_quality_metrics_found"
-            }
+            return {"symbol": symbol, "data_unavailable": True, "reason": "no_quality_metrics_found"}
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Database operation failed fetching quality metrics for {symbol}: {e}") from e
 
@@ -562,11 +553,7 @@ class StockScoresLoader(OptimalLoader):
                         f"[LOAD_STOCK_SCORES] {symbol} marked data_unavailable in growth_metrics "
                         f"(likely security with missing SEC filings)"
                     )
-                    return {
-                        "symbol": symbol,
-                        "data_unavailable": True,
-                        "reason": "growth_data_marked_unavailable"
-                    }
+                    return {"symbol": symbol, "data_unavailable": True, "reason": "growth_data_marked_unavailable"}
                 # Row exists and data is available
                 return {
                     "revenue_growth_1y": self._safe_float(row[0], f"{symbol}.revenue_growth_1y"),
@@ -580,11 +567,7 @@ class StockScoresLoader(OptimalLoader):
             logger.warning(
                 f"[LOAD_STOCK_SCORES] No growth metrics available for {symbol} — score completeness will be reduced"
             )
-            return {
-                "symbol": symbol,
-                "data_unavailable": True,
-                "reason": "no_growth_metrics_found"
-            }
+            return {"symbol": symbol, "data_unavailable": True, "reason": "no_growth_metrics_found"}
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Database operation failed fetching growth metrics for {symbol}: {e}") from e
 
@@ -612,11 +595,7 @@ class StockScoresLoader(OptimalLoader):
                         f"[LOAD_STOCK_SCORES] {symbol} marked data_unavailable in value_metrics "
                         f"(likely security with missing pricing data)"
                     )
-                    return {
-                        "symbol": symbol,
-                        "data_unavailable": True,
-                        "reason": "value_data_marked_unavailable"
-                    }
+                    return {"symbol": symbol, "data_unavailable": True, "reason": "value_data_marked_unavailable"}
                 # Row exists and data is available
                 return {
                     "pe_ratio": self._safe_float(row[0], f"{symbol}.pe_ratio"),
@@ -630,11 +609,7 @@ class StockScoresLoader(OptimalLoader):
             logger.warning(
                 f"[LOAD_STOCK_SCORES] No value metrics available for {symbol} — score completeness will be reduced"
             )
-            return {
-                "symbol": symbol,
-                "data_unavailable": True,
-                "reason": "no_value_metrics_found"
-            }
+            return {"symbol": symbol, "data_unavailable": True, "reason": "no_value_metrics_found"}
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Database operation failed fetching value metrics for {symbol}: {e}") from e
 
@@ -662,11 +637,7 @@ class StockScoresLoader(OptimalLoader):
                         f"[LOAD_STOCK_SCORES] {symbol} marked data_unavailable in positioning_metrics "
                         f"(likely weird security: ETF, preferred, depositary share)"
                     )
-                    return {
-                        "symbol": symbol,
-                        "data_unavailable": True,
-                        "reason": "positioning_data_marked_unavailable"
-                    }
+                    return {"symbol": symbol, "data_unavailable": True, "reason": "positioning_data_marked_unavailable"}
                 # Row exists and data is available
                 return {
                     "institutional_ownership": self._safe_float(row[0], f"{symbol}.institutional_ownership"),
@@ -677,11 +648,7 @@ class StockScoresLoader(OptimalLoader):
             logger.debug(
                 f"[LOAD_STOCK_SCORES] No positioning metrics available for {symbol} — will reduce score completeness"
             )
-            return {
-                "symbol": symbol,
-                "data_unavailable": True,
-                "reason": "no_positioning_metrics_found"
-            }
+            return {"symbol": symbol, "data_unavailable": True, "reason": "no_positioning_metrics_found"}
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Database operation failed fetching positioning metrics for {symbol}: {e}") from e
 
@@ -709,11 +676,7 @@ class StockScoresLoader(OptimalLoader):
                         f"[LOAD_STOCK_SCORES] {symbol} marked data_unavailable in stability_metrics "
                         f"(likely security with insufficient price history)"
                     )
-                    return {
-                        "symbol": symbol,
-                        "data_unavailable": True,
-                        "reason": "stability_data_marked_unavailable"
-                    }
+                    return {"symbol": symbol, "data_unavailable": True, "reason": "stability_data_marked_unavailable"}
                 # Row exists and data is available
                 return {
                     "volatility_252d": float(row[0]) if row[0] is not None else None,
@@ -725,11 +688,7 @@ class StockScoresLoader(OptimalLoader):
             logger.warning(
                 f"[LOAD_STOCK_SCORES] No stability metrics available for {symbol} — score completeness will be reduced"
             )
-            return {
-                "symbol": symbol,
-                "data_unavailable": True,
-                "reason": "no_stability_metrics_found"
-            }
+            return {"symbol": symbol, "data_unavailable": True, "reason": "no_stability_metrics_found"}
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Database operation failed fetching stability metrics for {symbol}: {e}") from e
 
@@ -809,13 +768,29 @@ class StockScoresLoader(OptimalLoader):
 
                         # Calculate returns from multiple starting points if available
                         if len(sorted_prices) >= 2:
-                            momentum_1m = ((current_price / sorted_prices[-2][1] - 1) * 100) if sorted_prices[-2][1] != 0 else None
+                            momentum_1m = (
+                                ((current_price / sorted_prices[-2][1] - 1) * 100)
+                                if sorted_prices[-2][1] != 0
+                                else None
+                            )
                         if len(sorted_prices) >= 4:
-                            momentum_3m = ((current_price / sorted_prices[-4][1] - 1) * 100) if sorted_prices[-4][1] != 0 else None
+                            momentum_3m = (
+                                ((current_price / sorted_prices[-4][1] - 1) * 100)
+                                if sorted_prices[-4][1] != 0
+                                else None
+                            )
                         if len(sorted_prices) >= 7:
-                            momentum_6m = ((current_price / sorted_prices[-7][1] - 1) * 100) if sorted_prices[-7][1] != 0 else None
+                            momentum_6m = (
+                                ((current_price / sorted_prices[-7][1] - 1) * 100)
+                                if sorted_prices[-7][1] != 0
+                                else None
+                            )
                         if len(sorted_prices) >= 14:
-                            momentum_12m = ((current_price / sorted_prices[-14][1] - 1) * 100) if sorted_prices[-14][1] != 0 else None
+                            momentum_12m = (
+                                ((current_price / sorted_prices[-14][1] - 1) * 100)
+                                if sorted_prices[-14][1] != 0
+                                else None
+                            )
 
                         logger.debug(
                             f"[LOAD_STOCK_SCORES] {symbol}: new listing (<30 days), computed short-term momentum "
@@ -832,11 +807,7 @@ class StockScoresLoader(OptimalLoader):
             # Logging at WARNING to ensure ops visibility of degraded scoring
             logger.warning(f"[LOAD_STOCK_SCORES] No momentum data available for {symbol} — insufficient price history")
             logger.debug(f"[LOAD_STOCK_SCORES] Returning data_unavailable marker for momentum_metrics({symbol})")
-            return {
-                "symbol": symbol,
-                "data_unavailable": True,
-                "reason": "no_momentum_data_available"
-            }
+            return {"symbol": symbol, "data_unavailable": True, "reason": "no_momentum_data_available"}
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Database operation failed fetching momentum metrics for {symbol}: {e}") from e
 
@@ -852,11 +823,7 @@ class StockScoresLoader(OptimalLoader):
         if not metrics or metrics.get("data_unavailable"):
             logger.debug(f"[STOCK_SCORES] Quality metrics unavailable for {symbol}")
             logger.debug(f"[STOCK_SCORES] Returning data_unavailable marker for quality_score({symbol})")
-            return {
-                "symbol": symbol,
-                "data_unavailable": True,
-                "reason": "no_quality_metrics_data"
-            }
+            return {"symbol": symbol, "data_unavailable": True, "reason": "no_quality_metrics_data"}
 
         # Use pre-computed quality_score from load_quality_metrics.py if available
         if metrics.get("quality_score") is not None:
@@ -907,12 +874,10 @@ class StockScoresLoader(OptimalLoader):
         if scores:
             return float(sum(scores) / len(scores))
         logger.debug(f"[STOCK_SCORES] No quality metrics found to score for {symbol}")
-        logger.debug(f"[STOCK_SCORES] Returning data_unavailable marker for quality_score({symbol}) - no scoreable fields")
-        return {
-            "symbol": symbol,
-            "data_unavailable": True,
-            "reason": "no_quality_scores_computed"
-        }
+        logger.debug(
+            f"[STOCK_SCORES] Returning data_unavailable marker for quality_score({symbol}) - no scoreable fields"
+        )
+        return {"symbol": symbol, "data_unavailable": True, "reason": "no_quality_scores_computed"}
 
     def _score_growth(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any] | None:
         """Score growth metrics on 0-100 scale. Returns marker dict if no real data.
@@ -926,11 +891,7 @@ class StockScoresLoader(OptimalLoader):
         if not metrics or metrics.get("data_unavailable"):
             logger.debug(f"[STOCK_SCORES] Growth metrics unavailable for {symbol}")
             logger.debug(f"[STOCK_SCORES] Returning data_unavailable marker for growth_score({symbol})")
-            return {
-                "symbol": symbol,
-                "data_unavailable": True,
-                "reason": "no_growth_metrics_data"
-            }
+            return {"symbol": symbol, "data_unavailable": True, "reason": "no_growth_metrics_data"}
 
         weighted_sum = 0.0
         total_weight = 0.0
@@ -977,12 +938,10 @@ class StockScoresLoader(OptimalLoader):
         if total_weight > 0:
             return weighted_sum / total_weight
         logger.debug(f"[STOCK_SCORES] No growth metrics found to score for {symbol}")
-        logger.debug(f"[STOCK_SCORES] Returning data_unavailable marker for growth_score({symbol}) - no scoreable fields")
-        return {
-            "symbol": symbol,
-            "data_unavailable": True,
-            "reason": "no_growth_scores_computed"
-        }
+        logger.debug(
+            f"[STOCK_SCORES] Returning data_unavailable marker for growth_score({symbol}) - no scoreable fields"
+        )
+        return {"symbol": symbol, "data_unavailable": True, "reason": "no_growth_scores_computed"}
 
     def _score_value(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any] | None:
         """Score value metrics on 0-100 scale. Returns marker dict if no real data.
@@ -996,11 +955,7 @@ class StockScoresLoader(OptimalLoader):
         if not metrics or metrics.get("data_unavailable"):
             logger.debug(f"[STOCK_SCORES] Value metrics unavailable for {symbol}")
             logger.debug(f"[STOCK_SCORES] Returning data_unavailable marker for value_score({symbol})")
-            return {
-                "symbol": symbol,
-                "data_unavailable": True,
-                "reason": "no_value_metrics_data"
-            }
+            return {"symbol": symbol, "data_unavailable": True, "reason": "no_value_metrics_data"}
 
         weighted_sum = 0.0
         total_weight = 0.0
@@ -1050,12 +1005,10 @@ class StockScoresLoader(OptimalLoader):
         if total_weight > 0:
             return weighted_sum / total_weight
         logger.debug(f"[STOCK_SCORES] No value metrics found to score for {symbol}")
-        logger.debug(f"[STOCK_SCORES] Returning data_unavailable marker for value_score({symbol}) - no scoreable fields")
-        return {
-            "symbol": symbol,
-            "data_unavailable": True,
-            "reason": "no_value_scores_computed"
-        }
+        logger.debug(
+            f"[STOCK_SCORES] Returning data_unavailable marker for value_score({symbol}) - no scoreable fields"
+        )
+        return {"symbol": symbol, "data_unavailable": True, "reason": "no_value_scores_computed"}
 
     def _score_positioning(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any] | None:
         """Score positioning metrics on 0-100 scale. Returns marker dict if no real data.
@@ -1066,11 +1019,7 @@ class StockScoresLoader(OptimalLoader):
         if not metrics or metrics.get("data_unavailable"):
             logger.debug(f"[STOCK_SCORES] Positioning metrics unavailable for {symbol}")
             logger.debug(f"[STOCK_SCORES] Returning data_unavailable marker for positioning_score({symbol})")
-            return {
-                "symbol": symbol,
-                "data_unavailable": True,
-                "reason": "no_positioning_metrics_data"
-            }
+            return {"symbol": symbol, "data_unavailable": True, "reason": "no_positioning_metrics_data"}
 
         weighted_sum = 0.0
         total_weight = 0.0
@@ -1109,12 +1058,10 @@ class StockScoresLoader(OptimalLoader):
 
         if total_weight > 0:
             return weighted_sum / total_weight
-        logger.debug(f"[STOCK_SCORES] Returning data_unavailable marker for positioning_score({symbol}) - no scoreable fields")
-        return {
-            "symbol": symbol,
-            "data_unavailable": True,
-            "reason": "no_positioning_scores_computed"
-        }
+        logger.debug(
+            f"[STOCK_SCORES] Returning data_unavailable marker for positioning_score({symbol}) - no scoreable fields"
+        )
+        return {"symbol": symbol, "data_unavailable": True, "reason": "no_positioning_scores_computed"}
 
     def _score_stability(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any] | None:
         """Score stability metrics on 0-100 scale. Returns marker dict if no real data.
@@ -1124,11 +1071,7 @@ class StockScoresLoader(OptimalLoader):
         """
         if not metrics or metrics.get("data_unavailable"):
             logger.debug(f"[STOCK_SCORES] Returning data_unavailable marker for stability_score({symbol})")
-            return {
-                "symbol": symbol,
-                "data_unavailable": True,
-                "reason": "no_stability_metrics_data"
-            }
+            return {"symbol": symbol, "data_unavailable": True, "reason": "no_stability_metrics_data"}
 
         weighted_sum = 0.0
         total_weight = 0.0
@@ -1179,12 +1122,10 @@ class StockScoresLoader(OptimalLoader):
 
         if total_weight > 0:
             return weighted_sum / total_weight
-        logger.debug(f"[STOCK_SCORES] Returning data_unavailable marker for stability_score({symbol}) - no scoreable fields")
-        return {
-            "symbol": symbol,
-            "data_unavailable": True,
-            "reason": "no_stability_scores_computed"
-        }
+        logger.debug(
+            f"[STOCK_SCORES] Returning data_unavailable marker for stability_score({symbol}) - no scoreable fields"
+        )
+        return {"symbol": symbol, "data_unavailable": True, "reason": "no_stability_scores_computed"}
 
     def _score_momentum(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any] | None:
         """Score momentum metrics on 0-100 scale. Returns marker dict if no real data.
@@ -1195,11 +1136,7 @@ class StockScoresLoader(OptimalLoader):
         """
         if not metrics or metrics.get("data_unavailable"):
             logger.debug(f"[STOCK_SCORES] Returning data_unavailable marker for momentum_score({symbol})")
-            return {
-                "symbol": symbol,
-                "data_unavailable": True,
-                "reason": "no_momentum_metrics_data"
-            }
+            return {"symbol": symbol, "data_unavailable": True, "reason": "no_momentum_metrics_data"}
 
         # Named weights â€" recent timeframes matter more for swing trading
         weights = {
@@ -1218,12 +1155,10 @@ class StockScoresLoader(OptimalLoader):
 
         if total_weight > 0:
             return weighted_sum / total_weight
-        logger.debug(f"[STOCK_SCORES] Returning data_unavailable marker for momentum_score({symbol}) - no scoreable fields")
-        return {
-            "symbol": symbol,
-            "data_unavailable": True,
-            "reason": "no_momentum_scores_computed"
-        }
+        logger.debug(
+            f"[STOCK_SCORES] Returning data_unavailable marker for momentum_score({symbol}) - no scoreable fields"
+        )
+        return {"symbol": symbol, "data_unavailable": True, "reason": "no_momentum_scores_computed"}
 
     @staticmethod
     def _pct_to_score(pct_return: float) -> float:

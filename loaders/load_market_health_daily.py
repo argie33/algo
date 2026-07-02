@@ -396,21 +396,13 @@ class MarketHealthDailyLoader(OptimalLoader):
                 if isinstance(result, dict) and result.get("data_unavailable"):
                     reason = result.get("reason", "fetcher_unavailable")
                     logger.debug(f"[MARKET_HEALTH] Put/call ratio unavailable from fetcher: {reason}")
-                    return {
-                        "data_unavailable": True,
-                        "reason": reason,
-                        "put_call_ratio": None
-                    }
+                    return {"data_unavailable": True, "reason": reason, "put_call_ratio": None}
                 # If it's a float, return it as the ratio
                 if isinstance(result, float):
                     return {"put_call_ratio": result}
                 # Shouldn't reach here, but handle unexpected types defensively
                 logger.debug("[MARKET_HEALTH] Put/call fetcher returned unexpected type, marking unavailable")
-                return {
-                    "data_unavailable": True,
-                    "reason": "unexpected_return_type",
-                    "put_call_ratio": None
-                }
+                return {"data_unavailable": True, "reason": "unexpected_return_type", "put_call_ratio": None}
             except (ConnectionError, TimeoutError) as e:
                 # Transient errors: retry with backoff
                 if attempt < max_retries - 1:
@@ -426,29 +418,19 @@ class MarketHealthDailyLoader(OptimalLoader):
                         f"All retries exhausted on transient error: {e}"
                     )
                     logger.debug("[MARKET_HEALTH] Put/call ratio unavailable after max retries on transient error")
-                    return {
-                        "data_unavailable": True,
-                        "reason": "transient_error_max_retries",
-                        "put_call_ratio": None
-                    }
+                    return {"data_unavailable": True, "reason": "transient_error_max_retries", "put_call_ratio": None}
             except Exception as e:
                 # Other exceptions: don't retry, mark unavailable
                 logger.warning(
                     f"[MARKET_HEALTH] Put/call ratio fetch failed with non-transient error: {type(e).__name__}: {e}. "
                     f"Options sentiment is optional - marking unavailable."
                 )
-                logger.debug(f"[MARKET_HEALTH] Put/call ratio unavailable due to non-transient exception: {type(e).__name__}")
-                return {
-                    "data_unavailable": True,
-                    "reason": "fetch_exception",
-                    "put_call_ratio": None
-                }
+                logger.debug(
+                    f"[MARKET_HEALTH] Put/call ratio unavailable due to non-transient exception: {type(e).__name__}"
+                )
+                return {"data_unavailable": True, "reason": "fetch_exception", "put_call_ratio": None}
         logger.debug("[MARKET_HEALTH] Put/call ratio fetch exhausted all retries, marking unavailable")
-        return {
-            "data_unavailable": True,
-            "reason": "transient_error_max_retries",
-            "put_call_ratio": None
-        }
+        return {"data_unavailable": True, "reason": "transient_error_max_retries", "put_call_ratio": None}
 
     def _merge_put_call_data(self, health_metrics: list[dict[str, Any]], end: date) -> None:
         """Merge put/call ratio into health metrics.
@@ -529,7 +511,11 @@ class MarketHealthDailyLoader(OptimalLoader):
             try:
                 yield_curve = self._yield_curve_fetcher.fetch(start, end)
                 # Success: return the data (may have data_unavailable flag set by fetcher)
-                return yield_curve if yield_curve is not None else {"data_unavailable": True, "reason": "fetcher_returned_none"}
+                return (
+                    yield_curve
+                    if yield_curve is not None
+                    else {"data_unavailable": True, "reason": "fetcher_returned_none"}
+                )
             except (ConnectionError, TimeoutError) as e:
                 # Transient errors: retry with backoff
                 if attempt < max_retries - 1:
@@ -545,26 +531,19 @@ class MarketHealthDailyLoader(OptimalLoader):
                         f"All retries exhausted on transient error: {e}"
                     )
                     logger.debug("[MARKET_HEALTH] Yield curve unavailable after max retries on transient error")
-                    return {
-                        "data_unavailable": True,
-                        "reason": "transient_error_max_retries"
-                    }
+                    return {"data_unavailable": True, "reason": "transient_error_max_retries"}
             except Exception as e:
                 # Other exceptions: don't retry, mark unavailable
                 logger.warning(
                     f"[MARKET_HEALTH] Yield curve fetch failed with non-transient error: {type(e).__name__}: {e}. "
                     f"Market regime detection will skip inversion signals."
                 )
-                logger.debug(f"[MARKET_HEALTH] Yield curve unavailable due to non-transient exception: {type(e).__name__}")
-                return {
-                    "data_unavailable": True,
-                    "reason": "fetch_exception"
-                }
+                logger.debug(
+                    f"[MARKET_HEALTH] Yield curve unavailable due to non-transient exception: {type(e).__name__}"
+                )
+                return {"data_unavailable": True, "reason": "fetch_exception"}
         logger.debug("[MARKET_HEALTH] Yield curve fetch exhausted all retries, marking unavailable")
-        return {
-            "data_unavailable": True,
-            "reason": "transient_error_max_retries"
-        }
+        return {"data_unavailable": True, "reason": "transient_error_max_retries"}
 
     def _merge_yield_curve_data(self, health_metrics: list[dict[str, Any]], start: date, end: date) -> None:
         """Merge yield curve slope into health metrics.
@@ -747,12 +726,10 @@ class MarketHealthDailyLoader(OptimalLoader):
                         f"[MARKET_HEALTH] Fed rate fetch failed after {max_retries} attempts. "
                         f"All retries exhausted on transient OperationalError: {e}"
                     )
-                    logger.debug("[MARKET_HEALTH] Fed rate data unavailable after max retries on database connection failure")
-                    return {
-                        "data_unavailable": True,
-                        "reason": "database_connection_failed",
-                        "fed_rate_rows": None
-                    }
+                    logger.debug(
+                        "[MARKET_HEALTH] Fed rate data unavailable after max retries on database connection failure"
+                    )
+                    return {"data_unavailable": True, "reason": "database_connection_failed", "fed_rate_rows": None}
             except psycopg2.DatabaseError as e:
                 # Permanent error: invalid SQL, table missing, permissions, schema mismatch
                 logger.error(
@@ -764,11 +741,7 @@ class MarketHealthDailyLoader(OptimalLoader):
                     "This indicates a schema or configuration problem that requires investigation."
                 ) from e
         logger.debug("[MARKET_HEALTH] Fed rate fetch exhausted all retries, marking unavailable")
-        return {
-            "data_unavailable": True,
-            "reason": "database_connection_failed",
-            "fed_rate_rows": None
-        }
+        return {"data_unavailable": True, "reason": "database_connection_failed", "fed_rate_rows": None}
 
     def _merge_fed_rate_environment(self, health_metrics: list[dict[str, Any]], start: date, end: date) -> None:
         """Merge Fed rate environment classification into health metrics.
@@ -1232,8 +1205,7 @@ def _write_vix_family_prices(start: date, end: date) -> int:  # noqa: C901
     # 5-day was too lenient — on Monday it treated Friday's VIX as fresh and skipped today's fetch.
     fresh_cutoff = end - timedelta(days=1)
     symbols_needing_refresh = {
-        sym for sym in INDEX_SYMBOLS_FOR_PRICE_DAILY
-        if sym not in existing_dates or existing_dates[sym] < fresh_cutoff
+        sym for sym in INDEX_SYMBOLS_FOR_PRICE_DAILY if sym not in existing_dates or existing_dates[sym] < fresh_cutoff
     }
 
     if not symbols_needing_refresh:

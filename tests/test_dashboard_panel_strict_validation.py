@@ -45,6 +45,7 @@ class TestPrevalidationBeforeStrict:
         This test documents the pattern: data sources (fetchers) should
         validate their output before it reaches the dashboard panels.
         """
+
         # Pattern: Fetcher should check for None before returning
         def safe_fetch_price(raw_data: dict[str, Any]) -> float | None:
             price = raw_data.get("price")
@@ -56,6 +57,7 @@ class TestPrevalidationBeforeStrict:
         # Panel should use strict conversion on already-validated data
         def panel_use_price(price: float | None) -> str:
             from utils.safe_data_conversion import safe_float
+
             # Only call strict if we know price is not None, or handle None explicitly
             if price is None:
                 return "N/A"

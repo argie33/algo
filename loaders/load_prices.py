@@ -2372,6 +2372,7 @@ def main() -> int:
 
     # Load essential symbols from configuration (centralized to prevent inconsistencies)
     from utils.market_symbols_config import MarketSymbolsConfig
+
     essential_stock_price_daily = MarketSymbolsConfig.get_essential_stocks()
     essential_etf_symbols = MarketSymbolsConfig.get_essential_etf_symbols()
 

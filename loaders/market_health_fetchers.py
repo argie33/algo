@@ -232,8 +232,7 @@ class PutCallRatioFetcher:
 
         # All retries exhausted
         logger.error(
-            f"[PUT_CALL_RATIO] All {self.MAX_RETRIES} retries failed for {eval_date}. "
-            f"Reason: {last_error_reason}"
+            f"[PUT_CALL_RATIO] All {self.MAX_RETRIES} retries failed for {eval_date}. Reason: {last_error_reason}"
         )
         return None
 
@@ -390,22 +389,19 @@ class YieldCurveFetcher:
             if result is None:
                 return {
                     "data_unavailable": True,
-                    "reason": f"Circuit breaker exhaustion: unable to fetch yield curve data after {self.MAX_RETRIES} retries"
+                    "reason": f"Circuit breaker exhaustion: unable to fetch yield curve data after {self.MAX_RETRIES} retries",
                 }
 
             # Validate result type
             if not isinstance(result, dict):
                 return {
                     "data_unavailable": True,
-                    "reason": f"Invalid response type {type(result).__name__}, expected dict"
+                    "reason": f"Invalid response type {type(result).__name__}, expected dict",
                 }
 
             return result
         except Exception as e:
-            return {
-                "data_unavailable": True,
-                "reason": f"Fetch error: {str(e)[:150]}"
-            }
+            return {"data_unavailable": True, "reason": f"Fetch error: {str(e)[:150]}"}
 
     def _fetch_with_retries(self, start: date, end: date) -> dict[str, Any] | None:
         """Attempt yield curve fetch with exponential backoff retry logic.
@@ -577,7 +573,12 @@ class BreadthFetcher:
                 f"price_daily has {price_count} rows but window function found no symbols with 252-day history. "
                 f"This is normal early in dataset. Market breadth enrichment unavailable."
             )
-            return {"data_unavailable": True, "reason": "insufficient_price_history", "start": start.isoformat(), "end": end.isoformat()}
+            return {
+                "data_unavailable": True,
+                "reason": "insufficient_price_history",
+                "start": start.isoformat(),
+                "end": end.isoformat(),
+            }
 
         result = {}
         for row in rows:

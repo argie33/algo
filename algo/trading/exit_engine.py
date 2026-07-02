@@ -584,12 +584,16 @@ class ExitEngine:
                             t3_price = Decimal(str(t3_price)) if t3_price else None
 
                             if target_hits is None:
-                                raise ValueError(f"{symbol}: target_hits is NULL in database  - data corruption detected")
+                                raise ValueError(
+                                    f"{symbol}: target_hits is NULL in database  - data corruption detected"
+                                )
 
                             target_hits = int(target_hits)
 
                         except (TypeError, ValueError) as e:
-                            raise ValueError(f"Cannot evaluate exit checks for {symbol}: invalid price data  - {e}") from e
+                            raise ValueError(
+                                f"Cannot evaluate exit checks for {symbol}: invalid price data  - {e}"
+                            ) from e
 
                         cur_price, prev_close = self._fetch_recent_prices(cur, symbol, current_date)
 

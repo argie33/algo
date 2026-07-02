@@ -258,9 +258,27 @@ class FredEconomicDataLoader(OptimalLoader):
                     # We only enforce strict freshness for daily series (rates, commodities, indices).
                     # Monthly series (GDP, JOLTS) are allowed to be older.
                     daily_series = {
-                        "FEDFUNDS", "DGS3MO", "DGS6MO", "DGS1", "DGS2", "DGS3", "DGS5", "DGS7",
-                        "DGS10", "DGS20", "DGS30", "T10Y2Y", "T10Y3M", "BAMLH0A0HYM2", "BAMLC0A0CM",
-                        "VIXCLS", "MORTGAGE30US", "T5YIE", "T10YIE", "DTWEXBGS", "DCOILWTICO",
+                        "FEDFUNDS",
+                        "DGS3MO",
+                        "DGS6MO",
+                        "DGS1",
+                        "DGS2",
+                        "DGS3",
+                        "DGS5",
+                        "DGS7",
+                        "DGS10",
+                        "DGS20",
+                        "DGS30",
+                        "T10Y2Y",
+                        "T10Y3M",
+                        "BAMLH0A0HYM2",
+                        "BAMLC0A0CM",
+                        "VIXCLS",
+                        "MORTGAGE30US",
+                        "T5YIE",
+                        "T10YIE",
+                        "DTWEXBGS",
+                        "DCOILWTICO",
                     }
 
                     if latest_obs_date and series_id in daily_series:

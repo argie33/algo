@@ -55,10 +55,7 @@ def _is_data_unavailable_marker(result: Any) -> bool:
 
     Marker dicts have data_unavailable=True and should trigger fallback to next source.
     """
-    return (
-        isinstance(result, dict)
-        and result.get("data_unavailable") is True
-    )
+    return isinstance(result, dict) and result.get("data_unavailable") is True
 
 
 # Global/shared rate limiters to prevent multiple DataSourceRouter instances from exceeding API limits

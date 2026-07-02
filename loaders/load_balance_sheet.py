@@ -122,25 +122,17 @@ class BalanceSheetLoader(OptimalLoader):
             for r in rows:
                 if isinstance(r, dict):
                     if "fiscal_year" not in r or r["fiscal_year"] is None:
-                        logger.warning(
-                            f"[BALANCE_SHEET] {symbol}: Row missing required 'fiscal_year' field. Skipping."
-                        )
+                        logger.warning(f"[BALANCE_SHEET] {symbol}: Row missing required 'fiscal_year' field. Skipping.")
                         continue
                     if r["fiscal_year"] > since_year:
                         filtered.append(r)
 
             if len(filtered) < len(rows) and len(rows) > 0:
-                logger.debug(
-                    f"{symbol}: Filtered {len(rows) - len(filtered)} row(s) with fiscal_year <= {since_year}"
-                )
+                logger.debug(f"{symbol}: Filtered {len(rows) - len(filtered)} row(s) with fiscal_year <= {since_year}")
             return self.transform(filtered)
         except Exception as e:
-            logger.error(
-                f"[BALANCE_SHEET] Failed to fetch balance sheet for {symbol}: {type(e).__name__}: {e}"
-            )
-            raise RuntimeError(
-                f"[BALANCE_SHEET] Failed to fetch balance sheet for {symbol}: {e}"
-            ) from e
+            logger.error(f"[BALANCE_SHEET] Failed to fetch balance sheet for {symbol}: {type(e).__name__}: {e}")
+            raise RuntimeError(f"[BALANCE_SHEET] Failed to fetch balance sheet for {symbol}: {e}") from e
 
     def transform(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if self._field_mapping is None:
@@ -187,11 +179,15 @@ class BalanceSheetLoader(OptimalLoader):
             fiscal_year = row.get("fiscal_year")
 
             if not symbol:
-                logger.warning(f"[{self.table_name}] Row missing required 'symbol' field. Row keys: {list(row.keys())}. Skipping.")
+                logger.warning(
+                    f"[{self.table_name}] Row missing required 'symbol' field. Row keys: {list(row.keys())}. Skipping."
+                )
                 skipped_missing_keys += 1
                 continue
             if fiscal_year is None:
-                logger.warning(f"[{self.table_name}] Row missing required 'fiscal_year' field for {symbol}. Row keys: {list(row.keys())}. Skipping.")
+                logger.warning(
+                    f"[{self.table_name}] Row missing required 'fiscal_year' field for {symbol}. Row keys: {list(row.keys())}. Skipping."
+                )
                 skipped_missing_keys += 1
                 continue
 
@@ -217,9 +213,7 @@ class BalanceSheetLoader(OptimalLoader):
             raise RuntimeError(f"[{self.table_name}] CRITICAL: No valid rows after transformation.")
 
         if skipped_invalid_fields + skipped_missing_keys > 0:
-            logger.warning(
-                f"[{self.table_name}] Skipped {skipped_invalid_fields + skipped_missing_keys} rows."
-            )
+            logger.warning(f"[{self.table_name}] Skipped {skipped_invalid_fields + skipped_missing_keys} rows.")
 
         now = datetime.now().isoformat()
         result = list(seen.values())

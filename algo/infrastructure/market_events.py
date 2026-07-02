@@ -201,7 +201,8 @@ class MarketEventHandler:
                     if resp.status_code == 400:
                         # Paper trading accounts may require feed=iex (SIP feed returns 400)
                         resp = requests.get(
-                            url, headers=headers,
+                            url,
+                            headers=headers,
                             params={"feed": "iex"},
                             timeout=get_market_data_timeout(),
                         )

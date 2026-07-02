@@ -114,18 +114,14 @@ class IncomeStatementLoader(OptimalLoader):
                 )
                 return {row[0] for row in cur.fetchall()}
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            raise RuntimeError(
-                f"[INCOME_STATEMENT] Failed to query {self.table_name} for {symbol}: {e}"
-            ) from e
+            raise RuntimeError(f"[INCOME_STATEMENT] Failed to query {self.table_name} for {symbol}: {e}") from e
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         try:
             rows = sec_statements.get_income_statement(self._sec_client, symbol, period=self.period)
 
             if not rows:
-                logger.warning(
-                    f"[INCOME_STATEMENT] {symbol}: No {self.period} income statement data in SEC EDGAR."
-                )
+                logger.warning(f"[INCOME_STATEMENT] {symbol}: No {self.period} income statement data in SEC EDGAR.")
                 return []
 
             logger.info("%s: Fetched %d %s income statement row(s)", symbol, len(rows), self.period)
@@ -150,12 +146,8 @@ class IncomeStatementLoader(OptimalLoader):
 
             return self.transform(filtered)
         except Exception as e:
-            logger.error(
-                f"[INCOME_STATEMENT] Failed to fetch income statement for {symbol}: {type(e).__name__}: {e}"
-            )
-            raise RuntimeError(
-                f"[INCOME_STATEMENT] Failed to fetch income statement for {symbol}: {e}"
-            ) from e
+            logger.error(f"[INCOME_STATEMENT] Failed to fetch income statement for {symbol}: {type(e).__name__}: {e}")
+            raise RuntimeError(f"[INCOME_STATEMENT] Failed to fetch income statement for {symbol}: {e}") from e
 
     def transform(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if self._field_mapping is None:
@@ -204,12 +196,16 @@ class IncomeStatementLoader(OptimalLoader):
             fiscal_year = row.get("fiscal_year")
 
             if not symbol:
-                logger.warning(f"[{self.table_name}] Row missing required 'symbol' field. Row keys: {list(row.keys())}. Skipping.")
+                logger.warning(
+                    f"[{self.table_name}] Row missing required 'symbol' field. Row keys: {list(row.keys())}. Skipping."
+                )
                 skipped_missing_keys += 1
                 continue
 
             if fiscal_year is None:
-                logger.warning(f"[{self.table_name}] Row missing required 'fiscal_year' field for {symbol}. Row keys: {list(row.keys())}. Skipping.")
+                logger.warning(
+                    f"[{self.table_name}] Row missing required 'fiscal_year' field for {symbol}. Row keys: {list(row.keys())}. Skipping."
+                )
                 skipped_missing_keys += 1
                 continue
 

@@ -94,7 +94,9 @@ class PriceAuditor:
             result["stale_symbols"] = stale_symbols
 
             if stale_count > 0:
-                logger.warning(f"[PRICE_AUDIT] Found {stale_count} positions with stale estimated prices: {stale_symbols}")
+                logger.warning(
+                    f"[PRICE_AUDIT] Found {stale_count} positions with stale estimated prices: {stale_symbols}"
+                )
             else:
                 logger.info("[PRICE_AUDIT] All estimated prices are fresh")
 

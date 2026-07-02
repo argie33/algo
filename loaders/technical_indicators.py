@@ -55,11 +55,11 @@ def compute_atr(high: pd.Series, low: pd.Series, close: pd.Series, period: int =
     high_reset = high.copy()
     low_reset = low.copy()
     close_reset = close.copy()
-    if hasattr(high_reset.index, 'freq') and high_reset.index.freq is not None:
+    if hasattr(high_reset.index, "freq") and high_reset.index.freq is not None:
         high_reset.index.freq = None
-    if hasattr(low_reset.index, 'freq') and low_reset.index.freq is not None:
+    if hasattr(low_reset.index, "freq") and low_reset.index.freq is not None:
         low_reset.index.freq = None
-    if hasattr(close_reset.index, 'freq') and close_reset.index.freq is not None:
+    if hasattr(close_reset.index, "freq") and close_reset.index.freq is not None:
         close_reset.index.freq = None
 
     tr1 = high_reset - low_reset
@@ -97,11 +97,11 @@ def compute_adx(
     high_reset = high.copy()
     low_reset = low.copy()
     close_reset = close.copy()
-    if hasattr(high_reset.index, 'freq') and high_reset.index.freq is not None:
+    if hasattr(high_reset.index, "freq") and high_reset.index.freq is not None:
         high_reset.index.freq = None
-    if hasattr(low_reset.index, 'freq') and low_reset.index.freq is not None:
+    if hasattr(low_reset.index, "freq") and low_reset.index.freq is not None:
         low_reset.index.freq = None
-    if hasattr(close_reset.index, 'freq') and close_reset.index.freq is not None:
+    if hasattr(close_reset.index, "freq") and close_reset.index.freq is not None:
         close_reset.index.freq = None
 
     high_diff = high_reset.diff()

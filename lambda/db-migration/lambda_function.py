@@ -55,7 +55,9 @@ def get_credentials() -> dict[str, Any]:
                 if not raw_host:
                     raw_host = secret.get("host")
                 if not raw_host:
-                    raise ValueError("[CRITICAL] Database host not found in secrets or DB_ENDPOINT environment variable")
+                    raise ValueError(
+                        "[CRITICAL] Database host not found in secrets or DB_ENDPOINT environment variable"
+                    )
                 host = raw_host.split(":")[0] if ":" in raw_host else raw_host
 
                 db_port = secret.get("port")
@@ -224,7 +226,9 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
 
         # Get database credentials
         creds = get_credentials()
-        logger.info(f"Successfully loaded credentials for database: {creds['host']}:{creds['port']}/{creds['database']}")
+        logger.info(
+            f"Successfully loaded credentials for database: {creds['host']}:{creds['port']}/{creds['database']}"
+        )
 
         # Run migrations
         result = run_migrations(creds)

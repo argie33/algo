@@ -95,43 +95,31 @@ class CashFlowLoader(OptimalLoader):
             rows = self._sec_client.get_cash_flow(symbol, period=self.period)
 
             if not rows:
-                logger.warning(
-                    f"[CASH_FLOW] {symbol}: No {self.period} cash flow data in SEC EDGAR."
-                )
+                logger.warning(f"[CASH_FLOW] {symbol}: No {self.period} cash flow data in SEC EDGAR.")
                 return []
 
             logger.info("%s: Fetched %d %s cash flow row(s)", symbol, len(rows), self.period)
 
             if since is None:
-                raise ValueError(
-                    f"Cash flow loader for {symbol} requires 'since' parameter for incremental loading."
-                )
+                raise ValueError(f"Cash flow loader for {symbol} requires 'since' parameter for incremental loading.")
 
             since_year = int(since.year)
             filtered = []
             for r in rows:
                 if isinstance(r, dict):
                     if "fiscal_year" not in r or r["fiscal_year"] is None:
-                        logger.warning(
-                            f"[CASH_FLOW] {symbol}: Row missing required 'fiscal_year' field. Skipping."
-                        )
+                        logger.warning(f"[CASH_FLOW] {symbol}: Row missing required 'fiscal_year' field. Skipping.")
                         continue
                     if r["fiscal_year"] > since_year:
                         filtered.append(r)
 
             if len(filtered) < len(rows) and len(rows) > 0:
-                logger.debug(
-                    f"{symbol}: Filtered {len(rows) - len(filtered)} row(s) with fiscal_year <= {since_year}"
-                )
+                logger.debug(f"{symbol}: Filtered {len(rows) - len(filtered)} row(s) with fiscal_year <= {since_year}")
 
             return filtered
         except Exception as e:
-            logger.error(
-                f"[CASH_FLOW] Failed to fetch cash flow for {symbol}: {type(e).__name__}: {e}"
-            )
-            raise RuntimeError(
-                f"[CASH_FLOW] Failed to fetch cash flow for {symbol}: {e}"
-            ) from e
+            logger.error(f"[CASH_FLOW] Failed to fetch cash flow for {symbol}: {type(e).__name__}: {e}")
+            raise RuntimeError(f"[CASH_FLOW] Failed to fetch cash flow for {symbol}: {e}") from e
 
     def _process_single_row(self, r: dict[str, Any]) -> dict[str, Any] | None:
         """Process a single cash flow row from SEC EDGAR data."""

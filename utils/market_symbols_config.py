@@ -38,10 +38,25 @@ class MarketSymbolsConfig:
     # Essential ETFs: required by sector performance, sector heatmap, frontend price routes
     # These land in etf_price_daily table (price route falls back to this)
     DEFAULT_ESSENTIAL_ETF_SYMBOLS = [
-        "SPY", "QQQ", "IWM", "DIA",  # Index ETFs
-        "XLK", "XLF", "XLV", "XLY", "XLC",  # Sector ETFs
-        "XLI", "XLP", "XLE", "XLU", "XLRE", "XLB",
-        "GLD", "TLT", "IVV", "VXX",  # Macro ETFs
+        "SPY",
+        "QQQ",
+        "IWM",
+        "DIA",  # Index ETFs
+        "XLK",
+        "XLF",
+        "XLV",
+        "XLY",
+        "XLC",  # Sector ETFs
+        "XLI",
+        "XLP",
+        "XLE",
+        "XLU",
+        "XLRE",
+        "XLB",
+        "GLD",
+        "TLT",
+        "IVV",
+        "VXX",  # Macro ETFs
     ]
 
     # Default orchestrator schedule (fallback when API unavailable)
@@ -87,7 +102,9 @@ class MarketSymbolsConfig:
                         raise RuntimeError(msg) from e
                 else:
                     # Key not in database - use hardcoded default
-                    logger.debug(f"[MARKET_SYMBOLS_CONFIG] Config key '{key}' not in algo_config, using hardcoded default")
+                    logger.debug(
+                        f"[MARKET_SYMBOLS_CONFIG] Config key '{key}' not in algo_config, using hardcoded default"
+                    )
                     return default_value
         except RuntimeError:
             # Re-raise our own RuntimeError (JSON decode errors)
@@ -112,7 +129,9 @@ class MarketSymbolsConfig:
         if "etf_symbols" in MarketSymbolsConfig._cache:
             return cast(list[str], MarketSymbolsConfig._cache["etf_symbols"])
 
-        symbols = MarketSymbolsConfig._fetch_config_from_db("market_etf_symbols", MarketSymbolsConfig.DEFAULT_ETF_SYMBOLS)
+        symbols = MarketSymbolsConfig._fetch_config_from_db(
+            "market_etf_symbols", MarketSymbolsConfig.DEFAULT_ETF_SYMBOLS
+        )
         MarketSymbolsConfig._cache["etf_symbols"] = symbols
         return symbols
 
@@ -126,7 +145,9 @@ class MarketSymbolsConfig:
         if "index_symbols" in MarketSymbolsConfig._cache:
             return cast(list[str], MarketSymbolsConfig._cache["index_symbols"])
 
-        symbols = MarketSymbolsConfig._fetch_config_from_db("market_index_symbols", MarketSymbolsConfig.DEFAULT_INDEX_SYMBOLS)
+        symbols = MarketSymbolsConfig._fetch_config_from_db(
+            "market_index_symbols", MarketSymbolsConfig.DEFAULT_INDEX_SYMBOLS
+        )
         MarketSymbolsConfig._cache["index_symbols"] = symbols
         return symbols
 
@@ -159,7 +180,9 @@ class MarketSymbolsConfig:
         if "essential_stocks" in MarketSymbolsConfig._cache:
             return cast(list[str], MarketSymbolsConfig._cache["essential_stocks"])
 
-        symbols = MarketSymbolsConfig._fetch_config_from_db("essential_stocks", MarketSymbolsConfig.DEFAULT_ESSENTIAL_STOCKS)
+        symbols = MarketSymbolsConfig._fetch_config_from_db(
+            "essential_stocks", MarketSymbolsConfig.DEFAULT_ESSENTIAL_STOCKS
+        )
         MarketSymbolsConfig._cache["essential_stocks"] = symbols
         return symbols
 
@@ -179,7 +202,9 @@ class MarketSymbolsConfig:
         if "essential_etf_symbols" in MarketSymbolsConfig._cache:
             return cast(list[str], MarketSymbolsConfig._cache["essential_etf_symbols"])
 
-        symbols = MarketSymbolsConfig._fetch_config_from_db("essential_etf_symbols", MarketSymbolsConfig.DEFAULT_ESSENTIAL_ETF_SYMBOLS)
+        symbols = MarketSymbolsConfig._fetch_config_from_db(
+            "essential_etf_symbols", MarketSymbolsConfig.DEFAULT_ESSENTIAL_ETF_SYMBOLS
+        )
         MarketSymbolsConfig._cache["essential_etf_symbols"] = symbols
         return symbols
 
@@ -201,7 +226,9 @@ class MarketSymbolsConfig:
         if "orchestrator_schedule" in MarketSymbolsConfig._cache:
             return cast(list[dict[str, int]], MarketSymbolsConfig._cache["orchestrator_schedule"])
 
-        schedule = MarketSymbolsConfig._fetch_config_from_db("orchestrator_schedule", MarketSymbolsConfig.DEFAULT_ORCHESTRATOR_SCHEDULE)
+        schedule = MarketSymbolsConfig._fetch_config_from_db(
+            "orchestrator_schedule", MarketSymbolsConfig.DEFAULT_ORCHESTRATOR_SCHEDULE
+        )
         MarketSymbolsConfig._cache["orchestrator_schedule"] = schedule
         return schedule
 

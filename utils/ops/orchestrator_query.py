@@ -89,11 +89,7 @@ def get_run_details(run_id: str) -> dict[str, Any]:
             row = cur.fetchone()
             if not row:
                 logger.warning(f"Orchestrator run {run_id} not found in execution log")
-                return {
-                    "data_unavailable": True,
-                    "reason": "run_not_found",
-                    "requested_run_id": run_id
-                }
+                return {"data_unavailable": True, "reason": "run_not_found", "requested_run_id": run_id}
 
             phase_results: list[Any] = []
             try:

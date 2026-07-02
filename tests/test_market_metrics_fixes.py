@@ -51,6 +51,7 @@ class TestBreadthFetcherValidation:
         end = date(2026, 6, 28)
 
         import logging
+
         with caplog.at_level(logging.WARNING):
             result = fetcher._compute_new_highs_lows(mock_cur, start, end)
 

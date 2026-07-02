@@ -220,7 +220,9 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
         critical_tables = {t for t, r in _fr.items() if r.get("critical")}
         if not critical_tables:
             # FAIL-FAST: Configuration empty indicates freshness_config loading failed
-            logger.error("[MARKET_EXPOSURE] Freshness config empty - no critical tables defined. Using hardcoded defaults.")
+            logger.error(
+                "[MARKET_EXPOSURE] Freshness config empty - no critical tables defined. Using hardcoded defaults."
+            )
             critical_tables = {
                 "price_daily",
                 "market_health_daily",

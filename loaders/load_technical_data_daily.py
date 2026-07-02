@@ -296,6 +296,7 @@ class VectorizedTechnicalLoader:
 
                 # Mansfield RS (SPY comparison) — optional; NaN if SPY unavailable or insufficient history
                 import numpy as np
+
                 try:
                     if not spy_prices_cached:
                         raise RuntimeError(

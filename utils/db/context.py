@@ -277,16 +277,10 @@ class DatabaseContext:
                 return cid
             # Return marker dict if no correlation_id in context (optional tracing)
             logger.debug("Correlation_id unavailable - optional tracing disabled")
-            return {
-                "data_unavailable": True,
-                "reason": "correlation_id_unavailable"
-            }
+            return {"data_unavailable": True, "reason": "correlation_id_unavailable"}
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.warning(f"Failed to get correlation ID for tracing: {e}")
-            return {
-                "data_unavailable": True,
-                "reason": "correlation_id_fetch_error"
-            }
+            return {"data_unavailable": True, "reason": "correlation_id_fetch_error"}
 
     def __enter__(self) -> _ErrorLoggedCursor:
         """Enter context - get database connection.

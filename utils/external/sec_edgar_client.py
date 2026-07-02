@@ -141,7 +141,9 @@ class SecEdgarClient:
             except (requests.ConnectionError, requests.Timeout) as e:
                 if attempt < max_retries - 1:
                     wait_time = 4 * (2**attempt) + random.uniform(0, 2)
-                    logger.warning(f"SEC API network error for {url}: {e}. Retry in {wait_time:.1f}s (attempt {attempt + 1}/{max_retries})")
+                    logger.warning(
+                        f"SEC API network error for {url}: {e}. Retry in {wait_time:.1f}s (attempt {attempt + 1}/{max_retries})"
+                    )
                     time.sleep(wait_time)
                     continue
                 raise RuntimeError(f"SEC API network error after {max_retries} retries: {e}") from e
