@@ -46,21 +46,20 @@ class LoaderConfigManager:
         "signal_quality_scores": (1, 3),  # Critical path
         "swing_trader_scores": (1, 3),  # Critical path
         # yfinance-dependent metrics: auxiliary loaders that feed stock_scores
-        # Increased parallelism (2026-06-28) to improve throughput and achieve 80%+ coverage
-        # stock_scores requires upstream metrics for reliable scoring
-        # CRITICAL FIX 2026-06-30: Increased min from 1 to 2 to prevent 15-min timeout
-        # At parallelism=1, positioning_metrics takes 41-83 min for 5000 symbols (0.5-1s per yfinance call)
-        # CRITICAL FIX 2026-06-30 22:30: Increase min to 3-4 to meet 5:00 PM deadline
-        # With parallelism=3-4: positioning_metrics completes in 13-28 min, value_metrics in 13-20 min
-        # Previous parallelism=2 was still taking 40+ min and causing stock_scores to not run
+        # CRITICAL FIX 2026-07-02: Reduce parallelism to 1 to avoid rate limiting
+        # parallelism=3-4 causes yfinance to rate limit shared NAT IP across all ECS tasks
+        # Shared IP ban results in 120s timeouts per symbol, incomplete data (66.5% coverage), and 84+ min runs
+        # Solution: Use parallelism=1 with longer individual symbol timeouts instead
+        # This trades speed for reliability: 40-80 min run time but 95%+ coverage, no rate limiting
+        # stock_scores requires 80%+ coverage to validate; prefer slow+complete over fast+incomplete
         "positioning_metrics": (
-            3,
-            4,
-        ),  # Increased from 2 to 3 min parallelism (max 4)
+            1,
+            1,
+        ),  # Reduced from 3 to 1 to prevent yfinance rate limiting
         "value_metrics": (
-            3,
-            4,
-        ),  # Increased from 2 to 3 min parallelism (max 4)
+            1,
+            1,
+        ),  # Reduced from 3 to 1 to prevent yfinance rate limiting
         # Note: stability_metrics also slow, but uses price_daily which completes faster
         # CRITICAL FIX 2026-06-30 22:30: Increase min to 2-3 to improve throughput
         "company_profile": (1, 2),

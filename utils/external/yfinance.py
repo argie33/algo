@@ -104,18 +104,19 @@ class YFinanceWrapper:
         """Create a new yfinance session with retries and request timeout.
 
         CRITICAL: yfinance.Ticker.info can hang indefinitely on certain symbols.
-        We mount HTTP adapters with 30s connect / 60s read timeout to prevent
-        600+ second loader timeouts on problematic symbols.
+        We mount HTTP adapters with increased timeouts to handle serial processing.
+        Increased from (30, 60)s to (60, 120)s to allow proper data fetching when
+        parallelism=1 is used to prevent rate limiting on shared NAT IP.
         """
         max_retries = 3
         for attempt in range(max_retries):
             try:
                 session = requests.Session()
                 session.headers.update({"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"})
-                timeout_adapter = TimeoutHTTPAdapter(timeout=(30, 60))
+                timeout_adapter = TimeoutHTTPAdapter(timeout=(60, 120))
                 session.mount("http://", timeout_adapter)
                 session.mount("https://", timeout_adapter)
-                logger.info(f"Created yfinance session with timeout=(30, 60)s (attempt {attempt + 1})")
+                logger.info(f"Created yfinance session with timeout=(60, 120)s (attempt {attempt + 1})")
                 return session
             except (requests.RequestException, requests.Timeout) as e:
                 logger.warning(f"Failed to create session (attempt {attempt + 1}): {e}")
