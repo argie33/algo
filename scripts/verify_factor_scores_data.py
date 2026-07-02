@@ -51,7 +51,7 @@ def check_metric_loader_status() -> dict[str, Any]:
                     table_name,
                     completion_pct,
                     status,
-                    EXTRACT(EPOCH FROM (NOW() - last_updated_at))::int as seconds_ago
+                    EXTRACT(EPOCH FROM (NOW() - last_updated))::int as seconds_ago
                 FROM data_loader_status
                 WHERE table_name IN (
                     'quality_metrics', 'growth_metrics', 'value_metrics',
@@ -170,7 +170,7 @@ def check_stock_scores_completeness() -> dict[str, Any]:
             cur.execute("""
                 SELECT
                     COUNT(*) as total_scores,
-                    COUNT(CASE WHEN data_unavailable = FALSE THEN 1 END) as available,
+                    COUNT(CASE WHEN unavailable_metrics IS NULL OR unavailable_metrics = '{}' THEN 1 END) as available,
                     COUNT(CASE WHEN composite_score IS NOT NULL THEN 1 END) as with_composite,
                     AVG(composite_score) as avg_composite,
                     MIN(composite_score) as min_composite,
@@ -275,7 +275,7 @@ def _print_loader_status(loader_status: dict) -> None:
     print("DATA LOADER STATUS")
     print("-" * 80)
     for table_name, status in sorted(loader_status.items()):
-        symbol = "✓" if status['completion'] >= 80 else "⚠" if status['completion'] >= 50 else "✗"
+        symbol = "[OK]" if status['completion'] >= 80 else "[WARN]" if status['completion'] >= 50 else "[FAIL]"
         print(f"{symbol} {table_name:35} | {status['completion']:6.1f}% | {status['status']:10} | {status['minutes_ago']:6.1f}m ago")
     print()
 
@@ -291,12 +291,12 @@ def _print_metric_coverage(metric_coverage: dict) -> bool:
     for table_name, data in sorted(metric_coverage.items()):
         threshold = _get_metric_threshold(table_name)
         if data['coverage'] >= threshold:
-            symbol, status = "✓", "PASS"
+            symbol, status = "[OK]", "PASS"
         elif data['coverage'] >= threshold * 0.8:
-            symbol, status = "⚠", "WARN"
+            symbol, status = "[WARN]", "WARN"
             critical_gaps = True
         else:
-            symbol, status = "✗", "FAIL"
+            symbol, status = "[FAIL]", "FAIL"
             critical_gaps = True
 
         print(f"{symbol} {table_name:<28} | {data['coverage']:7.1f}% | {data['available']:9,} | {data['unavailable']:9,} | {status}")
@@ -325,7 +325,7 @@ def _print_stock_scores(stock_scores: dict) -> None:
     if dist:
         print("Completeness distribution (% of scores with N factors):")
         for bucket, count in dist:
-            bar = "█" * int(count / 50) if count > 0 else ""
+            bar = "#" * int(count / 50) if count > 0 else ""
             print(f"  {bucket:>3}%: {bar} ({count:,} scores)")
     print()
 
@@ -350,9 +350,9 @@ def print_report(
     print("DATABASE CONNECTION")
     print("-" * 80)
     if connection_status:
-        print(f"✓ Connected to AWS: {db_name}")
+        print(f"[OK] Connected to AWS: {db_name}")
     else:
-        print(f"✗ Not connected to AWS: {db_name}")
+        print(f"[FAIL] Not connected to AWS: {db_name}")
         print("  WARNING: Running against local database. Results may not reflect production.")
     print()
 
@@ -391,15 +391,15 @@ def print_report(
             if table_name in freshness:
                 data = freshness[table_name]
                 if 'error' in data:
-                    print(f"✗ {table_name}: Error - {data['error']}")
+                    print(f"[FAIL] {table_name}: Error - {data['error']}")
                 else:
                     hours = data['hours_ago']
                     if hours < 2:
-                        print(f"✓ {table_name}: {hours:.1f} hours ago")
+                        print(f"[OK] {table_name}: {hours:.1f} hours ago")
                     elif hours < 24:
-                        print(f"⚠ {table_name}: {hours:.1f} hours ago")
+                        print(f"[WARN] {table_name}: {hours:.1f} hours ago")
                     else:
-                        print(f"✗ {table_name}: STALE ({hours:.1f} hours ago)")
+                        print(f"[FAIL] {table_name}: STALE ({hours:.1f} hours ago)")
         print()
 
     # Summary
@@ -408,11 +408,11 @@ def print_report(
     print("-" * 80)
 
     if not connection_status:
-        print("⚠ WARNING: Results from LOCAL database, not AWS production")
+        print("[WARN] WARNING: Results from LOCAL database, not AWS production")
         print()
 
     if critical_gaps:
-        print("✗ CRITICAL GAPS DETECTED")
+        print("[FAIL] CRITICAL GAPS DETECTED")
         print()
         print("Possible causes:")
         print("  1. Pipeline still running (check data_loader_status)")
@@ -425,7 +425,7 @@ def print_report(
         print("  3. Re-run this script after pipeline completes")
         return 1
     else:
-        print("✓ ALL CHECKS PASSED")
+        print("[OK] ALL CHECKS PASSED")
         print()
         print("Data flow appears healthy. Factor scores should be ready for trading.")
         return 0
