@@ -63,10 +63,10 @@ def fetch_dxy_from_yahoo() -> list[dict[str, Any]]:
             f"[CRITICAL] Yahoo Finance fetch failed: required 'yfinance' library not available: {e}. "
             f"Cannot fetch DXY data. This is a dependency error, not a transient API failure."
         )
-        raise RuntimeError(f"[DXY] yfinance library not available: {e}")
+        raise RuntimeError(f"[DXY] yfinance library not available: {e}") from e
     except Exception as e:
         logger.error(f"[DXY] Failed to fetch from Yahoo Finance: {e}")
-        raise RuntimeError(f"[DXY] Yahoo Finance fetch failed: {e}")
+        raise RuntimeError(f"[DXY] Yahoo Finance fetch failed: {e}") from e
 
 
 def store_dxy_data(rows: list[dict[str, Any]]) -> int:

@@ -18,7 +18,7 @@ try:
     from playwright.sync_api import sync_playwright
 
     HAS_PLAYWRIGHT = True
-except ImportError as e:
+except ImportError:
     HAS_PLAYWRIGHT = False
 
 from config.api_endpoints import get_aaii_sentiment_url

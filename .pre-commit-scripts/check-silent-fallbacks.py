@@ -79,7 +79,7 @@ def should_check_file(filepath: Path) -> bool:
     return True
 
 
-def check_file_for_fallbacks(filepath: Path) -> list[dict[str, Any]]:
+def check_file_for_fallbacks(filepath: Path) -> list[dict[str, Any]]:  # noqa: C901
     """Scan file for ALL silent fallback patterns."""
     violations = []
 

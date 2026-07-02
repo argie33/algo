@@ -144,13 +144,14 @@ class EarningsCalendarLoader(OptimalLoader):
                     return results
 
                 except requests.exceptions.HTTPError as e:
-                    logger.debug(
+                    logger.warning(
                         f"[EARNINGS_CALENDAR] {symbol}: HTTP error (attempt {attempt + 1}/{max_retries}): {e}. "
-                        "Skipping symbol."
+                        "Retrying."
                     )
                     if attempt < max_retries - 1:
                         time.sleep(base_delay * (2**attempt))
-                    raise RuntimeError(f"[EARNINGS_CALENDAR] {symbol}: Error parsing calendar after retry {attempt + 1}")
+                    elif attempt == max_retries - 1:
+                        raise RuntimeError(f"[EARNINGS_CALENDAR] {symbol}: HTTP error after {max_retries} retries") from e
                 except (KeyError, ValueError, TypeError) as e:
                     logger.warning(
                         f"[EARNINGS_CALENDAR] {symbol}: Error parsing calendar (attempt {attempt + 1}/{max_retries}): {e}. "
