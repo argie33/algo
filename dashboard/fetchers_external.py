@@ -144,12 +144,14 @@ def fetch_economic_pulse(c: None) -> dict[str, Any]:  # noqa: C901
         if be5 is None:
             logger.debug("[FETCH] T5YIE (5Y breakeven) missing from indicators—using None for eco scoring")
 
-        # Prefer actual ICE DXY, fall back to FRED proxy if not available
-        dxy = by_series.get("DXY_ICE")  # Actual USD Dollar Index from ICE
+        # Use ONLY actual ICE DXY - no fallbacks to stale data
+        dxy = by_series.get("DXY_ICE")
         if dxy is None:
-            dxy = by_series.get("DTWEXBGS")  # Fallback to FRED proxy if DXY_ICE unavailable
-        if dxy is None:
-            logger.debug("[FETCH] DXY_ICE and DTWEXBGS missing - using None for eco scoring")
+            logger.error(
+                "[CRITICAL] DXY_ICE missing from API response. "
+                "This is required for economic indicators. "
+                "Check: AWS Lambda returning DXY_ICE in /api/economic/indicators"
+            )
 
         oil = by_series.get("DCOILWTICO")  # Oil price (optional)
         if oil is None:
