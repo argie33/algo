@@ -230,8 +230,8 @@ def _get_leading_indicators(cur: cursor) -> Any:  # noqa: C901
         # Lending / credit
         "BUSLOANS": "Business Loans",
         # Global / commodities
-        "DXY_ICE": "USD Dollar Index (ICE - Actual Market Rate)",
-        "DTWEXBGS": "USD Trade-Weighted Index (FRED - DEPRECATED proxy, not actual DXY)",
+        "DXY_ICE": "USD Dollar Index (ICE - Actual)",
+        "DTWEXBGS": "USD Trade-Weighted Index (FRED - Fallback if DXY_ICE unavailable)",
         "DCOILWTICO": "WTI Crude Oil",
     }
     # Series that report absolute levels but should be shown as YoY % change
@@ -288,14 +288,6 @@ def _get_leading_indicators(cur: cursor) -> Any:  # noqa: C901
             date = row.get("date")
             latest_rows[series_id] = (value, date)
 
-        # Note: DXY_ICE may be missing if Yahoo Finance is unavailable
-        # Economic dashboard gracefully skips DXY if not in database (no fake data)
-        if "DXY_ICE" not in latest_rows:
-            logger.warning(
-                "[DXY] DXY_ICE not available in database. "
-                "USD Dollar Index will be omitted from economic indicators. "
-                "Ensure loaders/load_dxy_index.py has run with successful Yahoo Finance data."
-            )
 
         cur.execute("""
                 SELECT series_id, date, value
@@ -639,7 +631,7 @@ def _get_yield_curve_full(cur: cursor) -> Any:  # noqa: C901
 def _seed_dxy_ice(cur: cursor) -> Any:
     """Seed real DXY_ICE data into economic_data table.
 
-    CRITICAL: This endpoint fetches REAL DXY data from Yahoo Finance.
+    CRITICAL: This endpoint fetches REAL DXY data from Yahoo Finance (ticker: DX-Y.NYB).
     Per governance rule: "Fail-fast on missing data. No silent fallbacks."
     No hardcoded values are used - only actual market data.
 
@@ -648,7 +640,7 @@ def _seed_dxy_ice(cur: cursor) -> Any:
         - 503 if real data unavailable (expected during Yahoo Finance downtime)
     """
     try:
-        logger.info("[SEED] Attempting to fetch real DXY data from Yahoo Finance...")
+        logger.info("[SEED] Attempting to fetch real DXY data from Yahoo Finance (DX-Y.NYB)...")
 
         import yfinance as yf
 
@@ -656,7 +648,7 @@ def _seed_dxy_ice(cur: cursor) -> Any:
         end_date = date_module.today()
         start_date = end_date - timedelta(days=365)
 
-        dxy = yf.download("^DXY", start=start_date, end=end_date, progress=False)
+        dxy = yf.download("DX-Y.NYB", start=start_date, end=end_date, progress=False)
 
         if dxy is None or len(dxy) == 0:
             logger.warning("[SEED] Yahoo Finance returned no DXY data - ^DXY ticker currently unavailable")
@@ -672,7 +664,8 @@ def _seed_dxy_ice(cur: cursor) -> Any:
         # Insert real DXY data
         count = 0
         for idx, row in dxy.iterrows():
-            if idx.tz_aware:
+            # idx is a pandas Timestamp; convert to date string
+            if hasattr(idx, 'tz') and idx.tz is not None:
                 date_str = idx.tz_localize(None).date().isoformat()
             else:
                 date_str = idx.date().isoformat()
