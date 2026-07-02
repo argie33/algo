@@ -1,19 +1,26 @@
-name: Run Loader
+name: Run Data Loader
 
-# Manually trigger any loader (DXY, FRED economic data, custom, etc.)
-# Usage: gh workflow run run-loader.yml -f loader_name=load_dxy_index
+# Manually trigger any data loader via the trigger-loaders Lambda.
+# Usage:
+#   gh workflow run run-loader.yml -f loader_name=dxy_index
+#   gh workflow run run-loader.yml -f loader_name=load_quality_metrics
 
 on:
   workflow_dispatch:
     inputs:
       loader_name:
-        description: 'Loader to run (e.g., load_dxy_index, load_fred_economic_data)'
+        description: 'Loader to run (e.g., dxy_index, load_quality_metrics, stock_prices_daily)'
         required: true
+        type: string
+      task_count:
+        description: 'Number of parallel tasks (default: 1)'
+        required: false
+        default: '1'
         type: string
 
 jobs:
-  run-loader:
-    name: Run ${{ inputs.loader_name }}
+  trigger-loader:
+    name: Trigger Loader
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -26,138 +33,64 @@ jobs:
           role-to-assume: ${{ secrets.GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/{1}', secrets.AWS_ACCOUNT_ID, secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev') }}
           aws-region: us-east-1
 
-      - name: Run ${{ inputs.loader_name }} in ECS
+      - name: Trigger Loader via Lambda
         run: |
-          echo "Triggering ECS task to run: ${{ inputs.loader_name }}"
+          echo "Triggering loader: ${{ inputs.loader_name }}"
 
           python3 << 'PYTHON_EOF'
           import boto3
-          import sys
+          import json
 
-          loader_name = "${{ inputs.loader_name }}"
-          ecs = boto3.client('ecs', region_name='us-east-1')
-          ec2 = boto3.client('ec2', region_name='us-east-1')
+          lambda_client = boto3.client('lambda', region_name='us-east-1')
 
-          # Get VPC info
-          vpcs = ec2.describe_vpcs()['Vpcs']
-          if not vpcs:
-              print("ERROR: No VPCs found")
-              sys.exit(1)
-          vpc_id = vpcs[0]['VpcId']
+          payload = {
+              'loader_name': '${{ inputs.loader_name }}',
+              'task_count': int('${{ inputs.task_count }}')
+          }
 
-          subnets = ec2.describe_subnets(Filters=[
-              {'Name': 'vpc-id', 'Values': [vpc_id]},
-              {'Name': 'tag:Type', 'Values': ['Private']}
-          ])['Subnets']
+          print(f"Invoking trigger-loaders Lambda with: {payload}")
 
-          if not subnets:
-              # Fallback to any subnet in VPC
-              subnets = ec2.describe_subnets(Filters=[
-                  {'Name': 'vpc-id', 'Values': [vpc_id]}
-              ])['Subnets']
-
-          subnet_id = subnets[0]['SubnetId'] if subnets else None
-          if not subnet_id:
-              print("ERROR: No subnets found")
-              sys.exit(1)
-
-          sgs = ec2.describe_security_groups(Filters=[
-              {'Name': 'vpc-id', 'Values': [vpc_id]}
-          ])['SecurityGroups']
-          sg_id = sgs[0]['GroupId'] if sgs else None
-
-          # Try to find task definition for this loader
-          # Format: algo-{loader_name}-loader
-          task_def_arn = None
-          potential_names = [
-              f"algo-{loader_name}-loader",
-              loader_name,
-              f"stocks-{loader_name}-loader"
-          ]
-
-          for name in potential_names:
-              try:
-                  response = ecs.describe_task_definition(taskDefinition=name)
-                  if response.get('taskDefinition'):
-                      task_def_arn = response['taskDefinition']['taskDefinitionArn']
-                      print(f"✓ Found task definition: {task_def_arn}")
-                      break
-              except ecs.exceptions.ClientError:
-                  continue
-
-          if not task_def_arn:
-              # Fallback: use a generic loader task and override command
-              print(f"⚠ No dedicated task definition found for {loader_name}")
-              print(f"  Attempting to use generic loader task...")
-
-              # Try to find any stock_prices_daily or generic loader task
-              for prefix in ['algo-stock_prices_daily-loader', 'algo-market_exposure_daily-loader']:
-                  try:
-                      response = ecs.describe_task_definition(taskDefinition=prefix)
-                      if response.get('taskDefinition'):
-                          task_def_arn = response['taskDefinition']['taskDefinitionArn']
-                          print(f"✓ Using generic task: {task_def_arn}")
-                          break
-                  except ecs.exceptions.ClientError:
-                      continue
-
-          if not task_def_arn:
-              print("ERROR: No loader task definition found")
-              print("Available task definitions (sample):")
-              task_defs = ecs.list_task_definitions(sort='DESC', maxResults=20)
-              for t in task_defs['taskDefinitionArns']:
-                  print(f"  - {t}")
-              sys.exit(1)
-
-          # Run the ECS task with loader command override
-          container_name = "algo-loader"  # Standard container name in loader tasks
-          response = ecs.run_task(
-              cluster='algo-cluster',
-              taskDefinition=task_def_arn,
-              launchType='FARGATE',
-              networkConfiguration={
-                  'awsvpcConfiguration': {
-                      'subnets': [subnet_id],
-                      'securityGroups': [sg_id] if sg_id else [],
-                      'assignPublicIp': 'DISABLED'
-                  }
-              },
-              overrides={
-                  'containerOverrides': [
-                      {
-                          'name': container_name,
-                          'command': ['python3', f'loaders/{loader_name}.py']
-                      }
-                  ]
-              }
+          response = lambda_client.invoke(
+              FunctionName='algo-trigger-loaders',
+              InvocationType='RequestResponse',
+              Payload=json.dumps(payload)
           )
 
-          if response.get('failures'):
-              print("ERROR launching task:")
-              for failure in response['failures']:
-                  print(f"  {failure['reason']}")
-              sys.exit(1)
+          # Parse response
+          response_body = json.loads(response['Payload'].read())
 
-          task_arn = response['tasks'][0]['taskArn']
-          task_id = task_arn.split('/')[-1]
+          if response['StatusCode'] >= 400:
+              print(f"ERROR: Lambda returned status {response['StatusCode']}")
+              print(f"Response: {json.dumps(response_body, indent=2)}")
+              exit(1)
 
-          print(f"✓ ECS task launched successfully!")
-          print(f"Task ID: {task_id}")
-          print(f"")
-          print(f"Monitor progress:")
-          print(f"  AWS Console: https://console.aws.amazon.com/ecs/home#/clusters/algo-cluster/tasks/{task_id}")
-          print(f"  CloudWatch:  aws logs tail /ecs/algo-cluster/{loader_name}-loader --follow")
+          if 'error' in response_body:
+              print(f"ERROR: {response_body.get('error', 'Unknown error')}")
+              exit(1)
+
+          # Success
+          print(f"✓ Loader triggered successfully!")
+          if 'tasks' in response_body:
+              for task_arn in response_body['tasks']:
+                  task_id = task_arn.split('/')[-1]
+                  print(f"  Task: {task_id}")
+
+          print(f"\nMessage: {response_body.get('message', 'OK')}")
+          if 'timestamp' in response_body:
+              print(f"Timestamp: {response_body['timestamp']}")
           PYTHON_EOF
 
-      - name: Show monitoring instructions
+      - name: Monitor loader logs
         if: always()
         run: |
-          echo "📊 Loader Task Summary"
-          echo "======================"
-          echo "Loader: ${{ inputs.loader_name }}"
-          echo "Cluster: algo-cluster"
           echo ""
-          echo "Monitor logs:"
-          echo "  gh run view ${{ github.run_id }} --log"
-          echo "  OR"
-          echo "  aws logs tail /ecs/algo-cluster/${{ inputs.loader_name }}-loader --follow"
+          echo "Loader triggered! Monitor progress:"
+          echo ""
+          echo "1. Via CloudWatch: https://console.aws.amazon.com/cloudwatch/home?region=us-east-1#logStream:"
+          echo "   - Log group: /ecs/algo-${{ inputs.loader_name }}-loader"
+          echo ""
+          echo "2. Via AWS CLI:"
+          echo "   aws logs tail /ecs/algo-${{ inputs.loader_name }}-loader --follow --region us-east-1"
+          echo ""
+          echo "3. View ECS tasks:"
+          echo "   aws ecs list-tasks --cluster algo-cluster --region us-east-1"

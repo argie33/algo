@@ -78,6 +78,8 @@ class TriggerLoadersHandler(LambdaHandler):
             # Market and regime (trading decisions)
             "market_health_daily",
             "market_exposure_daily",
+            # Economic data (API fallback when RDS Proxy unavailable)
+            "dxy_index",
             # Signals and scoring (position sizing)
             "signals_daily",
             "stock_scores",

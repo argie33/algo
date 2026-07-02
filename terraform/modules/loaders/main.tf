@@ -285,6 +285,7 @@ locals {
     "swing_trader_scores"   = "load_swing_trader_scores.py"
     "market_exposure_daily" = "load_market_exposure_daily.py"
     "yfinance_snapshot"     = "load_yfinance_snapshot.py"
+    "dxy_index"             = "load_dxy_index.py"
     "growth_metrics"        = "load_growth_metrics.py"
     "quality_metrics"       = "load_quality_metrics.py"
     "value_metrics"         = "load_value_metrics_v2.py"
@@ -337,6 +338,7 @@ locals {
     "swing_trader_scores"   = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 1 }
     "market_exposure_daily" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
     "yfinance_snapshot"     = { cpu = 1024, memory = 2048, timeout = 7200, parallelism = 1 }
+    "dxy_index"             = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
     "growth_metrics"        = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
     "quality_metrics"       = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
     "value_metrics"         = { cpu = 1024, memory = 2048, timeout = 1800, parallelism = 1 }
@@ -375,6 +377,7 @@ locals {
     "stock_scores",
     "buy_sell_daily",
     "yfinance_snapshot",
+    "dxy_index",
     "growth_metrics",
     "quality_metrics",
     "value_metrics",
