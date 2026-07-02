@@ -732,6 +732,35 @@ DASHBOARD_ENDPOINTS = {
         "strict_fields": [],
         "critical": False,
     },
+    "stocks": {
+        "path": "/api/stocks",
+        "method": "GET",
+        "params": {"limit": 500, "offset": 0, "search": None, "sector": None},
+        "description": "Stocks list with screened data",
+        "response_schema": ResponseSchema(
+            required_fields=["items", "total"],
+            optional_fields=[],
+            field_types={"items": list, "total": int},
+            description="Paginated list of stocks",
+        ),
+        "freshness_max_age_seconds": 86400,
+        "strict_fields": [],
+        "critical": False,
+    },
+    "market/status": {
+        "path": "/api/market/status",
+        "method": "GET",
+        "description": "Market status and health indicators",
+        "response_schema": ResponseSchema(
+            required_fields=["date"],
+            optional_fields=["market_trend", "market_stage", "advance_decline_ratio", "new_highs_count", "new_lows_count", "vix_level", "put_call_ratio"],
+            field_types={"date": str, "vix_level": (int, float)},
+            description="Current market status",
+        ),
+        "freshness_max_age_seconds": 86400,
+        "strict_fields": [],
+        "critical": False,
+    },
 }
 
 # ============================================================================
