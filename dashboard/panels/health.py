@@ -2133,15 +2133,19 @@ def panel_algo_health(  # noqa: C901
                 else (Y if conc5_val is not None and conc5_val >= 25 else "white")
             )
             var_c = _var_color(var95_val)
-            risk_parts = [
-                f"[dim]VaR 95%:[/][{var_c}]{var95_val:.2f}%[/]",
-                f"[dim]CVaR 95%:[/][{var_c}]{cvar95_val:.2f}%[/]",
-                f"[dim]Beta:[/][{beta_c}]{beta_val:.2f}[/]",
-                f"[dim]Top-5 Conc:[/][{conc_c}]{conc5_val:.0f}%[/]",
-            ]
+            risk_parts = []
+            if var95_val is not None:
+                risk_parts.append(f"[dim]VaR 95%:[/][{var_c}]{var95_val:.2f}%[/]")
+            if cvar95_val is not None:
+                risk_parts.append(f"[dim]CVaR 95%:[/][{var_c}]{cvar95_val:.2f}%[/]")
+            if beta_val is not None:
+                risk_parts.append(f"[dim]Beta:[/][{beta_c}]{beta_val:.2f}[/]")
+            if conc5_val is not None:
+                risk_parts.append(f"[dim]Top-5 Conc:[/][{conc_c}]{conc5_val:.0f}%[/]")
             if svar_val is not None and svar_val > 0:
                 risk_parts.append(f"[dim]Stressed VaR:[/][{R}]{float(svar_val):.2f}%[/]")
-            rows.append(Text.from_markup("  ".join(risk_parts)))
+            if risk_parts:
+                rows.append(Text.from_markup("  ".join(risk_parts)))
 
     # ── F: Notifications (compact) ────────────────────────────────────────────
     valid_notifs = safe_get_list(notifs)
@@ -2402,9 +2406,9 @@ def _build_results_panel(  # noqa: C901
             if var95_val_e is not None and var95_val_e >= 4
             else (Y if var95_val_e is not None and var95_val_e >= 2 else "white")
         )
-        risk_parts_e = [
-            f"[dim]VaR95:[/][{var_c}]{var95_val_e:.2f}%[/]",
-        ]
+        risk_parts_e = []
+        if var95_val_e is not None:
+            risk_parts_e.append(f"[dim]VaR95:[/][{var_c}]{var95_val_e:.2f}%[/]")
         if cvar95_val_e is not None:
             risk_parts_e.append(f"[dim]CVaR:[/][{var_c}]{cvar95_val_e:.2f}%[/]")
         if beta_val_e is not None:
