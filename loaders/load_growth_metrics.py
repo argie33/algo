@@ -247,7 +247,7 @@ class GrowthMetricsLoader(OptimalLoader):
 
         try:
             with DatabaseContext("write") as cur:
-                all_exist, created = ensure_columns_exist(cur, self.table_name, self.REQUIRED_COLUMNS)
+                _all_exist, created = ensure_columns_exist(cur, self.table_name, self.REQUIRED_COLUMNS)
                 if created:
                     logger.warning(
                         f"[GROWTH_METRICS] Auto-healed {len(created)} missing columns: {created}. "

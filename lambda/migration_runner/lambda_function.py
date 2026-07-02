@@ -6,10 +6,11 @@ AWS RDS database.
 """
 
 import json
-import psycopg2
-import os
 import logging
+import os
 from datetime import datetime
+
+import psycopg2
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -106,11 +107,11 @@ def lambda_handler(event, context):
         logger.error(f"Database error: {e}")
         return {
             'statusCode': 500,
-            'body': json.dumps({'error': f'Database error: {str(e)}'})
+            'body': json.dumps({'error': f'Database error: {e!s}'})
         }
     except Exception as e:
         logger.error(f"Error: {e}")
         return {
             'statusCode': 500,
-            'body': json.dumps({'error': f'Unexpected error: {str(e)}'})
+            'body': json.dumps({'error': f'Unexpected error: {e!s}'})
         }
