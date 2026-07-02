@@ -308,10 +308,12 @@ def fetch_exp_factors(c: None) -> dict[str, Any]:
 
 
 def fetch_risk_metrics(c: None) -> dict[str, Any]:
-    """API-only risk metrics. Fail-fast: error only on failure.
+    """API-only risk metrics. Fail-fast: error only on API failure.
 
-    Note: stressed_var_pct requires 365+ days of portfolio history; may be None
-    during ramp-up. All other fields are required for meaningful risk display.
+    All fields are optional and may be None during ramp-up or with insufficient data:
+    - VaR/CVaR require 5+ portfolio snapshots
+    - Stressed VaR requires 365+ days of history
+    - Beta/Concentration require open positions
     """
     from dashboard.fetcher_validator import FetcherValidator
 
@@ -325,14 +327,8 @@ def fetch_risk_metrics(c: None) -> dict[str, Any]:
             return FetcherValidator.build_error_response(error_msg)
 
         d = data
-        # stressed_var_pct is optional (requires 365+ days of history); others required
-        required_fields = ["var_pct_95", "cvar_pct_95", "portfolio_beta", "top_5_concentration"]
-        missing_fields = [f for f in required_fields if f not in d or d[f] is None]
-        if missing_fields:
-            error_msg = f"Risk metrics API response missing required fields: {missing_fields}"
-            logger.error(error_msg)
-            record_data_quality_issue("risk", "validation", "missing_required_fields", str(missing_fields))
-            return FetcherValidator.build_error_response(error_msg)
+        # All risk fields are optional (may be None during ramp-up or insufficient data)
+        # VaR/CVaR require 5+ snapshots, stressed_var requires 365+ days, beta/concentration require positions
 
         # Explicit handling for optional fields with visibility flags
         report_date = d.get("report_date")
@@ -341,11 +337,11 @@ def fetch_risk_metrics(c: None) -> dict[str, Any]:
             logger.debug("Optional risk data missing: report_date not provided by API")
 
         result = {
-            "var95": safe_float(d["var_pct_95"]),
-            "cvar95": safe_float(d["cvar_pct_95"]),
+            "var95": safe_float(d.get("var_pct_95"), default=None),
+            "cvar95": safe_float(d.get("cvar_pct_95"), default=None),
             "svar": safe_float(d.get("stressed_var_pct"), default=None),
-            "beta": safe_float(d["portfolio_beta"]),
-            "conc5": safe_float(d["top_5_concentration"]),
+            "beta": safe_float(d.get("portfolio_beta"), default=None),
+            "conc5": safe_float(d.get("top_5_concentration"), default=None),
         }
 
         if not date_unavailable:

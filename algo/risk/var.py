@@ -566,6 +566,7 @@ class ValueAtRisk:
                         "industry_exposure": {},
                         "max_single_position": 0.0,
                         "herfindahl_index": 0.0,
+                        "top_5_concentration_pct": 0.0,
                         "interpretation": "No open positions - portfolio concentration is zero",
                         "portfolio_value": 0.0,
                     }
