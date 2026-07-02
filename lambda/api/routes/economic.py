@@ -318,8 +318,6 @@ def _get_leading_indicators(cur: cursor) -> Any:  # noqa: C901
         indicators = []
         for series_id, name in indicator_map.items():
             if series_id not in latest_rows:
-                if series_id == "DXY_ICE":
-                    logger.warning(f"[DEBUG] DXY_ICE not in latest_rows. Available: {list(latest_rows.keys())[:10]}")
                 continue
 
             value, dt = latest_rows[series_id]
