@@ -144,15 +144,12 @@ def fetch_economic_pulse(c: None) -> dict[str, Any]:  # noqa: C901
         if be5 is None:
             logger.debug("[FETCH] T5YIE (5Y breakeven) missing from indicators—using None for eco scoring")
 
-        # Try DXY_ICE first, fallback to DTWEXBGS
-        # TODO: Remove fallback once Lambda/RDS Proxy sync issue is fixed
+        # CRITICAL: Use ONLY DXY_ICE (actual ICE Dollar Index)
+        # DTWEXBGS is a trade-weighted proxy—NOT the same index, must not silently swap
+        # Lambda has direct RDS fetch workaround to ensure DXY_ICE is returned
         dxy = by_series.get("DXY_ICE")
         if dxy is None:
-            dxy = by_series.get("DTWEXBGS")
-            if dxy:
-                logger.warning("[DXY] Using DTWEXBGS fallback (Lambda can't see DXY_ICE)")
-        if dxy is None:
-            logger.error("[DXY] Missing both DXY_ICE and DTWEXBGS")
+            logger.error("[DXY] DXY_ICE missing from economic indicators (API should have fetched from direct RDS)")
 
         oil = by_series.get("DCOILWTICO")  # Oil price (optional)
         if oil is None:

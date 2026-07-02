@@ -145,7 +145,8 @@ class FredEconomicDataLoader(OptimalLoader):
         """Fetch actual ICE DXY (US Dollar Index) from Yahoo Finance.
 
         Uses ticker DX-Y.NYB (Intercontinental Exchange listing on Yahoo Finance).
-        Returns gracefully empty if Yahoo Finance is unavailable - economic data has fallback (DTWEXBGS).
+        Returns empty list if unavailable - caller (orchestrator/dashboard) handles missing DXY with explicit markers.
+        Does NOT fall back to DTWEXBGS (trade-weighted proxy is different index).
 
         Returns:
             list: [{"series_id": "DXY_ICE", "date": "2026-06-29", "value": 101.13}, ...] or empty list if unavailable
@@ -161,7 +162,7 @@ class FredEconomicDataLoader(OptimalLoader):
             dxy = yf.download("DX-Y.NYB", start=start_date_val, end=end_date_val, progress=False)
 
             if dxy is None or len(dxy) == 0:
-                logger.warning("[DXY] Yahoo Finance returned no data for DX-Y.NYB ticker — using DTWEXBGS fallback")
+                logger.warning("[DXY] Yahoo Finance returned no data for DX-Y.NYB ticker")
                 return []
 
             rows = []
@@ -179,10 +180,10 @@ class FredEconomicDataLoader(OptimalLoader):
             return rows
 
         except ImportError as e:
-            logger.warning(f"[DXY] yfinance not available: {e} — using DTWEXBGS fallback")
+            logger.warning(f"[DXY] yfinance not available: {e}")
             return []
         except Exception as e:
-            logger.warning(f"[DXY] Failed to fetch from Yahoo Finance: {e} — using DTWEXBGS fallback")
+            logger.warning(f"[DXY] Failed to fetch from Yahoo Finance: {e}")
             return []
 
     def fetch_global(self, since: date | None) -> list[dict[str, Any]]:  # noqa: C901

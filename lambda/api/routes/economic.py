@@ -234,7 +234,7 @@ def _get_leading_indicators(cur: cursor) -> Any:  # noqa: C901
         "BUSLOANS": "Business Loans",
         # Global / commodities
         "DXY_ICE": "USD Dollar Index (ICE)",
-        "DTWEXBGS": "USD Trade-Weighted Index (FRED fallback)",
+        "DTWEXBGS": "USD Trade-Weighted Index (FRED alternative index, NOT DXY substitute)",
         "DCOILWTICO": "WTI Crude Oil",
     }
     # Series that report absolute levels but should be shown as YoY % change

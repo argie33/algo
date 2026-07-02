@@ -51,6 +51,7 @@ SKIP_PATHS = {
     "scripts/",  # utility scripts
     ".pytest_cache",
     "node_modules",
+    "api-pkg/",  # Vendored botocore and dependencies (3rd-party code)
 }
 
 

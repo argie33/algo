@@ -22,8 +22,8 @@ def fetch_dxy_from_yahoo() -> list[dict[str, Any]]:
 
     Uses ticker DX-Y.NYB (Intercontinental Exchange listing on Yahoo Finance).
 
-    Returns gracefully empty if Yahoo Finance is unavailable - the API and dashboard
-    will handle missing economic data via explicit data_unavailable markers.
+    Returns empty list if Yahoo Finance is unavailable (doesn't fall back to proxies).
+    Callers (API, dashboard) must handle missing DXY with explicit error/unavailable markers.
 
     Returns:
         list: [{"date": "2026-06-29", "value": 101.13}, ...] or empty list if unavailable

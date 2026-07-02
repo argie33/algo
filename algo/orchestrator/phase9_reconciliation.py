@@ -721,8 +721,8 @@ def run(
 
                 with DatabaseContext("write", cursor_factory=_extras.RealDictCursor) as cb_cur:
                     cb_metrics = compute_circuit_breaker_metrics(cb_cur, today=run_date)
-                triggered = cb_metrics.get("triggered_count", 0)
-                any_triggered = cb_metrics.get("any_triggered", False)
+                triggered = cb_metrics.get("triggered_count") if cb_metrics else 0
+                any_triggered = cb_metrics.get("any_triggered") if cb_metrics else False
                 logger.info(
                     f"[PHASE 9] Circuit breaker metrics written: {triggered} triggered, any_triggered={any_triggered}"
                 )
