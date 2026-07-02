@@ -182,19 +182,19 @@ class PositioningMetricsLoader(OptimalLoader):
 
             if "heldPercentInstitutions" in info and info["heldPercentInstitutions"] is not None:
                 institutional_ownership = float(info["heldPercentInstitutions"]) * 100
-                institutional_ownership_reason = None
+                institutional_ownership_reason = None  # type: ignore[assignment]
 
             if "heldPercentInsiders" in info and info["heldPercentInsiders"] is not None:
                 insider_ownership = float(info["heldPercentInsiders"]) * 100
-                insider_ownership_reason = None
+                insider_ownership_reason = None  # type: ignore[assignment]
 
             if "shortPercentOfFloat" in info and info["shortPercentOfFloat"] is not None:
                 short_interest_percent = float(info["shortPercentOfFloat"]) * 100
-                short_interest_reason = None
+                short_interest_reason = None  # type: ignore[assignment]
 
             if "sharesShort" in info and info["sharesShort"] is not None:
                 short_interest_trend = "stable"
-                short_interest_trend_reason = None
+                short_interest_trend_reason = None  # type: ignore[assignment]
 
             if (
                 institutional_ownership is not None
