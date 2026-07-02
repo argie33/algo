@@ -133,7 +133,7 @@ class MarketSymbolsConfig:
             "market_etf_symbols", MarketSymbolsConfig.DEFAULT_ETF_SYMBOLS
         )
         MarketSymbolsConfig._cache["etf_symbols"] = symbols
-        return symbols
+        return symbols  # type: ignore[no-any-return]
 
     @staticmethod
     def get_index_symbols() -> list[str]:
@@ -149,7 +149,7 @@ class MarketSymbolsConfig:
             "market_index_symbols", MarketSymbolsConfig.DEFAULT_INDEX_SYMBOLS
         )
         MarketSymbolsConfig._cache["index_symbols"] = symbols
-        return symbols
+        return symbols  # type: ignore[no-any-return]
 
     @staticmethod
     def get_index_names() -> dict[str, str]:
@@ -184,7 +184,7 @@ class MarketSymbolsConfig:
             "essential_stocks", MarketSymbolsConfig.DEFAULT_ESSENTIAL_STOCKS
         )
         MarketSymbolsConfig._cache["essential_stocks"] = symbols
-        return symbols
+        return symbols  # type: ignore[no-any-return]
 
     @staticmethod
     def get_essential_etf_symbols() -> list[str]:
@@ -206,7 +206,7 @@ class MarketSymbolsConfig:
             "essential_etf_symbols", MarketSymbolsConfig.DEFAULT_ESSENTIAL_ETF_SYMBOLS
         )
         MarketSymbolsConfig._cache["essential_etf_symbols"] = symbols
-        return symbols
+        return symbols  # type: ignore[no-any-return]
 
     @staticmethod
     def clear_cache() -> None:
