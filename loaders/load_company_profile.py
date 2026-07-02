@@ -52,17 +52,13 @@ class CompanyProfileLoader(OptimalLoader):
                 raise RuntimeError(f"[COMPANY_PROFILE] {symbol}: ticker.info invalid or empty")
 
             # REQUIRED: Company name - fail fast if missing
-            if info.get("longName"):
-                company_name = info["longName"]
-            elif info.get("shortName"):
-                company_name = info["shortName"]
-                logger.debug(f"[COMPANY_PROFILE] {symbol}: Using shortName as fallback for company name")
-            else:
+            company_name = info.get("longName")
+            if not company_name:
                 logger.error(
-                    f"[COMPANY_PROFILE] {symbol}: Missing company name (longName/shortName). "
-                    "Company name is required for profile storage."
+                    f"[COMPANY_PROFILE] {symbol}: Missing longName from yfinance. "
+                    "longName is required for profile storage."
                 )
-                raise RuntimeError(f"[COMPANY_PROFILE] {symbol}: Missing company name (longName/shortName)")
+                raise RuntimeError(f"[COMPANY_PROFILE] {symbol}: Missing longName")
 
             # REQUIRED: Exchange - fail fast if missing
             exchange = info.get("exchange")

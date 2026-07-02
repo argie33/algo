@@ -162,8 +162,8 @@ class FredEconomicDataLoader(OptimalLoader):
             dxy = yf.download("DX-Y.NYB", start=start_date_val, end=end_date_val, progress=False)
 
             if dxy is None or len(dxy) == 0:
-                logger.warning("[DXY] Yahoo Finance returned no data for DX-Y.NYB ticker")
-                return []
+                logger.error("[DXY] Yahoo Finance returned no data for DX-Y.NYB ticker")
+                raise RuntimeError("[DXY] No data returned from Yahoo Finance for DX-Y.NYB")
 
             rows = []
             for idx, row in dxy.iterrows():
@@ -180,11 +180,11 @@ class FredEconomicDataLoader(OptimalLoader):
             return rows
 
         except ImportError as e:
-            logger.warning(f"[DXY] yfinance not available: {e}")
-            return []
+            logger.error(f"[DXY] yfinance not available: {e}")
+            raise RuntimeError(f"[DXY] yfinance dependency not available: {e}") from e
         except Exception as e:
-            logger.warning(f"[DXY] Failed to fetch from Yahoo Finance: {e}")
-            return []
+            logger.error(f"[DXY] Failed to fetch from Yahoo Finance: {e}")
+            raise RuntimeError(f"[DXY] Yahoo Finance fetch failed: {e}") from e
 
     def fetch_global(self, since: date | None) -> list[dict[str, Any]]:  # noqa: C901
         """Fetch FRED economic data for all configured series with circuit breaker and freshness validation."""

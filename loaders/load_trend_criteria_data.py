@@ -220,7 +220,7 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
     try:
         result = run()
-        print(f"Result: {result}")
+        logger.info(f"Trend criteria loader completed: {result}")
         sys.exit(0)
     except Exception as exc:
         logger.error(f"Trend criteria loader failed: {exc}")

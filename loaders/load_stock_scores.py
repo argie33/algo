@@ -1167,8 +1167,10 @@ class StockScoresLoader(OptimalLoader):
         total_weight = 0.0
         for key, w in weights.items():
             if metrics.get(key) is not None:
-                weighted_sum += self._pct_to_score(metrics[key]) * w
-                total_weight += w
+                score = self._pct_to_score(metrics[key])
+                if score is not None:  # Skip weak momentum (score=None)
+                    weighted_sum += score * w
+                    total_weight += w
 
         if total_weight > 0:
             return weighted_sum / total_weight
@@ -1178,20 +1180,16 @@ class StockScoresLoader(OptimalLoader):
         return {"symbol": symbol, "data_unavailable": True, "reason": "no_momentum_scores_computed"}
 
     @staticmethod
-    def _pct_to_score(pct_return: float) -> float:
+    def _pct_to_score(pct_return: float) -> float | None:
         """Convert percentage return to 0-100 score.
 
-        Returns None (via None mapping) if momentum is weak (< ±3%), as this
-        indicates insufficient conviction and should not create false sense of okayness.
-        -3% to +3% range returns None instead of 50 (middle default).
+        Returns None if momentum is weak (< ±3%), as this indicates
+        insufficient conviction. Fail-fast: weak signal is missing data, not low score.
         -20% = 0, ±3% = None, +20% = 100.
         """
         # Weak momentum zone: -3% to +3% lacks conviction
-        # Fail fast by returning very low score (treat as missing signal)
         if -0.03 <= pct_return <= 0.03:
-            # Instead of returning 50 (middle default), return 25 to indicate
-            # "neutral/no conviction" rather than "okay"
-            return 25.0
+            return None
 
         # Map momentum: -20% = 0, +20% = 100
         score = 50 + (pct_return / 0.4)

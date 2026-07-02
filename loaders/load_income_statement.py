@@ -122,7 +122,7 @@ class IncomeStatementLoader(OptimalLoader):
 
             if not rows:
                 logger.warning(f"[INCOME_STATEMENT] {symbol}: No {self.period} income statement data in SEC EDGAR.")
-                return []
+                return self._unavailable_record(symbol, "No income statement data in SEC EDGAR")
 
             logger.info("%s: Fetched %d %s income statement row(s)", symbol, len(rows), self.period)
 
@@ -242,14 +242,21 @@ class IncomeStatementLoader(OptimalLoader):
 
     def _validate_row(self, row: dict[str, Any]) -> bool:
         """Validate income statement-specific constraints."""
+        # Fail-fast: symbol is required (primary key). No fallback to placeholder.
+        if "symbol" not in row or not row["symbol"]:
+            logger.warning(
+                f"[{self.table_name}] Row missing required 'symbol' (primary key): {row}. Rejecting."
+            )
+            return False
+
+        symbol = row["symbol"]
+
         if not super()._validate_row(row):
-            symbol = row.get("symbol", "UNKNOWN")
             logger.warning(f"[{self.table_name}] Row failed parent validation for symbol '{symbol}'.")
             return False
 
         fy = row.get("fiscal_year")
         if not fy or not (1990 < fy < 2100):
-            symbol = row.get("symbol", "UNKNOWN")
             logger.warning(
                 f"[{self.table_name}] Row has invalid or missing fiscal_year for symbol '{symbol}'. "
                 f"Expected 4-digit year between 1990 and 2100, got: {fy}."
@@ -257,7 +264,6 @@ class IncomeStatementLoader(OptimalLoader):
             return False
 
         if self.period == "quarterly" and row.get("fiscal_quarter") is None:
-            symbol = row.get("symbol", "UNKNOWN")
             logger.warning(
                 f"[{self.table_name}] Quarterly row missing required 'fiscal_quarter' "
                 f"for symbol '{symbol}' fiscal_year {fy}."
@@ -267,7 +273,6 @@ class IncomeStatementLoader(OptimalLoader):
         # Reject rows where all key financial fields are NULL
         financial_fields = ["gross_profit", "operating_income", "net_income", "cost_of_revenue"]
         if all(row.get(field) is None for field in financial_fields):
-            symbol = row.get("symbol", "UNKNOWN")
             logger.error(
                 f"[{self.table_name}] Row has all critical financial fields NULL for symbol '{symbol}' "
                 f"fiscal_year {fy}. This indicates incomplete data from SEC EDGAR. "

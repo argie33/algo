@@ -20,15 +20,6 @@ try:
     HAS_PLAYWRIGHT = True
 except ImportError as e:
     HAS_PLAYWRIGHT = False
-    # Log at module load time so missing dependency is visible immediately
-    import sys
-
-    if "AWS_LAMBDA_FUNCTION_NAME" in __import__("os").environ:
-        # In Lambda runtime, missing Playwright will cause failures later
-        print(
-            f"[CRITICAL] AAII Sentiment Loader: Playwright not available: {e}. Sentiment data will be unavailable.",
-            file=sys.stderr,
-        )
 
 from config.api_endpoints import get_aaii_sentiment_url
 from loaders.runner import run_loader
@@ -36,6 +27,12 @@ from utils.infrastructure.url_validator import validate_url
 from utils.optimal_loader import OptimalLoader
 
 logger = logging.getLogger(__name__)
+
+if not HAS_PLAYWRIGHT and "AWS_LAMBDA_FUNCTION_NAME" in __import__("os").environ:
+    # Log at module load time so missing dependency is visible immediately
+    logger.warning(
+        "[AAII_SENTIMENT] Playwright not available in Lambda environment. Sentiment data will be unavailable."
+    )
 
 
 class AAIISentimentLoader(OptimalLoader):

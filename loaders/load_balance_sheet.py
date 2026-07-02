@@ -113,7 +113,7 @@ class BalanceSheetLoader(OptimalLoader):
                     f"[BALANCE_SHEET] {symbol}: No {self.period} balance sheet data in SEC EDGAR. "
                     f"Stock may lack SEC filings."
                 )
-                return []
+                return self._unavailable_record(symbol, "No balance sheet data in SEC EDGAR")
 
             logger.info("%s: Fetched %d %s balance sheet row(s)", symbol, len(rows), self.period)
 
@@ -222,9 +222,16 @@ class BalanceSheetLoader(OptimalLoader):
         return result
 
     def _validate_row(self, row: dict[str, Any]) -> bool:
+        # Fail-fast: symbol is required (primary key). No fallback to placeholder.
+        if "symbol" not in row or not row["symbol"]:
+            logger.warning(
+                f"[{self.table_name}] Row missing required 'symbol' (primary key): {row}. Rejecting."
+            )
+            return False
+
+        symbol = row["symbol"]
 
         if not super()._validate_row(row):
-            symbol = row.get("symbol", "UNKNOWN")
             logger.warning(
                 f"[{self.table_name}] Row failed parent validation (missing primary key fields) for symbol '{symbol}'. "
                 f"Row: {row}."
@@ -232,14 +239,12 @@ class BalanceSheetLoader(OptimalLoader):
             return False
         fy = row.get("fiscal_year")
         if not (fy and 1990 < fy < 2100):
-            symbol = row.get("symbol", "UNKNOWN")
             logger.warning(
                 f"[{self.table_name}] Row has invalid or missing fiscal_year for symbol '{symbol}'. "
                 f"Expected 4-digit year between 1990 and 2100, got: {fy}."
             )
             return False
         if self.period == "quarterly" and row.get("fiscal_quarter") is None:
-            symbol = row.get("symbol", "UNKNOWN")
             logger.warning(
                 f"[{self.table_name}] Quarterly balance sheet row missing required 'fiscal_quarter' "
                 f"for symbol '{symbol}' fiscal_year {fy}."
@@ -250,7 +255,6 @@ class BalanceSheetLoader(OptimalLoader):
         # (indicates API failure or incomplete data from SEC EDGAR)
         balance_fields = ["total_assets", "current_assets", "total_liabilities"]
         if all(row.get(field) is None for field in balance_fields):
-            symbol = row.get("symbol", "UNKNOWN")
             logger.error(
                 f"[{self.table_name}] Row has all critical balance sheet fields NULL for symbol '{symbol}' "
                 f"fiscal_year {fy}. This indicates incomplete data from SEC EDGAR. "

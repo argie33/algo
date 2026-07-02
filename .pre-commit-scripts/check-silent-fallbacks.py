@@ -51,8 +51,9 @@ SKIP_PATHS = {
     "scripts/",  # utility scripts
     ".pytest_cache",
     "node_modules",
-    "api-pkg/",  # Vendored botocore and dependencies (3rd-party code)
-    "lambda/api/package/",  # Auto-generated packaged Lambda code
+    "api-pkg",  # Vendored botocore and dependencies (3rd-party code)
+    "lambda/api/package",  # Auto-generated packaged Lambda code
+    "lambda/api/routes/__pycache__",
 }
 
 
@@ -62,16 +63,17 @@ def should_check_file(filepath: Path) -> bool:
     if filepath.suffix != ".py":
         return False
 
-    str_path = str(filepath)
+    str_path = str(filepath).replace("\\", "/")  # Normalize path separators
     filename = filepath.name
 
     # Skip all hook scripts (they contain examples/patterns of violations)
     if filename.startswith("check-"):
         return False
 
-    # Skip if in SKIP_PATHS
+    # Skip if in SKIP_PATHS (normalize both path and skip patterns)
     for skip in SKIP_PATHS:
-        if skip in str_path:
+        skip_normalized = skip.replace("\\", "/")
+        if skip_normalized in str_path:
             return False
 
     return True

@@ -56,23 +56,23 @@ class EarningsCalendarLoader(OptimalLoader):
                     )
                     if attempt < max_retries - 1:
                         time.sleep(base_delay * (2**attempt))
-                    return []
+                    raise RuntimeError(f"[EARNINGS_CALENDAR] {symbol}: Failed to fetch after {max_retries} retries")
 
                 try:
                     cal = ticker.calendar
                     if not cal or not isinstance(cal, dict):
-                        logger.debug(
-                            f"[EARNINGS_CALENDAR] {symbol}: Calendar unavailable. "
+                        logger.warning(
+                            f"[EARNINGS_CALENDAR] {symbol}: Calendar unavailable from yfinance. "
                             "Skipping symbol (no earnings data available)."
                         )
-                        return []
+                        raise RuntimeError(f"[EARNINGS_CALENDAR] {symbol}: Calendar unavailable")
 
                     if "Earnings Date" not in cal:
-                        logger.debug(
+                        logger.warning(
                             f"[EARNINGS_CALENDAR] {symbol}: Missing Earnings Date in calendar. "
                             "Skipping symbol (no earnings data available)."
                         )
-                        return []
+                        raise RuntimeError(f"[EARNINGS_CALENDAR] {symbol}: Missing Earnings Date in calendar")
 
                     earnings_date_raw = cal["Earnings Date"]
                     cutoff_date = date.today() - timedelta(days=60)
@@ -150,31 +150,31 @@ class EarningsCalendarLoader(OptimalLoader):
                     )
                     if attempt < max_retries - 1:
                         time.sleep(base_delay * (2**attempt))
-                    return []
+                    raise RuntimeError(f"[EARNINGS_CALENDAR] {symbol}: Error parsing calendar after retry {attempt + 1}")
                 except (KeyError, ValueError, TypeError) as e:
-                    logger.debug(
+                    logger.warning(
                         f"[EARNINGS_CALENDAR] {symbol}: Error parsing calendar (attempt {attempt + 1}/{max_retries}): {e}. "
-                        "Skipping symbol."
+                        "Retrying."
                     )
                     if attempt < max_retries - 1:
                         time.sleep(base_delay * (2**attempt))
-                    return []
+                    elif attempt == max_retries - 1:
+                        raise RuntimeError(f"[EARNINGS_CALENDAR] {symbol}: Failed to parse calendar after {max_retries} retries") from e
 
             except (ConnectionError, TimeoutError) as e:
                 error_type = "timeout" if isinstance(e, TimeoutError) else "connection"
-                logger.debug(
+                logger.warning(
                     f"[EARNINGS_CALENDAR] {symbol}: {error_type.upper()} (attempt {attempt + 1}/{max_retries}): {e}. "
-                    "Skipping symbol."
+                    "Retrying."
                 )
                 if attempt < max_retries - 1:
                     time.sleep(base_delay * (2**attempt))
-                return []
+                elif attempt == max_retries - 1:
+                    raise RuntimeError(f"[EARNINGS_CALENDAR] {symbol}: Connection/timeout after {max_retries} retries") from e
 
-        logger.warning(
-            f"[EARNINGS_CALENDAR] {symbol}: All {max_retries} retries exhausted. "
-            "Earnings calendar data unavailable (optional enrichment). Skipping symbol."
-        )
-        return []
+        # Unreachable - loop with retries should raise or return by now
+        logger.error(f"[EARNINGS_CALENDAR] {symbol}: Unexpected exit from retry loop")
+        raise RuntimeError(f"[EARNINGS_CALENDAR] {symbol}: Retry loop exhausted without result")
 
 
 if __name__ == "__main__":

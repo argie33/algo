@@ -59,10 +59,10 @@ class EarningsHistoryLoader(OptimalLoader):
                         ed = str(idx)[:10]
                     if ed < cutoff:
                         continue
-                    # Explicitly get optional earnings fields with None defaults
-                    eps_est = row.get("EPS Estimate", None)
-                    eps_actual = row.get("Reported EPS", None)
-                    surprise_pct = row.get("Surprise(%)", None)
+                    # Optional earnings fields: check presence explicitly
+                    eps_est = row["EPS Estimate"] if "EPS Estimate" in row else None
+                    eps_actual = row["Reported EPS"] if "Reported EPS" in row else None
+                    surprise_pct = row["Surprise(%)"] if "Surprise(%)" in row else None
 
                     def _float(v: Any, field_name: str = "value") -> float | None:
                         """Convert value to float, fail-fast on corruption.
@@ -185,10 +185,10 @@ class EarningsHistoryLoader(OptimalLoader):
         if not super()._validate_row(row):
             return False
 
-        # Validate required fields with explicit defaults
-        quarter = row.get("quarter", None)
-        earnings_date = row.get("earnings_date", None)
-        symbol = row.get("symbol", None)
+        # Validate required fields: explicit key checks instead of .get()
+        quarter = row["quarter"] if "quarter" in row else None
+        earnings_date = row["earnings_date"] if "earnings_date" in row else None
+        symbol = row["symbol"] if "symbol" in row else None
 
         if not quarter:
             raise ValueError(

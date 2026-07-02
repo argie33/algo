@@ -63,9 +63,12 @@ class YFinanceSnapshotLoader(OptimalLoader):
                     "ps_ratio": info.get("priceToSalesTrailing12Months"),
                     "peg_ratio": info.get("pegRatio"),
                     "dividend_yield": info.get("dividendYield"),
-                    "fcf_yield": info.get("freeCashflow", 0) / (info.get("marketCap", 1) or 1)
-                    if info.get("marketCap")
-                    else None,
+                    "fcf_yield": (
+                        info["freeCashflow"] / info["marketCap"]
+                        if "freeCashflow" in info and "marketCap" in info
+                        and info["freeCashflow"] is not None and info["marketCap"] is not None
+                        else None
+                    ),
                     # Positioning metrics (institutional/insider holdings, short interest)
                     "held_percent_insiders": info.get("insidersPercentHeld"),
                     "held_percent_institutions": info.get("heldPercentInstitutions"),

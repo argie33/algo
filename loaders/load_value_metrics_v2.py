@@ -27,6 +27,29 @@ class ValueMetricsLoader(OptimalLoader):
     watermark_field = "updated_at"
     exclude_etfs_from_symbols = True
 
+    # Required columns with data types (auto-created if missing)
+    REQUIRED_COLUMNS = {
+        "value_score": "DECIMAL(5, 2)",
+        "market_cap": "BIGINT",
+        "market_cap_unavailable_reason": "VARCHAR(255)",
+        "pe_ratio": "DECIMAL(10, 2)",
+        "pe_ratio_unavailable_reason": "VARCHAR(255)",
+        "pb_ratio": "DECIMAL(10, 2)",
+        "pb_ratio_unavailable_reason": "VARCHAR(255)",
+        "ps_ratio": "DECIMAL(10, 2)",
+        "ps_ratio_unavailable_reason": "VARCHAR(255)",
+        "peg_ratio": "DECIMAL(10, 2)",
+        "peg_ratio_unavailable_reason": "VARCHAR(255)",
+        "dividend_yield": "DECIMAL(10, 4)",
+        "dividend_yield_unavailable_reason": "VARCHAR(255)",
+        "fcf_yield": "DECIMAL(10, 4)",
+        "fcf_yield_unavailable_reason": "VARCHAR(255)",
+        "held_percent_insiders": "DECIMAL(8, 2)",
+        "held_percent_insiders_unavailable_reason": "VARCHAR(255)",
+        "held_percent_institutions": "DECIMAL(8, 2)",
+        "held_percent_institutions_unavailable_reason": "VARCHAR(255)",
+    }
+
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._ensure_schema_ready()
@@ -122,6 +145,26 @@ class ValueMetricsLoader(OptimalLoader):
             "data_unavailable": True,
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
+
+    def _ensure_schema_ready(self) -> None:
+        """Ensure all required columns exist, auto-creating if needed.
+
+        CRITICAL FIX 2026-07-02: Auto-heals incomplete schema in AWS RDS.
+        Creates missing columns on first loader run to prevent silent data loss.
+        """
+        from utils.schema_healer import ensure_columns_exist
+
+        try:
+            with DatabaseContext("write") as cur:
+                _all_exist, created = ensure_columns_exist(cur, self.table_name, self.REQUIRED_COLUMNS)
+                if created:
+                    logger.warning(
+                        f"[VALUE_METRICS] Auto-healed {len(created)} missing columns: {created}. "
+                        f"Schema was incomplete in this environment."
+                    )
+        except Exception as e:
+            logger.error(f"[VALUE_METRICS] Schema healing failed: {e}")
+            raise RuntimeError(f"[VALUE_METRICS] Cannot verify schema is ready: {e}") from e
 
 
 if __name__ == "__main__":

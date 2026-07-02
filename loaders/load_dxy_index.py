@@ -39,10 +39,10 @@ def fetch_dxy_from_yahoo() -> list[dict[str, Any]]:
         dxy = yf.download("DX-Y.NYB", start=start_date, end=end_date, progress=False)
 
         if dxy is None or len(dxy) == 0:
-            logger.debug(
+            logger.warning(
                 "[DXY] Yahoo Finance returned no data for DX-Y.NYB ticker."
             )
-            return []
+            raise RuntimeError("[DXY] No data available from Yahoo Finance for DX-Y.NYB")
 
         rows = []
         for idx, row in dxy.iterrows():
@@ -63,10 +63,10 @@ def fetch_dxy_from_yahoo() -> list[dict[str, Any]]:
             f"[CRITICAL] Yahoo Finance fetch failed: required 'yfinance' library not available: {e}. "
             f"Cannot fetch DXY data. This is a dependency error, not a transient API failure."
         )
-        return []
+        raise RuntimeError(f"[DXY] yfinance library not available: {e}")
     except Exception as e:
-        logger.warning(f"[DXY] Failed to fetch from Yahoo Finance: {e}")
-        return []
+        logger.error(f"[DXY] Failed to fetch from Yahoo Finance: {e}")
+        raise RuntimeError(f"[DXY] Yahoo Finance fetch failed: {e}")
 
 
 def store_dxy_data(rows: list[dict[str, Any]]) -> int:
