@@ -284,9 +284,10 @@ locals {
     "trend_template_data"   = "load_trend_criteria_data.py"
     "swing_trader_scores"   = "load_swing_trader_scores.py"
     "market_exposure_daily" = "load_market_exposure_daily.py"
+    "yfinance_snapshot"     = "load_yfinance_snapshot.py"
     "growth_metrics"        = "load_growth_metrics.py"
     "quality_metrics"       = "load_quality_metrics.py"
-    "value_metrics"         = "load_value_metrics.py"
+    "value_metrics"         = "load_value_metrics_v2.py"
     "positioning_metrics"   = "load_positioning_metrics.py"
     "stability_metrics"     = "load_stability_metrics.py"
     "stock_scores"          = "load_stock_scores.py"
@@ -335,9 +336,10 @@ locals {
     "trend_template_data"   = { cpu = 1024, memory = 2048, timeout = 5400, parallelism = 1 }
     "swing_trader_scores"   = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 1 }
     "market_exposure_daily" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
+    "yfinance_snapshot"     = { cpu = 1024, memory = 2048, timeout = 7200, parallelism = 1 }
     "growth_metrics"        = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
     "quality_metrics"       = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
-    "value_metrics"         = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
+    "value_metrics"         = { cpu = 1024, memory = 2048, timeout = 1800, parallelism = 1 }
     "positioning_metrics"   = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 2 }
     "stability_metrics"     = { cpu = 1024, memory = 2048, timeout = 1800, parallelism = 2 }
     "stock_scores"          = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
@@ -372,6 +374,7 @@ locals {
     "algo_metrics_daily",
     "stock_scores",
     "buy_sell_daily",
+    "yfinance_snapshot",
     "growth_metrics",
     "quality_metrics",
     "value_metrics",

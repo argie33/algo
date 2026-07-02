@@ -1942,9 +1942,60 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
 
   definition = jsonencode({
     Comment = "Daily computed metrics: quality/growth/value/stability/stock scores (depends on financial data)"
-    StartAt = "GrowthMetrics"
+    StartAt = "YFinanceSnapshot"
 
     States = {
+      # ── Fetch yfinance snapshot once (all PE, PB, PS, dividend, beta, volatility for all symbols) ──
+      # CRITICAL FIX 2026-07-02: Consolidated yfinance calls into single snapshot loader to fix rate limiting.
+      # Fetches once per symbol, caches 24h. Eliminates 6x redundant API calls (value_metrics, positioning, stability).
+      # Before: value_metrics parallelism=2 took 176 min due to rate limiting. After: 2h expected, reads from cache.
+      YFinanceSnapshot = {
+        Type           = "Task"
+        Resource       = "arn:aws:states:::ecs:runTask.sync"
+        TimeoutSeconds = 25200
+        Parameters = {
+          Cluster              = var.ecs_cluster_arn
+          LaunchType           = "FARGATE"
+          TaskDefinition       = var.loader_task_definition_arns["yfinance_snapshot"]
+          NetworkConfiguration = local.network_config
+        }
+        Retry = [{
+          ErrorEquals     = ["States.ALL"]
+          IntervalSeconds = 60
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "LogYFinanceSnapshotFailure"
+          ResultPath  = "$.loaderError"
+        }]
+        Next = "GrowthMetrics"
+      }
+
+      LogYFinanceSnapshotFailure = {
+        Type     = "Task"
+        Resource = var.loader_failure_handler_arn
+        Parameters = {
+          loader_name       = "yfinance_snapshot"
+          "error.$"         = "$.loaderError.Error"
+          "error_message.$" = "$.loaderError.Cause"
+        }
+        ResultPath = "$.failureLog"
+        Retry = [{
+          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
+          IntervalSeconds = 2
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "GrowthMetrics"
+          ResultPath  = "$.logError"
+        }]
+        Next = "GrowthMetrics"
+      }
+
       # ── Growth Metrics (depends on financial data) ──
       # FIXED: Increase timeout from 3600s to 14400s (4h) to handle 5000+ symbols with parallelism=2
       # With parallelism=2, execution takes ~20-41 minutes; 4h provides safe buffer
@@ -2046,14 +2097,13 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
       }
 
       # ── Value Metrics (independent of financial data) ──
-      # FIXED Issue #37: Increase timeout from 3600s (1h) to 21600s (6h)
-      # Root cause: yfinance rate limiting causes value_metrics to take 176 min (10560s) on full 5000+ symbol load
-      # With parallelism=2 and cache warming, real time ~5-6h. Timeout was causing silent failures with all stocks marked data_unavailable.
-      # Now all 5000+ symbols get proper PE, PB, PS ratios and dividend yields instead of missing valuations.
+      # FIXED 2026-07-02: Now reads from yfinance_snapshot table (consolidated fetch) instead of calling yfinance.
+      # Timeout reduced from 21600s (6h) to 1800s (30m) since it's just DB reads, not API calls.
+      # Previous timeout was needed because yfinance rate limiting caused ~176 min delays. That's now eliminated.
       ValueMetrics = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 21600
+        TimeoutSeconds = 1800
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
