@@ -157,15 +157,46 @@ class StockScoresLoader(OptimalLoader):
                 # This should not occur (internal _compute_stock_score raises on failure),
                 # but safeguard against unexpected None returns
                 logger.warning(f"[STOCK_SCORES] Unexpected None return for {symbol} — marking data unavailable")
-                # Catastrophic failure - skip rather than store zeros
-                logger.error(f"[STOCK_SCORES] Internal failure for {symbol}: {score_result is None}")
-                return []
+                # Return explicit data_unavailable marker so symbol appears in DB with clear status
+                return [
+                    {
+                        "symbol": symbol,
+                        "composite_score": None,
+                        "signal_score": None,
+                        "quality_score": None,
+                        "growth_score": None,
+                        "value_score": None,
+                        "momentum_score": None,
+                        "positioning_score": None,
+                        "stability_score": None,
+                        "data_completeness": 0,
+                        "data_unavailable": True,
+                        "reason": "Internal scoring failure - unexpected None return",
+                        "updated_at": datetime.now(timezone.utc),
+                    }
+                ]
             return [score_result]
         except RuntimeError as e:
-            # Upstream metric loaders insufficient data: skip this symbol
-            # (empty list means watermark not updated; stock won't appear in scores)
+            # Upstream metric loaders insufficient data: return explicit data_unavailable marker
+            # instead of empty list so symbol appears in DB with clear status flag
             logger.warning(f"[STOCK_SCORES] Cannot compute score for {symbol}: {e!s}")
-            return []
+            return [
+                {
+                    "symbol": symbol,
+                    "composite_score": None,
+                    "signal_score": None,
+                    "quality_score": None,
+                    "growth_score": None,
+                    "value_score": None,
+                    "momentum_score": None,
+                    "positioning_score": None,
+                    "stability_score": None,
+                    "data_completeness": 0,
+                    "data_unavailable": True,
+                    "reason": str(e),
+                    "updated_at": datetime.now(timezone.utc),
+                }
+            ]
 
     def _compute_stock_score(self, symbol: str) -> dict[str, Any]:
         """Compute composite stock score from REAL metrics only (no fake defaults).
