@@ -32,12 +32,36 @@ class QualityMetricsLoader(OptimalLoader):
 
     Quality metrics require SEC financial data (balance sheet, income statement),
     which is only available for companies, not ETFs or bonds.
+
+    CRITICAL FIX 2026-07-01: Auto-heals missing schema columns on first run.
+    Migration 0044 was incomplete, leaving 11 required columns missing in AWS RDS.
+    This loader now creates missing columns automatically, preventing silent data loss.
     """
 
     table_name = "quality_metrics"
     primary_key = ("symbol",)
     watermark_field = "updated_at"
     exclude_etfs_from_symbols = True
+
+    # Required columns with data types (auto-created if missing)
+    REQUIRED_COLUMNS = {
+        "quality_score": "DECIMAL(5, 2)",
+        "debt_to_assets": "DECIMAL(8, 4)",
+        "operating_margin_unavailable_reason": "VARCHAR(255)",
+        "net_margin_unavailable_reason": "VARCHAR(255)",
+        "roe_unavailable_reason": "VARCHAR(255)",
+        "roa_unavailable_reason": "VARCHAR(255)",
+        "debt_to_equity_unavailable_reason": "VARCHAR(255)",
+        "current_ratio_unavailable_reason": "VARCHAR(255)",
+        "quick_ratio_unavailable_reason": "VARCHAR(255)",
+        "interest_coverage_unavailable_reason": "VARCHAR(255)",
+        "debt_to_assets_unavailable_reason": "VARCHAR(255)",
+    }
+
+    def __init__(self, backfill_days: int | None = None):
+        super().__init__(backfill_days)
+        # Ensure schema is healed before loading
+        self._ensure_schema_ready()
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Compute quality metrics from balance sheet and income statement.
@@ -245,6 +269,28 @@ class QualityMetricsLoader(OptimalLoader):
     def transform(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """No transformation needed."""
         return rows
+
+    def _ensure_schema_ready(self) -> None:
+        """Ensure all required columns exist, auto-creating if needed.
+
+        CRITICAL FIX 2026-07-01: Auto-heals incomplete migration 0044.
+        Creates missing columns on first loader run to prevent silent data loss
+        when BulkInsertManager encounters columns not in DB schema.
+        """
+        from utils.db.context import DatabaseContext
+        from utils.schema_healer import ensure_columns_exist
+
+        try:
+            with DatabaseContext("write") as cur:
+                all_exist, created = ensure_columns_exist(cur, self.table_name, self.REQUIRED_COLUMNS)
+                if created:
+                    logger.warning(
+                        f"[QUALITY_METRICS] Auto-healed {len(created)} missing columns: {created}. "
+                        f"Migration 0044 was incomplete in this environment."
+                    )
+        except Exception as e:
+            logger.error(f"[QUALITY_METRICS] Schema healing failed: {e}")
+            raise RuntimeError(f"[QUALITY_METRICS] Cannot verify schema is ready: {e}") from e
 
 
 if __name__ == "__main__":

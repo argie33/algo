@@ -25,12 +25,31 @@ class GrowthMetricsLoader(OptimalLoader):
 
     Growth metrics are computed from annual income statement data, which is only available
     for companies that file with the SEC. ETFs and bonds don't have financial statements.
+
+    CRITICAL FIX 2026-07-01: Auto-heals missing schema columns on first run.
+    Similar to quality_metrics, growth_metrics tables may be missing unavailable_reason columns
+    in incomplete deployments. Auto-creates them to prevent data loss.
     """
 
     table_name = "growth_metrics"
     primary_key = ("symbol",)
     watermark_field = "updated_at"
     exclude_etfs_from_symbols = True
+
+    # Required columns with data types (auto-created if missing)
+    REQUIRED_COLUMNS = {
+        "revenue_growth_1y_unavailable_reason": "VARCHAR(255)",
+        "revenue_growth_3y_unavailable_reason": "VARCHAR(255)",
+        "revenue_growth_5y_unavailable_reason": "VARCHAR(255)",
+        "eps_growth_1y_unavailable_reason": "VARCHAR(255)",
+        "eps_growth_3y_unavailable_reason": "VARCHAR(255)",
+        "eps_growth_5y_unavailable_reason": "VARCHAR(255)",
+    }
+
+    def __init__(self, backfill_days: int | None = None):
+        super().__init__(backfill_days)
+        # Ensure schema is healed before loading
+        self._ensure_schema_ready()
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Compute multi-year growth metrics from annual income statement.
@@ -215,6 +234,28 @@ class GrowthMetricsLoader(OptimalLoader):
     def transform(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """No transformation needed; metrics already computed."""
         return rows
+
+    def _ensure_schema_ready(self) -> None:
+        """Ensure all required columns exist, auto-creating if needed.
+
+        CRITICAL FIX 2026-07-01: Auto-heals incomplete migration 0044.
+        Creates missing unavailable_reason columns on first loader run to prevent
+        silent data loss when BulkInsertManager encounters columns not in DB schema.
+        """
+        from utils.db.context import DatabaseContext
+        from utils.schema_healer import ensure_columns_exist
+
+        try:
+            with DatabaseContext("write") as cur:
+                all_exist, created = ensure_columns_exist(cur, self.table_name, self.REQUIRED_COLUMNS)
+                if created:
+                    logger.warning(
+                        f"[GROWTH_METRICS] Auto-healed {len(created)} missing columns: {created}. "
+                        f"Migration 0044 was incomplete in this environment."
+                    )
+        except Exception as e:
+            logger.error(f"[GROWTH_METRICS] Schema healing failed: {e}")
+            raise RuntimeError(f"[GROWTH_METRICS] Cannot verify schema is ready: {e}") from e
 
 
 if __name__ == "__main__":
