@@ -9,12 +9,13 @@ Provides consistent error handling and logging for type conversions.
 import logging
 from datetime import date as date_type
 from datetime import datetime
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
 def safe_float(
-    value: any,
+    value: Any,
     field_name: str = "value",
     default: float | None = None,
     strict: bool = False,
@@ -58,7 +59,7 @@ def safe_float(
 
 
 def safe_int(
-    value: any,
+    value: Any,
     field_name: str = "value",
     default: int | None = None,
     strict: bool = False,
@@ -102,7 +103,7 @@ def safe_int(
 
 
 def safe_date(
-    value: any,
+    value: Any,
     field_name: str = "value",
     default: date_type | None = None,
     strict: bool = False,
