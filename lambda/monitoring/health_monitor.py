@@ -189,7 +189,7 @@ def check_data_freshness() -> tuple[str, list[dict[str, Any]]]:
                                 "description": description,
                                 "age_hours": round(age_hours, 1),
                                 "last_update": max_date.isoformat(),
-                                "row_count": row_count,
+                                "row_count": row_count,  # type: ignore[dict-item]
                                 "status": "STALE",
                             }
                         )

@@ -21,7 +21,7 @@ import boto3
 try:
     import psycopg2
 except ImportError:
-    psycopg2 = None  # type: ignore[assignment]
+    psycopg2 = None
 
 logger = logging.getLogger()
 
