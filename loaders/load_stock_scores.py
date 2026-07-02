@@ -490,15 +490,20 @@ class StockScoresLoader(OptimalLoader):
         CRITICAL FIX 2026-07-01: Now checks data_unavailable flag. Some securities (REITs, etc.)
         have rows marked data_unavailable=True with NULL values. Previously returned NULLs instead
         of marker; now properly returns marker dict.
+
+        CRITICAL FIX 2026-07-01 (continued): Now fetches pre-computed quality_score from quality_metrics
+        table instead of re-computing from individual metrics. This ensures consistency between
+        load_quality_metrics.py (which computes the score) and load_stock_scores.py (which uses it).
         """
         try:
             cur.execute(
-                "SELECT roe, roa, operating_margin, net_margin, debt_to_equity, current_ratio, quick_ratio, data_unavailable FROM quality_metrics WHERE symbol = %s",
+                "SELECT roe, roa, operating_margin, net_margin, debt_to_equity, current_ratio, quick_ratio, quality_score, data_unavailable FROM quality_metrics WHERE symbol = %s",
                 (symbol,),
             )
             row = cur.fetchone()
             if row:
-                data_unavailable = row[7]
+                data_unavailable = row[8]
+                quality_score = self._safe_float(row[7], f"{symbol}.quality_score")
                 # If marked unavailable, return marker even if row exists
                 if data_unavailable:
                     logger.debug(
@@ -519,6 +524,7 @@ class StockScoresLoader(OptimalLoader):
                     "debt_to_equity": self._safe_float(row[4], f"{symbol}.debt_to_equity"),
                     "current_ratio": self._safe_float(row[5], f"{symbol}.current_ratio"),
                     "quick_ratio": self._safe_float(row[6], f"{symbol}.quick_ratio"),
+                    "quality_score": quality_score,  # Pre-computed by load_quality_metrics.py
                 }
             # No row exists at all
             logger.warning(
@@ -838,6 +844,10 @@ class StockScoresLoader(OptimalLoader):
         """Score quality metrics on 0-100 scale. Returns marker dict if no real data.
 
         Internal function: caller (_compute_stock_score) converts marker dicts to None.
+
+        CRITICAL FIX 2026-07-01: Use pre-computed quality_score from load_quality_metrics.py
+        when available (quality_score in metrics dict). This ensures consistency and avoids
+        discrepancies between the two scoring algorithms.
         """
         if not metrics or metrics.get("data_unavailable"):
             logger.debug(f"[STOCK_SCORES] Quality metrics unavailable for {symbol}")
@@ -847,6 +857,11 @@ class StockScoresLoader(OptimalLoader):
                 "data_unavailable": True,
                 "reason": "no_quality_metrics_data"
             }
+
+        # Use pre-computed quality_score from load_quality_metrics.py if available
+        if metrics.get("quality_score") is not None:
+            logger.debug(f"[STOCK_SCORES] Using pre-computed quality_score for {symbol}: {metrics['quality_score']}")
+            return float(metrics["quality_score"])
 
         scores = []
 
