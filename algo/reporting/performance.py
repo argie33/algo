@@ -28,7 +28,17 @@ logger = logging.getLogger(__name__)
 
 
 def _dec_round(val: Any, places: int) -> float:
-    if val is None or val == 0:
+    """Round decimal to specified places. Fail-fast if data is missing.
+
+    Raises:
+        ValueError: If val is None (missing data) — fail-fast governance
+    """
+    if val is None:
+        raise ValueError(
+            f"Cannot round None value (missing financial data). "
+            f"Data completeness is critical for performance metrics."
+        )
+    if val == 0:
         return 0.0
     d = Decimal(str(val))
     return float(d.quantize(Decimal(10) ** -places, rounding=ROUND_HALF_UP))
