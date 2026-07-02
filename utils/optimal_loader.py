@@ -591,11 +591,13 @@ class OptimalLoader:
         failed_count = self._stats.get("symbols_failed", 0)
         fail_rate = (failed_count / len(symbols)) * 100 if symbols else 0
 
-        # Allow up to 60% failure rate (tolerate missing data for non-critical symbols)
-        # Most loaders can handle this: quality_metrics (55% missing), growth_metrics similar
-        # Only fail if >max_fail_rate of symbols fail, indicating systemic issue (DB down, API banned, etc.)
-        # Subclasses can override max_fail_rate for data with limited coverage (e.g., earnings_history)
-        max_fail_rate = getattr(self, "max_fail_rate", 60.0)
+        # CRITICAL: Enforce strict completeness for financial data
+        # Default max 5% failure (95% completeness required). Subclasses can set higher for optional data.
+        # For CRITICAL data: MUST have >=95% symbol coverage (max 5% skips)
+        # For REQUIRED data: MUST have >=85% symbol coverage (max 15% skips)
+        # For OPTIONAL data: Can tolerate up to 50% (set max_fail_rate=50 in subclass)
+        # Loaders that previously tolerated 55%+ missing (quality_metrics, growth_metrics) need fixing.
+        max_fail_rate = getattr(self, "max_fail_rate", 5.0)
 
         if fail_rate > max_fail_rate:
             raise RuntimeError(

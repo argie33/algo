@@ -327,13 +327,20 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
 
             run_id = result["run_id"]
 
-            # Note: orchestrator may not return 'skipped' field if it ran but halted
-            # Default to False (not skipped) if field is missing
-            skipped = result.get("skipped", False)
+            # CRITICAL: Validate all required response fields to catch contract changes
+            # If orchestrator doesn't return these, it's either a code change or a runtime error
+            required_fields = ["skipped", "reason"]
+            for field in required_fields:
+                if field not in result:
+                    raise ValueError(
+                        f"Orchestrator response missing required field '{field}'. "
+                        f"Available fields: {list(result.keys())}. "
+                        f"This indicates either: (1) orchestrator code changed, "
+                        f"(2) orchestrator failed silently, or (3) response contract broken."
+                    )
 
-            reason = result.get("reason")
-            if reason is None:
-                reason = ""
+            skipped = result["skipped"]
+            reason = result["reason"]
 
             # Return response
             return {
