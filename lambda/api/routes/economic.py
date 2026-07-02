@@ -274,40 +274,45 @@ def _get_leading_indicators(cur: cursor) -> Any:  # noqa: C901
         # Check if DXY_ICE is missing and fetch it via direct RDS connection
         latest_series = [row.get("series_id") for row in latest_data if row.get("series_id")]
         if "DXY_ICE" not in latest_series:
-            logger.warning("[DXY] DXY_ICE missing from Proxy results, trying direct RDS...")
-            try:
-                import psycopg2
-                # Connect directly to RDS (bypass proxy) to get DXY_ICE
-                rds_host = "algo-db.cojggi2mkthi.us-east-1.rds.amazonaws.com"
-                rds_port = 5432
-                db_config = cur.connection.get_dsn_parameters()
+            import os
 
-                direct_conn = psycopg2.connect(
-                    host=rds_host,
-                    port=rds_port,
-                    database=db_config.get('dbname', 'stocks'),
-                    user=db_config.get('user'),
-                    password=db_config.get('password'),
-                    sslmode='require'
-                )
-                direct_cur = direct_conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
-                direct_cur.execute("""
-                    WITH latest AS (
-                        SELECT series_id, date, value,
-                               ROW_NUMBER() OVER (PARTITION BY series_id ORDER BY date DESC) as rn
-                        FROM economic_data
-                        WHERE series_id = 'DXY_ICE'
+            rds_direct_host = os.getenv("RDS_DIRECT_HOST")
+            rds_direct_port = int(os.getenv("RDS_DIRECT_PORT", "5432"))
+            rds_user = os.getenv("AWS_RDS_USER", "algo_user")
+            rds_pass = os.getenv("AWS_RDS_PASS")
+            rds_db = os.getenv("AWS_RDS_DB", "stocks")
+
+            if rds_direct_host and rds_pass:
+                logger.warning("[DXY] DXY_ICE missing from Proxy results, trying direct RDS...")
+                try:
+                    direct_conn = psycopg2.connect(
+                        host=rds_direct_host,
+                        port=rds_direct_port,
+                        database=rds_db,
+                        user=rds_user,
+                        password=rds_pass,
+                        sslmode="require",
                     )
-                    SELECT series_id, date, value FROM latest WHERE rn = 1
-                """)
-                dxy_row = direct_cur.fetchone()
-                if dxy_row:
-                    latest_data = list(latest_data) + [dxy_row]
-                    logger.info(f"[DXY] Got DXY_ICE via direct RDS: {dxy_row['value']}")
-                direct_cur.close()
-                direct_conn.close()
-            except Exception as e:
-                logger.warning(f"[DXY] Direct RDS fetch failed: {e}")
+                    direct_cur = direct_conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+                    direct_cur.execute(
+                        """
+                        WITH latest AS (
+                            SELECT series_id, date, value,
+                                   ROW_NUMBER() OVER (PARTITION BY series_id ORDER BY date DESC) as rn
+                            FROM economic_data
+                            WHERE series_id = 'DXY_ICE'
+                        )
+                        SELECT series_id, date, value FROM latest WHERE rn = 1
+                    """
+                    )
+                    dxy_row = direct_cur.fetchone()
+                    if dxy_row:
+                        latest_data = list(latest_data) + [dxy_row]
+                        logger.info(f"[DXY] Got DXY_ICE via direct RDS: {dxy_row['value']}")
+                    direct_cur.close()
+                    direct_conn.close()
+                except Exception as e:
+                    logger.warning(f"[DXY] Direct RDS fetch failed: {e}")
 
         latest_rows = {}
         for row in latest_data:
