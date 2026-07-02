@@ -46,6 +46,8 @@ class QualityMetricsLoader(OptimalLoader):
         (expected for micro-caps, OTC stocks, ADRs lacking SEC filings).
         Absence must be explicit (not silent None) for downstream systems.
         """
+        from decimal import Decimal
+
         income_row = fetch_one(
             """
             SELECT revenue, operating_income, net_income
@@ -68,6 +70,18 @@ class QualityMetricsLoader(OptimalLoader):
         """,
             (symbol,),
         )
+
+        # Convert NaN Decimal values to None (SEC data quality issue)
+        def clean_decimal(val: Any) -> Any:
+            if isinstance(val, Decimal):
+                if val.is_nan():
+                    return None
+            return val
+
+        if income_row:
+            income_row = tuple(clean_decimal(v) for v in income_row)
+        if balance_row:
+            balance_row = tuple(clean_decimal(v) for v in balance_row)
 
         # If no income statement, return explicit data_unavailable record
         # (many stocks lack SEC filings: micro-caps, OTC, ADRs, new IPOs - about 55% of universe)
