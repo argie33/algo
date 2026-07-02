@@ -151,7 +151,17 @@ class BalanceSheetLoader(OptimalLoader):
 
         for r in rows:
             row: dict[str, Any] = {}
+            # CRITICAL: Ensure symbol and fiscal_year are always preserved
+            if "symbol" in r:
+                row["symbol"] = r["symbol"]
+            if "fiscal_year" in r:
+                row["fiscal_year"] = r["fiscal_year"]
+
             for sec_field, value in r.items():
+                # Skip fields we already handled above
+                if sec_field in ("symbol", "fiscal_year"):
+                    continue
+
                 db_field = self._field_mapping.get(sec_field, sec_field)
                 if db_field in self._schema_cols:
                     row[db_field] = value
@@ -177,11 +187,11 @@ class BalanceSheetLoader(OptimalLoader):
             fiscal_year = row.get("fiscal_year")
 
             if not symbol:
-                logger.warning(f"[{self.table_name}] Row missing required 'symbol' field. Skipping.")
+                logger.warning(f"[{self.table_name}] Row missing required 'symbol' field. Row keys: {list(row.keys())}. Skipping.")
                 skipped_missing_keys += 1
                 continue
             if fiscal_year is None:
-                logger.warning(f"[{self.table_name}] Row missing required 'fiscal_year' field. Skipping.")
+                logger.warning(f"[{self.table_name}] Row missing required 'fiscal_year' field for {symbol}. Row keys: {list(row.keys())}. Skipping.")
                 skipped_missing_keys += 1
                 continue
 
@@ -199,6 +209,11 @@ class BalanceSheetLoader(OptimalLoader):
                 seen[key] = row
 
         if not seen:
+            logger.error(
+                f"[{self.table_name}] CRITICAL: No valid rows after transformation. "
+                f"Processed {len(transformed)} transformed rows, skipped {skipped_missing_keys} for missing keys, "
+                f"{skipped_invalid_fields} for invalid fields."
+            )
             raise RuntimeError(f"[{self.table_name}] CRITICAL: No valid rows after transformation.")
 
         if skipped_invalid_fields + skipped_missing_keys > 0:

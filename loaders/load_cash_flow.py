@@ -138,9 +138,19 @@ class CashFlowLoader(OptimalLoader):
         if self._field_mapping is None:
             raise RuntimeError(f"[{self.table_name}] Field mapping not initialized.")
         row: dict[str, Any] = {}
+        # CRITICAL: Ensure symbol and fiscal_year are always preserved
+        if "symbol" in r:
+            row["symbol"] = r["symbol"]
+        if "fiscal_year" in r:
+            row["fiscal_year"] = r["fiscal_year"]
+
         capex_value = None
 
         for sec_field, value in r.items():
+            # Skip fields we already handled above
+            if sec_field in ("symbol", "fiscal_year"):
+                continue
+
             db_field = self._field_mapping.get(sec_field, sec_field)
             if db_field == "capex":
                 capex_value = value
@@ -175,34 +185,37 @@ class CashFlowLoader(OptimalLoader):
                 transformed.append(row)
 
         seen = {}
+        skipped_count = 0
         for row in transformed:
             symbol = row.get("symbol")
             fiscal_year = row.get("fiscal_year")
             if symbol is None or fiscal_year is None:
-                logger.error(
-                    "[CASH_FLOW] Cannot build primary key: symbol=%s, fiscal_year=%s",
-                    symbol,
-                    fiscal_year,
+                logger.warning(
+                    f"[CASH_FLOW] Cannot build primary key: symbol={symbol}, fiscal_year={fiscal_year}. Row keys: {list(row.keys())}. Skipping."
                 )
-                raise ValueError(
-                    f"Cash flow row missing required key fields. Symbol: {symbol}, Fiscal Year: {fiscal_year}."
-                )
+                skipped_count += 1
+                continue
+
             if self.period == "annual":
                 key: tuple[Any, ...] = (symbol, fiscal_year)
             else:
                 fiscal_quarter = row.get("fiscal_quarter")
                 if fiscal_quarter is None:
-                    logger.error(
-                        "[CASH_FLOW] Quarterly record missing fiscal_quarter: symbol=%s, fiscal_year=%s",
-                        symbol,
-                        fiscal_year,
+                    logger.warning(
+                        f"[CASH_FLOW] Quarterly record missing fiscal_quarter: symbol={symbol}, fiscal_year={fiscal_year}. Skipping."
                     )
-                    raise ValueError(
-                        f"Quarterly cash flow row missing fiscal_quarter. Symbol: {symbol}, Fiscal Year: {fiscal_year}."
-                    )
+                    skipped_count += 1
+                    continue
                 key = (symbol, fiscal_year, fiscal_quarter)
             if key not in seen:
                 seen[key] = row
+
+        if not seen:
+            logger.error(
+                f"[{self.table_name}] CRITICAL: No valid rows after transformation. "
+                f"Processed {len(transformed)} transformed rows, skipped {skipped_count} for missing keys."
+            )
+            raise RuntimeError(f"[{self.table_name}] CRITICAL: No valid rows after transformation.")
 
         now = datetime.now().isoformat()
         result = list(seen.values())
