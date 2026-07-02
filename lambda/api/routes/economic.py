@@ -265,8 +265,10 @@ def _get_leading_indicators(cur: cursor) -> Any:  # noqa: C901
             """)
         latest_data = cur.fetchall()
 
-        # Log total count
+        # Log total count and all series returned
         logger.info(f"[QUERY] Latest values query returned {len(latest_data)} rows")
+        all_series = [row['series_id'] for row in latest_data]
+        logger.info(f"[SERIES] Lambda sees: {sorted(all_series)}")
 
         # CRITICAL FAIL-FAST: Economic data validation must not silently fallback
         # Economic indicators are CRITICAL for portfolio decisions
