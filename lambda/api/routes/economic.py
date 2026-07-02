@@ -270,6 +270,7 @@ def _get_leading_indicators(cur: cursor) -> Any:  # noqa: C901
             )
 
         latest_rows = {}
+        dxy_found = False
         for row in latest_data:
             if row is None:
                 logger.warning("NULL row in economic latest data")
@@ -286,6 +287,12 @@ def _get_leading_indicators(cur: cursor) -> Any:  # noqa: C901
                 continue
             date = row.get("date")
             latest_rows[series_id] = (value, date)
+            if series_id == "DXY_ICE":
+                dxy_found = True
+                logger.info(f"[DXY] Found DXY_ICE in latest_data: {value} on {date}")
+
+        if not dxy_found:
+            logger.error(f"[DXY] DXY_ICE NOT in latest_data. Got {len(latest_rows)} series: {list(latest_rows.keys())[:15]}")
 
 
         cur.execute("""
