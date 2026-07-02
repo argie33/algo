@@ -270,6 +270,24 @@ def _get_leading_indicators(cur: cursor) -> Any:  # noqa: C901
                 "Check economic_data table and data loader."
             )
 
+        # Workaround: RDS Proxy doesn't return DXY_ICE even though it's in the database
+        # Check if DXY_ICE is missing and fetch it directly if needed
+        latest_series = [row.get("series_id") for row in latest_data if row.get("series_id")]
+        if "DXY_ICE" not in latest_series:
+            logger.warning("[DXY] DXY_ICE missing from query results, fetching directly...")
+            try:
+                cur.execute("""
+                    SELECT series_id, date, value FROM economic_data
+                    WHERE series_id = 'DXY_ICE'
+                    ORDER BY date DESC LIMIT 1
+                """)
+                dxy_row = cur.fetchone()
+                if dxy_row:
+                    latest_data = list(latest_data) + [dxy_row]
+                    logger.info(f"[DXY] Successfully fetched DXY_ICE directly: {dxy_row['value']}")
+            except Exception as e:
+                logger.warning(f"[DXY] Failed to fetch DXY_ICE directly: {e}")
+
         latest_rows = {}
         for row in latest_data:
             if row is None:
