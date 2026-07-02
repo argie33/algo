@@ -2,31 +2,7 @@
 # CRITICAL FIX: Original Terraform was incomplete (only added quality_score + debt_to_assets)
 # Missing 9 unavailable_reason columns caused BulkInsertManager to silently drop data
 # This complete version adds all 11 columns required by load_quality_metrics.py
-
-terraform {
-  required_providers {
-    postgresql = {
-      source  = "cyrilgdn/postgresql"
-      version = "~> 1.15"
-    }
-  }
-}
-
-provider "postgresql" {
-  host            = "algo-db.cojggi2mkthi.us-east-1.rds.amazonaws.com"
-  port            = 5432
-  database        = "algo_prod"
-  username        = "algo_admin"
-  password        = var.rds_password
-  sslmode         = "require"
-  connect_timeout = 15
-}
-
-variable "rds_password" {
-  description = "AWS RDS password for algo_admin user"
-  type        = string
-  sensitive   = true
-}
+# (Terraform provider and RDS password variable already defined in root module)
 
 # Add missing columns to quality_metrics table
 # COMPLETE migration includes all columns that load_quality_metrics.py writes
