@@ -284,13 +284,16 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
                 d["ladder_pct_t2"] = None
                 d["ladder_pct_t3"] = None
         except (ValueError, TypeError) as e:
-            logger.warning(f"Position {symbol} has invalid price fields, skipping ladder calculation: {e}")
+            error_msg = f"Ladder calculation failed: {type(e).__name__}: {e}"
+            logger.warning(f"[POSITION DATA QUALITY] {symbol}: {error_msg}")
             d["ladder_pct_stop"] = None
             d["ladder_pct_entry"] = None
             d["ladder_pct_current"] = None
             d["ladder_pct_t1"] = None
             d["ladder_pct_t2"] = None
             d["ladder_pct_t3"] = None
+            d["ladder_unavailable"] = True
+            d["ladder_unavailable_reason"] = error_msg
 
         # Compute stage_label for stage distribution (Issue #8)
         stage_raw = d.get("weinstein_stage")

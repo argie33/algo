@@ -113,15 +113,15 @@ def _calculate_pre_trade_impact(cur: cursor, body: dict[str, Any]) -> Any:
                 if sr["sector"]:
                     sector_val_raw = sr["sector_value"]
                     if sector_val_raw is None:
-                        logger.warning(f"Sector {sr['sector']} has NULL position_value sum — skipping")
-                        continue
+                        error_msg = f"Sector {sr['sector']} has NULL position_value sum — cannot proceed without complete sector exposure"
+                        logger.error(error_msg)
+                        return error_response(503, "sector_exposure_incomplete", error_msg)
                     try:
                         sector_val = float(sector_val_raw)
                         if sector_val < 0:
-                            logger.warning(
-                                f"Sector {sr['sector']} has negative exposure ({sector_val}) — data corruption"
-                            )
-                            continue
+                            error_msg = f"Sector {sr['sector']} has negative exposure ({sector_val}) — data corruption detected"
+                            logger.error(error_msg)
+                            return error_response(503, "data_corruption", error_msg)
                     except (ValueError, TypeError) as e:
                         return error_response(503, "data_format_error", f"Sector exposure not numeric: {e}")
                     sector_exposure[sr["sector"]] = sector_val
@@ -218,13 +218,35 @@ def _calculate_trade_preview(cur: cursor, body: dict[str, Any]) -> Any:
             ORDER BY snapshot_date DESC LIMIT 1
         """)
         portfolio_row = cur.fetchone()
-        portfolio_value = float(portfolio_row["total_portfolio_value"]) if portfolio_row else None
-
-        if not portfolio_value or portfolio_value <= 0:
+        if portfolio_row is None:
             return error_response(
                 503,
                 "service_unavailable",
-                "Portfolio value unavailable for position sizing",
+                "Portfolio snapshot unavailable for position sizing",
+            )
+
+        portfolio_value_raw = portfolio_row.get("total_portfolio_value")
+        if portfolio_value_raw is None:
+            return error_response(
+                503,
+                "service_unavailable",
+                "Portfolio value field is NULL — snapshot data incomplete",
+            )
+
+        try:
+            portfolio_value = float(portfolio_value_raw)
+        except (TypeError, ValueError):
+            return error_response(
+                503,
+                "data_type_error",
+                f"Portfolio value is not numeric: {portfolio_value_raw} ({type(portfolio_value_raw).__name__})",
+            )
+
+        if portfolio_value <= 0:
+            return error_response(
+                503,
+                "service_unavailable",
+                f"Portfolio value invalid ({portfolio_value}). Must be positive for position sizing.",
             )
 
         risk_amount = None
