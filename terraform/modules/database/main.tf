@@ -217,13 +217,14 @@ resource "aws_db_parameter_group" "postgres" {
 # - Prevents "too many connections" errors during peak load (EOD or morning prep)
 
 resource "aws_db_proxy" "main" {
+  count         = var.enable_rds_proxy ? 1 : 0
   name          = "${var.project_name}-rds-proxy-${var.environment}"
   engine_family = "POSTGRESQL"
   auth {
     auth_scheme = "SECRETS"
     secret_arn  = aws_secretsmanager_secret.rds_credentials.arn
   }
-  role_arn               = aws_iam_role.rds_proxy.arn
+  role_arn               = aws_iam_role.rds_proxy[0].arn
   vpc_subnet_ids         = var.private_subnet_ids
   vpc_security_group_ids = [var.rds_security_group_id]
 
@@ -253,9 +254,10 @@ resource "aws_db_proxy" "main" {
   })
 }
 
-# RDS Proxy IAM Role
+# RDS Proxy IAM Role (only created if proxy enabled)
 resource "aws_iam_role" "rds_proxy" {
-  name = "${var.project_name}-svc-rds-proxy-${var.environment}"
+  count = var.enable_rds_proxy ? 1 : 0
+  name  = "${var.project_name}-svc-rds-proxy-${var.environment}"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -271,10 +273,11 @@ resource "aws_iam_role" "rds_proxy" {
   tags = var.common_tags
 }
 
-# RDS Proxy Policy: Allow fetching database credentials from Secrets Manager
+# RDS Proxy Policy: Allow fetching database credentials from Secrets Manager (only if proxy enabled)
 resource "aws_iam_role_policy" "rds_proxy_secrets" {
-  name = "${var.project_name}-rds-proxy-secrets-${var.environment}"
-  role = aws_iam_role.rds_proxy.id
+  count = var.enable_rds_proxy ? 1 : 0
+  name  = "${var.project_name}-rds-proxy-secrets-${var.environment}"
+  role  = aws_iam_role.rds_proxy[0].id
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -289,9 +292,10 @@ resource "aws_iam_role_policy" "rds_proxy_secrets" {
   })
 }
 
-# RDS Proxy Target - registers the RDS database with the proxy
+# RDS Proxy Target - registers the RDS database with the proxy (only if proxy enabled)
 resource "aws_db_proxy_target" "main" {
-  db_proxy_name          = aws_db_proxy.main.name
+  count                  = var.enable_rds_proxy ? 1 : 0
+  db_proxy_name          = aws_db_proxy.main[0].name
   target_group_name      = "default"
   db_instance_identifier = aws_db_instance.main.identifier
 }

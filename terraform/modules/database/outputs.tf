@@ -45,16 +45,15 @@ output "rds_arn" {
   value       = aws_db_instance.main.arn
 }
 
-# RDS Proxy Endpoint (Connection Pooling) - re-enabled with Terraform fixes
+# RDS Proxy Endpoint (Connection Pooling) - conditional on enable_rds_proxy
 output "rds_proxy_endpoint" {
-  description = "RDS Proxy endpoint for multiplexed connections"
-  value       = aws_db_proxy.main.endpoint
+  description = "RDS Proxy endpoint for multiplexed connections (or RDS instance endpoint if proxy disabled)"
+  value       = var.enable_rds_proxy ? aws_db_proxy.main[0].endpoint : aws_db_instance.main.endpoint
 }
 
 output "rds_proxy_address" {
-  description = "RDS Proxy endpoint for database connections"
-  value       = aws_db_proxy.main.endpoint
-  depends_on  = [aws_db_proxy.main]
+  description = "RDS Proxy endpoint for database connections (or RDS instance address if proxy disabled)"
+  value       = var.enable_rds_proxy ? aws_db_proxy.main[0].endpoint : aws_db_instance.main.address
 }
 
 # Secrets
