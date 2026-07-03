@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Sector Ranking Loader - Rank sectors by composite stock scores."""
+"""Sector Ranking Loader - Rank sectors by composite stock scores.
+
+Dependencies: stock_scores, company_profile (both must have >= 95% data completeness).
+Uses circuit breaker to prevent cascading failures when dependencies incomplete.
+"""
 
 import logging
 import sys
@@ -16,14 +20,27 @@ logger = logging.getLogger(__name__)
 
 
 class SectorRankingLoader(OptimalLoader):
-    """Rank sectors by composite score from stock_scores + company_profile."""
+    """Rank sectors by composite score from stock_scores + company_profile.
+
+    Circuit breaker pattern: Checks upstream dependency completion before proceeding.
+    Fails fast if stock_scores or company_profile data incomplete (< 95% coverage).
+    This prevents using degraded sector rankings that would harm portfolio decisions.
+    """
 
     table_name = "sector_ranking"
     primary_key = ("sector_name", "date")
     watermark_field = "date"
 
     def fetch_global(self, since: date | None) -> list[dict[str, Any]]:
-        """Compute sector rankings from stock scores and company profile data."""
+        """Compute sector rankings from stock scores and company profile data.
+
+        Circuit breaker: Validates upstream dependencies before querying.
+        Fails fast if stock_scores or company_profile incomplete.
+        """
+        # Circuit breaker: Check upstream dependencies
+        self._check_upstream_dependency("stock_scores", min_completion_pct=95)
+        self._check_upstream_dependency("company_profile", min_completion_pct=80)
+
         try:
             row = fetch_latest("price_daily", "date")
             latest_date = row["date"] if row else None
@@ -147,6 +164,55 @@ class SectorRankingLoader(OptimalLoader):
 
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
+
+    def _check_upstream_dependency(self, table_name: str, min_completion_pct: int = 95) -> None:
+        """Check that upstream dependency table has sufficient data.
+
+        Circuit breaker pattern: Fail fast if dependencies incomplete.
+        Prevents using degraded data for critical business logic (sector rankings).
+
+        Args:
+            table_name: Name of upstream table to check
+            min_completion_pct: Minimum completion percentage required (default 95%)
+
+        Raises:
+            RuntimeError: If table has less than min_completion_pct coverage
+        """
+        from utils.db.context import DatabaseContext
+
+        try:
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    "SELECT completion_pct FROM data_loader_status WHERE table_name = %s",
+                    (table_name,),
+                )
+                result = cur.fetchone()
+                if not result:
+                    raise RuntimeError(
+                        f"[SECTOR_RANKING] Upstream dependency '{table_name}' has no status record. "
+                        f"Table may not exist or loader has never run."
+                    )
+                completion_pct = result[0]
+                if completion_pct is None:
+                    raise RuntimeError(
+                        f"[SECTOR_RANKING] Upstream dependency '{table_name}' has NULL completion_pct. "
+                        f"Loader status may be corrupted."
+                    )
+                if completion_pct < min_completion_pct:
+                    raise RuntimeError(
+                        f"[SECTOR_RANKING] Circuit breaker: Upstream dependency '{table_name}' only {completion_pct:.1f}% complete "
+                        f"(required {min_completion_pct}%). Cannot compute reliable sector rankings from incomplete data. "
+                        f"Refusing to proceed to prevent data integrity violations."
+                    )
+                logger.info(
+                    f"[SECTOR_RANKING] Circuit breaker: {table_name} {completion_pct:.1f}% complete (required {min_completion_pct}%)"
+                )
+        except Exception as e:
+            logger.error(f"[SECTOR_RANKING] Failed to check upstream dependency '{table_name}': {e}")
+            raise RuntimeError(
+                f"[SECTOR_RANKING] Cannot verify upstream dependency '{table_name}': {e}. "
+                f"Failing fast to prevent data integrity violations."
+            ) from e
 
 
 if __name__ == "__main__":

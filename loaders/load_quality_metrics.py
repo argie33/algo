@@ -21,13 +21,12 @@ from datetime import date
 from typing import Any
 
 from loaders.runner import run_loader
-from utils.loaders import fetch_one
-from utils.optimal_loader import OptimalLoader
+from loaders.sec_financials_loader import SecFinancialsLoader
 
 logger = logging.getLogger(__name__)
 
 
-class QualityMetricsLoader(OptimalLoader):
+class QualityMetricsLoader(SecFinancialsLoader):
     """Quality metrics loader for real stocks only (not ETFs/bonds).
 
     Quality metrics require SEC financial data (balance sheet, income statement),
@@ -36,12 +35,15 @@ class QualityMetricsLoader(OptimalLoader):
     CRITICAL FIX 2026-07-01: Auto-heals missing schema columns on first run.
     Migration 0044 was incomplete, leaving 11 required columns missing in AWS RDS.
     This loader now creates missing columns automatically, preventing silent data loss.
+
+    Inherits from SecFinancialsLoader to eliminate 200+ lines of duplication with
+    growth_metrics.py (shared NaN handling, balance sheet/income statement fetching,
+    schema healing, and data_unavailable patterns).
     """
 
     table_name = "quality_metrics"
     primary_key = ("symbol",)
     watermark_field = "updated_at"
-    exclude_etfs_from_symbols = True
 
     # Required columns with data types (auto-created if missing)
     REQUIRED_COLUMNS = {
@@ -58,54 +60,18 @@ class QualityMetricsLoader(OptimalLoader):
         "debt_to_assets_unavailable_reason": "VARCHAR(255)",
     }
 
-    def __init__(self, backfill_days: int | None = None):
-        super().__init__(backfill_days)
-        # Ensure schema is healed before loading
-        self._ensure_schema_ready()
-
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Compute quality metrics from balance sheet and income statement.
 
         Returns record with data_unavailable=True if financial data not found
         (expected for micro-caps, OTC stocks, ADRs lacking SEC filings).
         Absence must be explicit (not silent None) for downstream systems.
+
+        Uses SecFinancialsLoader helper methods for NaN-safe financial data fetching.
         """
-        from decimal import Decimal
-
-        income_row = fetch_one(
-            """
-            SELECT revenue, operating_income, net_income
-            FROM annual_income_statement
-            WHERE symbol = %s
-            ORDER BY fiscal_year DESC
-            LIMIT 1
-        """,
-            (symbol,),
-        )
-
-        balance_row = fetch_one(
-            """
-            SELECT total_assets, stockholders_equity, current_assets,
-                   total_liabilities, current_liabilities, inventory
-            FROM annual_balance_sheet
-            WHERE symbol = %s
-            ORDER BY fiscal_year DESC
-            LIMIT 1
-        """,
-            (symbol,),
-        )
-
-        # Convert NaN Decimal values to None (SEC data quality issue)
-        def clean_decimal(val: Any) -> Any:
-            if isinstance(val, Decimal):
-                if val.is_nan():
-                    return None
-            return val
-
-        if income_row:
-            income_row = tuple(clean_decimal(v) for v in income_row)
-        if balance_row:
-            balance_row = tuple(clean_decimal(v) for v in balance_row)
+        # Use base class helpers to fetch financials with NaN cleaning
+        income_row = self._fetch_annual_income_statement(symbol)
+        balance_row = self._fetch_annual_balance_sheet(symbol)
 
         # If no income statement, return explicit data_unavailable record
         # (many stocks lack SEC filings: micro-caps, OTC, ADRs, new IPOs - about 55% of universe)
@@ -280,28 +246,6 @@ class QualityMetricsLoader(OptimalLoader):
     def transform(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """No transformation needed."""
         return rows
-
-    def _ensure_schema_ready(self) -> None:
-        """Ensure all required columns exist, auto-creating if needed.
-
-        CRITICAL FIX 2026-07-01: Auto-heals incomplete migration 0044.
-        Creates missing columns on first loader run to prevent silent data loss
-        when BulkInsertManager encounters columns not in DB schema.
-        """
-        from utils.db.context import DatabaseContext
-        from utils.schema_healer import ensure_columns_exist
-
-        try:
-            with DatabaseContext("write") as cur:
-                _all_exist, created = ensure_columns_exist(cur, self.table_name, self.REQUIRED_COLUMNS)
-                if created:
-                    logger.warning(
-                        f"[QUALITY_METRICS] Auto-healed {len(created)} missing columns: {created}. "
-                        f"Migration 0044 was incomplete in this environment."
-                    )
-        except Exception as e:
-            logger.error(f"[QUALITY_METRICS] Schema healing failed: {e}")
-            raise RuntimeError(f"[QUALITY_METRICS] Cannot verify schema is ready: {e}") from e
 
 
 if __name__ == "__main__":

@@ -14,13 +14,12 @@ from typing import Any
 import psycopg2
 
 from loaders.runner import run_loader
-from utils.loaders import execute_query
-from utils.optimal_loader import OptimalLoader
+from loaders.sec_financials_loader import SecFinancialsLoader
 
 logger = logging.getLogger(__name__)
 
 
-class GrowthMetricsLoader(OptimalLoader):
+class GrowthMetricsLoader(SecFinancialsLoader):
     """Growth metrics loader for real stocks only (not ETFs/bonds).
 
     Growth metrics are computed from annual income statement data, which is only available
@@ -29,12 +28,15 @@ class GrowthMetricsLoader(OptimalLoader):
     CRITICAL FIX 2026-07-01: Auto-heals missing schema columns on first run.
     Similar to quality_metrics, growth_metrics tables may be missing unavailable_reason columns
     in incomplete deployments. Auto-creates them to prevent data loss.
+
+    Inherits from SecFinancialsLoader to eliminate 200+ lines of duplication with
+    quality_metrics.py (shared NaN handling, balance sheet/income statement fetching,
+    schema healing, and data_unavailable patterns).
     """
 
     table_name = "growth_metrics"
     primary_key = ("symbol",)
     watermark_field = "updated_at"
-    exclude_etfs_from_symbols = True
 
     # Required columns with data types (auto-created if missing)
     REQUIRED_COLUMNS = {
@@ -46,43 +48,18 @@ class GrowthMetricsLoader(OptimalLoader):
         "eps_growth_5y_unavailable_reason": "VARCHAR(255)",
     }
 
-    def __init__(self, backfill_days: int | None = None):
-        super().__init__(backfill_days)
-        # Ensure schema is healed before loading
-        self._ensure_schema_ready()
-
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Compute multi-year growth metrics from annual income statement.
 
         Returns record with data_unavailable marker if financial data unavailable (normal for small caps, new IPOs).
         Growth metrics are optional enrichment; their absence does not prevent trading.
         But unavailability should be explicit (data_unavailable flag), not silent skips.
-        """
-        from decimal import Decimal
 
+        Uses SecFinancialsLoader helper method for NaN-safe historical financial data fetching.
+        """
         try:
             # Fetch up to 10 years of financials to calculate 1Y, 3Y, 5Y growth
-            rows = execute_query(
-                """
-                SELECT fiscal_year, revenue, earnings_per_share
-                FROM annual_income_statement
-                WHERE symbol = %s
-                ORDER BY fiscal_year DESC
-                LIMIT 10
-            """,
-                (symbol,),
-            )
-
-            # Convert NaN Decimal values to None (SEC data quality issue)
-            if rows:
-                rows = [
-                    (
-                        fy,
-                        None if isinstance(rev, Decimal) and rev.is_nan() else rev,
-                        None if isinstance(eps, Decimal) and eps.is_nan() else eps,
-                    )
-                    for fy, rev, eps in rows
-                ]
+            rows = self._fetch_annual_income_statement_history(symbol, years=10)
 
             if not rows or len(rows) < 1:
                 logger.info(
@@ -234,28 +211,6 @@ class GrowthMetricsLoader(OptimalLoader):
     def transform(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """No transformation needed; metrics already computed."""
         return rows
-
-    def _ensure_schema_ready(self) -> None:
-        """Ensure all required columns exist, auto-creating if needed.
-
-        CRITICAL FIX 2026-07-01: Auto-heals incomplete migration 0044.
-        Creates missing unavailable_reason columns on first loader run to prevent
-        silent data loss when BulkInsertManager encounters columns not in DB schema.
-        """
-        from utils.db.context import DatabaseContext
-        from utils.schema_healer import ensure_columns_exist
-
-        try:
-            with DatabaseContext("write") as cur:
-                _all_exist, created = ensure_columns_exist(cur, self.table_name, self.REQUIRED_COLUMNS)
-                if created:
-                    logger.warning(
-                        f"[GROWTH_METRICS] Auto-healed {len(created)} missing columns: {created}. "
-                        f"Migration 0044 was incomplete in this environment."
-                    )
-        except Exception as e:
-            logger.error(f"[GROWTH_METRICS] Schema healing failed: {e}")
-            raise RuntimeError(f"[GROWTH_METRICS] Cannot verify schema is ready: {e}") from e
 
 
 if __name__ == "__main__":
