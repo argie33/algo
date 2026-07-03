@@ -65,7 +65,7 @@ def handle(  # noqa: C901
                 )
             # FAIL-FAST: Extract required fields upfront, fail if missing/invalid
             fg_value = DatabaseResultValidator.safe_get_float(row, "fear_greed_value", strict=True)
-            fg_label = DatabaseResultValidator.safe_get_string(row, "fear_greed_label", strict=True)
+            fg_label = DatabaseResultValidator.safe_get_str(row, "fear_greed_label", strict=True)
             if not fg_label:
                 raise RuntimeError(
                     "Sentiment endpoint requires fear_greed_label but data is missing/NULL. "
@@ -126,7 +126,7 @@ def handle(  # noqa: C901
             # FAIL-FAST: Extract market health data upfront with safe validation
             put_call = DatabaseResultValidator.safe_get_float(row, "put_call_ratio", default=None)
             vix = DatabaseResultValidator.safe_get_float(row, "vix_level", default=None)
-            date_val = DatabaseResultValidator.safe_get_string(row, "date", default=None)
+            date_val = DatabaseResultValidator.safe_get_str(row, "date", default=None)
 
             freshness = check_data_freshness(cur, "fear_greed_index", "date", warning_days=1)
             sentiment_result = {
@@ -313,7 +313,7 @@ def handle(  # noqa: C901
                 rd = dict(r)
                 target = DatabaseResultValidator.safe_get_float(rd, "target_price", default=None)
                 if target is not None:
-                    date_str = DatabaseResultValidator.safe_get_string(rd, "date", default=None)
+                    date_str = DatabaseResultValidator.safe_get_str(rd, "date", default=None)
                     price_targets.append({
                         "date": date_str,
                         "target": target,
