@@ -308,9 +308,10 @@ def handle(  # noqa: C901
                     "ServiceUnavailable",
                     "Price data validation failed; prices batch-history query returned invalid data",
                 )
+            # FAIL-FAST: Extract symbol with safe validation in batch processing
             found_symbols = set()
             for row in rows:
-                sym = row["symbol"]
+                sym = DatabaseResultValidator.safe_get_str(row, "symbol", strict=True)
                 result3[sym].append(safe_json_serialize(dict(row)))
                 found_symbols.add(sym)
 
@@ -331,7 +332,8 @@ def handle(  # noqa: C901
                 etf_rows = execute_with_timeout(cur, etf_query, [missing, limit], timeout_sec=20)
                 if etf_rows:
                     for row in etf_rows:
-                        sym = row["symbol"]
+                        # FAIL-FAST: Extract symbol with safe validation in ETF batch processing
+                        sym = DatabaseResultValidator.safe_get_str(row, "symbol", strict=True)
                         result3[sym].append(safe_json_serialize(dict(row)))
 
             batch_result = {"symbols": result3, "limit": limit}
