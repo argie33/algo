@@ -10,13 +10,12 @@ Checks:
 import re
 import sys
 from pathlib import Path
-from typing import Dict, Set
 
 PROJECT_ROOT = Path(__file__).parent.parent
 LOADERS_DIR = PROJECT_ROOT / "loaders"
 
 
-def check_yfinance_consolidation() -> Dict[str, bool]:
+def check_yfinance_consolidation() -> dict[str, bool]:
     """Verify yfinance consolidation: metric loaders read from yfinance_snapshot."""
 
     metric_loaders = [
@@ -85,7 +84,7 @@ def check_fred_consolidation() -> bool:
     return has_batch_fetch and has_circuit_breaker
 
 
-def check_no_silent_fallbacks() -> Dict[str, bool]:
+def check_no_silent_fallbacks() -> dict[str, bool]:
     """Verify critical loaders explicitly mark data unavailability."""
 
     critical_loaders = [
@@ -113,7 +112,7 @@ def check_no_silent_fallbacks() -> Dict[str, bool]:
     return results
 
 
-def check_metric_loaders_read_from_db() -> Dict[str, bool]:
+def check_metric_loaders_read_from_db() -> dict[str, bool]:
     """Verify metric loaders read from consolidated tables, not APIs."""
 
     checks = {

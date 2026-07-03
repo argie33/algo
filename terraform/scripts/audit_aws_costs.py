@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """Audit AWS resources for waste and cost optimization."""
 
+
 import boto3
-import json
-from datetime import datetime, timedelta
 
 ec2 = boto3.client('ec2', region_name='us-east-1')
 rds = boto3.client('rds', region_name='us-east-1')
@@ -20,7 +19,7 @@ print("\n📦 EC2 INSTANCES")
 print("-" * 70)
 try:
     response = ec2.describe_instances(Filters=[{'Name': 'instance-state-name', 'Values': ['running', 'stopped']}])
-    
+
     running = 0
     stopped = 0
     for reservation in response['Reservations']:
@@ -29,20 +28,20 @@ try:
             instance_id = instance['InstanceId']
             instance_type = instance['InstanceType']
             launched = instance['LaunchTime'].strftime("%Y-%m-%d")
-            
+
             if state == 'running':
                 running += 1
                 print(f"  ⚠️  RUNNING: {instance_id} ({instance_type}) - launched {launched}")
             elif state == 'stopped':
                 stopped += 1
                 print(f"  💤 STOPPED: {instance_id} ({instance_type}) - COSTING MONEY FOR STORAGE")
-    
+
     if running == 0 and stopped == 0:
         print("  ✅ No EC2 instances")
     else:
         print(f"\n  Summary: {running} running, {stopped} stopped")
         if stopped > 0:
-            print(f"  💡 TIP: Stopped instances still cost money. Terminate if not needed.")
+            print("  💡 TIP: Stopped instances still cost money. Terminate if not needed.")
 except Exception as e:
     print(f"  ❌ Error: {e}")
 
@@ -52,7 +51,7 @@ print("-" * 70)
 try:
     response = rds.describe_db_snapshots()
     snapshots = response.get('DBSnapshots', [])
-    
+
     if not snapshots:
         print("  ✅ No RDS snapshots")
     else:
@@ -63,9 +62,9 @@ try:
             size = snap.get('AllocatedStorage', 0)
             total_size += size
             print(f"  ⚠️  {snap_id} - {size}GB - created {created}")
-        
+
         print(f"\n  💰 Total snapshot storage: {total_size}GB")
-        print(f"  💡 TIP: Delete old snapshots. Cost: ~$0.095/GB/month")
+        print("  💡 TIP: Delete old snapshots. Cost: ~$0.095/GB/month")
 except Exception as e:
     print(f"  ❌ Error: {e}")
 
@@ -75,7 +74,7 @@ print("-" * 70)
 try:
     response = s3.list_buckets()
     buckets = response.get('Buckets', [])
-    
+
     if not buckets:
         print("  ✅ No S3 buckets")
     else:
@@ -91,7 +90,7 @@ try:
                 print(f"  📦 {name}: {size_mb:.1f}MB")
             except Exception:
                 print(f"  ❌ {name}: Cannot access")
-        
+
         print(f"\n  💰 Total S3 storage: {total_size/(1024*1024):.1f}MB")
 except Exception as e:
     print(f"  ❌ Error: {e}")
@@ -102,7 +101,7 @@ print("-" * 70)
 try:
     response = lambda_client.list_functions()
     functions = response.get('Functions', [])
-    
+
     if not functions:
         print("  ✅ No Lambda functions")
     else:
@@ -120,7 +119,7 @@ print("-" * 70)
 try:
     response = logs.describe_log_groups(limit=50)
     log_groups = response.get('logGroups', [])
-    
+
     if not log_groups:
         print("  ✅ No CloudWatch log groups")
     else:
@@ -136,9 +135,9 @@ try:
             else:
                 print(f"    ✅ {name}: {retention} days")
                 total_retention += retention
-        
+
         if unlimited > 0:
-            print(f"\n  💡 TIP: Set retention limits (7-30 days) to reduce costs")
+            print("\n  💡 TIP: Set retention limits (7-30 days) to reduce costs")
 except Exception as e:
     print(f"  ❌ Error: {e}")
 
@@ -149,19 +148,19 @@ print("""
 1. 🗄️  RDS Snapshots:
    - Delete old snapshots that are no longer needed
    - Cost: ~$0.095/GB/month per snapshot
-   
+
 2. 💤 Stopped EC2:
    - Terminate stopped instances you don't need
    - Stopped instances still cost for EBS storage
-   
+
 3. 📋 CloudWatch Logs:
    - Set retention limits (7-30 days) instead of unlimited
    - Unlimited retention is expensive long-term
-   
+
 4. ⚡ Lambda:
    - Reduce memory allocation if not needed (faster = more expensive)
    - Remove unused functions
-   
+
 5. 🪣 S3:
    - Enable lifecycle policies to delete old versions
    - Move infrequent access to Glacier classes
