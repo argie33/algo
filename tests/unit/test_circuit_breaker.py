@@ -54,6 +54,7 @@ class TestCircuitBreakerBasic:
         """Test overall circuit breaker check."""
         mock_cur = Mock()
         mock_cur.fetchone.return_value = None
+        mock_cur.rowcount = 0  # Ensure rowcount is an int, not a Mock
         all_pass = {"halted": False, "passed": True}
         check_methods = [
             "_check_daily_loss",
