@@ -277,7 +277,6 @@ class FredEconomicDataLoader(OptimalLoader):
                         "T5YIE",
                         "T10YIE",
                         "DTWEXBGS",
-                        "DXY_ICE",
                         "DCOILWTICO",
                     }
 

@@ -15,7 +15,6 @@ Tables: price_daily, price_weekly, price_monthly, etf_price_daily, etf_price_wee
 import logging
 import os
 import sys
-import threading
 import time
 import uuid
 from collections.abc import Iterable
@@ -132,14 +131,6 @@ class PriceLoader(OptimalLoader):
         self._latency_window_sec = 60
         self._adaptive_request_interval = 0.375
         self._min_request_interval = 0.375
-        self._last_request_time: float | None = None
-
-        # Rate limit token bucket (thread-safe fairness)
-        self._rate_limit_event = threading.Condition()
-        self._rate_limit_tokens = 160.0
-        self._rate_limit_max_tokens = 160.0
-        self._rate_limit_refill_rate = 160.0 / 60.0
-        self._rate_limit_last_refill = time.time()
 
         # Market close data tracking
         self._market_close_detected = False
@@ -770,80 +761,6 @@ class PriceLoader(OptimalLoader):
                         f"[RATE_LIMIT_PREDICT] API latency {avg_latency:.3f}s avg, decreasing interval to {new_interval:.3f}s"
                     )
 
-    def _adaptive_request_pacing(self) -> None:
-        """CREATIVE FIX #1: Implement predictive rate limiting with request pacing.
-
-        Instead of hitting rate limits and then backing off exponentially,
-        we spread requests over time at a rate that's guaranteed to stay under the limit.
-        This prevents the circuit breaker from ever triggering.
-        """
-        if self._last_request_time is None:
-            self._last_request_time = time.time()
-            return
-
-        now = time.time()
-        elapsed = now - self._last_request_time
-        wait_needed = self._adaptive_request_interval - elapsed
-
-        if wait_needed > 0.01:  # Only sleep if >10ms wait needed
-            logger.debug(
-                f"[RATE_LIMIT_PACE] Request pacing: waiting {wait_needed:.3f}s (interval {self._adaptive_request_interval:.3f}s)"
-            )
-            time.sleep(wait_needed)
-
-        self._last_request_time = time.time()
-
-    def _rate_limit_wait(self, tokens_needed: int = 1) -> None:
-        """ISSUE #3: Thread-safe token bucket with per-thread fairness + exponential backoff.
-
-        Tokens refill at 160 per 60 seconds (2.67/sec). Supports 6 parallel threads.
-        Uses Condition variable to wake waiting threads fairly when tokens become available.
-        Prevents starvation where one thread monopolizes tokens while others wait.
-
-        CRITICAL FIX: Implements exponential backoff to prevent busy-looping if
-        consistently short on tokens. Backoff resets when tokens become available.
-        """
-        import time
-
-        backoff_multiplier = 1.0  # Start at 1.0x, increase if repeated waits needed
-        max_backoff_multiplier = 4.0  # Cap at 4.0x to limit maximum wait
-
-        while True:
-            with self._rate_limit_event:  # Use Condition variable for fairness
-                now = time.time()
-                elapsed = now - self._rate_limit_last_refill
-                # Refill tokens based on elapsed time (capped at max)
-                self._rate_limit_tokens = min(
-                    self._rate_limit_max_tokens,
-                    self._rate_limit_tokens + elapsed * self._rate_limit_refill_rate,
-                )
-                self._rate_limit_last_refill = now
-
-                if self._rate_limit_tokens >= tokens_needed:
-                    # Sufficient tokens, consume and return; reset backoff for next call
-                    self._rate_limit_tokens -= tokens_needed
-                    return
-                else:
-                    # Insufficient tokens; calculate wait time with exponential backoff
-                    tokens_short = tokens_needed - self._rate_limit_tokens
-                    wait_sec_base = tokens_short / self._rate_limit_refill_rate
-                    # Apply exponential backoff multiplier (capped)
-                    wait_sec = wait_sec_base * backoff_multiplier
-                    # Cap wait time to 1.0s * multiplier to allow checking for progress
-                    wait_sec = min(wait_sec, 1.0 * backoff_multiplier)
-                    # Increase backoff multiplier for next iteration (cap at max)
-                    backoff_multiplier = min(backoff_multiplier * 1.5, max_backoff_multiplier)
-
-            # Wait outside the lock using condition variable (wakes fairly when notified)
-            if wait_sec > 0.01:  # Only log if waiting >10ms
-                logger.debug(
-                    f"Rate limit: waiting {wait_sec:.2f}s for {tokens_needed} tokens "
-                    f"(backoff={backoff_multiplier:.1f}x, fair queue)"
-                )
-            # Note: Condition.wait() releases lock while waiting, allowing other threads to proceed
-            with self._rate_limit_event:
-                self._rate_limit_event.wait(timeout=wait_sec)  # Wake on timeout or notify()
-
     def fetch_incremental(self, symbol: str, since: date | None) -> Any:
         """Fetch OHLCV from yfinance at specified interval."""
         return self.fetcher.fetch_incremental(symbol, since, is_eod_pipeline=self._is_eod_pipeline)
@@ -1361,62 +1278,6 @@ class PriceLoader(OptimalLoader):
                     elapsed_sec,
                     e,
                 )
-
-    def _try_fetch(self, symbol: str, start: date, end: date, max_retries: int = 5) -> Any:
-        """Try to fetch data from yfinance with retry logic for transient failures."""
-        import random
-        import time
-
-        for attempt in range(max_retries):
-            try:
-                return self.router.fetch_ohlcv_interval(symbol, start, end, self.interval)
-            except Exception as e:
-                error_str = str(e).lower()
-                # Rate limit errors - retry with exponential backoff + jitter
-                if "rate" in error_str or "429" in error_str or "too many" in error_str:
-                    if attempt < max_retries - 1:
-                        # ISSUE #23 FIX: Reduced exponential backoff base from 5s to 2s
-                        # Prevents long waits: 5 retries at old rate = 310s, new rate = 62s
-                        base_wait = min(120, (2**attempt) * 2)  # 2s, 4s, 8s, 16s, 32s, 64s, 128s -> capped at 120s
-                        jitter = random.uniform(0.9, 1.1)  # Â±10% jitter
-                        wait_time = base_wait * jitter
-                        logger.warning(
-                            f"[{symbol}] Rate limited (attempt {attempt + 1}/{max_retries}), "
-                            f"retrying in {wait_time:.1f}s (base {base_wait}s)..."
-                        )
-                        time.sleep(wait_time)
-                        continue
-                    raise RuntimeError(
-                        f"[{symbol}] Rate limited after {max_retries} attempts. "
-                        "Cannot fetch price data when API is rate limited."
-                    ) from e
-                # Network/timeout errors - retry with backoff + jitter
-                if any(x in error_str for x in ["timeout", "json", "parse", "connection", "reset"]):
-                    if attempt < max_retries - 1:
-                        base_wait = 2**attempt
-                        jitter = random.uniform(0.8, 1.2)  # Â±20% jitter for network errors
-                        wait_time = base_wait * jitter
-                        logger.warning(
-                            f"[{symbol}] Transient error (attempt {attempt + 1}/{max_retries}): {e}, "
-                            f"retrying in {wait_time:.1f}s..."
-                        )
-                        time.sleep(wait_time)
-                        continue
-                    raise RuntimeError(
-                        f"[{symbol}] Transient error after {max_retries} attempts: {e}. "
-                        "Cannot fetch price data after exhausting retries."
-                    ) from e
-                # Auth errors - must fail fast
-                if "403" in error_str or "401" in error_str or "unauthorized" in error_str:
-                    raise RuntimeError(
-                        f"[{symbol}] Authentication error accessing price data: {e}. "
-                        "Cannot proceed without valid credentials."
-                    ) from e
-                # Other errors - log and re-raise
-                logger.error("[{symbol}] Unexpected error: %s", e)
-                raise
-        # Should not reach here, but if we do, raise error
-        raise RuntimeError(f"[{symbol}] Exhausted all fetch attempts without successful data fetch")
 
     def transform(self, rows: list[Any]) -> list[dict[str, Any]]:
         """Validate and filter rows. Phase 1: Reject invalid ticks. Integrated validation framework."""
