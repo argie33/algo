@@ -418,10 +418,10 @@ def fetch_perf(c: None) -> dict[str, Any]:
 
 
 def fetch_perf_analytics(c: None) -> dict[str, Any]:
-    """API-only performance analytics. All metrics are optional—may be None during ramp-up.
+    """API-only performance analytics. Fail-fast on missing critical metrics.
 
-    Sharpe, Sortino, Expectancy, etc. are computed metrics and may not be available
-    until sufficient trading history exists. Return None values gracefully.
+    STRICT MODE: Sharpe, Sortino, and Expectancy are CRITICAL metrics.
+    These determine strategy quality assessment. Missing data indicates API schema mismatch.
     """
     from dashboard.fetcher_validator import FetcherValidator
 
@@ -436,8 +436,36 @@ def fetch_perf_analytics(c: None) -> dict[str, Any]:
 
         d = data
 
-        # Performance analytics metrics are optional (None during ramp-up or insufficient history)
-        # Convert to our field names, allowing None values to pass through
+        # FAIL-FAST: If ANY metric is present but critical metrics are missing, error
+        # (allows all-None during early ramp-up, but catches schema mismatches)
+        all_fields = [
+            "rolling_sharpe_252d",
+            "rolling_sortino_252d",
+            "calmar_ratio",
+            "win_rate_50t",
+            "avg_win_r_50t",
+            "avg_loss_r_50t",
+            "expectancy",
+            "max_drawdown_pct",
+        ]
+
+        critical_fields = {
+            "rolling_sharpe_252d": "sharpe252",
+            "rolling_sortino_252d": "sortino",
+            "expectancy": "expectancy",
+        }
+
+        # Check if at least one metric exists (not in ramp-up)
+        has_any_metric = any(d.get(field) is not None for field in all_fields)
+
+        if has_any_metric:
+            # If we have some data, critical metrics must be present
+            missing_critical = [name for field, name in critical_fields.items() if d.get(field) is None]
+            if missing_critical:
+                error_msg = f"Performance analytics missing required metrics: {', '.join(missing_critical)}"
+                logger.error(f"[FAIL_FAST] {error_msg}")
+                record_data_quality_issue("perf_anl", "missing_critical_metrics", "validation", error_msg)
+                return FetcherValidator.build_error_response(error_msg)
 
         return {
             "sharpe252": safe_float(d.get("rolling_sharpe_252d"), default=None, strict=False),
