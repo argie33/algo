@@ -276,14 +276,19 @@ class TestOptionsLoader:
         """Options loader should raise on first symbol failure, not batch accumulate."""
         # This test documents the behavior: the loader now raises on first symbol error
         # instead of batch processing and failing after all symbols are processed
-        from unittest.mock import Mock, patch
+        from unittest.mock import MagicMock, Mock, patch
 
         from loaders.load_options_chains import OptionsLoader
 
         loader = OptionsLoader()
         loader._load_symbol_options = Mock(side_effect=Exception("Timeout fetching options"))
 
-        with patch("loaders.load_options_chains.DatabaseContext"):
+        # Mock DatabaseContext to return constituent symbols so filtering doesn't fail
+        with patch("loaders.load_options_chains.DatabaseContext") as mock_db:
+            mock_cursor = MagicMock()
+            mock_cursor.fetchall.return_value = [("AAPL",), ("MSFT",)]  # Market constituents
+            mock_db.return_value.__enter__.return_value = mock_cursor
+
             with pytest.raises(RuntimeError, match="Options data loading failed on symbol"):
                 loader.run(symbols=["AAPL", "MSFT"])
 

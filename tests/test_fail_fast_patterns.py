@@ -16,26 +16,22 @@ class TestEarningsCalendarFailFast:
     """Earnings calendar must fail-fast on unparseable dates."""
 
     def test_earnings_date_parse_error_raises(self):
-        """Unparseable earnings date should raise, not continue."""
+        """Missing earnings date from upstream should raise, not silently continue."""
         from loaders.load_earnings_calendar import EarningsCalendarLoader
-        from utils.external.yfinance import get_ticker
+        from utils.db.context import DatabaseContext
 
         loader = EarningsCalendarLoader()
 
-        # Mock yfinance response with unparseable date
-        mock_ticker = Mock()
-        mock_ticker.calendar = {
-            "Earnings Date": ["invalid-date-string"],
-            "Earnings Average": 2.5,
-            "Revenue Average": 1000000,
-        }
+        # Mock database response with snapshot data but no earnings date
+        with patch.object(DatabaseContext, "__enter__") as mock_enter:
+            mock_cursor = MagicMock()
+            # Return a dict-like object with no data_available
+            mock_cursor.fetchone.return_value = None
+            mock_enter.return_value = mock_cursor
 
-        with patch("utils.external.yfinance.get_ticker", return_value=mock_ticker):
-            with patch.object(loader, "_track_symbol_failure", return_value=False):  # Return False to stop retries
-                # Should raise ValueError after retries are exhausted
-                # (Previously would have silently continued with continue statement)
-                with pytest.raises(ValueError, match="Unexpected error fetching earnings"):
-                    loader.fetch_incremental("AAPL", date(2026, 1, 1))
+            # Should raise RuntimeError when yfinance_snapshot row not found
+            with pytest.raises(RuntimeError, match="yfinance_snapshot"):
+                loader.fetch_incremental("AAPL", date(2026, 1, 1))
 
 
 class TestVIXFetcherFailFast:

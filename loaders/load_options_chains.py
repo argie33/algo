@@ -82,14 +82,14 @@ class OptionsLoader:
             )
 
             if not symbols:
-                logger.warning("[OPTIONS_CHAINS] No symbols with active options found after filtering")
-                return {
-                    "status": "success",
-                    "chains_inserted": 0,
-                    "iv_inserted": 0,
-                    "symbols_processed": 0,
-                    "data_unavailable": True,
-                }
+                raise RuntimeError(
+                    "[OPTIONS_CHAINS] No symbols with active options found after filtering. "
+                    "Cannot proceed with options data loading without valid symbols. "
+                    "Check constituent list or symbol filtering logic."
+                )
+        except RuntimeError:
+            # Re-raise filtering result errors (no symbols after filter)
+            raise
         except Exception as e:
             logger.warning(f"[OPTIONS_CHAINS] Could not filter symbols by constituents: {e}. Proceeding with all symbols.")
             # Fallback: proceed with all symbols if filtering fails
