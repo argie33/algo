@@ -12,6 +12,14 @@ Computes composite stock scores by aggregating:
 Each factor is normalized to 0-100 scale and weighted.
 Final composite score is weighted average of all factors.
 
+CRITICAL GOVERNANCE RULES:
+- Minimum 3/6 metrics (50%) required for any stock score (no IPO exceptions)
+- All stocks use uniform standards regardless of age or listing status
+- Momentum requires proper lookback: 30d, 60d, 120d, 252d (no short-term fallback)
+- All metric data validated before access (fail-fast on schema mismatches)
+- Data corruption detected → RuntimeError (never silent degradation)
+- Explicit data_unavailable markers in DB for operator visibility
+
 Run: python3 loaders/load_stock_scores.py [--symbols AAPL,MSFT] [--parallelism 8]
 """
 
@@ -461,8 +469,20 @@ class StockScoresLoader(OptimalLoader):
     # - No None returns anywhere — either real data or explicit data_unavailable marker
     # - Marker dicts always have {"data_unavailable": True, "reason": "..."}
     #
+    # FIELD CONVERSION (CRITICAL SAFETY):
+    # - All numeric fields converted via self._safe_float() (never raw float())
+    # - self._safe_float() raises RuntimeError on type conversion failure
+    # - Prevents data corruption from propagating silently
+    # - Every field conversion distinguishes None (no data) from ValueError (corrupted data)
+    #
     # DATA VALIDATION (FAIL-FAST):
-    # - All _get_* functions validate row length before accessing indices (prevents IndexError)
+    # - All _get_* functions validate row length before accessing indices (6 bound checks)
+    #   * _get_quality_metrics: 9 columns (roe through data_unavailable)
+    #   * _get_growth_metrics: 7 columns (revenue_growth_1y through data_unavailable)
+    #   * _get_value_metrics: 7 columns (pe_ratio through data_unavailable)
+    #   * _get_positioning_metrics: 4 columns (institutional_ownership through data_unavailable)
+    #   * _get_stability_metrics: 5 columns (volatility_252d through data_unavailable)
+    #   * _get_momentum_metrics: 5 columns (current through price_12m_ago)
     # - All _score_* functions return marker dicts if input metrics are missing/incomplete
     # - Momentum metrics: Require proper lookback periods (30d/60d/120d/252d), not degraded estimates
     # - Stock minimum: Require 3/6 metrics (50%) regardless of stock age (no IPO exceptions)
@@ -478,17 +498,27 @@ class StockScoresLoader(OptimalLoader):
     # - Returns data_unavailable dict to DB only on exceptions (operator visibility)
     #
     # KEY CHANGES (2026-07-03):
-    # 1. All _get_* now validate row length before accessing (15 bound checks)
-    # 2. Removed new-listing exception that allowed 2/6 metrics
-    # 3. Removed short-term momentum fallback (2/4/7/14 day lookbacks violated standards)
-    # 4. Type hints: Removed | None from _score_* returns (always float or dict)
+    # 1. All _get_* now validate row length before accessing (6 bound checks × 1-5 fields = 15+ validations)
+    # 2. All numeric conversions use self._safe_float() consistently (prevents type corruption)
+    # 3. Removed new-listing exception that allowed 2/6 metrics
+    # 4. Removed short-term momentum fallback (2/4/7/14 day lookbacks violated standards)
+    # 5. Type hints: Removed | None from _score_* returns (always float or dict)
+    # 6. Updated all docstrings with MINIMUM DATA REQUIREMENT sections
     # ====================================================
 
     def _get_quality_metrics(self, cur: Any, symbol: str) -> dict[str, Any]:
         """Fetch quality metrics for symbol.
 
         Returns explicit marker dict if data is unavailable (either no row or data_unavailable=True).
-        Raises on database errors.
+        Raises RuntimeError on database errors or data type mismatches.
+
+        VALIDATION RULES:
+        - Row length validation: Must have 9 columns (roe, roa, operating_margin, net_margin,
+          debt_to_equity, current_ratio, quick_ratio, quality_score, data_unavailable)
+        - Schema mismatch (len(row) < 9) → raises ValueError immediately
+        - All numeric fields converted via self._safe_float() (detects data corruption)
+        - data_unavailable=True flag → returns marker dict even if row exists
+        - No row at all → returns marker dict with reason="no_quality_metrics_found"
 
         CRITICAL FIX 2026-07-01: Now checks data_unavailable flag. Some securities (REITs, etc.)
         have rows marked data_unavailable=True with NULL values. Previously returned NULLs instead
@@ -498,7 +528,8 @@ class StockScoresLoader(OptimalLoader):
         table instead of re-computing from individual metrics. This ensures consistency between
         load_quality_metrics.py (which computes the score) and load_stock_scores.py (which uses it).
 
-        MINIMUM DATA REQUIREMENT: Row must have 9 columns (roe through data_unavailable).
+        MINIMUM DATA REQUIREMENT: Row must have exactly 9 columns. Missing columns causes immediate
+        fail-fast ValueError to prevent silent data corruption.
         """
         try:
             cur.execute(
@@ -545,13 +576,22 @@ class StockScoresLoader(OptimalLoader):
         """Fetch growth metrics for symbol.
 
         Returns explicit marker dict if data is unavailable (either no row or data_unavailable=True).
-        Raises on database errors.
+        Raises RuntimeError on database errors or data type mismatches.
+
+        VALIDATION RULES:
+        - Row length validation: Must have 7 columns (revenue_growth_1y, revenue_growth_3y,
+          revenue_growth_5y, eps_growth_1y, eps_growth_3y, eps_growth_5y, data_unavailable)
+        - Schema mismatch (len(row) < 7) → raises ValueError immediately
+        - All numeric fields converted via self._safe_float() (detects data corruption)
+        - data_unavailable=True flag → returns marker dict even if row exists
+        - No row at all → returns marker dict with reason="no_growth_metrics_found"
 
         CRITICAL FIX 2026-07-01: Now checks data_unavailable flag. Some securities have rows
         marked data_unavailable=True with NULL values. Previously returned NULLs instead of
         marker; now properly returns marker dict.
 
-        MINIMUM DATA REQUIREMENT: Row must have 7 columns (revenue_growth_1y through data_unavailable).
+        MINIMUM DATA REQUIREMENT: Row must have exactly 7 columns. Missing columns causes immediate
+        fail-fast ValueError. Dependent on upstream annual_income_statement availability.
         """
         try:
             cur.execute(
@@ -595,13 +635,22 @@ class StockScoresLoader(OptimalLoader):
         """Fetch value metrics for symbol.
 
         Returns explicit marker dict if data is unavailable (either no row or data_unavailable=True).
-        Raises on database errors.
+        Raises RuntimeError on database errors or data type mismatches.
+
+        VALIDATION RULES:
+        - Row length validation: Must have 7 columns (pe_ratio, pb_ratio, ps_ratio, peg_ratio,
+          dividend_yield, fcf_yield, data_unavailable)
+        - Schema mismatch (len(row) < 7) → raises ValueError immediately
+        - All numeric fields converted via self._safe_float() (detects data corruption)
+        - data_unavailable=True flag → returns marker dict even if row exists
+        - No row at all → returns marker dict with reason="no_value_metrics_found"
 
         CRITICAL FIX 2026-07-01: Now checks data_unavailable flag. Some securities have rows
         marked data_unavailable=True with NULL values. Previously returned NULLs instead of
         marker; now properly returns marker dict.
 
-        MINIMUM DATA REQUIREMENT: Row must have 7 columns (pe_ratio through data_unavailable).
+        MINIMUM DATA REQUIREMENT: Row must have exactly 7 columns. Missing columns causes immediate
+        fail-fast ValueError. Required metric for stock scoring (critical upstream loader).
         """
         try:
             cur.execute(
@@ -645,13 +694,22 @@ class StockScoresLoader(OptimalLoader):
         """Fetch positioning metrics for symbol.
 
         Returns explicit marker dict if data is unavailable (either no row or data_unavailable=True).
-        Raises on database errors.
+        Raises RuntimeError on database errors or data type mismatches.
+
+        VALIDATION RULES:
+        - Row length validation: Must have 4 columns (institutional_ownership, insider_ownership,
+          short_interest_percent, data_unavailable)
+        - Schema mismatch (len(row) < 4) → raises ValueError immediately
+        - All numeric fields converted via self._safe_float() (detects data corruption)
+        - data_unavailable=True flag → returns marker dict even if row exists
+        - No row at all → returns marker dict with reason="no_positioning_metrics_found"
 
         CRITICAL FIX 2026-07-01: Now checks data_unavailable flag. Weird securities (ETFs,
         preferreds, depositary shares) have rows marked data_unavailable=True with NULL values.
         Previously returned NULLs instead of marker; now properly returns marker dict.
 
-        MINIMUM DATA REQUIREMENT: Row must have 4 columns (institutional_ownership through data_unavailable).
+        MINIMUM DATA REQUIREMENT: Row must have exactly 4 columns. Missing columns causes immediate
+        fail-fast ValueError. Not available for REITs/special securities (expected, handled gracefully).
         """
         try:
             cur.execute(
@@ -692,13 +750,25 @@ class StockScoresLoader(OptimalLoader):
         """Fetch stability metrics for symbol.
 
         Returns explicit marker dict if data is unavailable (either no row or data_unavailable=True).
-        Raises on database errors.
+        Raises RuntimeError on database errors or data type mismatches.
+
+        VALIDATION RULES:
+        - Row length validation: Must have 5 columns (volatility_252d, volatility_60d,
+          volatility_30d, beta, data_unavailable)
+        - Schema mismatch (len(row) < 5) → raises ValueError immediately
+        - All numeric fields converted via self._safe_float() (detects data corruption)
+        - data_unavailable=True flag → returns marker dict even if row exists
+        - No row at all → returns marker dict with reason="no_stability_metrics_found"
 
         CRITICAL FIX 2026-07-01: Now checks data_unavailable flag. Some securities have rows
         marked data_unavailable=True with NULL values. Previously returned NULLs instead of
         marker; now properly returns marker dict.
 
-        MINIMUM DATA REQUIREMENT: Row must have 5 columns (volatility_252d through data_unavailable).
+        CRITICAL FIX 2026-07-03: Now uses self._safe_float() for all numeric fields to detect
+        data corruption. Previous inline float() bypassed error handling.
+
+        MINIMUM DATA REQUIREMENT: Row must have exactly 5 columns. Missing columns causes immediate
+        fail-fast ValueError. Required metric for stock scoring (critical upstream loader).
         """
         try:
             cur.execute(
@@ -723,10 +793,10 @@ class StockScoresLoader(OptimalLoader):
                     return {"symbol": symbol, "data_unavailable": True, "reason": "stability_data_marked_unavailable"}
                 # Row exists and data is available
                 return {
-                    "volatility_252d": float(row[0]) if row[0] is not None else None,
-                    "volatility_60d": float(row[1]) if row[1] is not None else None,
-                    "volatility_30d": float(row[2]) if row[2] is not None else None,
-                    "beta": float(row[3]) if row[3] is not None else None,
+                    "volatility_252d": self._safe_float(row[0], f"{symbol}.volatility_252d"),
+                    "volatility_60d": self._safe_float(row[1], f"{symbol}.volatility_60d"),
+                    "volatility_30d": self._safe_float(row[2], f"{symbol}.volatility_30d"),
+                    "beta": self._safe_float(row[3], f"{symbol}.beta"),
                 }
             # No row exists at all
             logger.warning(
@@ -742,17 +812,30 @@ class StockScoresLoader(OptimalLoader):
         Uses date arithmetic to find approximate prices at 1m/3m/6m/12m ago.
         More robust than OFFSET which breaks on data gaps or different row counts.
 
-        MINIMUM DATA REQUIREMENTS (STRICT FAIL-FAST):
-        - 1m momentum: 30 days of price history minimum
-        - 3m momentum: 60 days of price history minimum
-        - 6m momentum: 120 days of price history minimum
-        - 12m momentum: 252 days of price history minimum
+        VALIDATION RULES:
+        - Row length validation: Must have 5 columns (current, price_1m_ago, price_3m_ago,
+          price_6m_ago, price_12m_ago)
+        - Schema mismatch (len(row) < 5) → raises ValueError immediately
+        - All numeric fields converted via self._safe_float() (detects data corruption)
+        - Returns marker dict if any critical price is missing/None
+        - No row at all → returns marker dict with reason="no_momentum_data_available"
 
-        Returns marker dict if insufficient historical data. Raises on database errors.
+        MINIMUM DATA REQUIREMENTS (STRICT FAIL-FAST):
+        - 1m momentum: 30 days of price history minimum (None if insufficient)
+        - 3m momentum: 60 days of price history minimum (None if insufficient)
+        - 6m momentum: 120 days of price history minimum (None if insufficient)
+        - 12m momentum: 252 days of price history minimum (None if insufficient)
+        - All momentum values set to None if corresponding historical price missing
 
         REMOVED: Short-term fallback for new listings. Momentum metrics require proper historical
-        data; insufficient lookback periods indicate unreliable technical signals. Better to mark
-        momentum unavailable than to use 2/4/7/14-day "estimates" that violate financial standards.
+        data; insufficient lookback periods (2/4/7/14 days) indicate unreliable technical signals.
+        If historical data is insufficient, momentum values are None (not guessed).
+
+        CRITICAL FIX 2026-07-03: Now uses self._safe_float() for all price fields to detect
+        data corruption. Previous inline float() bypassed error handling.
+
+        Returns marker dict if no prices at all. Otherwise returns dict with momentum values
+        (which may be None for individual timeframes if historical data missing).
         """
         try:
             # CRITICAL: Validate row has expected 5 columns before accessing indices
@@ -777,11 +860,11 @@ class StockScoresLoader(OptimalLoader):
                     )
 
                 prices = {
-                    "current": float(row[0]) if row[0] is not None else None,
-                    "price_1m_ago": float(row[1]) if row[1] is not None else None,
-                    "price_3m_ago": float(row[2]) if row[2] is not None else None,
-                    "price_6m_ago": float(row[3]) if row[3] is not None else None,
-                    "price_12m_ago": float(row[4]) if row[4] is not None else None,
+                    "current": self._safe_float(row[0], f"{symbol}.current_price"),
+                    "price_1m_ago": self._safe_float(row[1], f"{symbol}.price_1m_ago"),
+                    "price_3m_ago": self._safe_float(row[2], f"{symbol}.price_3m_ago"),
+                    "price_6m_ago": self._safe_float(row[3], f"{symbol}.price_6m_ago"),
+                    "price_12m_ago": self._safe_float(row[4], f"{symbol}.price_12m_ago"),
                 }
 
                 current = prices["current"]
@@ -835,9 +918,20 @@ class StockScoresLoader(OptimalLoader):
 
         Internal function: caller (_compute_stock_score) converts marker dicts to None.
 
+        RETURN TYPES (STRICT):
+        - metrics available with quality_score → returns float (0-100)
+        - metrics available with component fields → returns float (0-100)
+        - metrics marked data_unavailable=True → returns marker dict (never None)
+        - metrics is None or missing → returns marker dict (never None)
+
+        ERROR HANDLING:
+        - Type conversion errors → RuntimeError (via _safe_float)
+        - No scoreable fields → returns marker dict with reason="no_quality_scores_computed"
+
         CRITICAL FIX 2026-07-01: Use pre-computed quality_score from load_quality_metrics.py
         when available (quality_score in metrics dict). This ensures consistency and avoids
-        discrepancies between the two scoring algorithms.
+        discrepancies between the two scoring algorithms. Now uses self._safe_float() for
+        robust error handling.
 
         MINIMUM DATA REQUIREMENT: At least one of ROE/ROA/margin/ratio metrics must be
         non-NULL. If all component metrics are None, returns data_unavailable marker.
@@ -849,8 +943,14 @@ class StockScoresLoader(OptimalLoader):
 
         # Use pre-computed quality_score from load_quality_metrics.py if available
         if metrics.get("quality_score") is not None:
-            logger.debug(f"[STOCK_SCORES] Using pre-computed quality_score for {symbol}: {metrics['quality_score']}")
-            return float(metrics["quality_score"])
+            quality_score_value = self._safe_float(metrics["quality_score"], f"{symbol}.quality_score")
+            if quality_score_value is not None:
+                logger.debug(f"[STOCK_SCORES] Using pre-computed quality_score for {symbol}: {quality_score_value}")
+                return quality_score_value
+            # Should not reach here (quality_score is not None so _safe_float won't return None)
+            # but type-safe fallback in case of unexpected state
+            logger.warning(f"[STOCK_SCORES] quality_score was present but converted to None for {symbol}")
+            return {"symbol": symbol, "data_unavailable": True, "reason": "quality_score_conversion_failed"}
 
         scores = []
 
@@ -904,14 +1004,25 @@ class StockScoresLoader(OptimalLoader):
     def _score_growth(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any]:
         """Score growth metrics on 0-100 scale. Returns marker dict if no real data.
 
-        Uses weighted blend: 1Y growth (60%) + 3Y CAGR (30%) + 5Y CAGR (10%).
+        Uses weighted blend: EPS 1Y (35%) + Revenue 1Y (25%) + EPS 3Y (20%) + Revenue 3Y (15%) + EPS 5Y (5%).
         Longer-term growth signals more durable earnings quality.
+
+        RETURN TYPES (STRICT):
+        - metrics available with ≥1 growth field → returns float (0-100)
+        - metrics marked data_unavailable=True → returns marker dict (never None)
+        - metrics is None or missing → returns marker dict (never None)
+        - all growth fields None → returns marker dict with reason="no_growth_scores_computed"
+
+        ERROR HANDLING:
+        - Type conversion errors → RuntimeError (via _safe_float)
+        - Negative growth rates → valid scores (negative growth maps to 0-40 scale)
 
         Internal function: caller (_compute_stock_score) explicitly handles marker dicts
         and uses them for growth metric computation.
 
         MINIMUM DATA REQUIREMENT: At least one of revenue_growth or eps_growth metrics must
         be non-NULL. If all growth metrics are None, returns data_unavailable marker.
+        Dependent on upstream annual_income_statement availability.
         """
         if not metrics or metrics.get("data_unavailable"):
             logger.debug(f"[STOCK_SCORES] Growth metrics unavailable for {symbol}")
@@ -971,14 +1082,25 @@ class StockScoresLoader(OptimalLoader):
     def _score_value(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any]:
         """Score value metrics on 0-100 scale. Returns marker dict if no real data.
 
-        Uses P/E (primary), P/B (secondary), FCF yield (secondary), dividend yield (bonus).
+        Uses weighted scoring: P/E (50%) + P/B (25%) + FCF yield (15%) + Dividend yield (10%).
         Peak zone for growth stocks: P/E 15-30, P/B < 5, positive FCF yield.
+
+        RETURN TYPES (STRICT):
+        - metrics available with ≥1 value field → returns float (0-100)
+        - metrics marked data_unavailable=True → returns marker dict (never None)
+        - metrics is None or missing → returns marker dict (never None)
+        - all value fields None → returns marker dict with reason="no_value_scores_computed"
+
+        ERROR HANDLING:
+        - Type conversion errors → RuntimeError (via _safe_float)
+        - Negative P/E or P/B → skipped (invalid for valuation)
 
         Internal function: caller (_compute_stock_score) explicitly handles marker dicts
         and uses them for value metric computation.
 
         MINIMUM DATA REQUIREMENT: At least one of PE/PB/FCF/dividend metrics must be
         non-NULL. If all value metrics are None, returns data_unavailable marker.
+        Critical metric for stock scoring (high priority upstream loader).
         """
         if not metrics or metrics.get("data_unavailable"):
             logger.debug(f"[STOCK_SCORES] Value metrics unavailable for {symbol}")
@@ -1041,12 +1163,26 @@ class StockScoresLoader(OptimalLoader):
     def _score_positioning(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any]:
         """Score positioning metrics on 0-100 scale. Returns marker dict if no real data.
 
+        Uses weighted scoring: Institutional ownership (55%) + Insider ownership (20%) + Short interest (25%).
+        Higher institutional + insider ownership and lower short interest signal positive positioning.
+
+        RETURN TYPES (STRICT):
+        - metrics available with ≥1 positioning field → returns float (0-100)
+        - metrics marked data_unavailable=True → returns marker dict (never None)
+        - metrics is None or missing → returns marker dict (never None)
+        - all positioning fields None → returns marker dict with reason="no_positioning_scores_computed"
+
+        ERROR HANDLING:
+        - Type conversion errors → RuntimeError (via _safe_float)
+        - Missing positioning data → marker dict (expected for REITs and special securities)
+
         Internal function: caller (_compute_stock_score) explicitly handles marker dicts
-        and uses them for positioning metric computation.
+        and uses them for positioning metric computation. Position weight redistribution
+        applies if positioning unavailable.
 
         MINIMUM DATA REQUIREMENT: At least one of institutional_ownership/insider_ownership/
         short_interest metrics must be non-NULL. If all positioning metrics are None,
-        returns data_unavailable marker.
+        returns data_unavailable marker. Optional for REITs/special securities.
         """
         if not metrics or metrics.get("data_unavailable"):
             logger.debug(f"[STOCK_SCORES] Positioning metrics unavailable for {symbol}")
@@ -1098,12 +1234,23 @@ class StockScoresLoader(OptimalLoader):
     def _score_stability(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any]:
         """Score stability metrics on 0-100 scale. Returns marker dict if no real data.
 
-        Uses 12-month volatility (primary), beta vs market (secondary),
-        and debt-to-assets (tertiary solvency signal).
+        Uses weighted scoring: Volatility 252d (50%) + Volatility 60d (25%) + Beta (15%) + Debt-to-assets (10%).
+        Lower volatility and beta closer to 1.0 indicate stable, market-correlated stocks.
+        Lower debt-to-assets indicates stronger financial stability.
+
+        RETURN TYPES (STRICT):
+        - metrics available with ≥1 stability field → returns float (0-100)
+        - metrics marked data_unavailable=True → returns marker dict (never None)
+        - metrics is None or missing → returns marker dict (never None)
+        - all stability fields None → returns marker dict with reason="no_stability_scores_computed"
+
+        ERROR HANDLING:
+        - Type conversion errors → RuntimeError (via _safe_float)
+        - Negative volatility → treated as 0 (impossible case, but defensive)
 
         MINIMUM DATA REQUIREMENT: At least one of volatility_252d/volatility_60d/beta/
         debt_to_assets metrics must be non-NULL. If all stability metrics are None,
-        returns data_unavailable marker.
+        returns data_unavailable marker. Critical metric for stock scoring (high priority upstream loader).
         """
         if not metrics or metrics.get("data_unavailable"):
             logger.debug(f"[STOCK_SCORES] Returning data_unavailable marker for stability_score({symbol})")
@@ -1166,12 +1313,23 @@ class StockScoresLoader(OptimalLoader):
     def _score_momentum(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any]:
         """Score momentum metrics on 0-100 scale. Returns marker dict if no real data.
 
+        Uses weighted scoring: Momentum 1m (30%) + Momentum 3m (30%) + Momentum 6m (25%) + Momentum 12m (15%).
         Weights favor recent momentum (1m/3m) over longer-term (12m) for swing trading.
-        Normalizes by total weight of available timeframes so partial data doesn't
-        deflate the score.
+        Normalizes by total weight of available timeframes so partial data doesn't deflate the score.
+
+        RETURN TYPES (STRICT):
+        - metrics available with ≥1 momentum field → returns float (0-100)
+        - metrics marked data_unavailable=True → returns marker dict (never None)
+        - metrics is None or missing → returns marker dict (never None)
+        - all momentum fields None → returns marker dict with reason="no_momentum_scores_computed"
+
+        ERROR HANDLING:
+        - Weak momentum (±3%) → returns None for that timeframe (insufficient signal)
+        - Missing historical prices → timeframe momentum is None (not guessed)
 
         MINIMUM DATA REQUIREMENT: At least one of 1m/3m/6m/12m momentum values must be
         available (not None). If all momentum values are None/missing, returns data_unavailable marker.
+        Requires minimum 30/60/120/252 days of price history per timeframe (no short-term fallback).
         """
         if not metrics or metrics.get("data_unavailable"):
             logger.debug(f"[STOCK_SCORES] Returning data_unavailable marker for momentum_score({symbol})")
