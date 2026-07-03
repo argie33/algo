@@ -400,14 +400,14 @@ def _build_buy_signals_table(
                 stop_lvl_ratio = safe_float(stop_lvl, field_name="stoplevel")
                 if stop_lvl_ratio is not None and stop_lvl_ratio > 0 and buy_lvl_ratio is not None:
                     rr_ratio = (buy_lvl_ratio - stop_lvl_ratio) / stop_lvl_ratio
-            except (StrictValidationError, ValueError, TypeError, ZeroDivisionError):
-                pass
+            except (StrictValidationError, ValueError, TypeError, ZeroDivisionError) as e:
+                logger.warning(f"[SIGNAL_PANEL] R/R ratio calculation failed (buy={buy_lvl}, stop={stop_lvl}): {e}")
 
         comp_v: float | None = None
         try:
             comp_v = safe_float(comp_score, field_name="composite_score")
-        except (StrictValidationError, ValueError, TypeError):
-            pass
+        except (StrictValidationError, ValueError, TypeError) as e:
+            logger.warning(f"[SIGNAL_PANEL] Composite score conversion failed (comp_score={comp_score}): {e}")
         comp_c: str = _composite_score_color(comp_v) if comp_v is not None else "dim"
         swing_c: str = (
             G
