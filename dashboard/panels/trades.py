@@ -199,7 +199,7 @@ def panel_recent_trades(trades: Any) -> Any:
         rmul = safe_float(rmul_raw)
         entry_p = safe_float(entry_raw)
         exit_p = safe_float(exit_raw)
-        dur = safe_int(dur_raw)
+        dur = int(dur_raw) if dur_raw is not None else None
         exit_date = safe_get_field(tr, "exit_date") or safe_get_field(tr, "trade_date")
 
         has_pnl = pnl_p is not None

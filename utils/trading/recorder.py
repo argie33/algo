@@ -139,10 +139,10 @@ class TradeRecorder:
                         logger.warning(f"No open position for {symbol}, cannot record exit")
                         return False
 
-                # Get entry price for P&L calculation
+                # Get entry price and entry date for P&L calculation and duration
                 cursor.execute(
                     """
-                    SELECT entry_price FROM algo_trades
+                    SELECT entry_price, entry_date FROM algo_trades
                     WHERE symbol = %s AND exit_date IS NULL
                     ORDER BY entry_time DESC LIMIT 1
                 """,
@@ -154,6 +154,7 @@ class TradeRecorder:
                     return False
 
                 entry_price = float(entry_row[0])
+                entry_date = entry_row[1]
 
                 # Validate entry price
                 if entry_price <= 0:
@@ -173,12 +174,15 @@ class TradeRecorder:
                     )
                 pnl_pct = (exit_price - entry_price) / entry_price * 100
 
+                # Calculate trade duration
+                trade_duration_days = (exit_date - entry_date).days
+
                 # Update trade record (most recent entry for this symbol)
                 cursor.execute(
                     """
                     UPDATE algo_trades
                     SET exit_date = %s, exit_price = %s, profit_loss_dollars = %s, profit_loss_pct = %s,
-                        exit_reason = %s, updated_at = CURRENT_TIMESTAMP
+                        exit_reason = %s, trade_duration_days = %s, updated_at = CURRENT_TIMESTAMP
                     WHERE id = (
                         SELECT id FROM algo_trades
                         WHERE symbol = %s AND exit_date IS NULL
@@ -191,6 +195,7 @@ class TradeRecorder:
                         Decimal(str(pnl)),
                         Decimal(str(pnl_pct)),
                         reason,
+                        trade_duration_days,
                         symbol,
                     ),
                 )
