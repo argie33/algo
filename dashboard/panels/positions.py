@@ -158,6 +158,7 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
         t.add_column("Swing", justify="right", no_wrap=True, min_width=4)
         t.add_column("Sector", style="dim", no_wrap=True, max_width=12)
     invalid_count = 0
+    valid_count = 0
     for p in pos_items:
         # Validate position dict structure
         if not isinstance(p, dict):
@@ -267,16 +268,17 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
                 sec,
             ]
         t.add_row(*row)
+        valid_count += 1
 
     content = t
     age_s = f"  [dim]{fmt_age(pos_timestamp)}[/]" if pos_timestamp is not None else ""
     if invalid_count > 0:
         logger.error(f"panel_positions: encountered {invalid_count} invalid position(s); display may be incomplete")
         border = "red"
-        title_str = f"[bold red]POSITIONS ⚠ DATA ERROR ({invalid_count} invalid)[/]"
+        title_str = f"[bold red]POSITIONS ⚠ DATA ERROR ({valid_count}/{len(pos_items)} valid)[/]"
     else:
         border = "cyan"
-        title_str = f"[bold cyan]POSITIONS ({len(pos_items)})[/]"
+        title_str = f"[bold cyan]POSITIONS ({valid_count})[/]"
     return Panel(
         content,
         title=f"{title_str}{age_s}  [dim][p] expand[/]",

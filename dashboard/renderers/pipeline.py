@@ -269,15 +269,16 @@ def render_expanded_view(  # noqa: C901
                     *_exp_top, Panel("[red]Positions data structure invalid[/]", border_style="red")
                 )
             hint = Text.from_markup("[dim]press [/][bold cyan]p[/][dim] to return to dashboard[/]")
+            pos_panel = panel_positions(ctx.pos, compact=False, trades=ctx.trades, extended=True)
             return _expanded_layout(
                 *_exp_top,
                 Panel(
                     Group(
                         hint,
                         Rule(style="dim"),
-                        panel_positions(ctx.pos, compact=False, trades=ctx.trades, extended=True),
+                        pos_panel,
                     ),
-                    title=f"[bold cyan]ALL POSITIONS ({len(_pos_items)})[/]  [dim][p] return[/]",
+                    title=f"{pos_panel.title}  [dim][p] return[/]",
                     border_style="cyan",
                     padding=(0, 1),
                 ),
