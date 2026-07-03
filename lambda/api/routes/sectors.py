@@ -283,14 +283,12 @@ def handle(  # noqa: C901
             sectors = []
             for row in sectors_data:
                 s = safe_json_serialize(dict(row))
-                composite_val = s.get("composite_score")
-                composite = float(composite_val)
-                perf1d_val = s.get("perf_1d")
-                perf1d = float(perf1d_val)
-                perf5d_val = s.get("perf_5d")
-                perf5d = float(perf5d_val)
-                perf20d_val = s.get("perf_20d")
-                perf20d = float(perf20d_val)
+                # FAIL-FAST: Extract float fields upfront, check None before float() conversion
+                from utils.validation import DatabaseResultValidator
+                composite = DatabaseResultValidator.safe_get_float(s, "composite_score", default=None)
+                perf1d = DatabaseResultValidator.safe_get_float(s, "perf_1d", default=None)
+                perf5d = DatabaseResultValidator.safe_get_float(s, "perf_5d", default=None)
+                perf20d = DatabaseResultValidator.safe_get_float(s, "perf_20d", default=None)
                 if composite is not None:
                     if composite >= 60:
                         momentum_label = "Strong"
@@ -311,40 +309,45 @@ def handle(  # noqa: C901
                 else:
                     trend_label = None
 
-                rank_val = s.get("current_rank")
-                stock_count_val = s.get("stock_count")
-                momentum_score_val = s.get("momentum_score")
-                value_score_val = s.get("value_score")
-                quality_score_val = s.get("quality_score")
-                growth_score_val = s.get("growth_score")
-                stability_score_val = s.get("stability_score")
-                trailing_pe_val = s.get("avg_trailing_pe")
-                pb_ratio_val = s.get("avg_pb_ratio")
-                pe_percentile_val = s.get("pe_percentile")
+                # FAIL-FAST: Extract all required fields upfront with safe validation
+                rank = DatabaseResultValidator.safe_get_int(s, "current_rank", strict=True)
+                rank_1w = DatabaseResultValidator.safe_get_int(s, "rank_1w_ago", default=None)
+                rank_4w = DatabaseResultValidator.safe_get_int(s, "rank_4w_ago", default=None)
+                rank_12w = DatabaseResultValidator.safe_get_int(s, "rank_12w_ago", default=None)
+                stock_count = DatabaseResultValidator.safe_get_int(s, "stock_count", default=None)
+                momentum_score = DatabaseResultValidator.safe_get_float(s, "momentum_score", default=None)
+                value_score = DatabaseResultValidator.safe_get_float(s, "value_score", default=None)
+                quality_score = DatabaseResultValidator.safe_get_float(s, "quality_score", default=None)
+                growth_score = DatabaseResultValidator.safe_get_float(s, "growth_score", default=None)
+                stability_score = DatabaseResultValidator.safe_get_float(s, "stability_score", default=None)
+                trailing_pe = DatabaseResultValidator.safe_get_float(s, "avg_trailing_pe", default=None)
+                pb_ratio = DatabaseResultValidator.safe_get_float(s, "avg_pb_ratio", default=None)
+                pe_percentile = DatabaseResultValidator.safe_get_float(s, "pe_percentile", default=None)
+                sector_name = DatabaseResultValidator.safe_get_str(s, "sector_name", default=None)
 
                 sectors.append(
                     {
-                        "sector_name": s.get("sector_name"),
-                        "current_rank": int(rank_val),
-                        "rank_1w_ago": (int(s["rank_1w_ago"]) if s.get("rank_1w_ago") is not None else None),
-                        "rank_4w_ago": (int(s["rank_4w_ago"]) if s.get("rank_4w_ago") is not None else None),
-                        "rank_12w_ago": (int(s["rank_12w_ago"]) if s.get("rank_12w_ago") is not None else None),
-                        "stock_count": (int(stock_count_val) if stock_count_val is not None else None),
+                        "sector_name": sector_name,
+                        "current_rank": rank,
+                        "rank_1w_ago": rank_1w,
+                        "rank_4w_ago": rank_4w,
+                        "rank_12w_ago": rank_12w,
+                        "stock_count": stock_count,
                         "composite_score": composite,
-                        "momentum_score": (float(momentum_score_val) if momentum_score_val is not None else None),
-                        "value_score": (float(value_score_val) if value_score_val is not None else None),
-                        "quality_score": (float(quality_score_val) if quality_score_val is not None else None),
-                        "growth_score": (float(growth_score_val) if growth_score_val is not None else None),
-                        "stability_score": (float(stability_score_val) if stability_score_val is not None else None),
+                        "momentum_score": momentum_score,
+                        "value_score": value_score,
+                        "quality_score": quality_score,
+                        "growth_score": growth_score,
+                        "stability_score": stability_score,
                         "current_momentum": momentum_label,
                         "current_trend": trend_label,
                         "performance_1d": perf1d,
                         "performance_5d": perf5d,
                         "performance_20d": perf20d,
                         "pe": {
-                            "trailing": (float(trailing_pe_val) if trailing_pe_val is not None else None),
-                            "pb_ratio": (float(pb_ratio_val) if pb_ratio_val is not None else None),
-                            "percentile": (float(pe_percentile_val) if pe_percentile_val is not None else None),
+                            "trailing": trailing_pe,
+                            "pb_ratio": pb_ratio,
+                            "percentile": pe_percentile,
                         },
                     }
                 )
