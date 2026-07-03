@@ -177,7 +177,11 @@ def render_dashboard_body(outer: Layout, ctx: DashboardContext, compact: bool) -
         Layout(health_panel, ratio=5, name="health"),
     )
 
-    port_panel = safe_render(panel_portfolio, ctx.port, ctx.cfg, risk=ctx.risk, perf=ctx.perf)
+    port_panel = (
+        safe_render(panel_portfolio, ctx.port, ctx.cfg, risk=ctx.risk, perf=ctx.perf)
+        if not (has_error(ctx.port) or has_error(ctx.cfg))
+        else Panel("[red]Portfolio data unavailable[/]", border_style="red")
+    )
     perf_panel = (
         safe_render(panel_performance_spark, ctx.perf, ctx.trades, ctx.perf_anl, pos=ctx.pos)
         if not (has_error(ctx.perf) or has_error(ctx.trades))
@@ -195,8 +199,16 @@ def render_dashboard_body(outer: Layout, ctx: DashboardContext, compact: bool) -
         Layout(eco_panel, name="eco"),
     )
 
-    sig_panel = safe_render(panel_signals_compact, ctx.sig, ctx.sig_eval, scores=ctx.scores)
-    sector_panel = safe_render(panel_sector_compact, ctx.srank, ctx.pos, ctx.port, ctx.sec_rot, ctx.irank)
+    sig_panel = (
+        safe_render(panel_signals_compact, ctx.sig, ctx.sig_eval, scores=ctx.scores)
+        if not has_error(ctx.sig)
+        else Panel("[red]Signals unavailable[/]", border_style="red")
+    )
+    sector_panel = (
+        safe_render(panel_sector_compact, ctx.srank, ctx.pos, ctx.port, ctx.sec_rot, ctx.irank)
+        if not (has_error(ctx.srank) or has_error(ctx.pos) or has_error(ctx.port))
+        else Panel("[red]Sector data unavailable[/]", border_style="red")
+    )
 
     outer["r3"].split_row(
         Layout(sig_panel, ratio=3, name="signals"),

@@ -30,11 +30,16 @@ def extract_field(data: dict[str, Any], field_name: str, default: Any = None) ->
     - If response has error, raises DataExtractionError (caller can show error UI)
     - If response is validated, field access returns value or default
     """
+    if data is None:
+        return default
+
     if not isinstance(data, dict):
         return default
 
     if has_error(data):
-        raise DataExtractionError(f"Error in response: {data.get('_error')}")
+        if "_error" in data:
+            raise DataExtractionError(f"Error in response: {data.get('_error')}")
+        raise DataExtractionError("Error in response (no error message available)")
 
     return data.get(field_name, default)
 
@@ -54,11 +59,16 @@ def extract_items_list(data: dict[str, Any]) -> list[Any]:
     Raises:
         DataExtractionError: If data is not a dict, has error field, or missing items
     """
+    if data is None:
+        raise DataExtractionError("Expected dict response, got NoneType (data loading failed)")
+
     if not isinstance(data, dict):
         raise DataExtractionError(f"Expected dict response, got {type(data).__name__}")
 
     if has_error(data):
-        raise DataExtractionError(f"Error in response: {data.get('_error')}")
+        if "_error" in data:
+            raise DataExtractionError(f"Error in response: {data.get('_error')}")
+        raise DataExtractionError("Error in response (no error message available)")
 
     items = data.get("items")
     if items is None:
@@ -86,8 +96,15 @@ def extract_data_or_empty(data: Any, default_type: type = dict, allow_empty: boo
     Raises:
         DataExtractionError: If data has error field, is missing/None, or is wrong type
     """
+    if data is None:
+        raise DataExtractionError("Required data is missing (None). Cannot proceed without this information.")
+
     if has_error(data):
-        raise DataExtractionError(f"Error in response: {data.get('_error')}")
+        # If data is dict with _error field, extract the error message
+        if isinstance(data, dict) and "_error" in data:
+            raise DataExtractionError(f"Error in response: {data.get('_error')}")
+        # Otherwise data has error but we can't extract message (shouldn't happen with proper error handling)
+        raise DataExtractionError("Error in response (no error message available)")
 
     if isinstance(data, default_type):
         return data

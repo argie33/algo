@@ -117,9 +117,16 @@ def normalize_positions_data(data: Any) -> tuple[list[Any], Any, bool]:
     Returns:
         (positions_list, timestamp, has_error) tuple
     """
-    from .error_boundary import get_error_message, has_error as check_has_error
+    from .error_boundary import get_error_message
+    from .error_boundary import has_error as check_has_error
 
-    if isinstance(data, dict):
+    if data is None:
+        logger.error("[POSITIONS_DATA_ERROR] Positions data is None - data loading or API call failed")
+        raise ValueError(
+            "Positions data is None (data loading failed). "
+            "Check API connectivity and dashboard logs for details."
+        )
+    elif isinstance(data, dict):
         if check_has_error(data):
             error_msg = get_error_message(data)
             logger.error(f"[POSITIONS_DATA_ERROR] Data contains error marker: {error_msg}")
@@ -161,6 +168,9 @@ def compute_sector_agg(pos: Any, port: dict[str, Any]) -> tuple[list[tuple[str, 
 
     Thread-safe: Uses lock during cache reads/writes to prevent race conditions.
     """
+    if pos is None:
+        raise ValueError("Cannot compute sector aggregation: positions data is None (data loading failed)")
+
     pos_items, _pos_timestamp, pos_has_error = normalize_positions_data(pos)
     if pos_has_error:
         raise ValueError("Cannot compute sector aggregation: positions data contains error")
@@ -238,7 +248,13 @@ def extract_items_and_error(data: Any) -> tuple[list[Any], str | None]:
     """
     from .error_boundary import get_error_message, has_error
 
-    if isinstance(data, dict):
+    if data is None:
+        logger.error("[DATA_EXTRACTION_ERROR] Data is None - data loading or API call failed")
+        raise ValueError(
+            "Data is None (data loading failed). "
+            "Check API connectivity and dashboard logs for details."
+        )
+    elif isinstance(data, dict):
         if has_error(data):
             error_msg = get_error_message(data)
             logger.error(f"[DATA_EXTRACTION_ERROR] Data contains error marker: {error_msg}")
