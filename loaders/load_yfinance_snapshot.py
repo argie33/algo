@@ -44,70 +44,74 @@ class YFinanceSnapshotLoader(OptimalLoader):
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Fetch all yfinance data for a symbol, store as single snapshot record.
 
+        Governance: Fail-fast on missing data. No silent fallbacks.
+
         Returns all metrics in one row to avoid 6 separate yfinance API calls.
+        Raises RuntimeError if ticker unavailable or data fetch fails (critical data).
         """
-        try:
-            ticker = YFinanceWrapper.get_ticker(symbol)
-            if not ticker:
-                logger.info(f"[YFINANCE_SNAPSHOT] Ticker not found: {symbol}")
-                return []
+        ticker = YFinanceWrapper.get_ticker(symbol)
+        if not ticker:
+            raise RuntimeError(
+                f"[YFINANCE_SNAPSHOT] Ticker data unavailable for {symbol}. "
+                f"Cannot fetch yfinance metrics without valid ticker. "
+                f"Downstream loaders (value_metrics, positioning_metrics, stability_metrics, etc.) depend on this data."
+            )
 
-            info = ticker.info
-            if not info or not isinstance(info, dict):
-                logger.info(f"[YFINANCE_SNAPSHOT] No info for {symbol}")
-                return []
+        info = ticker.info
+        if not info or not isinstance(info, dict):
+            raise RuntimeError(
+                f"[YFINANCE_SNAPSHOT] No info dict available for {symbol}. "
+                f"Ticker returned invalid/empty data structure. "
+                f"Cannot proceed without valid company information."
+            )
 
-            # Extract all yfinance metrics into single snapshot
-            return [
-                {
-                    "symbol": symbol,
-                    "fetched_at": datetime.now(timezone.utc).isoformat(),
-                    # Value metrics (PE, PB, PS, dividend)
-                    "pe_ratio": info.get("trailingPE"),
-                    "pb_ratio": info.get("priceToBook"),
-                    "ps_ratio": info.get("priceToSalesTrailing12Months"),
-                    "peg_ratio": info.get("pegRatio"),
-                    "dividend_yield": info.get("dividendYield"),
-                    "fcf_yield": (
-                        info["freeCashflow"] / info["marketCap"]
-                        if "freeCashflow" in info and "marketCap" in info
-                        and info["freeCashflow"] is not None and info["marketCap"] is not None
-                        else None
-                    ),
-                    # Positioning metrics (institutional/insider holdings, short interest)
-                    "held_percent_insiders": info.get("insidersPercentHeld"),
-                    "held_percent_institutions": info.get("heldPercentInstitutions"),
-                    "short_interest": info.get("shortPercentOfFloat"),
-                    # Stability metrics (beta, volatility)
-                    "beta": info.get("beta"),
-                    "fifty_two_week_high": info.get("fiftyTwoWeekHigh"),
-                    "fifty_two_week_low": info.get("fiftyTwoWeekLow"),
-                    "market_cap": info.get("marketCap"),
-                    # Company profile data (for load_company_profile.py)
-                    "sector": info.get("sector"),
-                    "industry": info.get("industry"),
-                    "country": info.get("country"),
-                    "exchange": info.get("exchange"),
-                    "website": info.get("website"),
-                    "long_name": info.get("longName"),
-                    # Earnings data (for load_earnings_history.py, load_earnings_calendar.py)
-                    "earnings_dates": info.get("earningsDates"),
-                    "earnings_date": info.get("earningsDate"),
-                    # Analyst data (for load_analyst_upgrade_downgrade.py, load_analyst_sentiment_analysis.py)
-                    "recommendation_key": info.get("recommendationKey"),
-                    "number_of_analysts": info.get("numberOfAnalystOpinions"),
-                    "analysts_underweight": info.get("numberOfAnalystsWhoUnderweight"),
-                    "analysts_overweight": info.get("numberOfAnalystsWhoOverweight"),
-                    "analysts_hold": info.get("numberOfAnalystsWhoHold"),
-                    # Raw data for debugging
-                    "data_available": True,
-                    "unavailable_reason": None,
-                }
-            ]
-
-        except Exception as e:
-            logger.error(f"[YFINANCE_SNAPSHOT] Error fetching {symbol}: {e}")
-            return []
+        # Extract all yfinance metrics into single snapshot
+        return [
+            {
+                "symbol": symbol,
+                "fetched_at": datetime.now(timezone.utc).isoformat(),
+                # Value metrics (PE, PB, PS, dividend)
+                "pe_ratio": info.get("trailingPE"),
+                "pb_ratio": info.get("priceToBook"),
+                "ps_ratio": info.get("priceToSalesTrailing12Months"),
+                "peg_ratio": info.get("pegRatio"),
+                "dividend_yield": info.get("dividendYield"),
+                "fcf_yield": (
+                    info["freeCashflow"] / info["marketCap"]
+                    if "freeCashflow" in info and "marketCap" in info
+                    and info["freeCashflow"] is not None and info["marketCap"] is not None
+                    else None
+                ),
+                # Positioning metrics (institutional/insider holdings, short interest)
+                "held_percent_insiders": info.get("insidersPercentHeld"),
+                "held_percent_institutions": info.get("heldPercentInstitutions"),
+                "short_interest": info.get("shortPercentOfFloat"),
+                # Stability metrics (beta, volatility)
+                "beta": info.get("beta"),
+                "fifty_two_week_high": info.get("fiftyTwoWeekHigh"),
+                "fifty_two_week_low": info.get("fiftyTwoWeekLow"),
+                "market_cap": info.get("marketCap"),
+                # Company profile data (for load_company_profile.py)
+                "sector": info.get("sector"),
+                "industry": info.get("industry"),
+                "country": info.get("country"),
+                "exchange": info.get("exchange"),
+                "website": info.get("website"),
+                "long_name": info.get("longName"),
+                # Earnings data (for load_earnings_history.py, load_earnings_calendar.py)
+                "earnings_dates": info.get("earningsDates"),
+                "earnings_date": info.get("earningsDate"),
+                # Analyst data (for load_analyst_upgrade_downgrade.py, load_analyst_sentiment_analysis.py)
+                "recommendation_key": info.get("recommendationKey"),
+                "number_of_analysts": info.get("numberOfAnalystOpinions"),
+                "analysts_underweight": info.get("numberOfAnalystsWhoUnderweight"),
+                "analysts_overweight": info.get("numberOfAnalystsWhoOverweight"),
+                "analysts_hold": info.get("numberOfAnalystsWhoHold"),
+                # Raw data for debugging
+                "data_available": True,
+                "unavailable_reason": None,
+            }
+        ]
 
 
 if __name__ == "__main__":

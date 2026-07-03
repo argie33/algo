@@ -109,11 +109,11 @@ class BalanceSheetLoader(OptimalLoader):
             rows = sec_statements.get_balance_sheet(self._sec_client, symbol, period=self.period)
 
             if not rows:
-                logger.warning(
-                    f"[BALANCE_SHEET] {symbol}: No {self.period} balance sheet data in SEC EDGAR. "
-                    f"Stock may lack SEC filings."
+                raise RuntimeError(
+                    f"[BALANCE_SHEET] {symbol}: No {self.period} balance sheet data available in SEC EDGAR. "
+                    f"SEC filing data is critical for financial analysis. "
+                    f"Stock may lack SEC filings or EDGAR access failed. Cannot proceed without balance sheet data."
                 )
-                return []
 
             logger.info("%s: Fetched %d %s balance sheet row(s)", symbol, len(rows), self.period)
 

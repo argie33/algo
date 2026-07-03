@@ -70,9 +70,18 @@ def fetch_dxy_from_yahoo() -> list[dict[str, Any]]:
 
 
 def store_dxy_data(rows: list[dict[str, Any]]) -> int:
-    """Store DXY data in economic_data table."""
+    """Store DXY data in economic_data table.
+
+    Governance: Fail-fast on errors. Distinguishable exit codes.
+
+    Returns: Number of rows stored (>0 for success)
+    Raises: RuntimeError if input is empty or storage fails
+    """
     if not rows:
-        return 0
+        raise RuntimeError(
+            "[DXY] Cannot store empty rows. "
+            "Fetch must return data or raise exception, not return empty list."
+        )
 
     try:
         with DatabaseContext("write") as cur:
@@ -93,35 +102,38 @@ def store_dxy_data(rows: list[dict[str, Any]]) -> int:
             logger.info(f"Stored {len(rows)} DXY records in database")
             return len(rows)
 
+    except RuntimeError:
+        raise
     except Exception as e:
-        logger.error(f"Failed to store DXY data: {e}")
-        return 0
+        raise RuntimeError(
+            f"[DXY] Failed to store {len(rows)} DXY records to database: {e}. "
+            f"Data was fetched but persistence failed. Cannot proceed."
+        ) from e
 
 
 def main() -> int:
     """Fetch and store actual ICE DXY data from Yahoo Finance.
 
-    Per governance: "Fail-fast on missing data. No silent fallbacks."
-    When DXY data is unavailable, the API gracefully omits it from responses.
+    Governance: Fail-fast on missing data. No silent fallbacks.
+    Exception handling distinguishes "no data available" (graceful) from "error occurred" (exit 1).
     """
     logger.info("Starting DXY (ICE) data fetch...")
 
-    rows = fetch_dxy_from_yahoo()
+    try:
+        rows = fetch_dxy_from_yahoo()
+        if not rows:
+            logger.warning("[DXY] Fetch succeeded but returned no data. Economic dashboard will omit DXY_ICE.")
+            return 0
 
-    if not rows:
-        logger.warning("[DXY] Could not fetch DXY data from Yahoo Finance. Economic dashboard will omit DXY_ICE.")
-        return 0
-
-    count = store_dxy_data(rows)
-
-    if count > 0:
+        count = store_dxy_data(rows)
         logger.info(f"SUCCESS: Stored {count} DXY records")
         return 0
-    else:
-        logger.error(
-            "[CRITICAL] Could not store DXY data to database. "
-            "Fetched data but storage failed - DXY data will be missing from economic indicators."
-        )
+
+    except RuntimeError as e:
+        logger.error(f"[DXY] {e}")
+        return 1
+    except Exception as e:
+        logger.error(f"[DXY] Unexpected error: {e}")
         return 1
 
 

@@ -121,8 +121,10 @@ class IncomeStatementLoader(OptimalLoader):
             rows = sec_statements.get_income_statement(self._sec_client, symbol, period=self.period)
 
             if not rows:
-                logger.warning(f"[INCOME_STATEMENT] {symbol}: No {self.period} income statement data in SEC EDGAR.")
-                return []
+                raise RuntimeError(
+                    f"[INCOME_STATEMENT] {symbol}: No {self.period} income statement data available in SEC EDGAR. "
+                    f"SEC filing data is critical for financial analysis. Cannot proceed without income statement."
+                )
 
             logger.info("%s: Fetched %d %s income statement row(s)", symbol, len(rows), self.period)
 

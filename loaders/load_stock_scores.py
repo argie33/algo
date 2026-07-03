@@ -297,9 +297,20 @@ class StockScoresLoader(OptimalLoader):
                     days_since_inception = (date.today() - min_price_date).days
                     # For stocks <30 days old: allow 2/6 metrics (33%). Else require 3/6 metrics (50%)
                     min_required_metrics = 2 if days_since_inception < 30 else 3
-            except Exception:
-                # If unable to determine age, use conservative default of 3
-                min_required_metrics = 3
+            except (ValueError, TypeError, AttributeError) as e:
+                # Database error determining stock age — fail fast rather than guess
+                logger.error(f"[STOCK_SCORES] {symbol}: failed to determine stock inception date: {e}")
+                raise RuntimeError(
+                    f"[STOCK_SCORES] {symbol}: Cannot determine stock age to set minimum metrics requirement. "
+                    f"Database query for min(date) in price_daily failed. Cannot proceed without age data. "
+                    f"Error: {e}"
+                ) from e
+            except Exception as e:
+                # Unexpected error — log and fail rather than silently defaulting
+                logger.error(f"[STOCK_SCORES] {symbol}: Unexpected error determining stock age: {type(e).__name__}: {e}")
+                raise RuntimeError(
+                    f"[STOCK_SCORES] {symbol}: Unexpected error during stock age calculation: {e}"
+                ) from e
 
             if data_count < min_required_metrics:
                 raise RuntimeError(

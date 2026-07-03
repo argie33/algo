@@ -117,8 +117,13 @@ def compute_performance_metrics(cur: Any, metric_date: date | None = None) -> di
         total_pnl_pct: float = sum(pnl_pcts)
 
         # Best and worst trades
-        biggest_win: float = max(pnl_dollars) if pnl_dollars else 0.0
-        biggest_loss: float = min(pnl_dollars) if pnl_dollars else 0.0
+        if not pnl_dollars:
+            raise ValueError(
+                "Cannot compute best/worst trades: no P&L data available. "
+                "This indicates trades lack profit_loss_dollars values in database."
+            )
+        biggest_win: float = max(pnl_dollars)
+        biggest_loss: float = min(pnl_dollars)
 
         metrics["total_trades"] = total_trades
         metrics["winning_trades"] = winning
@@ -143,17 +148,41 @@ def compute_performance_metrics(cur: Any, metric_date: date | None = None) -> di
         metrics["best_trade_pct"] = round(max(pnl_pcts), 2)
         metrics["worst_trade_pct"] = round(min(pnl_pcts), 2)
 
-        # Average win/loss dollars
+        # Average win/loss dollars (fail-fast if no winning or losing trades)
         wins_dollars = [p for p in pnl_dollars if p > 0]
         losses_dollars = [p for p in pnl_dollars if p < 0]
-        metrics["avg_win_dollars"] = round(sum(wins_dollars) / len(wins_dollars), 2) if wins_dollars else 0.0
-        metrics["avg_loss_dollars"] = round(sum(losses_dollars) / len(losses_dollars), 2) if losses_dollars else 0.0
+
+        if not wins_dollars:
+            raise ValueError(
+                "Cannot calculate average win dollars: no winning trades in period. "
+                "This indicates insufficient performance history or all trades were losses/breakeven."
+            )
+        if not losses_dollars:
+            raise ValueError(
+                "Cannot calculate average loss dollars: no losing trades in period. "
+                "This indicates insufficient sample size for meaningful loss analysis."
+            )
+
+        metrics["avg_win_dollars"] = round(sum(wins_dollars) / len(wins_dollars), 2)
+        metrics["avg_loss_dollars"] = round(sum(losses_dollars) / len(losses_dollars), 2)
 
         # Average win/loss percentages
         wins_pcts = [p for p in pnl_pcts if p > 0]
         losses_pcts = [p for p in pnl_pcts if p < 0]
-        metrics["avg_win_pct"] = round(sum(wins_pcts) / len(wins_pcts), 4) if wins_pcts else 0.0
-        metrics["avg_loss_pct"] = round(sum(losses_pcts) / len(losses_pcts), 4) if losses_pcts else 0.0
+
+        if not wins_pcts:
+            raise ValueError(
+                "Cannot calculate average win percentage: no winning trades found. "
+                "Insufficient performance history."
+            )
+        if not losses_pcts:
+            raise ValueError(
+                "Cannot calculate average loss percentage: no losing trades found. "
+                "Insufficient sample for meaningful loss analysis."
+            )
+
+        metrics["avg_win_pct"] = round(sum(wins_pcts) / len(wins_pcts), 4)
+        metrics["avg_loss_pct"] = round(sum(losses_pcts) / len(losses_pcts), 4)
 
         # Holding days — MUST have holding period data for meaningful analysis
         if not holding_days_list:
@@ -346,85 +375,90 @@ def _compute_streaks(pnl_dollars: list[float]) -> tuple[int, int]:
 def _compute_r_metrics(cur: Any, metric_date: date) -> tuple[float, float, float, float, float, float]:
     """Compute R-multiple metrics from closed + open trades.
 
+    Governance: Fail-fast if R-multiple data unavailable. No fake zero defaults.
+
     Returns:
         Tuple of (avg_win_r, avg_loss_r, expectancy, avg_r, best_trade_r, worst_trade_r)
-        All values are guaranteed to be float (0.0 for edge cases, never None).
 
     Raises:
-        ValueError: If data access fails (not if trade data is insufficient)
+        ValueError: If trades unavailable, R-multiples missing, or insufficient win/loss data
     """
-    try:
-        # Fetch all closed trades + open trades with unrealized P&L
-        cur.execute("""
-            SELECT
-                exit_r_multiple,
-                CASE
-                    WHEN exit_r_multiple IS NOT NULL THEN exit_r_multiple
-                    WHEN stop_loss_price IS NOT NULL
-                         AND stop_loss_price < entry_price
-                         AND entry_quantity > 0
-                        THEN (profit_loss_dollars / NULLIF((entry_price - stop_loss_price) * entry_quantity, 0))
-                    ELSE NULL
-                END AS r_multiple,
-                profit_loss_dollars
-            FROM algo_trades
-            WHERE (status = 'closed' AND exit_date IS NOT NULL)
-               OR (status IN ('open', 'filled', 'partially_filled', 'active'))
-            ORDER BY COALESCE(exit_date, CURRENT_DATE) DESC
-            LIMIT 10000
-        """)
-        trades = cur.fetchall()
+    # Fetch all closed trades + open trades with unrealized P&L
+    cur.execute("""
+        SELECT
+            exit_r_multiple,
+            CASE
+                WHEN exit_r_multiple IS NOT NULL THEN exit_r_multiple
+                WHEN stop_loss_price IS NOT NULL
+                     AND stop_loss_price < entry_price
+                     AND entry_quantity > 0
+                    THEN (profit_loss_dollars / NULLIF((entry_price - stop_loss_price) * entry_quantity, 0))
+                ELSE NULL
+            END AS r_multiple,
+            profit_loss_dollars
+        FROM algo_trades
+        WHERE (status = 'closed' AND exit_date IS NOT NULL)
+           OR (status IN ('open', 'filled', 'partially_filled', 'active'))
+        ORDER BY COALESCE(exit_date, CURRENT_DATE) DESC
+        LIMIT 10000
+    """)
+    trades = cur.fetchall()
 
-        if not trades:
-            logger.debug("No trades found for R-multiple calculation — returning zero defaults")
-            return 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
-
-        # Extract R-multiples, filtering out None values
-        r_multiples = [float(t["r_multiple"]) for t in trades if t["r_multiple"] is not None]
-
-        if not r_multiples:
-            logger.debug("No valid R-multiple data in trades — returning zero defaults")
-            return 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
-
-        # Separate wins and losses
-        wins_r = [r for r in r_multiples if r > 0]
-        losses_r = [r for r in r_multiples if r < 0]
-
-        # Calculate averages (use 0.0 for edge cases instead of raising)
-        avg_win_r = (sum(wins_r) / len(wins_r)) if wins_r else 0.0
-        avg_loss_r = (abs(sum(losses_r)) / len(losses_r)) if losses_r else 0.0
-        avg_r = sum(r_multiples) / len(r_multiples) if r_multiples else 0.0
-        best_trade_r = max(r_multiples) if r_multiples else 0.0
-        worst_trade_r = min(r_multiples) if r_multiples else 0.0
-
-        # Calculate win and loss rates
-        total_trades = len(r_multiples)
-        win_count = len(wins_r)
-        loss_count = len(losses_r)
-
-        if total_trades == 0:
-            logger.debug("No trades for win rate calculation — returning zero defaults")
-            return 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
-
-        win_rate = win_count / total_trades
-        loss_rate = loss_count / total_trades
-
-        # Calculate expectancy: E = (WR x Avg Win R) - (LR x Avg Loss R)
-        expectancy = (win_rate * avg_win_r) - (loss_rate * avg_loss_r)
-
-        logger.info(
-            f"R-metrics computed: avg_win_r={avg_win_r:.4f}, avg_loss_r={avg_loss_r:.4f}, "
-            f"expectancy={expectancy:.4f}, win_rate={win_rate:.2%} ({win_count}/{total_trades})"
+    if not trades:
+        raise ValueError(
+            "Cannot compute R-multiple metrics: no trades found in database. "
+            "R-metrics require trade history for meaningful calculation."
         )
 
-        return avg_win_r, avg_loss_r, expectancy, avg_r, best_trade_r, worst_trade_r
+    # Extract R-multiples, filtering out None values
+    r_multiples = [float(t["r_multiple"]) for t in trades if t["r_multiple"] is not None]
 
-    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-        logger.error(f"CRITICAL: Database error computing R-metrics: {e}")
-        raise ValueError(f"R-multiple metrics calculation failed (database error): {e}") from e
-    except (ValueError, TypeError) as e:
-        logger.error(f"CRITICAL: Data format error computing R-metrics: {e}")
-        raise ValueError(f"R-multiple metrics calculation failed (format error): {e}") from e
+    if not r_multiples:
+        raise ValueError(
+            "Cannot compute R-multiple metrics: no valid R-multiple data in trades. "
+            "All trades missing either exit_r_multiple or calculable R-multiple from stop loss."
+        )
+
+    # Separate wins and losses
+    wins_r = [r for r in r_multiples if r > 0]
+    losses_r = [r for r in r_multiples if r < 0]
+
+    # Fail-fast if insufficient win or loss data (need at least 2-3 trades for meaningful stats)
+    if not wins_r:
+        raise ValueError(
+            "Cannot compute average win R-multiple: no winning trades with R-multiples. "
+            "Need winning trades for meaningful expectancy calculation."
+        )
+    if not losses_r:
+        raise ValueError(
+            "Cannot compute average loss R-multiple: no losing trades with R-multiples. "
+            "Insufficient losing trades for meaningful loss analysis."
+        )
+
+    # Calculate averages
+    avg_win_r = sum(wins_r) / len(wins_r)
+    avg_loss_r = abs(sum(losses_r)) / len(losses_r)
+    avg_r = sum(r_multiples) / len(r_multiples)
+    best_trade_r = max(r_multiples)
+    worst_trade_r = min(r_multiples)
+
+    # Calculate win and loss rates
+    total_trades = len(r_multiples)
+    win_count = len(wins_r)
+    loss_count = len(losses_r)
+
+    win_rate = win_count / total_trades
+    loss_rate = loss_count / total_trades
+
+    # Calculate expectancy: E = (WR x Avg Win R) - (LR x Avg Loss R)
+    expectancy = (win_rate * avg_win_r) - (loss_rate * avg_loss_r)
+
+    logger.info(
+        f"R-metrics computed: avg_win_r={avg_win_r:.4f}, avg_loss_r={avg_loss_r:.4f}, "
+        f"expectancy={expectancy:.4f}, win_rate={win_rate:.2%} ({win_count}/{total_trades})"
+    )
+
+    return avg_win_r, avg_loss_r, expectancy, avg_r, best_trade_r, worst_trade_r
 
 
 def _insert_default_metrics(cur: Any, metric_date: date) -> None:

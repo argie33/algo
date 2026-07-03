@@ -504,7 +504,14 @@ class OrderManager:
                                 )
                                 shares = available_qty
                                 continue
-                            held = float(err_data.get("held_for_orders") or 0)
+                            if "held_for_orders" not in err_data:
+                                raise RuntimeError(
+                                    f"[SEND_EXIT] {symbol}: Alpaca reported insufficient shares "
+                                    f"but error response missing 'held_for_orders' field. "
+                                    f"Cannot determine how many shares are held by open orders. "
+                                    f"Response: {err_data}"
+                                )
+                            held = float(err_data["held_for_orders"])
                             if available_qty == 0 and held > 0 and attempt < max_attempts - 1:
                                 # Case 2: all shares locked by open orders — use close-position endpoint
                                 logger.warning(

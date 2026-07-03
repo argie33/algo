@@ -95,8 +95,11 @@ class CashFlowLoader(OptimalLoader):
             rows = self._sec_client.get_cash_flow(symbol, period=self.period)
 
             if not rows:
-                logger.warning(f"[CASH_FLOW] {symbol}: No {self.period} cash flow data in SEC EDGAR.")
-                return []
+                raise RuntimeError(
+                    f"[CASH_FLOW] {symbol}: No {self.period} cash flow data available in SEC EDGAR. "
+                    f"SEC filing data is critical for financial analysis. "
+                    f"Cannot proceed without cash flow statement data."
+                )
 
             logger.info("%s: Fetched %d %s cash flow row(s)", symbol, len(rows), self.period)
 
