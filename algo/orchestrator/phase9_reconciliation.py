@@ -375,8 +375,22 @@ def _compute_risk_metrics(config: Any, run_date: _date, log_phase_result_fn: Cal
             risk_status = "success"
             var_metrics = risk_report.get("var_metrics")
             concentration = risk_report.get("concentration")
-            beta_exposure = risk_report.get("beta_exposure") or {}
-            alerts = risk_report.get("alerts") or []
+
+            if "beta_exposure" not in risk_report:
+                raise ValueError(
+                    "Risk report status=ok but missing required 'beta_exposure' field. "
+                    "When risk calculation succeeds (status=ok), beta_exposure must be present. "
+                    "This indicates incomplete risk analysis."
+                )
+            beta_exposure = risk_report["beta_exposure"]
+
+            if "alerts" not in risk_report:
+                raise ValueError(
+                    "Risk report status=ok but missing required 'alerts' field. "
+                    "When risk calculation succeeds (status=ok), alerts must be present. "
+                    "This indicates incomplete risk analysis."
+                )
+            alerts = risk_report["alerts"]
 
             # Build summary from whatever metrics are available
             summary_parts: list[str] = []

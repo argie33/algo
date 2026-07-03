@@ -175,7 +175,13 @@ class SignalScorer:
         total_weight = 0.0
 
         for component_name, (score, max_pts) in scores.items():
-            weight = weights.get(component_name, 1.0)
+            if component_name not in weights:
+                raise ValueError(
+                    f"Component '{component_name}' missing from weights dict. "
+                    f"All score components must have explicit weights. "
+                    f"Available weights: {list(weights.keys())}"
+                )
+            weight = weights[component_name]
             # Normalize score to 0-100
             if max_pts <= 0:
                 raise ValueError(

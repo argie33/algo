@@ -132,6 +132,29 @@ def next_run_str() -> str:
     return result
 
 
+def _validate_schedule_entry(s: dict[str, Any]) -> tuple[int, int]:
+    """Validate schedule entry has required fields. Fail fast if corrupted."""
+    if "hour" not in s or "minute" not in s:
+        raise ValueError(
+            f"Schedule entry missing required fields: {s}. "
+            f"All schedule entries must have 'hour' and 'minute' fields. "
+            f"Corrupted configuration prevents safe scheduling."
+        )
+    hour = s["hour"]
+    minute = s["minute"]
+    if not isinstance(hour, int) or not isinstance(minute, int):
+        raise ValueError(
+            f"Schedule entry has invalid types: hour={type(hour).__name__}, minute={type(minute).__name__}. "
+            f"Both must be integers. Entry: {s}"
+        )
+    if not (0 <= hour <= 23) or not (0 <= minute <= 59):
+        raise ValueError(
+            f"Schedule entry has invalid time values: {hour:02d}:{minute:02d}. "
+            f"Hour must be 0-23, minute must be 0-59. Entry: {s}"
+        )
+    return hour, minute
+
+
 def _next_run_from_schedule(schedule: list[dict[str, Any]]) -> str:
     """Calculate next run from dynamic schedule (list of {hour, minute} dicts).
 
@@ -157,41 +180,19 @@ def _next_run_from_schedule(schedule: list[dict[str, Any]]) -> str:
             d += timedelta(days=1)
         return d
 
-    def validate_schedule_entry(s: dict[str, Any]) -> tuple[int, int]:
-        """Validate schedule entry has required fields. Fail fast if corrupted."""
-        if "hour" not in s or "minute" not in s:
-            raise ValueError(
-                f"Schedule entry missing required fields: {s}. "
-                f"All schedule entries must have 'hour' and 'minute' fields. "
-                f"Corrupted configuration prevents safe scheduling."
-            )
-        hour = s["hour"]
-        minute = s["minute"]
-        if not isinstance(hour, int) or not isinstance(minute, int):
-            raise ValueError(
-                f"Schedule entry has invalid types: hour={type(hour).__name__}, minute={type(minute).__name__}. "
-                f"Both must be integers. Entry: {s}"
-            )
-        if not (0 <= hour <= 23) or not (0 <= minute <= 59):
-            raise ValueError(
-                f"Schedule entry has invalid time values: {hour:02d}:{minute:02d}. "
-                f"Hour must be 0-23, minute must be 0-59. Entry: {s}"
-            )
-        return hour, minute
-
     if wd >= 5:
         next_day = next_wkd(now)
         if schedule:
-            sched = sorted(schedule, key=lambda s: validate_schedule_entry(s)[0] * 60 + validate_schedule_entry(s)[1])
+            sched = sorted(schedule, key=lambda s: _validate_schedule_entry(s)[0] * 60 + _validate_schedule_entry(s)[1])
             first_run = sched[0]
-            hour, minute = validate_schedule_entry(first_run)
+            hour, minute = _validate_schedule_entry(first_run)
             run_dt = next_day.replace(hour=hour, minute=minute, second=0, microsecond=0)
             return f"orch {fmt(run_dt)}"
         return f"orch {fmt(next_day.replace(hour=9, minute=30, second=0, microsecond=0))}"
 
-    today_runs = sorted(schedule, key=lambda s: validate_schedule_entry(s)[0] * 60 + validate_schedule_entry(s)[1])
+    today_runs = sorted(schedule, key=lambda s: _validate_schedule_entry(s)[0] * 60 + _validate_schedule_entry(s)[1])
     for run in today_runs:
-        hour, minute = validate_schedule_entry(run)
+        hour, minute = _validate_schedule_entry(run)
         run_t = hour * 60 + minute
         if run_t > t:
             run_dt = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
@@ -200,7 +201,7 @@ def _next_run_from_schedule(schedule: list[dict[str, Any]]) -> str:
     next_day = next_wkd(now)
     if today_runs:
         first_run = today_runs[0]
-        hour, minute = validate_schedule_entry(first_run)
+        hour, minute = _validate_schedule_entry(first_run)
         run_dt = next_day.replace(hour=hour, minute=minute, second=0, microsecond=0)
         return f"orch {fmt(run_dt)}"
     return f"orch {fmt(next_day.replace(hour=9, minute=30, second=0, microsecond=0))}"
@@ -243,11 +244,10 @@ def _next_run_hardcoded() -> str:
         # Weekday: find next run today
         today_runs = []
         for run in schedule:
-            run_hour = run.get("hour", 9)
-            run_minute = run.get("minute", 30)
-            run_t = run_hour * 60 + run_minute
+            hour, minute = _validate_schedule_entry(run)
+            run_t = hour * 60 + minute
             if run_t > t:
-                run_dt = now.replace(hour=run_hour, minute=run_minute, second=0, microsecond=0)
+                run_dt = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
                 today_runs.append((run_t, run_dt))
 
         if today_runs:
@@ -258,9 +258,10 @@ def _next_run_hardcoded() -> str:
     # No run today (or past market close on weekday) - show first run tomorrow
     if schedule:
         first_run = schedule[0]
+        hour, minute = _validate_schedule_entry(first_run)
         tgt = next_wkd(now).replace(
-            hour=first_run.get("hour", 2),
-            minute=first_run.get("minute", 0),
+            hour=hour,
+            minute=minute,
             second=0,
             microsecond=0,
         )

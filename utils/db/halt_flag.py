@@ -162,7 +162,13 @@ class HaltFlagManager:
 
             reason = item["reason"]
             triggered_at = item["triggered_at"]
-            halt_count = item.get("halt_count", 1)
+            if "halt_count" not in item:
+                raise RuntimeError(
+                    "Halt flag item corrupted: missing required 'halt_count' field. "
+                    "DynamoDB item must contain halt_count field (integer). "
+                    "This is a data integrity issue that prevents safe operation."
+                )
+            halt_count = item["halt_count"]
 
             # Check if halt is from previous trading day (auto-expiry)
             if triggered_at:
