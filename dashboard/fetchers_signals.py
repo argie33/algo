@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from utils.safe_data_conversion import safe_float, safe_int
+from utils.validation.framework import safe_float, safe_int
 
 from .api_data_layer import api_call
 from .fetchers_common import format_fetcher_error, get_endpoint_path, record_data_quality_issue

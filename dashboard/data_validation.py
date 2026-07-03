@@ -9,14 +9,13 @@ Finance principle: Missing data is NOT the same as zero. Always use strict mode 
 import logging
 from typing import Any
 
-# Re-export from the authoritative safe_data_conversion module
-from utils.safe_data_conversion import (
+# Re-export from the authoritative validation framework
+from utils.validation.framework import (
     StrictValidationError,
     safe_bool,
     safe_float,
     safe_int,
     safe_json_parse,
-    safe_json_parse_strict,
     safe_str,
 )
 
@@ -28,7 +27,6 @@ __all__ = [
     "safe_float",
     "safe_int",
     "safe_json_parse",
-    "safe_json_parse_strict",
     "safe_str",
     "validate_field_types",
     "validate_required_fields",

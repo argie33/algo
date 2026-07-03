@@ -4,7 +4,7 @@ import logging
 import threading
 from typing import Any, cast
 
-from utils.safe_data_conversion import safe_bool
+from utils.validation.framework import safe_bool
 
 from .api_data_layer import api_call
 from .fetchers_common import format_fetcher_error, get_endpoint_path, record_data_quality_issue

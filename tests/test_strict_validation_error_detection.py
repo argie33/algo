@@ -11,7 +11,7 @@ from typing import Any
 
 import pytest
 
-from utils.safe_data_conversion import StrictValidationError, safe_float, safe_int
+from utils.validation.framework import StrictValidationError, safe_float, safe_int
 
 
 class TestStrictFloatNoneDetection:

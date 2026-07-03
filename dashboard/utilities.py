@@ -13,7 +13,7 @@ from zoneinfo import ZoneInfo
 from rich.console import Console
 
 from dashboard.error_boundary import has_error
-from utils.safe_data_conversion import safe_float
+from utils.validation.framework import safe_float
 
 # ── globals ───────────────────────────────────────────────────────────────────
 ET = ZoneInfo("America/New_York")

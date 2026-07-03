@@ -6,7 +6,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from algo.infrastructure.market_calendar import MarketCalendar
-from utils.safe_data_conversion import safe_float
+from utils.validation.framework import safe_float
 
 from .api_data_layer import api_call
 from .fetcher_validator import FetcherValidator

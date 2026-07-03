@@ -8,7 +8,7 @@ from typing import Any
 
 import pytest
 
-from utils.safe_data_conversion import StrictValidationError
+from utils.validation.framework import StrictValidationError
 
 
 class TestDataValidationChain:
@@ -16,7 +16,7 @@ class TestDataValidationChain:
 
     def test_fetcher_none_propagates_to_panel(self) -> None:
         """When fetcher returns None, panel should raise during strict conversion."""
-        from utils.safe_data_conversion import safe_float
+        from utils.validation.framework import safe_float
 
         # Simulate fetcher returning None
         yield_curve_data: Any = None
@@ -27,7 +27,7 @@ class TestDataValidationChain:
 
     def test_fetcher_invalid_data_caught(self) -> None:
         """When fetcher returns invalid data, panel should catch it."""
-        from utils.safe_data_conversion import safe_float
+        from utils.validation.framework import safe_float
 
         # Fetcher returns non-numeric data
         invalid_price = "N/A"
@@ -56,7 +56,7 @@ class TestPrevalidationBeforeStrict:
 
         # Panel should use strict conversion on already-validated data
         def panel_use_price(price: float | None) -> str:
-            from utils.safe_data_conversion import safe_float
+            from utils.validation.framework import safe_float
 
             # Only call strict if we know price is not None, or handle None explicitly
             if price is None:
@@ -89,7 +89,7 @@ class TestFetcherValidationPatterns:
         #     safe_float(data.get("yield"), strict=True, field_name="yield")
 
         # ✅ Good: check for None before strict conversion
-        from utils.safe_data_conversion import safe_float
+        from utils.validation.framework import safe_float
 
         yield_value = data.get("yield")
         if yield_value is None:
@@ -102,7 +102,7 @@ class TestFetcherValidationPatterns:
 
     def test_fetcher_should_validate_list_access(self) -> None:
         """Fetchers should handle list access errors before strict conversion."""
-        from utils.safe_data_conversion import safe_float
+        from utils.validation.framework import safe_float
 
         data_list: list[float] = []  # Empty list
 
@@ -125,7 +125,7 @@ class TestCIDetectionOfValidationGaps:
 
     def test_all_strict_calls_have_field_names(self) -> None:
         """All strict=True calls should have field_name for clarity."""
-        from utils.safe_data_conversion import safe_float
+        from utils.validation.framework import safe_float
 
         # Good: explicit field name
         result = safe_float(100.0, strict=True, field_name="price")
@@ -137,7 +137,7 @@ class TestCIDetectionOfValidationGaps:
 
     def test_error_messages_guide_debugging(self) -> None:
         """StrictValidationError messages should help debugging."""
-        from utils.safe_data_conversion import safe_float
+        from utils.validation.framework import safe_float
 
         try:
             safe_float(None, strict=True, field_name="market_spy_price")

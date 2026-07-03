@@ -11,7 +11,7 @@ import pytest
 from dashboard.fetchers_external import fetch_economic_pulse
 from dashboard.fetchers_portfolio import fetch_perf_analytics
 from dashboard.fetchers_signals import fetch_signal_eval
-from utils.safe_data_conversion import StrictValidationError
+from utils.validation.framework import StrictValidationError
 
 
 class TestFetchEconomicPulseStrictValidation:

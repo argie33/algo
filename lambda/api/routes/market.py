@@ -22,7 +22,7 @@ from routes.utils import (
 )
 
 from shared_contracts.response_validator import ResponseValidator
-from utils.safe_data_conversion import safe_float
+from utils.validation.framework import safe_float
 
 logger = logging.getLogger(__name__)
 

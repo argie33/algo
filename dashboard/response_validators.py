@@ -20,7 +20,7 @@ Integration:
 import logging
 from typing import Any
 
-from utils.safe_data_conversion import StrictValidationError, safe_float, safe_int
+from utils.validation.framework import StrictValidationError, safe_float, safe_int
 
 from .error_boundary import has_error
 
