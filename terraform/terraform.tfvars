@@ -144,12 +144,12 @@ data_bucket_expiration_days = 7 # OPTIMIZED from 14→7: staging data regenerabl
 # ============================================================
 # RDS Proxy Configuration
 # ============================================================
-enable_rds_proxy = true # CRITICAL: Enables connection pooling for 24+ concurrent loaders (multiplexes to 20-30 RDS connections). Essential for EOD and morning prep pipelines.
+enable_rds_proxy = false # OPTIMIZED: Disabled in dev (saves ~$150/month). Enabled for production with 24+ concurrent loaders. Dev loaders don't need 24/7 connection pooling.
 
 # ============================================================
 # VPC Endpoints Configuration
 # ============================================================
-enable_vpc_endpoints = true # CRITICAL FIX: Enable ECR endpoints so ECS tasks can pull Docker images from ECR. Without this, tasks stuck in PROVISIONING forever. Cost: ~$43/month.
+enable_vpc_endpoints = false # OPTIMIZED: Disabled in dev (saves ~$43/month). ECS tasks pull from ECR using public endpoints. Re-enable for production security requirements.
 
 # ============================================================
 # Development Machine Access

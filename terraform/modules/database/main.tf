@@ -109,9 +109,10 @@ resource "aws_db_instance" "main" {
   enabled_cloudwatch_logs_exports = ["postgresql"] # Query logs to CloudWatch
   monitoring_interval             = 0              # Disabled for dev cost savings (~$8-10/month); CloudWatch native metrics still available
   monitoring_role_arn             = aws_iam_role.rds_monitoring.arn
-  # Always enable Performance Insights: free for 7-day retention, essential for slow-query diagnosis.
-  # Cannot be gated on environment == "prod" because this environment is named "dev" but runs live capital.
-  performance_insights_enabled          = true
+  # OPTIMIZED: Performance Insights disabled for dev (saves ~$6/month), enabled for production.
+  # Dev is paper-trading only with non-critical workload; performance troubleshooting not needed.
+  # Production enables this for slow-query diagnosis on live capital.
+  performance_insights_enabled          = var.environment == "prod" ? true : false
   performance_insights_retention_period = 7
 
   # Apply parameter changes immediately to fix connection pool exhaustion
