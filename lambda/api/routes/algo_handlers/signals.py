@@ -146,39 +146,57 @@ def _calculate_pre_trade_impact(cur: cursor, body: dict[str, Any]) -> Any:
         projected_sector_dollars = current_sector_dollars + actual_dollars
         projected_sector_pct = projected_sector_dollars / portfolio_value * 100
 
+        # Track "Unknown" sector exposure - silently absorbs undefined sectors which masks concentration risk
+        unknown_sector_exposure = sector_exposure.get("Unknown", 0)
+        unknown_sector_pct = (unknown_sector_exposure / portfolio_value * 100) if portfolio_value > 0 else 0
+        if unknown_sector_pct > 10:
+            logger.warning(
+                f"[SECTOR RISK] Unknown sector exposure is {unknown_sector_pct:.1f}% - "
+                f"catch-all bucket absorbing {unknown_sector_pct:.1f}% of portfolio. "
+                f"Check company_profile data completeness for undefined sectors."
+            )
+
         max_positions = 15
         if open_positions is None:
             return error_response(503, "data_unavailable", "Position count unavailable")
         available_slots = max(0, max_positions - open_positions)
         sector_warning = sector and projected_sector_pct > 30
 
-        return json_response(
-            200,
-            {
-                "symbol": symbol,
-                "sector": sector,
-                "entry_price": format_decimal_string(entry_price, precision=2, allow_none=True),
-                "shares": shares,
-                "position_dollars": format_decimal_string(actual_dollars, precision=2),
-                "pct_of_portfolio": format_decimal_string(pct_of_portfolio, precision=2),
-                "portfolio_value": format_decimal_string(portfolio_value, precision=2),
-                "open_positions": open_positions,
-                "available_slots": available_slots,
-                "sector_exposure": {
-                    "current_pct": format_decimal_string(
-                        (current_sector_dollars / portfolio_value * 100),
-                        precision=2,
-                    ),
-                    "projected_pct": format_decimal_string(projected_sector_pct, precision=2),
-                    "warning": sector_warning,
-                    "warning_msg": (
-                        f"Sector {sector} would reach {projected_sector_pct:.1f}% (limit 30%)"
-                        if sector_warning
-                        else None
-                    ),
-                },
+        response_data = {
+            "symbol": symbol,
+            "sector": sector,
+            "entry_price": format_decimal_string(entry_price, precision=2, allow_none=True),
+            "shares": shares,
+            "position_dollars": format_decimal_string(actual_dollars, precision=2),
+            "pct_of_portfolio": format_decimal_string(pct_of_portfolio, precision=2),
+            "portfolio_value": format_decimal_string(portfolio_value, precision=2),
+            "open_positions": open_positions,
+            "available_slots": available_slots,
+            "sector_exposure": {
+                "current_pct": format_decimal_string(
+                    (current_sector_dollars / portfolio_value * 100),
+                    precision=2,
+                ),
+                "projected_pct": format_decimal_string(projected_sector_pct, precision=2),
+                "warning": sector_warning,
+                "warning_msg": (
+                    f"Sector {sector} would reach {projected_sector_pct:.1f}% (limit 30%)"
+                    if sector_warning
+                    else None
+                ),
             },
-        )
+        }
+
+        # Include unknown sector exposure warning if significant
+        if unknown_sector_pct > 0:
+            response_data["unknown_sector_exposure_pct"] = round(unknown_sector_pct, 2)
+            if unknown_sector_pct > 10:
+                response_data["unknown_sector_warning"] = (
+                    f"Unknown sector has {unknown_sector_pct:.1f}% of portfolio - "
+                    f"may mask concentration risk if real sectors are undefined"
+                )
+
+        return json_response(200, response_data)
 
     except (
         psycopg2.errors.UndefinedTable,
