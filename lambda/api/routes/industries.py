@@ -237,16 +237,25 @@ def _industry_list(cur: cursor, params: dict[str, Any]) -> Any:
         def _extract_float(result: float | dict[str, Any]) -> float | None:
             return result if isinstance(result, float) else None
 
+        # FAIL-FAST: Extract required fields upfront with safe validation
+        from utils.validation import DatabaseResultValidator
+        industry = DatabaseResultValidator.safe_get_str(ind, "industry", default=None)
+        sector = DatabaseResultValidator.safe_get_str(ind, "sector", default=None)
+        rank_1w = DatabaseResultValidator.safe_get_int(ind, "rank_1w_ago", default=None)
+        rank_4w = DatabaseResultValidator.safe_get_int(ind, "rank_4w_ago", default=None)
+        rank_12w = DatabaseResultValidator.safe_get_int(ind, "rank_12w_ago", default=None)
+        stock_count = DatabaseResultValidator.safe_get_int(ind, "stock_count", default=None)
+
         industries.append(
             {
-                "industry": ind.get("industry"),
-                "sector": ind.get("sector"),
+                "industry": industry,
+                "sector": sector,
                 "current_rank": int(current_rank),
                 "overall_rank": int(current_rank),
-                "rank_1w_ago": (int(ind.get("rank_1w_ago")) if ind.get("rank_1w_ago") is not None else None),
-                "rank_4w_ago": (int(ind.get("rank_4w_ago")) if ind.get("rank_4w_ago") is not None else None),
-                "rank_12w_ago": (int(ind.get("rank_12w_ago")) if ind.get("rank_12w_ago") is not None else None),
-                "stock_count": (int(ind.get("stock_count")) if ind.get("stock_count") is not None else None),
+                "rank_1w_ago": rank_1w,
+                "rank_4w_ago": rank_4w,
+                "rank_12w_ago": rank_12w,
+                "stock_count": stock_count,
                 "composite_score": composite,
                 "momentum_score": _extract_float(_sf(ind.get("momentum_score"))),
                 "value_score": _extract_float(_sf(ind.get("value_score"))),
@@ -365,15 +374,20 @@ def _industry_trend(cur: cursor, industry_name: str, params: dict[str, Any]) -> 
     )
 
     rows = cur.fetchall()
-    trend_data = [
-        {
-            "date": str(r["date"]),
-            "avgPrice": float(r["avg_price"]) if r["avg_price"] is not None else None,
-            "stockCount": (int(r["stock_count"]) if r["stock_count"] is not None else None),
-            "dailyStrengthScore": (float(r["daily_strength_score"]) if r["daily_strength_score"] is not None else None),
-        }
-        for r in rows
-    ]
+    # FAIL-FAST: Extract trend data fields upfront with safe validation
+    from utils.validation import DatabaseResultValidator
+    trend_data = []
+    for r in rows:
+        date_val = DatabaseResultValidator.safe_get_str(r, "date", default=None)
+        avg_price = DatabaseResultValidator.safe_get_float(r, "avg_price", default=None)
+        stock_cnt = DatabaseResultValidator.safe_get_int(r, "stock_count", default=None)
+        strength_score = DatabaseResultValidator.safe_get_float(r, "daily_strength_score", default=None)
+        trend_data.append({
+            "date": date_val,
+            "avgPrice": avg_price,
+            "stockCount": stock_cnt,
+            "dailyStrengthScore": strength_score,
+        })
 
     freshness = check_data_freshness(cur, "price_daily", "date", warning_days=1)
     result = {
