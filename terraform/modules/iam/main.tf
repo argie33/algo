@@ -1548,20 +1548,6 @@ data "aws_iam_policy_document" "developer" {
     resources = ["*"]
   }
 
-  # RDS Data API (read queries via ExecuteStatement)
-  statement {
-    sid    = "RDSDataAPIRead"
-    effect = "Allow"
-
-    actions = [
-      "rds-data:ExecuteStatement"
-    ]
-
-    resources = [
-      "arn:aws:rds:${var.aws_region}:${var.aws_account_id}:cluster:${var.project_name}-*"
-    ]
-  }
-
   # RDS IAM authentication — scoped to project DB users only
   statement {
     sid    = "RDSIAMConnect"
