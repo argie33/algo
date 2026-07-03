@@ -62,7 +62,7 @@ alpaca_paper_trading                = true # Paper trading — live keys not yet
 api_lambda_timeout                  = 25   # Validation requires max 25s (API Gateway enforces 29s hard limit, but terraform validation stricter). VPC cold start risk: 15-40s, so retry on client side.
 api_lambda_reserved_concurrency     = 50   # MarketsHealth fires 26 concurrent calls on load (4 indices + 11 sector tiles + 4 VIX + 5 main + 2 extras). 50 gives headroom for 2 simultaneous users.
 api_lambda_provisioned_concurrency  = 0    # OPTIMIZED: Disabled in dev (accept cold starts). Saves $12/month. Cost in prod: ~$12/month
-algo_lambda_timeout                 = 600
+algo_lambda_timeout                 = 300  # OPTIMIZED: Reduced from 600 to 300s (5 min max). Prevents masking slow/failing loaders. Orchestrator typically completes in 2-3 min.
 algo_lambda_ephemeral_storage       = 512 # OPTIMIZED: reduced from 2048 (orchestrator doesn't write large temp files); saves $2-5/month
 algo_lambda_provisioned_concurrency = 0   # Orchestrator runs on schedule, cold start is acceptable
 # COST OPTIMIZED: Reserved concurrency removed (saves $170+/month). Provisioned concurrency for API only (~$12/month) worth the 502 error fix.
