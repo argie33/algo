@@ -106,6 +106,8 @@ SAFE_TABLES = {
     "positioning_metrics",
     "momentum_metrics",
     "key_metrics",
+    # Market snapshots
+    "yfinance_snapshot",
     # Financial statements
     "balance_sheet",
     "cash_flow",
