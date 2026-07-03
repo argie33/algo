@@ -58,15 +58,15 @@ def get_required_field(data: dict[str, Any], field: str, field_type: type | None
 
 
 def get_optional_field(
-    data: dict[str, Any], field: str, default: T | None = None, field_type: type | None = None
-) -> T | None:
+    data: dict[str, Any] | None, field: str, default: Any = None, field_type: type | None = None
+) -> Any:
     """Extract optional field from dict with explicit validation.
 
     Returns None or default if field missing/None. Use only for truly optional fields.
     Replaces .get(field, default) for optional enrichment data.
 
     Args:
-        data: Dictionary to extract from
+        data: Dictionary to extract from (can be None)
         field: Field name
         default: Default value if field missing/None
         field_type: Expected type for validation (optional)

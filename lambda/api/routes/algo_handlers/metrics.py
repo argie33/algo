@@ -29,6 +29,10 @@ from utils.validation import (
     APIResponseValidator,
     format_decimal_string,
 )
+from utils.validation.response_validation import (
+    get_optional_field,
+    get_required_field,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -168,22 +172,16 @@ def _get_algo_performance(cur: cursor) -> Any:  # noqa: C901
 
     try:
         metrics = safe_dict_convert(row)
-        total_trades_raw = metrics.get("total_trades")
-        winning_raw = metrics.get("winning_trades")
-        losing_raw = metrics.get("losing_trades")
-        breakeven_raw = metrics.get("breakeven_trades")
 
-        # Validate critical trade count fields exist and are non-None
-        if total_trades_raw is None or winning_raw is None or losing_raw is None:
-            logger.error(
-                f"Performance metrics incomplete: total_trades={total_trades_raw}, "
-                f"winning_trades={winning_raw}, losing_trades={losing_raw} (breakeven={breakeven_raw})"
-            )
-            return error_response(
-                503,
-                "incomplete_data",
-                "Performance metrics missing required trade counts",
-            )
+        # Extract and validate critical trade count fields (required, must be non-None)
+        try:
+            total_trades_raw = get_required_field(metrics, "total_trades")
+            winning_raw = get_required_field(metrics, "winning_trades")
+            losing_raw = get_required_field(metrics, "losing_trades")
+            breakeven_raw = get_optional_field(metrics, "breakeven_trades", default=0)
+        except RuntimeError as e:
+            logger.error(f"Performance metrics validation failed: {e}")
+            return error_response(503, "incomplete_data", str(e))
 
         total_trades = int(total_trades_raw)
         winning = int(winning_raw)
@@ -400,52 +398,71 @@ def _get_algo_performance(cur: cursor) -> Any:  # noqa: C901
             )
 
         fds = format_decimal_string  # Shorthand for readability
+
+        # Extract all optional enrichment fields upfront with explicit validation
+        # Required fields validated above; these are optional performance enhancements
+        win_rate_pct = get_optional_field(metrics, "win_rate_pct")
+        profit_factor = get_optional_field(metrics, "profit_factor")
+        total_pnl_dollars = get_optional_field(metrics, "total_pnl_dollars")
+        total_pnl_pct = get_optional_field(metrics, "total_pnl_pct")
+        cagr_pct = get_optional_field(metrics, "cagr_pct")
+        avg_trade_pct = get_optional_field(metrics, "avg_trade_pct")
+        best_trade_pct = get_optional_field(metrics, "best_trade_pct")
+        worst_trade_pct = get_optional_field(metrics, "worst_trade_pct")
+        sharpe_ratio = get_optional_field(metrics, "sharpe_ratio")
+        sortino_ratio = get_optional_field(metrics, "sortino_ratio")
+        max_drawdown_pct = get_optional_field(metrics, "max_drawdown_pct")
+        calmar_ratio = get_optional_field(metrics, "calmar_ratio")
+        avg_holding_days = get_optional_field(metrics, "avg_holding_days")
+        best_win_streak = get_optional_field(metrics, "best_win_streak")
+        worst_loss_streak = get_optional_field(metrics, "worst_loss_streak")
+
+        # Extract optional trade stats fields
+        avg_win_pct = get_optional_field(trade_stats, "avg_win_pct") if isinstance(trade_stats, dict) else None
+        avg_loss_pct = get_optional_field(trade_stats, "avg_loss_pct") if isinstance(trade_stats, dict) else None
+        avg_win_r = get_optional_field(trade_stats, "avg_win_r") if isinstance(trade_stats, dict) else None
+        avg_loss_r = get_optional_field(trade_stats, "avg_loss_r") if isinstance(trade_stats, dict) else None
+        gross_win_dollars = get_optional_field(trade_stats, "gross_win_dollars") if isinstance(trade_stats, dict) else None
+        gross_loss_dollars = get_optional_field(trade_stats, "gross_loss_dollars") if isinstance(trade_stats, dict) else None
+
         response_data = {
             "total_trades": total_trades,
             "winning_trades": winning,
             "losing_trades": losing,
             "breakeven_trades": breakeven,
-            "win_rate": fds(metrics.get("win_rate_pct"), 2, True),
-            "win_rate_pct": fds(metrics.get("win_rate_pct"), 2, True),
+            "win_rate": fds(win_rate_pct, 2, True),
+            "win_rate_pct": fds(win_rate_pct, 2, True),
             "win_rate_pct_adjusted": fds(win_rate_pct_adjusted, 1, True),
             "win_rate_confidence": ("high" if win_loss_total >= 30 else ("medium" if win_loss_total >= 10 else "low")),
-            "profit_factor": fds(metrics.get("profit_factor"), 2, True),
-            "total_pnl_dollars": fds(metrics.get("total_pnl_dollars"), 2, True),
-            "total_pnl_pct": fds(metrics.get("total_pnl_pct"), 2, True),
-            "total_return_pct": fds(metrics.get("cagr_pct"), 2, True),
-            "avg_trade_pct": fds(metrics.get("avg_trade_pct"), 2, True),
-            "avg_win_pct": fds(trade_stats.get("avg_win_pct"), 2, True),
-            "avg_loss_pct": fds(trade_stats.get("avg_loss_pct"), 2, True),
-            "avg_win_r": fds(trade_stats.get("avg_win_r"), 3, True),
-            "avg_loss_r": fds(trade_stats.get("avg_loss_r"), 3, True),
-            "gross_win_dollars": fds(trade_stats.get("gross_win_dollars"), 2, True),
-            "gross_loss_dollars": fds(trade_stats.get("gross_loss_dollars"), 2, True),
+            "profit_factor": fds(profit_factor, 2, True),
+            "total_pnl_dollars": fds(total_pnl_dollars, 2, True),
+            "total_pnl_pct": fds(total_pnl_pct, 2, True),
+            "total_return_pct": fds(cagr_pct, 2, True),
+            "avg_trade_pct": fds(avg_trade_pct, 2, True),
+            "avg_win_pct": fds(avg_win_pct, 2, True),
+            "avg_loss_pct": fds(avg_loss_pct, 2, True),
+            "avg_win_r": fds(avg_win_r, 3, True),
+            "avg_loss_r": fds(avg_loss_r, 3, True),
+            "gross_win_dollars": fds(gross_win_dollars, 2, True),
+            "gross_loss_dollars": fds(gross_loss_dollars, 2, True),
             "open_positions_count": open_positions_count,
             "open_losses_count": open_losses_count,
             "total_open_losses_dollars": fds(total_open_losses_dollars, 2, True),
-            "best_trade_pct": fds(metrics.get("best_trade_pct"), 2, True),
-            "worst_trade_pct": fds(metrics.get("worst_trade_pct"), 2, True),
-            "sharpe_annualized": fds(metrics.get("sharpe_ratio"), 3, True),
-            "sharpe_ratio": fds(metrics.get("sharpe_ratio"), 3, True),
+            "best_trade_pct": fds(best_trade_pct, 2, True),
+            "worst_trade_pct": fds(worst_trade_pct, 2, True),
+            "sharpe_annualized": fds(sharpe_ratio, 3, True),
+            "sharpe_ratio": fds(sharpe_ratio, 3, True),
             "sharpe_confidence": "high",
-            "sortino_annualized": fds(metrics.get("sortino_ratio"), 3, True),
-            "sortino_ratio": fds(metrics.get("sortino_ratio"), 3, True),
-            "max_drawdown_pct": fds(metrics.get("max_drawdown_pct"), 2, True),
-            "calmar_ratio": fds(metrics.get("calmar_ratio"), 3, True),
+            "sortino_annualized": fds(sortino_ratio, 3, True),
+            "sortino_ratio": fds(sortino_ratio, 3, True),
+            "max_drawdown_pct": fds(max_drawdown_pct, 2, True),
+            "calmar_ratio": fds(calmar_ratio, 3, True),
             "expectancy_r": fds(expectancy_r, 3, True),
-            "avg_hold_days": fds(metrics.get("avg_holding_days"), 1, True),
-            "avg_holding_days": fds(metrics.get("avg_holding_days"), 1, True),
+            "avg_hold_days": fds(avg_holding_days, 1, True),
+            "avg_holding_days": fds(avg_holding_days, 1, True),
             "portfolio_snapshots": len(equity_vals),
-            "best_win_streak": (
-                int(best_win_streak_val)
-                if (best_win_streak_val := metrics.get("best_win_streak")) is not None
-                else None
-            ),
-            "worst_loss_streak": (
-                int(worst_loss_streak_val)
-                if (worst_loss_streak_val := metrics.get("worst_loss_streak")) is not None
-                else None
-            ),
+            "best_win_streak": int(best_win_streak) if best_win_streak is not None else None,
+            "worst_loss_streak": int(worst_loss_streak) if worst_loss_streak is not None else None,
             "current_streak": current_streak,
             "equity_vals": equity_vals,
             "recent_rets": recent_rets,
