@@ -188,7 +188,12 @@ def fetch_portfolio(c: None) -> dict[str, Any]:
 
 
 def fetch_positions(c: None) -> dict[str, Any]:
-    """Fetch positions via AWS API only (fail-fast: error if unavailable)."""
+    """Fetch positions via AWS API only (fail-fast: error if unavailable).
+
+    CRITICAL: Each position must have required fields: symbol, current_price,
+    avg_entry_price, position_value. Positions with missing critical fields are
+    filtered out with error tracking (data quality issue).
+    """
     from dashboard.fetcher_validator import FetcherValidator
 
     try:
@@ -220,7 +225,34 @@ def fetch_positions(c: None) -> dict[str, Any]:
             logger.error(error_msg)
             record_data_quality_issue("pos", "validation", "invalid_response_type")
             return FetcherValidator.build_error_response(error_msg)
-        return {"items": items, "timestamp": datetime.now(ET)}
+
+        # Validate each position has required fields
+        required_fields = ["symbol", "current_price", "avg_entry_price", "position_value"]
+        valid_items = []
+        invalid_count = 0
+
+        for idx, pos in enumerate(items):
+            if not isinstance(pos, dict):
+                logger.error(f"Position {idx}: not a dict, got {type(pos).__name__}")
+                record_data_quality_issue("pos", f"position_{idx}", "invalid_type", f"Expected dict, got {type(pos).__name__}")
+                invalid_count += 1
+                continue
+
+            # Check required fields
+            missing = [f for f in required_fields if f not in pos or pos[f] is None]
+            if missing:
+                symbol = pos.get("symbol", f"<unknown_{idx}>")
+                logger.error(f"Position {symbol}: missing required fields: {missing}")
+                record_data_quality_issue("pos", symbol, "missing_required_fields", f"Missing: {missing}")
+                invalid_count += 1
+                continue
+
+            valid_items.append(pos)
+
+        if invalid_count > 0:
+            logger.warning(f"Filtered {invalid_count} invalid position(s) from API response, {len(valid_items)} valid")
+
+        return {"items": valid_items, "timestamp": datetime.now(ET)}
     except Exception as e:
         error_msg = format_fetcher_error("pos", e)
         logger.error(error_msg)
