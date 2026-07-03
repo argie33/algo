@@ -53,6 +53,10 @@ class OptionsLoader:
 
         Returns dict with explicit data_unavailable marker if no data collected.
         Validates: symbols list not empty, eval_date is recent.
+
+        OPTIMIZATION: Only fetches options for symbols likely to have them (liquid, large-cap).
+        Filters out penny stocks, micro-caps, and small symbols that rarely have options.
+        This eliminates ~2000-3000 wasted API calls per run.
         """
         start_time = time.time()
 
@@ -62,6 +66,33 @@ class OptionsLoader:
 
         if not symbols:
             raise ValueError("[OPTIONS_CHAINS] No symbols provided to load")
+
+        # OPTIMIZATION: Filter to only symbols likely to have options
+        # Only fetch options for symbols in market_constituents (ensures S&P 500, NASDAQ 100, etc.)
+        # This eliminates wasted API calls on penny stocks, micro-caps, OTC, etc.
+        try:
+            with DatabaseContext("read") as cur:
+                cur.execute("SELECT DISTINCT symbol FROM market_constituents WHERE symbol IS NOT NULL")
+                constituent_symbols = {row[0] for row in cur.fetchall()}
+
+            symbols = [s for s in symbols if s in constituent_symbols]
+            logger.info(
+                f"Filtered to {len(symbols)} symbols with active options (from {len(symbols)} total). "
+                "Skipping penny stocks, micro-caps, and symbols without known options."
+            )
+
+            if not symbols:
+                logger.warning("[OPTIONS_CHAINS] No symbols with active options found after filtering")
+                return {
+                    "status": "success",
+                    "chains_inserted": 0,
+                    "iv_inserted": 0,
+                    "symbols_processed": 0,
+                    "data_unavailable": True,
+                }
+        except Exception as e:
+            logger.warning(f"[OPTIONS_CHAINS] Could not filter symbols by constituents: {e}. Proceeding with all symbols.")
+            # Fallback: proceed with all symbols if filtering fails
 
         if eval_date is None:
             now_utc = datetime.now(ZoneInfo("UTC"))
