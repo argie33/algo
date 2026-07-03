@@ -211,37 +211,33 @@ class TestMarketExpandedPanelValidation:
         text = assert_panel_renders_without_crash(panel, "Should render with minimal data")
         assert "MARKET - EXPANDED" in text
 
-    def test_panel_market_expanded_nh_nl_calculation_safe_with_strings(self):
-        """NH-NL calculation should handle type coercion."""
+    def test_panel_market_expanded_nh_nl_calculation_strict_validation(self):
+        """NH-NL calculation must fail-fast on invalid types (strict validation)."""
         mkt = TestDataFactory.well_formed_market_data()
-        mkt.update(
-            {
-                "nh": "500",  # String instead of int
-                "nl": [100],  # List instead of int (can't coerce)
-            }
-        )
+        # String nh is OK (can coerce)
+        mkt["nh"] = "500"
         panel = panel_market_expanded(mkt=mkt)
-
-        # Should render (safe_int handles strings, returns None for lists)
-        text = assert_panel_renders_without_crash(panel, "Should handle mixed NH-NL types")
-        # nh gets coerced, nl shows as "--"
+        text = assert_panel_renders_without_crash(panel, "Should handle string nh (coercible)")
         assert "Traceback" not in text
 
-    def test_panel_market_expanded_breadth_momentum_coercion_safe(self):
-        """Breadth momentum/PCR comparisons should use safe_float."""
-        mkt = TestDataFactory.well_formed_market_data()
-        mkt.update(
-            {
-                "bmom": "0.75",  # String - should coerce
-                "pcr": [0.8],  # List - cannot coerce, shows as N/A
-            }
-        )
-        panel = panel_market_expanded(mkt=mkt)
+        # List nl is NOT OK (strict validation rejects non-coercible types)
+        mkt["nl"] = [100]
+        with pytest.raises(Exception):  # StrictValidationError expected
+            panel_market_expanded(mkt=mkt)
 
-        # Should handle both gracefully
-        text = assert_panel_renders_without_crash(panel, "Should handle breadth metric coercion")
-        # bmom coerced from string, pcr shows N/A
+    def test_panel_market_expanded_breadth_momentum_strict_validation(self):
+        """Breadth momentum/PCR must validate types (strict validation)."""
+        mkt = TestDataFactory.well_formed_market_data()
+        # String bmom is OK (can coerce)
+        mkt["bmom"] = "0.75"
+        panel = panel_market_expanded(mkt=mkt)
+        text = assert_panel_renders_without_crash(panel, "Should handle string bmom (coercible)")
         assert "MARKET - EXPANDED" in text
+
+        # List pcr is NOT OK (strict validation rejects non-coercible types)
+        mkt["pcr"] = [0.8]
+        with pytest.raises(Exception):  # StrictValidationError expected
+            panel_market_expanded(mkt=mkt)
 
 
 class TestMarketHeaderPanelValidation:

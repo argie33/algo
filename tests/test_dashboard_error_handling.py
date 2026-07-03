@@ -178,8 +178,8 @@ def test_circuit_breaker_cascade_collapsed_in_error_panel():
     print("OK circuit breaker cascade collapsed into single panel entry")
 
 
-def test_fetch_perf_analytics_none_fields_do_not_crash():
-    """fetch_perf_analytics must not crash when API returns None for numeric fields."""
+def test_fetch_perf_analytics_none_fields_fail_fast():
+    """fetch_perf_analytics must fail-fast when numeric fields are None (strict validation)."""
     from unittest.mock import patch
 
     from dashboard.fetchers_portfolio import fetch_perf_analytics
@@ -196,9 +196,10 @@ def test_fetch_perf_analytics_none_fields_do_not_crash():
     }
     with patch("dashboard.fetchers_portfolio.api_call", return_value=none_response):
         result = fetch_perf_analytics(None)
-    assert "_error" not in result, f"Should not error on None fields, got: {result}"
-    assert result.get("sharpe252") is None
-    print("OK fetch_perf_analytics handles None fields gracefully")
+    # Strict validation should mark this with _error (fail-fast: None cannot convert to float)
+    assert "_error" in result, f"Should error on None fields per strict validation, got: {result}"
+    assert "Cannot convert None to float" in result.get("_error", "")
+    print("OK fetch_perf_analytics fails fast on None fields (strict validation)")
 
 
 def test_fetch_risk_metrics_rejects_missing_required_fields():
