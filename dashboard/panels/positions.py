@@ -115,8 +115,11 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
             padding=(0, 1),
         )
 
-    # Check for graceful degradation: optional data unavailability marker
-    is_data_unavailable = isinstance(pos, dict) and pos.get("_data_unavailable", False)
+    # Check for graceful degradation: explicit data unavailability marker
+    # GOVERNANCE: Data unavailability must be explicit. Missing marker means unknown state.
+    is_data_unavailable = False
+    if isinstance(pos, dict) and "_data_unavailable" in pos:
+        is_data_unavailable = bool(pos["_data_unavailable"])
     if is_data_unavailable:
         # Optional data marked unavailable by loader (e.g., missing enrichment)
         reason = pos.get("reason", "unknown reason")
