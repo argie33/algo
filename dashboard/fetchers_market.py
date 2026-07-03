@@ -177,34 +177,39 @@ def fetch_market(c: None) -> dict[str, Any]:
         halt_reasons = halt_reasons_raw
 
         result = {
-            "pct": safe_float(current.get("exposure_pct"), field_name="market.exposure_pct"),
+            "pct": safe_float(current.get("exposure_pct"), field_name="market.exposure_pct", strict=True),
             "tier": tier,
             "halts": halt_reasons,
             "vix": vix,
-            "dist": safe_int(current.get("distribution_days"), field_name="market.distribution_days"),
+            "dist": safe_int(current.get("distribution_days"), field_name="market.distribution_days", strict=True),
             "spy": spy,
-            "spy_chg": safe_float(market_health.get("spy_change_pct"), field_name="market.spy_change_pct"),
+            "spy_chg": safe_float(market_health.get("spy_change_pct"), field_name="market.spy_change_pct", strict=True),
             "upvol": safe_float(
                 market_health.get("up_volume_percent"),
                 field_name="market.up_volume_percent",
+                strict=True,
             ),
             "adr": safe_float(
                 market_health.get("advance_decline_ratio"),
                 field_name="market.advance_decline_ratio",
+                strict=True,
             ),
             "nh": safe_int(
                 market_health.get("new_highs_count"),
                 field_name="market.new_highs_count",
+                strict=True,
             ),
-            "nl": safe_int(market_health.get("new_lows_count"), field_name="market.new_lows_count"),
-            "pcr": safe_float(market_health.get("put_call_ratio"), field_name="market.put_call_ratio"),
+            "nl": safe_int(market_health.get("new_lows_count"), field_name="market.new_lows_count", strict=True),
+            "pcr": safe_float(market_health.get("put_call_ratio"), field_name="market.put_call_ratio", strict=True),
             "bmom": safe_float(
                 market_health.get("breadth_momentum_10d"),
                 field_name="market.breadth_momentum_10d",
+                strict=True,
             ),
             "ycs": safe_float(
                 market_health.get("yield_curve_slope"),
                 field_name="market.yield_curve_slope",
+                strict=True,
             ),
         }
 
@@ -285,8 +290,8 @@ def fetch_exp_factors(c: None) -> dict[str, Any]:
             logger.debug("Optional exposure data missing: factors not provided by API")
 
         result: dict[str, Any] = {
-            "exposure_pct": safe_float(current.get("exposure_pct"), field_name="exposure.exposure_pct"),
-            "raw_score": safe_float(current.get("raw_score"), field_name="exposure.raw_score"),
+            "exposure_pct": safe_float(current.get("exposure_pct"), field_name="exposure.exposure_pct", strict=True),
+            "raw_score": safe_float(current.get("raw_score"), field_name="exposure.raw_score", strict=True),
         }
 
         if not regime_unavailable:
