@@ -1,7 +1,7 @@
 """Fetcher functions for external and enrichment data sources."""
 
 import logging
-from typing import Any
+from typing import Any, cast
 
 from utils.validation.framework import safe_float
 
@@ -28,8 +28,8 @@ def fetch_economic_pulse(c: None) -> dict[str, Any]:  # noqa: C901
         # Check for API error
         is_error, error_msg = FetcherValidator.check_api_error(yc_data)
         if is_error:
-            record_data_quality_issue("eco", "api_call", "yield_curve_error", error_msg)
-            return FetcherValidator.build_error_response(error_msg)
+            record_data_quality_issue("eco", "api_call", "yield_curve_error", cast(str, error_msg))
+            return FetcherValidator.build_error_response(cast(str, error_msg))
 
         # Fetch macro indicators (CPI, unemployment, fed funds, oil, DXY, etc.)
         ind_data = api_call("/api/economic/indicators")
@@ -37,8 +37,8 @@ def fetch_economic_pulse(c: None) -> dict[str, Any]:  # noqa: C901
         # Check for API error
         is_error, error_msg = FetcherValidator.check_api_error(ind_data)
         if is_error:
-            record_data_quality_issue("eco", "api_call", "indicators_error", error_msg)
-            return FetcherValidator.build_error_response(error_msg)
+            record_data_quality_issue("eco", "api_call", "indicators_error", cast(str, error_msg))
+            return FetcherValidator.build_error_response(cast(str, error_msg))
 
         # Extract yield curve data
         d = yc_data
@@ -217,8 +217,8 @@ def fetch_economic_calendar(c: None) -> dict[str, Any]:
         # Check for API error
         is_error, error_msg = FetcherValidator.check_api_error(data)
         if is_error:
-            record_data_quality_issue("econ_cal", "api_call", "api_error", error_msg)
-            return FetcherValidator.build_error_response(error_msg)
+            record_data_quality_issue("econ_cal", "api_call", "api_error", cast(str, error_msg))
+            return FetcherValidator.build_error_response(cast(str, error_msg))
 
         raw = data
         items = None
@@ -259,8 +259,8 @@ def fetch_exec_history(c: None) -> dict[str, Any] | list[Any]:
         # Check for API error
         is_error, error_msg = FetcherValidator.check_api_error(data)
         if is_error:
-            record_data_quality_issue("exec_hist", "api_call", "api_error", error_msg)
-            return FetcherValidator.build_error_response(error_msg)
+            record_data_quality_issue("exec_hist", "api_call", "api_error", cast(str, error_msg))
+            return FetcherValidator.build_error_response(cast(str, error_msg))
 
         raw = data
         if isinstance(raw, dict):
@@ -294,8 +294,8 @@ def fetch_sentiment(c: None) -> dict[str, Any]:
         # Check for API error
         is_error, error_msg = FetcherValidator.check_api_error(data)
         if is_error:
-            record_data_quality_issue("sentiment", "api_call", "api_error", error_msg)
-            return FetcherValidator.build_error_response(error_msg)
+            record_data_quality_issue("sentiment", "api_call", "api_error", cast(str, error_msg))
+            return FetcherValidator.build_error_response(cast(str, error_msg))
 
         d = data
         # Validate required fields
@@ -338,8 +338,8 @@ def fetch_industry_ranking(c: None) -> dict[str, Any]:
         # Check for API error
         is_error, error_msg = FetcherValidator.check_api_error(data)
         if is_error:
-            record_data_quality_issue("irank", "api_call", "api_error", error_msg)
-            return FetcherValidator.build_error_response(error_msg)
+            record_data_quality_issue("irank", "api_call", "api_error", cast(str, error_msg))
+            return FetcherValidator.build_error_response(cast(str, error_msg))
 
         raw = data
         items = None
@@ -382,8 +382,8 @@ def fetch_activity(c: None) -> dict[str, Any]:
         # Check for API error
         is_error, error_msg = FetcherValidator.check_api_error(data)
         if is_error:
-            record_data_quality_issue("activity", "api_call", "api_error", error_msg)
-            return FetcherValidator.build_error_response(error_msg)
+            record_data_quality_issue("activity", "api_call", "api_error", cast(str, error_msg))
+            return FetcherValidator.build_error_response(cast(str, error_msg))
 
         raw = data
         items = None
@@ -450,8 +450,8 @@ def fetch_audit_log(c: None) -> dict[str, Any] | list[Any]:
         # Check for API error
         is_error, error_msg = FetcherValidator.check_api_error(data)
         if is_error:
-            record_data_quality_issue("audit", "api_call", "api_error", error_msg)
-            return FetcherValidator.build_error_response(error_msg)
+            record_data_quality_issue("audit", "api_call", "api_error", cast(str, error_msg))
+            return FetcherValidator.build_error_response(cast(str, error_msg))
 
         raw = data
         if isinstance(raw, dict):
@@ -484,8 +484,8 @@ def fetch_notifications(c: None) -> dict[str, Any]:
         # Check for API error
         is_error, error_msg = FetcherValidator.check_api_error(data)
         if is_error:
-            record_data_quality_issue("notifs", "api_call", "api_error", error_msg)
-            return FetcherValidator.build_error_response(error_msg)
+            record_data_quality_issue("notifs", "api_call", "api_error", cast(str, error_msg))
+            return FetcherValidator.build_error_response(cast(str, error_msg))
 
         raw = data
         items = None

@@ -2,7 +2,7 @@
 
 import logging
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 from zoneinfo import ZoneInfo
 
 from utils.validation.framework import safe_float, safe_int
@@ -16,16 +16,16 @@ logger = logging.getLogger(__name__)
 
 def fetch_signals(c: None) -> dict[str, Any]:
     """Fetch dashboard signals from API. Fail-fast: error only on failure."""
-    from dashboard.error_boundary import has_error
     from dashboard.fetcher_validator import FetcherValidator
 
     try:
         data = api_call(get_endpoint_path("sig"))
 
         # Check for API error (fail-fast pattern: check error first)
-        if has_error(data):
-            record_data_quality_issue("sig", "api_call", "api_error", data.get("_error"))
-            return data
+        is_error, error_msg = FetcherValidator.check_api_error(data)
+        if is_error:
+            record_data_quality_issue("sig", "api_call", "api_error", cast(str, error_msg))
+            return FetcherValidator.build_error_response(cast(str, error_msg))
 
         if not data:
             error_msg = "No data returned from /api/algo/dashboard-signals"
@@ -121,16 +121,16 @@ def fetch_signal_eval(c: None) -> dict[str, Any]:
     never silently default to None which could hide data corruption.
     """
     from dashboard.data_validation import StrictValidationError
-    from dashboard.error_boundary import has_error
     from dashboard.fetcher_validator import FetcherValidator
 
     try:
         data = api_call(get_endpoint_path("sig_eval"))
 
         # Check for API error (fail-fast pattern: check error first)
-        if has_error(data):
-            record_data_quality_issue("sig_eval", "api_call", "api_error", data.get("_error"))
-            return data
+        is_error, error_msg = FetcherValidator.check_api_error(data)
+        if is_error:
+            record_data_quality_issue("sig_eval", "api_call", "api_error", cast(str, error_msg))
+            return FetcherValidator.build_error_response(cast(str, error_msg))
 
         result = data
 
@@ -205,8 +205,8 @@ def fetch_scores(c: None) -> dict[str, Any]:
                 f"Scores API error (fail-fast): {error_msg} - "
                 f"Signal quality ranking unavailable. Check API and database."
             )
-            record_data_quality_issue("scores", "api_call", "api_error", error_msg)
-            return FetcherValidator.build_error_response(error_msg)
+            record_data_quality_issue("scores", "api_call", "api_error", cast(str, error_msg))
+            return FetcherValidator.build_error_response(cast(str, error_msg))
 
         # Validate response structure - fail-fast if missing items field
         if not isinstance(top_data, dict):
