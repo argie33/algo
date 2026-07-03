@@ -356,18 +356,20 @@ class MarketFactorCalculator:
             row = cur.fetchone()
             cur.execute("RELEASE SAVEPOINT sp_put_call")
             if not row or row[0] is None:
-                logger.warning(
-                    "[PUT_CALL] Put/call ratio unavailable — returning neutral score. "
-                    "Check: (1) market_health_daily has recent readings, (2) put_call_ratio column is populated"
+                raise RuntimeError(
+                    f"[PUT_CALL CRITICAL] Put/call ratio unavailable for {eval_date}. "
+                    f"Cannot compute market exposure without sentiment data (put/call ratio is key to position sizing). "
+                    f"Check: (1) market_health_daily has recent readings, (2) put_call_ratio column populated. "
+                    f"Must have put/call data to proceed — no degraded scoring allowed."
                 )
-                return {"value": None, "score": 50, "data_unavailable": True, "reason": "put_call_ratio_null"}
             pcr = float(row[0])
             if pcr <= 0:
-                logger.warning(
-                    f"[PUT_CALL] Put/call ratio invalid for {eval_date}: {pcr} — returning neutral score. "
-                    f"Put/call ratio must be > 0. Value of {pcr} indicates data quality issue."
+                raise RuntimeError(
+                    f"[PUT_CALL CRITICAL] Put/call ratio invalid for {eval_date}: {pcr}. "
+                    f"Put/call ratio must be > 0 to indicate valid market sentiment data. "
+                    f"Value of {pcr} indicates upstream data quality issue in market_health_daily. "
+                    f"Cannot proceed with position sizing without valid sentiment data."
                 )
-                return {"value": None, "score": 50, "data_unavailable": True, "reason": "put_call_ratio_invalid"}
             score = max(0, min(100, (pcr - 0.7) * 100))
             return {"value": round(pcr, 2), "score": score}
         except RuntimeError:

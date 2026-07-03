@@ -142,11 +142,27 @@ class CashFlowLoader(OptimalLoader):
             if sec_field in ("symbol", "fiscal_year"):
                 continue
 
-            db_field = self._field_mapping.get(sec_field, sec_field)
+            # FAIL-FAST: Validate all mapped fields exist in schema (configuration error if not)
+            if sec_field not in self._field_mapping:
+                # Unmapped field — log and skip (don't silently discard without visibility)
+                logger.debug(
+                    f"[{self.table_name}] {r.get('symbol')}: Unmapped SEC field '{sec_field}' "
+                    f"— may indicate schema change or optional field. Skipping."
+                )
+                continue
+
+            db_field = self._field_mapping[sec_field]  # Field is guaranteed to exist
             if db_field == "capex":
                 capex_value = value
             elif db_field in self._schema_cols:
                 row[db_field] = value
+            elif db_field not in ("capex", "depreciation", "depreciation_and_amortization"):
+                # Only raise error for mapped fields not in schema (excluding known temporary fields)
+                raise RuntimeError(
+                    f"[{self.table_name}] Field mapping configuration error: SEC field '{sec_field}' "
+                    f"maps to '{db_field}' but '{db_field}' not in target schema. "
+                    f"Check field_mapping and schema definitions."
+                )
 
         if "fiscal_quarter" in row and isinstance(row["fiscal_quarter"], str):
             quarter_map = {"Q1": 1, "Q2": 2, "Q3": 3, "Q4": 4}

@@ -171,10 +171,24 @@ class IncomeStatementLoader(OptimalLoader):
                 if sec_field in ("symbol", "fiscal_year"):
                     continue
 
-                db_field = self._field_mapping.get(sec_field, sec_field)
-                if db_field in self._schema_cols:
-                    if db_field not in row or (row[db_field] is None and value is not None):
-                        row[db_field] = value
+                # FAIL-FAST: Validate all mapped fields exist in schema (configuration error if not)
+                if sec_field not in self._field_mapping:
+                    # Unmapped field — log and skip (don't silently discard without visibility)
+                    logger.debug(
+                        f"[{self.table_name}] {r.get('symbol')}: Unmapped SEC field '{sec_field}' "
+                        f"— may indicate schema change or optional field. Skipping."
+                    )
+                    continue
+
+                db_field = self._field_mapping[sec_field]  # Field is guaranteed to exist
+                if db_field not in self._schema_cols:
+                    raise RuntimeError(
+                        f"[{self.table_name}] Field mapping configuration error: SEC field '{sec_field}' "
+                        f"maps to '{db_field}' but '{db_field}' not in target schema. "
+                        f"Check field_mapping and schema definitions."
+                    )
+                if db_field not in row or (row[db_field] is None and value is not None):
+                    row[db_field] = value
 
             if "fiscal_quarter" in row and isinstance(row["fiscal_quarter"], str):
                 quarter_str = row["fiscal_quarter"]
