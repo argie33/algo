@@ -161,10 +161,12 @@ class StockScoresLoader(OptimalLoader):
                     available_count = row[0] if row else 0
                     coverage = available_count / total_count if total_count > 0 else 0
                     if coverage == 0:
-                        logger.warning(
-                            f"[STOCK_SCORES] {table_name} has {total_count} rows but 0% real data "
-                            f"(all data_unavailable=True) — SEC annual financials upstream may be empty. "
-                            f"Proceeding without {table_name} factor; per-symbol scoring redistributes weights."
+                        raise RuntimeError(
+                            f"[STOCK_SCORES CRITICAL] Upstream loader {table_name} returned 0% real data "
+                            f"({total_count} rows all marked data_unavailable=True). "
+                            f"Upstream metric loader failed or is incomplete. "
+                            f"Cannot compute stock scores without upstream data. "
+                            f"Fix: Verify {table_name} loader completed successfully and returned valid data."
                         )
 
                 logger.info(
@@ -349,14 +351,21 @@ class StockScoresLoader(OptimalLoader):
                 "momentum": is_real_score(momentum_score),
             }
 
+            # STRICT: Minimum 3 metrics required for composite scoring (GOVERNANCE.md)
+            # Prevents single-metric bias (100% weight on one factor)
+            # Allows degradation but NOT to dangerous low-completeness levels
+            real_metric_count = sum(1 for v in score_availability.values() if v)
+            if real_metric_count < 3:
+                missing_metrics = [k for k, v in score_availability.items() if not v]
+                raise ValueError(
+                    f"[STOCK_SCORES] {symbol}: Insufficient metrics for composite score. "
+                    f"Available {real_metric_count}/6 metrics (missing: {', '.join(missing_metrics)}). "
+                    f"Minimum 3 metrics required to prevent single-factor bias. "
+                    f"Check upstream loaders (quality, growth, value, positioning, stability, momentum)."
+                )
+
             # Normalize weights: keep weights of available metrics, redistribute missing weights
             available_weight_sum = sum(w for k, w in base_weights.items() if score_availability[k])
-            if available_weight_sum <= 0:
-                raise ValueError(
-                    f"[STOCK_SCORES] No component scores available for {symbol}. "
-                    "Stock score computation requires at least one available component (quality/growth/value/positioning/stability). "
-                    "Check upstream loader status and data availability."
-                )
             normalized_weights = {}
             for key, weight in base_weights.items():
                 if score_availability[key]:
@@ -498,7 +507,7 @@ class StockScoresLoader(OptimalLoader):
     # - Returns data_unavailable dict to DB only on exceptions (operator visibility)
     #
     # KEY CHANGES (2026-07-03):
-    # 1. All _get_* now validate row length before accessing (6 bound checks × 1-5 fields = 15+ validations)
+    # 1. All _get_* now validate row length before accessing (6 bound checks x 1-5 fields = 15+ validations)
     # 2. All numeric conversions use self._safe_float() consistently (prevents type corruption)
     # 3. Removed new-listing exception that allowed 2/6 metrics
     # 4. Removed short-term momentum fallback (2/4/7/14 day lookbacks violated standards)

@@ -469,7 +469,12 @@ class MarketHealthDailyLoader(OptimalLoader):
                 logger.info(f"Put/call ratio: {today_pc:.3f} (matched {matched_count} rows)")
             else:
                 # Data available but invalid/zero, mark unavailable
-                reason = result.get("reason", "invalid_value")
+                if "reason" not in result:
+                    raise ValueError(
+                        "[MARKET_HEALTH] Put/call result has data_unavailable marker but missing reason field. "
+                        "Data structure corruption or incomplete error handling."
+                    )
+                reason = result["reason"]
                 for m in health_metrics:
                     if m["date"] == end_str:
                         m["put_call_ratio"] = None
@@ -483,7 +488,12 @@ class MarketHealthDailyLoader(OptimalLoader):
                 )
         else:
             # Explicitly mark which date is missing put/call ratio with data_unavailable flag
-            error_reason = result.get("reason", "unknown")
+            if "reason" not in result:
+                raise ValueError(
+                    "[MARKET_HEALTH] Put/call result missing reason field for data_unavailable case. "
+                    "Data structure corruption or incomplete error handling."
+                )
+            error_reason = result["reason"]
             for m in health_metrics:
                 if m["date"] == end_str:
                     m["put_call_ratio"] = None
@@ -585,7 +595,12 @@ class MarketHealthDailyLoader(OptimalLoader):
 
             # Check for explicit data_unavailable marker from fetch or fetcher
             if yield_curve.get("data_unavailable"):
-                reason = yield_curve.get("reason", "unknown")
+                if "reason" not in yield_curve:
+                    raise ValueError(
+                        "[MARKET_HEALTH] Yield curve result has data_unavailable=True but missing reason field. "
+                        "Data structure corruption or incomplete error handling."
+                    )
+                reason = yield_curve["reason"]
                 logger.warning(
                     f"[MARKET_HEALTH] Yield curve data unavailable ({reason}) - "
                     f"marking data_unavailable and skipping inversion detection"
@@ -779,7 +794,12 @@ class MarketHealthDailyLoader(OptimalLoader):
 
             # Check for explicit data_unavailable marker
             if result.get("data_unavailable"):
-                error_reason = result.get("reason", "unknown")
+                if "reason" not in result:
+                    raise ValueError(
+                        "[MARKET_HEALTH] Fed rate result has data_unavailable=True but missing reason field. "
+                        "Data structure corruption or incomplete error handling."
+                    )
+                error_reason = result["reason"]
                 msg = (
                     f"[MARKET_HEALTH] Fed rate enrichment unavailable after retries: {error_reason}. "
                     f"Fed policy environment optional enrichment unavailable. Marking data_unavailable and continuing."
@@ -1344,7 +1364,7 @@ def _write_vix_family_prices(start: date, end: date) -> int:  # noqa: C901
                     f"Cannot use stale price_daily data (violates fail-fast governance). "
                     f"Marking as unavailable."
                 )
-                failed_symbols[sym] = f"yfinance_failed_using_stale: {str(e)}"
+                failed_symbols[sym] = f"yfinance_failed_using_stale: {e!s}"
             except ZeroDivisionError as e:
                 logger.error(f"[MARKET_HEALTH] Unexpected calculation error for {sym}: {e}")
                 raise RuntimeError(f"[MARKET_HEALTH] Unexpected error loading market health for {sym}: {e}") from e

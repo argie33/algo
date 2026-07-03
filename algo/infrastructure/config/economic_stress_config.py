@@ -248,12 +248,29 @@ class EconomicStressConfig:
     def get_severe_exposure_cap_pct(self) -> float:
         """Get exposure cap percentage at severe economic stress.
 
-        Severe stress (score >= 60) caps portfolio exposure at this percentage.
+        CRITICAL: Must be explicitly configured. Severe stress (score >= 60) caps portfolio exposure.
 
         Returns:
             Exposure cap as percentage (0-100)
+
+        Raises:
+            RuntimeError: If 'econ_stress_severe_cap_pct' config key is missing (fail-fast)
         """
-        return float(self.get("econ_stress_severe_cap_pct", 40.0))
+        value = self.get("econ_stress_severe_cap_pct")
+        if value is None:
+            raise RuntimeError(
+                "[ECON_STRESS_CONFIG] CRITICAL: econ_stress_severe_cap_pct config key missing. "
+                "Severe stress exposure cap must be explicitly configured for risk management. "
+                "Set 'econ_stress_severe_cap_pct' in algo_config table to proceed. "
+                "Check database: SELECT * FROM algo_config WHERE key = 'econ_stress_severe_cap_pct';"
+            )
+        cap_pct = float(value)
+        if not (0 <= cap_pct <= 100):
+            raise RuntimeError(
+                f"[ECON_STRESS_CONFIG] CRITICAL: econ_stress_severe_cap_pct must be 0-100% (got {cap_pct}). "
+                f"Update algo_config: UPDATE algo_config SET value = '40.0' WHERE key = 'econ_stress_severe_cap_pct';"
+            )
+        return cap_pct
 
     def get_all_stress_scores(self) -> dict[str, Any]:
         """Get all economic stress configuration for debugging/logging.

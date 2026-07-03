@@ -72,16 +72,15 @@ class VectorizedTechnicalLoader:
 
         try:
             # Validate upstream price data freshness before computing indicators
-            # NOTE: Technical indicators can use up to 300 days of lookback, so we allow
-            # price data up to 7 days old during backfill. During normal operations,
-            # price_daily is updated daily so this is not a constraint.
+            # Technical indicators require fresh price data to be accurate
+            # Do NOT fall back to stale data - fail-fast enforcement
             price_freshness = DataAgeValidator.check("price_daily")
             if not price_freshness["is_fresh"]:
-                # Log warning but don't fail - allow stale price data during backfill
-                # The orchestrator will enforce stricter freshness checks
-                logger.warning(
-                    f"[TECHNICAL_DATA WARNING] Price source data is slightly stale: {price_freshness['message']}. "
-                    f"Proceeding with available data (orchestrator will enforce stricter checks)."
+                raise RuntimeError(
+                    f"[TECHNICAL_DATA CRITICAL] Cannot compute technical indicators with stale price data. "
+                    f"Price data is {price_freshness['age_days']} days old (threshold {price_freshness.get('threshold_days', 1)} days). "
+                    f"Message: {price_freshness['message']}. "
+                    f"Fix: Ensure price_daily loader completed successfully with fresh data."
                 )
 
             all_prices = self._fetch_all_prices(symbols, start_date, end_date)

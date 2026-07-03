@@ -180,6 +180,7 @@ class StabilityMetricsLoader(OptimalLoader):
             # Calculate volatilities (annualized: sqrt(252) * daily_std)
             # For new listings: use whatever data is available (minimum 2 returns for volatility)
             # Helper methods now return float or explicit marker dict for data_unavailable
+            volatility_30d_result: float | dict[str, Any]
             if len(returns) < 30:
                 volatility_30d_result = {
                     "data_unavailable": True,
@@ -188,6 +189,7 @@ class StabilityMetricsLoader(OptimalLoader):
             else:
                 volatility_30d_result = self._calculate_volatility(returns[-30:], symbol=symbol)
 
+            volatility_60d_result: float | dict[str, Any]
             if len(returns) < 60:
                 volatility_60d_result = {
                     "data_unavailable": True,
@@ -218,31 +220,56 @@ class StabilityMetricsLoader(OptimalLoader):
             )
             beta: float | None = None if beta_unavailable else (beta_result if isinstance(beta_result, float) else None)
 
-            # Consolidate unavailability reasons
-            # For new listings with 10-29 days: allow partial stability metrics
-            # Only mark data_unavailable=True if we can't calculate ANY volatility
+            # STRICT: Stability metrics require COMPLETE data (all three volatilities + beta)
+            # Partial metrics lead to inaccurate risk calculations. No fallback to degraded data.
             unavailability_reasons = []
-            has_any_volatility = volatility_30d is not None or volatility_60d is not None or volatility_252d is not None
+
+            # Check 30d volatility availability
+            volatility_30d_unavailable = isinstance(volatility_30d_result, dict) and volatility_30d_result.get(
+                "data_unavailable"
+            )
+            if volatility_30d_unavailable:
+                if not isinstance(volatility_30d_result, dict) or "reason" not in volatility_30d_result:
+                    reason_30d = "missing_reason_field"
+                else:
+                    reason_30d = volatility_30d_result["reason"]
+                unavailability_reasons.append(f"vol_30d: {reason_30d}")
+
+            # Check 60d volatility availability
+            volatility_60d_unavailable = isinstance(volatility_60d_result, dict) and volatility_60d_result.get(
+                "data_unavailable"
+            )
+            if volatility_60d_unavailable:
+                if not isinstance(volatility_60d_result, dict) or "reason" not in volatility_60d_result:
+                    reason_60d = "missing_reason_field"
+                else:
+                    reason_60d = volatility_60d_result["reason"]
+                unavailability_reasons.append(f"vol_60d: {reason_60d}")
 
             if volatility_252d_unavailable:
-                reason = (
-                    volatility_252d_result.get("reason", "volatility_252d_unavailable")
-                    if isinstance(volatility_252d_result, dict)
-                    else "volatility_252d_unavailable"
-                )
-                unavailability_reasons.append(f"vol_252d: {reason}")
-            if beta_unavailable:
-                reason = (
-                    beta_result.get("reason", "beta_unavailable")
-                    if isinstance(beta_result, dict)
-                    else "beta_unavailable"
-                )
-                unavailability_reasons.append(f"beta: {reason}")
+                if not isinstance(volatility_252d_result, dict) or "reason" not in volatility_252d_result:
+                    reason_252d = "missing_reason_field"
+                else:
+                    reason_252d = volatility_252d_result["reason"]
+                unavailability_reasons.append(f"vol_252d: {reason_252d}")
 
-            # Mark data unavailable only if we have NO volatility estimates at all
-            # Allows new listings with <30 days to still contribute to stock scores via partial stability metrics
-            data_unavailable = not has_any_volatility
-            reason = "; ".join(unavailability_reasons) if unavailability_reasons and data_unavailable else None
+            if beta_unavailable:
+                if not isinstance(beta_result, dict) or "reason" not in beta_result:
+                    reason_beta = "missing_reason_field"
+                else:
+                    reason_beta = beta_result["reason"]
+                unavailability_reasons.append(f"beta: {reason_beta}")
+
+            # FAIL-FAST: Missing ANY component makes all stability metrics unavailable
+            # Partial metrics compromise risk accuracy
+            has_complete_metrics = (
+                volatility_30d is not None and
+                volatility_60d is not None and
+                volatility_252d is not None and
+                beta is not None
+            )
+            data_unavailable = not has_complete_metrics
+            reason = "; ".join(unavailability_reasons) if unavailability_reasons else None
 
             if data_unavailable:
                 logger.debug(
