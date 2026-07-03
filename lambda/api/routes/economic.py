@@ -297,13 +297,17 @@ def _get_leading_indicators(cur: cursor) -> Any:  # noqa: C901
         # Group by series_id
         history_by_series: dict[str, list[Any]] = {}
         for row in all_history:
-            sid = row["series_id"]
+            # FAIL-FAST: Extract series_id with safe validation
+            sid = DatabaseResultValidator.safe_get_str(row, "series_id", strict=True)
             if sid not in history_by_series:
                 history_by_series[sid] = []
+            # FAIL-FAST: Extract date and value with validation
+            date_val = DatabaseResultValidator.safe_get_str(row, "date", strict=True)
+            value_val = DatabaseResultValidator.safe_get_float(row, "value", default=None)
             history_by_series[sid].append(
                 {
-                    "date": str(row["date"]),
-                    "value": float(row["value"]) if row["value"] else None,
+                    "date": date_val,
+                    "value": value_val,
                 }
             )
 
@@ -325,23 +329,24 @@ def _get_leading_indicators(cur: cursor) -> Any:  # noqa: C901
                 # history is sorted ascending; last = most recent, -13 ≈ 1 year ago
                 cur_h = history[-1] if history else None
                 yr_ago = history[-13] if len(history) >= 13 else history[0]
-                if cur_h and yr_ago and yr_ago.get("value") and cur_h.get("value"):
-                    prior = float(yr_ago["value"])
-                    if prior != 0:
-                        display_value = round((float(cur_h["value"]) - prior) / abs(prior) * 100, 2)
+                if cur_h and yr_ago:
+                    # FAIL-FAST: Extract values upfront with safe validation
+                    prior = DatabaseResultValidator.safe_get_float(yr_ago, "value", default=None)
+                    cur_val = DatabaseResultValidator.safe_get_float(cur_h, "value", default=None)
+                    if prior is not None and cur_val is not None and prior != 0:
+                        display_value = round((cur_val - prior) / abs(prior) * 100, 2)
                 # Replace history values with rolling YoY % change too
                 yoy_history = []
                 for idx in range(12, len(history)):
-                    cur_v = history[idx].get("value")
-                    yr_v = history[idx - 12].get("value")
-                    if cur_v is not None and yr_v and float(yr_v) != 0:
+                    # FAIL-FAST: Extract values upfront before arithmetic
+                    cur_v = DatabaseResultValidator.safe_get_float(history[idx], "value", default=None)
+                    yr_v = DatabaseResultValidator.safe_get_float(history[idx - 12], "value", default=None)
+                    date_v = DatabaseResultValidator.safe_get_str(history[idx], "date", default=None)
+                    if cur_v is not None and yr_v is not None and yr_v != 0:
                         yoy_history.append(
                             {
-                                "date": history[idx]["date"],
-                                "value": round(
-                                    (float(cur_v) - float(yr_v)) / abs(float(yr_v)) * 100,
-                                    2,
-                                ),
+                                "date": date_v,
+                                "value": round((cur_v - yr_v) / abs(yr_v) * 100, 2),
                             }
                         )
                 if yoy_history:
@@ -457,8 +462,9 @@ def _get_yield_curve_full(cur: cursor) -> Any:  # noqa: C901
         history = {}
 
         for row in latest_rows:
-            sid = row["series_id"]
-            val = float(row["value"]) if row["value"] else None
+            # FAIL-FAST: Extract series_id and value with safe validation
+            sid = DatabaseResultValidator.safe_get_str(row, "series_id", strict=True)
+            val = DatabaseResultValidator.safe_get_float(row, "value", default=None)
 
             # Build current yield curve
             if sid == "DGS3MO":
@@ -490,13 +496,16 @@ def _get_yield_curve_full(cur: cursor) -> Any:  # noqa: C901
         # Add history for spreads
         history_by_series: dict[str, list[Any]] = {}
         for row in history_rows:
-            sid = row["series_id"]
+            # FAIL-FAST: Extract series_id, date, value with safe validation
+            sid = DatabaseResultValidator.safe_get_str(row, "series_id", strict=True)
+            date_val = DatabaseResultValidator.safe_get_str(row, "date", strict=True)
+            value_val = DatabaseResultValidator.safe_get_float(row, "value", default=None)
             if sid not in history_by_series:
                 history_by_series[sid] = []
             history_by_series[sid].append(
                 {
-                    "date": str(row["date"]),
-                    "value": float(row["value"]) if row["value"] else None,
+                    "date": date_val,
+                    "value": value_val,
                 }
             )
 
