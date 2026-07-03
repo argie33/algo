@@ -304,14 +304,17 @@ class MarketHealthDailyLoader(OptimalLoader):
             vix_data = vix[m["date"]]
             # CRITICAL: Validate VIX data structure - don't silently default to None
             if isinstance(vix_data, dict):
+                # Explicit validation before bracket access
                 if "vix_close" not in vix_data:
-                    logger.warning(
-                        f"[MARKET_HEALTH] VIX data structure invalid for critical date {m['date']}: missing 'vix_close' key"
+                    logger.error(
+                        f"[MARKET_HEALTH] VIX data structure corrupted for {m['date']}. "
+                        f"Missing required field 'vix_close'. "
+                        f"Available keys: {list(vix_data.keys())}. Full data: {vix_data}"
                     )
-                    raise RuntimeError(
-                        f"[MARKET_HEALTH CRITICAL] VIX data for {m['date']} missing 'vix_close' key. "
-                        f"VIX fetcher returned invalid data structure. "
-                        f"Expected dict with 'vix_close' field. Check VIX fetcher and vix_history table."
+                    raise ValueError(
+                        f"Market health data missing required field 'vix_close' for {m['date']}, "
+                        f"data structure corrupted. Expected dict with 'vix_close' field. "
+                        f"Available keys: {list(vix_data.keys())}. Check VIX fetcher and vix_history table."
                     )
                 vix_close = vix_data["vix_close"]
             else:
@@ -617,16 +620,28 @@ class MarketHealthDailyLoader(OptimalLoader):
                     continue
 
                 # CRITICAL: Validate yield_spread key exists in slope_data
-                # Don't silently default to None if key is missing
-                if not isinstance(slope_data, dict) or "yield_spread" not in slope_data:
-                    logger.warning(
-                        f"[MARKET_HEALTH] Yield curve data structure invalid for {m['date']}: missing 'yield_spread' key"
+                # Explicit validation before bracket access - don't silently default to None if key is missing
+                if not isinstance(slope_data, dict):
+                    logger.error(
+                        f"[MARKET_HEALTH] Yield curve data structure corrupted for {m['date']}. "
+                        f"Expected dict but got type {type(slope_data).__name__}. Full data: {slope_data}"
                     )
-                    raise RuntimeError(
-                        f"[MARKET_HEALTH CRITICAL] Yield curve data for {m['date']} missing 'yield_spread' key. "
-                        f"Yield curve fetcher returned invalid data structure. "
-                        f"Expected dict with 'yield_spread' field, got: {type(slope_data).__name__}. "
-                        f"Check yield curve fetcher and economic_metrics_daily table."
+                    raise ValueError(
+                        f"Market health data structure corrupted for {m['date']}, "
+                        f"expected dict with 'yield_spread' field. "
+                        f"Got type {type(slope_data).__name__}. Full data: {slope_data}"
+                    )
+
+                if "yield_spread" not in slope_data:
+                    logger.error(
+                        f"[MARKET_HEALTH] Yield curve data structure corrupted for {m['date']}. "
+                        f"Missing required field 'yield_spread'. "
+                        f"Available keys: {list(slope_data.keys())}. Full data: {slope_data}"
+                    )
+                    raise ValueError(
+                        f"Market health data missing required field 'yield_spread' for {m['date']}, "
+                        f"data structure corrupted. Expected dict with 'yield_spread' field. "
+                        f"Available keys: {list(slope_data.keys())}"
                     )
 
                 slope = slope_data["yield_spread"]
@@ -1037,6 +1052,16 @@ class MarketHealthDailyLoader(OptimalLoader):
                     raise ValueError(
                         "[MARKET_HEALTH_CRITICAL] Market health row missing required 'date' field. "
                         "Cannot process market data without date. Row keys: " + str(list(row.index.tolist()))
+                    )
+                # Explicit validation before bracket access to date field
+                if "date" not in row:
+                    logger.error(
+                        f"[MARKET_HEALTH] Market health row {idx} missing 'date' key. "
+                        f"Available keys: {list(row.index.tolist())}. Full row: {row.to_dict()}"
+                    )
+                    raise ValueError(
+                        f"Market health data missing required field 'date' for row {idx}, "
+                        f"data structure corrupted. Available keys: {list(row.index.tolist())}"
                     )
                 row_date = row["date"]
                 logger.warning(
