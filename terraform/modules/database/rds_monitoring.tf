@@ -6,8 +6,9 @@
 # with configurable threshold via rds_connections_alarm_threshold variable (default 80 connections).
 # This consolidates monitoring to a single configurable location.
 
-# CloudWatch Alarm: RDS CPU Utilization (prevent cascading failures)
+# CloudWatch Alarm: RDS CPU Utilization (prevent cascading failures) — prod only
 resource "aws_cloudwatch_metric_alarm" "rds_cpu_high" {
+  count               = var.enable_resource_alarms ? 1 : 0
   alarm_name          = "${var.project_name}-rds-cpu-high-${var.environment}"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = 2
@@ -30,8 +31,9 @@ resource "aws_cloudwatch_metric_alarm" "rds_cpu_high" {
   })
 }
 
-# CloudWatch Alarm: RDS Disk Queue Depth (I/O contention)
+# CloudWatch Alarm: RDS Disk Queue Depth (I/O contention) — prod only
 resource "aws_cloudwatch_metric_alarm" "rds_disk_queue_high" {
+  count               = var.enable_resource_alarms ? 1 : 0
   alarm_name          = "${var.project_name}-rds-disk-queue-high-${var.environment}"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = 2

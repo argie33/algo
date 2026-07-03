@@ -110,6 +110,7 @@ module "database" {
   enable_rds_kms_encryption       = var.enable_rds_kms_encryption
   rds_kms_key_id                  = var.rds_kms_key_alias != null ? "alias/${var.rds_kms_key_alias}" : null
   enable_rds_alarms               = var.enable_rds_alarms
+  enable_resource_alarms          = var.enable_resource_alarms
   db_deletion_protection          = var.db_deletion_protection
   alarm_sns_topic_arn             = module.services.sns_alerts_topic_arn
   rds_cpu_alarm_threshold         = var.rds_cpu_alarm_threshold
@@ -460,6 +461,11 @@ module "monitoring" {
 
   # CloudWatch logs retention
   cloudwatch_log_retention_days = var.cloudwatch_log_retention_days
+
+  # Cost optimization: alarm and monitor gating
+  enable_performance_alarms       = var.enable_performance_alarms
+  enable_resource_alarms          = var.enable_resource_alarms
+  enable_data_quality_monitors    = var.enable_data_quality_monitors
 }
 
 module "orchestration" {

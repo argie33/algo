@@ -240,9 +240,9 @@ resource "aws_sns_topic_policy" "loader_alerts_eventbridge" {
 # 7. CloudWatch Alarms for Pipeline Monitoring (Production SLAs)
 # ============================================================
 
-# Pipeline Timing Alarm: stock_prices_daily > 120 minutes (yfinance bottleneck)
+# Pipeline Timing Alarm: stock_prices_daily > 120 minutes (yfinance bottleneck) — prod only
 resource "aws_cloudwatch_metric_alarm" "stock_prices_daily_slow" {
-  count               = var.ecs_log_group_name != "" ? 1 : 0
+  count               = var.ecs_log_group_name != "" && var.enable_performance_alarms ? 1 : 0
   alarm_name          = "${var.project_name}-loader-stock-prices-slow-${var.environment}"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = "1"
@@ -263,10 +263,10 @@ resource "aws_cloudwatch_metric_alarm" "stock_prices_daily_slow" {
   tags = var.common_tags
 }
 
-# Pipeline Timing Alarm: morning prep pipeline > 300 minutes (5 hours)
+# Pipeline Timing Alarm: morning prep pipeline > 300 minutes (5 hours) — prod only
 # Alert before the 9:30 AM deadline (prep starts at 2:00 AM, runs 7.5h window)
 resource "aws_cloudwatch_metric_alarm" "morning_prep_slow" {
-  count               = var.ecs_log_group_name != "" ? 1 : 0
+  count               = var.ecs_log_group_name != "" && var.enable_performance_alarms ? 1 : 0
   alarm_name          = "${var.project_name}-morning-prep-slow-${var.environment}"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = "1"
@@ -287,9 +287,9 @@ resource "aws_cloudwatch_metric_alarm" "morning_prep_slow" {
   tags = var.common_tags
 }
 
-# RDS Connection Pool Alarm: > 40 connections (warn threshold before 100 limit)
+# RDS Connection Pool Alarm: > 40 connections (warn threshold before 100 limit) — prod only
 resource "aws_cloudwatch_metric_alarm" "rds_connections_high_warning" {
-  count               = var.ecs_log_group_name != "" ? 1 : 0
+  count               = var.ecs_log_group_name != "" && var.enable_resource_alarms ? 1 : 0
   alarm_name          = "${var.project_name}-rds-connections-warning-${var.environment}"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = "2"

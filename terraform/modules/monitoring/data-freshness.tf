@@ -127,7 +127,7 @@ resource "aws_lambda_function" "data_freshness_monitor" {
 # ============================================================
 
 resource "aws_cloudwatch_event_rule" "data_freshness_schedule" {
-  count               = var.enable_data_freshness_monitoring ? 1 : 0
+  count               = var.enable_data_freshness_monitoring && var.enable_data_quality_monitors ? 1 : 0
   name                = "${var.project_name}-data-freshness-monitor-${var.environment}"
   description         = "Trigger data freshness check hourly during pre-market (2 AM - 10 AM ET Mon-Fri)"
   schedule_expression = "cron(0 2-10 ? * MON-FRI *)"
@@ -169,9 +169,9 @@ locals {
   ]
 }
 
-# CRITICAL: Table is empty (0 rows)
+# CRITICAL: Table is empty (0 rows) — prod only
 resource "aws_cloudwatch_metric_alarm" "data_empty" {
-  for_each = toset(local.critical_tables)
+  for_each = var.enable_data_quality_monitors ? toset(local.critical_tables) : toset([])
 
   alarm_name          = "${var.project_name}-data-${each.value}-empty-${var.environment}"
   alarm_description   = "CRITICAL: ${each.value} table has 0 rows (data loading failed)"
@@ -191,9 +191,9 @@ resource "aws_cloudwatch_metric_alarm" "data_empty" {
   })
 }
 
-# WARNING: Table is stale (>3 days)
+# WARNING: Table is stale (>3 days) — prod only
 resource "aws_cloudwatch_metric_alarm" "data_stale_warning" {
-  for_each = toset(local.critical_tables)
+  for_each = var.enable_resource_alarms ? toset(local.critical_tables) : toset([])
 
   alarm_name          = "${var.project_name}-data-${each.value}-stale-warning-${var.environment}"
   alarm_description   = "WARNING: ${each.value} data is >3 days old (needs investigation)"
@@ -213,9 +213,9 @@ resource "aws_cloudwatch_metric_alarm" "data_stale_warning" {
   })
 }
 
-# CRITICAL: Table is very stale (>7 days)
+# CRITICAL: Table is very stale (>7 days) — prod only
 resource "aws_cloudwatch_metric_alarm" "data_stale_critical" {
-  for_each = toset(local.critical_tables)
+  for_each = var.enable_data_quality_monitors ? toset(local.critical_tables) : toset([])
 
   alarm_name          = "${var.project_name}-data-${each.value}-stale-critical-${var.environment}"
   alarm_description   = "CRITICAL: ${each.value} data is >7 days old (loader likely broken)"
@@ -236,17 +236,17 @@ resource "aws_cloudwatch_metric_alarm" "data_stale_critical" {
 }
 
 # ============================================================
-# 5. Composite Alarm: Data Freshness Overall Health
+# 5. Composite Alarm: Data Freshness Overall Health — prod only
 # ============================================================
 
 resource "aws_cloudwatch_composite_alarm" "data_freshness_unhealthy" {
-  count             = var.sns_alerts_enabled ? 1 : 0
+  count             = var.sns_alerts_enabled && var.enable_data_quality_monitors ? 1 : 0
   alarm_name        = "${var.project_name}-data-freshness-unhealthy-${var.environment}"
   alarm_description = "Composite: Data freshness critical (empty or >7 days stale)"
   actions_enabled   = true
   alarm_actions     = var.sns_alerts_topic_arn != "" ? [var.sns_alerts_topic_arn] : []
 
-  # Combine all CRITICAL empty + very_stale alarms
+  # Combine all CRITICAL empty + very_stale alarms (exclude warning alarms which are prod-only)
   alarm_rule = join(" OR ", concat(
     [for table in local.critical_tables : "ALARM(\"${var.project_name}-data-${table}-empty-${var.environment}\")"],
     [for table in local.critical_tables : "ALARM(\"${var.project_name}-data-${table}-stale-critical-${var.environment}\")"]

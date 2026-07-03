@@ -703,6 +703,28 @@ variable "alert_webhook_url" {
   sensitive   = true
 }
 
+# ============================================================
+# Cost Optimization: Alarm & Monitor Gating for Dev vs Prod
+# ============================================================
+
+variable "enable_performance_alarms" {
+  description = "Enable performance monitoring alarms (latency, duration, concurrency, SLA alerts). Disabled in dev to save ~$2/month. Enable for production."
+  type        = bool
+  default     = false
+}
+
+variable "enable_resource_alarms" {
+  description = "Enable resource utilization alarms (CPU, memory, storage, connections, disk queue). Disabled in dev to save ~$3/month. Enable for production."
+  type        = bool
+  default     = false
+}
+
+variable "enable_data_quality_monitors" {
+  description = "Enable data freshness and data patrol monitors (Lambda functions running continuously/hourly). Disabled in dev to save ~$3-4/month. Prod needs early warning before market open."
+  type        = bool
+  default     = false
+}
+
 variable "alert_smtp_host" {
   description = "SMTP server hostname for email alerts (e.g., smtp.gmail.com)"
   type        = string

@@ -1,0 +1,79 @@
+# ============================================================
+# Next AWS Optimization Opportunities (Post-Phase 4)
+# ============================================================
+# Estimated additional savings: $40-55/month
+
+## OPTIMIZATION #5: NAT Gateway (HIGH IMPACT)
+# Current: $32-45/month (always on for private subnet internet access)
+# Status: NOT YET APPLIED (requires careful migration planning)
+# Risk: Critical for ECS loaders accessing external APIs (yfinance, Fred, etc.)
+# Alternatives:
+#   A) NAT Instance (EC2 t3.micro stopped = $0 in dev, cheaper than gateway)
+#   B) S3 Gateway VPC Endpoint (free, but only for S3)
+#   C) Accept NAT Gateway cost (operational necessity)
+# Recommendation: Defer to Phase 2 (requires testing with loaders)
+
+## OPTIMIZATION #6: Lambda Reserved Concurrency (MEDIUM IMPACT)
+# Current: api_lambda_reserved_concurrency = 50 ($0.75/month)
+# Status: NOT YET APPLIED (medium effort, low risk)
+# Potential: Reduce to 25 for dev (API only needs 26 concurrent for MarketsHealth)
+# Savings: ~$0.40/month (50 → 25 units)
+# Risk: LOW - Can adjust on-the-fly if cold starts become noticeable
+# Recommendation: Apply now (easy config change)
+
+## OPTIMIZATION #7: Data Freshness Monitor Lambda (MEDIUM IMPACT)
+# Current: Runs every hour during market hours (2 AM - 10 AM ET Mon-Fri)
+# Status: NOT YET APPLIED (operational feature, medium value)
+# Potential: Disable in dev, keep for prod (prod needs early warning before 9:30 AM)
+# Savings: ~$2-3/month (CPU, memory, data transfer)
+# Risk: MEDIUM - Loses early warning if data loading fails
+# Recommendation: Gate to prod=true, dev=false
+
+## OPTIMIZATION #8: Data Patrol Lambda (LOWER IMPACT)
+# Current: Continuously running (not on schedule)
+# Status: NOT YET APPLIED (continuous operation, low cost)
+# Potential: Disable in dev, keep for prod
+# Savings: ~$1-2/month
+# Risk: MEDIUM - Loses real-time monitoring of data quality
+# Recommendation: Gate to prod=true, dev=false
+
+## OPTIMIZATION #9: ECS Task Memory Reduction (LOWER IMPACT, HIGH RISK)
+# Current: High-memory loaders (2-4 GB) running serially in dev
+# Status: NOT YET APPLIED (risky, might cause OOM/timeouts)
+# Potential: Reduce memory by 25-50% for dev tasks
+# Savings: ~$5-10/month (reduced FARGATE billing)
+# Risk: HIGH - Could cause loader failures, OOM errors
+# Recommendation: Audit per-loader memory usage in dev first (monitor CloudWatch logs)
+
+## OPTIMIZATION #10: Lambda Concurrent Batch Reduction (UNKNOWN IMPACT)
+# Current: Various loaders configured with parallelism 2-3
+# Status: NOT YET APPLIED (needs investigation)
+# Potential: Reduce parallelism in dev to 1 (serialize instead of parallel)
+# Savings: ~$3-5/month (fewer concurrent Lambda invocations)
+# Risk: MEDIUM - Longer total runtime, but acceptable for dev
+# Recommendation: Investigate which loaders benefit from parallelism
+
+## OPTIMIZATION #11: SQS/DLQ (UNKNOWN IMPACT)
+# Current: SQS DLQ for loader failures exists
+# Status: NOT YET APPLIED (need to check costs)
+# Potential: Measure actual SQS costs (might be negligible)
+# Savings: Unknown (possibly $0.50-2/month)
+# Risk: LOW
+# Recommendation: Check AWS billing to understand SQS costs
+
+## SUMMARY OF RECOMMENDED NEXT STEPS
+# Phase 5 (Easy, Low Risk, $1-2/month savings):
+#   - Reduce Lambda reserved concurrency (50 → 25)
+#
+# Phase 6 (Medium Effort, Operational Features, $3-5/month savings):
+#   - Gate Data Freshness Monitor to prod=true
+#   - Gate Data Patrol to prod=true (if acceptable for dev operations)
+#
+# Phase 7 (Hard, High Risk, $10-20/month savings):
+#   - NAT Gateway alternative (requires pilot testing with loaders)
+#   - ECS task memory audit and optimization
+#   - Parallelism reduction for long-running loaders
+#
+# Total Potential Additional Savings: $40-55/month
+# Total AWS Optimization (Phases 1-4): $205.70/month
+# Potential Total (All Phases): $245-260/month (75% dev AWS cost reduction)

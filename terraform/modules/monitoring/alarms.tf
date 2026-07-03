@@ -30,7 +30,7 @@ resource "aws_cloudwatch_metric_alarm" "api_lambda_errors" {
 
 # Alarm: API Lambda high concurrency
 resource "aws_cloudwatch_metric_alarm" "api_lambda_concurrency" {
-  count               = var.sns_alerts_enabled ? 1 : 0
+  count               = var.sns_alerts_enabled && var.enable_performance_alarms ? 1 : 0
   alarm_name          = "${var.project_name}-api-lambda-concurrency-high-${var.environment}"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = "2"
@@ -52,7 +52,7 @@ resource "aws_cloudwatch_metric_alarm" "api_lambda_concurrency" {
 
 # Alarm: API Lambda timeout approaching
 resource "aws_cloudwatch_metric_alarm" "api_lambda_duration" {
-  count               = var.sns_alerts_enabled ? 1 : 0
+  count               = var.sns_alerts_enabled && var.enable_performance_alarms ? 1 : 0
   alarm_name          = "${var.project_name}-api-lambda-duration-high-${var.environment}"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = "3"
@@ -100,7 +100,7 @@ resource "aws_cloudwatch_metric_alarm" "algo_lambda_errors" {
 
 # Alarm: Algo Lambda timeout (4 min = 240000 ms, alert at 3.5 min = 210000 ms)
 resource "aws_cloudwatch_metric_alarm" "algo_lambda_duration_timeout" {
-  count               = var.sns_alerts_enabled ? 1 : 0
+  count               = var.sns_alerts_enabled && var.enable_performance_alarms ? 1 : 0
   alarm_name          = "${var.project_name}-algo-lambda-timeout-approaching-${var.environment}"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = "1"
@@ -148,7 +148,7 @@ resource "aws_cloudwatch_metric_alarm" "apigw_5xx_errors" {
 
 # Alarm: API Gateway 4xx errors (client errors - high frequency indicates bad requests)
 resource "aws_cloudwatch_metric_alarm" "apigw_4xx_errors_high" {
-  count               = var.sns_alerts_enabled ? 1 : 0
+  count               = var.sns_alerts_enabled && var.enable_performance_alarms ? 1 : 0
   alarm_name          = "${var.project_name}-api-4xx-errors-high-${var.environment}"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = "2"
@@ -170,7 +170,7 @@ resource "aws_cloudwatch_metric_alarm" "apigw_4xx_errors_high" {
 
 # Alarm: API Gateway high latency
 resource "aws_cloudwatch_metric_alarm" "apigw_latency_high" {
-  count               = var.sns_alerts_enabled ? 1 : 0
+  count               = var.sns_alerts_enabled && var.enable_performance_alarms ? 1 : 0
   alarm_name          = "${var.project_name}-api-latency-high-${var.environment}"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = "3"
@@ -196,7 +196,7 @@ resource "aws_cloudwatch_metric_alarm" "apigw_latency_high" {
 
 # Alarm: RDS high CPU utilization
 resource "aws_cloudwatch_metric_alarm" "rds_cpu_high" {
-  count               = var.sns_alerts_enabled ? 1 : 0
+  count               = var.sns_alerts_enabled && var.enable_resource_alarms ? 1 : 0
   alarm_name          = "${var.project_name}-rds-cpu-high-${var.environment}"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = "2"
@@ -218,7 +218,7 @@ resource "aws_cloudwatch_metric_alarm" "rds_cpu_high" {
 
 # Alarm: RDS moderate connection warning (60 connections)
 resource "aws_cloudwatch_metric_alarm" "rds_connections_warning" {
-  count               = var.sns_alerts_enabled ? 1 : 0
+  count               = var.sns_alerts_enabled && var.enable_resource_alarms ? 1 : 0
   alarm_name          = "${var.project_name}-rds-connections-warning-${var.environment}"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = "3"
@@ -262,7 +262,7 @@ resource "aws_cloudwatch_metric_alarm" "rds_connections_critical" {
 
 # Alarm: RDS high number of connections (legacy - kept for compatibility)
 resource "aws_cloudwatch_metric_alarm" "rds_connections_high" {
-  count               = var.sns_alerts_enabled ? 1 : 0
+  count               = var.sns_alerts_enabled && var.enable_resource_alarms ? 1 : 0
   alarm_name          = "${var.project_name}-rds-connections-high-${var.environment}"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = "2"
@@ -284,7 +284,7 @@ resource "aws_cloudwatch_metric_alarm" "rds_connections_high" {
 
 # Alarm: RDS low free storage
 resource "aws_cloudwatch_metric_alarm" "rds_storage_low" {
-  count               = var.sns_alerts_enabled ? 1 : 0
+  count               = var.sns_alerts_enabled && var.enable_resource_alarms ? 1 : 0
   alarm_name          = "${var.project_name}-rds-storage-low-${var.environment}"
   comparison_operator = "LessThanThreshold"
   evaluation_periods  = "1"
@@ -306,7 +306,7 @@ resource "aws_cloudwatch_metric_alarm" "rds_storage_low" {
 
 # Alarm: RDS low free memory
 resource "aws_cloudwatch_metric_alarm" "rds_memory_low" {
-  count               = var.sns_alerts_enabled ? 1 : 0
+  count               = var.sns_alerts_enabled && var.enable_resource_alarms ? 1 : 0
   alarm_name          = "${var.project_name}-rds-memory-low-${var.environment}"
   comparison_operator = "LessThanThreshold"
   evaluation_periods  = "2"
@@ -480,9 +480,9 @@ resource "aws_cloudwatch_metric_alarm" "supporting_loaders_dlq_failures" {
   tags = var.common_tags
 }
 
-# Composite alarm: Database Health
+# Composite alarm: Database Health — prod only (gated by enable_resource_alarms)
 resource "aws_cloudwatch_composite_alarm" "database_health_critical" {
-  count             = var.sns_alerts_enabled ? 1 : 0
+  count             = var.sns_alerts_enabled && var.enable_resource_alarms ? 1 : 0
   alarm_name        = "${var.project_name}-database-health-critical-${var.environment}"
   alarm_description = "Composite: RDS CPU high OR connections high OR storage low OR memory low"
   actions_enabled   = true

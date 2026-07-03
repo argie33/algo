@@ -315,6 +315,7 @@ resource "aws_cloudwatch_metric_alarm" "circuit_breaker_errors" {
 }
 
 resource "aws_cloudwatch_metric_alarm" "circuit_breaker_duration" {
+  count               = var.enable_performance_alarms ? 1 : 0
   alarm_name          = "${var.project_name}-circuit-breaker-duration-${var.environment}"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 1

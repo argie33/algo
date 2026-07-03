@@ -197,3 +197,25 @@ variable "alert_email_to" {
   type        = string
   default     = ""
 }
+
+# ============================================================
+# Cost Optimization: Alarm Gating for Dev vs Prod
+# ============================================================
+
+variable "enable_performance_alarms" {
+  description = "Enable performance monitoring alarms (latency, duration, concurrency). Disabled in dev to save costs."
+  type        = bool
+  default     = false
+}
+
+variable "enable_resource_alarms" {
+  description = "Enable resource utilization alarms (CPU, memory, storage, connections). Disabled in dev to save costs."
+  type        = bool
+  default     = false
+}
+
+variable "enable_data_quality_monitors" {
+  description = "Enable data freshness and data patrol monitors (Lambda functions). Disabled in dev to save costs. Prod needs early warning before market open."
+  type        = bool
+  default     = false
+}

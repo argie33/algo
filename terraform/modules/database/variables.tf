@@ -399,3 +399,13 @@ variable "psycopg2_layer_arn" {
   type        = string
   default     = ""
 }
+
+# ============================================================
+# Cost Optimization: Alarm Gating for Dev vs Prod
+# ============================================================
+
+variable "enable_resource_alarms" {
+  description = "Enable resource utilization alarms (CPU, memory, storage, connections). Disabled in dev to save costs."
+  type        = bool
+  default     = false
+}
