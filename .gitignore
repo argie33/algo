@@ -311,3 +311,4 @@ patrol_findings.json
 patrol_output.txt
 
 # Dashboard configured for AWS data sources
+test-results.txt
