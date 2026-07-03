@@ -161,9 +161,7 @@ class Phase4Monitor:
             logger.info(f"  Alerts: {self.alerts_topic_arn}")
             logger.info(f"  Critical: {self.critical_topic_arn}")
             logger.info("\nNext Steps:")
-            logger.info("  1. Configure SNS subscriptions")
-            logger.info("  2. Deploy dashboard: aws cloudwatch put-dashboard --dashboard-name algo-failfast-" + self.environment + " --dashboard-body file://monitoring/PHASE4_CLOUDWATCH_DASHBOARD.json")
-            logger.info("  3. Run tests: bash monitoring/PHASE4_TESTING_STEPS.md")
+            logger.info("  1. Configure SNS subscriptions (email for alerts, SMS for critical)")
 
             if self.dry_run:
                 logger.info("\n[DRY-RUN MODE] No changes were made.")
