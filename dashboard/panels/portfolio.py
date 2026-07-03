@@ -155,9 +155,11 @@ def panel_portfolio(
     if npos_raw is None:
         raise ValueError("Portfolio position_count missing")
 
-    pv = safe_float(pv_raw, default=0.0, field_name="total_portfolio_value")
-    cash = safe_float(cash_raw, default=0.0, field_name="total_cash")
-    npos = safe_int(npos_raw, default=0, field_name="position_count")
+    # FAIL-FAST: Data already validated as non-None above; no defensive defaults
+    # Using defaults here would mask validation failures and hide missing data
+    pv = safe_float(pv_raw, field_name="total_portfolio_value")
+    cash = safe_float(cash_raw, field_name="total_cash")
+    npos = safe_int(npos_raw, field_name="position_count")
 
     # STRICT: Optional enrichment metrics—explicitly handle missing data
     # These are computed daily; missing values should not silently default to None

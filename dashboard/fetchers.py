@@ -367,6 +367,26 @@ def load_all() -> dict[str, Any]:
     critical_out = _execute_fetcher_batch(
         critical_fetchers, 10, batch_timeout, one, fetcher_timeout_seconds, "critical"
     )
+
+    # FAIL-FAST: Validate all critical fetchers succeeded before merging
+    # Critical data must not produce error dicts in the response
+    critical_failures = [k for k, v in critical_out.items() if isinstance(v, dict) and "_error" in v]
+    if critical_failures:
+        failed_summary = "; ".join(
+            f"{k}: {critical_out[k].get('_error', 'unknown error')[:100]}"
+            for k in critical_failures
+        )
+        logger.error(
+            f"[FETCHER] Critical fetcher failures detected: {failed_summary}. "
+            f"Dashboard cannot proceed with missing critical data."
+        )
+        # Return explicit error response instead of merging error dicts
+        return {
+            "_error": f"Critical dashboard data unavailable: {', '.join(critical_failures)}",
+            "_critical_fetcher_failures": critical_failures,
+            "_detailed_errors": {k: critical_out[k] for k in critical_failures},
+        }
+
     out.update(critical_out)
 
     critical_elapsed = time.monotonic() - critical_start_time
