@@ -398,15 +398,15 @@ def safe_int(
 
     if isinstance(value, bool):
         if strict:
-            raise StrictValidationError(f"Cannot convert bool {value!r} to int (ambiguous) {error_ctx}")
+            raise StrictValidationError(f"Cannot convert bool to int (ambiguous: {value!r}) {error_ctx}")
         return default
 
     try:
         return int(value)
     except (ValueError, TypeError) as e:
         if strict:
-            raise StrictValidationError(f"Failed to convert {value!r} to int {error_ctx}: {e}") from e
-        logger.warning(f"Failed to convert {value!r} to int {error_ctx}: {e}")
+            raise StrictValidationError(f"Cannot convert {value!r} to int {error_ctx}: {e}") from e
+        logger.warning(f"Cannot convert {value!r} to int {error_ctx}: {e}")
         return default
 
 
