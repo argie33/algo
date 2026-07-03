@@ -174,13 +174,21 @@ class SignalAttributionEngine:
                             "interpretation": interpretation,
                         }
                     else:
+                        # CRITICAL: Don't silently default IC to 0.0 — insufficient sample is not "no relationship"
+                        # Mark as unavailable instead of fake 0.0 metric
+                        logger.warning(
+                            f"[ATTRIBUTION] Insufficient samples for {component} IC calculation: "
+                            f"{len(comp_scores)} trades (need ≥10). Cannot compute IC without adequate data."
+                        )
                         ic_results[component] = {
-                            "ic_value": 0.0,
-                            "ic_pvalue": 1.0,
+                            "ic_value": None,
+                            "ic_pvalue": None,
                             "sample_size": len(comp_scores),
-                            "avg_component_score": 0,
-                            "avg_realized_pnl": 0,
+                            "avg_component_score": None,
+                            "avg_realized_pnl": None,
                             "interpretation": "insufficient_data",
+                            "data_unavailable": True,
+                            "reason": f"insufficient_trades ({len(comp_scores)}<10)",
                         }
 
                 logger.info(f"IC computation complete for {report_date}. Samples: {len(trades)}")

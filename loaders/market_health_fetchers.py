@@ -79,10 +79,17 @@ class VIXFetcher:
                 result = {}
                 for row in rows:
                     d = row[0].isoformat() if hasattr(row[0], "isoformat") else str(row[0])
+                    # CRITICAL: VIX fields must all be present for valid market data
+                    if row[1] is None or row[2] is None or row[3] is None:
+                        logger.warning(
+                            f"[MARKET_HEALTH] VIX data incomplete for {d}: "
+                            f"close={row[1]}, low={row[2]}, high={row[3]}. Skipping invalid record."
+                        )
+                        continue
                     result[d] = {
-                        "vix_close": float(row[1]) if row[1] is not None else None,
-                        "vix_high": float(row[3]) if row[3] is not None else None,
-                        "vix_low": float(row[2]) if row[2] is not None else None,
+                        "vix_close": float(row[1]),
+                        "vix_high": float(row[3]),
+                        "vix_low": float(row[2]),
                     }
                 logger.info(f"Fetched {len(result)} VIX dates from price_daily")
                 return result
@@ -279,7 +286,12 @@ class PutCallRatioFetcher:
                     break
 
             if closest_exp is None:
-                closest_exp = min(exp_dates)  # Fallback to earliest
+                # No expiration found <= eval_date, and no future expiration either
+                # This indicates options data is unavailable for the eval_date
+                raise RuntimeError(
+                    f"[PUT_CALL_FETCHER] No suitable options expiration found for eval_date {eval_date}. "
+                    f"Available: {sorted(exp_dates)}. Cannot compute put/call ratio without valid expiration."
+                )
 
             logger.debug(f"[PUT_CALL_FETCHER] Using expiration {closest_exp} for eval_date {eval_date}")
 
@@ -587,7 +599,14 @@ class BreadthFetcher:
             if hasattr(date_val, "date"):
                 date_val = date_val.date()
             d = date_val.isoformat() if hasattr(date_val, "isoformat") else str(date_val)
-            result[d] = (int(row[1]) if row[1] is not None else 0, int(row[2]) if row[2] is not None else 0)
+            # CRITICAL: new_highs and new_lows counts must be present for valid breadth data
+            if row[1] is None or row[2] is None:
+                logger.warning(
+                    f"[BREADTH_FETCHER] New highs/lows count missing for {d}: "
+                    f"new_highs={row[1]}, new_lows={row[2]}. Skipping invalid record."
+                )
+                continue
+            result[d] = (int(row[1]), int(row[2]))
         return result
 
     def fetch(self, start: date, end: date) -> dict[str, Any]:

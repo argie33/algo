@@ -99,7 +99,7 @@ if __name__ == "__main__":
 
     retval = 0
     for filename in sys.argv[1:]:
-        if filename.endswith(("_metrics.py", "load_earnings_history.py")):
+        if filename.endswith("_metrics.py"):
             retval |= check_metric_loader_markers(filename)
 
     sys.exit(retval)

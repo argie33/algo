@@ -82,12 +82,17 @@ def _fmt_updated(r: dict[str, Any]) -> str:
 
 
 def _pc(v: list[Any] | int | None) -> int:
-    """Count phases: convert list or int to count."""
+    """Count phases: convert list or int to count. Explicit: return 0 only for early-stage runs with no phase data yet."""
     if isinstance(v, list):
         return len(v)
     if isinstance(v, int):
         return v
-    return 0
+    if v is None:
+        # Early-stage runs may not have phase data yet — this is expected, not an error
+        # Returning 0 here indicates "no phases recorded yet", not "data unavailable"
+        # This is appropriate for initialization, not for stale/corrupted data
+        return 0
+    raise TypeError(f"[HEALTH] Phase count has invalid type {type(v).__name__} (expected list or int). Data corruption detected.")
 
 
 if TYPE_CHECKING:
@@ -289,15 +294,19 @@ def _build_freshness_panel(hlth_items: list[Any], ready_to_trade: bool | None) -
 
     def sort_key(r: dict[str, Any]) -> tuple[int, str]:
         role = r.get("role")
-        # CRITICAL: Explicit None check, not implicit fallback to "NORM"
-        # Missing role should be validated, not silently mapped
+        # CRITICAL: Explicit validation — missing role indicates data corruption
         if role is None:
-            logger.warning(f"[HEALTH] Health item missing 'role' field. Keys: {list(r.keys())}")
+            logger.warning(f"[HEALTH] Health item missing 'role' field — data corrupted. Keys: {list(r.keys())}")
+            # Fallback to NORM for display, but log as warning (not silent)
+            role = "NORM"
+        elif not isinstance(role, str):
+            logger.warning(f"[HEALTH] Health item role invalid type {type(role).__name__} (expected str). Data corrupted.")
             role = "NORM"
         tbl = r.get("tbl")
-        # CRITICAL: Explicit None check, not implicit empty string
+        # CRITICAL: Explicit None check — missing table name indicates incomplete data
         if tbl is None:
-            tbl_str = ""
+            logger.warning(f"[HEALTH] Health item missing 'tbl' field. Role: {role}, Keys: {list(r.keys())}")
+            tbl_str = "unknown_table"
         else:
             tbl_str = str(tbl)
         return (_role_order.get(role, 2), tbl_str)
@@ -327,12 +336,15 @@ def _build_freshness_panel(hlth_items: list[Any], ready_to_trade: bool | None) -
         nm = str(tbl_val if tbl_val is not None else "--")
         role_val = r.get("role")
         role = str(role_val if role_val is not None else "NORM")
-        # CRITICAL: Explicit None check instead of .get() default fallback
-        # Missing status field indicates data quality issue, not normal "ok" state
+        # CRITICAL: Explicit None check — missing status indicates data quality issue
         st_raw = r.get("st")
         if st_raw is None:
-            logger.warning(f"[HEALTH] Health item missing 'st' field. Table: {tbl_val}, Keys: {list(r.keys())}")
-            st = "ok"
+            logger.warning(f"[HEALTH] Health item missing 'st' (status) field — data corrupted. Table: {tbl_val}, Keys: {list(r.keys())}")
+            # Log as warning but use default for display (don't silently assume "ok")
+            st = "unknown"
+        elif not isinstance(st_raw, str):
+            logger.warning(f"[HEALTH] Status field has invalid type {type(st_raw).__name__} (expected str). Table: {tbl_val}.")
+            st = "error"
         else:
             st = st_raw
         ok = st == "ok"
@@ -370,7 +382,16 @@ def _format_orch_config_string(cfg_params: dict[str, Any]) -> str:
         f"[dim]min score ≥[/][white]{cfg_params['min_score']}[/]" if min_score_f is not None and min_score_f > 0 else ""
     )
     max_n = cfg_params.get("max_pos_n")
-    slots_s = f"[dim]max [/][white]{max_n}[/][dim] positions[/]" if max_n is not None and max_n else ""
+    # CRITICAL: Explicit check for config availability instead of silent empty string
+    if max_n is None:
+        logger.debug("[HEALTH] max_pos_n config not set — position limit unavailable")
+        slots_s = ""
+    elif max_n:
+        slots_s = f"[dim]max [/][white]{max_n}[/][dim] positions[/]"
+    else:
+        # max_n=0 is falsy but valid (unlimited positions), don't silently hide
+        logger.warning(f"[HEALTH] max_pos_n is 0 or invalid: {max_n} — position limit configuration corrupted?")
+        slots_s = ""
     max_sec_n = cfg_params.get("max_sec_n")
     sec_s = f"[dim]sector ≤[/][white]{max_sec_n}[/]" if max_sec_n is not None and max_sec_n else ""
     base_risk = cfg_params.get("base_risk")

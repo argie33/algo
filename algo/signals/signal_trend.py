@@ -118,8 +118,19 @@ class SignalTrendMixin:
         if low52 and c >= low52 * 1.30:
             score += 1
 
-        pct_from_low = ((c - low52) / low52 * 100) if low52 else None
-        pct_from_high = ((c - high52) / high52 * 100) if high52 else None
+        if low52 is None or low52 <= 0:
+            raise ValueError(
+                f"[MINERVINI] 52-week low invalid for {symbol}: {low52}. "
+                f"Cannot calculate percentage from low — price data corrupted."
+            )
+        pct_from_low = (c - low52) / low52 * 100
+
+        if high52 is None or high52 <= 0:
+            raise ValueError(
+                f"[MINERVINI] 52-week high invalid for {symbol}: {high52}. "
+                f"Cannot calculate percentage from high — price data corrupted."
+            )
+        pct_from_high = (c - high52) / high52 * 100
 
         if sma200 and c > sma200:
             if sma200_slope is not None and sma200_slope > 0:
@@ -136,8 +147,8 @@ class SignalTrendMixin:
             "score": score,
             "pass": score >= 5,
             "criteria": {
-                "percent_from_52w_high": (float(pct_from_high) if pct_from_high is not None else None),
-                "percent_from_52w_low": (float(pct_from_low) if pct_from_low is not None else None),
+                "percent_from_52w_high": round(pct_from_high, 2),
+                "percent_from_52w_low": round(pct_from_low, 2),
                 "weinstein_stage": weinstein_stage,
                 "trend_direction": ("uptrend" if score >= 6 else ("downtrend" if score <= 2 else "sideways")),
             },
@@ -174,14 +185,28 @@ class SignalTrendMixin:
                         f"Trend template data is corrupt or incomplete."
                     )
                 score = int(row[0])
+                # CRITICAL: All trend template fields must be present for valid signal
+                required_fields = {
+                    "percent_from_52w_high": row[1],
+                    "percent_from_52w_low": row[2],
+                    "weinstein_stage": row[3],
+                    "trend_direction": row[4],
+                }
+                missing = [k for k, v in required_fields.items() if v is None]
+                if missing:
+                    raise ValueError(
+                        f"[MINERVINI] Trend template data incomplete for {symbol} on {data_date}: "
+                        f"missing or NULL fields: {missing}. "
+                        f"Cannot generate trend signals without complete data."
+                    )
                 return {
                     "score": score,
                     "pass": score >= 5,
                     "criteria": {
-                        "percent_from_52w_high": float(row[1]) if row[1] is not None else None,
-                        "percent_from_52w_low": float(row[2]) if row[2] is not None else None,
-                        "weinstein_stage": int(row[3]) if row[3] is not None else None,
-                        "trend_direction": str(row[4]) if row[4] is not None else None,
+                        "percent_from_52w_high": float(row[1]),
+                        "percent_from_52w_low": float(row[2]),
+                        "weinstein_stage": int(row[3]),
+                        "trend_direction": str(row[4]),
                     },
                 }
 

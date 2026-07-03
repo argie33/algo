@@ -108,11 +108,6 @@ class SignalPatternsMixin:
             pct_to_pivot = (base_high - cur_price) / base_high * 100.0
             breakout_imminent = in_base and pct_to_pivot <= 2.0
 
-            recent_vol = (
-                sum(base_vols[: self.LOOKBACK_BARS_SHORT]) / self.LOOKBACK_BARS_SHORT
-                if len(base_vols) >= self.LOOKBACK_BARS_SHORT
-                else 0
-            )
             # Volume dryup requires 50+ bars: don't use recent as fallback for prior (creates fake signal)
             if len(volumes) < 50:
                 logger.debug(
@@ -130,6 +125,13 @@ class SignalPatternsMixin:
                     "volume_dryup_unavailable": True,
                     "volume_dryup_reason": "insufficient_history (< 50 bars)",
                 }
+
+            if len(base_vols) < self.LOOKBACK_BARS_SHORT:
+                raise ValueError(
+                    f"[SIGNAL_PATTERNS] Insufficient bars for recent volume calculation ({len(base_vols)}/{self.LOOKBACK_BARS_SHORT} required). "
+                    f"Cannot compute volume dryup signal — data invalid or insufficient."
+                )
+            recent_vol = sum(base_vols[: self.LOOKBACK_BARS_SHORT]) / self.LOOKBACK_BARS_SHORT
 
             prior_vol = sum(volumes[20:50]) / 30
             volume_dryup = prior_vol > 0 and recent_vol < prior_vol * 0.8
@@ -334,8 +336,13 @@ class SignalPatternsMixin:
             recent_closes = closes[-25:] if len(closes) >= 25 else closes
             recent_high = max(recent_closes)
             recent_low = min(recent_closes)
-            recent_spread = (recent_high - recent_low) / recent_high * 100.0 if recent_high > 0 else None
-            if depth <= 15 and duration >= 5 and recent_spread is not None and recent_spread <= 12:
+            if recent_high <= 0:
+                raise ValueError(
+                    f"[SIGNAL_PATTERNS] Recent price range invalid for {symbol} (high={recent_high}). "
+                    f"Cannot classify base type — price data corrupted."
+                )
+            recent_spread = (recent_high - recent_low) / recent_high * 100.0
+            if depth <= 15 and duration >= 5 and recent_spread <= 12:
                 return {
                     "type": "flat_base",
                     "quality": "A" if duration >= 7 and depth <= 10 else "B",
@@ -347,17 +354,22 @@ class SignalPatternsMixin:
                 full_low = min(lows)
                 mid_low_match = abs(mid_third_low - full_low) / full_low < 0.02
                 handle_high = max(highs[-15:-5]) if len(highs) >= 15 else max(highs[-5:])
-                recent_dip = (handle_high - min(lows[-7:])) / handle_high * 100.0 if handle_high > 0 else None
-                handle_present = recent_dip is not None and 5 < recent_dip < 12
+                if handle_high <= 0:
+                    raise ValueError(
+                        f"[SIGNAL_PATTERNS] Cup handle price range invalid for {symbol} (handle_high={handle_high}). "
+                        f"Cannot calculate handle dip — price data corrupted."
+                    )
+                recent_dip = (handle_high - min(lows[-7:])) / handle_high * 100.0
+                handle_present = 5 < recent_dip < 12
                 if mid_low_match and handle_present:
                     return {
                         "type": "cup_with_handle",
-                        "quality": ("A" if depth <= 30 and recent_dip is not None and recent_dip <= 10 else "B"),
+                        "quality": ("A" if depth <= 30 and recent_dip <= 10 else "B"),
                         "characteristics": {
                             **characteristics,
-                            "handle_dip_pct": round(recent_dip, 1) if recent_dip is not None else None,
+                            "handle_dip_pct": round(recent_dip, 1),
                         },
-                        "handle_dip_pct": round(recent_dip, 1) if recent_dip is not None else None,
+                        "handle_dip_pct": round(recent_dip, 1),
                         **characteristics,
                     }
                 if mid_low_match:
@@ -375,7 +387,12 @@ class SignalPatternsMixin:
             if len(min_indices) >= 2:
                 low1 = lows[min_indices[0]]
                 low2 = lows[min_indices[-1]]
-                diff_pct = abs(low2 - low1) / low1 * 100.0 if low1 > 0 else 100
+                if low1 <= 0:
+                    raise ValueError(
+                        f"[SIGNAL_PATTERNS] Double bottom low price invalid for {symbol} (low1={low1}). "
+                        f"Cannot calculate pattern — price data corrupted."
+                    )
+                diff_pct = abs(low2 - low1) / low1 * 100.0
                 if diff_pct <= 5 and (min_indices[-1] - min_indices[0]) >= 10:
                     return {
                         "type": "double_bottom",

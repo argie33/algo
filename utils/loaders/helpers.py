@@ -90,10 +90,6 @@ def get_active_symbols(
 ) -> list[str]:
     """Get list of active symbols (stocks and ETFs) from database with timeout protection.
 
-    Used by: load_balance_sheet.py, loadbuyselldaily.py, load_cash_flow.py,
-             load_income_statement.py, load_key_metrics.py, loadpricedaily.py,
-             load_quality_metrics.py, and others
-
     Originally defined identically in 19 different files. Consolidated 2026-05-18.
     FIXED 2026-06-07: Include ETFs (was filtering them out, breaking 95% validation)
     FIXED 2026-06-28: Add exclude_etfs option for financial data loaders that need real stocks only
@@ -228,8 +224,6 @@ def _resolve_timeframe(cli_arg: str | None = None) -> str:
 
 def _resolve_period(cli_arg: str | None = None) -> str:
     """Resolve period from CLI arg or environment variable.
-
-    Used by: load_balance_sheet.py, load_cash_flow.py, load_income_statement.py
 
     Originally defined identically in 3 different files. Consolidated 2026-05-18.
 

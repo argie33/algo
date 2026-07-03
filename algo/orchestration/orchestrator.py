@@ -23,7 +23,6 @@ from algo.orchestration.phase_event_hub import (
 from algo.orchestrator.phase_executor import OrchestratorPhaseExecutor, PhaseDefinition
 from algo.orchestrator.phase_registry import PhaseRegistry
 from algo.reporting import AlertManager
-from algo.reporting.alerts import NullAlertManager
 from monitoring.metrics_context import (
     TimeBlock,
     log_metrics_summary,
@@ -84,14 +83,13 @@ class Orchestrator:
 
         self.degraded_mode = False
         try:
-            self.alerts: AlertManager | NullAlertManager = AlertManager()
+            self.alerts: AlertManager = AlertManager()
         except RuntimeError as e:
             raise RuntimeError(
                 f"CRITICAL: AlertManager initialization failed. "
-                f"Operators will not receive critical trading alerts, risk notifications, or system errors. "
-                f"Cannot proceed with trading orchestration without alert infrastructure. "
+                f"Cannot proceed without alert infrastructure. "
                 f"Root cause: {e}. "
-                f"Fix: Ensure alert channels (Slack, email, PagerDuty) are configured in ALERT_CHANNELS environment variable."
+                f"Configure ALERT_EMAIL_TO + ALERT_SMTP_* or ALERTS_SNS_TOPIC."
             ) from e
 
         self.db_monitor = DatabaseHealthMonitor(self.alerts)

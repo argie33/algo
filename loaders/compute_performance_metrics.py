@@ -110,7 +110,13 @@ def compute_performance_metrics(cur: Any, metric_date: date | None = None) -> di
                     f"Current: {winning} wins, {losing} losses. Need minimum 2+ losses."
                 )
             # Edge case: 2+ losses but 0 sum (all equal to zero before abs). Should not occur but guard.
-            profit_factor = float("inf") if wins_sum > 0 else 1.0
+            if wins_sum <= 0:
+                raise ValueError(
+                    f"CRITICAL: Profit factor calculation invalid — losses_sum=0 and wins_sum={wins_sum}. "
+                    f"Data indicates all trades are breakeven or negative (no winning trades). "
+                    f"Cannot compute meaningful profit factor — corrupt trade data."
+                )
+            profit_factor = float("inf")
         else:
             profit_factor = wins_sum / losses_sum
         total_pnl_dollars: float = sum(pnl_dollars)
@@ -214,15 +220,45 @@ def compute_performance_metrics(cur: Any, metric_date: date | None = None) -> di
         # Advanced metrics from portfolio snapshots (may be None during ramp-up)
         try:
             sharpe, sortino, max_dd, cagr, calmar = _compute_advanced_metrics(cur, metric_date)
-            metrics["sharpe_ratio"] = round(sharpe, 4) if sharpe is not None else None
-            metrics["sortino_ratio"] = round(sortino, 4) if sortino is not None else None
-            metrics["max_drawdown_pct"] = (
-                round(max_dd * 100, 2) if max_dd is not None else None
-            )  # Convert to percentage
-            metrics["cagr_pct"] = round(cagr * 100, 4) if cagr is not None else None
-            metrics["calmar_ratio"] = round(calmar, 4) if calmar is not None else None
+            # CRITICAL: Track which advanced metrics are unavailable (during ramp-up or insufficient data)
+            unavailable_metrics = []
+            if sharpe is None:
+                unavailable_metrics.append("sharpe_ratio")
+                metrics["sharpe_ratio"] = None
+            else:
+                metrics["sharpe_ratio"] = round(sharpe, 4)
+
+            if sortino is None:
+                unavailable_metrics.append("sortino_ratio")
+                metrics["sortino_ratio"] = None
+            else:
+                metrics["sortino_ratio"] = round(sortino, 4)
+
+            if max_dd is None:
+                unavailable_metrics.append("max_drawdown_pct")
+                metrics["max_drawdown_pct"] = None
+            else:
+                metrics["max_drawdown_pct"] = round(max_dd * 100, 2)
+
+            if cagr is None:
+                unavailable_metrics.append("cagr_pct")
+                metrics["cagr_pct"] = None
+            else:
+                metrics["cagr_pct"] = round(cagr * 100, 4)
+
+            if calmar is None:
+                unavailable_metrics.append("calmar_ratio")
+                metrics["calmar_ratio"] = None
+            else:
+                metrics["calmar_ratio"] = round(calmar, 4)
+
+            if unavailable_metrics:
+                logger.warning(
+                    f"Advanced metrics unavailable for {metric_date}: {', '.join(unavailable_metrics)} "
+                    f"(ramp-up phase or insufficient portfolio history)"
+                )
         except ValueError as e:
-            logger.warning(f"Advanced metrics unavailable (ramp-up phase): {e}")
+            logger.warning(f"Advanced metrics computation failed (ramp-up phase): {e}")
             metrics["sharpe_ratio"] = None
             metrics["sortino_ratio"] = None
             metrics["max_drawdown_pct"] = None

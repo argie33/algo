@@ -80,8 +80,15 @@ class SignalMomentumMixin:
                 sell_count_history.append(sell_count)
                 buy_count_history.append(buy_count)
 
-            latest_sell = sell_count_history[-1] if sell_count_history else 0
-            latest_buy = buy_count_history[-1] if buy_count_history else 0
+            if not sell_count_history or not buy_count_history:
+                raise ValueError(
+                    f"[TD_SEQUENTIAL] Count history missing for {symbol}: "
+                    f"sell_count_history={len(sell_count_history) if sell_count_history else 0}, "
+                    f"buy_count_history={len(buy_count_history) if buy_count_history else 0}. "
+                    f"Cannot compute TD Sequential without complete count data."
+                )
+            latest_sell = sell_count_history[-1]
+            latest_buy = buy_count_history[-1]
 
             # Most recent count and type
             if latest_sell >= latest_buy:
@@ -219,14 +226,25 @@ class SignalMomentumMixin:
                 )
             avg_vol = float(row[3])
 
+            if pivot <= 0:
+                raise ValueError(
+                    f"[PIVOT_BREAKOUT] Pivot price invalid for {symbol}: {pivot}. "
+                    f"Cannot calculate percentage above pivot — price data corrupted."
+                )
+            if avg_vol <= 0:
+                raise ValueError(
+                    f"[PIVOT_BREAKOUT] Average volume invalid for {symbol}: {avg_vol}. "
+                    f"Cannot calculate volume ratio — volume data corrupted."
+                )
+
             breakout = close > pivot * 1.005
-            on_volume = avg_vol > 0 and volume > avg_vol
+            on_volume = volume > avg_vol
             return {
                 "breakout": breakout and on_volume,
                 "close": close,
                 "pivot": round(pivot, 2),
-                "pct_above_pivot": (round((close - pivot) / pivot * 100, 2) if pivot > 0 else None),
-                "volume_ratio": round(volume / avg_vol, 2) if avg_vol > 0 else None,
+                "pct_above_pivot": round((close - pivot) / pivot * 100, 2),
+                "volume_ratio": round(volume / avg_vol, 2),
             }
 
         try:
@@ -303,12 +321,17 @@ class SignalMomentumMixin:
                 fires = is_up_day and today_vol >= max_down_vol and max_down_vol > 0
 
                 if fires:
+                    if max_down_vol <= 0:
+                        raise ValueError(
+                            f"[POCKET_PIVOT] Max down-day volume invalid for {symbol}: {max_down_vol}. "
+                            f"Cannot calculate volume ratio — volume data corrupted."
+                        )
                     return {
                         "pocket_pivot": True,
                         "days_since_fired": 0,
                         "current_vol": round(today_vol, 0),
                         "max_down_vol": round(max_down_vol, 0),
-                        "vol_ratio": (round(today_vol / max_down_vol, 2) if max_down_vol > 0 else None),
+                        "vol_ratio": round(today_vol / max_down_vol, 2),
                     }
 
             # Also check if pocket pivot fired 1-2 days ago (yesterday and day-2 only)
@@ -334,15 +357,20 @@ class SignalMomentumMixin:
 
             if up_day_dates:
                 days_since, vol = up_day_dates[0]
+                if max_down_vol <= 0:
+                    raise ValueError(
+                        f"[POCKET_PIVOT] Max down-day volume invalid for {symbol}: {max_down_vol}. "
+                        f"Cannot calculate volume ratio — volume data corrupted."
+                    )
                 return {
                     "pocket_pivot": True,
                     "days_since_fired": days_since,
                     "current_vol": round(vol, 0),
                     "max_down_vol": round(max_down_vol, 0),
-                    "vol_ratio": (round(vol / max_down_vol, 2) if max_down_vol > 0 else None),
+                    "vol_ratio": round(vol / max_down_vol, 2),
                 }
 
-            return {"pocket_pivot": False}
+            return {"pocket_pivot": False, "data_unavailable": False, "reason": "no_setup_detected"}
 
         return cast(dict[str, Any], self._with_cursor(_check_pocket))
 

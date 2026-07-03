@@ -16,26 +16,6 @@ def get_yahoo_finance_url() -> str:
     return "https://query1.finance.yahoo.com"
 
 
-def get_fred_url() -> str:
-    """Return FRED (Federal Reserve Economic Data) API base URL.
-
-    Used by: load_fred_economic_data, load_economic_calendar
-    Pattern: https://api.stlouisfed.org/fred
-    Requires: FRED_API_KEY environment variable or credential manager
-    """
-    return "https://api.stlouisfed.org/fred"
-
-
-def get_aaii_sentiment_url() -> str:
-    """Return AAII (American Association of Individual Investors) sentiment Excel download URL.
-
-    Used by: load_aaii_sentiment loader
-    Pattern: https://www.aaii.com/files/surveys/sentiment.xls
-    Note: Direct Excel download (no API key required). Returns XLS or XLSX depending on AAII.
-    """
-    return "https://www.aaii.com/files/surveys/sentiment.xls"
-
-
 def get_alpaca_base_url() -> str:
     """Return Alpaca API base URL.
 
