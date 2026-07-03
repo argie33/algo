@@ -111,21 +111,3 @@ def validate_required_fields(
         "error_message": None,
         "http_status": 200,
     }
-
-
-def get_safe_value(data: dict[str, Any], key: str, default: Any = None) -> Any:
-    """Get value from data dict, handling data_unavailable markers.
-
-    Args:
-        data: Data dict to get value from
-        key: Key to retrieve
-        default: Default value if key is missing or value is None
-
-    Returns:
-        The value, or default if missing/None, or None if data_unavailable
-    """
-    if isinstance(data, dict) and data.get("data_unavailable"):
-        return None
-
-    value = data.get(key) if isinstance(data, dict) else None
-    return value if value is not None else default
