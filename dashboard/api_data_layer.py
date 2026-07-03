@@ -244,13 +244,32 @@ def is_stale_data(data: dict[str, Any]) -> bool:
     CRITICAL: Dashboard components must check this flag and alert users
     when displaying stale market data during API outages.
 
+    CRITICAL FAIL-FAST: Cache freshness MUST be explicitly marked in data.
+    If _stale_cache key is missing, this indicates data corruption or an
+    incomplete response, and the function raises ValueError to prevent
+    assuming fresh data when freshness is actually unknown.
+
     Args:
-        data: Response dict (potentially with _stale_cache flag)
+        data: Response dict (must have explicit _stale_cache flag)
 
     Returns:
         True if data is stale (>30 min old), False if fresh
+
+    Raises:
+        ValueError: If _stale_cache key missing (data integrity uncertain)
     """
-    return bool(data.get("_stale_cache", False))
+    if "_stale_cache" not in data:
+        logger.error(
+            f"[DATA_INTEGRITY] Cache freshness marker missing: _stale_cache key not found in data. "
+            f"Data keys: {list(data.keys())}. Cannot determine if data is fresh or stale. "
+            f"This indicates data corruption or incomplete API response."
+        )
+        raise ValueError(
+            "Cache freshness marker missing, data integrity uncertain. "
+            "The _stale_cache flag must be explicitly set on all data responses. "
+            f"Data structure: {list(data.keys())}"
+        )
+    return bool(data.get("_stale_cache"))
 
 
 def get_cache_age_seconds(data: dict[str, Any]) -> int | None:

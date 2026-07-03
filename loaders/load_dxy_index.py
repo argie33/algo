@@ -39,15 +39,13 @@ def fetch_dxy_from_yahoo() -> list[dict[str, Any]]:
         dxy = yf.download("DX-Y.NYB", start=start_date, end=end_date, progress=False)
 
         if dxy is None or len(dxy) == 0:
-            logger.warning(
-                "[DXY] Yahoo Finance returned no data for DX-Y.NYB ticker."
-            )
+            logger.warning("[DXY] Yahoo Finance returned no data for DX-Y.NYB ticker.")
             raise RuntimeError("[DXY] No data available from Yahoo Finance for DX-Y.NYB")
 
         rows = []
         for idx, row in dxy.iterrows():
             # idx is a pandas Timestamp; convert to date string
-            if hasattr(idx, 'tz') and idx.tz is not None:
+            if hasattr(idx, "tz") and idx.tz is not None:
                 date_str = idx.tz_localize(None).date().isoformat()
             else:
                 date_str = idx.date().isoformat()
@@ -79,8 +77,7 @@ def store_dxy_data(rows: list[dict[str, Any]]) -> int:
     """
     if not rows:
         raise RuntimeError(
-            "[DXY] Cannot store empty rows. "
-            "Fetch must return data or raise exception, not return empty list."
+            "[DXY] Cannot store empty rows. Fetch must return data or raise exception, not return empty list."
         )
 
     try:

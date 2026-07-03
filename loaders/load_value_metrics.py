@@ -79,9 +79,7 @@ class ValueMetricsLoader(OptimalLoader):
                 return [self._unavailable_record(symbol, "No yfinance_snapshot record")]
 
             if not row.get("data_available"):
-                logger.info(
-                    f"[VALUE_METRICS] Snapshot unavailable for {symbol}: {row.get('unavailable_reason')}"
-                )
+                logger.info(f"[VALUE_METRICS] Snapshot unavailable for {symbol}: {row.get('unavailable_reason')}")
                 return [self._unavailable_record(symbol, row.get("unavailable_reason", "Unknown"))]
 
             return [
@@ -99,9 +97,7 @@ class ValueMetricsLoader(OptimalLoader):
                     "peg_ratio": row["peg_ratio"],
                     "peg_ratio_unavailable_reason": None if row["peg_ratio"] else "missing_from_snapshot",
                     "dividend_yield": row["dividend_yield"],
-                    "dividend_yield_unavailable_reason": None
-                    if row["dividend_yield"]
-                    else "missing_from_snapshot",
+                    "dividend_yield_unavailable_reason": None if row["dividend_yield"] else "missing_from_snapshot",
                     "fcf_yield": row["fcf_yield"],
                     "fcf_yield_unavailable_reason": None if row["fcf_yield"] else "missing_from_snapshot",
                     "held_percent_insiders": None,

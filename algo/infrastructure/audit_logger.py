@@ -76,7 +76,19 @@ class TradeAuditLogger:
                 "vix_caution_multiplier",
                 "phase_multiplier",
             ]:
-                mult = multipliers.get(key, 1.0)
+                if key not in multipliers:
+                    logger.error(
+                        f"Position sizing multiplier missing for risk tier '{key}'. "
+                        f"Expected multiplier: {key}. "
+                        f"Complete multipliers dict: {multipliers}"
+                    )
+                    raise ValueError(
+                        f"Position sizing multiplier missing for risk tier '{key}', config corrupted. "
+                        f"Expected multiplier: {key}. "
+                        f"Complete multipliers dict: {multipliers}"
+                    )
+
+                mult = multipliers[key]
                 if mult != 1.0:
                     cascade *= mult
                     reason = reasons.get(key, "")

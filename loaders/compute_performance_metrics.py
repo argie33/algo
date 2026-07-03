@@ -172,8 +172,7 @@ def compute_performance_metrics(cur: Any, metric_date: date | None = None) -> di
 
         if not wins_pcts:
             raise ValueError(
-                "Cannot calculate average win percentage: no winning trades found. "
-                "Insufficient performance history."
+                "Cannot calculate average win percentage: no winning trades found. Insufficient performance history."
             )
         if not losses_pcts:
             raise ValueError(

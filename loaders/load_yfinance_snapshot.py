@@ -78,8 +78,10 @@ class YFinanceSnapshotLoader(OptimalLoader):
                 "dividend_yield": info.get("dividendYield"),
                 "fcf_yield": (
                     info["freeCashflow"] / info["marketCap"]
-                    if "freeCashflow" in info and "marketCap" in info
-                    and info["freeCashflow"] is not None and info["marketCap"] is not None
+                    if "freeCashflow" in info
+                    and "marketCap" in info
+                    and info["freeCashflow"] is not None
+                    and info["marketCap"] is not None
                     else None
                 ),
                 # Positioning metrics (institutional/insider holdings, short interest)

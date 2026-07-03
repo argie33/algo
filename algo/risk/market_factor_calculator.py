@@ -143,7 +143,19 @@ class MarketFactorCalculator:
                 (eval_date,),
             )
             row = cur.fetchone()
-            return bool(row and row[0]) if row else False
+
+            # Explicit validation: query must succeed and return a boolean result
+            if row is None:
+                logger.error("Market confirmation query failed, cannot determine market status")
+                raise RuntimeError("Market confirmation query failed, cannot determine market status")
+
+            if not isinstance(row[0], bool):
+                logger.error(
+                    f"Market confirmation has wrong type, expected boolean but got {type(row[0]).__name__}: {row[0]!r}"
+                )
+                raise ValueError("Market confirmation has wrong type, expected boolean")
+
+            return row[0]
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.error(f"Market confirmation check failed: {e}", exc_info=True)
             raise RuntimeError(

@@ -295,8 +295,16 @@ class VectorizedSignalGenerator:
                 prior = closes[-21]
                 ret_21d = ((current - prior) / prior * 100) if prior > 0 else None
 
+                # CRITICAL: Fail fast if return calculation failed
+                # Do NOT silently default to False — this masks data quality issues
+                if ret_21d is None:
+                    raise ValueError(
+                        f"Cannot compute 21-day return for {symbol}: "
+                        f"21-day-ago close <= 0 (invalid historical price data)"
+                    )
+
                 results[symbol] = {
-                    "power_trend": ret_21d >= 20 if ret_21d else False,
+                    "power_trend": ret_21d >= 20,
                     "return_21d": ret_21d,
                 }
             except (ValueError, ZeroDivisionError, TypeError) as e:

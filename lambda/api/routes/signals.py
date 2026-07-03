@@ -39,8 +39,13 @@ def handle(
         if path in ["/api/signals", "/api/signals/stocks"] or path.startswith(
             ("/api/signals?", "/api/signals/stocks?")
         ):
-            # Extract and validate limit parameter (optional, default 500)
-            limit_list = params.get("limit", [])
+            # Extract and validate limit parameter (required)
+            if "limit" not in params:
+                logger.warning("Required parameter 'limit' missing from request")
+                return error_response(
+                    400, "bad_request", "Required parameter 'limit' missing from request. Valid values: 1-10000"
+                )
+            limit_list = params["limit"]
             if not isinstance(limit_list, list):
                 return error_response(400, "bad_request", "limit parameter must be a list")
             limit_str = limit_list[0] if limit_list else "500"
@@ -49,14 +54,26 @@ def handle(
             except (ValueError, TypeError) as e:
                 return error_response(400, "bad_request", f"Invalid limit value: {e!s}")
 
-            # Extract and validate timeframe parameter (optional, default 'daily')
-            timeframe_list = params.get("timeframe", [])
+            # Extract and validate timeframe parameter (required)
+            if "timeframe" not in params:
+                logger.warning("Required parameter 'timeframe' missing from request")
+                return error_response(
+                    400, "bad_request", "Required parameter 'timeframe' missing from request. Valid values: 'daily'"
+                )
+            timeframe_list = params["timeframe"]
             if not isinstance(timeframe_list, list):
                 return error_response(400, "bad_request", "timeframe parameter must be a list")
             timeframe = timeframe_list[0] if timeframe_list else "daily"
 
-            # Extract symbol filter parameter (optional, no default)
-            symbol_list = params.get("symbol", [])
+            # Extract symbol filter parameter (required)
+            if "symbol" not in params:
+                logger.warning("Required parameter 'symbol' missing from request")
+                return error_response(
+                    400,
+                    "bad_request",
+                    "Required parameter 'symbol' missing from request. Valid values: any valid stock ticker symbol (e.g., AAPL, MSFT)",
+                )
+            symbol_list = params["symbol"]
             if not isinstance(symbol_list, list):
                 return error_response(400, "bad_request", "symbol parameter must be a list")
             symbol_filter = symbol_list[0] if symbol_list else None

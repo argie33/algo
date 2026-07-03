@@ -35,8 +35,7 @@ def _dec_round(val: Any, places: int) -> float:
     """
     if val is None:
         raise ValueError(
-            f"Cannot round None value (missing financial data). "
-            f"Data completeness is critical for performance metrics."
+            "Cannot round None value (missing financial data). Data completeness is critical for performance metrics."
         )
     if val == 0:
         return 0.0

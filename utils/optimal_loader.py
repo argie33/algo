@@ -588,7 +588,16 @@ class OptimalLoader:
 
                 pending_futures -= set(stalled)
 
-        failed_count = self._stats.get("symbols_failed", 0)
+        if "symbols_failed" not in self._stats:
+            stats_dict = self._stats.to_dict()
+            logger.error(
+                f"[{self.table_name}] Loader stats corrupted, symbols_failed counter missing. "
+                f"Current stats: {stats_dict}"
+            )
+            raise RuntimeError(
+                f"[{self.table_name}] Loader stats corrupted, symbols_failed counter missing. Full stats: {stats_dict}"
+            )
+        failed_count = self._stats.get("symbols_failed")
         fail_rate = (failed_count / len(symbols)) * 100 if symbols else 0
 
         # CRITICAL: Enforce strict completeness for financial data

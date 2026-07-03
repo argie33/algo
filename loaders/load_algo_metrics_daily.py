@@ -51,6 +51,19 @@ class AlgoMetricsDailyLoader(OptimalLoader):
                         "Cannot compute performance metrics without trade data."
                     )
 
+                # VALIDATION: Tuple structure check before unpacking
+                expected_fields = 5
+                expected_names = ["trading_date", "total_actions", "entries", "exits", "avg_signal_score"]
+                if len(row) < expected_fields:
+                    logger.error(
+                        f"[ALGO_METRICS] Malformed metrics tuple: expected {expected_fields} fields "
+                        f"({expected_names}), got {len(row)}. Row data: {row}"
+                    )
+                    raise ValueError(
+                        f"Algo metrics tuple has incorrect structure, expected {expected_fields}+ fields "
+                        f"({expected_names}), got {len(row)}"
+                    )
+
                 # VALIDATION: Required fields must be present and non-negative
                 total_actions = row[1]
                 entries = row[2]

@@ -224,9 +224,7 @@ class BalanceSheetLoader(OptimalLoader):
     def _validate_row(self, row: dict[str, Any]) -> bool:
         # Fail-fast: symbol is required (primary key). No fallback to placeholder.
         if "symbol" not in row or not row["symbol"]:
-            logger.warning(
-                f"[{self.table_name}] Row missing required 'symbol' (primary key): {row}. Rejecting."
-            )
+            logger.warning(f"[{self.table_name}] Row missing required 'symbol' (primary key): {row}. Rejecting.")
             return False
 
         symbol = row["symbol"]

@@ -10,9 +10,9 @@ class RequestRouter:
 
     def __init__(self) -> None:
         """Initialize request router."""
-        self.routes: dict[str, Callable] = {}
+        self.routes: dict[str, Callable[..., Any]] = {}
 
-    def register(self, path: str, handler: Callable) -> None:
+    def register(self, path: str, handler: Callable[..., Any]) -> None:
         """Register a route handler.
 
         Args:

@@ -87,7 +87,14 @@ class BuySignalGenerationHandler:
             # Phase 3: Compute metrics if signal generated
             if signal_type:
                 vol_surge, volume_surge_capped = self._compute_volume_surge(volume, rows, i)
-                avg_vol_50d = self._compute_avg_volume_50d(rows, i)
+                avg_vol_50d_result = self._compute_avg_volume_50d(rows, i)
+                # Check for explicit _data_unavailable marker on optional enrichment
+                avg_vol_50d = None
+                if isinstance(avg_vol_50d_result, dict) and avg_vol_50d_result.get("_data_unavailable"):
+                    # Enrichment unavailable; explicitly logged at INFO level in _compute_avg_volume_50d
+                    pass
+                elif isinstance(avg_vol_50d_result, int):
+                    avg_vol_50d = avg_vol_50d_result
                 market_stage = self._determine_market_stage(close, sma_50, sma_200)
 
                 # Phase 4: Calculate entry/exit levels
@@ -284,12 +291,13 @@ class BuySignalGenerationHandler:
 
         return vol_surge, volume_surge_capped
 
-    def _compute_avg_volume_50d(self, rows: list[dict[str, Any]], i: int) -> int | None:
+    def _compute_avg_volume_50d(self, rows: list[dict[str, Any]], i: int) -> int | dict[str, Any]:
         """Compute 50-bar average volume.
 
-        Returns None if insufficient historical data available (optional enrichment).
-        This is optional enrichment; logs at DEBUG level to indicate missing optional data.
-        Callers treat None as "data unavailable for optional enrichment" with full logging context.
+        Returns int if sufficient historical data available.
+        Returns dict with _data_unavailable marker if enrichment cannot be computed (optional enrichment).
+        This is optional enrichment; logs at INFO level when enrichment cannot be computed.
+        Callers must check for _data_unavailable marker explicitly before using the value.
         """
         if i >= 10:
             vols_50: list[Any] = [
@@ -297,16 +305,17 @@ class BuySignalGenerationHandler:
             ]
             if vols_50:
                 return int(sum(vols_50) / len(vols_50))
-            logger.debug(
+            logger.info(
                 f"[SIGNAL_METRICS] Insufficient volume data to compute 50d average (bar index {i}): "
-                f"optional enrichment unavailable - will return None to signal"
+                f"optional enrichment unavailable"
             )
+            return {"_data_unavailable": True, "reason": "insufficient_volume_history"}
         else:
-            logger.debug(
+            logger.info(
                 f"[SIGNAL_METRICS] Insufficient history for 50d average (only {i} bars, need >= 10): "
-                f"optional enrichment unavailable - will return None to signal"
+                f"optional enrichment unavailable"
             )
-        return None
+            return {"_data_unavailable": True, "reason": "insufficient_history"}
 
     def _determine_market_stage(self, close: float, sma_50: float | None, sma_200: float | None) -> str | None:
         """Determine market stage from moving average positions.

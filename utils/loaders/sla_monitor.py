@@ -261,7 +261,19 @@ class PipelineSLAMonitor:
         """
         self.pipeline_name = pipeline_name
         self.start_time: float | None = None
-        self.sla_config = PIPELINE_SLA_TARGETS.get(pipeline_name, (60 * 60, 180 * 60, 300 * 60))
+
+        # Require explicit SLA configuration - fail-fast on misconfigured pipeline names
+        if pipeline_name not in PIPELINE_SLA_TARGETS:
+            configured_pipelines = list(PIPELINE_SLA_TARGETS.keys())
+            error_msg = (
+                f"SLA config missing for pipeline {pipeline_name}, "
+                f"check PIPELINE_SLA_TARGETS configuration. "
+                f"Configured pipelines: {configured_pipelines}"
+            )
+            logger.error(error_msg)
+            raise ValueError(error_msg)
+
+        self.sla_config = PIPELINE_SLA_TARGETS[pipeline_name]
 
     def start(self) -> None:
         """Mark the start of pipeline execution."""

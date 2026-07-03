@@ -507,8 +507,17 @@ class CircuitBreaker:
             (PositionStatus.OPEN.value,),
         )
         result = cur.fetchone()
-        total_open_risk_raw = result[0] if result else None
-        position_count = result[1] if result else 0
+        if result is None:
+            logger.error(
+                "Position count query failed (no result). Cannot determine position count. "
+                "Position monitoring unsafe — halting to prevent blind trading."
+            )
+            raise RuntimeError(
+                "Cannot determine position count: query failed. Position monitoring unsafe. "
+                "Zero positions must be explicitly confirmed, not defaulted."
+            )
+        total_open_risk_raw = result[0]
+        position_count = result[1]
 
         # If there are open positions but SUM returns NULL, that's data corruption
         if position_count > 0 and total_open_risk_raw is None:

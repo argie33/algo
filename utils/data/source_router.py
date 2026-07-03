@@ -389,9 +389,7 @@ class DataSourceRouter:
                     progress=False,
                 )
 
-            logger.info(
-                f"[yfinance] Batch calling yf.download for {len(symbols)} symbols with 180s timeout"
-            )
+            logger.info(f"[yfinance] Batch calling yf.download for {len(symbols)} symbols with 180s timeout")
             try:
                 hist = _call_with_timeout(do_download, timeout_sec=180, retries=3)
                 logger.debug("[yfinance] Batch download completed successfully")

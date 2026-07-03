@@ -123,6 +123,8 @@ def _best_halt_reason(top_level: str, phase_results: list[Any]) -> list[tuple[st
 
     Falls back to top_level if no per-phase detail is found.
     Tries multiple field names so the display is robust to orchestrator schema changes.
+
+    FAIL-FAST: phase_results must not be None; orchestrator must provide explicit phase-level data.
     """
     _FIELDS = (  # noqa: N806
         "halt_reason",
@@ -135,13 +137,29 @@ def _best_halt_reason(top_level: str, phase_results: list[Any]) -> list[tuple[st
         "details",
     )
     found: list[tuple[str, str]] = []
-    if not isinstance(phase_results, (list, tuple)):
-        logger.warning(
-            f"_best_halt_reason received non-list phase_results (got {type(phase_results).__name__}); "
-            f"skipping phase-level detail parsing"
+
+    # Explicit check for None: indicates orchestrator halted without returning phase results
+    if phase_results is None:
+        logger.error(
+            "Phase execution results unavailable (phase_results is None). "
+            "Orchestrator may have halted before returning phase-level data."
         )
-        phase_results = []
-    for p in phase_results or []:
+        raise ValueError(
+            "Phase execution results unavailable, orchestrator may have halted"
+        )
+
+    # Validate phase_results is a list or tuple
+    if not isinstance(phase_results, (list, tuple)):
+        logger.error(
+            f"_best_halt_reason received invalid phase_results type: {type(phase_results).__name__}. "
+            f"Expected list or tuple of phase execution results."
+        )
+        raise ValueError(
+            f"Phase results must be a list or tuple, got {type(phase_results).__name__}"
+        )
+
+    # Now phase_results is guaranteed to be a list/tuple - iterate without fallback
+    for p in phase_results:
         if not isinstance(p, dict):
             logger.debug(f"Skipping non-dict phase result entry: {type(p).__name__}")
             continue

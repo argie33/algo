@@ -22,7 +22,7 @@ class DatabaseQueryService:
         """Initialize with psycopg2 cursor."""
         self.cursor = cursor
 
-    def execute(self, query: str, params: tuple | dict | None = None) -> Any:
+    def execute(self, query: str, params: tuple[Any, ...] | dict[str, Any] | None = None) -> Any:
         """Execute a query and return cursor for further operations.
 
         Args:
@@ -35,7 +35,7 @@ class DatabaseQueryService:
         self.cursor.execute(query, params)
         return self.cursor
 
-    def fetch_one(self, query: str, params: tuple | dict | None = None) -> Any | None:
+    def fetch_one(self, query: str, params: tuple[Any, ...] | dict[str, Any] | None = None) -> Any | None:
         """Execute query and fetch single row.
 
         Args:
@@ -48,7 +48,7 @@ class DatabaseQueryService:
         self.cursor.execute(query, params)
         return self.cursor.fetchone()
 
-    def fetch_all(self, query: str, params: tuple | dict | None = None) -> list[Any]:
+    def fetch_all(self, query: str, params: tuple[Any, ...] | dict[str, Any] | None = None) -> list[Any]:
         """Execute query and fetch all rows.
 
         Args:
@@ -61,7 +61,7 @@ class DatabaseQueryService:
         self.cursor.execute(query, params)
         return cast(list[Any], self.cursor.fetchall())
 
-    def fetch_many(self, query: str, size: int, params: tuple | dict | None = None) -> list[Any]:
+    def fetch_many(self, query: str, size: int, params: tuple[Any, ...] | dict[str, Any] | None = None) -> list[Any]:
         """Execute query and fetch multiple rows.
 
         Args:

@@ -534,7 +534,9 @@ class OrderManager:
                                             filled_price = float(filled_price_raw)
                                             order_id = close_data.get("id") or "close-position"
                                             if "id" not in close_data:
-                                                logger.warning(f"[SEND_EXIT] Alpaca close-position response missing 'id' field, using tracking ID '{order_id}'")
+                                                logger.warning(
+                                                    f"[SEND_EXIT] Alpaca close-position response missing 'id' field, using tracking ID '{order_id}'"
+                                                )
                                             logger.info(
                                                 f"[SEND_EXIT] {symbol}: Close-position succeeded, "
                                                 f"fill=${filled_price} (order {order_id})"
@@ -550,7 +552,9 @@ class OrderManager:
                                     # Order placed but price not yet filled (market order in flight)
                                     order_id = close_data.get("id") or "close-position"
                                     if "id" not in close_data:
-                                        logger.warning(f"[SEND_EXIT] Alpaca close-position response missing 'id' field, using tracking ID '{order_id}'")
+                                        logger.warning(
+                                            f"[SEND_EXIT] Alpaca close-position response missing 'id' field, using tracking ID '{order_id}'"
+                                        )
                                     logger.info(
                                         f"[SEND_EXIT] {symbol}: Close-position order {order_id} submitted, "
                                         f"fill price pending (market order)"

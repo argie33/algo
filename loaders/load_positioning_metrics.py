@@ -79,9 +79,7 @@ class PositioningMetricsLoader(OptimalLoader):
                 return [self._unavailable_record(symbol, "No yfinance_snapshot record")]
 
             if not row.get("data_available"):
-                logger.info(
-                    f"[POSITIONING_METRICS] Snapshot unavailable for {symbol}: {row.get('unavailable_reason')}"
-                )
+                logger.info(f"[POSITIONING_METRICS] Snapshot unavailable for {symbol}: {row.get('unavailable_reason')}")
                 return [self._unavailable_record(symbol, row.get("unavailable_reason", "Unknown"))]
 
             # Extract positioning metrics from snapshot
@@ -106,7 +104,9 @@ class PositioningMetricsLoader(OptimalLoader):
                         "insider_ownership": round(insider_ownership, 2) if insider_ownership else None,
                         "insider_ownership_unavailable_reason": None if insider_ownership else "missing_from_snapshot",
                         "short_interest_percent": round(short_interest_percent, 2) if short_interest_percent else None,
-                        "short_interest_unavailable_reason": None if short_interest_percent else "missing_from_snapshot",
+                        "short_interest_unavailable_reason": None
+                        if short_interest_percent
+                        else "missing_from_snapshot",
                         "short_interest_trend": "stable",
                         "short_interest_trend_unavailable_reason": None,
                         "data_unavailable": False,
@@ -142,7 +142,6 @@ class PositioningMetricsLoader(OptimalLoader):
             "reason": reason,
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
-
 
     def transform(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Rows are clean."""

@@ -527,11 +527,20 @@ def _optimize_weights(config: Any, run_date: _date, log_phase_result_fn: Callabl
         logger.critical(error_msg, exc_info=True)
         raise RuntimeError(error_msg) from e
 
-    changes = opt_result.get("changes") if opt_result else []
+    if opt_result is None:
+        error_msg = (
+            "Weight optimization failed or did not complete, reconciliation cannot proceed. "
+            "WeightOptimizer.apply() returned None instead of a result dictionary. "
+            "This indicates an internal failure in the optimization engine."
+        )
+        logger.error(error_msg)
+        raise RuntimeError(error_msg)
+
+    changes = opt_result.get("changes", [])
     log_phase_result_fn(
         7,
         "weight_optimization",
-        "success" if opt_result and opt_result.get("success") else "warn",
+        "success" if opt_result.get("success") else "warn",
         f"{len(changes) if changes else 0} weight changes",
     )
     return opt_result

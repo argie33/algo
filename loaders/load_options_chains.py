@@ -91,7 +91,9 @@ class OptionsLoader:
             # Re-raise filtering result errors (no symbols after filter)
             raise
         except Exception as e:
-            logger.warning(f"[OPTIONS_CHAINS] Could not filter symbols by constituents: {e}. Proceeding with all symbols.")
+            logger.warning(
+                f"[OPTIONS_CHAINS] Could not filter symbols by constituents: {e}. Proceeding with all symbols."
+            )
             # Fallback: proceed with all symbols if filtering fails
 
         if eval_date is None:

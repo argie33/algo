@@ -368,6 +368,26 @@ def _normalize_market_health(mh: dict) -> Any:
     except (TypeError, ValueError) as e:
         raise ValueError(f"VIX level validation failed: {e} (got {type(vix_raw).__name__}: {vix_raw})") from e
 
+    # Validate data_unavailable markers are present (fail-fast if missing)
+    data_unavailable_markers = {
+        "put_call_ratio_data_unavailable",
+        "yield_curve_data_unavailable",
+        "fed_rate_data_unavailable",
+    }
+    missing_markers = data_unavailable_markers - {k for k in mh.keys() if k in data_unavailable_markers}
+    if missing_markers:
+        logger.error(
+            f"[MARKET HEALTH VALIDATION] CRITICAL: Missing data_unavailable markers: {missing_markers}. "
+            f"Market health dict missing required fields for data availability tracking. "
+            f"Check: market_health_daily table schema and loader that populates put_call_ratio_data_unavailable, "
+            f"yield_curve_data_unavailable, fed_rate_data_unavailable. "
+            f"Without these markers, API cannot accurately report data availability to clients."
+        )
+        raise ValueError(
+            f"Market health missing required data_unavailable markers: {missing_markers}. "
+            f"Cannot determine which optional fields are truly unavailable."
+        )
+
     return {
         "market_trend": mh.get("market_trend"),
         "market_stage": mh.get("market_stage"),
@@ -378,13 +398,13 @@ def _normalize_market_health(mh: dict) -> Any:
         "new_lows_count": mh.get("new_lows_count"),
         "breadth_momentum_10d": mh.get("breadth_momentum_10d"),
         "put_call_ratio": mh.get("put_call_ratio"),
-        "put_call_ratio_data_unavailable": bool(mh.get("put_call_ratio_data_unavailable", False)),
+        "put_call_ratio_data_unavailable": mh["put_call_ratio_data_unavailable"],
         "put_call_ratio_unavailable_reason": mh.get("put_call_ratio_unavailable_reason"),
         "yield_curve_slope": mh.get("yield_curve_slope"),
-        "yield_curve_data_unavailable": bool(mh.get("yield_curve_data_unavailable", False)),
+        "yield_curve_data_unavailable": mh["yield_curve_data_unavailable"],
         "yield_curve_unavailable_reason": mh.get("yield_curve_unavailable_reason"),
         "fed_rate_environment": mh.get("fed_rate_environment"),
-        "fed_rate_data_unavailable": bool(mh.get("fed_rate_data_unavailable", False)),
+        "fed_rate_data_unavailable": mh["fed_rate_data_unavailable"],
         "fed_rate_unavailable_reason": mh.get("fed_rate_unavailable_reason"),
         "spy_change_pct": mh.get("spy_change_pct"),
     }

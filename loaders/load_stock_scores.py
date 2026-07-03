@@ -145,7 +145,9 @@ class StockScoresLoader(OptimalLoader):
                         logger.warning(
                             f"[STOCK_SCORES] {table_name} missing data_unavailable column; skipping availability check"
                         )
-                        cur.execute(f"SELECT COUNT(*) FROM {table_name} WHERE data_unavailable IS NULL OR data_unavailable = false")
+                        cur.execute(
+                            f"SELECT COUNT(*) FROM {table_name} WHERE data_unavailable IS NULL OR data_unavailable = false"
+                        )
 
                     row = cur.fetchone()
                     available_count = row[0] if row else 0
@@ -307,7 +309,9 @@ class StockScoresLoader(OptimalLoader):
                 ) from e
             except Exception as e:
                 # Unexpected error — log and fail rather than silently defaulting
-                logger.error(f"[STOCK_SCORES] {symbol}: Unexpected error determining stock age: {type(e).__name__}: {e}")
+                logger.error(
+                    f"[STOCK_SCORES] {symbol}: Unexpected error determining stock age: {type(e).__name__}: {e}"
+                )
                 raise RuntimeError(
                     f"[STOCK_SCORES] {symbol}: Unexpected error during stock age calculation: {e}"
                 ) from e

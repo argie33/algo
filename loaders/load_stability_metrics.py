@@ -300,7 +300,6 @@ class StabilityMetricsLoader(OptimalLoader):
         # Annualize: multiply by sqrt(252)
         return daily_std * math.sqrt(252)
 
-
     @staticmethod
     def _get_beta_from_db(
         symbol: str,

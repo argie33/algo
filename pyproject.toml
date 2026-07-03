@@ -68,6 +68,10 @@ exclude = [
 module = "dashboard.panels.*"
 disallow_untyped_decorators = false
 
+[[tool.mypy.overrides]]
+module = "package.*"
+ignore_errors = true
+
 [tool.ruff]
 line-length = 120
 target-version = "py310"

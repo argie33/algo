@@ -410,7 +410,19 @@ class Orchestrator:
                     loaders_checked.add(table_name)
                     # last_updated is a naive datetime from PostgreSQL — make it UTC-aware before comparing
                     last_updated_utc = last_updated.replace(tzinfo=timezone.utc) if last_updated else None
-                    is_stale = last_updated_utc < stale_threshold if last_updated_utc else False
+
+                    # CRITICAL: Must explicitly determine staleness — no silent assumptions about loader health
+                    if last_updated_utc is None:
+                        logger.error(
+                            f"[LOADER HEALTH] {table_name} cannot determine staleness: last_updated_utc is None. "
+                            "Loader status unknown — cannot proceed without explicit timestamp."
+                        )
+                        raise RuntimeError(
+                            f"Cannot determine loader staleness for {table_name}: no last_updated_utc timestamp. "
+                            "Loader status unknown, must fail-fast instead of assuming fresh."
+                        )
+
+                    is_stale = last_updated_utc < stale_threshold
 
                     # CRITICAL: completion_pct is None only if database query failed or loader hasn't reported yet
                     # Treat None as incomplete (fail-safe) — don't silently use 0 (which looks like successful 0% load)

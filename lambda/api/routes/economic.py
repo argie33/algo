@@ -1,8 +1,6 @@
 """Route: economic"""
 
 import logging
-from datetime import date as date_module
-from datetime import timedelta
 from typing import Any
 
 import psycopg2
@@ -21,7 +19,6 @@ from routes.utils import (
     safe_json_serialize,
 )
 
-from config.credential_manager import CredentialManager, get_db_config
 from shared_contracts.response_validator import ResponseValidator
 from utils.validation import DatabaseResultValidator
 
@@ -622,5 +619,3 @@ def _get_yield_curve_full(cur: cursor) -> Any:  # noqa: C901
         )
         code, error_type, message = handle_db_error(e, "get yield curve")
         return error_response(code, error_type, message)
-
-
