@@ -1,5 +1,5 @@
 -- ════════════════════════════════════════════════════════════════════════════
--- MIGRATION: 043_backfill_trade_duration_days
+-- MIGRATION: 111_backfill_trade_duration_days
 -- ════════════════════════════════════════════════════════════════════════════
 --
 -- PURPOSE: Backfill trade_duration_days for all closed trades
