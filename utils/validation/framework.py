@@ -368,42 +368,61 @@ def format_decimal_string(value: Any, precision: int = 2, allow_none: bool = Tru
         raise ValueError(f"Cannot convert {value!r} to decimal string") from e
 
 
-def safe_int(value: Any, default: int = 0, context: str = "") -> int:
+def safe_int(value: Any, default: int | None = None, context: str = "", strict: bool = True) -> int | None:
     """Convert value to int safely, handling None, invalid strings.
+
+    STRICT MODE (default): Returns None on failure, logs ERROR. No silent defaults.
+    PERMISSIVE MODE: Returns default value on failure, logs WARNING.
 
     Args:
         value: Value to convert (can be str, int, float, None)
-        default: Default value if conversion fails (default: 0)
+        default: Default value if conversion fails (default: None for strict)
         context: Context string for logging
+        strict: If True, fail-fast with None; if False, use default value
 
     Returns:
-        Int value or default if conversion fails
+        Int value or None (strict) / default (permissive) if conversion fails
     """
     if value is None:
+        if strict:
+            logger.error(f"Value is None in safe_int {context}")
+            return None
         return default
 
     if isinstance(value, bool):
+        if strict:
+            logger.error(f"Cannot convert bool {value!r} to int (ambiguous) {context}")
+            return None
         return default
 
     try:
         return int(value)
     except (ValueError, TypeError) as e:
+        if strict:
+            logger.error(f"Failed to convert {value!r} to int {context}: {e}")
+            return None
         logger.warning(f"Failed to convert {value!r} to int {context}: {e}")
         return default
 
 
-def safe_parse_date(value: Any, context: str = "") -> date | None:
+def safe_parse_date(value: Any, context: str = "", strict: bool = True) -> date | None:
     """Parse date from multiple formats: ISO, string, datetime.
+
+    STRICT MODE (default): Logs ERROR on failure, returns None. Caller must handle.
+    PERMISSIVE MODE: Logs WARNING on failure, returns None.
 
     Handles:
     - ISO format strings (2026-06-10)
     - datetime objects
     - date objects
 
-    Returns None if parsing fails (logged as WARNING for visibility).
+    Returns None if parsing fails (logged as ERROR for visibility in strict mode).
     """
     if value is None:
-        logger.debug(f"Value is None in safe_parse_date {context} — returning None")
+        if strict:
+            logger.error(f"Value is None in safe_parse_date {context}")
+        else:
+            logger.debug(f"Value is None in safe_parse_date {context} — returning None")
         return None
 
     if isinstance(value, date) and not isinstance(value, datetime):
@@ -424,10 +443,16 @@ def safe_parse_date(value: Any, context: str = "") -> date | None:
             except ValueError:
                 pass
 
-        logger.warning(f"Failed to parse date {value!r} {context} - no format matched")
+        if strict:
+            logger.error(f"Failed to parse date {value!r} {context} - no format matched")
+        else:
+            logger.warning(f"Failed to parse date {value!r} {context} - no format matched")
         return None
 
-    logger.warning(f"Cannot parse {type(value).__name__} as date {context}")
+    if strict:
+        logger.error(f"Cannot parse {type(value).__name__} as date {context}")
+    else:
+        logger.warning(f"Cannot parse {type(value).__name__} as date {context}")
     return None
 
 
@@ -484,18 +509,25 @@ def safe_json_loads(json_str: Any, default: Any = None, context: str = "") -> An
         return default
 
 
-def safe_str(value: Any, default: str = "", context: str = "") -> str:
+def safe_str(value: Any, default: str | None = None, context: str = "", strict: bool = True) -> str | None:
     """Safely convert value to string with logging.
+
+    STRICT MODE (default): Returns None on failure, logs ERROR. No silent defaults.
+    PERMISSIVE MODE: Returns default value on failure, logs WARNING.
 
     Args:
         value: Value to convert
-        default: Default value if conversion fails
+        default: Default value if conversion fails (default: None for strict)
         context: Context string for logging
+        strict: If True, fail-fast with None; if False, use default value
 
     Returns:
-        String value or default if conversion fails
+        String value or None (strict) / default (permissive) if conversion fails
     """
     if value is None:
+        if strict:
+            logger.error(f"Value is None in safe_str {context}")
+            return None
         return default
 
     if isinstance(value, str):
@@ -504,22 +536,32 @@ def safe_str(value: Any, default: str = "", context: str = "") -> str:
     try:
         return str(value)
     except Exception as e:
+        if strict:
+            logger.error(f"Failed to convert {value!r} to str {context}: {e}")
+            return None
         logger.warning(f"Failed to convert {value!r} to str {context}: {e}")
         return default
 
 
-def safe_bool(value: Any, default: bool = False, context: str = "") -> bool:
+def safe_bool(value: Any, default: bool | None = None, context: str = "", strict: bool = True) -> bool | None:
     """Safely convert value to bool with logging.
+
+    STRICT MODE (default): Returns None on failure, logs ERROR. No silent defaults.
+    PERMISSIVE MODE: Returns default value on failure, logs WARNING.
 
     Args:
         value: Value to convert
-        default: Default value if conversion fails
+        default: Default value if conversion fails (default: None for strict)
         context: Context string for logging
+        strict: If True, fail-fast with None; if False, use default value
 
     Returns:
-        Boolean value or default if conversion fails
+        Boolean value or None (strict) / default (permissive) if conversion fails
     """
     if value is None:
+        if strict:
+            logger.error(f"Value is None in safe_bool {context}")
+            return None
         return default
 
     if isinstance(value, bool):
@@ -529,11 +571,20 @@ def safe_bool(value: Any, default: bool = False, context: str = "") -> bool:
         val_lower = value.lower().strip()
         if val_lower in ("true", "1", "yes", "on"):
             return True
-        elif val_lower in ("false", "0", "no", "of", ""):
+        elif val_lower in ("false", "0", "no", "off", ""):
             return False
         else:
+            if strict:
+                logger.error(f"Cannot convert {context}={value!r} to bool (unrecognized value)")
+                return None
             logger.warning(f"Cannot convert {context}={value!r} to bool")
             return default
+
+    if strict:
+        logger.error(f"Cannot convert {type(value).__name__} {context}={value!r} to bool")
+        return None
+    logger.warning(f"Cannot convert {type(value).__name__} {context}={value!r} to bool")
+    return default
 
     try:
         return bool(value)
