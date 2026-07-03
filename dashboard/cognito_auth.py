@@ -69,8 +69,13 @@ class CognitoAuth:
             self.id_token = auth_result.get("IdToken")
             self.refresh_token = auth_result.get("RefreshToken")
             self.username = username
-            if self.access_token:
-                self.token_expires_at = self._parse_jwt_expiry(self.access_token)
+            # FAIL-FAST: AccessToken is CRITICAL and must be non-empty string
+            if not self.access_token or not isinstance(self.access_token, str):
+                raise RuntimeError(
+                    f"[COGNITO CRITICAL] AccessToken missing or invalid type from authenticate. "
+                    f"Got {type(self.access_token).__name__}. Authentication failed."
+                )
+            self.token_expires_at = self._parse_jwt_expiry(self.access_token)
             return bool(self.access_token)
         except ClientError as e:
             # FAIL-FAST: Validate Cognito error response structure
@@ -112,8 +117,13 @@ class CognitoAuth:
                 )
             self.access_token = auth_result.get("AccessToken")
             self.id_token = auth_result.get("IdToken")
-            if self.access_token:
-                self.token_expires_at = self._parse_jwt_expiry(self.access_token)
+            # FAIL-FAST: AccessToken is CRITICAL and must be non-empty string
+            if not self.access_token or not isinstance(self.access_token, str):
+                raise RuntimeError(
+                    f"[COGNITO CRITICAL] AccessToken missing or invalid type from refresh. "
+                    f"Got {type(self.access_token).__name__}. Token refresh failed."
+                )
+            self.token_expires_at = self._parse_jwt_expiry(self.access_token)
             return bool(self.access_token)
         except ClientError as e:
             logger.error(f"Token refresh failed: {e}")

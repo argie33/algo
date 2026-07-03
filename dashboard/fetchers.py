@@ -357,8 +357,11 @@ def load_all() -> dict[str, Any]:
                 logger.error(error_msg)
                 return name, {"_error": error_msg}
 
-        # Fallback return (should not be reached, but mypy requires it)
-        return name, {"_error": "Max retries exceeded"}
+        raise AssertionError(
+            f"[FETCHER INTERNAL ERROR] Retry loop for {name} exited without returning. "
+            f"This indicates a logic error in the retry handler. Max retries={max_retries}. "
+            f"All code paths should return explicitly."
+        )
 
     critical_start_time = time.monotonic()
     critical_out = _execute_fetcher_batch(
