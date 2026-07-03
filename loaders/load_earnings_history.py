@@ -25,40 +25,54 @@ class EarningsHistoryLoader(OptimalLoader):
     watermark_field = "updated_at"
     max_fail_rate = 99.5
 
-    def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]] | None:
-        """Read earnings dates from yfinance_snapshot table."""
-        try:
-            with DatabaseContext("read") as cur:
-                cur.execute(
-                    """
-                    SELECT earnings_dates, data_available
-                    FROM yfinance_snapshot
-                    WHERE symbol = %s
-                    """,
-                    (symbol,),
-                )
-                row = cur.fetchone()
+    def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
+        """Read earnings dates from yfinance_snapshot table.
 
-            if not row or not row.get("data_available"):
-                logger.debug(f"[EARNINGS_HISTORY] Earnings data unavailable for {symbol}")
-                return None
+        Governance: Fail-fast on missing data. No silent fallbacks.
 
-            earnings_dates = row["earnings_dates"]
-            if not earnings_dates:
-                logger.debug(f"[EARNINGS_HISTORY] No earnings dates for {symbol}")
-                return None
+        Raises RuntimeError if yfinance_snapshot data unavailable (upstream loader dependency).
+        Note: Some stocks legitimately have no earnings history (micro-caps, OTC).
+        """
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT earnings_dates, data_available, unavailable_reason
+                FROM yfinance_snapshot
+                WHERE symbol = %s
+                """,
+                (symbol,),
+            )
+            row = cur.fetchone()
 
-            return [
-                {
-                    "symbol": symbol,
-                    "earnings_dates": earnings_dates,
-                    "updated_at": date.today().isoformat(),
-                }
-            ]
+        if not row:
+            raise RuntimeError(
+                f"[EARNINGS_HISTORY] {symbol}: yfinance_snapshot row not found. "
+                f"Upstream loader (load_yfinance_snapshot) must run first. "
+                f"Cannot fetch earnings history without snapshot data."
+            )
 
-        except Exception as e:
-            logger.debug(f"[EARNINGS_HISTORY] Error reading snapshot for {symbol}: {e}")
-            return None
+        if not row.get("data_available"):
+            raise RuntimeError(
+                f"[EARNINGS_HISTORY] {symbol}: yfinance_snapshot data marked unavailable. "
+                f"Reason: {row.get('unavailable_reason', 'unknown')}. "
+                f"Upstream loader failed or API unavailable. Cannot proceed without yfinance data."
+            )
+
+        earnings_dates = row["earnings_dates"]
+        if not earnings_dates:
+            raise RuntimeError(
+                f"[EARNINGS_HISTORY] {symbol}: No historical earnings dates in yfinance. "
+                f"This is legitimate for micro-cap stocks, OTC securities, or newly public companies. "
+                f"Data exists but no earnings history available. Cannot compute earnings analysis."
+            )
+
+        return [
+            {
+                "symbol": symbol,
+                "earnings_dates": earnings_dates,
+                "updated_at": date.today().isoformat(),
+            }
+        ]
 
 
 if __name__ == "__main__":
