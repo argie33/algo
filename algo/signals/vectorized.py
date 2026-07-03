@@ -125,7 +125,7 @@ class VectorizedSignalGenerator:
                 # Extract closes into numpy array
                 closes = np.array([r["close"] for r in rows if r["close"] is not None])
 
-                if len(closes) < 50:
+                if len(closes) < 252:
                     results[symbol] = {
                         "score": 0,
                         "pass": False,
@@ -139,49 +139,49 @@ class VectorizedSignalGenerator:
                 sma150 = self._rolling_mean(closes, 150)
                 sma200 = self._rolling_mean(closes, 200)
                 # SMA200 slope: (current - 5 bars ago) / (5 bars ago)
-                sma200_slope = (sma200[-1] - sma200[-6]) / sma200[-6] if len(sma200) > 6 and sma200[-6] > 0 else None
+                sma200_slope = (sma200[-1] - sma200[-6]) / sma200[-6] if len(sma200) > 6 and not np.isnan(sma200[-1]) and not np.isnan(sma200[-6]) and sma200[-6] > 0 else None
 
                 # Compute 52-week high/low
                 high52 = np.max(closes[-252:]) if len(closes) >= 252 else np.max(closes)
                 low52 = np.min(closes[-252:]) if len(closes) >= 252 else np.min(closes)
 
                 # Get current close
-                c = closes[-1]
+                c = closes[-1] if len(closes) > 0 else np.nan
 
                 # Score 8 criteria
                 score = 0
                 criteria = {}
 
                 # 1. Close > SMA50
-                if sma50[-1] and c > sma50[-1]:
+                if sma50[-1] is not None and not np.isnan(sma50[-1]) and c > sma50[-1]:
                     score += 1
                     criteria["close_above_sma50"] = True
                 else:
                     criteria["close_above_sma50"] = False
 
                 # 2. Close > SMA150
-                if sma150[-1] and c > sma150[-1]:
+                if sma150[-1] is not None and not np.isnan(sma150[-1]) and c > sma150[-1]:
                     score += 1
                     criteria["close_above_sma150"] = True
                 else:
                     criteria["close_above_sma150"] = False
 
                 # 3. Close > SMA200
-                if sma200[-1] and c > sma200[-1]:
+                if sma200[-1] is not None and not np.isnan(sma200[-1]) and c > sma200[-1]:
                     score += 1
                     criteria["close_above_sma200"] = True
                 else:
                     criteria["close_above_sma200"] = False
 
                 # 4. SMA50 > SMA150
-                if sma50[-1] and sma150[-1] and sma50[-1] > sma150[-1]:
+                if sma50[-1] is not None and not np.isnan(sma50[-1]) and sma150[-1] is not None and not np.isnan(sma150[-1]) and sma50[-1] > sma150[-1]:
                     score += 1
                     criteria["sma50_above_sma150"] = True
                 else:
                     criteria["sma50_above_sma150"] = False
 
                 # 5. SMA150 > SMA200
-                if sma150[-1] and sma200[-1] and sma150[-1] > sma200[-1]:
+                if sma150[-1] is not None and not np.isnan(sma150[-1]) and sma200[-1] is not None and not np.isnan(sma200[-1]) and sma150[-1] > sma200[-1]:
                     score += 1
                     criteria["sma150_above_sma200"] = True
                 else:
@@ -242,21 +242,21 @@ class VectorizedSignalGenerator:
 
             try:
                 closes = np.array([r["close"] for r in rows if r["close"] is not None])
-                if len(closes) < 150:
+                if len(closes) < 252:
                     results[symbol] = {"stage": 0, "confidence": 0.0}
                     continue
 
                 # Compute 30-week MA (150 days) and slope
                 ma150 = self._rolling_mean(closes, 150)
-                ma150_slope = (ma150[-1] - ma150[-6]) / ma150[-6] if len(ma150) > 6 and ma150[-6] > 0 else None
+                ma150_slope = (ma150[-1] - ma150[-6]) / ma150[-6] if len(ma150) > 6 and not np.isnan(ma150[-1]) and not np.isnan(ma150[-6]) and ma150[-6] > 0 else None
 
-                c = closes[-1]
+                c = closes[-1] if len(closes) > 0 else np.nan
                 sma200 = self._rolling_mean(closes, 200)
-                sma200_val = sma200[-1] if sma200[-1] is not None else None
+                sma200_val = sma200[-1] if len(sma200) > 0 else np.nan
 
                 # Weinstein stages based on price position and MA slope
                 stage = 0
-                if sma200_val and c > sma200_val:
+                if not np.isnan(sma200_val) and not np.isnan(c) and c > sma200_val:
                     if ma150_slope is not None and ma150_slope > 0:
                         stage = 2  # Uptrend
                     else:
@@ -291,9 +291,9 @@ class VectorizedSignalGenerator:
                     results[symbol] = {"power_trend": False, "return_21d": None}
                     continue
 
-                current = closes[-1]
-                prior = closes[-21]
-                ret_21d = ((current - prior) / prior * 100) if prior > 0 else None
+                current = closes[-1] if len(closes) > 0 and not np.isnan(closes[-1]) else None
+                prior = closes[-21] if len(closes) > 20 and not np.isnan(closes[-21]) else None
+                ret_21d = ((current - prior) / prior * 100) if current is not None and prior is not None and prior > 0 else None
 
                 # CRITICAL: Fail fast if return calculation failed
                 # Do NOT silently default to False — this masks data quality issues
