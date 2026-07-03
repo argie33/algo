@@ -335,6 +335,12 @@ resource "aws_security_group" "rds" {
   })
 
   depends_on = [aws_security_group.ecs_tasks, aws_security_group.api_lambda, aws_security_group.algo_lambda]
+
+  # CRITICAL: Explicitly revoke 0.0.0.0/0 if it exists from a previous deployment
+  # RDS should NEVER be open to the internet
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 # RDS Security Group Rules: allow PostgreSQL from different sources
