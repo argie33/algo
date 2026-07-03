@@ -9,7 +9,6 @@ Uses canonical circuit breaker (utils.infrastructure.circuit_breaker:CircuitBrea
 with DataImportance.REQUIRED and freshness validation to prevent silent stale data.
 """
 
-import json
 import logging
 import socket
 import sys
@@ -416,7 +415,6 @@ class FredEconomicDataLoader(OptimalLoader):
                 except (
                     requests.RequestException,
                     requests.Timeout,
-                    json.JSONDecodeError,
                 ) as e:
                     logger.error(
                         f"[FRED] Unexpected error fetching {series_id}: {e}. "

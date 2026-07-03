@@ -50,12 +50,12 @@ class YFinanceSnapshotLoader(OptimalLoader):
             ticker = YFinanceWrapper.get_ticker(symbol)
             if not ticker:
                 logger.info(f"[YFINANCE_SNAPSHOT] Ticker not found: {symbol}")
-                return self._unavailable_record(symbol, "Ticker not found")
+                return []
 
             info = ticker.info
             if not info or not isinstance(info, dict):
                 logger.info(f"[YFINANCE_SNAPSHOT] No info for {symbol}")
-                return self._unavailable_record(symbol, "No ticker info available")
+                return []
 
             # Extract all yfinance metrics into single snapshot
             return [

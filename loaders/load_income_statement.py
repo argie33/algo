@@ -122,7 +122,7 @@ class IncomeStatementLoader(OptimalLoader):
 
             if not rows:
                 logger.warning(f"[INCOME_STATEMENT] {symbol}: No {self.period} income statement data in SEC EDGAR.")
-                return self._unavailable_record(symbol, "No income statement data in SEC EDGAR")
+                return []
 
             logger.info("%s: Fetched %d %s income statement row(s)", symbol, len(rows), self.period)
 

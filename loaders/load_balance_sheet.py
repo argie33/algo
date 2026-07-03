@@ -113,7 +113,7 @@ class BalanceSheetLoader(OptimalLoader):
                     f"[BALANCE_SHEET] {symbol}: No {self.period} balance sheet data in SEC EDGAR. "
                     f"Stock may lack SEC filings."
                 )
-                return self._unavailable_record(symbol, "No balance sheet data in SEC EDGAR")
+                return []
 
             logger.info("%s: Fetched %d %s balance sheet row(s)", symbol, len(rows), self.period)
 

@@ -368,40 +368,45 @@ def format_decimal_string(value: Any, precision: int = 2, allow_none: bool = Tru
         raise ValueError(f"Cannot convert {value!r} to decimal string") from e
 
 
-def safe_int(value: Any, default: int | None = None, context: str = "", strict: bool = True) -> int | None:
+def safe_int(
+    value: Any, default: int | None = None, context: str = "", strict: bool = True, field_name: str | None = None
+) -> int | None:
     """Convert value to int safely, handling None, invalid strings.
 
-    STRICT MODE (default): Returns None on failure, logs ERROR. No silent defaults.
+    STRICT MODE (default): Raises StrictValidationError on failure. No silent defaults.
     PERMISSIVE MODE: Returns default value on failure, logs WARNING.
 
     Args:
         value: Value to convert (can be str, int, float, None)
         default: Default value if conversion fails (default: None for strict)
         context: Context string for logging
-        strict: If True, fail-fast with None; if False, use default value
+        strict: If True, raise StrictValidationError on failure; if False, return default
+        field_name: Field name for error logging (preferred over context for new code)
 
     Returns:
-        Int value or None (strict) / default (permissive) if conversion fails
+        Int value or None (strict with error) / default (permissive) if conversion fails
+
+    Raises:
+        StrictValidationError: If strict=True and conversion fails
     """
+    error_ctx = f"for {field_name}" if field_name else context
+
     if value is None:
         if strict:
-            logger.error(f"Value is None in safe_int {context}")
-            return None
+            raise StrictValidationError(f"Cannot convert None to int {error_ctx}")
         return default
 
     if isinstance(value, bool):
         if strict:
-            logger.error(f"Cannot convert bool {value!r} to int (ambiguous) {context}")
-            return None
+            raise StrictValidationError(f"Cannot convert bool {value!r} to int (ambiguous) {error_ctx}")
         return default
 
     try:
         return int(value)
     except (ValueError, TypeError) as e:
         if strict:
-            logger.error(f"Failed to convert {value!r} to int {context}: {e}")
-            return None
-        logger.warning(f"Failed to convert {value!r} to int {context}: {e}")
+            raise StrictValidationError(f"Failed to convert {value!r} to int {error_ctx}: {e}") from e
+        logger.warning(f"Failed to convert {value!r} to int {error_ctx}: {e}")
         return default
 
 
@@ -509,25 +514,32 @@ def safe_json_loads(json_str: Any, default: Any = None, context: str = "") -> An
         return default
 
 
-def safe_str(value: Any, default: str | None = None, context: str = "", strict: bool = True) -> str | None:
+def safe_str(
+    value: Any, default: str | None = None, context: str = "", strict: bool = True, field_name: str | None = None
+) -> str | None:
     """Safely convert value to string with logging.
 
-    STRICT MODE (default): Returns None on failure, logs ERROR. No silent defaults.
+    STRICT MODE (default): Raises StrictValidationError on failure. No silent defaults.
     PERMISSIVE MODE: Returns default value on failure, logs WARNING.
 
     Args:
         value: Value to convert
         default: Default value if conversion fails (default: None for strict)
         context: Context string for logging
-        strict: If True, fail-fast with None; if False, use default value
+        strict: If True, raise StrictValidationError on failure; if False, return default
+        field_name: Field name for error logging (preferred over context for new code)
 
     Returns:
-        String value or None (strict) / default (permissive) if conversion fails
+        String value or None (strict with error) / default (permissive) if conversion fails
+
+    Raises:
+        StrictValidationError: If strict=True and conversion fails
     """
+    error_ctx = f"for {field_name}" if field_name else context
+
     if value is None:
         if strict:
-            logger.error(f"Value is None in safe_str {context}")
-            return None
+            raise StrictValidationError(f"Cannot convert None to str {error_ctx}")
         return default
 
     if isinstance(value, str):
@@ -537,31 +549,37 @@ def safe_str(value: Any, default: str | None = None, context: str = "", strict: 
         return str(value)
     except Exception as e:
         if strict:
-            logger.error(f"Failed to convert {value!r} to str {context}: {e}")
-            return None
-        logger.warning(f"Failed to convert {value!r} to str {context}: {e}")
+            raise StrictValidationError(f"Failed to convert {value!r} to str {error_ctx}: {e}") from e
+        logger.warning(f"Failed to convert {value!r} to str {error_ctx}: {e}")
         return default
 
 
-def safe_bool(value: Any, default: bool | None = None, context: str = "", strict: bool = True) -> bool | None:
+def safe_bool(
+    value: Any, default: bool | None = None, context: str = "", strict: bool = True, field_name: str | None = None
+) -> bool | None:
     """Safely convert value to bool with logging.
 
-    STRICT MODE (default): Returns None on failure, logs ERROR. No silent defaults.
+    STRICT MODE (default): Raises StrictValidationError on failure. No silent defaults.
     PERMISSIVE MODE: Returns default value on failure, logs WARNING.
 
     Args:
         value: Value to convert
         default: Default value if conversion fails (default: None for strict)
         context: Context string for logging
-        strict: If True, fail-fast with None; if False, use default value
+        strict: If True, raise StrictValidationError on failure; if False, return default
+        field_name: Field name for error logging (preferred over context for new code)
 
     Returns:
-        Boolean value or None (strict) / default (permissive) if conversion fails
+        Boolean value or None (strict with error) / default (permissive) if conversion fails
+
+    Raises:
+        StrictValidationError: If strict=True and conversion fails
     """
+    error_ctx = f"for {field_name}" if field_name else context
+
     if value is None:
         if strict:
-            logger.error(f"Value is None in safe_bool {context}")
-            return None
+            raise StrictValidationError(f"Cannot convert None to bool {error_ctx}")
         return default
 
     if isinstance(value, bool):
@@ -575,22 +593,14 @@ def safe_bool(value: Any, default: bool | None = None, context: str = "", strict
             return False
         else:
             if strict:
-                logger.error(f"Cannot convert {context}={value!r} to bool (unrecognized value)")
-                return None
-            logger.warning(f"Cannot convert {context}={value!r} to bool")
+                raise StrictValidationError(f"Cannot convert {error_ctx}={value!r} to bool (unrecognized value)")
+            logger.warning(f"Cannot convert {error_ctx}={value!r} to bool")
             return default
 
     if strict:
-        logger.error(f"Cannot convert {type(value).__name__} {context}={value!r} to bool")
-        return None
-    logger.warning(f"Cannot convert {type(value).__name__} {context}={value!r} to bool")
+        raise StrictValidationError(f"Cannot convert {type(value).__name__} {error_ctx}={value!r} to bool")
+    logger.warning(f"Cannot convert {type(value).__name__} {error_ctx}={value!r} to bool")
     return default
-
-    try:
-        return bool(value)
-    except Exception as e:
-        logger.warning(f"Failed to convert {context}={value!r} to bool: {e}")
-        return default
 
 
 def safe_json_parse(

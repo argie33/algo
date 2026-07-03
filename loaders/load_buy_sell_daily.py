@@ -733,7 +733,7 @@ def main() -> int:  # noqa: C901
         # This prevents buy_sell_daily from being marked COMPLETED with NULL technical fields.
         # Fail-close: If >5% of records can't be enriched, update loader status to FAILED.
         logger.info("Starting technical data enrichment (fail-close)...")
-        from enrich_buy_sell_daily_technical import enrich_technical_data
+        from loaders.enrich_buy_sell_daily_technical import enrich_technical_data
 
         try:
             enrich_result = enrich_technical_data(

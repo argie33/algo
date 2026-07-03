@@ -96,7 +96,7 @@ class CashFlowLoader(OptimalLoader):
 
             if not rows:
                 logger.warning(f"[CASH_FLOW] {symbol}: No {self.period} cash flow data in SEC EDGAR.")
-                return self._unavailable_record(symbol, "No cash flow data in SEC EDGAR")
+                return []
 
             logger.info("%s: Fetched %d %s cash flow row(s)", symbol, len(rows), self.period)
 
