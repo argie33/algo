@@ -13,6 +13,25 @@
 | **Troubleshooting** | `steering/COMMON_OPERATIONS.md` |
 | **Database setup** | `steering/DATABASE_AND_ENVIRONMENTS.md` |
 
+## AWS Cost Optimizations (2026-07-03)
+
+✅ **COMPLETE:** 7 phases, $209-211/month savings (73% reduction for dev)
+- Phase 1-3: RDS Proxy ($150), VPC Endpoints ($43), Performance Insights ($6) — Pre-existing
+- Phase 4: CloudWatch alarms 82→25 critical only ($6.70) — Commit 4a80fb4ca
+- Phase 5: Lambda reserved concurrency 50→25 ($0.40) — Commit 4a80fb4ca
+- Phase 6: Data quality monitors gated to prod ($3) — Commit 4a80fb4ca
+- Phase 7: CloudFront disabled for dev ($0.50-2) — Commit 863f80794
+
+**Deploy:** `cd terraform && terraform apply -lock=false`
+**Verify:** `aws cloudwatch describe-alarms --query "MetricAlarms|length(@)"` → should show ~25
+**Rollback:** `git revert --no-edit 863f80794 4a80fb4ca && terraform apply -lock=false`
+
+**See also:**
+- `steering/AWS_DEPLOYMENT_CHECKLIST.md` — Step-by-step deployment (if created)
+- `steering/AWS_OPERATIONAL_PROCEDURES.md` — Daily/weekly/monthly ops (if created)
+- `steering/AWS_COST_REFERENCE.md` — Quick commands and verification (if created)
+- `terraform/terraform.tfvars.next-optimizations` — Phase 7+ opportunities
+
 ## Instant Fixes
 
 | Problem | Fix |
@@ -20,6 +39,7 @@
 | AWS credential error | `scripts/refresh-aws-credentials.ps1` |
 | Code fails pre-commit | `make format && make type-check` |
 | Dashboard stale data | `pkill -9 python && python -m dashboard -w` |
+| Need to deploy AWS cost optimizations | `cd terraform && terraform apply -lock=false` (see AWS Cost Optimizations above) |
 
 ## Non-Negotiable Rules
 
