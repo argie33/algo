@@ -344,18 +344,24 @@ class LivePerformance:
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def backtest_vs_live_comparison(self) -> dict[str, Any] | None:
+    def backtest_vs_live_comparison(self) -> dict[str, Any]:
         """Compare live metrics to backtest reference metrics.
 
         Returns:
-            dict with live/backtest Sharpe, win rate, etc. and ratio
+            dict with live/backtest Sharpe, win rate, etc. and ratio,
+            or data_unavailable marker if comparison cannot be computed.
+
+        Raises:
+            FileNotFoundError if reference metrics file is missing.
         """
         try:
             # Load backtest reference metrics
             ref_file = Path(__file__).parent / "tests" / "backtest" / "reference_metrics.json"
             if not ref_file.exists():
-                logger.info(f"Performance: Reference metrics not found at {ref_file}")
-                return None
+                raise FileNotFoundError(
+                    f"Backtest reference metrics not found at {ref_file}. "
+                    f"Cannot compute live-to-backtest comparison without reference data."
+                )
 
             with open(ref_file) as f:
                 backtest_metrics = json.load(f)
@@ -367,7 +373,18 @@ class LivePerformance:
             live_max_dd = self.max_drawdown()
 
             if not all([live_sharpe, live_wr, live_max_dd]):
-                return None
+                return {
+                    "data_unavailable": True,
+                    "reason": "incomplete_live_metrics",
+                    "missing": [
+                        name for name, val in [
+                            ("sharpe", live_sharpe),
+                            ("win_rate", live_wr),
+                            ("max_drawdown", live_max_dd),
+                        ]
+                        if not val
+                    ],
+                }
 
             backtest_sharpe = backtest_metrics.get("sharpe_ratio")
             backtest_wr = backtest_metrics.get("win_rate_pct")

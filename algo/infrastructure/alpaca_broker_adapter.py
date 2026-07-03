@@ -205,21 +205,21 @@ class AlpacaBrokerAdapter(BrokerAdapter):
         except (requests.RequestException, requests.Timeout, ValueError, KeyError) as e:
             raise ValueError(f"Cannot fetch Alpaca closed orders: {e}") from e
 
-    def fetch_initial_capital(self) -> float | dict[str, Any]:
+    def fetch_initial_capital(self) -> float:
         """Fetch initial portfolio equity from Alpaca portfolio history.
 
         Returns:
-            Initial capital (first equity value) as float if history available,
-            or dict with error marker {"error": "empty_portfolio_history", "initial_capital": None}
-            if history is empty. Allows callers to distinguish "empty history" from "API failed".
+            Initial capital (first equity value) as float.
 
-        Raises ValueError if portfolio history fetch fails (fail-fast).
+        Raises ValueError if portfolio history is empty or API fails (fail-fast).
         """
         try:
             history = self.fetch_portfolio_history()
-            if history:
-                return float(history[0])
-            logger.warning("Alpaca portfolio history is empty — cannot determine initial capital")
-            return {"error": "empty_portfolio_history", "initial_capital": None}
-        except ValueError as e:
+            if not history:
+                raise ValueError(
+                    "Alpaca portfolio history is empty — cannot determine initial capital. "
+                    "Ensure portfolio has at least one historical equity entry."
+                )
+            return float(history[0])
+        except (ValueError, KeyError, TypeError) as e:
             raise ValueError(f"Cannot determine initial capital: {e}") from e

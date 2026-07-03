@@ -327,7 +327,7 @@ def main() -> int:
 
         return 1
 
-    print("[PASS] All files comply with fail-fast governance ✓")
+    print("[PASS] All files comply with fail-fast governance [OK]")
     return 0
 
 

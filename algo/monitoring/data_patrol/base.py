@@ -26,7 +26,8 @@ class CheckResult:
         self.severity = severity
         self.target_table = target_table
         self.message = message
-        self.details = details or {}
+        # Preserve None to distinguish "no details provided" from "details intentionally empty"
+        self.details = details if details is not None else {}
 
     def to_dict(self) -> dict[str, Any]:
         return {

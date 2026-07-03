@@ -930,21 +930,20 @@ class ExitEngine:
                         f"Market is open; this indicates an API issue, not market closure."
                     )
 
-                logger.debug(f"[EXIT_ENGINE] No quote available for {symbol} (market closed, expected state)")
-                return None
+                raise RuntimeError(
+                    f"[EXIT_ENGINE] Cannot fetch intraday quote for {symbol}: market closed. "
+                    f"Caller must check market hours before requesting intraday data."
+                )
 
             elif response.status_code == 401:
                 raise RuntimeError(f"Alpaca quote API authentication failed for {symbol}")
 
             elif response.status_code == 404:
-                # Symbol not found in Alpaca (delisted, unavailable in paper, or not tradeable).
-                # Fall back to daily closes rather than crashing Phase 6.
-                logger.warning(
+                raise RuntimeError(
                     f"[EXIT_ENGINE] Alpaca quote API returned 404 for {symbol} — "
-                    "symbol unavailable (possibly delisted or not in paper trading). "
-                    "Falling back to daily close prices."
+                    f"symbol unavailable (possibly delisted or not in paper trading). "
+                    f"Cannot proceed with exit execution without valid symbol."
                 )
-                return None
 
             else:
                 raise RuntimeError(f"Alpaca quote API error for {symbol}: status {response.status_code}")

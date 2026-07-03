@@ -130,7 +130,11 @@ class MarketExposure:
             row = cur.fetchone()
             if row is None:
                 logger.debug(f"No cached market exposure for {eval_date}")
-                return None
+                return {
+                    "data_unavailable": True,
+                    "reason": "no_cache_entry",
+                    "eval_date": str(eval_date),
+                }
 
             (
                 raw_score,
@@ -253,7 +257,13 @@ class MarketExposure:
                     msg += f" Invalid factors: {'; '.join(invalid_factors)}."
                 msg += " Will recompute exposure with fresh data."
                 logger.warning(msg)
-                return None  # Force recomputation instead of using incomplete cache
+                return {
+                    "data_unavailable": True,
+                    "reason": "corrupted_factors",
+                    "eval_date": str(eval_date),
+                    "missing": missing_factors,
+                    "invalid": invalid_factors,
+                }
 
             if dist_days is None:
                 raise ValueError("Distribution days data missing; cannot assess institutional distribution risk")
@@ -289,7 +299,7 @@ class MarketExposure:
         # Check cache first (unless force_recompute=True)
         if not force_recompute:
             cached = self.try_load_cached(eval_date)
-            if cached:
+            if cached and not cached.get("data_unavailable"):
                 return cached
 
         logger.info(
