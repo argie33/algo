@@ -154,4 +154,4 @@ enable_vpc_endpoints = true # CRITICAL FIX: Enable ECR endpoints so ECS tasks ca
 # ============================================================
 # Development Machine Access
 # ============================================================
-dev_machine_cidr = "75.250.183.199/32" # Allow local dev_server.py to connect to RDS directly
+dev_machine_cidr = "97.130.69.107/32" # Allow local dev_server.py to connect to RDS directly
