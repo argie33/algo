@@ -468,14 +468,14 @@ def fetch_perf_analytics(c: None) -> dict[str, Any]:
                 return FetcherValidator.build_error_response(error_msg)
 
         return {
-            "sharpe252": safe_float(d.get("rolling_sharpe_252d"), default=None, strict=False),
-            "sortino": safe_float(d.get("rolling_sortino_252d"), default=None, strict=False),
-            "calmar": safe_float(d.get("calmar_ratio"), default=None, strict=False),
-            "wr50": safe_float(d.get("win_rate_50t"), default=None, strict=False),
-            "avg_w_r": safe_float(d.get("avg_win_r_50t"), default=None, strict=False),
-            "avg_l_r": safe_float(d.get("avg_loss_r_50t"), default=None, strict=False),
-            "expectancy": safe_float(d.get("expectancy"), default=None, strict=False),
-            "maxdd": safe_float(d.get("max_drawdown_pct"), default=None, strict=False),
+            "sharpe252": safe_float(d.get("rolling_sharpe_252d"), field_name="sharpe252", strict=True),
+            "sortino": safe_float(d.get("rolling_sortino_252d"), field_name="sortino", strict=True),
+            "calmar": safe_float(d.get("calmar_ratio"), field_name="calmar", strict=True),
+            "wr50": safe_float(d.get("win_rate_50t"), field_name="wr50", strict=True),
+            "avg_w_r": safe_float(d.get("avg_win_r_50t"), field_name="avg_w_r", strict=True),
+            "avg_l_r": safe_float(d.get("avg_loss_r_50t"), field_name="avg_l_r", strict=True),
+            "expectancy": safe_float(d.get("expectancy"), field_name="expectancy", strict=True),
+            "maxdd": safe_float(d.get("max_drawdown_pct"), field_name="maxdd", strict=True),
         }
     except Exception as e:
         error_msg = format_fetcher_error("perf_anl", e)

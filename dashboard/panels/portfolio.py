@@ -249,7 +249,7 @@ def panel_portfolio(
         cvar_v = safe_float(risk["cvar95"], field_name="cvar95")
         beta_v = safe_float(risk["beta"], field_name="beta")
         conc5_v = safe_float(risk["conc5"], field_name="conc5")
-        svar_v = safe_float(risk.get("svar"), strict=False, field_name="svar", default=None)
+        svar_v = safe_float(risk.get("svar"), field_name="svar", strict=True) if risk.get("svar") is not None else None
 
         # All critical fields available — render
         if var_v is not None and var_v > 0 and cvar_v is not None and beta_v is not None and conc5_v is not None:

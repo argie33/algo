@@ -353,11 +353,11 @@ def fetch_risk_metrics(c: None) -> dict[str, Any]:
             logger.debug("Optional risk data missing: report_date not provided by API")
 
         result = {
-            "var95": safe_float(d.get("var_pct_95"), default=None, strict=False),
-            "cvar95": safe_float(d.get("cvar_pct_95"), default=None, strict=False),
-            "svar": safe_float(d.get("stressed_var_pct"), default=None, strict=False),
-            "beta": safe_float(d.get("portfolio_beta"), default=None, strict=False),
-            "conc5": safe_float(d.get("top_5_concentration"), default=None, strict=False),
+            "var95": safe_float(d.get("var_pct_95"), field_name="var95", strict=True),
+            "cvar95": safe_float(d.get("cvar_pct_95"), field_name="cvar95", strict=True),
+            "svar": safe_float(d.get("stressed_var_pct"), field_name="svar", strict=True),
+            "beta": safe_float(d.get("portfolio_beta"), field_name="beta", strict=True),
+            "conc5": safe_float(d.get("top_5_concentration"), field_name="conc5", strict=True),
         }
 
         if not date_unavailable:

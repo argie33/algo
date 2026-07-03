@@ -154,14 +154,14 @@ def panel_market_full(mkt: Any, sentiment: Any = None) -> Panel:  # noqa: C901
             padding=(0, 1),
         )
 
-    # Optional enrichment fields — no validation in panel layer (fetcher validates)
-    # Simply render with None as fallback if data unavailable
-    upvol = safe_float(mkt.get("upvol"), default=None, strict=False, field_name="upvol")
-    adr = safe_float(mkt.get("adr"), default=None, strict=False, field_name="adr")
-    nh = safe_int(mkt.get("nh"), default=None, strict=False, field_name="nh")
-    nl = safe_int(mkt.get("nl"), default=None, strict=False, field_name="nl")
-    pcr = safe_float(mkt.get("pcr"), default=None, strict=False, field_name="pcr")
-    bmom = safe_float(mkt.get("bmom"), default=None, strict=False, field_name="bmom")
+    # Optional enrichment fields — fetcher validates; strict conversion in panel to catch data quality issues
+    # If fetcher provided the data, it must be convertible or marked data_unavailable
+    upvol = safe_float(mkt.get("upvol"), field_name="upvol", strict=True) if mkt.get("upvol") is not None else None
+    adr = safe_float(mkt.get("adr"), field_name="adr", strict=True) if mkt.get("adr") is not None else None
+    nh = safe_int(mkt.get("nh"), field_name="nh", strict=True) if mkt.get("nh") is not None else None
+    nl = safe_int(mkt.get("nl"), field_name="nl", strict=True) if mkt.get("nl") is not None else None
+    pcr = safe_float(mkt.get("pcr"), field_name="pcr", strict=True) if mkt.get("pcr") is not None else None
+    bmom = safe_float(mkt.get("bmom"), field_name="bmom", strict=True) if mkt.get("bmom") is not None else None
     fed = mkt.get("fed")
     # Exposure data may not be available in some market regimes (optional)
     if exp is None:
@@ -270,7 +270,7 @@ def panel_market_expanded(mkt: Any, sentiment: Any = None) -> Panel:
     exp_s = f"{float(exp):.0f}%" if exp is not None else "--"
     bar = exp_bar(exp, w=14) if exp is not None else "[dim]--[/]"
     vix_raw = mkt.get("vix")
-    vix = safe_float(vix_raw, strict=False)
+    vix = safe_float(vix_raw, field_name="vix", strict=True) if vix_raw is not None else None
     vc = DIM if vix is None else (R if vix >= 30 else (Y if vix >= 20 else G))
     vix_s = f"{vix:.1f}" if vix is not None else "--"
     rows.append(
@@ -280,29 +280,29 @@ def panel_market_expanded(mkt: Any, sentiment: Any = None) -> Panel:
     )
     rows.append(Rule(style="dim"))
 
-    spy_raw = safe_float(mkt.get("spy"), strict=False)
-    spy_chg = safe_float(mkt.get("spy_chg"), strict=False)
+    spy_raw = safe_float(mkt.get("spy"), field_name="spy", strict=True) if mkt.get("spy") is not None else None
+    spy_chg = safe_float(mkt.get("spy_chg"), field_name="spy_chg", strict=True) if mkt.get("spy_chg") is not None else None
     stage = str(mkt.get("stage", "--"))
     trend_raw = mkt.get("trend")
     trend = trend_raw.upper() if trend_raw else "--"
     if not trend_raw:
         logger.debug("[MARKET_EXPANDED] Market trend not available - optional directional analysis incomplete")
-    dist = safe_float(mkt.get("dist"), strict=False)
+    dist = safe_float(mkt.get("dist"), field_name="dist", strict=True) if mkt.get("dist") is not None else None
     if dist is None:
         logger.warning("[MARKET_EXPANDED] Distribution days data missing - market stage analysis incomplete")
     _fed_raw = mkt.get("fed")
     fed = "--" if (_fed_raw is None or str(_fed_raw).lower() in ("unknown", "n/a", "none", "")) else str(_fed_raw)
     if _fed_raw is None or str(_fed_raw).lower() in ("unknown", "n/a", "none", ""):
         logger.debug("[MARKET_EXPANDED] Fed environment data unavailable - optional macro context missing")
-    ycs = safe_float(mkt.get("ycs"), strict=False)
+    ycs = safe_float(mkt.get("ycs"), field_name="ycs", strict=True) if mkt.get("ycs") is not None else None
     if ycs is None:
         logger.debug("[MARKET_EXPANDED] Yield curve slope not available - optional macro indicator missing")
-    upvol = safe_float(mkt.get("upvol"), strict=False)
-    adr = safe_float(mkt.get("adr"), strict=False)
-    nh = safe_int(mkt.get("nh"), strict=False)
-    nl = safe_int(mkt.get("nl"), strict=False)
-    pcr = safe_float(mkt.get("pcr"), strict=False)
-    bmom = safe_float(mkt.get("bmom"), strict=False)
+    upvol = safe_float(mkt.get("upvol"), field_name="upvol", strict=True) if mkt.get("upvol") is not None else None
+    adr = safe_float(mkt.get("adr"), field_name="adr", strict=True) if mkt.get("adr") is not None else None
+    nh = safe_int(mkt.get("nh"), field_name="nh", strict=True) if mkt.get("nh") is not None else None
+    nl = safe_int(mkt.get("nl"), field_name="nl", strict=True) if mkt.get("nl") is not None else None
+    pcr = safe_float(mkt.get("pcr"), field_name="pcr", strict=True) if mkt.get("pcr") is not None else None
+    bmom = safe_float(mkt.get("bmom"), field_name="bmom", strict=True) if mkt.get("bmom") is not None else None
     halts = _get_market_halts(mkt, "Market summary panel")
 
     spy_s = f"${spy_raw:.2f}" if spy_raw else "--"
@@ -415,7 +415,7 @@ def panel_header_market(  # noqa: C901
         exp = mkt.get("pct")
         exp_s = f"{float(exp):.0f}%" if exp is not None else "--"
         bar = exp_bar(exp, w=8) if exp is not None else ""
-        vix_val = safe_float(mkt.get("vix"), strict=False)
+        vix_val = safe_float(mkt.get("vix"), field_name="vix", strict=True) if mkt.get("vix") is not None else None
         vix = f"{vix_val:.1f}" if vix_val is not None else "--"
         vc = DIM if vix_val is None else (R if vix_val >= 30 else (Y if vix_val >= 20 else G))
         dist_val = mkt.get("dist")
@@ -431,8 +431,8 @@ def panel_header_market(  # noqa: C901
         trend_s = f"  [dim]Trend:[/][white]{trend_raw[:10]}[/]" if trend_raw else ""
         if not trend_raw:
             logger.debug("[MARKET_HEADER] Market trend not available - optional directional display skipped")
-        spy_raw = safe_float(mkt.get("spy"), strict=False)
-        spy_chg = safe_float(mkt.get("spy_chg"), strict=False)
+        spy_raw = safe_float(mkt.get("spy"), field_name="spy", strict=True) if mkt.get("spy") is not None else None
+        spy_chg = safe_float(mkt.get("spy_chg"), field_name="spy_chg", strict=True) if mkt.get("spy_chg") is not None else None
         spy_chg_s = (
             f" [{G if (spy_chg is not None and spy_chg >= 0) else R}]{sign(spy_chg)}{spy_chg:.1f}%[/]"
             if spy_chg is not None
@@ -445,10 +445,10 @@ def panel_header_market(  # noqa: C901
                 f"VIX:[{vc}]{vix}[/]  [dim]Dist. Days:[/][white]{dist}[/]  [dim]Stage:[/][white]{stage}[/]{trend_s}{spy_s}"
             )
         )
-        upvol = safe_float(mkt.get("upvol"), strict=False)
-        nh = safe_int(mkt.get("nh"), strict=False)
-        nl = safe_int(mkt.get("nl"), strict=False)
-        adr = safe_float(mkt.get("adr"), strict=False)
+        upvol = safe_float(mkt.get("upvol"), field_name="upvol", strict=True) if mkt.get("upvol") is not None else None
+        nh = safe_int(mkt.get("nh"), field_name="nh", strict=True) if mkt.get("nh") is not None else None
+        nl = safe_int(mkt.get("nl"), field_name="nl", strict=True) if mkt.get("nl") is not None else None
+        adr = safe_float(mkt.get("adr"), field_name="adr", strict=True) if mkt.get("adr") is not None else None
         if upvol is None:
             logger.warning("[MARKET_HEADER] Up volume data missing - breadth analysis incomplete")
         if upvol is not None:
@@ -468,9 +468,9 @@ def panel_header_market(  # noqa: C901
                     f"{nhnl_s}"
                 )
             )
-        pcr = safe_float(mkt.get("pcr"), strict=False)
-        bmom = safe_float(mkt.get("bmom"), strict=False)
-        ycs = safe_float(mkt.get("ycs"), strict=False)
+        pcr = safe_float(mkt.get("pcr"), field_name="pcr", strict=True) if mkt.get("pcr") is not None else None
+        bmom = safe_float(mkt.get("bmom"), field_name="bmom", strict=True) if mkt.get("bmom") is not None else None
+        ycs = safe_float(mkt.get("ycs"), field_name="ycs", strict=True) if mkt.get("ycs") is not None else None
         fed = mkt.get("fed")
         _fed_ok = fed and str(fed).lower() not in ("unknown", "n/a", "none", "")
         parts4 = []
