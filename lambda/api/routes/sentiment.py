@@ -63,8 +63,9 @@ def handle(  # noqa: C901
                     "Cannot compute market sentiment without fear/greed metric. "
                     "Check data source and fetched row."
                 )
-            fg_value = float(row["fear_greed_value"])
-            fg_label = row.get("fear_greed_label")
+            # FAIL-FAST: Extract required fields upfront, fail if missing/invalid
+            fg_value = DatabaseResultValidator.safe_get_float(row, "fear_greed_value", strict=True)
+            fg_label = DatabaseResultValidator.safe_get_string(row, "fear_greed_label", strict=True)
             if not fg_label:
                 raise RuntimeError(
                     "Sentiment endpoint requires fear_greed_label but data is missing/NULL. "
@@ -122,6 +123,11 @@ def handle(  # noqa: C901
             except (ValueError, ZeroDivisionError, TypeError) as e:
                 logger.error(f"Failed to fetch analyst sentiment data: {type(e).__name__}: {e}")
 
+            # FAIL-FAST: Extract market health data upfront with safe validation
+            put_call = DatabaseResultValidator.safe_get_float(row, "put_call_ratio", default=None)
+            vix = DatabaseResultValidator.safe_get_float(row, "vix_level", default=None)
+            date_val = DatabaseResultValidator.safe_get_string(row, "date", default=None)
+
             freshness = check_data_freshness(cur, "fear_greed_index", "date", warning_days=1)
             sentiment_result = {
                 "fear_greed": ({"value": fg_value, "label": fg_label} if fg_value is not None else None),
@@ -130,9 +136,9 @@ def handle(  # noqa: C901
                 "analyst": (
                     safe_json_serialize(dict(analyst_row)) if analyst_row and analyst_row.get("analyst_count") else None
                 ),
-                "put_call_ratio": (float(row["put_call_ratio"]) if row and row["put_call_ratio"] is not None else None),
-                "vix_level": (float(row["vix_level"]) if row and row["vix_level"] is not None else None),
-                "date": str(row["date"]) if row else None,
+                "put_call_ratio": put_call,
+                "vix_level": vix,
+                "date": date_val,
                 "data_freshness": freshness,
             }
             is_valid, error_msg = ResponseValidator.validate_endpoint_response("sentiment", sentiment_result)
@@ -277,6 +283,10 @@ def handle(  # noqa: C901
             bp = round(bull / total * 100, 1)
             bep = round(bear / total * 100, 1)
             np_ = round(neut / total * 100, 1)
+            # FAIL-FAST: Extract optional price target fields upfront
+            target_price = DatabaseResultValidator.safe_get_float(latest, "target_price", default=None)
+            upside_downside = DatabaseResultValidator.safe_get_float(latest, "upside_downside_percent", default=None)
+
             metrics = {
                 "totalAnalysts": total,
                 "bullish": bull,
@@ -285,12 +295,8 @@ def handle(  # noqa: C901
                 "bullishPercent": bp,
                 "bearishPercent": bep,
                 "neutralPercent": np_,
-                "avgPriceTarget": (float(latest["target_price"]) if latest.get("target_price") is not None else None),
-                "priceTargetVsCurrent": (
-                    float(latest["upside_downside_percent"])
-                    if latest.get("upside_downside_percent") is not None
-                    else None
-                ),
+                "avgPriceTarget": target_price,
+                "priceTargetVsCurrent": upside_downside,
                 "consensus": (
                     (
                         "Strong Buy"
@@ -301,14 +307,17 @@ def handle(  # noqa: C901
                     else None
                 ),
             }
-            price_targets = [
-                {
-                    "date": str(dict(r)["date"]),
-                    "target": (float(dict(r)["target_price"]) if dict(r).get("target_price") is not None else None),
-                }
-                for r in rows
-                if dict(r).get("target_price")
-            ]
+            # FAIL-FAST: Extract price target data with safe validation
+            price_targets = []
+            for r in rows:
+                rd = dict(r)
+                target = DatabaseResultValidator.safe_get_float(rd, "target_price", default=None)
+                if target is not None:
+                    date_str = DatabaseResultValidator.safe_get_string(rd, "date", default=None)
+                    price_targets.append({
+                        "date": date_str,
+                        "target": target,
+                    })
             freshness = check_data_freshness(cur, "analyst_sentiment_analysis", "date", warning_days=7)
             analyst_result = {
                 "metrics": metrics,
@@ -406,6 +415,11 @@ def handle(  # noqa: C901
             bp = round(bull / total * 100, 1)
             bep = round(bear / total * 100, 1)
             np_ = round(neut / total * 100, 1)
+
+            # FAIL-FAST: Extract optional price target fields upfront
+            target_price_social = DatabaseResultValidator.safe_get_float(latest, "target_price", default=None)
+            upside_downside_social = DatabaseResultValidator.safe_get_float(latest, "upside_downside_percent", default=None)
+
             sentiment_data = {
                 "totalAnalysts": total,
                 "bullish": bull,
@@ -414,12 +428,8 @@ def handle(  # noqa: C901
                 "bullishPercent": bp,
                 "bearishPercent": bep,
                 "neutralPercent": np_,
-                "avgPriceTarget": (float(latest["target_price"]) if latest.get("target_price") is not None else None),
-                "priceTargetVsCurrent": (
-                    float(latest["upside_downside_percent"])
-                    if latest.get("upside_downside_percent") is not None
-                    else None
-                ),
+                "avgPriceTarget": target_price_social,
+                "priceTargetVsCurrent": upside_downside_social,
                 "sentiment": (
                     (
                         "Very Bullish"
