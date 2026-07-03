@@ -166,14 +166,14 @@ def panel_circuit(cb: Any) -> Panel:  # noqa: C901
                     unit_display = str(unit_raw)
                 return f"[{R if fired else 'dim'}]{lbl_s}:[/]{cur_s}{unit_display}[dim]/{thr_s}{unit_display}[/]"
             try:
-                thr_f = safe_float(thr, 0.0, field_name="circuit_breaker_threshold")
-                cur_f = safe_float(cur, 0.0, field_name="circuit_breaker_current")
+                thr_f = safe_float(thr, field_name="circuit_breaker_threshold", strict=True)
+                cur_f = safe_float(cur, field_name="circuit_breaker_current", strict=True)
             except StrictValidationError as e:
                 logger.error("[CIRCUIT] Breaker %s failed validation: %s", lbl_s, e)
                 return f"[{R}]{lbl_s}:[/] [red]✗ BAD DATA[/]"
-            if thr_f is not None and thr_f > 0 and cur_f is not None:
+            if thr_f > 0:
                 util = cur_f / thr_f
-            elif thr_f is not None and thr_f < 0 and cur_f is not None and cur_f < 0:
+            elif thr_f < 0 and cur_f < 0:
                 util = min(cur_f / thr_f, 1.0)
             else:
                 util = 0
@@ -328,8 +328,8 @@ def panel_circuit_expanded(cb: Any) -> Panel:  # noqa: C901
                 status = Text("UNKNOWN", style="dim")
             else:
                 try:
-                    thr_f = safe_float(thr, 0.0, field_name="circuit_breaker_threshold")
-                    cur_f = safe_float(cur, 0.0, field_name="circuit_breaker_current")
+                    thr_f = safe_float(thr, field_name="circuit_breaker_threshold", strict=True)
+                    cur_f = safe_float(cur, field_name="circuit_breaker_current", strict=True)
                 except StrictValidationError as e:
                     logger.error("[CIRCUIT_EXPANDED] Breaker %s failed validation: %s", lbl, e)
                     status = Text("BAD DATA", style=R)
@@ -337,9 +337,9 @@ def panel_circuit_expanded(cb: Any) -> Panel:  # noqa: C901
                     cur_s = f"{cur}{u}"
                     thr_s = f"{thr}{u}"
                 else:
-                    if thr_f is not None and thr_f > 0 and cur_f is not None:
+                    if thr_f > 0:
                         util = cur_f / thr_f
-                    elif thr_f is not None and thr_f < 0 and cur_f is not None and cur_f < 0:
+                    elif thr_f < 0 and cur_f < 0:
                         util = min(cur_f / thr_f, 1.0)
                     else:
                         util = 0

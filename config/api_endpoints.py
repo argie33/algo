@@ -34,3 +34,22 @@ def get_alpaca_data_url() -> str:
     Requires: ALPACA_API_KEY environment variable
     """
     return "https://data.alpaca.markets"
+
+
+def get_fred_url() -> str:
+    """Return FRED API base URL.
+
+    Used by: load_fred_economic_data loader
+    Pattern: https://api.stlouisfed.org/fred
+    Requires: FRED_API_KEY environment variable
+    """
+    return "https://api.stlouisfed.org/fred"
+
+
+def get_aaii_sentiment_url() -> str:
+    """Return AAII sentiment API base URL.
+
+    Used by: load_aaii_sentiment loader
+    Pattern: https://www.aaii.com
+    """
+    return "https://www.aaii.com"

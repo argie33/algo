@@ -235,7 +235,7 @@ def panel_portfolio(
     # Largest position
     if lgpos is not None:
         try:
-            lgpos_f = safe_float(lgpos, 0.0, field_name="largest_position_pct")
+            lgpos_f = safe_float(lgpos, field_name="largest_position_pct", strict=True)
             lp_c = R if lgpos_f >= 20 else (Y if lgpos_f >= 15 else "white")
             tbl.add_row(
                 cell("Largest Position:", f"[{lp_c}]{lgpos_f:.1f}%[/]"),
