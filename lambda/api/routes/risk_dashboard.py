@@ -385,18 +385,28 @@ def _get_position_sizing_audit(cur: cursor, days: int) -> Any:
             except (json.JSONDecodeError, TypeError):
                 reasons = {}
 
+            # FAIL-FAST: Extract required position sizing fields upfront with validation
+            from utils.validation import DatabaseResultValidator
+            symbol = DatabaseResultValidator.safe_get_str(row, "symbol", strict=True)
+            base_shares = DatabaseResultValidator.safe_get_int(row, "base_shares", strict=True)
+            final_shares = DatabaseResultValidator.safe_get_int(row, "final_shares", strict=True)
+            entry_price = DatabaseResultValidator.safe_get_float(row, "entry_price", default=None)
+            stop_loss_price = DatabaseResultValidator.safe_get_float(row, "stop_loss_price", default=None)
+            signal_date = row.get("signal_date")
+            created_at = row.get("created_at")
+
             items.append(
                 {
-                    "symbol": row["symbol"],
-                    "signal_date": (row["signal_date"].isoformat() if row["signal_date"] is not None else None),
-                    "entry_price": (float(row["entry_price"]) if row["entry_price"] is not None else None),
-                    "stop_loss_price": (float(row["stop_loss_price"]) if row["stop_loss_price"] is not None else None),
-                    "base_shares": row["base_shares"],
-                    "final_shares": row["final_shares"],
+                    "symbol": symbol,
+                    "signal_date": (signal_date.isoformat() if signal_date is not None else None),
+                    "entry_price": entry_price,
+                    "stop_loss_price": stop_loss_price,
+                    "base_shares": base_shares,
+                    "final_shares": final_shares,
                     "position_size_pct": float(row["position_size_pct"]),
                     "cascade_multiplier": float(row["cascade_multiplier"]),
                     "reasons": reasons,
-                    "created_at": (row["created_at"].isoformat() if row["created_at"] is not None else None),
+                    "created_at": (created_at.isoformat() if created_at is not None else None),
                 }
             )
 
@@ -440,17 +450,27 @@ def _get_stop_loss_audit(cur: cursor, days: int) -> Any:
             except (json.JSONDecodeError, TypeError):
                 candidates = {}
 
+            # FAIL-FAST: Extract required stop loss audit fields upfront with validation
+            from utils.validation import DatabaseResultValidator
+            symbol = DatabaseResultValidator.safe_get_str(row, "symbol", strict=True)
+            stop_method = DatabaseResultValidator.safe_get_str(row, "stop_method", strict=True)
+            stop_reasoning = DatabaseResultValidator.safe_get_str(row, "stop_reasoning", strict=True)
+            entry_price = DatabaseResultValidator.safe_get_float(row, "entry_price", default=None)
+            stop_loss_price = DatabaseResultValidator.safe_get_float(row, "stop_loss_price", default=None)
+            signal_date = row.get("signal_date")
+            created_at = row.get("created_at")
+
             items.append(
                 {
-                    "symbol": row["symbol"],
-                    "signal_date": (row["signal_date"].isoformat() if row["signal_date"] is not None else None),
-                    "entry_price": (float(row["entry_price"]) if row["entry_price"] is not None else None),
-                    "stop_loss_price": (float(row["stop_loss_price"]) if row["stop_loss_price"] is not None else None),
+                    "symbol": symbol,
+                    "signal_date": (signal_date.isoformat() if signal_date is not None else None),
+                    "entry_price": entry_price,
+                    "stop_loss_price": stop_loss_price,
                     "distance_pct": float(row["distance_pct"]),
-                    "stop_method": row["stop_method"],
-                    "stop_reasoning": row["stop_reasoning"],
+                    "stop_method": stop_method,
+                    "stop_reasoning": stop_reasoning,
                     "candidates": candidates,
-                    "created_at": (row["created_at"].isoformat() if row["created_at"] is not None else None),
+                    "created_at": (created_at.isoformat() if created_at is not None else None),
                 }
             )
 
@@ -480,16 +500,22 @@ def _get_exit_rules_distribution(cur: cursor, days: int) -> Any:
 
         items = []
         for row in cur.fetchall():
-            count = row["count"]
-            winning = row["winning_count"]
-            losing = row["losing_count"]
+            # FAIL-FAST: Extract required exit rules fields upfront with validation
+            from utils.validation import DatabaseResultValidator
+            exit_rule = DatabaseResultValidator.safe_get_str(row, "exit_rule", strict=True)
+            count = DatabaseResultValidator.safe_get_int(row, "count", strict=True)
+            winning = DatabaseResultValidator.safe_get_int(row, "winning_count", default=0)
+            losing = DatabaseResultValidator.safe_get_int(row, "losing_count", default=0)
+            avg_pnl = DatabaseResultValidator.safe_get_float(row, "avg_pnl_pct", default=None)
+            avg_r = DatabaseResultValidator.safe_get_float(row, "avg_r_multiple", default=None)
+
             win_rate = (winning / count * 100) if (count is not None and winning is not None and count > 0) else None
             items.append(
                 {
-                    "exit_rule": row["exit_rule"],
+                    "exit_rule": exit_rule,
                     "count": count,
-                    "avg_pnl_pct": (float(row["avg_pnl_pct"]) if row["avg_pnl_pct"] is not None else None),
-                    "avg_r_multiple": (float(row["avg_r_multiple"]) if row["avg_r_multiple"] is not None else None),
+                    "avg_pnl_pct": avg_pnl,
+                    "avg_r_multiple": avg_r,
                     "winning_count": winning,
                     "losing_count": losing,
                     "win_rate_pct": win_rate,
