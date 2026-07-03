@@ -107,44 +107,7 @@ class YFinanceSnapshotLoader(OptimalLoader):
 
         except Exception as e:
             logger.error(f"[YFINANCE_SNAPSHOT] Error fetching {symbol}: {e}")
-            return self._unavailable_record(symbol, str(e)[:255])
-
-    def _unavailable_record(self, symbol: str, reason: str) -> list[dict[str, Any]]:
-        """Return unavailable record with explicit reason."""
-        return [
-            {
-                "symbol": symbol,
-                "fetched_at": datetime.now(timezone.utc).isoformat(),
-                "pe_ratio": None,
-                "pb_ratio": None,
-                "ps_ratio": None,
-                "peg_ratio": None,
-                "dividend_yield": None,
-                "fcf_yield": None,
-                "held_percent_insiders": None,
-                "held_percent_institutions": None,
-                "short_interest": None,
-                "beta": None,
-                "fifty_two_week_high": None,
-                "fifty_two_week_low": None,
-                "market_cap": None,
-                "sector": None,
-                "industry": None,
-                "country": None,
-                "exchange": None,
-                "website": None,
-                "long_name": None,
-                "earnings_dates": None,
-                "earnings_date": None,
-                "recommendation_key": None,
-                "number_of_analysts": None,
-                "analysts_underweight": None,
-                "analysts_overweight": None,
-                "analysts_hold": None,
-                "data_available": False,
-                "unavailable_reason": reason,
-            }
-        ]
+            return []
 
 
 if __name__ == "__main__":
