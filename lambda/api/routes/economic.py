@@ -265,19 +265,24 @@ def _get_leading_indicators(cur: cursor) -> Any:  # noqa: C901
             )
 
         latest_rows = {}
+        skipped_indicators = []
         for row in latest_data:
             if row is None:
-                logger.warning("NULL row in economic latest data")
+                logger.error("NULL row in economic latest data")
+                skipped_indicators.append({"series_id": "unknown", "reason": "null_row"})
                 continue
             series_id = row.get("series_id")
             if not series_id:
-                logger.warning("Row missing series_id in economic latest data")
+                logger.error("Row missing series_id in economic latest data")
+                skipped_indicators.append({"series_id": "unknown", "reason": "missing_series_id"})
                 continue
             # CRITICAL: Economic values must NOT default to 0.0 (that's factually false)
             # Use strict=True to fail-fast on missing/invalid values
             value = DatabaseResultValidator.safe_get_float(row, "value", default=None, strict=True)
             if value is None:
-                logger.warning(f"[ECONOMIC] Series {series_id} has missing value — skipping indicator")
+                error_msg = f"Economic indicator {series_id} has missing value — data unavailable"
+                logger.error(f"[ECONOMIC CRITICAL] {error_msg}")
+                skipped_indicators.append({"series_id": series_id, "reason": "value_missing"})
                 continue
             date = row.get("date")
             latest_rows[series_id] = (value, date)
@@ -396,6 +401,16 @@ def _get_leading_indicators(cur: cursor) -> Any:  # noqa: C901
             )
 
         result = {"indicators": indicators}
+
+        # Flag if any indicators were skipped due to missing data
+        if skipped_indicators:
+            result["indicators_incomplete"] = True
+            result["skipped_indicators_count"] = len(skipped_indicators)
+            result["skipped_indicators"] = skipped_indicators[:20]
+            logger.warning(
+                "[ECONOMIC] Economic indicators incomplete: %d indicators skipped (missing values)",
+                len(skipped_indicators),
+            )
 
         is_valid, error_msg = ResponseValidator.validate_endpoint_response("economic/indicators", result)
         if not is_valid:

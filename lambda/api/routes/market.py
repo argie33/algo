@@ -1115,6 +1115,7 @@ def _get_correlation_matrix(cur: cursor) -> Any:  # noqa: C901
 
     correlations_data = []
     all_corrs = []
+    unavailable_pairs = []
 
     for sym1 in valid_symbols:
         row_corrs: list[float | None] = []
@@ -1126,6 +1127,8 @@ def _get_correlation_matrix(cur: cursor) -> Any:  # noqa: C901
             # Handle case where pearson_corr returns data_unavailable marker
             if isinstance(corr_val, dict):
                 row_corrs.append(None)
+                if sym1 != sym2:
+                    unavailable_pairs.append({"pair": [sym1, sym2], "reason": corr_val.get("reason", "unknown")})
             else:
                 row_corrs.append(corr_val)
                 if sym1 != sym2 and corr_val is not None:
@@ -1196,31 +1199,53 @@ def _get_correlation_matrix(cur: cursor) -> Any:  # noqa: C901
         portfolio_stability = "stable"
 
     freshness = check_data_freshness(cur, "price_daily", "date", warning_days=1)
-    return json_response(
-        200,
-        {
-            "correlations": correlations_data,
-            "statistics": {
-                "avg_correlation": avg_corr_val,
-                "max_correlation": {
-                    "value": round(max_corr, 2) if max_corr else None,
-                    "pair": max_pair,
-                },
-                "min_correlation": {
-                    "value": round(min_corr, 2) if min_corr else None,
-                    "pair": min_pair,
-                },
+    response_data = {
+        "correlations": correlations_data,
+        "statistics": {
+            "avg_correlation": avg_corr_val,
+            "max_correlation": {
+                "value": round(max_corr, 2) if max_corr else None,
+                "pair": max_pair,
             },
-            "analysis": {
-                "market_regime": market_regime,
-                "diversification_score": diversification_score,
-                "risk_assessment": {
-                    "concentration_risk": concentration_risk,
-                    "diversification_benefit": diversification_benefit,
-                    "portfolio_stability": portfolio_stability,
-                },
+            "min_correlation": {
+                "value": round(min_corr, 2) if min_corr else None,
+                "pair": min_pair,
             },
         },
+        "analysis": {
+            "market_regime": market_regime,
+            "diversification_score": diversification_score,
+            "risk_assessment": {
+                "concentration_risk": concentration_risk,
+                "diversification_benefit": diversification_benefit,
+                "portfolio_stability": portfolio_stability,
+            },
+        },
+    }
+
+    # Flag if any price rows were skipped due to invalid data
+    if skipped_price_rows:
+        response_data["correlation_incomplete"] = True
+        response_data["skipped_price_rows_count"] = len(skipped_price_rows)
+        response_data["skipped_price_samples"] = skipped_price_rows[:10]
+        logger.warning(
+            "[MARKET] Correlation analysis incomplete: %d price rows skipped (invalid data)",
+            len(skipped_price_rows),
+        )
+
+    # Flag if any correlation pairs have unavailable data
+    if unavailable_pairs:
+        response_data["correlation_pairs_incomplete"] = True
+        response_data["unavailable_pairs_count"] = len(unavailable_pairs)
+        response_data["unavailable_pairs_samples"] = unavailable_pairs[:10]
+        logger.warning(
+            "[MARKET] Correlation pairs incomplete: %d pairs have insufficient data",
+            len(unavailable_pairs),
+        )
+
+    return json_response(
+        200,
+        response_data,
         data_freshness=freshness,
     )
 

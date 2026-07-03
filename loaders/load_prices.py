@@ -1828,9 +1828,15 @@ class PriceLoader(OptimalLoader):
 
             rows = batch_results[symbol]
             if not rows:
+                # Check if upstream fetcher marked data as explicitly unavailable
+                if isinstance(rows, dict) and rows.get("data_unavailable"):
+                    error_msg = f"Price data unavailable for {symbol}: {rows.get('reason', 'unknown reason')}"
+                    logger.error(f"[{self.table_name}] {error_msg}")
+                    self._stats["symbols_failed"] += 1
+                    self._stats["symbols_processed"] += 1
+                    continue
                 logger.debug(
-                    "[{self.table_name}] %s: No rows fetched (watermark current), skipping",
-                    symbol,
+                    f"[{self.table_name}] {symbol}: No rows fetched (watermark current), skipping",
                 )
                 self._stats["symbols_skipped_by_watermark"] += 1
                 self._stats["symbols_processed"] += 1  # Count as processed (no new data needed, not a failure)

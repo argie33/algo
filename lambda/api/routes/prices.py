@@ -97,20 +97,34 @@ def handle(  # noqa: C901
                     )
 
                 found_symbols = set()
+                skipped_rows = []
                 for row in rows:
                     # Validate row is not None before accessing
                     if row is None:
-                        logger.warning("NULL row in prices batch query result")
+                        logger.error("NULL row in prices batch query result")
+                        skipped_rows.append({"reason": "null_row"})
                         continue
 
                     # Safely extract symbol
                     sym = row.get("symbol")
                     if not sym:
-                        logger.warning("Row missing symbol in prices batch query")
+                        logger.error("Row missing symbol in prices batch query")
+                        skipped_rows.append({"reason": "missing_symbol"})
                         continue
 
                     result[sym].append(safe_json_serialize(dict(row)))
                     found_symbols.add(sym)
+
+                # Calculate data completeness
+                total_rows = len(rows) + len(skipped_rows)
+                data_completeness_pct = round(
+                    (len(rows) / total_rows * 100) if total_rows > 0 else 0, 1
+                )
+                if data_completeness_pct < 100:
+                    logger.warning(
+                        f"[PRICE DATA] Data completeness: {data_completeness_pct}% "
+                        f"({len(rows)}/{total_rows} rows valid, {len(skipped_rows)} skipped)"
+                    )
 
                 missing = [s for s in symbols if s not in found_symbols]
                 if missing:
@@ -165,6 +179,14 @@ def handle(  # noqa: C901
                         )
 
                 price_result = {"symbols": result, "limit": limit}
+
+                # Add data completeness metric to response
+                if 'data_completeness_pct' in locals():
+                    price_result["data_completeness_pct"] = data_completeness_pct
+                    if data_completeness_pct < 100:
+                        price_result["data_incomplete"] = True
+                        price_result["skipped_rows_count"] = len(skipped_rows)
+
                 is_valid, error_msg = ResponseValidator.validate_endpoint_response("prices", price_result)
                 if not is_valid:
                     logger.error(f"Endpoint response validation failed: {error_msg}")

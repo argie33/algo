@@ -44,6 +44,9 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
     """
     cur.execute("SET LOCAL statement_timeout = '10000ms'")
 
+    # Initialize alerts tracking early so it can be used throughout
+    stale_alerts = []
+
     cur.execute("""
             SELECT
             symbol,
@@ -256,7 +259,6 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
         ]
 
     freshness = check_data_freshness(cur, "algo_positions", "updated_at", warning_days=1)
-    stale_alerts = []
     if freshness.get("is_stale"):
         age_days = freshness.get("data_age_days")
         age_display = f"{age_days}d old" if age_days is not None else "age unknown"
@@ -659,7 +661,8 @@ def _get_circuit_breakers(cur: cursor) -> Any:  # noqa: C901
                             "warning": "Circuit breaker data incomplete",
                         },
                         "errorType": "missing_vix_data",
-                        "message": "VIX data unavailable. Market volatility metrics required for risk assessment. Trading disabled.",
+                        "message": "VIX data unavailable. Market volatility metrics required for risk assessment. "
+                        "Trading disabled.",
                         "_error": "VIX data unavailable. Trading disabled.",
                     },
                 )
@@ -796,6 +799,7 @@ def _get_circuit_breakers(cur: cursor) -> Any:  # noqa: C901
             )
 
         # CB8: Intraday market health (SPY down >2% yesterday)
+        # CRITICAL: Fail-fast if SPY price data missing (market health essential for trading)
         try:
             cur.execute(
                 """
@@ -806,39 +810,63 @@ def _get_circuit_breakers(cur: cursor) -> Any:  # noqa: C901
                 (today,),
             )
             prices = cur.fetchall()
-            if len(prices) >= 2:
-                latest = float(prices[0][0])
-                prior = float(prices[1][0])
-                if latest > 0 and prior > 0:
-                    market_change = (latest - prior) / prior * 100
-                    threshold_mc = -2.0
-                    breakers.append(
-                        {
-                            "id": "intraday_health",
-                            "label": "Prior-Day Market Health",
-                            "triggered": market_change <= threshold_mc,
-                            "current": round(market_change, 2),
-                            "threshold": threshold_mc,
-                            "unit": "%",
-                            "description": f"Halt if SPY dropped >{abs(threshold_mc):.0f}% yesterday (await stability)",
-                        }
-                    )
-                else:
-                    raise ValueError("Invalid price data")
-            else:
-                raise ValueError("Insufficient price history")
-        except (ValueError, ZeroDivisionError, TypeError) as e:
-            logger.error(f"CB8 (intraday_health) computation failed: {type(e).__name__}: {e}")
+            if len(prices) < 2:
+                logger.error(
+                    "[CB8 CRITICAL] SPY price history insufficient (%d prices, need 2). "
+                    "Cannot assess market health for trading decisions. Trading disabled.",
+                    len(prices),
+                )
+                return json_response(
+                    503,
+                    {
+                        "breakers": [],
+                        "any_triggered": False,
+                        "triggered_count": 0,
+                        "data_freshness": {
+                            "data_age_days": None,
+                            "is_stale": True,
+                            "warning": "Circuit breaker data incomplete",
+                        },
+                        "errorType": "missing_spy_price_data",
+                        "message": "SPY price data insufficient. Market health assessment required for trading. "
+                        "Trading disabled.",
+                        "_error": "SPY price data unavailable. Trading disabled.",
+                    },
+                )
+            latest = float(prices[0][0])
+            prior = float(prices[1][0])
+            if not (latest > 0 and prior > 0):
+                raise ValueError(f"Invalid SPY prices: latest={latest}, prior={prior}")
+            market_change = (latest - prior) / prior * 100
+            threshold_mc = -2.0
             breakers.append(
                 {
                     "id": "intraday_health",
                     "label": "Prior-Day Market Health",
-                    "triggered": False,
-                    "current": None,
-                    "threshold": -2.0,
+                    "triggered": market_change <= threshold_mc,
+                    "current": round(market_change, 2),
+                    "threshold": threshold_mc,
                     "unit": "%",
-                    "description": "No price history yet",
+                    "description": f"Halt if SPY dropped >{abs(threshold_mc):.0f}% yesterday (await stability)",
                 }
+            )
+        except (ValueError, ZeroDivisionError, TypeError) as e:
+            logger.error(f"CB8 (intraday_health) computation failed: {type(e).__name__}: {e}")
+            return json_response(
+                503,
+                {
+                    "breakers": [],
+                    "any_triggered": False,
+                    "triggered_count": 0,
+                    "data_freshness": {
+                        "data_age_days": None,
+                        "is_stale": True,
+                        "warning": "Circuit breaker data error",
+                    },
+                    "errorType": "market_health_computation_error",
+                    "message": f"SPY price computation error: {e!s}. Market health unavailable.",
+                    "_error": "Circuit breaker computation failed. Trading disabled.",
+                },
             )
 
         # CB9: Win rate floor

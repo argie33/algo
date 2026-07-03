@@ -309,9 +309,19 @@ def fetch_exp_factors(c: None) -> dict[str, Any]:
         if factors_unavailable:
             logger.debug("Optional exposure data missing: factors not provided by API")
 
+        # Build result dict with explicit error handling for field conversions
+        try:
+            exposure_pct = safe_float(current.get("exposure_pct"), field_name="exposure.exposure_pct", strict=True)
+            raw_score = safe_float(current.get("raw_score"), field_name="exposure.raw_score", strict=True)
+        except Exception as e:
+            error_msg = f"Exposure metrics conversion failed: {type(e).__name__}: {e}"
+            logger.error(f"[EXPOSURE DATA QUALITY] {error_msg}")
+            record_data_quality_issue("exp_factors", "conversion_failed", type(e).__name__, str(e))
+            return FetcherValidator.build_error_response(error_msg)
+
         result: dict[str, Any] = {
-            "exposure_pct": safe_float(current.get("exposure_pct"), field_name="exposure.exposure_pct", strict=True),
-            "raw_score": safe_float(current.get("raw_score"), field_name="exposure.raw_score", strict=True),
+            "exposure_pct": exposure_pct,
+            "raw_score": raw_score,
         }
 
         if not regime_unavailable:
