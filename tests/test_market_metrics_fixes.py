@@ -55,8 +55,10 @@ class TestBreadthFetcherValidation:
         with caplog.at_level(logging.WARNING):
             result = fetcher._compute_new_highs_lows(mock_cur, start, end)
 
-        # Should return empty dict, not raise error (gracefully handle early dataset)
-        assert result == {}
+        # Should return data_unavailable marker, not raise error (gracefully handle early dataset)
+        assert isinstance(result, dict)
+        assert result.get("data_unavailable")
+        assert "reason" in result
         # Should log warning about missing 252-day history
         assert any("252-day history" in record.message for record in caplog.records)
 
