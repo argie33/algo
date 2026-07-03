@@ -1154,8 +1154,13 @@ class PriceLoader(OptimalLoader):
                         attempt=attempt + 1,
                         max_attempts=max_attempts,
                     )
+                    # FAIL-FAST: Reduced batch size attempts must return COMPLETE data or None
+                    # Partial data (some symbols, missing others) is unacceptable
                     if reduced_attempt is not None and any(v is not None for v in reduced_attempt.values()):
+                        # Reduced batch returned partial data
                         symbols_fetched = sum(1 for v in reduced_attempt.values() if v is not None)
+                        # FAIL-FAST: Incomplete data from reduced batch is a critical error
+                        # Raise immediately without accepting partial data
                         logger.critical(
                             f"[PRICE_LOADER] Batch size reduction resulted in incomplete price data: "
                             f"only {symbols_fetched}/{len(symbols)} symbols available. "
@@ -1167,6 +1172,7 @@ class PriceLoader(OptimalLoader):
                             f"Price coverage MUST be complete for downstream calculations (technical indicators, buy/sell signals). "
                             f"yfinance API is experiencing degradation; cannot complete load cycle."
                         )
+                    # If reduced_attempt is None or all values None, continue to next reduced size
 
                 # All reduced sizes failed — circuit breaker triggered, fail immediately
                 logger.critical(
@@ -1358,6 +1364,9 @@ class PriceLoader(OptimalLoader):
                 if result.get("status") == "halted":
                     return result
 
+                # Track emergency mode state across iterations
+                emergency_mode_enabled = result.get("emergency_mode_enabled", emergency_mode_enabled)
+
         if failed_batches:
             failed_count = sum(len(batch) for batch, _ in failed_batches)
             batch_summary = "; ".join(
@@ -1372,8 +1381,14 @@ class PriceLoader(OptimalLoader):
             logger.critical(msg)
             raise RuntimeError(msg)
 
-        logger.debug("[BATCH_JOBS] All batches completed successfully")
-        return {"status": "success"}
+        logger.debug(
+            "[BATCH_JOBS] All batches completed successfully. Emergency mode was %s.",
+            "active" if emergency_mode_enabled else "not active",
+        )
+        return {
+            "status": "success",
+            "emergency_mode_enabled": emergency_mode_enabled,
+        }
 
     def _monitor_and_enforce_timeouts(
         self,
@@ -1423,6 +1438,8 @@ class PriceLoader(OptimalLoader):
 
         total_estimated_sec = elapsed_sec + estimated_remaining_sec
         if total_estimated_sec > task_timeout_sec:
+            # FAIL-FAST: Emergency mode triggered - track state explicitly
+            emergency_mode_enabled = True
             logger.error(
                 f"[TIMEOUT_ALERT] ETA ({total_estimated_sec:.0f}s) exceeds task timeout ({task_timeout_sec}s). "
                 f"Currently at {completion_pct * 100:.1f}% completion. Triggering emergency mode."
@@ -1439,6 +1456,7 @@ class PriceLoader(OptimalLoader):
                         "table": self.table_name,
                         "progress_pct": f"{completion_pct * 100:.0f}",
                         "eta_sec": f"{total_estimated_sec:.0f}",
+                        "emergency_mode": "true",
                     },
                 )
                 m.flush()
@@ -1448,11 +1466,10 @@ class PriceLoader(OptimalLoader):
                     metric_err,
                 )
 
-            if not emergency_mode_enabled:
-                logger.warning(
-                    "[EMERGENCY] Reducing parallelism from %s to 1 to finish before timeout",
-                    max_concurrent,
-                )
+            logger.warning(
+                "[EMERGENCY] Emergency mode ACTIVATED: Reducing parallelism from %s to 1 to finish before timeout",
+                max_concurrent,
+            )
 
         if batch_elapsed > 120:
             logger.warning(
@@ -1521,14 +1538,18 @@ class PriceLoader(OptimalLoader):
         # and normal batch processing should resume.
         logger.debug(
             "[TIMEOUT_MONITOR] Progress check passed: %d/%d symbols (%.1f%% complete). "
-            "ETA %.0fs within timeout %ds. Continuing execution.",
+            "ETA %.0fs within timeout %ds. Continuing execution. Emergency mode: %s",
             processed,
             total_symbols,
             (processed / total_symbols * 100) if total_symbols > 0 else 0,
             total_estimated_sec,
             task_timeout_sec,
+            emergency_mode_enabled,
         )
-        return {"status": "continue"}
+        return {
+            "status": "continue",
+            "emergency_mode_enabled": emergency_mode_enabled,
+        }
 
     def _finalize_execution_metrics(self) -> None:
         """Finalize execution: publish metrics, update loader status, attempt final symbol retry."""
