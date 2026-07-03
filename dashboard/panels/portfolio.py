@@ -828,11 +828,13 @@ def panel_portfolio_perf_expanded(  # noqa: C901
                     Text(cvar_display, style=cvar_style),
                 )
 
-                beta_display = f"{beta:.2f}" if beta is not None else "N/A"
+                # CRITICAL: When beta = 0 (no open positions), show "N/A" instead of "0.00"
+                beta_display = "N/A" if (beta is None or beta <= 0) else f"{beta:.2f}"
                 beta_c = (
-                    R
-                    if (beta is not None and beta >= 1.2)
-                    else (Y if (beta is not None and beta >= 0.8) else (G if beta is not None else "dim"))
+                    "dim"
+                    if (beta is not None and beta <= 0)
+                    else (R if (beta is not None and beta >= 1.2)
+                    else (Y if (beta is not None and beta >= 0.8) else (G if beta is not None else "dim")))
                 )
                 conc_display = f"{conc5:.0f}%" if conc5 is not None else "N/A"
                 conc_c = (

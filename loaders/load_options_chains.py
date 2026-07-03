@@ -91,10 +91,17 @@ class OptionsLoader:
             # Re-raise filtering result errors (no symbols after filter)
             raise
         except Exception as e:
-            logger.warning(
-                f"[OPTIONS_CHAINS] Could not filter symbols by constituents: {e}. Proceeding with all symbols."
+            logger.critical(
+                f"[OPTIONS_CHAINS CRITICAL] Constituent filtering failed: {e}. "
+                f"Cannot proceed with fallback (all symbols) — this degrades precision and would slow down loader. "
+                f"Check market_constituents table and filtering logic."
             )
-            # Fallback: proceed with all symbols if filtering fails
+            raise RuntimeError(
+                f"[OPTIONS_CHAINS CRITICAL] Symbol filtering by constituents failed: {e}. "
+                f"Cannot load options chains with degraded scope. "
+                f"Constituent filtering is REQUIRED to avoid loading options for penny stocks and micro-caps. "
+                f"Check market_constituents table availability and symbol filtering logic."
+            ) from e
 
         if eval_date is None:
             now_utc = datetime.now(ZoneInfo("UTC"))
@@ -129,19 +136,37 @@ class OptionsLoader:
 
         duration = time.time() - start_time
 
-        # Mark as unavailable if no data collected
+        # Mark as unavailable if no data collected OR coverage too low
+        # (e.g., only 3 of 10+ expected expirations retrieved)
         data_unavailable = chains_inserted == 0 and iv_inserted == 0
+        coverage_pct = (symbols_processed / len(symbols) * 100) if symbols else 0
+
+        # Flag if coverage is too low (less than 80% of symbols had options data)
+        if not data_unavailable and coverage_pct < 80 and symbols_no_options > 0:
+            logger.warning(
+                f"[OPTIONS_CHAINS] Low coverage: only {symbols_processed}/{len(symbols)} symbols "
+                f"({coverage_pct:.0f}%) had options data. {symbols_no_options} symbols skipped. "
+                f"This may indicate incomplete market data or options data issues."
+            )
+            # Still mark as partial/degraded, not unavailable (some data is better than none)
+            result_reason = "partial_options_coverage"
+        elif data_unavailable:
+            result_reason = "no_options_data_collected"
+            logger.warning(f"Options load complete but NO DATA COLLECTED: {symbols_no_options} symbols have no options")
+        else:
+            result_reason = None
+
         result: dict[str, Any] = {
             "symbols_processed": symbols_processed,
             "symbols_no_options": symbols_no_options,
             "chains_inserted": chains_inserted,
             "iv_inserted": iv_inserted,
+            "coverage_pct": round(coverage_pct, 1),
             "duration_sec": round(duration, 2),
             "data_unavailable": data_unavailable,
         }
-        if data_unavailable:
-            result["reason"] = "no_options_data_collected"
-            logger.warning(f"Options load complete but NO DATA COLLECTED: {symbols_no_options} symbols have no options")
+        if result_reason:
+            result["reason"] = result_reason
         else:
             logger.info(f"Options load complete: {result}")
         return result

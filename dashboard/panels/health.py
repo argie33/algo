@@ -441,7 +441,9 @@ def _extract_orch_risk_metrics_string(risk: dict[str, Any] | None) -> str:
         beta_val = cast(float, beta_val)
         cvar95_val = cast(float, cvar95_val)
         conc5_val = cast(float, conc5_val)
-        beta_c = R if beta_val >= 1.2 else (Y if beta_val >= 0.8 else G)
+        # CRITICAL: When beta = 0 (no open positions), show "--" instead of "0.00"
+        beta_display = "--" if beta_val <= 0 else f"{beta_val:.2f}"
+        beta_c = "dim" if beta_val <= 0 else (R if beta_val >= 1.2 else (Y if beta_val >= 0.8 else G))
         var_c = _var_color(var95_val)
         svar_s = (
             f"\n[dim]Stressed VaR:[/][{R}]{float(svar_val):.2f}%[/]"
@@ -451,7 +453,7 @@ def _extract_orch_risk_metrics_string(risk: dict[str, Any] | None) -> str:
         return (
             f"\n[dim]VaR 95%:[/][{var_c}]{var95_val:.2f}%[/]"
             f"  [dim]CVaR 95%:[/][{var_c}]{cvar95_val:.2f}%[/]"
-            f"  [dim]Portfolio Beta:[/][{beta_c}]{beta_val:.2f}[/]"
+            f"  [dim]Portfolio Beta:[/][{beta_c}]{beta_display}[/]"
             f"  [dim]Top-5 Conc:[/][white]{conc5_val:.0f}%[/]" + svar_s
         )
     except (KeyError, ValueError, TypeError) as e:
@@ -1446,19 +1448,23 @@ def _format_risk_snapshot(risk_dict: dict[str, Any]) -> list[Text | Rule]:
     var_c = _var_color(var95_val)
 
     if None in (var95_val, beta_val, cvar95_val, conc5_val):
+        # CRITICAL: When beta = 0, show "--" instead of "0.00"
+        beta_display_na = "—" if (beta_val is None or beta_val <= 0) else f"{beta_val:.2f}"
         rows.append(
             Text.from_markup(
                 f"[dim]VaR 95%:[/][{var_c}]{'—' if var95_val is None else f'{var95_val:.2f}%'}[/]  "
                 f"[dim]CVaR 95%:[/][{var_c}]{'—' if cvar95_val is None else f'{cvar95_val:.2f}%'}[/]  "
-                f"[dim]Beta:[/][{beta_c}]{'—' if beta_val is None else f'{beta_val:.2f}'}[/]  "
+                f"[dim]Beta:[/][{beta_c}]{beta_display_na}[/]  "
                 f"[dim]Top-5 Conc:[/][{conc_c}]{'—' if conc5_val is None else f'{conc5_val:.0f}%'}[/]"
             )
         )
     else:
+        # CRITICAL: When beta = 0, show "--" instead of "0.00"
+        beta_display_else = "--" if beta_val <= 0 else f"{beta_val:.2f}"
         risk_parts = [
             f"[dim]VaR 95%:[/][{var_c}]{var95_val:.2f}%[/]",
             f"[dim]CVaR 95%:[/][{var_c}]{cvar95_val:.2f}%[/]",
-            f"[dim]Beta:[/][{beta_c}]{beta_val:.2f}[/]",
+            f"[dim]Beta:[/][{beta_c}]{beta_display_else}[/]",
             f"[dim]Top-5 Conc:[/][{conc_c}]{conc5_val:.0f}%[/]",
         ]
         if svar_val is not None and svar_val > 0:
@@ -2184,7 +2190,9 @@ def panel_algo_health(  # noqa: C901
             if cvar95_val is not None:
                 risk_parts.append(f"[dim]CVaR 95%:[/][{var_c}]{cvar95_val:.2f}%[/]")
             if beta_val is not None:
-                risk_parts.append(f"[dim]Beta:[/][{beta_c}]{beta_val:.2f}[/]")
+                # CRITICAL: When beta = 0, show "--" instead of "0.00"
+                beta_display_parts = "--" if beta_val <= 0 else f"{beta_val:.2f}"
+                risk_parts.append(f"[dim]Beta:[/][{beta_c}]{beta_display_parts}[/]")
             if conc5_val is not None:
                 risk_parts.append(f"[dim]Top-5 Conc:[/][{conc_c}]{conc5_val:.0f}%[/]")
             if svar_val is not None and svar_val > 0:
@@ -2457,7 +2465,9 @@ def _build_results_panel(  # noqa: C901
         if cvar95_val_e is not None:
             risk_parts_e.append(f"[dim]CVaR:[/][{var_c}]{cvar95_val_e:.2f}%[/]")
         if beta_val_e is not None:
-            risk_parts_e.append(f"[dim]Beta:[/][{beta_c}]{beta_val_e:.2f}[/]")
+            # CRITICAL: When beta = 0, show "--" instead of "0.00"
+            beta_display_e_parts = "--" if beta_val_e <= 0 else f"{beta_val_e:.2f}"
+            risk_parts_e.append(f"[dim]Beta:[/][{beta_c}]{beta_display_e_parts}[/]")
         if conc5_val_e is not None:
             risk_parts_e.append(f"[dim]Top5:[/][{conc_c}]{conc5_val_e:.0f}%[/]")
         if svar_val_e is not None and svar_val_e > 0:
