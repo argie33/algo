@@ -225,10 +225,13 @@ class FredEconomicDataLoader(OptimalLoader):
 
                     # Extract latest observation date for freshness validation
                     latest_obs_date = None
+                    skipped_count = 0
+                    total_count = len(observations)
                     for obs in observations:
                         val_str = obs.get("value")
                         if val_str is None or val_str == ".":
-                            # FRED returns "." for holidays/non-reporting dates — skip silently
+                            # FRED returns "." for holidays/non-reporting dates — track skip
+                            skipped_count += 1
                             continue
                         try:
                             all_rows.append(
@@ -251,6 +254,20 @@ class FredEconomicDataLoader(OptimalLoader):
                                 f"[FRED] Failed to parse value for {series_id} [{obs.get('date')}]: {e}. "
                                 "Value string: '{val_str}'. Cannot parse economic data."
                             ) from e
+
+                    # CRITICAL: Flag data completeness issues (skipped observations indicate gaps)
+                    coverage_pct = ((total_count - skipped_count) / total_count * 100) if total_count > 0 else 0
+                    if skipped_count > 0:
+                        logger.warning(
+                            f"[FRED DATA COMPLETENESS] {series_id}: {skipped_count}/{total_count} observations missing "
+                            f"({coverage_pct:.1f}% coverage). FRED returns '.' for holidays/weekends. "
+                            f"If coverage drops below 80%, this series should be marked data_unavailable."
+                        )
+                        if coverage_pct < 80:
+                            logger.error(
+                                f"[FRED CRITICAL] {series_id}: Data completeness {coverage_pct:.1f}% below threshold (80%). "
+                                f"Mark this series as data_unavailable in loader output to prevent degraded composite scores."
+                            )
 
                     # Validate freshness after successful fetch (REQUIRED: economic data drives market exposure)
                     # NOTE: Some FRED series are published weekly/monthly, not daily.

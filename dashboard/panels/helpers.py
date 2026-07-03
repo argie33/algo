@@ -168,11 +168,14 @@ def _best_halt_reason(top_level: str, phase_results: list[Any]) -> list[tuple[st
         if ps not in ("halt", "halted"):
             continue
         raw = p.get("name")
+        phase_field_used = "name"
         if raw is None:
             if "phase" not in p or p["phase"] is None:
                 logger.debug("Halted phase has no 'name' or 'phase' field; skipping")
                 continue
             raw = p["phase"]
+            phase_field_used = "phase"
+            logger.debug(f"Phase name extracted from '{phase_field_used}' field (primary 'name' not available)")
         raw = (raw if raw is not None else "").lower()
         parts = raw.split("_")
         base = "_".join(parts[:2]) if len(parts) >= 2 else raw
@@ -187,10 +190,16 @@ def _best_halt_reason(top_level: str, phase_results: list[Any]) -> list[tuple[st
         elif not isinstance(pdata, dict) and pdata is not None:
             logger.debug(f"Phase '{label}' data is {type(pdata).__name__} (expected dict); skipping")
             pdata = None
-        detail = next(
-            (str(pdata[k]) for k in _FIELDS if pdata and k in pdata and pdata[k] and len(str(pdata[k])) > 3),
-            "",
-        )
+        # CRITICAL: Log which field was actually used (implicit fallback chain)
+        detail = ""
+        used_field = None
+        for k in _FIELDS:
+            if pdata and k in pdata and pdata[k] and len(str(pdata[k])) > 3:
+                detail = str(pdata[k])
+                used_field = k
+                break
+        if used_field and used_field != _FIELDS[0]:
+            logger.info(f"Phase '{label}' halt reason found in field '{used_field}' (primary '{_FIELDS[0]}' not available)")
         if detail:
             found.append((label, detail))
         elif pdata is None:

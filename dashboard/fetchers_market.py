@@ -176,6 +176,34 @@ def fetch_market(c: None) -> dict[str, Any]:
             )
         halt_reasons = halt_reasons_raw
 
+        # CRITICAL: Extract breadth data values and check for availability
+        # Breadth metrics (upvol, nh, nl, adr, bmom) are used in market exposure scoring
+        upvol_val = safe_float(
+            market_health.get("up_volume_percent"),
+            field_name="market.up_volume_percent",
+            strict=True,
+        )
+        adr_val = safe_float(
+            market_health.get("advance_decline_ratio"),
+            field_name="market.advance_decline_ratio",
+            strict=True,
+        )
+        nh_val = safe_int(
+            market_health.get("new_highs_count"),
+            field_name="market.new_highs_count",
+            strict=True,
+        )
+        nl_val = safe_int(
+            market_health.get("new_lows_count"),
+            field_name="market.new_lows_count",
+            strict=True,
+        )
+        bmom_val = safe_float(
+            market_health.get("breadth_momentum_10d"),
+            field_name="market.breadth_momentum_10d",
+            strict=True,
+        )
+
         result = {
             "pct": safe_float(current.get("exposure_pct"), field_name="market.exposure_pct", strict=True),
             "tier": tier,
@@ -184,28 +212,29 @@ def fetch_market(c: None) -> dict[str, Any]:
             "dist": safe_int(current.get("distribution_days"), field_name="market.distribution_days", strict=True),
             "spy": spy,
             "spy_chg": safe_float(market_health.get("spy_change_pct"), field_name="market.spy_change_pct", strict=True),
-            "upvol": safe_float(
-                market_health.get("up_volume_percent"),
-                field_name="market.up_volume_percent",
-                strict=True,
-            ),
-            "adr": safe_float(
-                market_health.get("advance_decline_ratio"),
-                field_name="market.advance_decline_ratio",
-                strict=True,
-            ),
-            "nh": safe_int(
-                market_health.get("new_highs_count"),
-                field_name="market.new_highs_count",
-                strict=True,
-            ),
-            "nl": safe_int(market_health.get("new_lows_count"), field_name="market.new_lows_count", strict=True),
-            "bmom": safe_float(
-                market_health.get("breadth_momentum_10d"),
-                field_name="market.breadth_momentum_10d",
-                strict=True,
-            ),
+            "upvol": upvol_val,
+            "adr": adr_val,
+            "nh": nh_val,
+            "nl": nl_val,
+            "bmom": bmom_val,
         }
+
+        # Mark breadth metrics as unavailable if missing (critical for market exposure scoring)
+        if upvol_val is None:
+            result["upvol_unavailable"] = True
+            logger.warning("[MARKET BREADTH] Up volume percent unavailable")
+        if adr_val is None:
+            result["adr_unavailable"] = True
+            logger.warning("[MARKET BREADTH] Advance/decline ratio unavailable")
+        if nh_val is None or nl_val is None:
+            if nh_val is None:
+                result["nh_unavailable"] = True
+            if nl_val is None:
+                result["nl_unavailable"] = True
+            logger.warning("[MARKET BREADTH] New highs/lows data unavailable")
+        if bmom_val is None:
+            result["bmom_unavailable"] = True
+            logger.warning("[MARKET BREADTH] Breadth momentum unavailable")
 
         # Conditionally include optional fields only if available
         if not stage_unavailable:
