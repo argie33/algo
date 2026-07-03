@@ -132,11 +132,7 @@ def panel_market_full(mkt: Any, sentiment: Any = None) -> Panel:  # noqa: C901
             padding=(0, 1),
         )
     dist = mkt.get("dist")
-    if dist is None:
-        dist = "--"
     stage = mkt.get("stage")
-    if stage is None:
-        stage = "--"
     spy_chg = safe_float(mkt.get("spy_chg"), default=None, field_name="spy_chg")
     trend = mkt.get("trend")
     if trend is None:
@@ -191,9 +187,12 @@ def panel_market_full(mkt: Any, sentiment: Any = None) -> Panel:  # noqa: C901
         spy_chg_s = f" [{G if spy_chg >= 0 else R}]{sign(spy_chg)}{spy_chg:.1f}%[/]"
         spy_s += spy_chg_s
 
+    dist_s = f"[white]{dist}[/]" if dist is not None else "[dim]—[/]"
+    stage_s = f"[white]{stage}[/]" if stage is not None else "[dim]—[/]"
+
     lines = [
         f"[{tc}][bold]{lbl}[/]  [dim]exposure[/][{tc}]{exp_s}[/]  {bar}",
-        f"VIX:[{vc}]{vix_s}[/]  [dim]Dist Days:[/][white]{dist}[/]  [dim]Stage:[/][white]{stage}[/]"
+        f"VIX:[{vc}]{vix_s}[/]  [dim]Dist Days:[/]{dist_s}  [dim]Stage:[/]{stage_s}"
         + (f"  [dim]Trend:[/][white]{trend_s}[/]" if trend else "")
         + f"  {spy_s}",
     ]
@@ -267,8 +266,8 @@ def panel_market_expanded(mkt: Any, sentiment: Any = None) -> Panel:
     tc = TIER_COLOR.get(tier, "dim")
     lbl = TIER_SHORT.get(tier, "LOADING")
     exp = mkt.get("pct")
-    exp_s = f"{float(exp):.0f}%" if exp is not None else "--"
-    bar = exp_bar(exp, w=14) if exp is not None else "[dim]--[/]"
+    exp_s = f"{float(exp):.0f}%" if exp is not None else "[dim]—[/]"
+    bar = exp_bar(exp, w=14) if exp is not None else "[dim]—[/]"
     vix_raw = mkt.get("vix")
     vix = safe_float(vix_raw, field_name="vix", strict=True) if vix_raw is not None else None
     vc = DIM if vix is None else (R if vix >= 30 else (Y if vix >= 20 else G))
@@ -282,16 +281,17 @@ def panel_market_expanded(mkt: Any, sentiment: Any = None) -> Panel:
 
     spy_raw = safe_float(mkt.get("spy"), field_name="spy", strict=True) if mkt.get("spy") is not None else None
     spy_chg = safe_float(mkt.get("spy_chg"), field_name="spy_chg", strict=True) if mkt.get("spy_chg") is not None else None
-    stage = str(mkt.get("stage", "--"))
+    stage_raw = mkt.get("stage")
+    stage = str(stage_raw) if stage_raw else "[dim]—[/]"
     trend_raw = mkt.get("trend")
-    trend = trend_raw.upper() if trend_raw else "--"
+    trend = trend_raw.upper() if trend_raw else "[dim]—[/]"
     if not trend_raw:
         logger.debug("[MARKET_EXPANDED] Market trend not available - optional directional analysis incomplete")
     dist = safe_float(mkt.get("dist"), field_name="dist", strict=True) if mkt.get("dist") is not None else None
     if dist is None:
         logger.warning("[MARKET_EXPANDED] Distribution days data missing - market stage analysis incomplete")
     _fed_raw = mkt.get("fed")
-    fed = "--" if (_fed_raw is None or str(_fed_raw).lower() in ("unknown", "n/a", "none", "")) else str(_fed_raw)
+    fed = "[dim]—[/]" if (_fed_raw is None or str(_fed_raw).lower() in ("unknown", "n/a", "none", "")) else str(_fed_raw)
     if _fed_raw is None or str(_fed_raw).lower() in ("unknown", "n/a", "none", ""):
         logger.debug("[MARKET_EXPANDED] Fed environment data unavailable - optional macro context missing")
     ycs = safe_float(mkt.get("ycs"), field_name="ycs", strict=True) if mkt.get("ycs") is not None else None
