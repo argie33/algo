@@ -616,7 +616,14 @@ def _format_exec_history_summary(exec_hist: list[Any] | None) -> list[Text]:
     """Format last N runs summary (used in panel_status and panel_algo_health)."""
     rows: list[Text] = []
     valid_hist = safe_get_list(exec_hist)
-    if not valid_hist:
+    # Check if marker dict (data_unavailable) was returned instead of list
+    if isinstance(valid_hist, dict) and valid_hist.get("data_unavailable"):
+        logger.warning(
+            "[HEALTH_FORMAT] Execution history unavailable for summary display. "
+            "Data may be empty or API returned None. Cannot show run health metrics."
+        )
+        return rows
+    if not valid_hist or not isinstance(valid_hist, list):
         logger.warning(
             "[HEALTH_FORMAT] Execution history unavailable for summary display. "
             "Data may be empty or API returned None. Cannot show run health metrics."
@@ -1266,6 +1273,12 @@ def _format_algo_actions_and_activity(
 ) -> list[Text]:
     """Format 'what did the algo do' summary and 5-day activity strip."""
     rows: list[Text] = []
+
+    # CRITICAL: Explicit check for unavailability marker instead of falsy fallback
+    # Missing metrics data should not silently map to empty summary
+    if today_m.get("_data_unavailable"):
+        logger.warning(f"[METRICS_FORMAT] Metrics data unavailable: {today_m.get('reason', 'unknown')}")
+        return rows
 
     # "What did the algo do today?" summary
     action_parts = []
@@ -2060,9 +2073,9 @@ def panel_algo_health(  # noqa: C901
         if valid_metrics is None:
             logger.warning("[ALGO_METRICS] Metrics data is None after validation")
 
-    today_m: dict[str, Any] = {}
+    today_m: dict[str, Any] | None = None
     if valid_metrics:
-        today_m = valid_metrics[0] if valid_metrics else {}
+        today_m = valid_metrics[0]
         if not entries_exec:
             en = today_m.get("entries")
             if en is not None:
@@ -2071,6 +2084,10 @@ def panel_algo_health(  # noqa: C901
             ex = today_m.get("exits")
             if ex is not None:
                 exits_exec = int(ex)
+    else:
+        # CRITICAL: Explicit unavailability marker, not empty dict
+        # Missing metrics data must be visible to downstream code
+        today_m = {"_data_unavailable": True, "reason": "no_metrics_data"}
 
     # "What did the algo do today?" summary and 5-day activity
     action_activity_rows = _format_algo_actions_and_activity(
@@ -2095,14 +2112,21 @@ def panel_algo_health(  # noqa: C901
     if hlth:
         hlth_list = safe_get_list(hlth)
         ready_to_trade = hlth.get("ready_to_trade") if isinstance(hlth, dict) else None
-        stale = [r for r in hlth_list if isinstance(r, dict) and r.get("st") != "ok"] if hlth_list else []
+        # CRITICAL: Explicit unavailability marker when hlth_list is empty
+        # Cannot distinguish "no data" from "all fresh" with empty list
+        stale = [r for r in hlth_list if isinstance(r, dict) and r.get("st") != "ok"] if hlth_list else None
 
-        if not stale and hlth_list:
+        if stale is None and hlth_list is None:
+            # No data available at all
+            logger.warning("[HEALTH] Data health list is None, cannot assess table freshness")
+        elif not stale and hlth_list:
+            # All tables fresh
             crit = [r for r in hlth_list if r.get("role") == "CRIT"]
             ages = [_age_h(r) for r in hlth_list if _age_h(r) is not None]
             health_text = _format_health_data_fresh_section(hlth_list, crit, ready_to_trade, ages)
             rows.append(Text.from_markup(health_text))
-        else:
+        elif stale is not None and stale:
+            # Some tables are stale
             health_text = _format_health_data_stale_section(stale, hlth_list)
             rows.append(Text.from_markup(health_text))
 

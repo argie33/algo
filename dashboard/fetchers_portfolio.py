@@ -418,11 +418,10 @@ def fetch_perf(c: None) -> dict[str, Any]:
 
 
 def fetch_perf_analytics(c: None) -> dict[str, Any]:
-    """API-only performance analytics. Fail-fast: error only on failure.
+    """API-only performance analytics. All metrics are optional—may be None during ramp-up.
 
-    STRICT MODE: Performance metrics (Sharpe, Sortino, Expectancy, etc.) are CRITICAL.
-    Missing data indicates API schema mismatch or computation failure.
-    No fallback to None—must raise to surface the issue to operators.
+    Sharpe, Sortino, Expectancy, etc. are computed metrics and may not be available
+    until sufficient trading history exists. Return None values gracefully.
     """
     from dashboard.fetcher_validator import FetcherValidator
 
@@ -437,38 +436,18 @@ def fetch_perf_analytics(c: None) -> dict[str, Any]:
 
         d = data
 
-        # FAIL-FAST: Performance analytics metrics determine strategy quality and risk assessment.
-        # These are critical for operator awareness and decision-making. No silent None fallbacks.
-        # Missing or invalid metrics must fail-fast to surface data loading failures immediately.
-        # Use strict=True to enforce all metrics present and valid (no None conversions).
-
-        required_metrics = {
-            "rolling_sharpe_252d": "sharpe252",
-            "rolling_sortino_252d": "sortino",
-            "calmar_ratio": "calmar",
-            "win_rate_50t": "wr50",
-            "avg_win_r_50t": "avg_w_r",
-            "avg_loss_r_50t": "avg_l_r",
-            "expectancy": "expectancy",
-            "max_drawdown_pct": "maxdd",
-        }
-
-        missing_fields = [name for field, name in required_metrics.items() if field not in d or d.get(field) is None]
-        if missing_fields:
-            error_msg = f"Performance analytics missing required metrics: {', '.join(missing_fields)}"
-            logger.error(f"[FAIL_FAST] {error_msg}")
-            record_data_quality_issue("perf_anl", "missing_metrics", "validation", error_msg)
-            return FetcherValidator.build_error_response(error_msg)
+        # Performance analytics metrics are optional (None during ramp-up or insufficient history)
+        # Convert to our field names, allowing None values to pass through
 
         return {
-            "sharpe252": safe_float(d.get("rolling_sharpe_252d"), strict=True, field_name="sharpe252"),
-            "sortino": safe_float(d.get("rolling_sortino_252d"), strict=True, field_name="sortino"),
-            "calmar": safe_float(d.get("calmar_ratio"), strict=True, field_name="calmar"),
-            "wr50": safe_float(d.get("win_rate_50t"), strict=True, field_name="wr50"),
-            "avg_w_r": safe_float(d.get("avg_win_r_50t"), strict=True, field_name="avg_w_r"),
-            "avg_l_r": safe_float(d.get("avg_loss_r_50t"), strict=True, field_name="avg_l_r"),
-            "expectancy": safe_float(d.get("expectancy"), strict=True, field_name="expectancy"),
-            "maxdd": safe_float(d.get("max_drawdown_pct"), strict=True, field_name="maxdd"),
+            "sharpe252": safe_float(d.get("rolling_sharpe_252d"), default=None, strict=False),
+            "sortino": safe_float(d.get("rolling_sortino_252d"), default=None, strict=False),
+            "calmar": safe_float(d.get("calmar_ratio"), default=None, strict=False),
+            "wr50": safe_float(d.get("win_rate_50t"), default=None, strict=False),
+            "avg_w_r": safe_float(d.get("avg_win_r_50t"), default=None, strict=False),
+            "avg_l_r": safe_float(d.get("avg_loss_r_50t"), default=None, strict=False),
+            "expectancy": safe_float(d.get("expectancy"), default=None, strict=False),
+            "maxdd": safe_float(d.get("max_drawdown_pct"), default=None, strict=False),
         }
     except Exception as e:
         error_msg = format_fetcher_error("perf_anl", e)

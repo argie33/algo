@@ -308,12 +308,13 @@ def fetch_exp_factors(c: None) -> dict[str, Any]:
 
 
 def fetch_risk_metrics(c: None) -> dict[str, Any]:
-    """API-only risk metrics. Fail-fast: error only on API failure.
+    """API-only risk metrics. Fail-fast: error if critical risk metrics are missing.
 
-    All fields are optional and may be None during ramp-up or with insufficient data:
-    - VaR/CVaR require 5+ portfolio snapshots
-    - Stressed VaR requires 365+ days of history
-    - Beta/Concentration require open positions
+    Risk metrics are CRITICAL for portfolio monitoring:
+    - VaR/CVaR (Value at Risk) — required for downside risk assessment
+    - Stressed VaR — required for stress testing
+    - Beta — required for systematic risk measurement
+    - Concentration — required for portfolio concentration risk
     """
     from dashboard.fetcher_validator import FetcherValidator
 
@@ -327,8 +328,23 @@ def fetch_risk_metrics(c: None) -> dict[str, Any]:
             return FetcherValidator.build_error_response(error_msg)
 
         d = data
-        # All risk fields are optional (may be None during ramp-up or insufficient data)
-        # VaR/CVaR require 5+ snapshots, stressed_var requires 365+ days, beta/concentration require positions
+        # FAIL-FAST: All critical risk metrics must be present and non-None
+        # Risk metrics are essential for portfolio monitoring and position sizing
+
+        critical_fields = {
+            "var_pct_95": "VaR",
+            "cvar_pct_95": "CVaR",
+            "stressed_var_pct": "Stressed VaR",
+            "portfolio_beta": "Beta",
+            "top_5_concentration": "Concentration",
+        }
+
+        missing_fields = [name for field, name in critical_fields.items() if d.get(field) is None]
+        if missing_fields:
+            error_msg = f"Risk metrics missing required fields: {', '.join(missing_fields)}"
+            logger.error(f"[FAIL_FAST] {error_msg}")
+            record_data_quality_issue("risk", "missing_required_fields", "validation", error_msg)
+            return FetcherValidator.build_error_response(error_msg)
 
         # Explicit handling for optional fields with visibility flags
         report_date = d.get("report_date")
@@ -337,11 +353,11 @@ def fetch_risk_metrics(c: None) -> dict[str, Any]:
             logger.debug("Optional risk data missing: report_date not provided by API")
 
         result = {
-            "var95": safe_float(d.get("var_pct_95"), default=None),
-            "cvar95": safe_float(d.get("cvar_pct_95"), default=None),
-            "svar": safe_float(d.get("stressed_var_pct"), default=None),
-            "beta": safe_float(d.get("portfolio_beta"), default=None),
-            "conc5": safe_float(d.get("top_5_concentration"), default=None),
+            "var95": safe_float(d.get("var_pct_95"), default=None, strict=False),
+            "cvar95": safe_float(d.get("cvar_pct_95"), default=None, strict=False),
+            "svar": safe_float(d.get("stressed_var_pct"), default=None, strict=False),
+            "beta": safe_float(d.get("portfolio_beta"), default=None, strict=False),
+            "conc5": safe_float(d.get("top_5_concentration"), default=None, strict=False),
         }
 
         if not date_unavailable:

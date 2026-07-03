@@ -1,5 +1,6 @@
 """Formatting and utility functions for dashboard display."""
 
+import logging
 import time
 from datetime import datetime, timedelta
 from typing import Any, cast
@@ -22,6 +23,8 @@ from .utilities import (
     R,
     Y,
 )
+
+logger = logging.getLogger(__name__)
 
 _schedule_cache: dict[str, Any] = {"result": None, "timestamp": 0}
 _SCHEDULE_CACHE_TTL = 300
@@ -125,8 +128,11 @@ def next_run_str() -> str:
         logging.warning(f"Schedule API unavailable: {sched_err}. Dashboard showing fallback times.")  # noqa: LOG015
 
     # Schedule fetch failed: indicate to user that times shown are not live
-    result = _next_run_hardcoded()
-    result = f"[yellow]{result}[/yellow] (offline schedule)"
+    try:
+        result = _next_run_hardcoded()
+        result = f"[yellow]{result}[/yellow] (offline schedule)"
+    except Exception as e:
+        logger.warning(f"Hardcoded schedule calculation failed: {e}. Using minimal fallback.")
     _schedule_cache["result"] = result
     _schedule_cache["timestamp"] = now
     return result
@@ -234,9 +240,14 @@ def _next_run_hardcoded() -> str:
         return d
 
     # Get schedule from configuration (or defaults if not configured)
-    schedule = MarketSymbolsConfig.get_orchestrator_schedule()
+    try:
+        schedule = MarketSymbolsConfig.get_orchestrator_schedule()
+    except Exception as e:
+        logger.warning(f"Failed to load orchestrator schedule from config: {e}. Using defaults.")
+        schedule = None
+
     if not schedule:
-        # Safety fallback if config is empty
+        # Safety fallback if config is empty or failed to load
         schedule = [{"hour": 2, "minute": 0}, {"hour": 9, "minute": 30}]
 
     # Find next scheduled run
@@ -315,7 +326,14 @@ def sign(v: Any) -> str:
 
 
 def sparkline(values: list[Any], width: int = 24) -> str:
-    vals = [v for v in (values or []) if v is not None]
+    if values is None:
+        logger.warning("Sparkline formatter received None values, upstream metric data unavailable")
+        raise ValueError(
+            "Sparkline formatter received None values, upstream metric data unavailable. "
+            "Dashboard must distinguish empty data from unavailable data."
+        )
+
+    vals = [v for v in values if v is not None]
     if len(vals) < 2:
         return f"[{DIM}]No data[/]"
     mn, mx = min(vals), max(vals)
