@@ -441,21 +441,6 @@ class SignalsDailyLoader(OptimalLoader):
             )
         return tech_data_age
 
-    def _log_rejection_if_available(self, symbol: str, signal_date: date, reason: str) -> None:
-        """Log signal rejection to signal_rejection_log for observability (non-fatal)."""
-        try:
-            with DatabaseContext("write") as cur:
-                cur.execute(
-                    """
-                    INSERT INTO signal_rejection_log
-                    (signal_source_table, rejection_reason, symbol, signal_date, rejected_at_tier, created_at)
-                    VALUES (%s, %s, %s, %s, %s, NOW())
-                """,
-                    ("buy_sell_daily", reason, symbol, signal_date, "loader"),
-                )
-        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.debug(f"[SIGNAL_REJECTION_LOG] Could not log rejection for {symbol}: {e}")
-
     def _fetch_signal_data(self, symbol: str, start: date, end: date) -> list[dict[str, Any]]:
         """Fetch technical and price data needed for signal generation."""
         try:
