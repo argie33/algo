@@ -369,12 +369,12 @@ def format_decimal_string(value: Any, precision: int = 2, allow_none: bool = Tru
 
 
 def safe_int(
-    value: Any, default: int | None = None, context: str = "", strict: bool = True, field_name: str | None = None
+    value: Any, default: int | None = None, context: str = "", strict: bool = False, field_name: str | None = None
 ) -> int | None:
     """Convert value to int safely, handling None, invalid strings.
 
-    STRICT MODE (default): Raises StrictValidationError on failure. No silent defaults.
-    PERMISSIVE MODE: Returns default value on failure, logs WARNING.
+    PERMISSIVE MODE (default): Returns default value on failure, logs WARNING.
+    STRICT MODE: Raises StrictValidationError on failure (pass strict=True to enable).
 
     Args:
         value: Value to convert (can be str, int, float, None)
