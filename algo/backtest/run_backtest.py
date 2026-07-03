@@ -89,9 +89,15 @@ def _get_daily_buy_signals(signal_date: date, min_composite: float) -> list[dict
             rows = cur.fetchall()
 
         signals = []
+        skipped_count = 0
         for r in rows:
             close = float(r[1])
             if not close:
+                logger.warning(
+                    f"[BACKTEST] Skipping {r[0]} on {signal_date}: close price is {close} "
+                    f"(falsy value detected during signal processing)"
+                )
+                skipped_count += 1
                 continue
             if r[5] is None:
                 raise ValueError(
@@ -290,12 +296,20 @@ def run_backtest(  # noqa: C901
                 shares = int(position_dollars / entry_price)
 
                 if shares < 1:
+                    logger.warning(
+                        f"[BACKTEST] Rejected entry for {symbol}: shares < 1 "
+                        f"(position_dollars=${position_dollars:.2f}, entry_price=${entry_price:.2f})"
+                    )
                     continue
 
                 shares = int(shares)
                 cost = shares * entry_price
 
                 if cost > capital:
+                    logger.warning(
+                        f"[BACKTEST] Rejected entry for {symbol}: insufficient_capital "
+                        f"(cost=${cost:.2f}, capital=${capital:.2f})"
+                    )
                     continue
 
                 capital -= cost

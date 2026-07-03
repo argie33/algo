@@ -216,7 +216,12 @@ class Orchestrator:
 
                 started_at = task.get("startedAt")
                 if not started_at:
-                    continue
+                    task_arn = task.get("taskArn", "unknown")
+                    raise ValueError(
+                        f"[CRITICAL] Task missing startedAt field — cannot assess if hung. "
+                        f"This indicates ECS metadata corruption or schema change. "
+                        f"Cannot proceed with hung loader detection. Task: {task_arn}"
+                    )
 
                 # Convert startedAt to UTC-aware datetime if needed
                 if started_at.tzinfo is None:
@@ -238,9 +243,13 @@ class Orchestrator:
                             reason="Loader hung beyond timeout before next orchestrator run",
                         )
                     except Exception as stop_err:
-                        logger.error(f"[TASK_TERMINATION] stop_task() call failed: {stop_err}")
+                        logger.critical(
+                            f"[TASK_TERMINATION] CRITICAL: Failed to kill hung loader {loader_name}: {stop_err}. "
+                            f"Task will continue consuming resources. Manual intervention required: {task_arn}"
+                        )
+                        self.degraded_mode = True
                         failed_terminations.append((loader_name, task_arn, str(stop_err)))
-                        continue
+                        # Don't silently continue — mark as degraded so operator is aware task termination failed
 
                     # ISSUE #5: Verify task actually stopped (with retries)
                     if self.db_monitor.verify_task_stopped(ecs, cluster, task_arn, loader_name):

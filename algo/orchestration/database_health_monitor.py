@@ -330,7 +330,12 @@ class DatabaseHealthMonitor:
 
                 started_at = task.get("startedAt")
                 if not started_at:
-                    continue
+                    task_arn = task.get("taskArn", "unknown")
+                    raise ValueError(
+                        f"[CRITICAL] Task missing startedAt field — cannot assess if hung. "
+                        f"This indicates ECS metadata corruption or schema change. "
+                        f"Cannot proceed with OOM prevention. Task: {task_arn}"
+                    )
 
                 if started_at.tzinfo is None:
                     started_at = started_at.replace(tzinfo=timezone.utc)
@@ -350,9 +355,18 @@ class DatabaseHealthMonitor:
                             reason="Loader hung beyond timeout before next orchestrator run",
                         )
                     except (ValueError, KeyError, AttributeError) as stop_err:
-                        logger.error(f"[TASK_TERMINATION] stop_task() call failed: {stop_err}")
+                        logger.critical(
+                            f"[TASK_TERMINATION] CRITICAL: Failed to kill hung loader {loader_name}: {stop_err}. "
+                            f"Task will continue consuming resources. Manual intervention required: {task_arn}"
+                        )
                         failed_terminations.append((loader_name, task_arn, str(stop_err)))
-                        continue
+                        # Mark health monitor as degraded — don't silently continue
+                        log_phase_result(
+                            0,
+                            "oom_prevention",
+                            "failure",
+                            f"Failed to kill hung {loader_name} task. Manual intervention required: {stop_err}",
+                        )
 
                     if self.verify_task_stopped(ecs, cluster, task_arn, loader_name):
                         log_phase_result(
