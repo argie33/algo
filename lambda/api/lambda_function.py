@@ -76,15 +76,22 @@ def _apply_critical_migrations():
             logger.warning(f"[STARTUP] Could not fetch credentials from credential_manager: {e} - skipping migrations")
             return False, f"Credential fetch failed: {str(e)[:50]}"
 
-        db_host = db_config.get("host")
-        db_port = db_config.get("port", 5432)
-        db_name = db_config.get("database", "stocks")
-        db_user = db_config.get("user")
-        db_password = db_config.get("password")
+        # GOVERNANCE: Fail-fast on missing database configuration.
+        # get_db_config() validates all required fields and raises ValueError if any are missing.
+        # Use direct dict access, not .get() with defaults — no silent defaults allowed.
+        try:
+            db_host = db_config["host"]
+            db_port = db_config["port"]
+            db_name = db_config["database"]
+            db_user = db_config["user"]
+            db_password = db_config["password"]
+        except KeyError as e:
+            logger.warning(f"[STARTUP] Database config missing required field {e} - skipping migrations")
+            return False, f"Config missing field: {e}"
 
         if not all([db_host, db_user, db_password]):
-            logger.warning("[STARTUP] Database configuration incomplete - skipping migrations")
-            return False, "Configuration incomplete"
+            logger.warning("[STARTUP] Database configuration has empty required fields - skipping migrations")
+            return False, "Configuration has empty fields"
 
         # Connect to database
         conn = psycopg2.connect(

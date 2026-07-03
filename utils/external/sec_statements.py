@@ -111,23 +111,25 @@ def _aggregate_concepts(
 
     Returns:
         List of dicts with aggregated concept data
+
+    Raises:
+        ValueError: If no XBRL filings found (REIT, investment trust, ETF, etc.)
     """
     cik = client.symbol_to_cik(symbol)
 
     # Fetch all facts for this company in a single API call.
     # FileNotFoundError (404) means the CIK has no XBRL filings — mutual funds,
     # special-purpose vehicles, REITs, and some investment trusts never file XBRL.
-    # CRITICAL FIX: Return empty list instead of raising exception. This allows
-    # downstream loaders (growth_metrics, quality_metrics) to handle gracefully
-    # with data_unavailable markers instead of crashing.
+    # GOVERNANCE: Fail-fast on missing data with explicit context.
     try:
         all_facts = client.get_company_facts(cik)
-    except FileNotFoundError:
-        logger.info(
-            f"[SEC_STATEMENTS] No XBRL filings found for {symbol} (CIK {cik}). "
-            f"Company may be REIT, investment trust, ETF, or special-purpose vehicle without traditional SEC filings."
-        )
-        return []  # Return empty list — downstream loaders handle with data_unavailable marker
+    except FileNotFoundError as e:
+        raise ValueError(
+            f"[SEC_EDGAR] No XBRL filings found for {symbol} (CIK {cik}). "
+            f"Company is likely REIT, investment trust, ETF, or special-purpose vehicle "
+            f"that does not file traditional SEC XBRL statements. "
+            f"Downstream loaders must mark data_unavailable with this reason."
+        ) from e
 
     # Extract concepts from all_facts (us-gaap taxonomy).
     # Some entities (ETFs, foreign filers, REITs) have CIKs but report under IFRS,
@@ -136,18 +138,20 @@ def _aggregate_concepts(
     # that doesn't map to standard income statement concepts.
     facts = all_facts.get("facts")
     if facts is None:
-        logger.info(
-            f"[SEC_STATEMENTS] SEC API returned no 'facts' for {symbol} (CIK {cik}). "
-            f"Likely REIT, investment trust, or special entity without traditional SEC filing data."
+        raise ValueError(
+            f"[SEC_EDGAR] SEC API returned no 'facts' key for {symbol} (CIK {cik}). "
+            f"Likely REIT, investment trust, or special entity without traditional SEC filing data. "
+            f"Downstream loaders must mark data_unavailable with this reason."
         )
-        return []  # Return empty list instead of raising — downstream handles gracefully
+
     us_gaap_facts = facts.get("us-gaap")
     if not us_gaap_facts:
-        logger.info(
-            f"[SEC_STATEMENTS] SEC API has no US-GAAP facts for {symbol} (CIK {cik}). "
-            f"Company may be REIT, investment trust, or IFRS filer. Cannot extract traditional income statement."
+        raise ValueError(
+            f"[SEC_EDGAR] SEC API has no US-GAAP facts for {symbol} (CIK {cik}). "
+            f"Company may be REIT, investment trust, or IFRS filer without US-GAAP taxonomy. "
+            f"Cannot extract traditional income statement concepts. "
+            f"Downstream loaders must mark data_unavailable with this reason."
         )
-        return []  # Return empty list instead of raising — downstream loaders handle with data_unavailable marker
     rows: dict[Any, dict[str, Any]] = {}
     fp_filter = "FY" if period == "annual" else ("Q1", "Q2", "Q3", "Q4")
 

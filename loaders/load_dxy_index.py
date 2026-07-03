@@ -115,25 +115,32 @@ def main() -> int:
     """Fetch and store actual ICE DXY data from Yahoo Finance.
 
     Governance: Fail-fast on missing data. No silent fallbacks.
-    Exception handling distinguishes "no data available" (graceful) from "error occurred" (exit 1).
+    Exit codes must be unambiguous:
+    - 0: Data fetched and stored successfully
+    - 1: Data fetch or storage failed (error occurred)
+    - 2: No data available (graceful degradation, not an error)
     """
     logger.info("Starting DXY (ICE) data fetch...")
 
     try:
         rows = fetch_dxy_from_yahoo()
         if not rows:
-            logger.warning("[DXY] Fetch succeeded but returned no data. Economic dashboard will omit DXY_ICE.")
-            return 0
+            logger.warning(
+                "[DXY] Fetch succeeded but returned no data. "
+                "Exit code 2 (DATA_UNAVAILABLE) — economic dashboard will omit DXY_ICE. "
+                "Operator should investigate why Yahoo Finance returned no DXY data."
+            )
+            return 2  # Unambiguous: data is unavailable, not an error
 
         count = store_dxy_data(rows)
-        logger.info(f"SUCCESS: Stored {count} DXY records")
+        logger.info(f"SUCCESS: Stored {count} DXY records. Exit code 0 (SUCCESS).")
         return 0
 
     except RuntimeError as e:
-        logger.error(f"[DXY] {e}")
+        logger.error(f"[DXY] {e}. Exit code 1 (ERROR).")
         return 1
     except Exception as e:
-        logger.error(f"[DXY] Unexpected error: {e}")
+        logger.error(f"[DXY] Unexpected error: {e}. Exit code 1 (ERROR).")
         return 1
 
 
