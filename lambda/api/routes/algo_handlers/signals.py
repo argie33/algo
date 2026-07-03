@@ -116,6 +116,14 @@ def _calculate_pre_trade_impact(cur: cursor, body: dict[str, Any]) -> Any:
                         error_msg = f"Sector {sr['sector']} has NULL position_value sum — cannot proceed without complete sector exposure"
                         logger.error(error_msg)
                         return error_response(503, "sector_exposure_incomplete", error_msg)
+                    # Validate type before conversion — non-numeric values cause silent failures downstream
+                    if not isinstance(sector_val_raw, (int, float)):
+                        error_msg = (
+                            f"Sector {sr['sector']} has non-numeric position_value: {type(sector_val_raw).__name__} "
+                            f"(value={sector_val_raw}). Cannot compute signal without valid numeric exposure."
+                        )
+                        logger.error(error_msg)
+                        return error_response(503, "invalid_sector_value_type", error_msg)
                     try:
                         sector_val = float(sector_val_raw)
                         if sector_val < 0:
