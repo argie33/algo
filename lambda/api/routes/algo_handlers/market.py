@@ -26,6 +26,7 @@ from routes.utils import (
 
 from shared_contracts.response_validator import ResponseValidator
 from utils.validation import format_decimal_string
+from utils.validation.response_validation import get_optional_field
 
 from .signals import _TIER_CONFIG
 
@@ -388,25 +389,41 @@ def _normalize_market_health(mh: dict) -> Any:
             f"Cannot determine which optional fields are truly unavailable."
         )
 
+    # Extract optional enrichment fields explicitly (fail if type is wrong, allow None if missing)
+    market_trend = mh.get("market_trend")
+    market_stage = mh.get("market_stage")
+    up_volume_pct = get_optional_field(mh, "up_volume_percent")
+    ad_ratio = get_optional_field(mh, "advance_decline_ratio")
+    new_highs = get_optional_field(mh, "new_highs_count")
+    new_lows = get_optional_field(mh, "new_lows_count")
+    breadth_10d = get_optional_field(mh, "breadth_momentum_10d")
+    put_call = get_optional_field(mh, "put_call_ratio")
+    put_call_unavailable_reason = get_optional_field(mh, "put_call_ratio_unavailable_reason")
+    yield_curve = get_optional_field(mh, "yield_curve_slope")
+    yield_curve_unavailable_reason = get_optional_field(mh, "yield_curve_unavailable_reason")
+    fed_rate_env = get_optional_field(mh, "fed_rate_environment")
+    fed_rate_unavailable_reason = get_optional_field(mh, "fed_rate_unavailable_reason")
+    spy_change = get_optional_field(mh, "spy_change_pct")
+
     return {
-        "market_trend": mh.get("market_trend"),
-        "market_stage": mh.get("market_stage"),
+        "market_trend": market_trend,
+        "market_stage": market_stage,
         "vix_level": vix_level,
-        "up_volume_percent": mh.get("up_volume_percent"),
-        "advance_decline_ratio": mh.get("advance_decline_ratio"),
-        "new_highs_count": mh.get("new_highs_count"),
-        "new_lows_count": mh.get("new_lows_count"),
-        "breadth_momentum_10d": mh.get("breadth_momentum_10d"),
-        "put_call_ratio": mh.get("put_call_ratio"),
+        "up_volume_percent": up_volume_pct,
+        "advance_decline_ratio": ad_ratio,
+        "new_highs_count": new_highs,
+        "new_lows_count": new_lows,
+        "breadth_momentum_10d": breadth_10d,
+        "put_call_ratio": put_call,
         "put_call_ratio_data_unavailable": mh["put_call_ratio_data_unavailable"],
-        "put_call_ratio_unavailable_reason": mh.get("put_call_ratio_unavailable_reason"),
-        "yield_curve_slope": mh.get("yield_curve_slope"),
+        "put_call_ratio_unavailable_reason": put_call_unavailable_reason,
+        "yield_curve_slope": yield_curve,
         "yield_curve_data_unavailable": mh["yield_curve_data_unavailable"],
-        "yield_curve_unavailable_reason": mh.get("yield_curve_unavailable_reason"),
-        "fed_rate_environment": mh.get("fed_rate_environment"),
+        "yield_curve_unavailable_reason": yield_curve_unavailable_reason,
+        "fed_rate_environment": fed_rate_env,
         "fed_rate_data_unavailable": mh["fed_rate_data_unavailable"],
-        "fed_rate_unavailable_reason": mh.get("fed_rate_unavailable_reason"),
-        "spy_change_pct": mh.get("spy_change_pct"),
+        "fed_rate_unavailable_reason": fed_rate_unavailable_reason,
+        "spy_change_pct": spy_change,
     }
 
 
@@ -442,7 +459,7 @@ def _normalize_exposure(exp: dict) -> Any:
     if regime not in ("confirmed_uptrend", "uptrend_under_pressure", "caution", "correction"):
         raise ValueError(f"Market exposure regime '{regime}' not recognized")
 
-    halt_reasons = exp.get("halt_reasons")
+    halt_reasons = get_optional_field(exp, "halt_reasons", default=[])
     return {
         "exposure_pct": exposure_pct,
         "regime": regime,
