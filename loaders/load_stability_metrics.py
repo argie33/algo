@@ -277,15 +277,11 @@ class StabilityMetricsLoader(OptimalLoader):
             ValueError: If full year (252d) volatility cannot be calculated
         """
         if not returns or len(returns) < 2:
-            # For optional periods (30d, 60d), return explicit unavailability marker
-            # For full year (252d) used in scoring, this shouldn't happen
+            # Return explicit unavailability marker when insufficient data
             actual_returns = len(returns) if returns else 0
-            if symbol:
-                raise ValueError(f"insufficient_returns: {actual_returns} returns (minimum 2 required)")
-            # Return explicit marker for optional period without sufficient data
             logger.debug(
                 f"[STABILITY_METRICS] {symbol or 'unknown'}: insufficient returns ({actual_returns}) "
-                f"for volatility calculation (optional enrichment)"
+                f"for volatility calculation (minimum 2 required)"
             )
             return {
                 "symbol": symbol or "unknown",

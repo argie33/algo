@@ -94,11 +94,11 @@ class TestStabilityMetricsMarkers:
         assert result.get("reason") is not None
 
     def test_beta_helper_returns_markers(self):
-        """Beta fetch must return marker dict or float, never bare None."""
+        """Beta computation must return marker dict or float, never bare None."""
         loader = StabilityMetricsLoader()
 
-        # Invalid ticker should return marker dict
-        result = loader._get_beta_yfinance("INVALID_TICKER_XYZ")
+        # No stock/SPY data should return marker dict
+        result = loader._get_beta_from_db("TEST_SYMBOL", stock_prices=[], spy_rows=[])
 
         assert isinstance(result, (dict, float))
         if isinstance(result, dict):
