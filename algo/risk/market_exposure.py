@@ -737,7 +737,8 @@ class MarketExposure:
             return {
                 "score_factor": None,
                 "value": None,
-                "reason": "Insufficient history",
+                "data_unavailable": True,
+                "reason": "Insufficient history for 12-month momentum (need 250+ trading days)",
             }
 
         current_close = float(rows[0][1])
@@ -888,7 +889,8 @@ class MarketExposure:
             return {
                 "score_factor": None,
                 "value": None,
-                "reason": "Insufficient price history (need 35+ days)",
+                "data_unavailable": True,
+                "reason": "Insufficient price history for 150-day SMA (need 35+ days)",
             }
 
         # Compute SMA_150 for each date in reverse chronological order (most recent first)
@@ -913,26 +915,38 @@ class MarketExposure:
             return {
                 "score_factor": None,
                 "value": None,
-                "reason": "Insufficient history for 150-day SMA calculation",
+                "data_unavailable": True,
+                "reason": "Insufficient history for 150-day SMA calculation (need 150+ days)",
             }
 
         if not rows or rows[0][2] is None:
             return {
                 "score_factor": None,
                 "value": None,
-                "reason": "Insufficient history",
+                "data_unavailable": True,
+                "reason": "Current SMA value unavailable (rows empty or SMA is None)",
             }
 
         cur_close = float(rows[0][1])
         sma_now = float(rows[0][2])
         if sma_now <= 0:
             logger.warning(f"CRITICAL: SPY SMA is invalid ({sma_now}) on {eval_date}")
-            return {"score_factor": None, "value": None, "reason": "Invalid SMA data"}
+            return {
+                "score_factor": None,
+                "value": None,
+                "data_unavailable": True,
+                "reason": f"Current SMA calculation invalid (SMA={sma_now}, must be > 0)",
+            }
 
         sma_30d_ago = float(rows[30][2]) if len(rows) > 30 and rows[30][2] is not None else None
         if sma_30d_ago is None or sma_30d_ago <= 0:
             logger.warning(f"CRITICAL: SPY 30d-ago SMA is invalid ({sma_30d_ago}) on {eval_date}")
-            return {"score_factor": None, "value": None, "reason": "Insufficient 30d history"}
+            return {
+                "score_factor": None,
+                "value": None,
+                "data_unavailable": True,
+                "reason": f"30-day historical SMA unavailable or invalid (SMA_30d={sma_30d_ago})",
+            }
 
         slope = (sma_now - sma_30d_ago) / sma_30d_ago * 100.0
         price_pct = (cur_close - sma_now) / sma_now * 100.0
