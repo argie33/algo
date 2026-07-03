@@ -187,6 +187,55 @@ FRESHNESS_RULES = {
         "purpose": "Performance calculation, position tracking, reconciliation",
         "applies_to": ["all"],
     },
+    "aaii_sentiment": {
+        "critical": False,
+        "max_age_days": 7,
+        "description": "AAII sentiment index (investor bullish/bearish sentiment)",
+        "purpose": "Sentiment analysis, regime assessment, contrarian indicators",
+        "applies_to": ["dashboard", "api"],
+    },
+    "growth_metrics": {
+        "critical": False,
+        "max_age_days": 30,
+        "description": "Growth metrics (earnings growth, revenue growth, guidance)",
+        "purpose": "Growth factor scoring, fundamental analysis",
+        "applies_to": ["orchestrator_phase1", "dashboard"],
+    },
+    "value_metrics": {
+        "critical": False,
+        "max_age_days": 7,
+        "description": "Value metrics (PE ratio, PB ratio, dividend yield)",
+        "purpose": "Value factor scoring, fundamental analysis",
+        "applies_to": ["orchestrator_phase1", "dashboard"],
+    },
+    "positioning_metrics": {
+        "critical": False,
+        "max_age_days": 7,
+        "description": "Positioning metrics (short interest, insider ownership)",
+        "purpose": "Positioning factor scoring, sentiment analysis",
+        "applies_to": ["orchestrator_phase1", "dashboard"],
+    },
+    "quality_metrics": {
+        "critical": False,
+        "max_age_days": 30,
+        "description": "Quality metrics (ROE, profit margin, debt levels)",
+        "purpose": "Quality factor scoring, fundamental analysis",
+        "applies_to": ["orchestrator_phase1", "dashboard"],
+    },
+    "stability_metrics": {
+        "critical": False,
+        "max_age_days": 30,
+        "description": "Stability metrics (beta, volatility, correlation)",
+        "purpose": "Stability factor scoring, risk assessment",
+        "applies_to": ["orchestrator_phase1", "dashboard"],
+    },
+    "momentum_metrics": {
+        "critical": False,
+        "max_age_days": 7,
+        "description": "Momentum metrics (price momentum, volume momentum)",
+        "purpose": "Momentum factor scoring, trend analysis",
+        "applies_to": ["orchestrator_phase1", "dashboard"],
+    },
 }
 
 
