@@ -84,14 +84,14 @@ class TestExposureCompactMissingFields:
             },
         }
 
-        with caplog.at_level(logging.DEBUG):
+        with caplog.at_level(logging.WARNING):
             panel_exposure_compact(exp_data)
 
-        # Should log debug for missing factors
+        # Should log warning for missing factors
         assert any(
             "factor" in record.message and "not in response" in record.message
             for record in caplog.records
-            if record.levelno == logging.DEBUG
+            if record.levelno == logging.WARNING
         )
 
 
@@ -135,12 +135,12 @@ class TestExposureCompactInvalidFactorData:
             },
         }
 
-        with caplog.at_level(logging.DEBUG):
+        with caplog.at_level(logging.WARNING):
             result = panel_exposure_compact(exp_data)
 
-        # Should log debug about missing pts
+        # Should log warning about missing pts
         assert any(
-            "missing pts field" in record.message for record in caplog.records if record.levelno == logging.DEBUG
+            "missing pts field" in record.message for record in caplog.records if record.levelno == logging.WARNING
         )
         # Should show the reason in the UI (not generic "N/A")
         assert result is not None
