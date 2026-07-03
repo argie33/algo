@@ -397,7 +397,12 @@ class MarketHealthDailyLoader(OptimalLoader):
                 result = self._put_call_fetcher.fetch(end_date)
                 # Check if result is a dict with "data_unavailable" key
                 if isinstance(result, dict) and result.get("data_unavailable"):
-                    reason = result.get("reason", "fetcher_unavailable")
+                    if "reason" not in result:
+                        raise ValueError(
+                            "[MARKET_HEALTH] Put/call fetcher returned data_unavailable=True but missing reason field. "
+                            "Data structure corruption or incomplete error handling."
+                        )
+                    reason = result["reason"]
                     logger.debug(f"[MARKET_HEALTH] Put/call ratio unavailable from fetcher: {reason}")
                     return {"data_unavailable": True, "reason": reason, "put_call_ratio": None}
                 # If it's a float, return it as the ratio
@@ -1333,21 +1338,19 @@ def _write_vix_family_prices(start: date, end: date) -> int:  # noqa: C901
                     f"Error: {e}"
                 ) from e
             except RuntimeError as e:
-                # yfinance failed (rate-limit, auth error, network) — use existing price_daily data if available
-                if sym in existing_dates:
-                    logger.warning(
-                        f"[MARKET_HEALTH] yfinance failed for {sym} ({e}), "
-                        f"but price_daily has data through {existing_dates[sym]} — using existing data"
-                    )
-                    continue
-                logger.error(f"[MARKET_HEALTH] yfinance failed for {sym} and no existing price_daily data: {e}")
-                failed_symbols[sym] = str(e)
+                # yfinance failed (rate-limit, auth error, network) — FAIL-FAST, do NOT use stale data
+                logger.error(
+                    f"[MARKET_HEALTH CRITICAL] yfinance failed for {sym}: {e}. "
+                    f"Cannot use stale price_daily data (violates fail-fast governance). "
+                    f"Marking as unavailable."
+                )
+                failed_symbols[sym] = f"yfinance_failed_using_stale: {str(e)}"
             except ZeroDivisionError as e:
                 logger.error(f"[MARKET_HEALTH] Unexpected calculation error for {sym}: {e}")
                 raise RuntimeError(f"[MARKET_HEALTH] Unexpected error loading market health for {sym}: {e}") from e
 
         coverage = (len(INDEX_SYMBOLS_FOR_PRICE_DAILY) - len(failed_symbols)) / len(INDEX_SYMBOLS_FOR_PRICE_DAILY) * 100
-        if coverage < 80:
+        if coverage < 100:
             count_fetched = len(INDEX_SYMBOLS_FOR_PRICE_DAILY) - len(failed_symbols)
             total_count = len(INDEX_SYMBOLS_FOR_PRICE_DAILY)
             raise RuntimeError(
