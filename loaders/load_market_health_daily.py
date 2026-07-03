@@ -475,6 +475,12 @@ class MarketHealthDailyLoader(OptimalLoader):
                         "Data structure corruption or incomplete error handling."
                     )
                 reason = result["reason"]
+                if not reason or not isinstance(reason, str) or not reason.strip():
+                    raise ValueError(
+                        "[MARKET_HEALTH] Put/call result has reason field but it's empty or invalid. "
+                        f"Got: {type(reason).__name__} = {reason!r}. "
+                        "Reason must be a non-empty string describing why data is unavailable."
+                    )
                 for m in health_metrics:
                     if m["date"] == end_str:
                         m["put_call_ratio"] = None
@@ -494,6 +500,12 @@ class MarketHealthDailyLoader(OptimalLoader):
                     "Data structure corruption or incomplete error handling."
                 )
             error_reason = result["reason"]
+            if not error_reason or not isinstance(error_reason, str) or not error_reason.strip():
+                raise ValueError(
+                    "[MARKET_HEALTH] Put/call result has reason field but it's empty or invalid. "
+                    f"Got: {type(error_reason).__name__} = {error_reason!r}. "
+                    "Reason must be a non-empty string describing why data is unavailable."
+                )
             for m in health_metrics:
                 if m["date"] == end_str:
                     m["put_call_ratio"] = None

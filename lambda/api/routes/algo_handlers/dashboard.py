@@ -85,123 +85,15 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
     positions = cur.fetchall()
 
     if not positions:
-        # algo_positions_with_risk is empty — fall back to algo_trades as source of truth.
-        # This happens when algo_positions was cleared by sync cleanup but algo_trades
-        # still has open entries. Use the same query the reconciliation uses.
-        logger.warning("[POSITIONS] algo_positions_with_risk returned 0 rows — falling back to algo_trades")
-        cur.execute("""
-            WITH latest_prices AS (
-                SELECT DISTINCT ON (symbol)
-                    symbol,
-                    close AS current_price
-                FROM price_daily
-                ORDER BY symbol, date DESC
-            ),
-            latest_technical AS (
-                SELECT DISTINCT ON (symbol)
-                    symbol,
-                    minervini_trend_score,
-                    weinstein_stage,
-                    percent_from_52w_low,
-                    percent_from_52w_high
-                FROM trend_template_data
-                ORDER BY symbol, date DESC
-            )
-            SELECT
-                at.symbol,
-                NULL AS company_name,
-                at.entry_quantity AS quantity,
-                at.entry_price AS avg_entry_price,
-                lp.current_price,
-                CASE
-                    WHEN lp.current_price IS NOT NULL
-                    THEN (at.entry_quantity * lp.current_price)
-                    ELSE NULL
-                END AS position_value,
-                CASE
-                    WHEN lp.current_price IS NOT NULL
-                    THEN at.entry_quantity * (lp.current_price - at.entry_price)
-                    ELSE NULL
-                END AS unrealized_pnl,
-                CASE
-                    WHEN lp.current_price IS NOT NULL AND at.entry_price > 0
-                    THEN (lp.current_price - at.entry_price) / at.entry_price * 100
-                    ELSE NULL
-                END AS unrealized_pnl_pct,
-                at.status,
-                (CURRENT_DATE - at.trade_date) AS days_since_entry,
-                at.stop_loss_price,
-                at.target_1_price,
-                at.target_2_price,
-                at.target_3_price,
-                at.target_1_r_multiple,
-                at.target_2_r_multiple,
-                at.target_3_r_multiple,
-                at.sector,
-                at.industry,
-                CASE
-                    WHEN lp.current_price IS NOT NULL AND at.entry_price > 0
-                         AND at.stop_loss_price IS NOT NULL
-                         AND (at.entry_price - at.stop_loss_price) > 0
-                    THEN (lp.current_price - at.entry_price) /
-                         (at.entry_price - at.stop_loss_price)
-                    ELSE NULL
-                END AS r_multiple,
-                CASE
-                    WHEN at.stop_loss_price IS NOT NULL
-                    THEN at.entry_price - at.stop_loss_price
-                    ELSE NULL
-                END AS initial_risk_per_share,
-                CASE
-                    WHEN at.stop_loss_price IS NOT NULL
-                    THEN at.entry_quantity * (at.entry_price - at.stop_loss_price)
-                    ELSE NULL
-                END AS open_risk_dollars,
-                CASE
-                    WHEN lp.current_price IS NOT NULL AND lp.current_price > 0
-                         AND at.stop_loss_price IS NOT NULL
-                    THEN (lp.current_price - at.stop_loss_price) / lp.current_price * 100
-                    ELSE NULL
-                END AS distance_to_stop_pct,
-                CASE
-                    WHEN lp.current_price IS NOT NULL AND lp.current_price > 0
-                         AND at.target_1_price IS NOT NULL
-                    THEN (at.target_1_price - lp.current_price) / lp.current_price * 100
-                    ELSE NULL
-                END AS distance_to_t1_pct,
-                CASE
-                    WHEN lp.current_price IS NOT NULL AND lp.current_price > 0
-                         AND at.target_2_price IS NOT NULL
-                    THEN (at.target_2_price - lp.current_price) / lp.current_price * 100
-                    ELSE NULL
-                END AS distance_to_t2_pct,
-                CASE
-                    WHEN lp.current_price IS NOT NULL AND lp.current_price > 0
-                         AND at.target_3_price IS NOT NULL
-                    THEN (at.target_3_price - lp.current_price) / lp.current_price * 100
-                    ELSE NULL
-                END AS distance_to_t3_pct,
-                lt.minervini_trend_score,
-                lt.weinstein_stage,
-                lt.percent_from_52w_low,
-                lt.percent_from_52w_high,
-                NULL AS stage_in_exit_plan
-            FROM algo_trades at
-            LEFT JOIN latest_prices lp ON at.symbol = lp.symbol
-            LEFT JOIN latest_technical lt ON at.symbol = lt.symbol
-            WHERE at.status IN ('open', 'filled', 'active', 'partially_filled')
-              AND at.exit_date IS NULL
-              AND at.entry_quantity > 0
-            ORDER BY
-                CASE WHEN lp.current_price IS NOT NULL
-                     THEN at.entry_quantity * lp.current_price
-                     ELSE 0
-                END DESC
-            LIMIT 1000
-        """)
-        positions = cur.fetchall()
-        if positions:
-            logger.info("[POSITIONS] algo_trades fallback returned %d open positions", len(positions))
+        logger.error(
+            "[POSITIONS CRITICAL] algo_positions_with_risk returned 0 rows. "
+            "This indicates a data sync issue: either algo_positions table not synced with live Alpaca state, "
+            "or algo_positions was cleared but reconciliation incomplete, or view/table corruption. "
+            "Returning empty portfolio rather than silently switching to algo_trades (different schema). "
+            "Check: (1) algo_positions table populated? (2) Alpaca sync reconciliation completed? "
+            "(3) algo_positions_with_risk view valid?"
+        )
+        stale_alerts.append("Position data unavailable: algo_positions sync incomplete")
 
     items = []
     sector_risk: dict[str, float] = {}  # For aggregating sector allocation
@@ -340,19 +232,28 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
             sector_risk[sector] += pos_val
 
     # Compute sector_allocation array after processing all positions (E5 fix)
-    # Use absolute values to handle portfolios with shorts: total = sum of |position values|
-    # This prevents negative totals when shorts exceed longs, which would invert all percentages
+    # CRITICAL: Fail-fast if portfolio appears empty after position processing
+    # Division-by-zero fallback (setting total=1) would create FAKE allocation percentages
     total_abs_value = sum(abs(v) for v in sector_risk.values())
     if total_abs_value == 0:
-        total_abs_value = 1  # Prevent division by zero when no positions exist
-    sector_allocation = [
-        {
-            "sector": sector,
-            "allocation_pct": round((abs(value) / total_abs_value) * 100, 1),
-            "is_overweight": (abs(value) / total_abs_value) * 100 > 30,
-        }
-        for sector, value in sorted(sector_risk.items(), key=lambda x: abs(x[1]), reverse=True)
-    ]
+        logger.error(
+            "[POSITIONS CRITICAL] Portfolio allocation cannot be computed: "
+            "total_abs_value is 0 after processing %d items. "
+            "This indicates either no positions with valid sectors, or all positions skipped due to missing data. "
+            "Check: (1) Positions have sector data? (2) Position values are non-zero?",
+            len(items),
+        )
+        stale_alerts.append("Portfolio data incomplete: unable to compute sector allocation")
+        sector_allocation = []
+    else:
+        sector_allocation = [
+            {
+                "sector": sector,
+                "allocation_pct": round((abs(value) / total_abs_value) * 100, 1),
+                "is_overweight": (abs(value) / total_abs_value) * 100 > 30,
+            }
+            for sector, value in sorted(sector_risk.items(), key=lambda x: abs(x[1]), reverse=True)
+        ]
 
     freshness = check_data_freshness(cur, "algo_positions", "updated_at", warning_days=1)
     stale_alerts = []
@@ -737,16 +638,37 @@ def _get_circuit_breakers(cur: cursor) -> Any:  # noqa: C901
             )
 
         # CB4: VIX spike (from pre-computed metrics)
+        # CRITICAL: Fail-fast if VIX unavailable (market volatility essential for trading risk assessment)
         try:
             if not cbm_data:
                 raise ValueError("Circuit breaker metrics data missing")
             vix = cbm_data["vix_level"]
+            if vix is None:
+                logger.error(
+                    "[CB4 CRITICAL] VIX level is NULL. Cannot assess market volatility/fear. Trading disabled."
+                )
+                return json_response(
+                    503,
+                    {
+                        "breakers": [],
+                        "any_triggered": False,
+                        "triggered_count": 0,
+                        "data_freshness": {
+                            "data_age_days": None,
+                            "is_stale": True,
+                            "warning": "Circuit breaker data incomplete",
+                        },
+                        "errorType": "missing_vix_data",
+                        "message": "VIX data unavailable. Market volatility metrics required for risk assessment. Trading disabled.",
+                        "_error": "VIX data unavailable. Trading disabled.",
+                    },
+                )
             threshold_vix = 35.0
             breakers.append(
                 {
                     "id": "vix_spike",
                     "label": "VIX Spike",
-                    "triggered": vix is not None and vix >= threshold_vix,
+                    "triggered": vix >= threshold_vix,
                     "current": vix,
                     "threshold": threshold_vix,
                     "unit": "",
@@ -755,16 +677,21 @@ def _get_circuit_breakers(cur: cursor) -> Any:  # noqa: C901
             )
         except (ValueError, ZeroDivisionError, TypeError, KeyError) as e:
             logger.error(f"CB4 (vix_spike) computation failed: {type(e).__name__}: {e}")
-            breakers.append(
+            return json_response(
+                503,
                 {
-                    "id": "vix_spike",
-                    "label": "VIX Spike",
-                    "triggered": False,
-                    "current": None,
-                    "threshold": 35,
-                    "unit": "",
-                    "description": "No market data yet",
-                }
+                    "breakers": [],
+                    "any_triggered": False,
+                    "triggered_count": 0,
+                    "data_freshness": {
+                        "data_age_days": None,
+                        "is_stale": True,
+                        "warning": "Circuit breaker data error",
+                    },
+                    "errorType": "vix_computation_error",
+                    "message": f"VIX computation error: {e!s}. Market volatility data unavailable.",
+                    "_error": "Circuit breaker computation failed. Trading disabled.",
+                },
             )
 
         # CB5: Weekly portfolio loss (from pre-computed metrics)
