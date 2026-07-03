@@ -127,8 +127,6 @@ class PriceLoader(OptimalLoader):
         self._rate_limit_error_start_time: float | None = None
 
         # CREATIVE FIX #1: Adaptive request pacing to stay under rate limits
-        self._request_latency_samples: list[tuple[float, float]] = []
-        self._latency_window_sec = 60
         self._adaptive_request_interval = 0.375
         self._min_request_interval = 0.375
 
@@ -724,42 +722,6 @@ class PriceLoader(OptimalLoader):
         )
         logger.error("[{self._correlation_id}] [MARKET_CLOSE] ✓ %s", error_msg)
         raise RuntimeError(error_msg)
-
-    def _record_request_latency(self, latency_sec: float) -> None:
-        """CREATIVE FIX #1: Track API latency to predict when rate limits will be hit.
-
-        Records request latency and uses it to adaptively adjust request interval.
-        If API is responding slowly (>1s per request), we increase wait time between requests
-        to stay under the 160 req/min limit.
-        """
-        now = time.time()
-        self._request_latency_samples.append((now, latency_sec))
-
-        # Keep only recent samples (within 60s window)
-        cutoff = now - self._latency_window_sec
-        self._request_latency_samples = [(t, lat) for t, lat in self._request_latency_samples if t >= cutoff]
-
-        if len(self._request_latency_samples) >= 3:  # Need at least 3 samples to estimate
-            avg_latency = sum(lat for _, lat in self._request_latency_samples) / len(self._request_latency_samples)
-
-            # If API is responding slowly, increase wait time to avoid rate limiting
-            # Formula: if avg_latency > 0.6s, we're approaching the 160 req/min limit
-            # Adjust interval to: latency + slack for other requests
-            if avg_latency > 0.6:
-                new_interval = max(self._min_request_interval, avg_latency * 1.5)  # 1.5x latency for safety
-                if new_interval > self._adaptive_request_interval:
-                    self._adaptive_request_interval = new_interval
-                    logger.info(
-                        f"[RATE_LIMIT_PREDICT] API latency {avg_latency:.3f}s avg, increasing request interval to {new_interval:.3f}s"
-                    )
-            elif avg_latency < 0.3:
-                # API is responding quickly, we can be more aggressive
-                new_interval = max(self._min_request_interval, 0.375)  # Default 160 req/min
-                if new_interval < self._adaptive_request_interval:
-                    self._adaptive_request_interval = new_interval
-                    logger.debug(
-                        f"[RATE_LIMIT_PREDICT] API latency {avg_latency:.3f}s avg, decreasing interval to {new_interval:.3f}s"
-                    )
 
     def fetch_incremental(self, symbol: str, since: date | None) -> Any:
         """Fetch OHLCV from yfinance at specified interval."""
