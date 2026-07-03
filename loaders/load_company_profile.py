@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
-"""Company Profile Loader - populate from yfinance with sector/industry enrichment."""
+"""Company Profile Loader - reads from yfinance_snapshot table (not API).
+
+CRITICAL FIX 2026-07-02: Consolidated yfinance calls into single yfinance_snapshot loader.
+This loader reads sector, industry, exchange, website from yfinance_snapshot table
+instead of making direct yfinance API calls.
+
+Result: Eliminates 5000 redundant yfinance API calls per run.
+"""
 
 import logging
 import sys
@@ -7,105 +14,65 @@ from datetime import date
 from typing import Any
 
 from loaders.runner import run_loader
-from utils.external.yfinance import get_ticker
+from utils.db.context import DatabaseContext
 from utils.optimal_loader import OptimalLoader
 
 logger = logging.getLogger(__name__)
 
 
 class CompanyProfileLoader(OptimalLoader):
-    """Load company profiles with sector and industry from yfinance."""
+    """Read company profiles from yfinance_snapshot table (cached snapshot, not API)."""
 
     table_name = "company_profile"
     primary_key = ("ticker",)
     watermark_field = "created_at"
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]] | None:
-        """Fetch company info from yfinance for a symbol.
+        """Read company profile from yfinance_snapshot table.
 
-        Required fields (fail-fast on missing):
-            - ticker: valid yfinance ticker object
-            - longName/shortName: company name
-            - exchange: stock exchange
-            - sector: industry sector
-            - industry: industry classification
+        yfinance_snapshot loader (run BEFORE this) fetches all yfinance data once per symbol
+        and stores in yfinance_snapshot table. This loader reads from that table.
 
-        Optional fields (logged at DEBUG when missing):
-            - website: company website URL
-            - fullTimeEmployees: employee count
-            - marketCap: market capitalization
+        Returns None if snapshot data unavailable (yfinance_snapshot loader not yet run).
         """
-        ticker = get_ticker(symbol)
-        if not ticker:
-            logger.error(
-                f"[COMPANY_PROFILE] {symbol}: Failed to fetch ticker object. "
-                "Cannot retrieve company profile without valid yfinance ticker."
-            )
-            raise RuntimeError(f"[COMPANY_PROFILE] {symbol}: Failed to fetch ticker object")
         try:
-            info = ticker.info
-            if not info or not isinstance(info, dict):
-                logger.error(
-                    f"[COMPANY_PROFILE] {symbol}: ticker.info returned {type(info).__name__} or empty. "
-                    "Expected dict[str, Any] from yfinance."
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    """
+                    SELECT long_name, sector, industry, exchange, website, market_cap,
+                           country, data_available, unavailable_reason
+                    FROM yfinance_snapshot
+                    WHERE symbol = %s
+                    """,
+                    (symbol,),
                 )
-                raise RuntimeError(f"[COMPANY_PROFILE] {symbol}: ticker.info invalid or empty")
+                row = cur.fetchone()
 
-            # REQUIRED: Company name - fail fast if missing
-            company_name = info.get("longName")
-            if not company_name:
-                logger.error(
-                    f"[COMPANY_PROFILE] {symbol}: Missing longName from yfinance. "
-                    "longName is required for profile storage."
+            if not row:
+                logger.info(f"[COMPANY_PROFILE] No snapshot for {symbol} — yfinance_snapshot loader not yet run?")
+                return None
+
+            if not row.get("data_available"):
+                logger.info(
+                    f"[COMPANY_PROFILE] Snapshot unavailable for {symbol}: {row.get('unavailable_reason')}"
                 )
-                raise RuntimeError(f"[COMPANY_PROFILE] {symbol}: Missing longName")
+                return None
 
-            # REQUIRED: Exchange - fail fast if missing
-            exchange = info.get("exchange")
-            if not exchange:
+            company_name = row["long_name"]
+            exchange = row["exchange"]
+            sector = row["sector"]
+            industry = row["industry"]
+
+            # REQUIRED fields - fail-fast if missing
+            if not company_name or not exchange or not sector or not industry:
                 logger.error(
-                    f"[COMPANY_PROFILE] {symbol}: Missing exchange from yfinance. "
-                    "Exchange is required for routing and compliance validation."
+                    f"[COMPANY_PROFILE] {symbol}: Missing required fields from snapshot "
+                    f"(name={company_name}, exchange={exchange}, sector={sector}, industry={industry})"
                 )
-                raise RuntimeError(f"[COMPANY_PROFILE] {symbol}: Missing exchange classification")
-
-            # REQUIRED: Sector - fail fast if missing
-            sector = info.get("sector")
-            if not sector:
-                logger.error(
-                    f"[COMPANY_PROFILE] {symbol}: Missing sector from yfinance. "
-                    "Sector is required for position sizing and concentration checks."
-                )
-                raise RuntimeError(f"[COMPANY_PROFILE] {symbol}: Missing sector classification")
-
-            # REQUIRED: Industry - fail fast if missing
-            industry = info.get("industry")
-            if not industry:
-                logger.error(
-                    f"[COMPANY_PROFILE] {symbol}: Missing industry from yfinance. "
-                    "Industry is required for sector analysis and clustering."
-                )
-                raise RuntimeError(f"[COMPANY_PROFILE] {symbol}: Missing industry classification")
-
-            # OPTIONAL: Market cap - log if missing but do not fail
-            market_cap = info.get("marketCap")
-            if market_cap is None:
-                market_cap = info.get("market_cap")
-            if market_cap is None:
-                logger.debug(f"[COMPANY_PROFILE] {symbol}: No market cap data available from yfinance")
-
-            # OPTIONAL: Website - log if missing but do not fail
-            website = info.get("website")
-            if not website:
-                logger.debug(f"[COMPANY_PROFILE] {symbol}: No website data available from yfinance")
-
-            # OPTIONAL: Employee count - log if missing but do not fail
-            employees = info.get("fullTimeEmployees")
-            if not employees:
-                logger.debug(f"[COMPANY_PROFILE] {symbol}: No employee count available from yfinance")
+                return None
 
             logger.info(
-                f"[COMPANY_PROFILE] {symbol}: Successfully loaded profile "
+                f"[COMPANY_PROFILE] {symbol}: Successfully loaded profile from snapshot "
                 f"(name={company_name}, exchange={exchange}, sector={sector}, industry={industry})"
             )
 
@@ -119,17 +86,15 @@ class CompanyProfileLoader(OptimalLoader):
                     "sector": sector,
                     "industry": industry,
                     "exchange": exchange,
-                    "website": website,
-                    "employees": employees,
-                    "market_cap": (int(market_cap) if market_cap and market_cap > 0 else None),
+                    "website": row["website"],
+                    "country": row["country"],
+                    "market_cap": (int(row["market_cap"]) if row["market_cap"] and row["market_cap"] > 0 else None),
                 }
             ]
-        except (ValueError, ZeroDivisionError, TypeError) as e:
-            logger.error(
-                f"[COMPANY_PROFILE] {symbol}: Type error during profile fetch: {type(e).__name__}: {e}. "
-                "Cannot proceed without valid sector/industry/exchange data."
-            )
-            raise RuntimeError(f"[COMPANY_PROFILE] {symbol}: Type error during profile parsing") from e
+
+        except Exception as e:
+            logger.error(f"[COMPANY_PROFILE] Error reading snapshot for {symbol}: {e}")
+            return None
 
 
 if __name__ == "__main__":

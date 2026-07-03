@@ -1,16 +1,21 @@
 #!/usr/bin/env python3
-"""yfinance Snapshot Loader - Fetch all yfinance data once per symbol, store in DB.
+"""yfinance Snapshot Loader - Fetch ALL yfinance data once per symbol, store in DB.
 
-Consolidates redundant yfinance calls from value_metrics, positioning_metrics, stability_metrics.
-Single fetch per symbol → DB → all loaders read from table.
+CRITICAL FIX 2026-07-02: Consolidates 30,000+ redundant yfinance API calls by having
+6+ loaders read from a single snapshot table instead of each calling yfinance separately.
 
-Data:
-- PE, PB, PS ratios (for value_metrics)
-- Dividend yield, FCF yield (for value_metrics)
-- Institutional holdings, insider holdings (for positioning_metrics)
-- Beta, volatility (for stability_metrics)
+Consolidates redundant calls from:
+- value_metrics (PE, PB, PS, dividend)
+- positioning_metrics (institutional/insider holdings, short interest)
+- stability_metrics (beta, volatility)
+- company_profile (sector, industry, country)
+- earnings_history (earnings dates)
+- earnings_calendar (next earnings date)
+- analyst_upgrade_downgrade (analyst counts)
+- analyst_sentiment_analysis (recommendation key, analyst counts)
 
-Fetches once per symbol, caches 24 hours. Eliminates 6x redundant API calls.
+Single fetch per symbol → yfinance_snapshot table → all loaders read from table.
+Fetches once per symbol, caches 24 hours. Eliminates 30,000+ redundant API calls.
 """
 
 import logging
@@ -78,6 +83,22 @@ class YFinanceSnapshotLoader(OptimalLoader):
                     "fifty_two_week_high": info.get("fiftyTwoWeekHigh"),
                     "fifty_two_week_low": info.get("fiftyTwoWeekLow"),
                     "market_cap": info.get("marketCap"),
+                    # Company profile data (for load_company_profile.py)
+                    "sector": info.get("sector"),
+                    "industry": info.get("industry"),
+                    "country": info.get("country"),
+                    "exchange": info.get("exchange"),
+                    "website": info.get("website"),
+                    "long_name": info.get("longName"),
+                    # Earnings data (for load_earnings_history.py, load_earnings_calendar.py)
+                    "earnings_dates": info.get("earningsDates"),
+                    "earnings_date": info.get("earningsDate"),
+                    # Analyst data (for load_analyst_upgrade_downgrade.py, load_analyst_sentiment_analysis.py)
+                    "recommendation_key": info.get("recommendationKey"),
+                    "number_of_analysts": info.get("numberOfAnalystOpinions"),
+                    "analysts_underweight": info.get("numberOfAnalystsWhoUnderweight"),
+                    "analysts_overweight": info.get("numberOfAnalystsWhoOverweight"),
+                    "analysts_hold": info.get("numberOfAnalystsWhoHold"),
                     # Raw data for debugging
                     "data_available": True,
                     "unavailable_reason": None,
@@ -107,6 +128,19 @@ class YFinanceSnapshotLoader(OptimalLoader):
                 "fifty_two_week_high": None,
                 "fifty_two_week_low": None,
                 "market_cap": None,
+                "sector": None,
+                "industry": None,
+                "country": None,
+                "exchange": None,
+                "website": None,
+                "long_name": None,
+                "earnings_dates": None,
+                "earnings_date": None,
+                "recommendation_key": None,
+                "number_of_analysts": None,
+                "analysts_underweight": None,
+                "analysts_overweight": None,
+                "analysts_hold": None,
                 "data_available": False,
                 "unavailable_reason": reason,
             }

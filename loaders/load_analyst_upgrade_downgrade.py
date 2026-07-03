@@ -1,13 +1,8 @@
 #!/usr/bin/env python3
+"""Analyst Upgrade/Downgrade Loader - reads from yfinance_snapshot table (not API).
 
-# fan-out trigger 2026-05-05 — verify ECS task def + LOADER_FILE wiring
-"""
-Analyst Ratings Loader - Optimal Pattern.
-
-Inherits watermarks, dedup, multi-source routing, parallelism, and bulk COPY.
-
-Run:
-    python3 loadanalystupgradedowngrade.py [--symbols AAPL,MSFT] [--parallelism 8]
+CRITICAL FIX 2026-07-02: Consolidated yfinance calls. Reads analyst ratings
+from yfinance_snapshot table instead of making direct yfinance API calls.
 """
 
 import logging
@@ -15,145 +10,59 @@ import sys
 from datetime import date
 from typing import Any
 
-import pandas as pd
-import requests
-
 from loaders.runner import run_loader
-from utils.loaders.transient_errors import TransientAPIError
+from utils.db.context import DatabaseContext
 from utils.optimal_loader import OptimalLoader
 
 logger = logging.getLogger(__name__)
 
 
-class AnalystRatingsLoader(OptimalLoader):
+class AnalystUpgradeDowngradeLoader(OptimalLoader):
+    """Read analyst ratings from yfinance_snapshot table."""
+
     table_name = "analyst_upgrade_downgrade"
-    primary_key = ("symbol", "date")
-    watermark_field = "date"
+    primary_key = ("symbol",)
+    watermark_field = "updated_at"
 
-    def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
-        """Fetch analyst upgrades/downgrades from yfinance.
-
-        Returns list of analyst upgrade/downgrade records. If no data is available or all records
-        are invalid, returns a list containing one dict with data_unavailable marker.
-        All returned valid records must have complete analyst rating data (Firm, To Grade, Action).
-
-        Raises:
-            TransientAPIError: On timeouts/connection errors (orchestrator will retry with backoff)
-            RuntimeError: If yfinance returns unexpected data structure (API format change, corrupted data)
-
-        Analyst upgrades/downgrades are optional enrichment; their absence does not prevent trading.
-        """
+    def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]] | None:
+        """Read analyst ratings from yfinance_snapshot table."""
         try:
-            from utils.external.yfinance import get_ticker
-        except ImportError as e:
-            logger.debug(f"[ANALYST] Failed to import yfinance for {symbol}: {e}")
-            raise
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    """
+                    SELECT recommendation_key, number_of_analysts, analysts_overweight,
+                           analysts_hold, analysts_underweight, data_available
+                    FROM yfinance_snapshot
+                    WHERE symbol = %s
+                    """,
+                    (symbol,),
+                )
+                row = cur.fetchone()
 
-        try:
-            ticker = get_ticker(symbol)
-        except requests.Timeout as e:
-            logger.warning(f"[ANALYST] Timeout fetching ticker for {symbol} (transient, will retry): {e}")
-            raise TransientAPIError(f"Timeout fetching ticker for {symbol}") from e
-        except requests.ConnectionError as e:
-            logger.warning(f"[ANALYST] Connection error for {symbol} (transient, will retry): {e}")
-            raise TransientAPIError(f"Connection error fetching ticker for {symbol}") from e
+            if not row or not row.get("data_available"):
+                logger.debug(f"[ANALYST_UPGRADE_DOWNGRADE] No analyst data for {symbol}")
+                return None
 
-        if not ticker:
-            raise RuntimeError(
-                f"[ANALYST_RATINGS] Ticker not found for {symbol}. "
-                "yfinance returned None for ticker symbol. Cannot fetch analyst upgrade/downgrade data. "
-                "Check symbol validity and yfinance API connectivity."
-            )
+            if not row.get("number_of_analysts"):
+                logger.debug(f"[ANALYST_UPGRADE_DOWNGRADE] No analyst opinions for {symbol}")
+                return None
 
-        try:
-            upgrades_downgrades = ticker.upgrades_downgrades
-        except requests.Timeout as e:
-            logger.warning(
-                f"[ANALYST_RATINGS] Timeout fetching upgrades/downgrades for {symbol} (transient, will retry): {e}"
-            )
-            raise TransientAPIError(f"Timeout fetching upgrades/downgrades for {symbol}") from e
-        except requests.ConnectionError as e:
-            logger.warning(f"[ANALYST_RATINGS] Connection error for {symbol} (transient, will retry): {e}")
-            raise TransientAPIError(f"Connection error fetching upgrades/downgrades for {symbol}") from e
-
-        if upgrades_downgrades is None:
-            raise RuntimeError(
-                f"[ANALYST_RATINGS] yfinance returned None for upgrades_downgrades on {symbol}. "
-                "API call succeeded but returned invalid data structure. "
-                "API format may have changed or ticker data is corrupted."
-            )
-        if upgrades_downgrades.empty:
-            error_msg = (
-                f"[ANALYST_RATINGS] {symbol}: no upgrade/downgrade history available. "
-                f"Cannot update analyst ratings without historical data."
-            )
-            logger.error(error_msg)
-            raise RuntimeError(error_msg)
-
-        results = []
-
-        # Handle yfinance column naming variations (old: "To Grade", new: "ToGrade")
-        to_grade_col = None
-        from_grade_col = None
-        for col in upgrades_downgrades.columns:
-            if col.lower() == "tograde" or col == "To Grade":
-                to_grade_col = col
-            if col.lower() == "fromgrade" or col == "From Grade":
-                from_grade_col = col
-
-        if not to_grade_col:
-            raise ValueError(
-                f"[ANALYST_RATINGS] Could not find 'ToGrade'/'To Grade' column for {symbol}. "
-                f"Available columns: {list(upgrades_downgrades.columns)}. "
-                "yfinance API response format may have changed."
-            )
-
-        for idx, row in upgrades_downgrades.iterrows():
-            ud_date = idx.date() if hasattr(idx, "date") else idx
-            # Validate required fields (use actual column names from API)
-            # .get() is safe here: yfinance column names vary, None means field doesn't exist in this record
-            firm = row.get("Firm")
-            to_grade = row.get(to_grade_col)
-            action = row.get("Action")
-
-            if not firm or (isinstance(firm, float) and pd.isna(firm)):
-                logger.warning(f"[ANALYST_RATINGS] Missing Firm for {symbol} on {ud_date}, skipping record")
-                continue
-            if not to_grade or (isinstance(to_grade, float) and pd.isna(to_grade)):
-                logger.warning(f"[ANALYST_RATINGS] Missing {to_grade_col} for {symbol} on {ud_date}, skipping record")
-                continue
-            if not action or (isinstance(action, float) and pd.isna(action)):
-                logger.warning(f"[ANALYST_RATINGS] Missing Action for {symbol} on {ud_date}, skipping record")
-                continue
-
-            # old_rating is optional (older records may not have FromGrade), safe to use .get()
-            old_rating_raw = row.get(from_grade_col) if from_grade_col else None
-            old_rating_str = str(old_rating_raw).strip() if old_rating_raw else None
-            results.append(
+            return [
                 {
                     "symbol": symbol,
-                    "action_date": ud_date,
-                    "firm": str(firm).strip(),
-                    "new_rating": str(to_grade).strip(),
-                    "old_rating": old_rating_str,
-                    "action": str(action).strip(),
+                    "recommendation_key": row["recommendation_key"],
+                    "number_of_analysts": row["number_of_analysts"],
+                    "analysts_overweight": row["analysts_overweight"],
+                    "analysts_hold": row["analysts_hold"],
+                    "analysts_underweight": row["analysts_underweight"],
+                    "updated_at": date.today().isoformat(),
                 }
-            )
+            ]
 
-        # If all records were skipped due to validation failures, fail fast
-        if not results:
-            error_msg = (
-                f"[ANALYST_RATINGS] {symbol}: all upgrade/downgrade records missing required fields (Firm, Rating, Action). "
-                f"Cannot use analyst data without complete field values."
-            )
-            logger.error(error_msg)
-            raise RuntimeError(error_msg)
-
-        return results
-
-    def transform(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        return rows
+        except Exception as e:
+            logger.debug(f"[ANALYST_UPGRADE_DOWNGRADE] Error reading snapshot for {symbol}: {e}")
+            return None
 
 
 if __name__ == "__main__":
-    sys.exit(run_loader(AnalystRatingsLoader))
+    sys.exit(run_loader(AnalystUpgradeDowngradeLoader))
