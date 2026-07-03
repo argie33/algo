@@ -127,15 +127,19 @@ def test_execution_config_full_dict(mock_parent_config):
     assert cfg_dict["default_portfolio_value"] == 100000.0
 
 
-def test_invalid_execution_mode_defaults_to_auto(mock_parent_config):
-    """Invalid execution modes default to 'auto' (safe)."""
+def test_invalid_execution_mode_raises(mock_parent_config):
+    """Invalid execution modes raise RuntimeError (fail-fast governance)."""
     mock_parent_config.get.side_effect = lambda key, default=None: {
         "execution_mode": "invalid_mode",
     }.get(key, default)
 
     config = ExecutionConfig(mock_parent_config)
-    mode = config.get_execution_mode()
-    assert mode == "auto"
+    # FAIL-FAST: Invalid mode raises, no fallback to 'auto'
+    with pytest.raises(RuntimeError) as exc_info:
+        config.get_execution_mode()
+
+    assert "Invalid execution_mode 'invalid_mode'" in str(exc_info.value)
+    assert "Valid modes are" in str(exc_info.value)
 
 
 if __name__ == "__main__":
