@@ -932,15 +932,23 @@ class MarketExposure:
                 "reason": f"Current SMA calculation invalid (SMA={sma_now}, must be > 0)",
             }
 
-        sma_30d_ago = float(rows[30][2]) if len(rows) > 30 and rows[30][2] is not None else None
+        # CRITICAL: 30-day SMA is required for slope calculation - no fallback to None
+        # Fail-fast: insufficient history is a data error, not something to work around
+        if len(rows) <= 30:
+            raise RuntimeError(
+                f"[MARKET_EXPOSURE CRITICAL] Insufficient history for 30-day SMA slope on {eval_date}: "
+                f"have {len(rows)} rows, need 30+ for slope calculation. "
+                f"Cannot assess trend momentum without 30-day comparison. "
+                f"Check: price_daily table freshness and SPY data availability."
+            )
+
+        sma_30d_ago = float(rows[30][2])
         if sma_30d_ago is None or sma_30d_ago <= 0:
-            logger.warning(f"CRITICAL: SPY 30d-ago SMA is invalid ({sma_30d_ago}) on {eval_date}")
-            return {
-                "score_factor": None,
-                "value": None,
-                "data_unavailable": True,
-                "reason": f"30-day historical SMA unavailable or invalid (SMA_30d={sma_30d_ago})",
-            }
+            raise RuntimeError(
+                f"[MARKET_EXPOSURE CRITICAL] SPY 30d-ago SMA invalid ({sma_30d_ago}) on {eval_date}. "
+                f"Cannot calculate trend slope with corrupted historical data. "
+                f"Check price_daily table for data integrity."
+            )
 
         slope = (sma_now - sma_30d_ago) / sma_30d_ago * 100.0
         price_pct = (cur_close - sma_now) / sma_now * 100.0
@@ -1054,11 +1062,12 @@ class MarketExposure:
             raise RuntimeError(msg)
 
         vix = float(vix_row[0])
-        if vix_row[1] is None:
+        if len(vix_row) < 2 or vix_row[1] is None:
             raise RuntimeError(
                 f"[VIX CRITICAL] Prior VIX value missing for {eval_date}. "
-                f"Cannot assess VIX trend without historical comparison. "
-                f"VIX direction signals are required for exposure risk adjustment."
+                f"Cannot assess VIX trend without historical comparison (LAG 5d). "
+                f"VIX direction signals are required for exposure risk adjustment. "
+                f"Check: price_daily table for sufficient ^VIX history."
             )
         prior = float(vix_row[1])
         rising = vix > prior * 1.05
@@ -1134,7 +1143,7 @@ class MarketExposure:
             (eval_date,),
         )
         row = cur.fetchone()
-        if not row or row[0] is None:
+        if not row or len(row) < 1 or row[0] is None:
             raise RuntimeError(
                 f"[MARKET EXPOSURE CRITICAL] No put/call ratio data for {eval_date} - "
                 f"required for options sentiment factor. Check market_health_daily loader."
@@ -1173,17 +1182,26 @@ class MarketExposure:
             (eval_date,),
         )
         row = cur.fetchone()
-        if row is None:
+        if row is None or len(row) < 2:
             raise RuntimeError(
                 f"[MARKET EXPOSURE CRITICAL] No new highs/lows data for {eval_date} - "
                 f"required for market leadership factor. Check market_health_daily loader."
             )
-        if row["new_highs_count"] is None:
-            raise ValueError(f"Breadth data missing: new_highs_count is None on {eval_date}")
-        if row["new_lows_count"] is None:
-            raise ValueError(f"Breadth data missing: new_lows_count is None on {eval_date}")
-        new_hi = int(row["new_highs_count"])
-        new_lo = int(row["new_lows_count"])
+        new_hi_val, new_lo_val = row[0], row[1]
+        if new_hi_val is None:
+            raise ValueError(
+                f"[MARKET EXPOSURE CRITICAL] new_highs_count is None for {eval_date}. "
+                f"Cannot assess market leadership without new highs data. "
+                f"Check market_health_daily table."
+            )
+        if new_lo_val is None:
+            raise ValueError(
+                f"[MARKET EXPOSURE CRITICAL] new_lows_count is None for {eval_date}. "
+                f"Cannot assess market leadership without new lows data. "
+                f"Check market_health_daily table."
+            )
+        new_hi = int(new_hi_val)
+        new_lo = int(new_lo_val)
         net = new_hi - new_lo
         # Net +50 -> 1.0, 0 -> 0.5, -50 -> 0
         sf = max(0.0, min(1.0, 0.5 + net / 100.0))
@@ -1234,10 +1252,19 @@ class MarketExposure:
             raise RuntimeError(msg)
 
         nets = []
+        ad_dates = []
         for r in rows:
-            ratio = r.get("ratio")
+            if len(r) < 3:
+                msg = (
+                    f"[MARKET_EXPOSURE CRITICAL] A/D line query returned corrupted row with {len(r)} fields. "
+                    f"Expected (date, ratio, spy_close). "
+                    f"Cannot compute A/D line with malformed data. "
+                    f"Check market_health_daily and price_daily tables."
+                )
+                logger.error(msg)
+                raise RuntimeError(msg)
+            row_date, ratio = r[0], r[1]
             if ratio is None:
-                row_date = r.get("date", "unknown")
                 msg = (
                     f"[MARKET_EXPOSURE CRITICAL] A/D ratio corrupted/missing for {row_date}. "
                     f"Cannot compute A/D line with data gaps — requires complete daily sequence. "
@@ -1246,6 +1273,7 @@ class MarketExposure:
                 logger.error(msg)
                 raise RuntimeError(msg)
             nets.append((float(ratio) - 1) / (float(ratio) + 1))
+            ad_dates.append(row_date)
 
         if len(nets) < 2:
             msg = (
@@ -1260,21 +1288,22 @@ class MarketExposure:
         last_net = nets[-1]
         ad_change = last_net - first_net
 
-        first_spy_val = rows[0].get("spy_close")
-        last_spy_val = rows[-1].get("spy_close")
-
-        if first_spy_val is None or last_spy_val is None:
-            msg = (
-                f"[MARKET_EXPOSURE CRITICAL] SPY close price missing for A/D line calculation on {eval_date}. "
-                f"A/D line (6pt factor) is required for accurate market breadth assessment. "
-                f"Cannot compute exposure score with missing benchmark data. "
+        # Extract first and last SPY closes from the rows tuple data
+        if len(rows[0]) < 3 or rows[0][2] is None:
+            raise RuntimeError(
+                f"[MARKET_EXPOSURE CRITICAL] First SPY close missing for A/D line on {eval_date}. "
+                f"Cannot compute trend direction without benchmark data. "
                 f"Check price_daily table for SPY data."
             )
-            logger.error(msg)
-            raise RuntimeError(msg)
+        if len(rows[-1]) < 3 or rows[-1][2] is None:
+            raise RuntimeError(
+                f"[MARKET_EXPOSURE CRITICAL] Last SPY close missing for A/D line on {eval_date}. "
+                f"Cannot compute trend direction without benchmark data. "
+                f"Check price_daily table for SPY data."
+            )
 
-        first_spy = float(first_spy_val)
-        last_spy = float(last_spy_val)
+        first_spy = float(rows[0][2])
+        last_spy = float(rows[-1][2])
 
         if first_spy <= 0:
             raise RuntimeError(
@@ -1319,19 +1348,25 @@ class MarketExposure:
             (eval_date,),
         )
         row = cur.fetchone()
-        if not row or row[0] is None:
+        if not row or len(row) < 2:
             raise RuntimeError(
                 f"[MARKET EXPOSURE CRITICAL] No AAII sentiment data for {eval_date} - "
                 f"required for contrarian sentiment factor. Check aaii_sentiment loader."
             )
-
-        bullish = float(row[0])
-        if row[1] is None:
+        if row[0] is None:
             raise RuntimeError(
-                f"[MARKET EXPOSURE CRITICAL] AAII bearish sentiment missing for {eval_date} - "
-                f"cannot calculate bull-bear spread without both sentiment indicators. "
+                f"[MARKET EXPOSURE CRITICAL] AAII bullish sentiment is None for {eval_date}. "
+                f"Cannot calculate bull-bear spread without bullish data. "
                 f"Check aaii_sentiment loader data completeness."
             )
+        if row[1] is None:
+            raise RuntimeError(
+                f"[MARKET EXPOSURE CRITICAL] AAII bearish sentiment is None for {eval_date}. "
+                f"Cannot calculate bull-bear spread without bearish data. "
+                f"Check aaii_sentiment loader data completeness."
+            )
+
+        bullish = float(row[0])
         bearish = float(row[1])
         spread = bullish - bearish  # positive = more bulls than bears
 
@@ -1372,7 +1407,7 @@ class MarketExposure:
             (eval_date,),
         )
         row = cur.fetchone()
-        if not row or row[0] is None:
+        if not row or len(row) < 1 or row[0] is None:
             raise RuntimeError(
                 f"[MARKET EXPOSURE CRITICAL] No NAAIM manager exposure data for {eval_date} - "
                 f"required for professional positioning factor. Check naaim loader."
@@ -1406,6 +1441,10 @@ class MarketExposure:
         before equity markets price in credit risk. Rapidly widening spreads
         (>+1pp in 20 trading days) get an additional 20% score haircut.
 
+        CRITICAL: Credit spread mean-reversion signal requires 20+ days of history.
+        Without trend, we cannot reliably assess credit cycle direction.
+        No fallback to partial history - require minimum 20 days or raise error.
+
         Scale: <3.5% = tight/healthy, 4-5% = mild stress, >7% = severe stress.
         Note: HY OAS is intentionally excluded from the economic regime overlay
         to avoid double-counting this data series.
@@ -1420,7 +1459,7 @@ class MarketExposure:
             (eval_date,),
         )
         rows = cur.fetchall()
-        if not rows:
+        if not rows or len(rows) < 1:
             raise RuntimeError(
                 f"[CREDIT SPREAD CRITICAL] No HY OAS data (BAMLH0A0HYM2) for {eval_date}. "
                 f"Credit spreads are a required 10pt factor for exposure calculation. "
@@ -1428,20 +1467,38 @@ class MarketExposure:
                 f"Check economic_data table for BAMLH0A0HYM2 series."
             )
 
+        # Validate current HY value
+        if len(rows[0]) < 1 or rows[0][0] is None:
+            raise RuntimeError(
+                f"[CREDIT SPREAD CRITICAL] Current HY OAS value is NULL for {eval_date}. "
+                f"Cannot calculate credit spread score without current reading. "
+                f"Check economic_data table - latest BAMLH0A0HYM2 entry may be corrupted."
+            )
+
         hy = float(rows[0][0])
 
-        # If we have trend data, use it; otherwise just use current level
-        widening_1pp = False
-        hy_20d_ago = None
-        if len(rows) >= 20:
-            hy_20d_ago = float(rows[-1][0])
-            widening_1pp = (hy - hy_20d_ago) > 1.0
-        elif len(rows) > 5:
-            # Partial history available, use what we have
-            hy_20d_ago = float(rows[-1][0])
-            widening_1pp = (hy - hy_20d_ago) > 1.0
-        else:
-            logger.debug(f"Limited credit spread history for {eval_date}: {len(rows)} rows")
+        # CRITICAL: 20-day trend is required for credit spread signal (mean-reversion indicator)
+        # Credit cycles need historical context - no fallback to 5d or current-only
+        # Fail-fast: insufficient history is a data quality issue, not something to work around
+        if len(rows) < 20:
+            raise RuntimeError(
+                f"[CREDIT SPREAD CRITICAL] Insufficient HY OAS history for {eval_date}: "
+                f"have {len(rows)} days, but require 20+ days for mean-reversion trend analysis. "
+                f"Credit spread signals (leading economic indicator) require full 20-day window. "
+                f"Cannot assess credit cycle direction with incomplete history - risk assessment incomplete. "
+                f"Check: (1) economic_data table completeness, (2) BAMLH0A0HYM2 loader freshness"
+            )
+
+        # Validate 20d-ago value (last row in reverse-chronological order)
+        if len(rows[-1]) < 1 or rows[-1][0] is None:
+            raise RuntimeError(
+                f"[CREDIT SPREAD CRITICAL] 20-day historical HY OAS value is NULL for {eval_date}. "
+                f"Cannot calculate credit spread trend without historical anchor. "
+                f"Check economic_data table - older BAMLH0A0HYM2 entries may have gaps."
+            )
+
+        hy_20d_ago = float(rows[-1][0])
+        widening_1pp = (hy - hy_20d_ago) > 1.0
 
         if hy < 3.5:
             score = 100.0
@@ -1462,12 +1519,11 @@ class MarketExposure:
             "score": round(score, 1),
             "value": round(hy, 3),
             "widening_rapidly": widening_1pp,
+            "hy_20d_ago": round(hy_20d_ago, 3),
         }
-        if hy_20d_ago is not None:
-            result["hy_20d_ago"] = round(hy_20d_ago, 3)
         return result
 
-    def _economic_regime_overlay(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
+    def _economic_regime_overlay(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:  # pylint: disable=too-many-locals,too-many-branches
         """Post-score macro stress penalty from yield curve, credit trend, jobless claims.
 
         Inspired by Yardeni/Slok/Goldman FCI methodology: when macro cycle signals
@@ -1493,9 +1549,21 @@ class MarketExposure:
         )
         curve_rows = cur.fetchall()
         if curve_rows:
+            if len(curve_rows[0]) < 1 or curve_rows[0][0] is None:
+                raise RuntimeError(
+                    f"[ECONOMIC OVERLAY] Yield curve (T10Y2Y) latest value is NULL for {eval_date}. "
+                    f"Cannot assess economic stress without valid yield curve data. "
+                    f"Check economic_data table for T10Y2Y series."
+                )
             latest_spread = float(curve_rows[0][0])
             # How many consecutive weeks inverted?
-            weeks_inverted = sum(1 for r in curve_rows[:12] if float(r[0]) < 0)
+            weeks_inverted = 0
+            for r in curve_rows[:12]:
+                if len(r) < 1 or r[0] is None:
+                    logger.warning(f"[ECONOMIC OVERLAY] Yield curve data gap detected for {eval_date}")
+                    continue
+                if float(r[0]) < 0:
+                    weeks_inverted += 1
             if latest_spread < -0.5 and weeks_inverted >= 8:
                 stress += 35.0
                 signals.append(f"Curve inverted {latest_spread:.2f}% for {weeks_inverted}+ weeks")
@@ -1517,6 +1585,20 @@ class MarketExposure:
         )
         claims_rows = cur.fetchall()
         if len(claims_rows) >= 26:
+            # Validate current claims data
+            if len(claims_rows[0]) < 1 or claims_rows[0][0] is None:
+                raise RuntimeError(
+                    f"[ECONOMIC OVERLAY] Current jobless claims (ICSA) is NULL for {eval_date}. "
+                    f"Cannot assess employment trend without current reading. "
+                    f"Check economic_data table for ICSA series."
+                )
+            # Validate 26-week historical anchor
+            if len(claims_rows[-1]) < 1 or claims_rows[-1][0] is None:
+                raise RuntimeError(
+                    f"[ECONOMIC OVERLAY] 26-week historical jobless claims (ICSA) is NULL for {eval_date}. "
+                    f"Cannot calculate claims trend without historical baseline. "
+                    f"Check economic_data table for ICSA series data completeness."
+                )
             claims_now = float(claims_rows[0][0])
             claims_26w = float(claims_rows[-1][0])
             if claims_26w <= 0:
@@ -1546,13 +1628,19 @@ class MarketExposure:
         )
         stlfsi_rows = cur.fetchall()
         if stlfsi_rows:
-            stlfsi = float(stlfsi_rows[0][0])
-            if stlfsi > 1.5:
-                stress += 25.0
-                signals.append(f"Financial stress index {stlfsi:.2f}s (severe stress)")
-            elif stlfsi > 0.8:
-                stress += 12.0
-                signals.append(f"Financial stress index {stlfsi:.2f}s (elevated)")
+            if len(stlfsi_rows[0]) < 1 or stlfsi_rows[0][0] is None:
+                logger.warning(
+                    f"[ECONOMIC OVERLAY] Financial stress index (STLFSI4) is NULL for {eval_date}. "
+                    f"Skipping financial stress signal. Check economic_data table."
+                )
+            else:
+                stlfsi = float(stlfsi_rows[0][0])
+                if stlfsi > 1.5:
+                    stress += 25.0
+                    signals.append(f"Financial stress index {stlfsi:.2f}s (severe stress)")
+                elif stlfsi > 0.8:
+                    stress += 12.0
+                    signals.append(f"Financial stress index {stlfsi:.2f}s (elevated)")
 
         # Signal 4: Chicago Fed National Activity Index - 85-indicator broad economic composite
         cur.execute(
@@ -1565,13 +1653,23 @@ class MarketExposure:
         )
         cfnai_rows = cur.fetchall()
         if cfnai_rows:
-            cfnai_avg = sum(float(r[0]) for r in cfnai_rows[:3]) / min(3, len(cfnai_rows))
-            if cfnai_avg < -0.7:
-                stress += 20.0
-                signals.append(f"CFNAI 3-mo avg {cfnai_avg:.2f} (below recession threshold)")
-            elif cfnai_avg < -0.35:
-                stress += 10.0
-                signals.append(f"CFNAI 3-mo avg {cfnai_avg:.2f} (below trend growth)")
+            cfnai_values = []
+            for r in cfnai_rows[:3]:
+                if len(r) < 1 or r[0] is None:
+                    logger.warning(
+                        f"[ECONOMIC OVERLAY] CFNAI data gap detected for {eval_date}. "
+                        f"Skipping this data point in average calculation."
+                    )
+                    continue
+                cfnai_values.append(float(r[0]))
+            if cfnai_values:
+                cfnai_avg = sum(cfnai_values) / len(cfnai_values)
+                if cfnai_avg < -0.7:
+                    stress += 20.0
+                    signals.append(f"CFNAI 3-mo avg {cfnai_avg:.2f} (below recession threshold)")
+                elif cfnai_avg < -0.35:
+                    stress += 10.0
+                    signals.append(f"CFNAI 3-mo avg {cfnai_avg:.2f} (below trend growth)")
 
         stress = min(100.0, stress)
 
