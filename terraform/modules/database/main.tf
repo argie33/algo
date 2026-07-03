@@ -69,6 +69,11 @@ resource "aws_db_subnet_group" "main" {
 # ============================================================
 
 resource "aws_db_instance" "main" {
+  # CRITICAL: Single database design — only rds_db_name (default: "stocks") should exist
+  # Extra databases (algo_trading, temp_db, etc.) are FORBIDDEN and indicate misconfiguration.
+  # If extras appear manually, they must be explicitly dropped via:
+  #   scripts/cleanup_rds_databases.py --clean
+  # See steering/CLEANUP_RDS_GUIDE.md for details.
   # FIXED F-07: Staging gets separate RDS instance (algo-db-staging vs algo-db)
   identifier            = var.environment == "staging" ? "${var.project_name}-db-staging" : "${var.project_name}-db"
   db_name               = var.rds_db_name
