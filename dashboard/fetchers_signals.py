@@ -69,11 +69,14 @@ def fetch_signals(c: None) -> dict[str, Any]:
             record_data_quality_issue("sig", "validation", "grades_invalid_type")
             return FetcherValidator.build_error_response(error_msg)
 
+        # CRITICAL: Track which data source was used for n and total (transparency for data quality)
         n = result.get("n")
+        n_source = "api" if n is not None else None
         if n is None:
             if buy_sigs:
                 n = len(buy_sigs)
-                logger.info(f"Signal count derived from buy_sigs array length ({n}). API 'n' field was missing.")
+                n_source = "buy_sigs_derived"
+                logger.info(f"Signal count 'n' derived from buy_sigs array length ({n}). API 'n' field was missing.")
             else:
                 raise ValueError(
                     "CRITICAL: Signal response missing 'n' field and cannot derive from buy_sigs (empty or missing). "
@@ -81,14 +84,18 @@ def fetch_signals(c: None) -> dict[str, Any]:
                 )
 
         total = result.get("total")
+        total_source = "api" if total is not None else None
         if total is None:
             if n is not None:
                 total = n
-                logger.info(f"Total signal count derived from n ({total}). API 'total' field was missing.")
+                total_source = "n_derived"
+                logger.info(f"Total signal count 'total' derived from n ({total}). API 'total' field was missing.")
             elif buy_sigs:
                 total = len(buy_sigs)
+                total_source = "buy_sigs_derived"
                 logger.info(
-                    f"Total signal count derived from buy_sigs array ({total}). API 'total' and 'n' fields were missing."
+                    f"Total signal count 'total' derived from buy_sigs array ({total}). "
+                    f"API 'total' and 'n' fields were missing."
                 )
             else:
                 raise ValueError(
@@ -98,7 +105,9 @@ def fetch_signals(c: None) -> dict[str, Any]:
 
         return {
             "n": n,
+            "n_source": n_source,
             "total": total,
+            "total_source": total_source,
             "buy_sigs": buy_sigs,
             "grades": grades,
             "near": near,

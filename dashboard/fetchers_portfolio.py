@@ -363,13 +363,22 @@ def fetch_perf(c: None) -> dict[str, Any]:
             unrealized_pnl = {"data_unavailable": True, "reason": "not_in_performance_response"}
 
         # open_positions_count = total open positions; open_losses_count = subset with losses
+        # CRITICAL: open_positions_count is required - cannot fall back to open_losses_count (different metric)
         open_positions_count = perf.get("open_positions_count")
         open_losses_count = perf.get("open_losses_count")
         if open_losses_count is None:
             raise ValueError(
                 "Performance data missing required field 'open_losses_count'. Available: " + str(list(perf.keys()))
             )
-        open_count = open_positions_count if open_positions_count is not None else open_losses_count
+        if open_positions_count is None:
+            error_msg = (
+                "Performance data missing 'open_positions_count' (total open positions). "
+                "Cannot use 'open_losses_count' (subset with losses) as fallback - different metrics. "
+                "Required to calculate position quality and risk metrics."
+            )
+            logger.error(f"[PORTFOLIO_FETCHER CRITICAL] {error_msg}")
+            return FetcherValidator.build_error_response(error_msg)
+        open_count = open_positions_count
 
         # FAIL-FAST: Validate critical risk metrics. These determine strategy quality and risk assessment.
         # None values mask data failures. Must validate all critical fields are present.
