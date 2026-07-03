@@ -4,7 +4,7 @@
 
 Step-by-step runbooks for on-call engineers to diagnose and resolve Phase 4 monitoring alerts.
 
-**Emergency Contact:** Team Slack #incidents  
+**Emergency Contact:** Email/SMS alerts  
 **SLAs:** CRITICAL 5 min, WARNING 15 min
 
 ---
@@ -129,55 +129,6 @@ aws logs tail /aws/lambda/algo-api-dev --since 30m | grep -i "earnings.*error"
 - [ ] Loader restarted if needed
 - [ ] Verify data freshness recovered
 - [ ] Alert cleared
-
----
-
-## Runbook: Validation Errors (WARNING)
-
-**Severity:** WARNING  
-**SLA:** Respond within 15 minutes
-
-### What Triggered This
-
-API schema validation is rejecting requests.
-
-### Quick Diagnosis
-
-```bash
-# See validation error messages
-aws logs tail /aws/lambda/algo-api-dev --since 30m | grep "HARDENING" | grep "validation"
-```
-
-### Common Errors
-
-**"Cannot convert None to float"**
-- Cause: NULL field from upstream
-- Fix: Update response validator
-
-**"Missing required field X"**
-- Cause: API schema changed
-- Fix: Verify upstream API version, update types
-
-**"Invalid date format"**
-- Cause: Date parser mismatch
-- Fix: Check upstream date format
-
-### Resolution
-
-1. Identify which endpoint is failing
-2. Check if upstream API changed
-3. Update response validator if needed:
-   ```bash
-   # File: lambda/api/utils/response_validator.py
-   # Make field optional or update parser
-   ```
-
-### Completion
-
-- [ ] Error cause identified
-- [ ] Upstream verified
-- [ ] Validator updated if needed
-- [ ] Test fix
 
 ---
 

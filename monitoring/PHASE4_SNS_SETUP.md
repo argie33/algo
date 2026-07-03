@@ -3,8 +3,8 @@
 ## Overview
 
 SNS provides the routing layer between CloudWatch alarms and notification channels:
-- **CRITICAL** → PagerDuty/SMS (urgent on-call)
-- **WARNING** → Slack #alerts (team awareness)
+- **CRITICAL** → SMS (urgent on-call)
+- **WARNING** → Email (team awareness)
 
 ---
 
@@ -15,7 +15,6 @@ SNS provides the routing layer between CloudWatch alarms and notification channe
 **Topic Name:** algo-alerts-dev (or staging/prod)
 
 **Subscriptions:**
-- Slack #alerts channel
 - Email to team list
 
 ### 2. Critical Topic (CRITICAL level)
@@ -23,7 +22,6 @@ SNS provides the routing layer between CloudWatch alarms and notification channe
 **Topic Name:** algo-critical-dev (or staging/prod)
 
 **Subscriptions:**
-- PagerDuty integration
 - SMS to on-call engineer
 
 ---
@@ -65,32 +63,6 @@ aws sns subscribe \
   --notification-endpoint "team@company.com"
 
 # Subscriber must confirm subscription via email
-```
-
-### Slack Integration
-
-```bash
-# Get Slack webhook URL from your Slack app
-SLACK_WEBHOOK_URL="https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
-
-aws sns subscribe \
-  --topic-arn "$ALERTS_TOPIC_ARN" \
-  --protocol https \
-  --notification-endpoint "$SLACK_WEBHOOK_URL"
-```
-
-### PagerDuty Integration
-
-```bash
-# Get PagerDuty integration URL from CloudWatch integration
-PAGERDUTY_URL="https://events.pagerduty.com/integration/YOUR_KEY/enqueue"
-
-CRITICAL_TOPIC_ARN="arn:aws:sns:us-east-1:ACCOUNT_ID:algo-critical-dev"
-
-aws sns subscribe \
-  --topic-arn "$CRITICAL_TOPIC_ARN" \
-  --protocol https \
-  --notification-endpoint "$PAGERDUTY_URL"
 ```
 
 ### SMS for Critical Alerts
@@ -144,12 +116,10 @@ aws sns publish \
 
 | Alert | Topic | Subscriptions |
 |-------|-------|---------------|
-| Data Unavailability | alerts | Slack, Email |
-| Validation Errors | alerts | Slack, Email |
-| Circuit Breaker Halt | critical | PagerDuty, SMS |
-| Data Staleness | alerts | Slack, Email |
-| Hardening Errors | alerts | Slack, Email |
-| Data Quality Crisis | critical | PagerDuty, SMS |
+| Data Unavailability | alerts | Email |
+| Circuit Breaker Halt | critical | SMS |
+| Data Staleness | alerts | Email |
+| Hardening Errors | alerts | Email |
 
 ---
 
@@ -158,10 +128,9 @@ aws sns publish \
 Before going live:
 
 - [ ] SNS topics created in prod account
-- [ ] All subscriptions confirmed (email, Slack, PagerDuty)
+- [ ] All subscriptions confirmed (email, SMS)
 - [ ] SNS test notifications received successfully
-- [ ] On-call rotation configured in PagerDuty
-- [ ] Slack #alerts channel configured
+- [ ] SMS numbers configured for critical alerts
 - [ ] Team trained on alert meanings
 
 ---
@@ -176,21 +145,6 @@ Before going live:
    aws sns subscribe --topic-arn "$TOPIC" --protocol email --notification-endpoint "team@company.com"
    ```
 
-### Slack webhook not receiving messages
-
-1. Verify webhook URL is correct
-2. Test webhook manually:
-   ```bash
-   curl -X POST -H 'Content-type: application/json' \
-     --data '{"text":"Test"}' \
-     https://hooks.slack.com/services/YOUR/WEBHOOK/URL
-   ```
-
-### PagerDuty not receiving alerts
-
-1. Verify integration key is correct
-2. Check PagerDuty service configuration
-3. Test with direct SNS publish
 
 ---
 

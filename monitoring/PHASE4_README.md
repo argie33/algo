@@ -71,28 +71,25 @@ aws cloudwatch put-dashboard \
 
 ## What Gets Created
 
-### Metric Filters (8)
+### Metric Filters (5)
 
 These detect specific error patterns in CloudWatch Logs:
 
 | Filter | Pattern | Namespace |
 |--------|---------|-----------|
 | DataUnavailableErrors | [FAIL_FAST] data_unavailable: true | Algo/FailFast |
-| ValidationErrors | [HARDENING] validation error | Algo/FailFast |
 | CircuitBreakerHalts | [CIRCUIT_BREAKER] HALTING TRADING | Algo/FailFast |
 | DataStalenessErrors | [DATA QUALITY] stale: true | Algo/FailFast |
 | HardeningErrors | [HARDENING] error | Algo/FailFast |
 
-### CloudWatch Alarms (5 Metric + 2 Composite)
+### CloudWatch Alarms (4 Metric)
 
-**Metric Alarms:** Data unavailability, Validation errors, Circuit breaker halt, Data staleness, Hardening errors
-
-**Composite Alarms:** Data quality crisis (CRITICAL), API unhealthy (WARNING)
+**Metric Alarms:** Data unavailability, Circuit breaker halt, Data staleness, Hardening errors
 
 ### SNS Topics (2)
 
-- algo-alerts-dev → Slack #alerts + Email (WARNING)
-- algo-critical-dev → PagerDuty + SMS (CRITICAL)
+- algo-alerts-dev → Email (WARNING)
+- algo-critical-dev → Email/SMS (CRITICAL)
 
 ### CloudWatch Dashboard (1)
 
@@ -117,19 +114,14 @@ algo-failfast-dev with 14 widgets showing error trends and timelines
 
 ---
 
-## Alert Runbooks Summary
+## Alert Routing
 
-When paged:
+Alerts are sent to email and SMS (no Slack/PagerDuty integration).
 
-**Circuit Breaker Halt (CRITICAL):** See PHASE4_OPERATOR_RUNBOOKS.md - trading halted, investigate within 5 min
+**CRITICAL alerts** (Circuit Breaker Halt) → Email + SMS
+**WARNING alerts** (Data Unavailability, Data Staleness, Hardening Errors) → Email
 
-**Data Unavailability (WARNING):** See PHASE4_OPERATOR_RUNBOOKS.md - loaders failing, respond within 15 min
-
-**Validation Errors (WARNING):** See PHASE4_OPERATOR_RUNBOOKS.md - schema mismatch, respond within 15 min
-
-**Data Staleness (WARNING):** See PHASE4_OPERATOR_RUNBOOKS.md - stale data, respond within 15 min
-
-**Data Quality Crisis (CRITICAL):** See PHASE4_OPERATOR_RUNBOOKS.md - missing AND stale data, respond within 5 min
+See PHASE4_OPERATOR_RUNBOOKS.md for incident response procedures.
 
 ---
 

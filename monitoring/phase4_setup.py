@@ -2,7 +2,6 @@
 """Phase 4 CloudWatch Monitoring Setup - Python Implementation"""
 
 import argparse
-import json
 import logging
 import sys
 
@@ -71,23 +70,21 @@ class Phase4Monitor:
         filters = [
             (self.log_group_api, "DataUnavailableErrors", '[... "data_unavailable" = true, ...]'),
             (self.log_group_algo, "DataUnavailableErrors", '[... "data_unavailable" = true, ...]'),
-            (self.log_group_api, "ValidationErrors", '[... "[HARDENING]" ... ("validation error" || "StrictValidationError"), ...]'),
             (self.log_group_circuit_breaker, "CircuitBreakerHalts", '[... "[CIRCUIT_BREAKER]" ... "HALTING TRADING", ...]'),
             (self.log_group_algo, "CircuitBreakerHalts", '[... "[CIRCUIT_BREAKER]" ... "HALTING TRADING", ...]'),
             (self.log_group_api, "DataStalenessErrors", '[... "[DATA QUALITY]" ... ("stale" = true || "stale_data"), ...]'),
-            (self.log_group_api, "HardeningErrors", '[... "[HARDENING]" ... ("error" || "ERROR"), ...]'),
-            (self.log_group_api, "AllErrors", '[... ("ERROR" || "Exception" || "error:" || "failed"), ...]'),
+            (self.log_group_api, "HardeningErrors", '[... ("[HARDENING]" || "[API_HARDENING]") ... ("error" || "ERROR"), ...]'),
         ]
 
         for log_group, filter_name, pattern in filters:
-            def create():
+            def create(lg=log_group, fn=filter_name, pt=pattern):
                 self.logs_client.put_metric_filter(
-                    logGroupName=log_group,
-                    filterName=filter_name,
-                    filterPattern=pattern,
+                    logGroupName=lg,
+                    filterName=fn,
+                    filterPattern=pt,
                     metricTransformations=[
                         {
-                            "metricName": filter_name,
+                            "metricName": fn,
                             "metricNamespace": "Algo/FailFast",
                             "metricValue": "1",
                             "defaultValue": 0,
@@ -103,7 +100,6 @@ class Phase4Monitor:
 
         alarms = [
             ("algo-data-unavailability-alert", "DataUnavailableErrors", 5, self.alerts_topic_arn),
-            ("algo-validation-error-alert", "ValidationErrors", 10, self.alerts_topic_arn),
             ("algo-circuit-breaker-halt", "CircuitBreakerHalts", 1, self.critical_topic_arn),
             ("algo-data-staleness-alert", "DataStalenessErrors", 3, self.alerts_topic_arn),
             ("algo-hardening-error-alert", "HardeningErrors", 15, self.alerts_topic_arn),
@@ -112,18 +108,18 @@ class Phase4Monitor:
         for base_name, metric_name, threshold, topic_arn in alarms:
             alarm_name = f"{base_name}-{self.environment}"
 
-            def create():
+            def create(an=alarm_name, mn=metric_name, th=threshold, ta=topic_arn):
                 self.cloudwatch_client.put_metric_alarm(
-                    AlarmName=alarm_name,
-                    MetricName=metric_name,
+                    AlarmName=an,
+                    MetricName=mn,
                     Namespace="Algo/FailFast",
                     Statistic="Sum",
-                    Period=300 if metric_name != "CircuitBreakerHalts" else 60,
-                    Threshold=threshold,
+                    Period=300 if mn != "CircuitBreakerHalts" else 60,
+                    Threshold=th,
                     ComparisonOperator="GreaterThanOrEqualToThreshold",
                     EvaluationPeriods=1,
                     TreatMissingData="notBreaching",
-                    AlarmActions=[topic_arn],
+                    AlarmActions=[ta],
                 )
 
             self._execute(f"Create alarm {alarm_name}", create)
@@ -135,9 +131,9 @@ class Phase4Monitor:
         log_groups = [self.log_group_api, self.log_group_algo, self.log_group_circuit_breaker]
 
         for log_group in log_groups:
-            def create():
+            def create(lg=log_group):
                 self.logs_client.put_retention_policy(
-                    logGroupName=log_group,
+                    logGroupName=lg,
                     retentionInDays=30,
                 )
 
@@ -161,7 +157,7 @@ class Phase4Monitor:
             logger.info("\n" + "=" * 60)
             logger.info("Phase 4 Setup Complete")
             logger.info("=" * 60)
-            logger.info(f"\nSNS Topics:")
+            logger.info("\nSNS Topics:")
             logger.info(f"  Alerts: {self.alerts_topic_arn}")
             logger.info(f"  Critical: {self.critical_topic_arn}")
             logger.info("\nNext Steps:")

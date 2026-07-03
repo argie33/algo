@@ -67,14 +67,21 @@ class SecEdgarStatementLoader(OptimalLoader):
 
             # CRITICAL FIX: Handle stocks with no SEC financial data gracefully.
             # REITs, investment trusts, and other special entities often have no
-            # traditional income statement data in SEC EDGAR. Return empty list
-            # so downstream loaders can create data_unavailable markers.
+            # traditional income statement data in SEC EDGAR. Return explicit data_unavailable marker
+            # instead of empty list (which gets silently skipped by OptimalLoader).
             if not rows:
                 logger.debug(
                     f"[{self.statement_type.upper()}] {symbol}: No {self.period} data in SEC EDGAR. "
                     f"Stock may be REIT, investment trust, or lack SEC filings."
                 )
-                return []  # Empty list triggers fetch_incremental to return data_unavailable marker
+                return [
+                    {
+                        "symbol": symbol,
+                        "fiscal_year": 0,
+                        "data_unavailable": True,
+                        "reason": f"no_{self.period}_{self.statement_type}_data_in_sec_edgar_reit_or_special_entity"
+                    }
+                ]
 
             logger.info(
                 "%s: Fetched %d %s %s row(s)",

@@ -21,16 +21,6 @@ Monitor new fail-fast error patterns introduced in Phase 4 and Phase 3:
 **Severity**: WARNING  
 **Action**: Investigate data loader status
 
-#### Pattern 2: Validation Errors
-```
-[HARDENING] ... validation error ...
-Cannot convert ... StrictValidationError
-```
-
-**Alert Threshold**: 10+ occurrences in 10 minutes  
-**Severity**: WARNING  
-**Action**: Check data schema compatibility
-
 #### Pattern 3: Circuit Breaker Halts
 ```
 [CIRCUIT_BREAKER] ... HALTING TRADING
@@ -57,23 +47,17 @@ Cannot convert ... StrictValidationError
 - **Duration**: 5 minutes
 - **Action**: SNS notification
 
-#### Alarm 2: Validation Error Rate
-- **Metric**: `ValidationErrors` count
-- **Threshold**: > 20 per minute
-- **Duration**: 5 minutes
-- **Action**: SNS + CloudWatch Dashboard
-
 #### Alarm 3: Circuit Breaker Halt
 - **Metric**: `CircuitBreakerHalt` count
 - **Threshold**: > 0 (any halt)
 - **Duration**: Immediate
 - **Action**: CRITICAL SNS + Page on-call
 
-#### Alarm 4: Error Rate by Endpoint
-- **Metrics**: By API endpoint
-- **Threshold**: > 5% error rate
-- **Duration**: 10 minutes
-- **Action**: SNS + Dashboard alert
+#### Alarm 4: Data Staleness
+- **Metric**: `DataStalenessErrors` count
+- **Threshold**: > 3 per 5 minutes
+- **Duration**: 5 minutes
+- **Action**: SNS notification
 
 ## Implementation Plan
 
@@ -129,7 +113,7 @@ Configure routing:
 | 1x data unavailable | No | Normal during startup | Monitor |
 | 5+ in 5min | Yes | Sustained issue | Investigate loader |
 | Circuit breaker halt | Yes | Trading blocked | Manual override |
-| Validation error | Only if > 20/min | Data schema issue | Check transformations |
+| Hardening error | Yes | Data validation failure | Check transformations |
 | Stale data (market open) | Yes | Critical for trading | Page on-call |
 | Stale data (market closed) | No | Expected | Monitor |
 
@@ -174,8 +158,9 @@ Create CloudWatch Dashboard with:
       "properties": {
         "metrics": [
           ["AWS/Lambda", "DataUnavailableErrors"],
-          ["AWS/Lambda", "ValidationErrors"],
-          ["AWS/Lambda", "CircuitBreakerHalts"]
+          ["AWS/Lambda", "CircuitBreakerHalts"],
+          ["AWS/Lambda", "DataStalenessErrors"],
+          ["AWS/Lambda", "HardeningErrors"]
         ],
         "period": 300,
         "stat": "Sum",

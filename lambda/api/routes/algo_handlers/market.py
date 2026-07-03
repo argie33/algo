@@ -852,7 +852,13 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
                 f"market exposure computation may not have run or vix_regime computation failed. "
                 f"Check market_exposure_daily and load_market_exposure_daily logs."
             )
-            factors["vix_regime"] = {"score": 0, "value": None, "signal": "neutral", "data_unavailable": True}
+            factors["vix_regime"] = {
+                "score": 0,
+                "value": None,
+                "signal": "neutral",
+                "data_unavailable": True,
+                "reason": "vix_regime_missing_from_market_exposure_computation"
+            }
 
         response = list_response(sectors, total=len(sectors), limit=None, offset=None)
 

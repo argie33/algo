@@ -33,10 +33,8 @@ aws logs describe-metric-filters \
 
 Expected filters:
 - DataUnavailableErrors
-- ValidationErrors
 - DataStalenessErrors
 - HardeningErrors
-- AllErrors
 
 ### Step 1b: Verify CircuitBreakerHalts filter
 
@@ -77,21 +75,14 @@ aws logs put-log-events \
   --log-stream-name "$TEST_STREAM" \
   --log-events "[{\"message\":\"[FAIL_FAST] data_unavailable: true\",\"timestamp\":$TIMESTAMP}]"
 
-# Test 2: Validation Error
-TIMESTAMP=$((TIMESTAMP + 1000))
-aws logs put-log-events \
-  --log-group-name "$LOG_GROUP" \
-  --log-stream-name "$TEST_STREAM" \
-  --log-events "[{\"message\":\"[HARDENING] validation error: Cannot convert None to float\",\"timestamp\":$TIMESTAMP}]"
-
-# Test 3: Data Staleness
+# Test 2: Data Staleness
 TIMESTAMP=$((TIMESTAMP + 1000))
 aws logs put-log-events \
   --log-group-name "$LOG_GROUP" \
   --log-stream-name "$TEST_STREAM" \
   --log-events "[{\"message\":\"[DATA QUALITY] stale: true\",\"timestamp\":$TIMESTAMP}]"
 
-# Test 4: Hardening Error
+# Test 3: Hardening Error
 TIMESTAMP=$((TIMESTAMP + 1000))
 aws logs put-log-events \
   --log-group-name "$LOG_GROUP" \
@@ -109,16 +100,6 @@ sleep 120
 aws cloudwatch get-metric-statistics \
   --namespace "Algo/FailFast" \
   --metric-name "DataUnavailableErrors" \
-  --start-time "$(date -u -d '5 minutes ago' +%Y-%m-%dT%H:%M:%SZ)" \
-  --end-time "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-  --period 300 \
-  --statistics Sum \
-  --output table
-
-# Check ValidationErrors
-aws cloudwatch get-metric-statistics \
-  --namespace "Algo/FailFast" \
-  --metric-name "ValidationErrors" \
   --start-time "$(date -u -d '5 minutes ago' +%Y-%m-%dT%H:%M:%SZ)" \
   --end-time "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
   --period 300 \
@@ -142,7 +123,6 @@ aws cloudwatch describe-alarms \
 
 Expected alarms:
 - algo-data-unavailability-alert-dev (threshold 5)
-- algo-validation-error-alert-dev (threshold 10)
 - algo-circuit-breaker-halt-dev (threshold 1)
 - algo-data-staleness-alert-dev (threshold 3)
 - algo-hardening-error-alert-dev (threshold 15)
