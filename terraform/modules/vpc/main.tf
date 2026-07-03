@@ -335,10 +335,6 @@ resource "aws_security_group" "rds" {
   })
 
   depends_on = [aws_security_group.ecs_tasks, aws_security_group.api_lambda, aws_security_group.algo_lambda]
-
-  lifecycle {
-    ignore_changes = [ingress]
-  }
 }
 
 # RDS Security Group Rules: allow PostgreSQL from different sources
