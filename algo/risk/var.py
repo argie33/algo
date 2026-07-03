@@ -720,8 +720,11 @@ class ValueAtRisk:
             try:
                 stressed_var = self.stressed_var()
             except RuntimeError as e:
-                logger.warning(f"Stressed VaR unavailable (requires 365+ days): {e}")
-                stressed_var = None
+                logger.critical(f"[CRITICAL] Stressed VaR calculation failed: {e}")
+                raise RuntimeError(
+                    f"Cannot generate risk report: Stressed VaR is REQUIRED for safe position sizing. "
+                    f"Error: {e}. Portfolio must have at least 1 year of trading history to compute stress scenarios."
+                ) from e
 
             try:
                 beta = self.beta_exposure()  # Returns None if no positions

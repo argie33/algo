@@ -257,13 +257,15 @@ def panel_portfolio(
         if var_v is not None and var_v > 0 and cvar_v is not None and beta_v is not None and conc5_v is not None:
             conc_c = R if conc5_v >= 35 else (Y if conc5_v >= 25 else "white")
             var_c = R if var_v >= 4 else (Y if var_v >= 2 else "white")
-            beta_c = R if beta_v >= 1.2 else (Y if beta_v >= 0.8 else G)
+            # CRITICAL: When beta = 0 (no positions), show "--" instead of "0.00" in green
+            beta_display = "--" if (beta_v is not None and beta_v <= 0) else f"{beta_v:.2f}"
+            beta_c = "dim" if (beta_v is not None and beta_v <= 0) else (R if beta_v >= 1.2 else (Y if beta_v >= 0.8 else G))
             tbl.add_row(
                 cell("Value at Risk (95%):", f"[{var_c}]{var_v:.2f}%[/]"),
                 cell("Cond. VaR (95%):", f"[{var_c}]{cvar_v:.2f}%[/]"),
             )
             tbl.add_row(
-                cell("Portfolio Beta:", f"[{beta_c}]{beta_v:.2f}[/]"),
+                cell("Portfolio Beta:", f"[{beta_c}]{beta_display}[/]"),
                 cell("Top 5 Concentration:", f"[{conc_c}]{conc5_v:.0f}%[/]"),
             )
             if svar_v is not None and svar_v > 0:
@@ -441,15 +443,20 @@ def panel_performance_spark(  # noqa: C901
     # Recent daily returns (last 5 snapshots)
     recent_rets_val = perf.get("recent_rets")
     recent_rets = recent_rets_val if recent_rets_val is not None else []
+    skipped_returns = 0
     if recent_rets:
         parts: list[str] = []
         for item in recent_rets[-5:]:
-            if isinstance(item, (list, tuple)) and len(item) >= 2:
-                dt, ret = item[0], item[1]
-            else:
+            if not isinstance(item, (list, tuple)):
+                skipped_returns += 1
                 continue
+            if len(item) < 2:
+                skipped_returns += 1
+                continue
+            dt, ret = item[0], item[1]
             if ret is None:
                 logger.debug("Return value is None in recent_rets, skipping display")
+                skipped_returns += 1
                 continue
             ret = float(ret)
             rc = G if ret >= 0 else R
@@ -467,6 +474,8 @@ def panel_performance_spark(  # noqa: C901
             else:
                 d_s = str(dt)[:3]
             parts.append(f"[dim]{d_s}[/][{rc}]{sign(ret)}{ret:.1f}%[/]")
+        if skipped_returns > 0:
+            logger.warning(f"[PORTFOLIO] Skipped {skipped_returns} invalid recent_rets entries")
         if parts:
             rows.append(Text.from_markup("  ".join(parts)))
     return Panel(
