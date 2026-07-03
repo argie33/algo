@@ -316,7 +316,65 @@ locals {
     "compute_performance_metrics" = "compute_performance_metrics.py"
   }
 
-  scheduled_loaders = {}
+  scheduled_loaders = {
+    # Morning pipeline: 2:15 AM ET (7:15 AM UTC), Mon-Fri
+    # Loads fresh market data for 9:30 AM signal generation
+    "stock_prices_daily" = {
+      description = "Load OHLCV prices - morning pipeline"
+      schedule    = "cron(15 7 ? * MON-FRI *)"  # 2:15 AM ET
+    }
+    "technical_data_daily" = {
+      description = "Compute 50/200-day SMA - morning pipeline"
+      schedule    = "cron(30 7 ? * MON-FRI *)"  # 2:30 AM ET (after prices)
+    }
+    "swing_trader_scores" = {
+      description = "Calculate swing scores - morning pipeline"
+      schedule    = "cron(45 7 ? * MON-FRI *)"  # 2:45 AM ET (after technical_data)
+    }
+
+    # EOD pipeline: 4:05 PM ET (9:05 PM UTC), Mon-Fri
+    # Loads end-of-day data for 5:30 PM orchestrator run
+    "market_health_daily" = {
+      description = "Load market health indicators - EOD pipeline"
+      schedule    = "cron(5 21 ? * MON-FRI *)"  # 4:05 PM ET
+    }
+    "market_exposure_daily" = {
+      description = "Compute market exposure factors - EOD pipeline"
+      schedule    = "cron(10 21 ? * MON-FRI *)"  # 4:10 PM ET (after market_health)
+    }
+    "dxy_index" = {
+      description = "Load DXY/USD economic indicator - EOD pipeline"
+      schedule    = "cron(15 21 ? * MON-FRI *)"  # 4:15 PM ET
+    }
+
+    # Metric loaders: Parallel at 4:20 PM ET (after market data available)
+    "quality_metrics" = {
+      description = "Load quality metrics from SEC - EOD pipeline"
+      schedule    = "cron(20 21 ? * MON-FRI *)"  # 4:20 PM ET (parallel)
+    }
+    "growth_metrics" = {
+      description = "Load growth metrics from SEC - EOD pipeline"
+      schedule    = "cron(20 21 ? * MON-FRI *)"  # 4:20 PM ET (parallel)
+    }
+    "value_metrics" = {
+      description = "Load value metrics (P/E, P/B, P/S) - EOD pipeline"
+      schedule    = "cron(20 21 ? * MON-FRI *)"  # 4:20 PM ET (parallel)
+    }
+    "positioning_metrics" = {
+      description = "Load positioning metrics (short interest) - EOD pipeline"
+      schedule    = "cron(20 21 ? * MON-FRI *)"  # 4:20 PM ET (parallel)
+    }
+    "stability_metrics" = {
+      description = "Load stability metrics (dividend yield) - EOD pipeline"
+      schedule    = "cron(20 21 ? * MON-FRI *)"  # 4:20 PM ET (parallel)
+    }
+
+    # Stock scores: 4:30 PM ET (after metrics complete ~4:25 PM)
+    "stock_scores" = {
+      description = "Compute composite stock scores - EOD pipeline"
+      schedule    = "cron(30 21 ? * MON-FRI *)"  # 4:30 PM ET (after all metrics)
+    }
+  }
 }
 
 resource "aws_cloudwatch_event_rule" "scheduled_loader" {
