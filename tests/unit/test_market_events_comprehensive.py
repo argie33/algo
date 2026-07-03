@@ -124,7 +124,11 @@ class TestCheckSingleStockHalt:
         handler = MarketEventHandler({})
         result = handler.check_single_stock_halt("AAPL")
 
-        assert result is None
+        assert result is not None
+        assert result["halted"] is False
+        assert result["symbol"] == "AAPL"
+        assert result["status"] == "ACTIVE"
+        assert result["tradable"] is True
 
     @patch("algo.infrastructure.market_events.requests.get")
     @patch("algo.infrastructure.market_events.get_credential_manager")
@@ -143,9 +147,12 @@ class TestCheckSingleStockHalt:
         mock_get.return_value = mock_response
 
         handler = MarketEventHandler({})
+        result = handler.check_single_stock_halt("INVALID")
 
-        with pytest.raises(RuntimeError, match="Cannot verify halt status"):
-            handler.check_single_stock_halt("INVALID")
+        # Code catches RuntimeError and returns error dict (graceful degradation)
+        assert result is not None
+        assert result.get("error") == "halt_check_failed"
+        assert result.get("reason") == "data_validation_error"
 
     @patch("algo.infrastructure.market_events.requests.get")
     @patch("algo.infrastructure.market_events.get_credential_manager")
@@ -165,9 +172,12 @@ class TestCheckSingleStockHalt:
         mock_get.return_value = mock_response
 
         handler = MarketEventHandler({})
+        result = handler.check_single_stock_halt("AAPL")
 
-        with pytest.raises(RuntimeError, match="Cannot parse market event status"):
-            handler.check_single_stock_halt("AAPL")
+        # Code catches RuntimeError and returns error dict (graceful degradation)
+        assert result is not None
+        assert result.get("error") == "halt_check_failed"
+        assert result.get("reason") == "data_validation_error"
 
     @patch("algo.infrastructure.market_events.requests.get")
     @patch("algo.infrastructure.market_events.get_credential_manager")
@@ -187,9 +197,13 @@ class TestCheckSingleStockHalt:
         mock_get.return_value = mock_response
 
         handler = MarketEventHandler({})
+        result = handler.check_single_stock_halt("AAPL")
 
-        with pytest.raises(ValueError, match="Missing required 'status' field"):
-            handler.check_single_stock_halt("AAPL")
+        # Code catches ValueError and returns error dict (graceful degradation)
+        assert result is not None
+        assert result.get("error") == "halt_check_failed"
+        assert result.get("reason") == "data_validation_error"
+        assert "status" in result.get("description", "")
 
     @patch("algo.infrastructure.market_events.requests.get")
     @patch("algo.infrastructure.market_events.get_credential_manager")
@@ -209,9 +223,13 @@ class TestCheckSingleStockHalt:
         mock_get.return_value = mock_response
 
         handler = MarketEventHandler({})
+        result = handler.check_single_stock_halt("AAPL")
 
-        with pytest.raises(ValueError, match="Missing required 'tradable' field"):
-            handler.check_single_stock_halt("AAPL")
+        # Code catches ValueError and returns error dict (graceful degradation)
+        assert result is not None
+        assert result.get("error") == "halt_check_failed"
+        assert result.get("reason") == "data_validation_error"
+        assert "tradable" in result.get("description", "")
 
     @patch("algo.infrastructure.market_events.requests.get")
     @patch("algo.infrastructure.market_events.get_credential_manager")
@@ -228,9 +246,12 @@ class TestCheckSingleStockHalt:
         mock_get.side_effect = requests.Timeout("Connection timed out")
 
         handler = MarketEventHandler({})
+        result = handler.check_single_stock_halt("AAPL")
 
-        with pytest.raises(RuntimeError, match="Operation failed"):
-            handler.check_single_stock_halt("AAPL")
+        # Code catches Timeout and returns error dict (graceful degradation)
+        assert result is not None
+        assert result.get("error") == "halt_check_failed"
+        assert result.get("reason") == "api_timeout"
 
 
 class TestCheckMarketCircuitBreaker:
@@ -387,7 +408,10 @@ class TestCheckMarketCircuitBreaker:
 
         result = handler.check_market_circuit_breaker()
 
-        assert result is None
+        # Code returns error dict when credentials missing (graceful degradation)
+        assert result is not None
+        assert result.get("error") == "circuit_breaker_check_failed"
+        assert result.get("reason") == "credentials_not_configured"
 
     @patch("algo.infrastructure.market_events.ThreadPoolExecutor")
     @patch("algo.infrastructure.market_events.get_credential_manager")
@@ -411,9 +435,12 @@ class TestCheckMarketCircuitBreaker:
             mock_context.submit.side_effect = [quote_future, bars_future]
 
             handler = MarketEventHandler({})
+            result = handler.check_market_circuit_breaker()
 
-            with pytest.raises(RuntimeError, match="Cannot verify circuit breaker status"):
-                handler.check_market_circuit_breaker()
+            # Code catches RuntimeError and returns error dict (graceful degradation)
+            assert result is not None
+            assert result.get("error") == "circuit_breaker_check_failed"
+            assert result.get("reason") == "data_validation_error"
 
 
 class TestCheckEarlyClose:

@@ -19,7 +19,7 @@ def mock_parent_config():
 
 
 def test_default_portfolio_value_production_mode_fails(mock_parent_config):
-    """CRITICAL: $100k fallback must be rejected in production (auto) mode."""
+    """CRITICAL: No fallback in any mode - config must always be explicit."""
     # Setup: execution_mode is "auto" (production), default_portfolio_value is missing
     mock_parent_config.get.side_effect = lambda key, default=None: {
         "execution_mode": "auto",
@@ -28,16 +28,16 @@ def test_default_portfolio_value_production_mode_fails(mock_parent_config):
 
     config = ExecutionConfig(mock_parent_config)
 
-    # CRITICAL: Must raise RuntimeError, not silently use $100k
+    # CRITICAL: Must always raise RuntimeError. No fallbacks in any mode.
     with pytest.raises(RuntimeError) as exc_info:
         config.get_default_portfolio_value()
 
     assert "default_portfolio_value config key missing" in str(exc_info.value)
-    assert "Cannot use hardcoded $100k default in production (auto) mode" in str(exc_info.value)
+    assert "no fallback" in str(exc_info.value)
 
 
-def test_default_portfolio_value_dry_run_mode_uses_fallback(mock_parent_config, caplog):
-    """In dry-run mode, $100k fallback is allowed with warning."""
+def test_default_portfolio_value_dry_run_mode_fails(mock_parent_config):
+    """In dry-run mode, no fallback - config must be explicit (fail-fast governance)."""
     mock_parent_config.get.side_effect = lambda key, default=None: {
         "execution_mode": "dry",
         "default_portfolio_value": None,  # Config missing
@@ -45,36 +45,43 @@ def test_default_portfolio_value_dry_run_mode_uses_fallback(mock_parent_config, 
 
     config = ExecutionConfig(mock_parent_config)
 
-    # In dry-run mode, fallback is allowed
-    value = config.get_default_portfolio_value()
-    assert value == 100000.0
+    # FAIL-FAST: No fallbacks in any mode, even dry-run
+    with pytest.raises(RuntimeError) as exc_info:
+        config.get_default_portfolio_value()
 
-    # Must log a warning
-    assert "[EXECUTION_CONFIG] Using hardcoded default portfolio value" in caplog.text
+    assert "default_portfolio_value config key missing" in str(exc_info.value)
 
 
-def test_default_portfolio_value_paper_mode_uses_fallback(mock_parent_config):
-    """In paper mode, $100k fallback is allowed."""
+def test_default_portfolio_value_paper_mode_fails(mock_parent_config):
+    """In paper mode, no fallback - config must be explicit (fail-fast governance)."""
     mock_parent_config.get.side_effect = lambda key, default=None: {
         "execution_mode": "paper",
         "default_portfolio_value": None,  # Config missing
     }.get(key, default)
 
     config = ExecutionConfig(mock_parent_config)
-    value = config.get_default_portfolio_value()
-    assert value == 100000.0
+
+    # FAIL-FAST: No fallbacks in any mode, even paper
+    with pytest.raises(RuntimeError) as exc_info:
+        config.get_default_portfolio_value()
+
+    assert "default_portfolio_value config key missing" in str(exc_info.value)
 
 
-def test_default_portfolio_value_review_mode_uses_fallback(mock_parent_config):
-    """In review mode, $100k fallback is allowed."""
+def test_default_portfolio_value_review_mode_fails(mock_parent_config):
+    """In review mode, no fallback - config must be explicit (fail-fast governance)."""
     mock_parent_config.get.side_effect = lambda key, default=None: {
         "execution_mode": "review",
         "default_portfolio_value": None,  # Config missing
     }.get(key, default)
 
     config = ExecutionConfig(mock_parent_config)
-    value = config.get_default_portfolio_value()
-    assert value == 100000.0
+
+    # FAIL-FAST: No fallbacks in any mode, even review
+    with pytest.raises(RuntimeError) as exc_info:
+        config.get_default_portfolio_value()
+
+    assert "default_portfolio_value config key missing" in str(exc_info.value)
 
 
 def test_default_portfolio_value_explicit_value_overrides_fallback(mock_parent_config):
