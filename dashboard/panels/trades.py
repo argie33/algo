@@ -60,7 +60,7 @@ from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
-from dashboard.data_validation import safe_float, safe_int
+from dashboard.data_validation import safe_float
 
 from .. import error_boundary
 from ..formatters import (
