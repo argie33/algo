@@ -180,12 +180,21 @@ class StabilityMetricsLoader(OptimalLoader):
             # Calculate volatilities (annualized: sqrt(252) * daily_std)
             # For new listings: use whatever data is available (minimum 2 returns for volatility)
             # Helper methods now return float or explicit marker dict for data_unavailable
-            volatility_30d_result = (
-                self._calculate_volatility(returns[-30:], symbol=symbol) if len(returns) >= 30 else None
-            )
-            volatility_60d_result = (
-                self._calculate_volatility(returns[-60:], symbol=symbol) if len(returns) >= 60 else None
-            )
+            if len(returns) < 30:
+                volatility_30d_result = {
+                    "data_unavailable": True,
+                    "reason": f"insufficient_returns ({len(returns)}/30 required)",
+                }
+            else:
+                volatility_30d_result = self._calculate_volatility(returns[-30:], symbol=symbol)
+
+            if len(returns) < 60:
+                volatility_60d_result = {
+                    "data_unavailable": True,
+                    "reason": f"insufficient_returns ({len(returns)}/60 required)",
+                }
+            else:
+                volatility_60d_result = self._calculate_volatility(returns[-60:], symbol=symbol)
             # For 252d (full year) volatility: use all available data if present (minimum 2 returns)
             # Even new listings with 3+ days (2 returns) can compute a volatility estimate
             volatility_252d_result = self._calculate_volatility(returns, symbol=symbol) if len(returns) >= 2 else None
