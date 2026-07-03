@@ -200,15 +200,9 @@ def fetch_market(c: None) -> dict[str, Any]:
                 strict=True,
             ),
             "nl": safe_int(market_health.get("new_lows_count"), field_name="market.new_lows_count", strict=True),
-            "pcr": safe_float(market_health.get("put_call_ratio"), field_name="market.put_call_ratio", strict=True),
             "bmom": safe_float(
                 market_health.get("breadth_momentum_10d"),
                 field_name="market.breadth_momentum_10d",
-                strict=True,
-            ),
-            "ycs": safe_float(
-                market_health.get("yield_curve_slope"),
-                field_name="market.yield_curve_slope",
                 strict=True,
             ),
         }
@@ -228,6 +222,32 @@ def fetch_market(c: None) -> dict[str, Any]:
             result["fed"] = fed_env
         else:
             result["fed_unavailable"] = True
+
+        # Put/call ratio is optional enrichment data (non-critical for regime detection)
+        put_call_unavailable = market_health.get("put_call_ratio_data_unavailable", False)
+        if not put_call_unavailable:
+            pcr_val = market_health.get("put_call_ratio")
+            if pcr_val is not None:
+                try:
+                    result["pcr"] = safe_float(pcr_val, field_name="market.put_call_ratio", strict=True)
+                except Exception:
+                    logger.debug("Put/call ratio conversion failed, marking as unavailable")
+                    result["pcr_unavailable"] = True
+            else:
+                result["pcr_unavailable"] = True
+        else:
+            result["pcr_unavailable"] = True
+
+        # Yield curve slope is optional enrichment data
+        ycs_val = market_health.get("yield_curve_slope")
+        if ycs_val is not None:
+            try:
+                result["ycs"] = safe_float(ycs_val, field_name="market.yield_curve_slope", strict=True)
+            except Exception:
+                logger.debug("Yield curve slope conversion failed, marking as unavailable")
+                result["ycs_unavailable"] = True
+        else:
+            result["ycs_unavailable"] = True
 
         return result
     except Exception as e:
@@ -333,13 +353,12 @@ def fetch_risk_metrics(c: None) -> dict[str, Any]:
             return FetcherValidator.build_error_response(error_msg)
 
         d = data
-        # FAIL-FAST: All critical risk metrics must be present and non-None
-        # Risk metrics are essential for portfolio monitoring and position sizing
+        # FAIL-FAST: Core risk metrics must be present (VaR, CVaR, Beta, Concentration)
+        # Stressed VaR is optional/computed and may not always be available
 
         critical_fields = {
             "var_pct_95": "VaR",
             "cvar_pct_95": "CVaR",
-            "stressed_var_pct": "Stressed VaR",
             "portfolio_beta": "Beta",
             "top_5_concentration": "Concentration",
         }
@@ -360,10 +379,20 @@ def fetch_risk_metrics(c: None) -> dict[str, Any]:
         result = {
             "var95": safe_float(d.get("var_pct_95"), field_name="var95", strict=True),
             "cvar95": safe_float(d.get("cvar_pct_95"), field_name="cvar95", strict=True),
-            "svar": safe_float(d.get("stressed_var_pct"), field_name="svar", strict=True),
             "beta": safe_float(d.get("portfolio_beta"), field_name="beta", strict=True),
             "conc5": safe_float(d.get("top_5_concentration"), field_name="conc5", strict=True),
         }
+
+        # Stressed VaR is optional computed metric (may not be available)
+        stressed_var = d.get("stressed_var_pct")
+        if stressed_var is not None:
+            try:
+                result["svar"] = safe_float(stressed_var, field_name="svar", strict=True)
+            except Exception:
+                logger.debug("Stressed VaR conversion failed, marking as unavailable")
+                result["svar_unavailable"] = True
+        else:
+            result["svar_unavailable"] = True
 
         if not date_unavailable:
             result["date"] = report_date
