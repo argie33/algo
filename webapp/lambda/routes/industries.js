@@ -7,6 +7,7 @@ const {
   sendPaginated,
   sendPlaceholder,
 } = require("../utils/apiResponse");
+const logger = require("../utils/logger");
 const {
   validateQueryResult,
   extractCount,
