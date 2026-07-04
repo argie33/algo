@@ -1675,12 +1675,19 @@ def panel_status(  # noqa: C901
         age_s = f"  [dim]{fmt_age(run_at)}[/]" if run_at else ""
         r_stat = ""
         if run_valid and isinstance(run, dict):
-            if run.get("success"):
+            success = run.get("success")
+            halted = run.get("halted")
+            errored = run.get("errored")
+            if success is None:
+                logger.warning("[HEALTH] Run status 'success' field missing")
+            if success is True:
                 r_stat = f"  [{G}]OK COMPLETED[/]"
-            elif run.get("halted"):
+            elif halted is True:
                 r_stat = f"  [{Y}]~ HALTED[/]"
-            elif run.get("errored"):
+            elif errored is True:
                 r_stat = f"  [{R}]X ERROR[/]"
+            elif success is not False and halted is not False and errored is not False:
+                r_stat = ""
         rows.append(Text.from_markup(f"[dim]Run:[/] [white]{run_id[:30]}[/]{age_s}{r_stat}"))
 
         # Show phases_completed/halted/errored counts from the run object
@@ -2445,6 +2452,8 @@ def _build_results_panel(  # noqa: C901
     valid_metrics_e = (
         algo_metrics if (algo_metrics and not (isinstance(algo_metrics, dict) and has_error(algo_metrics))) else []
     )
+    if not valid_metrics_e:
+        logger.debug("[HEALTH] Execution metrics unavailable (empty list)")
     today_m_e = valid_metrics_e[0] if valid_metrics_e else {}
     # CRITICAL: Fail-fast on missing execution counts in fallback logic.
     # Never cascade None→0 silently without logging.
