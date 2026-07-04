@@ -273,7 +273,9 @@ class CredentialManager:
                 creds = _json.loads(secret_string)
 
                 # Extract host (prefer DB_HOST env var override for proxy endpoints)
-                db_host = os.getenv("DB_HOST") or os.getenv("DB_ENDPOINT")
+                db_host = os.getenv("DB_HOST")
+                if not db_host:
+                    db_host = os.getenv("DB_ENDPOINT")
                 if not db_host:
                     db_host = creds.get("host")
                 if not db_host:
@@ -319,7 +321,9 @@ class CredentialManager:
                 ) from e
 
         # Local dev mode: all credentials must be explicitly set
-        db_host = os.getenv("DB_HOST") or os.getenv("DB_ENDPOINT")
+        db_host = os.getenv("DB_HOST")
+        if not db_host:
+            db_host = os.getenv("DB_ENDPOINT")
         if not db_host:
             raise ValueError("DB_HOST not set in environment. Set DB_HOST before using credential manager.")
 

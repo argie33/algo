@@ -532,11 +532,18 @@ class OrderManager:
                                     if filled_price_raw:
                                         try:
                                             filled_price = float(filled_price_raw)
-                                            order_id = close_data.get("id") or "close-position"
-                                            if "id" not in close_data:
-                                                logger.warning(
-                                                    f"[SEND_EXIT] Alpaca close-position response missing 'id' field, using tracking ID '{order_id}'"
+                                            order_id = close_data.get("id")
+                                            if not order_id:
+                                                logger.error(
+                                                    f"[SEND_EXIT] {symbol}: Alpaca close-position response missing required 'id' field. "
+                                                    f"Cannot track order without ID. Response: {close_data}"
                                                 )
+                                                return {
+                                                    "success": False,
+                                                    "order_id": None,
+                                                    "filled_price": None,
+                                                    "message": "Alpaca close-position missing order id",
+                                                }
                                             logger.info(
                                                 f"[SEND_EXIT] {symbol}: Close-position succeeded, "
                                                 f"fill=${filled_price} (order {order_id})"
@@ -550,11 +557,18 @@ class OrderManager:
                                         except (ValueError, TypeError):
                                             pass
                                     # Order placed but price not yet filled (market order in flight)
-                                    order_id = close_data.get("id") or "close-position"
-                                    if "id" not in close_data:
-                                        logger.warning(
-                                            f"[SEND_EXIT] Alpaca close-position response missing 'id' field, using tracking ID '{order_id}'"
+                                    order_id = close_data.get("id")
+                                    if not order_id:
+                                        logger.error(
+                                            f"[SEND_EXIT] {symbol}: Alpaca close-position response missing required 'id' field. "
+                                            f"Cannot track order without ID. Response: {close_data}"
                                         )
+                                        return {
+                                            "success": False,
+                                            "order_id": None,
+                                            "filled_price": None,
+                                            "message": "Alpaca close-position missing order id",
+                                        }
                                     logger.info(
                                         f"[SEND_EXIT] {symbol}: Close-position order {order_id} submitted, "
                                         f"fill price pending (market order)"

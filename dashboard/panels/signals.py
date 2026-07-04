@@ -379,7 +379,11 @@ def _build_buy_signals_table(
         sig_obj = buy_sig_details.get(sym_norm)
 
         if sig_obj:
-            swing_score = safe_get_field(sig_obj, "swing_score") or safe_get_field(sig_obj, "signal_quality_score")
+            swing_score = safe_get_field(sig_obj, "swing_score")
+            if swing_score is None:
+                swing_score = safe_get_field(sig_obj, "signal_quality_score")
+                if swing_score is not None:
+                    logger.debug(f"[SIGNALS_PANEL] {sym}: swing_score missing, using signal_quality_score")
             entry_qual = safe_get_field(sig_obj, "entry_quality_score", swing_score)
             buy_lvl = safe_get_field(sig_obj, "buylevel")
             stop_lvl = safe_get_field(sig_obj, "stoplevel")

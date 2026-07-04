@@ -41,7 +41,10 @@ logger = logging.getLogger(__name__)
 
 # Correlation ID for tracing - Phase 1 passes PHASE1_CORRELATION_ID via environment
 # Initialize correlation_context with the environment-provided ID or auto-generate
-_correlation_id = os.getenv("PHASE1_CORRELATION_ID") or f"AUTO-{str(uuid.uuid4())[:8]}"
+_correlation_id = os.getenv("PHASE1_CORRELATION_ID")
+if not _correlation_id:
+    _correlation_id = f"AUTO-{str(uuid.uuid4())[:8]}"
+    logger.info(f"[PRICE_LOADER] No PHASE1_CORRELATION_ID provided, using auto-generated: {_correlation_id}")
 set_correlation_id(_correlation_id)
 
 

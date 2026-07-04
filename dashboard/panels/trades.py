@@ -200,7 +200,12 @@ def panel_recent_trades(trades: Any) -> Any:
         entry_p = safe_float(entry_raw)
         exit_p = safe_float(exit_raw)
         dur = int(dur_raw) if dur_raw is not None else None
-        exit_date = safe_get_field(tr, "exit_date") or safe_get_field(tr, "trade_date")
+        # Preserve original field accessed - don't fall back to different field silently
+        exit_date = safe_get_field(tr, "exit_date")
+        if exit_date is None:
+            exit_date = safe_get_field(tr, "trade_date")
+            if exit_date is not None:
+                logger.debug(f"[TRADES_PANEL] Trade {safe_get_field(tr, 'trade_id')}: exit_date missing, using trade_date")
 
         has_pnl = pnl_p is not None
         pnl_for_color = pnl_d if pnl_d is not None else pnl_p
@@ -359,7 +364,12 @@ def panel_trades_expanded(trades: Any) -> Any:
         mae_raw = safe_get_field(tr, "mae_pct")
         mfe = float(mfe_raw) if mfe_raw is not None else None
         mae = float(mae_raw) if mae_raw is not None else None
-        trade_date = safe_get_field(tr, "trade_date") or safe_get_field(tr, "signal_date")
+        # Preserve original field accessed - don't fall back to different field silently
+        trade_date = safe_get_field(tr, "trade_date")
+        if trade_date is None:
+            trade_date = safe_get_field(tr, "signal_date")
+            if trade_date is not None:
+                logger.debug(f"[TRADES_PANEL] Trade {safe_get_field(tr, 'trade_id')}: trade_date missing, using signal_date")
         exit_date = safe_get_field(tr, "exit_date")
         exit_rsn_raw = (safe_get_field(tr, "exit_reason", "")).lower().strip()
         exit_rsn = exit_short.get(exit_rsn_raw, exit_rsn_raw[:4] if exit_rsn_raw else "--")

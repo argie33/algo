@@ -208,7 +208,10 @@ class AdvancedFilters:
 
             components["extension_pct"] = ext_pct
             if ext_pct is not None and ext_pct > self.max_extension_above_50ma_pct:
-                hard_fail = hard_fail or f"{ext_pct:.1f}% above 50-DMA (max {self.max_extension_above_50ma_pct:.0f})"
+                if not hard_fail:
+                    hard_fail = f"{ext_pct:.1f}% above 50-DMA (max {self.max_extension_above_50ma_pct:.0f})"
+                else:
+                    logger.warning(f"  {symbol}: Additional violation (extension {ext_pct:.1f}%) but already failed: {hard_fail}")
 
             # H4. Liquidity (institutional must — CRITICAL: must not skip on exception)
             avg_dollar_vol: float | None = None
@@ -222,10 +225,10 @@ class AdvancedFilters:
 
             components["avg_dollar_volume"] = avg_dollar_vol
             if avg_dollar_vol is not None and avg_dollar_vol < self.min_avg_daily_dollar_volume:
-                hard_fail = (
-                    hard_fail
-                    or f"Liquidity ${avg_dollar_vol / 1e6:.1f}M < ${self.min_avg_daily_dollar_volume / 1e6:.1f}M"
-                )
+                if not hard_fail:
+                    hard_fail = f"Liquidity ${avg_dollar_vol / 1e6:.1f}M < ${self.min_avg_daily_dollar_volume / 1e6:.1f}M"
+                else:
+                    logger.warning(f"  {symbol}: Additional violation (liquidity ${avg_dollar_vol / 1e6:.1f}M) but already failed: {hard_fail}")
 
             # H5. Strong-sector requirement
             if self.require_strong_sector:
@@ -239,7 +242,10 @@ class AdvancedFilters:
                         f"Check that sector_ranking table has data for {signal_date}."
                     )
                 if sector and sector not in self._strong_sectors:
-                    hard_fail = hard_fail or f'Sector "{sector}" not in top {len(self._strong_sectors)}'
+                    if not hard_fail:
+                        hard_fail = f'Sector "{sector}" not in top {len(self._strong_sectors)}'
+                    else:
+                        logger.warning(f"  {symbol}: Additional violation (weak sector) but already failed: {hard_fail}")
 
             # ===== SOFT scoring (always computed, even when hard-failed) =====
 
@@ -324,14 +330,20 @@ class AdvancedFilters:
                     components["extension_pts"] = round(ext_pts, 1)
                     subscores["risk"] += ext_pts
             except ValueError as e:
-                hard_fail = hard_fail or f"Extension risk assessment failed: {str(e)[:40]}"
+                if not hard_fail:
+                    hard_fail = f"Extension risk assessment failed: {str(e)[:40]}"
+                else:
+                    logger.warning(f"  {symbol}: Additional failure (extension risk) but already failed: {hard_fail}")
 
             try:
                 ep_pts = self._earnings_proximity_score(days_to_earnings, self.block_days_before_earnings)
                 components["earnings_proximity_pts"] = round(ep_pts, 1)
                 subscores["risk"] += ep_pts
             except ValueError as e:
-                hard_fail = hard_fail or f"Earnings proximity assessment failed: {str(e)[:40]}"
+                if not hard_fail:
+                    hard_fail = f"Earnings proximity assessment failed: {str(e)[:40]}"
+                else:
+                    logger.warning(f"  {symbol}: Additional failure (earnings proximity) but already failed: {hard_fail}")
 
             composite_score = min(100.0, sum(subscores.values()))
             return {
