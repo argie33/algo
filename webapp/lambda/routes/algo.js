@@ -1891,7 +1891,7 @@ router.get("/data-status", async (req, res) => {
       if (!r.status) {
         throw new Error(`Missing status for table ${r.table_name} - data quality issue`);
       }
-      if (!counts.hasOwnProperty(r.status)) {
+      if (!Object.prototype.hasOwnProperty.call(counts, r.status)) {
         throw new Error(`Unknown status "${r.status}" for table ${r.table_name}`);
       }
       counts[r.status]++;

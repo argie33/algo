@@ -253,6 +253,6 @@ module.exports = {
     // FAIL-FAST: sendPlaceholder should send proper errors, not success with placeholders
     // This violates fail-fast governance: must return success: false to indicate failure
     // The dataType parameter is ignored - we now always return error responses
-    return sendError(res, errorMessage, statusCode);
+    return module.exports.sendError(res, errorMessage, statusCode);
   },
 };
