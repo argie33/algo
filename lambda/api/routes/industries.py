@@ -84,46 +84,29 @@ def handle(
 
 
 def _industry_list(cur: cursor, params: dict[str, Any]) -> Any:
-    """Return all industries ranked by composite score with price-based performance."""
+    """Return all industries ranked by composite score with price-based performance.
+
+    Refactored to use 4 staged queries instead of 7-CTE monolith:
+    1. Base scores + ranking by composite score
+    2. Price performance (1d, 5d, 20d)
+    3. PE/PB ratios + percentile
+    4. Historical ranks
+    Then combine in Python with explicit error handling.
+    """
     limit = safe_limit(extract_param(params, "limit"), max_val=50000, default=500)
     page = safe_page(extract_param(params, "page"), default=1)
     offset = (page - 1) * limit
 
-    industries_data = execute_with_timeout(
+    from utils.validation import DatabaseResultValidator
+
+    def _extract_float(result: float | dict[str, Any]) -> float | None:
+        return result if isinstance(result, float) else None
+
+    # Stage 1: Get industry base scores + ranking
+    base_scores = execute_with_timeout(
         cur,
         """
-        WITH latest_d AS (
-            SELECT date AS d FROM price_daily ORDER BY date DESC LIMIT 1
-        ),
-        industry_price_perf AS (
-            SELECT
-                cp.industry,
-                ROUND(
-                    (AVG(CASE WHEN pd.date = (SELECT d FROM latest_d) THEN pd.close END) /
-                     NULLIF(AVG(CASE WHEN pd.date BETWEEN (SELECT d FROM latest_d) - INTERVAL '3 days'
-                                                      AND (SELECT d FROM latest_d) - INTERVAL '1 day'
-                                    THEN pd.close END), 0) - 1) * 100, 2
-                ) AS perf_1d,
-                ROUND(
-                    (AVG(CASE WHEN pd.date = (SELECT d FROM latest_d) THEN pd.close END) /
-                     NULLIF(AVG(CASE WHEN pd.date BETWEEN (SELECT d FROM latest_d) - INTERVAL '8 days'
-                                                      AND (SELECT d FROM latest_d) - INTERVAL '5 days'
-                                    THEN pd.close END), 0) - 1) * 100, 2
-                ) AS perf_5d,
-                ROUND(
-                    (AVG(CASE WHEN pd.date = (SELECT d FROM latest_d) THEN pd.close END) /
-                     NULLIF(AVG(CASE WHEN pd.date BETWEEN (SELECT d FROM latest_d) - INTERVAL '25 days'
-                                                      AND (SELECT d FROM latest_d) - INTERVAL '18 days'
-                                    THEN pd.close END), 0) - 1) * 100, 2
-                ) AS perf_20d
-            FROM price_daily pd
-            JOIN company_profile cp ON pd.symbol = cp.ticker
-            WHERE pd.date >= (SELECT d FROM latest_d) - INTERVAL '30 days'
-              AND cp.industry IS NOT NULL
-              AND pd.symbol NOT LIKE '^%'
-            GROUP BY cp.industry
-        ),
-        industry_scores AS (
+        WITH industry_scores AS (
             SELECT
                 cp.industry,
                 cp.sector,
@@ -138,13 +121,57 @@ def _industry_list(cur: cursor, params: dict[str, Any]) -> Any:
             LEFT JOIN stock_scores ss ON cp.ticker = ss.symbol
             WHERE cp.industry IS NOT NULL AND TRIM(cp.industry) != ''
             GROUP BY cp.industry, cp.sector
-        ),
-        ranked AS (
-            SELECT *,
-                RANK() OVER (ORDER BY composite_score DESC NULLS LAST) AS current_rank
-            FROM industry_scores
-        ),
-        industry_pe AS (
+        )
+        SELECT *,
+            RANK() OVER (ORDER BY composite_score DESC NULLS LAST) AS current_rank
+        FROM industry_scores
+        ORDER BY composite_score DESC NULLS LAST, stock_count DESC
+    """,
+        timeout_sec=15,
+    )
+
+    # Stage 2: Get price performance by industry
+    perf_data = execute_with_timeout(
+        cur,
+        """
+        WITH latest_d AS (
+            SELECT date AS d FROM price_daily ORDER BY date DESC LIMIT 1
+        )
+        SELECT
+            cp.industry,
+            ROUND(
+                (AVG(CASE WHEN pd.date = (SELECT d FROM latest_d) THEN pd.close END) /
+                 NULLIF(AVG(CASE WHEN pd.date BETWEEN (SELECT d FROM latest_d) - INTERVAL '3 days'
+                                              AND (SELECT d FROM latest_d) - INTERVAL '1 day'
+                                    THEN pd.close END), 0) - 1) * 100, 2
+            ) AS perf_1d,
+            ROUND(
+                (AVG(CASE WHEN pd.date = (SELECT d FROM latest_d) THEN pd.close END) /
+                 NULLIF(AVG(CASE WHEN pd.date BETWEEN (SELECT d FROM latest_d) - INTERVAL '8 days'
+                                              AND (SELECT d FROM latest_d) - INTERVAL '5 days'
+                                    THEN pd.close END), 0) - 1) * 100, 2
+            ) AS perf_5d,
+            ROUND(
+                (AVG(CASE WHEN pd.date = (SELECT d FROM latest_d) THEN pd.close END) /
+                 NULLIF(AVG(CASE WHEN pd.date BETWEEN (SELECT d FROM latest_d) - INTERVAL '25 days'
+                                              AND (SELECT d FROM latest_d) - INTERVAL '18 days'
+                                    THEN pd.close END), 0) - 1) * 100, 2
+            ) AS perf_20d
+        FROM price_daily pd
+        JOIN company_profile cp ON pd.symbol = cp.ticker
+        WHERE pd.date >= (SELECT d FROM latest_d) - INTERVAL '30 days'
+          AND cp.industry IS NOT NULL
+          AND pd.symbol NOT LIKE '^%'
+        GROUP BY cp.industry
+    """,
+        timeout_sec=15,
+    )
+
+    # Stage 3: Get PE/PB ratios + percentile
+    pe_data = execute_with_timeout(
+        cur,
+        """
+        WITH industry_pe AS (
             SELECT
                 cp.industry,
                 AVG(vm.pe_ratio) FILTER (WHERE vm.pe_ratio > 0 AND vm.pe_ratio < 200)  AS avg_trailing_pe,
@@ -153,61 +180,72 @@ def _industry_list(cur: cursor, params: dict[str, Any]) -> Any:
             JOIN company_profile cp ON vm.symbol = cp.ticker
             WHERE cp.industry IS NOT NULL
             GROUP BY cp.industry
-        ),
-        industry_pe_ranked AS (
-            SELECT *,
-                PERCENT_RANK() OVER (ORDER BY avg_trailing_pe ASC NULLS LAST) * 100 AS pe_percentile
-            FROM industry_pe
-        ),
-        latest_ranking AS (
-            SELECT industry, rank_1w_ago, rank_4w_ago, rank_12w_ago
-            FROM industry_ranking
-            WHERE date_recorded = (SELECT date_recorded FROM industry_ranking ORDER BY date_recorded DESC LIMIT 1)
         )
         SELECT
-            r.industry, r.sector, r.stock_count, r.composite_score,
-            r.momentum_score, r.value_score, r.quality_score, r.growth_score,
-            r.stability_score, r.current_rank,
-            ipe.avg_trailing_pe, ipe.avg_pb_ratio, ipe.pe_percentile,
-            lr.rank_1w_ago, lr.rank_4w_ago, lr.rank_12w_ago,
-            ipp.perf_1d, ipp.perf_5d, ipp.perf_20d
-        FROM ranked r
-        LEFT JOIN industry_pe_ranked ipe ON ipe.industry = r.industry
-        LEFT JOIN latest_ranking lr ON lr.industry = r.industry
-        LEFT JOIN industry_price_perf ipp ON ipp.industry = r.industry
-        ORDER BY r.current_rank, r.stock_count DESC
-        LIMIT %s OFFSET %s
+            industry,
+            avg_trailing_pe,
+            avg_pb_ratio,
+            PERCENT_RANK() OVER (ORDER BY avg_trailing_pe ASC NULLS LAST) * 100 AS pe_percentile
+        FROM industry_pe
     """,
-        (limit, offset),
-        timeout_sec=25,
+        timeout_sec=15,
     )
 
-    count_rows = execute_with_timeout(
+    # Stage 4: Get historical ranks
+    rank_data = execute_with_timeout(
         cur,
         """
-        SELECT COUNT(DISTINCT industry) AS cnt
-        FROM company_profile
-        WHERE industry IS NOT NULL AND TRIM(industry) != ''
+        SELECT industry, rank_1w_ago, rank_4w_ago, rank_12w_ago
+        FROM industry_ranking
+        WHERE date_recorded = (SELECT date_recorded FROM industry_ranking ORDER BY date_recorded DESC LIMIT 1)
     """,
         timeout_sec=10,
     )
-    if count_rows and len(count_rows) > 0:
-        count_val = count_rows[0].get("cnt")
-        if count_val is not None:
-            total = int(count_val)
-        else:
-            logger.warning("Industry count query returned row with NULL 'cnt' field")
-            total = 0
-    else:
-        logger.debug("Industry count query returned no rows")
-        total = 0
 
+    # Build lookup dictionaries for fast access
+    perf_by_industry: dict[str, Any] = {}
+    if perf_data:
+        for row in perf_data:
+            ind_name = row.get("industry")
+            if ind_name:
+                perf_by_industry[ind_name] = safe_json_serialize(row)
+
+    pe_by_industry: dict[str, Any] = {}
+    if pe_data:
+        for row in pe_data:
+            ind_name = row.get("industry")
+            if ind_name:
+                pe_by_industry[ind_name] = safe_json_serialize(row)
+
+    rank_by_industry: dict[str, Any] = {}
+    if rank_data:
+        for row in rank_data:
+            ind_name = row.get("industry")
+            if ind_name:
+                rank_by_industry[ind_name] = safe_json_serialize(row)
+
+    # Count total unique industries
+    total = len(base_scores) if base_scores else 0
+
+    # Apply pagination + combine data in Python
     industries = []
-    for _idx, row in enumerate(industries_data):
+    for idx, row in enumerate(base_scores):
+        if idx < offset:
+            continue
+        if idx >= offset + limit:
+            break
+
         ind = safe_json_serialize(row)
+        industry_name = ind.get("industry")
+        if not industry_name:
+            continue
+
         composite_result = _sf(ind.get("composite_score"))
         composite = composite_result if isinstance(composite_result, float) else None
-        perf_20d_result = _sf(ind.get("perf_20d"))
+
+        # Fetch performance data for this industry
+        perf_row = perf_by_industry.get(industry_name, {})
+        perf_20d_result = _sf(perf_row.get("perf_20d"))
         perf_20d = perf_20d_result if isinstance(perf_20d_result, float) else None
 
         momentum_label = (
@@ -230,22 +268,20 @@ def _industry_list(cur: cursor, params: dict[str, Any]) -> Any:
             return error_response(
                 503,
                 "data_incomplete",
-                f"Industry {ind.get('industry')} missing current_rank",
+                f"Industry {industry_name} missing current_rank",
             )
 
-        # Helper function to extract float value from _sf result
-        def _extract_float(result: float | dict[str, Any]) -> float | None:
-            return result if isinstance(result, float) else None
+        # Extract PE data
+        pe_row = pe_by_industry.get(industry_name, {})
+        # Extract rank data
+        rank_row = rank_by_industry.get(industry_name, {})
 
-        # FAIL-FAST: Extract required fields upfront with safe validation
-        from utils.validation import DatabaseResultValidator
-
-        industry = DatabaseResultValidator.safe_get_str(ind, "industry", default=None)
-        sector = DatabaseResultValidator.safe_get_str(ind, "sector", default=None)
-        rank_1w = DatabaseResultValidator.safe_get_int(ind, "rank_1w_ago", default=None)
-        rank_4w = DatabaseResultValidator.safe_get_int(ind, "rank_4w_ago", default=None)
-        rank_12w = DatabaseResultValidator.safe_get_int(ind, "rank_12w_ago", default=None)
-        stock_count = DatabaseResultValidator.safe_get_int(ind, "stock_count", default=None)
+        industry = DatabaseResultValidator.safe_get_str(ind, "industry", default="")
+        sector = DatabaseResultValidator.safe_get_str(ind, "sector", default="")
+        rank_1w = DatabaseResultValidator.safe_get_int(rank_row, "rank_1w_ago", default=0)
+        rank_4w = DatabaseResultValidator.safe_get_int(rank_row, "rank_4w_ago", default=0)
+        rank_12w = DatabaseResultValidator.safe_get_int(rank_row, "rank_12w_ago", default=0)
+        stock_count = DatabaseResultValidator.safe_get_int(ind, "stock_count", default=0)
 
         industries.append(
             {
@@ -253,37 +289,35 @@ def _industry_list(cur: cursor, params: dict[str, Any]) -> Any:
                 "sector": sector,
                 "current_rank": int(current_rank),
                 "overall_rank": int(current_rank),
-                "rank_1w_ago": rank_1w,
-                "rank_4w_ago": rank_4w,
-                "rank_12w_ago": rank_12w,
-                "stock_count": stock_count,
+                "rank_1w_ago": rank_1w if rank_1w else None,
+                "rank_4w_ago": rank_4w if rank_4w else None,
+                "rank_12w_ago": rank_12w if rank_12w else None,
+                "stock_count": stock_count if stock_count else None,
                 "composite_score": composite,
                 "momentum_score": _extract_float(_sf(ind.get("momentum_score"))),
                 "value_score": _extract_float(_sf(ind.get("value_score"))),
                 "quality_score": _extract_float(_sf(ind.get("quality_score"))),
                 "growth_score": _extract_float(_sf(ind.get("growth_score"))),
                 "stability_score": _extract_float(_sf(ind.get("stability_score"))),
-                "performance_1d": _extract_float(_sf(ind.get("perf_1d"))),
-                "performance_5d": _extract_float(_sf(ind.get("perf_5d"))),
+                "performance_1d": _extract_float(_sf(perf_row.get("perf_1d"))),
+                "performance_5d": _extract_float(_sf(perf_row.get("perf_5d"))),
                 "performance_20d": perf_20d,
                 "current_momentum": momentum_label,
                 "current_trend": trend_label,
                 "pe": {
-                    "trailing": _extract_float(_sf(ind.get("avg_trailing_pe"))),
-                    "percentile": _extract_float(_sf(ind.get("pe_percentile"))),
+                    "trailing": _extract_float(_sf(pe_row.get("avg_trailing_pe"))),
+                    "percentile": _extract_float(_sf(pe_row.get("pe_percentile"))),
                 },
             }
         )
 
     freshness = check_data_freshness(cur, "industry_ranking", "date_recorded", warning_days=1)
 
-    # EXPLICIT: Ensure response fields have correct types for validation
-    # Database may return Decimals that get converted to float; explicitly cast to int
     result = {
-        "items": industries,  # list
-        "total": int(total) if total is not None else 0,  # MUST be int for validation
-        "page": int(page) if page is not None else 1,  # MUST be int for validation
-        "limit": int(limit) if limit is not None else 500,  # MUST be int for validation
+        "items": industries,
+        "total": int(total) if total is not None else 0,
+        "page": int(page) if page is not None else 1,
+        "limit": int(limit) if limit is not None else 500,
         "data_freshness": freshness,
     }
 
@@ -322,7 +356,6 @@ def _industry_detail(cur: cursor, industry_name: str) -> Any:
     r = safe_json_serialize(row)
     freshness = check_data_freshness(cur, "stock_scores", "date", warning_days=1)
 
-    # Helper function to extract float value from _sf result
     def _extract_float(result: float | dict[str, Any]) -> float | None:
         return result if isinstance(result, float) else None
 
@@ -377,15 +410,14 @@ def _industry_trend(cur: cursor, industry_name: str, params: dict[str, Any]) -> 
     )
 
     rows = cur.fetchall()
-    # FAIL-FAST: Extract trend data fields upfront with safe validation
     from utils.validation import DatabaseResultValidator
 
     trend_data = []
     for r in rows:
-        date_val = DatabaseResultValidator.safe_get_str(r, "date", default=None)
-        avg_price = DatabaseResultValidator.safe_get_float(r, "avg_price", default=None)
-        stock_cnt = DatabaseResultValidator.safe_get_int(r, "stock_count", default=None)
-        strength_score = DatabaseResultValidator.safe_get_float(r, "daily_strength_score", default=None)
+        date_val = DatabaseResultValidator.safe_get_str(r, "date", default="")
+        avg_price = DatabaseResultValidator.safe_get_float(r, "avg_price", default=0.0)
+        stock_cnt = DatabaseResultValidator.safe_get_int(r, "stock_count", default=0)
+        strength_score = DatabaseResultValidator.safe_get_float(r, "daily_strength_score", default=0.0)
         trend_data.append(
             {
                 "date": date_val,
