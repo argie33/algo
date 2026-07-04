@@ -571,7 +571,10 @@ class AdvancedFilters:
         cur.execute(
             """
             SELECT composite_score, quality_score, growth_score, momentum_score
-            FROM stock_scores WHERE symbol = %s LIMIT 1
+            FROM stock_scores
+            WHERE symbol = %s
+              AND (data_unavailable = FALSE OR data_unavailable IS NULL)
+            LIMIT 1
             """,
             (symbol,),
         )

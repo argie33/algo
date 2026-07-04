@@ -163,13 +163,17 @@ class GrowthMetricsLoader(SecFinancialsLoader):
                         metrics[f"revenue_growth_{lookback}y"] = None
                         metrics[f"revenue_growth_{lookback}y_unavailable_reason"] = "insufficient_revenue_data"
                 except (TypeError, ValueError) as e:
-                    logger.error(
-                        f"[GROWTH_METRICS] {symbol}: Revenue growth calculation failed for {lookback}y lookback. "
-                        f"Error: {e}. Latest revenue: {latest_rev}, previous: {prev_rev}. "
-                        f"This indicates a data type issue, not just missing upstream data."
+                    # Calculation error indicates data type or logic bug, not missing data
+                    # GOVERNANCE: Fail-fast on calculation errors via exception, not silent "unavailable" markers.
+                    error_msg = (
+                        f"[GROWTH_METRICS] {symbol}: Revenue growth calculation FAILED for {lookback}y lookback. "
+                        f"Error: {e}. Latest revenue: {latest_rev} ({type(latest_rev).__name__}), "
+                        f"previous: {prev_rev} ({type(prev_rev).__name__}). "
+                        f"This indicates data type mismatch or calculation logic error that must be fixed."
                     )
-                    metrics[f"revenue_growth_{lookback}y"] = None
-                    metrics[f"revenue_growth_{lookback}y_unavailable_reason"] = "revenue_calculation_error"
+                    logger.error(error_msg)
+                    # Halt processing for this symbol—don't silently convert calculation bug to "unavailable"
+                    raise RuntimeError(error_msg) from e
             else:
                 metrics[f"revenue_growth_{lookback}y"] = None
                 metrics[f"revenue_growth_{lookback}y_unavailable_reason"] = f"insufficient_history_{lookback}y"
@@ -191,13 +195,17 @@ class GrowthMetricsLoader(SecFinancialsLoader):
                         metrics[f"eps_growth_{lookback}y"] = None
                         metrics[f"eps_growth_{lookback}y_unavailable_reason"] = "insufficient_eps_data"
                 except (TypeError, ValueError) as e:
-                    logger.error(
-                        f"[GROWTH_METRICS] {symbol}: EPS growth calculation failed for {lookback}y lookback. "
-                        f"Error: {e}. Latest EPS: {latest_eps}, previous: {prev_eps}. "
-                        f"This indicates a data type issue, not just missing upstream data."
+                    # Calculation error indicates data type or logic bug, not missing data
+                    # GOVERNANCE: Fail-fast on calculation errors via exception, not silent "unavailable" markers.
+                    error_msg = (
+                        f"[GROWTH_METRICS] {symbol}: EPS growth calculation FAILED for {lookback}y lookback. "
+                        f"Error: {e}. Latest EPS: {latest_eps} ({type(latest_eps).__name__}), "
+                        f"previous: {prev_eps} ({type(prev_eps).__name__}). "
+                        f"This indicates data type mismatch or calculation logic error that must be fixed."
                     )
-                    metrics[f"eps_growth_{lookback}y"] = None
-                    metrics[f"eps_growth_{lookback}y_unavailable_reason"] = "eps_calculation_error"
+                    logger.error(error_msg)
+                    # Halt processing for this symbol—don't silently convert calculation bug to "unavailable"
+                    raise RuntimeError(error_msg) from e
             else:
                 metrics[f"eps_growth_{lookback}y"] = None
                 metrics[f"eps_growth_{lookback}y_unavailable_reason"] = f"insufficient_history_{lookback}y"
