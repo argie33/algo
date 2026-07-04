@@ -249,10 +249,22 @@ def fetch_positions(c: None) -> dict[str, Any]:
 
             valid_items.append(pos)
 
-        if invalid_count > 0:
-            logger.warning(f"Filtered {invalid_count} invalid position(s) from API response, {len(valid_items)} valid")
+        total_items = len(items)
+        items_coverage_pct = (len(valid_items) / total_items * 100) if total_items > 0 else 100.0
 
-        return {"items": valid_items, "timestamp": datetime.now(ET)}
+        if invalid_count > 0:
+            logger.warning(
+                f"Filtered {invalid_count} invalid position(s) from API response, {len(valid_items)} valid. "
+                f"Coverage: {items_coverage_pct:.1f}% ({len(valid_items)}/{total_items})"
+            )
+
+        return {
+            "items": valid_items,
+            "timestamp": datetime.now(ET),
+            "items_coverage_pct": items_coverage_pct,
+            "items_valid_count": len(valid_items),
+            "items_total_count": total_items,
+        }
     except Exception as e:
         error_msg = format_fetcher_error("pos", e)
         logger.error(error_msg)
@@ -300,7 +312,15 @@ def fetch_recent_trades(c: None) -> dict[str, Any]:
             logger.error(error_msg)
             record_data_quality_issue("trades", "validation", "invalid_response_type")
             return FetcherValidator.build_error_response(error_msg)
-        return {"items": trades, "timestamp": datetime.now(ET)}
+
+        # Track trades data quality metrics
+        trades_count = len(trades) if trades else 0
+        return {
+            "items": trades,
+            "timestamp": datetime.now(ET),
+            "trades_count": trades_count,
+            "data_available": trades_count > 0,
+        }
     except Exception as e:
         error_msg = format_fetcher_error("trades", e)
         logger.error(error_msg)
