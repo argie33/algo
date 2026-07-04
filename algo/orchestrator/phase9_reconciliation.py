@@ -80,15 +80,22 @@ def _validate_pnl_step(
     try:
         account_data = recon.broker.fetch_account()
         if account_data and result.get("success"):
+            # FALLBACK SEQUENCE (explicit, fail-fast if all missing):
+            # 1. Try 'equity' field (primary broker account equity)
+            # 2. Try 'portfolio_value' field (fallback if equity missing)
+            # 3. Raise if both missing
             broker_equity = account_data.get("equity")
             if broker_equity is None:
                 broker_equity = account_data.get("portfolio_value")
-                if broker_equity is None:
-                    logger.error(
-                        "[PHASE 7 P&L VALIDATION] Broker data missing both 'equity' and "
-                        "'portfolio_value'. Available keys: " + str(list(account_data.keys()))
-                    )
-                    raise ValueError("Broker data missing equity and portfolio_value — cannot validate P&L")
+            if broker_equity is None:
+                logger.error(
+                    "[PHASE 9 P&L VALIDATION] CRITICAL: Broker data missing both 'equity' and "
+                    "'portfolio_value' fields. Available keys: " + str(list(account_data.keys()))
+                )
+                raise ValueError(
+                    "Broker data missing required equity/portfolio_value fields. "
+                    "Cannot validate P&L reconciliation without broker account balance."
+                )
 
             if "portfolio_value" not in result:
                 raise ValueError(

@@ -748,7 +748,16 @@ def run(
             f"missing swing_trader_scores. This may suppress valid candidates."
         )
 
-    # Sort by composite_score descending
+    # FAIL-FAST: Validate composite_score is present and numeric before sorting
+    for sig in quality_filtered:
+        if "composite_score" not in sig:
+            raise ValueError(f"Signal {sig.get('symbol')} missing 'composite_score' field")
+        cs = sig["composite_score"]
+        if cs is None:
+            raise ValueError(f"Signal {sig.get('symbol')} has None composite_score (database join should guarantee non-null)")
+        if not isinstance(cs, (int, float)):
+            raise ValueError(f"Signal {sig.get('symbol')} composite_score is {type(cs).__name__}, expected float")
+
     quality_filtered.sort(key=lambda s: float(s["composite_score"]), reverse=True)
 
     # Liquidity checks on top candidates — parallelized
@@ -770,8 +779,11 @@ def run(
         f"{len(quality_filtered) - liq_checked} unchecked candidates dropped."
     )
 
-    # Final ranking by composite_score
+    # Final ranking by composite_score (already validated by quality_filtered sort, but re-validate for safety)
     if liq_passed:
+        for sig in liq_passed:
+            if "composite_score" not in sig or sig["composite_score"] is None:
+                raise ValueError(f"Liquidity-passed signal {sig.get('symbol')} missing valid composite_score")
         liq_passed.sort(key=lambda s: float(s["composite_score"]), reverse=True)
 
     logger.info(f"[PHASE 7] Top 10 qualified signals (source={signal_source}):")

@@ -446,7 +446,10 @@ class LivePerformance:
             logger.info(f"Generating daily performance report for {report_date}")
 
             # Compute all metrics (each handles its own connection)
+            # CRITICAL: All risk metrics must be present. No graceful degradation.
             sharpe = self.rolling_sharpe(252)
+            if sharpe is None:
+                raise ValueError("Sharpe ratio is critical for risk assessment — cannot proceed with None")
             logger.debug(f"  Sharpe ratio: {sharpe}")
             try:
                 sortino = self.rolling_sortino(252)
@@ -461,8 +464,12 @@ class LivePerformance:
                 logger.warning(f"  Calmar ratio unavailable: {e}")
                 calmar = None
             wr = self.win_rate(50)
+            if wr is None:
+                raise ValueError("Win rate is critical for strategy evaluation — cannot proceed with None")
             logger.debug(f"  Win rate: {wr['win_rate_pct'] if wr else None}%")
             expectancy = self.expectancy(50)
+            if expectancy is None:
+                raise ValueError("Expectancy is critical for position sizing — cannot proceed with None")
             logger.debug(f"  Expectancy: {expectancy}")
             max_dd = self.max_drawdown()
             logger.debug(f"  Max drawdown: {max_dd}%")

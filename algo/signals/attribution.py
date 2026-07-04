@@ -112,83 +112,93 @@ class SignalAttributionEngine:
                 ic_results = {}
 
                 for component in self.COMPONENTS:
-                    comp_scores = []
-                    r_multiples = []
+                    try:
+                        comp_scores = []
+                        r_multiples = []
 
-                    for trade in trades:
-                        (
-                            trade_id,
-                            _swing_score,
-                            swing_components_json,
-                            r_multiple,
-                            _exit_date,
-                            _symbol,
-                            _signal_date,
-                        ) = trade
+                        for trade in trades:
+                            (
+                                trade_id,
+                                _swing_score,
+                                swing_components_json,
+                                r_multiple,
+                                _exit_date,
+                                _symbol,
+                                _signal_date,
+                            ) = trade
 
-                        try:
-                            if not swing_components_json:
-                                raise ValueError(f"No swing components data for trade {trade_id}")
-                            swing_components = json.loads(swing_components_json)
-                            comp_data = swing_components.get(component)
-                            if not comp_data:
-                                raise ValueError(f"Component {component} not found in trade {trade_id}")
-                            comp_score = comp_data.get("pts")
-                            if comp_score is None:
-                                raise ValueError(f"Component {component} missing 'pts' field in trade {trade_id}")
-                            if r_multiple is None:
-                                raise ValueError(f"R-multiple missing for trade {trade_id}")
-                            r_mult = float(r_multiple)
+                            try:
+                                if not swing_components_json:
+                                    raise ValueError(f"No swing components data for trade {trade_id}")
+                                swing_components = json.loads(swing_components_json)
+                                comp_data = swing_components.get(component)
+                                if not comp_data:
+                                    raise ValueError(f"Component {component} not found in trade {trade_id}")
+                                comp_score = comp_data.get("pts")
+                                if comp_score is None:
+                                    raise ValueError(f"Component {component} missing 'pts' field in trade {trade_id}")
+                                if r_multiple is None:
+                                    raise ValueError(f"R-multiple missing for trade {trade_id}")
+                                r_mult = float(r_multiple)
 
-                            comp_scores.append(float(comp_score))
-                            r_multiples.append(r_mult)
-                        except (json.JSONDecodeError, ValueError) as e:
-                            raise ValueError(f"Cannot extract {component} data from trade {trade_id}: {e}") from e
+                                comp_scores.append(float(comp_score))
+                                r_multiples.append(r_mult)
+                            except (json.JSONDecodeError, ValueError) as e:
+                                raise ValueError(f"Cannot extract {component} data from trade {trade_id}: {e}") from e
 
-                    # Calculate IC
-                    if len(comp_scores) >= 10:
-                        comp_scores_arr = np.array(comp_scores)
-                        r_mult_arr = np.array(r_multiples)
+                        # Calculate IC
+                        if len(comp_scores) >= 10:
+                            comp_scores_arr = np.array(comp_scores)
+                            r_mult_arr = np.array(r_multiples)
 
-                        # Pearson correlation
-                        if comp_scores_arr.std() > 0 and r_mult_arr.std() > 0:
-                            ic_value, ic_pvalue = stats.pearsonr(comp_scores_arr, r_mult_arr)
+                            # Pearson correlation
+                            if comp_scores_arr.std() > 0 and r_mult_arr.std() > 0:
+                                ic_value, ic_pvalue = stats.pearsonr(comp_scores_arr, r_mult_arr)
+                            else:
+                                ic_value, ic_pvalue = 0.0, 1.0
+
+                            # Interpretation
+                            interpretation = "noise"
+                            if ic_value >= self.IC_THRESHOLDS["strong"]:
+                                interpretation = "strong"
+                            elif ic_value >= self.IC_THRESHOLDS["moderate"]:
+                                interpretation = "moderate"
+                            elif ic_value >= self.IC_THRESHOLDS["weak"]:
+                                interpretation = "weak"
+
+                            ic_results[component] = {
+                                "ic_value": round(float(ic_value), 4),
+                                "ic_pvalue": round(float(ic_pvalue), 4),
+                                "sample_size": len(comp_scores),
+                                "avg_component_score": round(float(comp_scores_arr.mean()), 2),
+                                "avg_realized_pnl": round(float(r_mult_arr.mean()), 2),
+                                "interpretation": interpretation,
+                            }
                         else:
-                            ic_value, ic_pvalue = 0.0, 1.0
-
-                        # Interpretation
-                        interpretation = "noise"
-                        if ic_value >= self.IC_THRESHOLDS["strong"]:
-                            interpretation = "strong"
-                        elif ic_value >= self.IC_THRESHOLDS["moderate"]:
-                            interpretation = "moderate"
-                        elif ic_value >= self.IC_THRESHOLDS["weak"]:
-                            interpretation = "weak"
-
-                        ic_results[component] = {
-                            "ic_value": round(float(ic_value), 4),
-                            "ic_pvalue": round(float(ic_pvalue), 4),
-                            "sample_size": len(comp_scores),
-                            "avg_component_score": round(float(comp_scores_arr.mean()), 2),
-                            "avg_realized_pnl": round(float(r_mult_arr.mean()), 2),
-                            "interpretation": interpretation,
-                        }
-                    else:
-                        # CRITICAL: Don't silently default IC to 0.0 — insufficient sample is not "no relationship"
-                        # Mark as unavailable instead of fake 0.0 metric
-                        logger.warning(
-                            f"[ATTRIBUTION] Insufficient samples for {component} IC calculation: "
-                            f"{len(comp_scores)} trades (need ≥10). Cannot compute IC without adequate data."
-                        )
+                            # CRITICAL: Don't silently default IC to 0.0 — insufficient sample is not "no relationship"
+                            # Mark as unavailable instead of fake 0.0 metric
+                            logger.warning(
+                                f"[ATTRIBUTION] Insufficient samples for {component} IC calculation: "
+                                f"{len(comp_scores)} trades (need ≥10). Cannot compute IC without adequate data."
+                            )
+                            ic_results[component] = {
+                                "ic_value": None,
+                                "ic_pvalue": None,
+                                "sample_size": len(comp_scores),
+                                "avg_component_score": None,
+                                "avg_realized_pnl": None,
+                                "interpretation": "insufficient_data",
+                                "data_unavailable": True,
+                                "reason": f"insufficient_trades ({len(comp_scores)}<10)",
+                            }
+                    except (ValueError, json.JSONDecodeError, TypeError) as e:
+                        logger.error(f"[ATTRIBUTION] {component} IC computation failed: {e}")
                         ic_results[component] = {
                             "ic_value": None,
                             "ic_pvalue": None,
-                            "sample_size": len(comp_scores),
-                            "avg_component_score": None,
-                            "avg_realized_pnl": None,
-                            "interpretation": "insufficient_data",
+                            "sample_size": len(comp_scores) if comp_scores else 0,
                             "data_unavailable": True,
-                            "reason": f"insufficient_trades ({len(comp_scores)}<10)",
+                            "reason": f"{component}_calculation_failed",
                         }
 
                 logger.info(f"IC computation complete for {report_date}. Samples: {len(trades)}")

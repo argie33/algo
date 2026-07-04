@@ -86,11 +86,16 @@ class DailyFinanceReport:
                     )
                 prior_value = float(rows[1][0])
             else:
-                prior_value = None
-            if prior_value is None or prior_value <= 0:
-                daily_pnl_pct = None
-            else:
-                daily_pnl_pct = (current_value - prior_value) / prior_value * 100
+                raise RuntimeError(
+                    f"[DAILY_REPORT] No prior portfolio snapshot available for {report_date}. "
+                    f"Cannot calculate daily P&L without yesterday's portfolio value."
+                )
+            if prior_value <= 0:
+                raise RuntimeError(
+                    f"[DAILY_REPORT] Prior portfolio value is {prior_value} (invalid). "
+                    f"Portfolio value must be > 0 to calculate P&L."
+                )
+            daily_pnl_pct = (current_value - prior_value) / prior_value * 100
 
             # YTD P&L (simplified)
             cur.execute(
@@ -102,14 +107,16 @@ class DailyFinanceReport:
             ytd_row = cur.fetchone()
             ytd_start = float(ytd_row[0]) if ytd_row is not None and ytd_row[0] is not None else None
             if ytd_start is None or ytd_start <= 0:
-                ytd_pnl_pct = None
-            else:
-                ytd_pnl_pct = (current_value - ytd_start) / ytd_start * 100
+                raise RuntimeError(
+                    f"[DAILY_REPORT] Year-to-date starting portfolio snapshot unavailable ({ytd_start}). "
+                    f"Cannot calculate YTD P&L without year-start value. Check algo_portfolio_snapshots for {report_date.year} data."
+                )
+            ytd_pnl_pct = (current_value - ytd_start) / ytd_start * 100
 
             return {
                 "current_value": round(current_value, 2),
-                "daily_pnl_pct": round(daily_pnl_pct, 2) if daily_pnl_pct is not None else None,
-                "ytd_pnl_pct": round(ytd_pnl_pct, 2) if ytd_pnl_pct is not None else None,
+                "daily_pnl_pct": round(daily_pnl_pct, 2),
+                "ytd_pnl_pct": round(ytd_pnl_pct, 2),
                 "open_positions": self._count_open_positions(cur, report_date),
             }
         except (ValueError, ZeroDivisionError, TypeError) as e:

@@ -532,11 +532,26 @@ def run(
 
     technical_data = _batch_fetch_technical_data(symbols_with_precomputed, run_date)
 
-    precomputed_count = sum(
-        1
-        for sym, data in symbols_with_precomputed.items()
-        if data.get("sma_50") is not None and data.get("atr_14") is not None and data.get("close") is not None
-    )
+    def _is_valid_numeric(v: Any) -> bool:
+        return isinstance(v, (int, float)) and not isinstance(v, bool)
+
+    precomputed_count = 0
+    for sym, data in symbols_with_precomputed.items():
+        sma_50 = data.get("sma_50")
+        atr_14 = data.get("atr_14")
+        close = data.get("close")
+        if not (sma_50 is not None and atr_14 is not None and close is not None):
+            continue
+        if not _is_valid_numeric(sma_50):
+            logger.error(f"[PHASE 8] {sym}: SMA_50 is {type(sma_50).__name__} (expected float), skipping precomputed")
+            continue
+        if not _is_valid_numeric(atr_14):
+            logger.error(f"[PHASE 8] {sym}: ATR_14 is {type(atr_14).__name__} (expected float), skipping precomputed")
+            continue
+        if not _is_valid_numeric(close):
+            logger.error(f"[PHASE 8] {sym}: Close is {type(close).__name__} (expected float), skipping precomputed")
+            continue
+        precomputed_count += 1
 
     logger.info(
         f"[PHASE 8] Technical data: {precomputed_count}/{len(symbols_with_precomputed)} symbols reused from Phase 5. "

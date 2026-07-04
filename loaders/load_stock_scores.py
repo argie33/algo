@@ -253,7 +253,14 @@ class StockScoresLoader(OptimalLoader):
 
             # Merge debt_to_assets from quality into stability metrics for solvency scoring
             if stability and quality and quality.get("debt_to_assets") is not None:
-                stability["debt_to_assets"] = quality["debt_to_assets"]
+                dta = quality.get("debt_to_assets")
+                if not isinstance(dta, (int, float)) or isinstance(dta, bool):
+                    logger.warning(
+                        f"[STOCK_SCORES] {symbol}: debt_to_assets from quality is {type(dta).__name__} "
+                        f"(expected float). Not merging invalid value into stability."
+                    )
+                else:
+                    stability["debt_to_assets"] = dta
 
             # Compute individual factor scores from REAL data only (no defaults)
             # Scoring functions return float or dict (marker when data unavailable)
