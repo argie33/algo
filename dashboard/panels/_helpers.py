@@ -174,6 +174,62 @@ def _fmt_phases_halted(phases_halted: Any) -> str:
     return ", ".join(names[:3])
 
 
+def _get_age_hours(item: Any) -> float | None:
+    """Extract age in hours from a data item.
+
+    Checks age_hours first, then age (assumed to be in days and converted).
+    Returns None if no age data available.
+    """
+    if not isinstance(item, dict):
+        return None
+
+    age_hours = item.get("age_hours")
+    if age_hours is not None:
+        try:
+            return float(age_hours)
+        except (ValueError, TypeError):
+            pass
+
+    age_days = item.get("age")
+    if age_days is not None:
+        try:
+            return float(age_days) * 24
+        except (ValueError, TypeError):
+            pass
+
+    return None
+
+
+def _is_stale(item: Any, stale_threshold_hours: float = 24) -> bool:
+    """Check if a data item is stale (age > threshold).
+
+    Args:
+        item: Data dict with optional age_hours or age field
+        stale_threshold_hours: Threshold in hours (default 24h = 1 day)
+
+    Returns:
+        True if item is stale or age data unavailable, False if fresh
+    """
+    age = _get_age_hours(item)
+    if age is None:
+        # No age data available — treat as potentially stale
+        logger.debug(f"Data item missing age_hours/age fields — cannot assess freshness")
+        return True
+    return age > stale_threshold_hours
+
+
+def _format_age(item: Any) -> str:
+    """Format age from data item for display."""
+    age = _get_age_hours(item)
+    if age is None:
+        return "?"
+    if age < 1:
+        return f"{int(age * 60)}m"
+    if age < 24:
+        return f"{age:.0f}h"
+    return f"{age / 24:.1f}d"
+
+
 def _error_panel(data_name: str, data: Any, title: str, border: str = "magenta") -> Panel | None:
     """Create a panel showing granular error info for failed data sources.
 
@@ -209,7 +265,10 @@ __all__ = [
     "_build_buy_sig_map",
     "_composite_score_color",
     "_error_panel",
+    "_format_age",
     "_fmt_phases_halted",
+    "_get_age_hours",
+    "_is_stale",
     "_score_cell",
     "_swing_cell",
 ]

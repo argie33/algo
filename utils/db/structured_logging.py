@@ -39,8 +39,11 @@ class StructuredDBLogger:
         if hasattr(query, "as_string"):
             try:
                 query = str(query)
-            except Exception:
-                return f"<{type(query).__name__} query>"
+            except Exception as e:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"[STRUCTURED_LOGGING] Failed to convert query to string: {e}")
+                return f"<{type(query).__name__} query (failed_to_convert: {type(e).__name__})>"
         elif not isinstance(query, str):
             return f"<{type(query).__name__} query>"
 

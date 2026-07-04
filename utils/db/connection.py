@@ -199,8 +199,8 @@ def _check_connection_health(conn: Any, pool: Any) -> None:
         logger.warning(f"[DB_POOL] Connection ping failed (SSL dropped), discarding: {str(e)[:100]}")
         try:
             pool.putconn(conn, close=True)
-        except Exception:
-            pass
+        except Exception as cleanup_err:
+            logger.error(f"[DB_CONNECTION] Error cleaning up stale connection: {cleanup_err}")
         raise psycopg2.OperationalError(f"Stale connection (ping failed): {e}") from e
 
 

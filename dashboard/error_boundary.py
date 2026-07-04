@@ -107,7 +107,7 @@ def get_error_message_plain(data: Any) -> str | dict[str, Any]:
         ValueError: if _error marker present but message is empty/None (invalid state)
     """
     if not isinstance(data, dict):
-        logger.debug("Data is not a dict (data_unavailable)")
+        logger.warning("[DATA_UNAVAILABLE] Data is not a dict (GOVERNANCE: explicit markers required)")
         return create_data_unavailable_marker("data_not_a_dict")
 
     # Fail-fast: if _error marker present, message MUST be valid
@@ -118,7 +118,7 @@ def get_error_message_plain(data: Any) -> str | dict[str, Any]:
             raise ValueError("[CRITICAL] _error marker present but message is empty/None")
         return str(error_msg)
 
-    logger.debug("Data is dict but has no error marker (data_unavailable)")
+    logger.warning("[DATA_UNAVAILABLE] Data dict present but has no error marker (GOVERNANCE: explicit markers required)")
     return create_data_unavailable_marker("no_error_marker")
 
 
