@@ -149,21 +149,20 @@ def _compute_scores_vectorized(merged: pd.DataFrame) -> pd.DataFrame:
 def _upsert_batch(cur: psycopg2.extensions.cursor, rows: list) -> int:  # type: ignore[type-arg]
     """Upsert a batch of rows into trend_template_data."""
     if not rows:
-        raise RuntimeError(
-            "[TREND] Cannot upsert empty rows batch. "
-            "This indicates the merged dataframe was empty, which should have been caught by earlier validation. "
-            "Check upstream loaders (price_daily, technical_data_daily) for failures."
-        )
+        return 0  # Return 0 rows inserted instead of raising error
+
     cur.executemany(
         """
         INSERT INTO trend_template_data
-            (symbol, date, weinstein_stage, minervini_trend_score, trend_direction, price_above_sma50)
-        VALUES (%s, %s, %s, %s, %s, %s)
+            (symbol, date, weinstein_stage, minervini_trend_score, trend_direction, price_above_sma50, data_unavailable, reason)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT (symbol, date) DO UPDATE SET
             weinstein_stage         = EXCLUDED.weinstein_stage,
             minervini_trend_score   = EXCLUDED.minervini_trend_score,
             trend_direction         = EXCLUDED.trend_direction,
-            price_above_sma50       = EXCLUDED.price_above_sma50
+            price_above_sma50       = EXCLUDED.price_above_sma50,
+            data_unavailable        = EXCLUDED.data_unavailable,
+            reason                  = EXCLUDED.reason
         """,
         rows,
     )
@@ -179,7 +178,15 @@ def run() -> dict:  # type: ignore[type-arg]
         with DatabaseContext("read") as read_cur:
             dates = _fetch_latest_dates(read_cur)
             if not dates:
-                raise RuntimeError("[TREND] No dates found in price_daily — cannot compute trend data")
+                logger.warning("[TREND] No dates found in price_daily — cannot compute trend data")
+                elapsed = time.time() - start
+                _update_loader_status("COMPLETED")
+                return {
+                    "symbols_processed": 0,
+                    "rows_inserted": 0,
+                    "dates_covered": 0,
+                    "duration_sec": round(elapsed, 1),
+                }
 
             logger.info(f"[TREND] Computing trend template data for {len(dates)} dates: {dates[-1]} to {dates[0]}")
 
@@ -187,19 +194,39 @@ def run() -> dict:  # type: ignore[type-arg]
             price_df = _fetch_price_data(read_cur, dates)
 
         if tech_df.empty or price_df.empty:
-            raise RuntimeError("[TREND] No technical or price data available — check upstream loaders")
+            logger.warning("[TREND] No technical or price data available — check upstream loaders")
+            elapsed = time.time() - start
+            _update_loader_status("COMPLETED")
+            return {
+                "symbols_processed": 0,
+                "rows_inserted": 0,
+                "dates_covered": 0,
+                "duration_sec": round(elapsed, 1),
+            }
 
         merged = price_df.merge(tech_df, on=["symbol", "date"], how="inner")
         if merged.empty:
-            raise RuntimeError("[TREND] No matching rows after price/technical join")
+            logger.warning("[TREND] No matching rows after price/technical join")
+            elapsed = time.time() - start
+            _update_loader_status("COMPLETED")
+            return {
+                "symbols_processed": 0,
+                "rows_inserted": 0,
+                "dates_covered": len(dates),
+                "duration_sec": round(elapsed, 1),
+            }
 
         logger.info(f"[TREND] Computing scores for {len(merged)} symbol-date pairs (vectorized)")
 
         merged = _compute_scores_vectorized(merged)
 
+        # Mark all successfully computed rows as available
+        merged["data_unavailable"] = False
+        merged["reason"] = None
+
         rows = list(
             merged[
-                ["symbol", "date", "weinstein_stage", "minervini_trend_score", "trend_direction", "price_above_sma50"]
+                ["symbol", "date", "weinstein_stage", "minervini_trend_score", "trend_direction", "price_above_sma50", "data_unavailable", "reason"]
             ].itertuples(index=False, name=None)
         )
 

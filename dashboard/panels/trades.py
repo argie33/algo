@@ -116,6 +116,51 @@ def _extract_items(data: Any) -> list[Any] | dict[str, Any]:
     )
 
 
+def _validate_trades_structure(trades: Any) -> tuple[list[Any], float | None]:
+    """Validate trades data structure and extract items with timestamp.
+
+    Fails explicitly (raises or returns error dict) instead of silently
+    falling back to empty list.
+    """
+    # Check for explicit error marker
+    if error_boundary.has_error(trades):
+        error_msg = error_boundary.get_error_message(trades)
+        return [], None
+
+    trades_timestamp = None
+    trades_list: list[Any] = []
+
+    if isinstance(trades, dict):
+        # Dict format: extract timestamp and items
+        trades_timestamp = safe_get_field(trades, "timestamp")
+        trades_list = safe_get_field(trades, "items")
+
+        # Validate items is list, not missing or wrong type
+        if trades_list is None:
+            raise RuntimeError(
+                "[TRADES_PANEL] Data contract violation: dict format requires 'items' field. "
+                f"Got dict with keys: {list(trades.keys())}. "
+                "Check: lambda/api/routes/algo_handlers/dashboard.py"
+            )
+        if not isinstance(trades_list, list):
+            raise TypeError(
+                f"[TRADES_PANEL] API contract violation: 'items' must be list, got {type(trades_list).__name__}. "
+                "Check: lambda/api/routes/algo_handlers/dashboard.py"
+            )
+    elif isinstance(trades, list):
+        # List format directly
+        trades_list = trades
+    else:
+        # Unexpected type — this is a contract violation
+        raise TypeError(
+            f"[TRADES_PANEL] API contract violation: trades must be dict or list, got {type(trades).__name__}. "
+            "This indicates a data validation failure or API response mismatch. "
+            "Check: lambda/api/routes/algo_handlers/dashboard.py"
+        )
+
+    return trades_list, trades_timestamp
+
+
 @register_panel(
     "trades",
     endpoint_deps=["trades"],
@@ -133,14 +178,21 @@ def panel_recent_trades(trades: Any) -> Any:
             padding=(0, 1),
         )
 
-    trades_timestamp = None
+    # Validate structure and extract trades
+    try:
+        trades_list, trades_timestamp = _validate_trades_structure(trades)
+    except (RuntimeError, TypeError) as e:
+        # Data contract violation — show error instead of silent empty list
+        return Panel(
+            Text(f"Data validation error: {str(e)[:80]}", style="red"),
+            title="[bold red]RECENT TRADES (ERROR)[/]",
+            border_style="red",
+            padding=(0, 1),
+        )
+
     trades_age_hours = None
     if isinstance(trades, dict):
-        trades_timestamp = safe_get_field(trades, "timestamp")
-        trades_list = safe_get_field(trades, "items")
         trades_age_hours = trades.get("age_hours")  # Check freshness
-    else:
-        trades_list = trades if isinstance(trades, list) else []
 
     # Data freshness warning if stale
     stale_style = ""
@@ -271,12 +323,17 @@ def panel_trades_expanded(trades: Any) -> Any:
             padding=(0, 1),
         )
 
-    trades_timestamp = None
-    if isinstance(trades, dict):
-        trades_timestamp = safe_get_field(trades, "timestamp")
-        trades_list = safe_get_field(trades, "items")
-    else:
-        trades_list = trades if isinstance(trades, list) else []
+    # Validate structure and extract trades
+    try:
+        trades_list, trades_timestamp = _validate_trades_structure(trades)
+    except (RuntimeError, TypeError) as e:
+        # Data contract violation — show error instead of silent empty list
+        return Panel(
+            Text(f"Data validation error: {str(e)[:80]}", style="red"),
+            title="[bold cyan]TRADE HISTORY - EXPANDED (ERROR)[/]",
+            border_style="red",
+            padding=(0, 1),
+        )
 
     closed = [
         tr for tr in trades_list if isinstance(tr, dict) and (safe_get_field(tr, "status", "")).lower() == "closed"

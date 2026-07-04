@@ -11,26 +11,74 @@ Purpose:
 - Computes daily market exposure percentage (0-100) from 12 quantitative factors
 - Determines market regime (confirmed_uptrend, uptrend_under_pressure, caution, correction)
 - Persists to market_exposure_daily table for API + dashboard consumption
+- Records data_unavailable markers when computation fails (explicit fallback vs. silent)
 - Runs independently of orchestrator to guarantee availability
+
+Data Quality:
+- On success: inserts row with data_unavailable=FALSE, reason=NULL
+- On any failure: inserts row with data_unavailable=TRUE, reason=<error detail>
+- Prevents silent data gaps — API/dashboard always has explicit availability status
 
 Validation & Error Handling (Fail-Fast):
 - MarketExposure.compute() raises RuntimeError on invalid/missing data (no fallback)
 - Loader validates result structure BEFORE using any fields
 - All critical fields (regime, exposure_pct, raw_score, halt_reasons, distribution_days) required
 - Invalid regime, exposure_pct outside [0,100], or missing factors cause immediate failure
-- No placeholder data or silent defaults — missing data is reported as FAILED status
+- No placeholder data or silent defaults — missing data is reported as FAILED status + data_unavailable marker
 
 Time: ~2-5 seconds (vectorized computation, minimal DB load)
 """
 
 import logging
 import sys
+from datetime import date
 
 import psycopg2
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
+
+
+def _insert_unavailable_marker(cur, eval_date: date, reason: str) -> None:
+    """Insert a data_unavailable marker row into market_exposure_daily.
+
+    Args:
+        cur: Database cursor
+        eval_date: Date for which data is unavailable
+        reason: Human-readable explanation (max 500 chars)
+    """
+    # Truncate reason to 500 chars to fit column constraint
+    reason_truncated = reason[:500] if reason else "Unknown error"
+
+    cur.execute(
+        """
+        INSERT INTO market_exposure_daily
+        (eval_date, regime, exposure_pct, raw_score, halt_reasons, distribution_days, factors,
+         data_unavailable, reason)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        ON CONFLICT (eval_date) DO UPDATE SET
+          regime = EXCLUDED.regime,
+          exposure_pct = EXCLUDED.exposure_pct,
+          raw_score = EXCLUDED.raw_score,
+          halt_reasons = EXCLUDED.halt_reasons,
+          distribution_days = EXCLUDED.distribution_days,
+          factors = EXCLUDED.factors,
+          data_unavailable = EXCLUDED.data_unavailable,
+          reason = EXCLUDED.reason
+        """,
+        (
+            eval_date,
+            None,  # regime
+            None,  # exposure_pct
+            None,  # raw_score
+            [],  # halt_reasons
+            None,  # distribution_days
+            None,  # factors
+            True,  # data_unavailable
+            reason_truncated,  # reason
+        ),
+    )
 
 
 def main() -> int:
@@ -72,25 +120,27 @@ def main() -> int:
             health_latest = result[0] if result else None
 
         if not spy_latest:
+            error_msg = "No price data available for SPY — cannot compute market exposure"
             logger.warning(
                 "[MARKET_EXPOSURE] No SPY price data available — critical data for market exposure computation missing"
             )
-            logger.error("No price data available for SPY — cannot compute market exposure")
+            logger.error(error_msg)
             with DatabaseContext("write") as cur:
                 cur.execute(
                     "UPDATE data_loader_status SET status = %s, last_updated = NOW(), error_message = %s WHERE table_name = %s",
-                    ("FAILED", "No price data available for SPY", table_name),
+                    ("FAILED", error_msg, table_name),
                 )
             return 1
 
         if not health_latest:
+            error_msg = "No market_health_daily data available — required for new_highs_lows computation"
             logger.warning(
                 "[MARKET_EXPOSURE] No market_health_daily data available — required for new_highs_lows computation"
             )
             with DatabaseContext("write") as cur:
                 cur.execute(
                     "UPDATE data_loader_status SET status = %s, last_updated = NOW(), error_message = %s WHERE table_name = %s",
-                    ("FAILED", "No market_health_daily data available", table_name),
+                    ("FAILED", error_msg, table_name),
                 )
             return 1
 
@@ -108,11 +158,12 @@ def main() -> int:
         from algo.infrastructure import MarketCalendar
 
         if not MarketCalendar.is_trading_day(latest_date):
-            logger.error(
-                f"[MARKET_EXPOSURE LOADER CRITICAL] Latest price_daily date {latest_date} is not a trading day. "
+            error_msg = (
+                f"Latest price_daily date {latest_date} is not a trading day. "
                 f"Cannot compute market exposure for non-trading days (would corrupt position sizing logic). "
                 f"Check: (1) Is yfinance loader running correctly? (2) Did market holidays get misconfigured?"
             )
+            logger.error(f"[MARKET_EXPOSURE LOADER CRITICAL] {error_msg}")
             with DatabaseContext("write") as cur:
                 cur.execute(
                     "UPDATE data_loader_status SET status = %s, last_updated = NOW(), error_message = %s WHERE table_name = %s",
@@ -151,6 +202,8 @@ def main() -> int:
                         "UPDATE data_loader_status SET status = %s, last_updated = NOW(), error_message = %s WHERE table_name = %s",
                         ("FAILED", msg, table_name),
                     )
+                    # Record data unavailability in market_exposure_daily
+                    _insert_unavailable_marker(cur, latest_date, msg)
                 return 1
 
             # Validate critical field types
@@ -168,6 +221,13 @@ def main() -> int:
             if not isinstance(result["distribution_days"], int):
                 raise ValueError(f"Invalid distribution_days type: {type(result['distribution_days'])}")
 
+            # Ensure data_unavailable and reason are present in result
+            # (should be set by MarketExposure.compute() on success)
+            if "data_unavailable" not in result:
+                result["data_unavailable"] = False
+            if "reason" not in result:
+                result["reason"] = None
+
         except (KeyError, ValueError, TypeError) as e:
             msg = f"Market exposure validation failed: {type(e).__name__}: {e}"
             logger.error(msg)
@@ -176,12 +236,15 @@ def main() -> int:
                     "UPDATE data_loader_status SET status = %s, last_updated = NOW(), error_message = %s WHERE table_name = %s",
                     ("FAILED", msg[:200], table_name),
                 )
+                # Record data unavailability in market_exposure_daily
+                _insert_unavailable_marker(cur, latest_date, msg[:500])
             return 1
 
         logger.info("✓ Market exposure computed:")
         logger.info(f"  Regime: {result['regime']}")
         logger.info(f"  Exposure: {result['exposure_pct']}%")
         logger.info(f"  Raw score: {result['raw_score']}")
+        logger.info(f"  Data available: {not result.get('data_unavailable', False)}")
 
         if result["halt_reasons"]:  # Already validated as list above
             logger.info(f"  Halt reasons: {'; '.join(result['halt_reasons'])}")
@@ -219,6 +282,7 @@ def main() -> int:
         return 0
 
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+        error_detail = f"Database error: {str(e)[:400]}"
         logger.error(f"Market exposure loader failed (database error): {e}", exc_info=True)
         try:
             with DatabaseContext("write") as cur:
@@ -226,10 +290,24 @@ def main() -> int:
                     "UPDATE data_loader_status SET status = %s, last_updated = NOW(), error_message = %s WHERE table_name = %s",
                     ("FAILED", str(e)[:200], table_name),
                 )
+                # Try to record data unavailability, but if DB is down it may fail
+                # This is best-effort since we already have a DB error
+                try:
+                    # Determine latest_date if not already set
+                    if "latest_date" not in locals():
+                        cur.execute("SELECT date FROM price_daily WHERE symbol='SPY' ORDER BY date DESC LIMIT 1")
+                        result = cur.fetchone()
+                        if result:
+                            latest_date = result[0]
+                            _insert_unavailable_marker(cur, latest_date, error_detail)
+                except (psycopg2.DatabaseError, psycopg2.OperationalError, NameError):
+                    # If we can't determine date or insert fails, that's OK — we already updated loader status
+                    pass
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as db_err:
             logger.error(f"Failed to update loader status: {db_err}")
         return 1
     except Exception as e:
+        error_detail = f"{type(e).__name__}: {str(e)[:400]}"
         logger.error(f"Market exposure loader failed ({type(e).__name__}): {e}", exc_info=True)
         try:
             with DatabaseContext("write") as cur:
@@ -237,6 +315,18 @@ def main() -> int:
                     "UPDATE data_loader_status SET status = %s, last_updated = NOW(), error_message = %s WHERE table_name = %s",
                     ("FAILED", f"{type(e).__name__}: {str(e)[:180]}", table_name),
                 )
+                # Try to record data unavailability
+                try:
+                    # Determine latest_date if not already set
+                    if "latest_date" not in locals():
+                        cur.execute("SELECT date FROM price_daily WHERE symbol='SPY' ORDER BY date DESC LIMIT 1")
+                        result = cur.fetchone()
+                        if result:
+                            latest_date = result[0]
+                            _insert_unavailable_marker(cur, latest_date, error_detail)
+                except (psycopg2.DatabaseError, psycopg2.OperationalError, NameError):
+                    # If we can't determine date or insert fails, that's OK — we already updated loader status
+                    pass
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as status_err:
             logger.error(f"Failed to update FAILED status in data_loader_status: {status_err}")
             raise RuntimeError(

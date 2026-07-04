@@ -248,7 +248,7 @@ _DEFAULTS = [
     ),
     # Execution
     ("execution_mode", "auto", "string", "paper|dry|review|auto"),
-    ("alpaca_paper_trading", "false", "bool", "Use Alpaca paper account"),
+    ("alpaca_paper_trading", "true", "bool", "Use Alpaca paper account"),
     ("max_trades_per_day", "5", "int", "Max new trades per day"),
     (
         "default_portfolio_value",

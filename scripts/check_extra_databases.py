@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Check for extra RDS databases (waste)."""
 
-import os
 import sys
 from pathlib import Path
 

@@ -23,11 +23,11 @@ class AlgoMetricsDailyLoader(OptimalLoader):
 
     def fetch_global(self, since: date | None) -> list[dict[str, Any]]:
         """Compute daily algo metrics from audit log."""
-        try:
-            now_utc = datetime.now(timezone.utc)
-            now_et = now_utc.astimezone(EASTERN_TZ)
-            run_date = now_et.date()
+        now_utc = datetime.now(timezone.utc)
+        now_et = now_utc.astimezone(EASTERN_TZ)
+        run_date = now_et.date()
 
+        try:
             with DatabaseContext("read") as cur:
                 cur.execute(
                     """
@@ -109,13 +109,20 @@ class AlgoMetricsDailyLoader(OptimalLoader):
                         "entries": entries,
                         "exits": exits,
                         "avg_signal_score": avg_signal_score,
+                        "data_unavailable": False,
+                        "reason": None,
                     }
                 ]
 
         except (ValueError, ZeroDivisionError, TypeError) as e:
-            raise RuntimeError(
-                f"[ALGO_METRICS] Failed to compute daily metrics: {e}. Cannot proceed without performance tracking."
-            ) from e
+            reason_msg = f"metrics_computation_failed: {e}"
+            logger.error(f"[ALGO_METRICS] {reason_msg}")
+            return [
+                {
+                    "data_unavailable": True,
+                    "reason": reason_msg,
+                }
+            ]
 
 
 if __name__ == "__main__":

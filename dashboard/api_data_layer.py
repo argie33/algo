@@ -580,7 +580,10 @@ def api_call(endpoint: str, params: dict[str, Any] | None = None, method: str = 
 def _unwrap_api_response(response: dict[str, Any]) -> dict[str, Any]:
     """Unwrap standardized API response wrapper while preserving error status.
 
-    All API responses follow the format: {statusCode: 200, data: {...}, ...metadata}
+    Supports two API response formats:
+    1. Standard: {statusCode: 200, data: {...}, ...metadata}
+    2. Array/Paginated: {statusCode: 200, items: [...], pagination: {...}, ...metadata}
+
     This function extracts the payload while preserving statusCode so callers can
     distinguish between successful and error responses.
 
@@ -589,6 +592,7 @@ def _unwrap_api_response(response: dict[str, Any]) -> dict[str, Any]:
 
     Args:
         response: Full API response dict with format {statusCode: X, data: {...}, ...}
+                  or {statusCode: X, items: [...], pagination: {...}, ...}
 
     Returns:
         Unwrapped response preserving statusCode and payload. Allows callers to check
@@ -610,8 +614,10 @@ def _unwrap_api_response(response: dict[str, Any]) -> dict[str, Any]:
             "Cannot determine request success/failure. Response: {response}"
         )
 
-    # Extract the data field (endpoints wrap payloads in 'data' via _wrap_response)
-    # This is the only field that contains actual application data
+    # Extract payload - support both formats
+    payload: dict[str, Any] = {}
+
+    # Format 1: 'data' field (standard single-object response)
     if "data" in response:
         data_field = response["data"]
         # Only treat as payload if it's actually a dict; otherwise it's malformed
@@ -624,16 +630,22 @@ def _unwrap_api_response(response: dict[str, Any]) -> dict[str, Any]:
                 f"expected dict but got {type(data_field).__name__}. Value: {data_field!r}"
             )
             payload = {"_error": f"Response data field is {type(data_field).__name__}, expected dict"}
+    # Format 2: 'items' field (array/paginated response from sendSuccess)
+    elif "items" in response:
+        # Paginated responses from sendSuccess have items at top level
+        # Copy all application fields (items, pagination, etc.) to payload
+        payload = {k: v for k, v in response.items() if k not in ("statusCode", "success", "timestamp")}
     else:
-        # CRITICAL: Error responses without 'data' field must not fallback to empty payload.
-        # Empty payload (no data, no explicit error) is ambiguous and masks actual API errors.
+        # Neither 'data' nor 'items' field — check if this is an error response at top level
+        # Some error responses might have error information at top level
+        # But if there's truly no data, this is malformed
         logger.error(
-            f"API response missing required 'data' field. "
-            f"Response has no error information. Original response keys: {list(response.keys())}. "
-            f"Cannot unwrap response without 'data' field."
+            f"API response missing both 'data' and 'items' fields. "
+            f"Response keys: {list(response.keys())}. "
+            f"Cannot unwrap response without either field."
         )
         payload = {
-            "_error": "API response malformed: missing 'data' field and no error information available",
+            "_error": "API response malformed: missing 'data' or 'items' field",
             "_status_code": status_code,
         }
 

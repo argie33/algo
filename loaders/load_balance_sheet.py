@@ -56,6 +56,8 @@ class AnnualBalanceSheetLoader(SecEdgarStatementLoader):
                         "ppe_net",
                         "goodwill",
                         "created_at",
+                        "data_unavailable",
+                        "reason",
                     ]
                 ),
                 "field_mapping": {
@@ -104,6 +106,8 @@ class AnnualBalanceSheetLoader(SecEdgarStatementLoader):
                         "ppe_net",
                         "goodwill",
                         "created_at",
+                        "data_unavailable",
+                        "reason",
                     ]
                 ),
                 "field_mapping": {
@@ -142,12 +146,90 @@ class AnnualBalanceSheetLoader(SecEdgarStatementLoader):
         self.backfill_days = backfill_days
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
-        """Fetch annual balance sheet data. Delegates to base class."""
-        return super().fetch_incremental(symbol, since)
+        """Fetch balance sheet data with exception handling.
+
+        On fetch errors, returns data_unavailable marker row instead of raising exception.
+        """
+        try:
+            return super().fetch_incremental(symbol, since)
+        except Exception as e:
+            logger.error(
+                f"[BALANCE_SHEET] Exception fetching for {symbol}: {type(e).__name__}: {e}"
+            )
+            return [
+                {
+                    "symbol": symbol,
+                    "fiscal_year": 0,
+                    "data_unavailable": True,
+                    "reason": f"fetch_error_{type(e).__name__}",
+                }
+            ]
 
     def transform(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        """Transform to schema format. Delegates to base class."""
-        return super().transform(rows)
+        """Transform to schema format with exception handling and data_unavailable markers.
+
+        - Adds data_unavailable=FALSE and reason=NULL to successful fetches
+        - Preserves data_unavailable/reason from marker rows returned by fetch_incremental
+        - On transform errors, returns data_unavailable marker row
+        """
+        try:
+            transformed = super().transform(rows)
+        except Exception as e:
+            logger.error(
+                f"[BALANCE_SHEET] Exception transforming data: {type(e).__name__}: {e}"
+            )
+            # Extract symbol from first row if available
+            symbol = rows[0].get("symbol", "unknown") if rows else "unknown"
+            return [
+                {
+                    "symbol": symbol,
+                    "fiscal_year": 0,
+                    "data_unavailable": True,
+                    "reason": f"transform_error_{type(e).__name__}",
+                }
+            ]
+
+        # Build map of input rows by key to preserve data_unavailable/reason from marker rows
+        input_map: dict[tuple[Any, ...], dict[str, Any]] = {}
+        for row in rows:
+            symbol = row.get("symbol")
+            fiscal_year = row.get("fiscal_year")
+            if self.period == "annual":
+                if symbol and fiscal_year is not None:
+                    input_map[(symbol, fiscal_year)] = row
+            else:
+                fiscal_quarter = row.get("fiscal_quarter")
+                if symbol and fiscal_year is not None and fiscal_quarter is not None:
+                    input_map[(symbol, fiscal_year, fiscal_quarter)] = row
+
+        # Ensure all rows have data_unavailable and reason columns
+        for row in transformed:
+            symbol = row.get("symbol")
+            fiscal_year = row.get("fiscal_year")
+
+            # Build key to look up in input map
+            if self.period == "annual":
+                key = (symbol, fiscal_year) if symbol and fiscal_year is not None else None
+            else:
+                fiscal_quarter = row.get("fiscal_quarter")
+                key = (
+                    (symbol, fiscal_year, fiscal_quarter)
+                    if symbol and fiscal_year is not None and fiscal_quarter is not None
+                    else None
+                )
+
+            if "data_unavailable" not in row:
+                # Check if input row had data_unavailable (marker row from fetch)
+                if key and key in input_map and "data_unavailable" in input_map[key]:
+                    # Preserve marker data from input
+                    row["data_unavailable"] = input_map[key]["data_unavailable"]
+                    row["reason"] = input_map[key].get("reason")
+                else:
+                    # Successful fetch - mark data as available
+                    row["data_unavailable"] = False
+                    row["reason"] = None
+
+        return transformed
 
     def run(self, symbols, parallelism: int = 1, backfill_days: int | None = None):
         """Execute loader. Delegates to base class."""

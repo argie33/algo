@@ -374,31 +374,52 @@ class SignalsDailyLoader(OptimalLoader):
                 "Cannot generate signals without validation."
             ) from e
 
-        # Fetch required data for signal generation
-        rows = self._fetch_signal_data(symbol, start, end)
-        if not rows:
-            raise RuntimeError(
-                f"[BUY_SELL_DAILY] {symbol}: _fetch_signal_data returned no rows for {start} to {end}. "
-                "Technical and price data are CRITICAL for buy/sell signal generation. "
-                "Upstream loaders (technical_data_daily, price_daily) may be incomplete or corrupted. "
-                "Cannot generate signals without complete data coverage."
-            )
+        # Fetch and generate signals - gracefully handle per-symbol failures by creating sentinel rows
+        try:
+            # Fetch required data for signal generation
+            rows = self._fetch_signal_data(symbol, start, end)
+            if not rows:
+                logger.error(f"[BUY_SELL_DAILY] {symbol}: _fetch_signal_data returned no rows for {start} to {end}")
+                return [{
+                    "symbol": symbol,
+                    "date": end.isoformat(),
+                    "data_unavailable": True,
+                    "reason": "_fetch_signal_data returned no rows for signal date range"
+                }]
 
-        # Generate signals
-        signals = self._generate_signals(symbol, rows)
+            # Generate signals
+            signals = self._generate_signals(symbol, rows)
 
-        # Filter to incremental range if needed
-        if since is not None:
-            from utils.validation import safe_parse_date
+            # Mark all successful signals with data_unavailable=False and reason=None
+            for sig in signals:
+                sig["data_unavailable"] = False
+                sig["reason"] = None
 
-            filtered_signals = []
-            for s in signals:
-                signal_date = safe_parse_date(s["date"], "signal filtering")
-                if signal_date and signal_date > since:
-                    filtered_signals.append(s)
-            signals = filtered_signals
+            # Filter to incremental range if needed
+            if since is not None:
+                from utils.validation import safe_parse_date
 
-        return signals
+                filtered_signals = []
+                for s in signals:
+                    signal_date = safe_parse_date(s["date"], "signal filtering")
+                    if signal_date and signal_date > since:
+                        filtered_signals.append(s)
+                signals = filtered_signals
+
+            return signals
+
+        except Exception as e:
+            # Per-symbol failure - create sentinel row instead of failing entire batch
+            error_msg = str(e)
+            # Truncate reason to 500 chars to fit VARCHAR(500) column
+            reason = error_msg[:500] if len(error_msg) > 500 else error_msg
+            logger.error(f"[BUY_SELL_DAILY] {symbol}: Signal generation failed: {error_msg}")
+            return [{
+                "symbol": symbol,
+                "date": end.isoformat(),
+                "data_unavailable": True,
+                "reason": reason
+            }]
 
     def get_tech_data_age(self) -> float | None:
         """Return current batch tech_data_age for signal generation.
@@ -530,8 +551,21 @@ class SignalsDailyLoader(OptimalLoader):
     decimal84_max = 9999.9999
 
     def transform(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        """Cap DECIMAL(8,4) columns to prevent numeric field overflow on high-price stocks."""
+        """Cap DECIMAL(8,4) columns to prevent numeric field overflow on high-price stocks.
+
+        Also ensures data_unavailable and reason columns are present on all rows.
+        """
         for row in rows:
+            # Ensure data_unavailable and reason columns are present on all rows
+            if "data_unavailable" not in row:
+                row["data_unavailable"] = False
+            if "reason" not in row:
+                row["reason"] = None
+
+            # Skip metric validation and capping for sentinel rows (data_unavailable=True)
+            if row.get("data_unavailable"):
+                continue
+
             capped_cols = []
             for col in self._DECIMAL84_COLS:
                 v = row.get(col)

@@ -57,7 +57,7 @@ logger.setLevel(logging.INFO)
 
 
 # Apply critical database migrations on Lambda cold start
-def _apply_critical_migrations():
+def _apply_critical_migrations() -> tuple[bool, str]:
     """Apply critical schema migrations directly in Lambda startup.
 
     Adds data_unavailable columns to metric tables that the scores query requires.
@@ -456,9 +456,9 @@ def validate_query_param_type(value: str, expected_type: str) -> tuple[bool, Any
         return True, value
 
 
-def parse_query_params(event: dict[str, Any]) -> dict[str, str | None]:
+def parse_query_params(event: dict[str, Any]) -> dict[str, list[str]]:
     """Parse query parameters from API Gateway v1 or v2 events."""
-    params = {}
+    params: dict[str, list[str]] = {}
     # Try v1 format first (REST API)
     if event.get("queryStringParameters"):
         for k, v in event["queryStringParameters"].items():
@@ -475,7 +475,7 @@ def parse_query_params(event: dict[str, Any]) -> dict[str, str | None]:
     return params
 
 
-def _build_allowed_origins() -> set:
+def _build_allowed_origins() -> set[str]:
     """Build allowed origins from environment variables (cached at module load).
 
     SECURITY FIX: Explicitly configure all allowed origins; no wildcard matching.
@@ -521,7 +521,7 @@ def _build_allowed_origins() -> set:
         return origins
 
 
-def get_cors_headers(event: dict) -> dict[str, str]:
+def get_cors_headers(event: dict[str, Any]) -> dict[str, str]:
     """Get CORS headers based on request origin (strict whitelist only).
 
     SECURITY FIX: Explicitly whitelists origins from FRONTEND_URL and ALLOWED_ORIGINS.
@@ -693,7 +693,7 @@ def _get_cognito_jwks() -> dict[str, Any] | None:
             ) from e
 
 
-def validate_bearer_token(token: str | None) -> tuple:
+def validate_bearer_token(token: str | None) -> tuple[bool, dict[str, Any] | None, str | None]:
     """Validate JWT token: format, signature, expiration, audience.
 
     Returns: (is_valid: bool, claims: dict or None, error: str or None)

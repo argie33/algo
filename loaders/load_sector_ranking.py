@@ -151,6 +151,8 @@ class SectorRankingLoader(OptimalLoader):
                         "rank_4w_ago": r["rank_4w_ago"],
                         "rank_12w_ago": r["rank_12w_ago"],
                         "historical_data_available": all(r[f"rank_{p}_ago"] is not None for p in ["1w", "4w", "12w"]),
+                        "data_unavailable": False,
+                        "reason": None,
                     }
                 )
 

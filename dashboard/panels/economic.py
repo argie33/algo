@@ -90,11 +90,13 @@ def _build_calendar_rows(econ_cal: Any) -> list[Text | Rule]:
         if isinstance(econ_cal, dict) and "items" in econ_cal
         else (econ_cal if isinstance(econ_cal, list) else None)
     )
-    # MEDIUM FIX: Explicit None check instead of silent empty list default
+    # GOVERNANCE FIX: Explicit None check instead of silent empty list default
     if econ_cal_items is None:
         logger.debug("Economic calendar: items field not available in expected format")
         return rows
-    valid_cal = econ_cal_items if econ_cal_items else []
+    # Use directly - no fallback. If empty list, that's valid (no events).
+    # If falsy-but-not-None, that's a data quality issue to track separately.
+    valid_cal = econ_cal_items
 
     if not valid_cal:
         logger.debug("Economic calendar: no upcoming events available")

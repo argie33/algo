@@ -185,19 +185,27 @@ def _build_signal_header(sig_data: dict[str, Any], scores_data: dict[str, Any] |
     trend_result = safe_get_list(trend_field) if trend_field else None
     trend: list[Any] = trend_result if trend_result is not None else []
     if trend and len(trend) >= 2:
-        # CRITICAL: Never silently fallback to 0 for missing signal counts.
-        # Missing data in historical trends must fail-fast to prevent misleading visualizations.
+        # GOVERNANCE: Fail-fast on incomplete historical data. Do NOT synthesize missing points as zeros.
+        # Missing data in historical trends indicates data quality issue, must be visible to user.
         counts: list[int] = []
+        has_complete_trend = True
         for t in reversed(trend):
             buy_n_val = safe_get_field(t, "buy_n")
             if buy_n_val is None:
-                logger.warning("Signal count missing in trend history — data incomplete")
-                counts.append(0)
-            else:
-                counts.append(int(buy_n_val))
-        max_b = max(counts) if counts else 1
-        spark = "".join(SPARKLINE_CHARS[min(7, int(v / max(max_b, 1) * 7.9))] for v in counts)
-        spark_s = f"  [{CY}]{spark}[/]"
+                logger.warning(
+                    "[SIGNALS] Trend history incomplete: buy_n field missing from signal data. "
+                    "Cannot display sparkline with missing data points. "
+                    "Check signal data freshness and completeness."
+                )
+                has_complete_trend = False
+                break
+            counts.append(int(buy_n_val))
+
+        # Only create sparkline if trend history is complete
+        if has_complete_trend and counts:
+            max_b = max(counts) if counts else 1
+            spark = "".join(SPARKLINE_CHARS[min(7, int(v / max(max_b, 1) * 7.9))] for v in counts)
+            spark_s = f"  [{CY}]{spark}[/]"
 
     near_field = safe_get_field(overview, "near", [])
     near_result = safe_get_list(near_field) if near_field else None

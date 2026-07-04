@@ -249,7 +249,7 @@ def panel_sector_compact(srank: Any, pos: Any, port: Any, sec_rot: Any = None, i
             irank_items = None
     elif isinstance(irank, list):
         irank_items = irank
-    # MEDIUM FIX: Explicit None check - don't silently default to empty list
+    # GOVERNANCE FIX: Explicit None check - don't silently default to empty list
     if irank_items is None:
         logger.debug("Industries ranking data unavailable: items list not found")
         return Panel(
@@ -258,14 +258,14 @@ def panel_sector_compact(srank: Any, pos: Any, port: Any, sec_rot: Any = None, i
             border_style="cyan",
             padding=(0, 1),
         )
-    valid_irank = irank_items if irank_items else []
-    if valid_irank:
+    # Use directly - no fallback. Truthy check handles empty case.
+    if irank_items:
         rows.append(Rule(style="dim"))
         rows.append(Text.from_markup("[dim]Top industries by momentum  ↑↓= vs 1wk:[/]"))
         irank_tbl = Table.grid(padding=(0, 2), expand=True)
         irank_tbl.add_column("a", ratio=1)
         irank_tbl.add_column("b", ratio=1)
-        for a, b in zip(valid_irank[:4][::2], [*valid_irank[:4][1::2], None], strict=False):
+        for a, b in zip(irank_items[:4][::2], [*irank_items[:4][1::2], None], strict=False):
             na = (safe_get_field(a, "industry", ""))[:14]
             mma = safe_get_field(a, "momentum_score")
             mma_f = safe_float(mma)

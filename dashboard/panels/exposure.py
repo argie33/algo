@@ -145,23 +145,19 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
             # Handle nested structure: put_call_ratio might be {put_call_ratio, pts, max, score}
             if v is None and isinstance(f.get("put_call_ratio"), dict):
                 v = safe_float(f["put_call_ratio"].get("put_call_ratio"), default=None)
-            if v is None and isinstance(f.get("put_call_ratio"), dict):
-                # CRITICAL: pts score is DIFFERENT from actual put_call_ratio
-                # Do not silently use it as fallback - only use if we explicitly log it
-                pts_fallback = safe_float(f["put_call_ratio"].get("pts"), default=None)
-                if pts_fallback is not None:
-                    logger.warning(
-                        "[EXPOSURE] Actual put_call_ratio unavailable. "
-                        "Showing derived pts score instead. "
-                        "Risk metrics may be estimated, not precise."
-                    )
-                    v = pts_fallback
+
             if v is not None:
                 return f" {v:.2f}"
+
+            # GOVERNANCE FIX: Do NOT use pts score as fallback when actual put_call_ratio missing.
+            # Pts is derived metric, different from actual put_call_ratio.
+            # Per GOVERNANCE.md: "Never use secondary fallback when primary unavailable"
             reason = f.get("reason")
             if not reason and isinstance(f.get("put_call_ratio"), dict):
                 reason = f["put_call_ratio"].get("reason")
-            return " [yellow]⚠[/]" if reason else "[yellow]⚠[/]"  # Always mark unavailable
+            if reason:
+                logger.info(f"[EXPOSURE] put_call_ratio unavailable: {reason}")
+            return " [yellow]⚠[/]"  # Mark unavailable, don't use derived metric
         if key == "vix_regime":
             v = safe_float(f.get("value"), default=None)
             return f" {v:.1f}" if v is not None else "[yellow]⚠[/]"

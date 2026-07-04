@@ -51,6 +51,8 @@ class AnnualIncomeStatementLoader(SecEdgarStatementLoader):
                         "net_income",
                         "earnings_per_share",
                         "created_at",
+                        "data_unavailable",
+                        "reason",
                     ]
                 ),
                 "field_mapping": {
@@ -82,6 +84,8 @@ class AnnualIncomeStatementLoader(SecEdgarStatementLoader):
                         "net_income",
                         "earnings_per_share",
                         "created_at",
+                        "data_unavailable",
+                        "reason",
                     ]
                 ),
                 "field_mapping": {
@@ -112,8 +116,30 @@ class AnnualIncomeStatementLoader(SecEdgarStatementLoader):
         return super().fetch_incremental(symbol, since)
 
     def transform(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        """Transform to schema format. Delegates to base class."""
-        return super().transform(rows)
+        """Transform to schema format and add data_unavailable/reason flags.
+
+        Adds explicit data_unavailable=False and reason=NULL to successful rows.
+        Preserves data_unavailable=True markers from fetch_incremental for companies
+        with no SEC data (REITs, investment trusts, IPOs, OTC stocks).
+        """
+        # Call parent transform to handle field mapping and validation
+        transformed = super().transform(rows)
+
+        # Add data_unavailable and reason fields to all rows
+        result = []
+        for row in transformed:
+            # If row already has data_unavailable=True (marker from fetch_incremental),
+            # preserve it with its reason
+            if row.get("data_unavailable") is True:
+                # Marker row: already has data_unavailable=True and reason set
+                result.append(row)
+            else:
+                # Successful data row: add explicit data_unavailable=False and reason=NULL
+                row["data_unavailable"] = False
+                row["reason"] = None
+                result.append(row)
+
+        return result
 
     def run(self, symbols, parallelism: int = 1, backfill_days: int | None = None):
         """Execute loader. Delegates to base class."""

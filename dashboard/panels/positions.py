@@ -282,9 +282,9 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
     has_filtering_info = (
         coverage_valid
         and coverage.get("total_count") is not None
-        and coverage.get("total_count", 0) > 0
+        and coverage.get("total_count") > 0
         and coverage.get("filtered_count") is not None
-        and coverage.get("filtered_count", 0) > 0
+        and coverage.get("filtered_count") > 0
     )
     if has_filtering_info and coverage_valid:
         total = coverage["total_count"]

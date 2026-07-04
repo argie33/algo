@@ -85,15 +85,16 @@ def store_dxy_data(rows: list[dict[str, Any]]) -> int:
             # Delete existing DXY data to avoid duplicates
             cur.execute("DELETE FROM economic_data WHERE series_id = %s", ("DXY_ICE",))
 
-            # Insert new data
+            # Insert new data with data_unavailable=false and reason=NULL
             for row in rows:
                 cur.execute(
                     """
-                    INSERT INTO economic_data (series_id, date, value)
-                    VALUES (%s, %s, %s)
-                    ON CONFLICT (series_id, date) DO UPDATE SET value = EXCLUDED.value
+                    INSERT INTO economic_data (series_id, date, value, data_unavailable, reason)
+                    VALUES (%s, %s, %s, %s, %s)
+                    ON CONFLICT (series_id, date) DO UPDATE SET value = EXCLUDED.value,
+                        data_unavailable = EXCLUDED.data_unavailable, reason = EXCLUDED.reason
                     """,
-                    ("DXY_ICE", row["date"], row["value"]),
+                    ("DXY_ICE", row["date"], row["value"], False, None),
                 )
 
             logger.info(f"Stored {len(rows)} DXY records in database")
@@ -106,6 +107,28 @@ def store_dxy_data(rows: list[dict[str, Any]]) -> int:
             f"[DXY] Failed to store {len(rows)} DXY records to database: {e}. "
             f"Data was fetched but persistence failed. Cannot proceed."
         ) from e
+
+
+def _insert_unavailable_marker(reason: str) -> None:
+    """Insert a marker row indicating DXY data is unavailable.
+
+    Args:
+        reason: Error or unavailability reason
+    """
+    try:
+        with DatabaseContext("write") as cur:
+            cur.execute(
+                """
+                INSERT INTO economic_data (series_id, date, value, data_unavailable, reason)
+                VALUES (%s, %s, %s, %s, %s)
+                ON CONFLICT (series_id, date) DO UPDATE SET
+                    data_unavailable = EXCLUDED.data_unavailable, reason = EXCLUDED.reason
+                """,
+                ("DXY_ICE", date.today().isoformat(), None, True, reason),
+            )
+            logger.info(f"Inserted unavailability marker for DXY: {reason}")
+    except Exception as e:
+        logger.error(f"[DXY] Failed to insert unavailability marker: {e}")
 
 
 def main() -> int:
@@ -127,6 +150,7 @@ def main() -> int:
                 "Exit code 2 (DATA_UNAVAILABLE) — economic dashboard will omit DXY_ICE. "
                 "Operator should investigate why Yahoo Finance returned no DXY data."
             )
+            _insert_unavailable_marker("No data available from Yahoo Finance")
             return 2  # Unambiguous: data is unavailable, not an error
 
         count = store_dxy_data(rows)
@@ -135,9 +159,11 @@ def main() -> int:
 
     except RuntimeError as e:
         logger.error(f"[DXY] {e}. Exit code 1 (ERROR).")
+        _insert_unavailable_marker(str(e))
         return 1
     except Exception as e:
         logger.error(f"[DXY] Unexpected error: {e}. Exit code 1 (ERROR).")
+        _insert_unavailable_marker(str(e))
         return 1
 
 

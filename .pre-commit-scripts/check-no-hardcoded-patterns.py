@@ -12,7 +12,6 @@ Run: python .pre-commit-scripts/check-no-hardcoded-patterns.py <files>
 
 import re
 import sys
-from pathlib import Path
 
 
 def check_file(filepath: str) -> list[str]:

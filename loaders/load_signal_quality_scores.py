@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Signal Quality Scores Loader -â€ Signal strength confirmation from multiple sources.
+"""Signal Quality Scores Loader -– Signal strength confirmation from multiple sources.
 
 Computes signal quality scores (0-100) combining buy/sell signal, technical confirmation, and trend.
 Required by Phase 1 data freshness check as tier-2 gate for filtering.
@@ -256,75 +256,111 @@ class SignalQualityScoresLoader(OptimalLoader):
                 f"buy_sell_daily coverage: {actual_symbols} signals ({signal_metric['coverage_pct']}%)"
             )
 
-        buy_sell_rows = self._fetch_buy_sell_signals(symbol, start, end)
-        if not buy_sell_rows:
-            raise RuntimeError(
-                f"[SIGNAL_QUALITY] Signal quality scoring failed for {symbol} [{start} to {end}]: "
-                f"No buy/sell signals found. Signal quality assessment is REQUIRED for validating trades. "
-                f"Check that buy_sell_daily table has signals for this symbol or adjust date range."
+        try:
+            buy_sell_rows = self._fetch_buy_sell_signals(symbol, start, end)
+            if not buy_sell_rows:
+                raise RuntimeError(
+                    f"[SIGNAL_QUALITY] Signal quality scoring failed for {symbol} [{start} to {end}]: "
+                    f"No buy/sell signals found. Signal quality assessment is REQUIRED for validating trades. "
+                    f"Check that buy_sell_daily table has signals for this symbol or adjust date range."
+                )
+
+            # Optional data sources with graceful degradation
+            technical_rows = self._fetch_technical_data(symbol, start, end)
+            if not technical_rows:
+                logger.debug(
+                    f"[SIGNAL_QUALITY] Technical data unavailable for {symbol} [{start}-{end}]. "
+                    "Proceeding with available data; RSI/MACD will be None."
+                )
+                technical_rows = []
+
+            trend_rows = self._fetch_trend_data(symbol, start, end)
+            if not trend_rows:
+                logger.debug(
+                    f"[SIGNAL_QUALITY] Trend data unavailable for {symbol} [{start}-{end}]. "
+                    "Proceeding with available data; trend_template_score will be 0."
+                )
+                trend_rows = []
+
+            vcp_rows = self._fetch_vcp_patterns(symbol, start, end)
+            if not vcp_rows:
+                logger.debug(
+                    f"[SIGNAL_QUALITY] VCP pattern data unavailable for {symbol} [{start}-{end}]. "
+                    "Proceeding with available data; vcp_pattern_score will be 0."
+                )
+                vcp_rows = []
+
+            positioning_data = self._fetch_positioning_data(symbol)
+            if not positioning_data:
+                logger.debug(
+                    f"[SIGNAL_QUALITY] Positioning data unavailable for {symbol} "
+                    "(typical for OTC, preferreds, special securities). Proceeding with available data."
+                )
+
+            scores = self._compute_quality_scores(
+                symbol,
+                buy_sell_rows,
+                technical_rows,
+                trend_rows,
+                vcp_rows,
+                positioning_data,
             )
+            if not scores:
+                raise RuntimeError(
+                    f"[SIGNAL_QUALITY] Quality score computation failed for {symbol} [{start} to {end}]: "
+                    f"No scores produced despite available buy/sell signals. "
+                    f"Signal quality assessment is REQUIRED for validating trades. "
+                    f"Check computation logic or validate input data (technical, trend, positioning)."
+                )
 
-        # Optional data sources with graceful degradation
-        technical_rows = self._fetch_technical_data(symbol, start, end)
-        if not technical_rows:
-            logger.debug(
-                f"[SIGNAL_QUALITY] Technical data unavailable for {symbol} [{start}-{end}]. "
-                "Proceeding with available data; RSI/MACD will be None."
-            )
-            technical_rows = []
+            # Filter to incremental range using datetime comparison (not string)
+            if since is not None:
+                since_date = since if isinstance(since, date) else safe_parse_date(since, "score filtering watermark")
+                if since_date:
+                    # Filter scores by date, handling potential None returns from safe_parse_date
+                    filtered_scores = []
+                    for s in scores:
+                        parsed_date = safe_parse_date(s["date"], "score date filtering")
+                        if parsed_date is not None and parsed_date > since_date:
+                            filtered_scores.append(s)
+                    scores = filtered_scores
 
-        trend_rows = self._fetch_trend_data(symbol, start, end)
-        if not trend_rows:
-            logger.debug(
-                f"[SIGNAL_QUALITY] Trend data unavailable for {symbol} [{start}-{end}]. "
-                "Proceeding with available data; trend_template_score will be 0."
-            )
-            trend_rows = []
+            return scores
 
-        vcp_rows = self._fetch_vcp_patterns(symbol, start, end)
-        if not vcp_rows:
-            logger.debug(
-                f"[SIGNAL_QUALITY] VCP pattern data unavailable for {symbol} [{start}-{end}]. "
-                "Proceeding with available data; vcp_pattern_score will be 0."
-            )
-            vcp_rows = []
+        except Exception as e:
+            # On any exception, log error and create unavailable marker records
+            error_reason = str(e)
+            logger.error(f"[SIGNAL_QUALITY_ERROR] Failed to compute scores for {symbol}: {error_reason}")
 
-        positioning_data = self._fetch_positioning_data(symbol)
-        if not positioning_data:
-            logger.debug(
-                f"[SIGNAL_QUALITY] Positioning data unavailable for {symbol} "
-                "(typical for OTC, preferreds, special securities). Proceeding with available data."
-            )
+            # Create error marker records for the date range
+            # This ensures downstream code sees explicit data_unavailable flags
+            error_records = []
+            current = start
+            while current <= end:
+                error_records.append({
+                    "symbol": symbol,
+                    "date": current.isoformat(),
+                    "base_quality_score": None,
+                    "volume_confirmation_score": None,
+                    "trend_template_score": None,
+                    "distance_from_high_score": None,
+                    "institutional_ownership_score": None,
+                    "market_stage_score": None,
+                    "vcp_pattern_score": None,
+                    "distribution_days_score": None,
+                    "earnings_proximity_score": None,
+                    "composite_sqs": None,
+                    "data_completeness": 0.0,
+                    "unavailable_components": ["all"],
+                    "buy_sell_daily_age_days": None,
+                    "technical_data_age_days": None,
+                    "trend_template_age_days": None,
+                    "data_unavailable": True,
+                    "reason": error_reason[:500],  # Truncate to 500 chars
+                })
+                current = current + timedelta(days=1)
 
-        scores = self._compute_quality_scores(
-            symbol,
-            buy_sell_rows,
-            technical_rows,
-            trend_rows,
-            vcp_rows,
-            positioning_data,
-        )
-        if not scores:
-            raise RuntimeError(
-                f"[SIGNAL_QUALITY] Quality score computation failed for {symbol} [{start} to {end}]: "
-                f"No scores produced despite available buy/sell signals. "
-                f"Signal quality assessment is REQUIRED for validating trades. "
-                f"Check computation logic or validate input data (technical, trend, positioning)."
-            )
-
-        # Filter to incremental range using datetime comparison (not string)
-        if since is not None:
-            since_date = since if isinstance(since, date) else safe_parse_date(since, "score filtering watermark")
-            if since_date:
-                # Filter scores by date, handling potential None returns from safe_parse_date
-                filtered_scores = []
-                for s in scores:
-                    parsed_date = safe_parse_date(s["date"], "score date filtering")
-                    if parsed_date is not None and parsed_date > since_date:
-                        filtered_scores.append(s)
-                scores = filtered_scores
-
-        return scores
+            return error_records if error_records else None
 
     def _fetch_buy_sell_signals(self, symbol: str, start: date, end: date) -> list[dict[str, Any]]:
         try:
@@ -760,6 +796,8 @@ class SignalQualityScoresLoader(OptimalLoader):
                             "buy_sell_daily_age_days": bs_age,
                             "technical_data_age_days": tech_age,
                             "trend_template_age_days": trend_age,
+                            "data_unavailable": False,
+                            "reason": None,
                         }
                     )
 
@@ -933,7 +971,7 @@ def _log_signal_metrics() -> None:
                 "PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY composite_sqs) as p25, "
                 "PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY composite_sqs) as p50, "
                 "PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY composite_sqs) as p75 "
-                "FROM signal_quality_scores WHERE date = %s",
+                "FROM signal_quality_scores WHERE date = %s AND data_unavailable = false",
                 (latest_signal_date,),
             )
             score_result = cur.fetchone()

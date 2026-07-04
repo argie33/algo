@@ -453,6 +453,8 @@ class VectorizedTechnicalLoader:
             "mansfield_rs",
             "price_data_age_days",
             "close",
+            "data_unavailable",
+            "reason",
         ]
 
         # Format data
@@ -466,9 +468,14 @@ class VectorizedTechnicalLoader:
                 # Round to int, convert to Int64 (nullable integer type)
                 df[col] = df[col].round(0).astype("Int64")
 
+        # Add data quality columns
+        # data_unavailable: FALSE when load succeeds, reason: NULL
+        df["data_unavailable"] = False
+        df["reason"] = None
+
         # Handle NaN -> None conversion for non-integer columns
         for col in df.columns:
-            if col not in ("symbol", "date") and col not in integer_cols:
+            if col not in ("symbol", "date") and col not in integer_cols and col not in ("data_unavailable",):
                 df[col] = df[col].where(pd.notna(df[col]), None)
 
         # Bulk insert via COPY (with DELETE to handle updates)
@@ -590,6 +597,8 @@ def _apply_schema_migrations() -> None:
     """Add columns that were missing from initial schema deployment."""
     migrations = [
         "ALTER TABLE technical_data_daily ADD COLUMN IF NOT EXISTS atr_50 DECIMAL(12, 4)",
+        "ALTER TABLE technical_data_daily ADD COLUMN IF NOT EXISTS data_unavailable BOOLEAN DEFAULT FALSE",
+        "ALTER TABLE technical_data_daily ADD COLUMN IF NOT EXISTS reason VARCHAR(500)",
     ]
     try:
         with DatabaseContext("write") as cur:
