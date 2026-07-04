@@ -1014,27 +1014,11 @@ def _get_correlation_matrix(cur: cursor) -> Any:  # noqa: C901
     cur.execute("RELEASE SAVEPOINT correlation_matrix")
 
     if not rows:
-        return json_response(
-            200,
-            {
-                "correlations": [],
-                "statistics": {
-                    "avg_correlation": None,
-                    "max_correlation": {"value": None, "pair": []},
-                    "min_correlation": {"value": None, "pair": []},
-                },
-                "analysis": {
-                    "market_regime": "insufficient_data",
-                    "diversification_score": None,
-                    "risk_assessment": {
-                        "concentration_risk": "unknown",
-                        "diversification_benefit": "unknown",
-                        "portfolio_stability": "unknown",
-                    },
-                },
-                "data_unavailable": True,
-                "reason": "no_price_history_available",
-            },
+        logger.error("[CORRELATION_MATRIX] No price history available for correlation calculation")
+        return error_response(
+            503,
+            "insufficient_price_data",
+            "Correlation matrix requires price history for 2+ symbols. Insufficient data available.",
         )
 
     prices_by_symbol: dict[str, list[Any]] = {}

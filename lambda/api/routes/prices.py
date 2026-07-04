@@ -178,12 +178,16 @@ def handle(  # noqa: C901
 
                 price_result = {"symbols": result, "limit": limit}
 
-                # Add data completeness metric to response
+                # CRITICAL: Fail-fast on incomplete price data
                 if "data_completeness_pct" in locals():
                     price_result["data_completeness_pct"] = data_completeness_pct
                     if data_completeness_pct < 100:
-                        price_result["data_incomplete"] = True
-                        price_result["skipped_rows_count"] = len(skipped_rows)
+                        logger.error(f"[PRICES_API] Incomplete price data ({data_completeness_pct:.1f}%)")
+                        return error_response(
+                            503,
+                            "incomplete_price_data",
+                            f"Price data only {data_completeness_pct:.0f}% complete. Cannot use incomplete price history for position sizing.",
+                        )
 
                 is_valid, error_msg = ResponseValidator.validate_endpoint_response("prices", price_result)
                 if not is_valid:
