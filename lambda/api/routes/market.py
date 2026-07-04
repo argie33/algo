@@ -243,8 +243,12 @@ def _handle_technicals(cur: cursor) -> Any:
         psycopg2.DatabaseError,
         psycopg2.errors.QueryCanceled,
     ) as e:
-        logger.warning(f"[MCCLELLAN] Database error: {type(e).__name__}")
-        base["_mcclellan_error"] = str(e)[:100]
+        logger.error(f"[MCCLELLAN] Database error - McClellan oscillator unavailable: {type(e).__name__}: {e}")
+        return error_response(
+            503,
+            "mcclellan_unavailable",
+            f"McClellan oscillator calculation failed: {type(e).__name__}",
+        )
 
     freshness = check_data_freshness(cur, "market_health_daily", "date", warning_days=1)
     return json_response(200, base, data_freshness=freshness)
