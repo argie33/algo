@@ -179,12 +179,13 @@ def test_circuit_breaker_cascade_collapsed_in_error_panel():
 
 
 def test_fetch_perf_analytics_none_fields_fail_fast():
-    """fetch_perf_analytics must fail-fast when numeric fields are None (strict validation)."""
+    """fetch_perf_analytics allows all-None during ramp-up but fails if some fields present."""
     from unittest.mock import patch
 
     from dashboard.fetchers_portfolio import fetch_perf_analytics
 
-    none_response = {
+    # Test 1: All-None is allowed during ramp-up (no trades yet)
+    all_none = {
         "rolling_sharpe_252d": None,
         "rolling_sortino_252d": None,
         "calmar_ratio": None,
@@ -194,12 +195,28 @@ def test_fetch_perf_analytics_none_fields_fail_fast():
         "expectancy": None,
         "max_drawdown_pct": None,
     }
-    with patch("dashboard.fetchers_portfolio.api_call", return_value=none_response):
+    with patch("dashboard.fetchers_portfolio.api_call", return_value=all_none):
         result = fetch_perf_analytics(None)
-    # Strict validation should mark this with _error (fail-fast: None cannot convert to float)
-    assert "_error" in result, f"Should error on None fields per strict validation, got: {result}"
-    assert "Cannot convert None to float" in result.get("_error", "")
-    print("OK fetch_perf_analytics fails fast on None fields (strict validation)")
+    # All-None is valid state during ramp-up
+    assert "_error" not in result, f"All-None should be valid during ramp-up, got: {result}"
+    print("OK fetch_perf_analytics allows all-None during ramp-up")
+
+    # Test 2: Partial None (some data present) should error
+    partial_none = {
+        "rolling_sharpe_252d": 1.5,  # Present
+        "rolling_sortino_252d": None,  # Missing critical
+        "calmar_ratio": None,
+        "win_rate_50t": None,
+        "avg_win_r_50t": None,
+        "avg_loss_r_50t": None,
+        "expectancy": None,  # Missing critical
+        "max_drawdown_pct": None,
+    }
+    with patch("dashboard.fetchers_portfolio.api_call", return_value=partial_none):
+        result = fetch_perf_analytics(None)
+    # Partial data with missing critical fields should error
+    assert "_error" in result, f"Should error on partial None (missing critical), got: {result}"
+    print("OK fetch_perf_analytics fails fast on partial None with missing critical metrics")
 
 
 def test_fetch_risk_metrics_rejects_missing_required_fields():

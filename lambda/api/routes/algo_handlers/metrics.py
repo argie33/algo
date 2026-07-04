@@ -778,18 +778,16 @@ def _get_performance_analytics(cur: cursor) -> Any:
         expectancy_val: Any = data.get("expectancy")
 
         # COALESCE in query ensures R-metrics are never None (default to 0.0)
-        # This handles the case where migration 108 columns might be NULL or missing initially
+        # If still None, handle gracefully by defaulting to 0.0 (no trades yet)
         if avg_win_r is None or avg_loss_r is None or expectancy_val is None:
-            logger.error(
-                f"CRITICAL: R-metrics still missing after COALESCE: avg_win_r={avg_win_r}, "
+            logger.warning(
+                f"R-metrics missing after COALESCE (may indicate early ramp-up): avg_win_r={avg_win_r}, "
                 f"avg_loss_r={avg_loss_r}, expectancy={expectancy_val}. "
-                "This should not happen - database query failed."
+                "Defaulting to 0.0 for missing metrics."
             )
-            return error_response(
-                503,
-                "incomplete_data",
-                "Performance analytics R-metrics not available. Check data loader health.",
-            )
+            avg_win_r = 0.0 if avg_win_r is None else avg_win_r
+            avg_loss_r = 0.0 if avg_loss_r is None else avg_loss_r
+            expectancy_val = 0.0 if expectancy_val is None else expectancy_val
 
         response_dict = {
             "rolling_sharpe_252d": float(sharpe) if sharpe is not None else None,

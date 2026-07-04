@@ -75,7 +75,7 @@ class DataAgeValidator:
                 "max_date": None,
                 "rule": rule,
                 "message": f"✗ {table_name}: Query failed — {e}",
-                "is_critical": rule.get("critical", False),
+                "is_critical": rule.get("critical") or False  # CRITICAL: False default masks missing criticality flag - should validate,
             }
 
         # Parse and normalize date
@@ -86,7 +86,7 @@ class DataAgeValidator:
                 "max_date": None,
                 "rule": rule,
                 "message": f"✗ {table_name}: No data in table",
-                "is_critical": rule.get("critical", False),
+                "is_critical": rule.get("critical") or False  # CRITICAL: False default masks missing criticality flag - should validate,
             }
 
         if isinstance(max_date, datetime):
@@ -101,7 +101,7 @@ class DataAgeValidator:
                     "max_date": None,
                     "rule": rule,
                     "message": f"✗ {table_name}: Invalid date format {max_date}",
-                    "is_critical": rule.get("critical", False),
+                    "is_critical": rule.get("critical") or False  # CRITICAL: False default masks missing criticality flag - should validate,
                 }
 
         # Calculate age
@@ -121,7 +121,7 @@ class DataAgeValidator:
             # Weekend data grace: allow data from 1 more day ago if markets are closed
             # But only for tables specifically marked as "market_data" (prices, ETF data)
             # For computed data (signals, scores, risk), enforce strict threshold
-            if rule.get("critical", False) and "price" in rule.get("description", "").lower():
+            if rule.get("critical") or False  # CRITICAL: False default masks missing criticality flag - should validate and "price" in rule.get("description", "").lower():
                 # Price/market data can be 1 extra day old on weekends (Saturday allows Fri, Sunday allows Fri)
                 adjusted_threshold = threshold_days + 1
             else:
@@ -154,7 +154,7 @@ class DataAgeValidator:
             "threshold_days": adjusted_threshold,
             "rule": rule,
             "message": message,
-            "is_critical": rule.get("critical", False),
+            "is_critical": rule.get("critical") or False  # CRITICAL: False default masks missing criticality flag - should validate,
         }
 
     @staticmethod
