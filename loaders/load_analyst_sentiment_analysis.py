@@ -27,14 +27,16 @@ class AnalystSentimentAnalysisLoader(OptimalLoader):
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Read analyst sentiment from yfinance_snapshot table.
 
-        Governance: Fail-fast on missing data. No silent fallbacks.
+        Governance: Mark unavailable data explicitly. No silent fallbacks or exceptions.
+        Returns data_unavailable marker instead of raising exceptions per GOVERNANCE.md.
 
-        Raises RuntimeError if yfinance_snapshot data unavailable (upstream loader dependency).
+        Returns:
+            list[dict]: Either real analyst sentiment data or data_unavailable marker
         """
         with DatabaseContext("read") as cur:
             cur.execute(
                 """
-                SELECT recommendation_key, number_of_analysts, data_available
+                SELECT recommendation_key, number_of_analysts, data_available, unavailable_reason
                 FROM yfinance_snapshot
                 WHERE symbol = %s
                 """,
@@ -43,31 +45,49 @@ class AnalystSentimentAnalysisLoader(OptimalLoader):
             row = cur.fetchone()
 
         if not row:
-            raise RuntimeError(
-                f"[ANALYST_SENTIMENT] {symbol}: yfinance_snapshot row not found. "
-                f"Upstream loader (load_yfinance_snapshot) must run first. "
-                f"Check: SELECT * FROM yfinance_snapshot WHERE symbol = '{symbol}';"
-            )
+            # yfinance_snapshot row not found — upstream loader dependency missing
+            logger.debug(f"[ANALYST_SENTIMENT] {symbol}: yfinance_snapshot row not found (upstream dependency)")
+            return [
+                {
+                    "symbol": symbol,
+                    "data_unavailable": True,
+                    "reason": "yfinance_snapshot_missing",
+                    "updated_at": date.today().isoformat(),
+                }
+            ]
 
         if not row.get("data_available"):
-            raise RuntimeError(
-                f"[ANALYST_SENTIMENT] {symbol}: yfinance_snapshot data marked unavailable. "
-                f"Reason: {row.get('unavailable_reason', 'unknown')}. "
-                f"Upstream loader failed or API unavailable. Cannot proceed without yfinance data."
-            )
+            # yfinance data explicitly marked unavailable
+            reason = row.get("unavailable_reason", "yfinance_api_unavailable")
+            logger.debug(f"[ANALYST_SENTIMENT] {symbol}: yfinance_snapshot marked unavailable ({reason})")
+            return [
+                {
+                    "symbol": symbol,
+                    "data_unavailable": True,
+                    "reason": f"yfinance_snapshot_unavailable:{reason}",
+                    "updated_at": date.today().isoformat(),
+                }
+            ]
 
         if row.get("number_of_analysts") is None:
-            raise RuntimeError(
-                f"[ANALYST_SENTIMENT] {symbol}: No analyst opinions available in yfinance. "
-                f"This is legitimate for micro-cap stocks; data is missing but loader succeeded. "
-                f"Explicitly mark in database or skip symbol for analyst metrics."
-            )
+            # No analyst opinions — legitimate for micro-cap/illiquid stocks
+            logger.debug(f"[ANALYST_SENTIMENT] {symbol}: No analyst opinions (micro-cap or illiquid)")
+            return [
+                {
+                    "symbol": symbol,
+                    "data_unavailable": True,
+                    "reason": "no_analyst_opinions_available",
+                    "updated_at": date.today().isoformat(),
+                }
+            ]
 
+        # Data available — return real analyst sentiment
         return [
             {
                 "symbol": symbol,
                 "recommendation_key": row["recommendation_key"],
                 "number_of_analysts": row["number_of_analysts"],
+                "data_unavailable": False,
                 "updated_at": date.today().isoformat(),
             }
         ]

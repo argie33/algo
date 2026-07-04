@@ -28,10 +28,12 @@ class EarningsHistoryLoader(OptimalLoader):
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Read earnings dates from yfinance_snapshot table.
 
-        Governance: Fail-fast on missing data. No silent fallbacks.
+        Governance: Mark unavailable data explicitly. No silent fallbacks or exceptions.
+        Returns data_unavailable marker instead of raising exceptions per GOVERNANCE.md.
 
-        Raises RuntimeError if yfinance_snapshot data unavailable (upstream loader dependency).
         Note: Some stocks legitimately have no earnings history (micro-caps, OTC).
+        Returns:
+            list[dict]: Either earnings history data or data_unavailable marker
         """
         with DatabaseContext("read") as cur:
             cur.execute(
@@ -45,31 +47,49 @@ class EarningsHistoryLoader(OptimalLoader):
             row = cur.fetchone()
 
         if not row:
-            raise RuntimeError(
-                f"[EARNINGS_HISTORY] {symbol}: yfinance_snapshot row not found. "
-                f"Upstream loader (load_yfinance_snapshot) must run first. "
-                f"Cannot fetch earnings history without snapshot data."
-            )
+            # yfinance_snapshot row not found — upstream loader dependency missing
+            logger.debug(f"[EARNINGS_HISTORY] {symbol}: yfinance_snapshot row not found (upstream dependency)")
+            return [
+                {
+                    "symbol": symbol,
+                    "data_unavailable": True,
+                    "reason": "yfinance_snapshot_missing",
+                    "updated_at": date.today().isoformat(),
+                }
+            ]
 
         if not row.get("data_available"):
-            raise RuntimeError(
-                f"[EARNINGS_HISTORY] {symbol}: yfinance_snapshot data marked unavailable. "
-                f"Reason: {row.get('unavailable_reason', 'unknown')}. "
-                f"Upstream loader failed or API unavailable. Cannot proceed without yfinance data."
-            )
+            # yfinance data explicitly marked unavailable
+            reason = row.get("unavailable_reason", "yfinance_api_unavailable")
+            logger.debug(f"[EARNINGS_HISTORY] {symbol}: yfinance_snapshot marked unavailable ({reason})")
+            return [
+                {
+                    "symbol": symbol,
+                    "data_unavailable": True,
+                    "reason": f"yfinance_snapshot_unavailable:{reason}",
+                    "updated_at": date.today().isoformat(),
+                }
+            ]
 
+        # earnings_dates can be NULL legitimately (micro-caps, OTC, newly public)
         earnings_dates = row["earnings_dates"]
         if not earnings_dates:
-            raise RuntimeError(
-                f"[EARNINGS_HISTORY] {symbol}: No historical earnings dates in yfinance. "
-                f"This is legitimate for micro-cap stocks, OTC securities, or newly public companies. "
-                f"Data exists but no earnings history available. Cannot compute earnings analysis."
-            )
+            logger.debug(f"[EARNINGS_HISTORY] {symbol}: No historical earnings dates (micro-cap/OTC/newly public)")
+            return [
+                {
+                    "symbol": symbol,
+                    "data_unavailable": True,
+                    "reason": "no_earnings_history_available",
+                    "updated_at": date.today().isoformat(),
+                }
+            ]
 
+        # Data available — return real earnings history data
         return [
             {
                 "symbol": symbol,
                 "earnings_dates": earnings_dates,
+                "data_unavailable": False,
                 "updated_at": date.today().isoformat(),
             }
         ]

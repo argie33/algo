@@ -27,10 +27,12 @@ class EarningsCalendarLoader(OptimalLoader):
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Read next earnings date from yfinance_snapshot table.
 
-        Governance: Fail-fast on missing data. No silent fallbacks.
+        Governance: Mark unavailable data explicitly. No silent fallbacks or exceptions.
+        Returns data_unavailable marker instead of raising exceptions per GOVERNANCE.md.
 
-        Raises RuntimeError if yfinance_snapshot data unavailable (upstream loader dependency).
         Note: Some stocks legitimately have no next earnings date (micro-caps, OTC).
+        Returns:
+            list[dict]: Either earnings calendar data or data_unavailable marker
         """
         with DatabaseContext("read") as cur:
             cur.execute(
@@ -44,31 +46,49 @@ class EarningsCalendarLoader(OptimalLoader):
             row = cur.fetchone()
 
         if not row:
-            raise RuntimeError(
-                f"[EARNINGS_CALENDAR] {symbol}: yfinance_snapshot row not found. "
-                f"Upstream loader (load_yfinance_snapshot) must run first. "
-                f"Cannot fetch earnings calendar without snapshot data."
-            )
+            # yfinance_snapshot row not found — upstream loader dependency missing
+            logger.debug(f"[EARNINGS_CALENDAR] {symbol}: yfinance_snapshot row not found (upstream dependency)")
+            return [
+                {
+                    "symbol": symbol,
+                    "data_unavailable": True,
+                    "reason": "yfinance_snapshot_missing",
+                    "updated_at": date.today().isoformat(),
+                }
+            ]
 
         if not row.get("data_available"):
-            raise RuntimeError(
-                f"[EARNINGS_CALENDAR] {symbol}: yfinance_snapshot data marked unavailable. "
-                f"Reason: {row.get('unavailable_reason', 'unknown')}. "
-                f"Upstream loader failed or API unavailable. Cannot proceed without yfinance data."
-            )
+            # yfinance data explicitly marked unavailable
+            reason = row.get("unavailable_reason", "yfinance_api_unavailable")
+            logger.debug(f"[EARNINGS_CALENDAR] {symbol}: yfinance_snapshot marked unavailable ({reason})")
+            return [
+                {
+                    "symbol": symbol,
+                    "data_unavailable": True,
+                    "reason": f"yfinance_snapshot_unavailable:{reason}",
+                    "updated_at": date.today().isoformat(),
+                }
+            ]
 
+        # earnings_date can be NULL legitimately (micro-caps, OTC, ADRs)
         earnings_date = row["earnings_date"]
         if not earnings_date:
-            raise RuntimeError(
-                f"[EARNINGS_CALENDAR] {symbol}: No next earnings date in yfinance. "
-                f"This is legitimate for micro-cap stocks, OTC securities, or ADRs. "
-                f"Data exists but earnings date is missing. Loader succeeded; no next date available."
-            )
+            logger.debug(f"[EARNINGS_CALENDAR] {symbol}: No next earnings date (micro-cap/OTC/ADR)")
+            return [
+                {
+                    "symbol": symbol,
+                    "data_unavailable": True,
+                    "reason": "no_earnings_date_available",
+                    "updated_at": date.today().isoformat(),
+                }
+            ]
 
+        # Data available — return real earnings calendar data
         return [
             {
                 "symbol": symbol,
                 "earnings_date": earnings_date,
+                "data_unavailable": False,
                 "updated_at": date.today().isoformat(),
             }
         ]

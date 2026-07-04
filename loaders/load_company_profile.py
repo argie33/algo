@@ -30,12 +30,14 @@ class CompanyProfileLoader(OptimalLoader):
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Read company profile from yfinance_snapshot table.
 
-        Governance: Fail-fast on missing data. No silent fallbacks.
+        Governance: Mark unavailable data explicitly. No silent fallbacks or exceptions.
+        Returns data_unavailable marker instead of raising exceptions per GOVERNANCE.md.
 
         yfinance_snapshot loader (run BEFORE this) fetches all yfinance data once per symbol
         and stores in yfinance_snapshot table. This loader reads from that table.
 
-        Raises RuntimeError if snapshot data unavailable (upstream loader dependency).
+        Returns:
+            list[dict]: Either company profile data or data_unavailable marker
         """
         with DatabaseContext("read") as cur:
             cur.execute(
@@ -50,35 +52,60 @@ class CompanyProfileLoader(OptimalLoader):
             row = cur.fetchone()
 
         if not row:
-            raise RuntimeError(
-                f"[COMPANY_PROFILE] {symbol}: yfinance_snapshot row not found. "
-                f"Upstream loader (load_yfinance_snapshot) must run first. "
-                f"Cannot fetch company profile without snapshot data."
-            )
+            # yfinance_snapshot row not found — upstream loader dependency missing
+            logger.debug(f"[COMPANY_PROFILE] {symbol}: yfinance_snapshot row not found (upstream dependency)")
+            return [
+                {
+                    "symbol": symbol,
+                    "data_unavailable": True,
+                    "reason": "yfinance_snapshot_missing",
+                }
+            ]
 
         if not row.get("data_available"):
-            raise RuntimeError(
-                f"[COMPANY_PROFILE] {symbol}: yfinance_snapshot data marked unavailable. "
-                f"Reason: {row.get('unavailable_reason', 'unknown')}. "
-                f"Cannot proceed without company profile data from yfinance."
-            )
+            # yfinance data explicitly marked unavailable
+            reason = row.get("unavailable_reason", "yfinance_api_unavailable")
+            logger.debug(f"[COMPANY_PROFILE] {symbol}: yfinance_snapshot marked unavailable ({reason})")
+            return [
+                {
+                    "symbol": symbol,
+                    "data_unavailable": True,
+                    "reason": f"yfinance_snapshot_unavailable:{reason}",
+                }
+            ]
 
         company_name = row["long_name"]
         exchange = row["exchange"]
         sector = row["sector"]
         industry = row["industry"]
 
-        # REQUIRED fields - fail-fast if missing
-        if not company_name or not exchange or not sector or not industry:
-            raise RuntimeError(
-                f"[COMPANY_PROFILE] {symbol}: Missing required fields from snapshot. "
-                f"Got: name={company_name}, exchange={exchange}, sector={sector}, industry={industry}. "
-                f"Cannot compute portfolio metrics without complete company classification."
-            )
+        # Check for missing required fields (legitimate for micro-caps, foreign stocks, delisted)
+        missing_fields = []
+        if not company_name:
+            missing_fields.append("company_name")
+        if not exchange:
+            missing_fields.append("exchange")
+        if not sector:
+            missing_fields.append("sector")
+        if not industry:
+            missing_fields.append("industry")
 
-        logger.info(
-            f"[COMPANY_PROFILE] {symbol}: Successfully loaded profile from snapshot "
-            f"(name={company_name}, exchange={exchange}, sector={sector}, industry={industry})"
+        if missing_fields:
+            # Some stocks don't have complete classification (micro-caps, foreign, delisted)
+            logger.debug(
+                f"[COMPANY_PROFILE] {symbol}: Missing classification fields: {', '.join(missing_fields)} "
+                f"(legitimate for micro-caps, foreign stocks, or delisted)"
+            )
+            return [
+                {
+                    "symbol": symbol,
+                    "data_unavailable": True,
+                    "reason": f"missing_fields:{','.join(missing_fields)}",
+                }
+            ]
+
+        logger.debug(
+            f"[COMPANY_PROFILE] {symbol}: Loaded profile (name={company_name}, sector={sector}, industry={industry})"
         )
 
         return [
@@ -94,6 +121,7 @@ class CompanyProfileLoader(OptimalLoader):
                 "website": row["website"],
                 "country": row["country"],
                 "market_cap": (int(row["market_cap"]) if row["market_cap"] and row["market_cap"] > 0 else None),
+                "data_unavailable": False,
             }
         ]
 

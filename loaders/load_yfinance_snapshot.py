@@ -44,26 +44,37 @@ class YFinanceSnapshotLoader(OptimalLoader):
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Fetch all yfinance data for a symbol, store as single snapshot record.
 
-        Governance: Fail-fast on missing data. No silent fallbacks.
+        Governance: Mark unavailable data explicitly. No silent fallbacks or exceptions.
+        Returns data_unavailable marker instead of raising exceptions per GOVERNANCE.md.
 
         Returns all metrics in one row to avoid 6 separate yfinance API calls.
-        Raises RuntimeError if ticker unavailable or data fetch fails (critical data).
+        Returns data_unavailable marker if ticker unavailable or data fetch fails.
         """
         ticker = YFinanceWrapper.get_ticker(symbol)
         if not ticker:
-            raise RuntimeError(
-                f"[YFINANCE_SNAPSHOT] Ticker data unavailable for {symbol}. "
-                f"Cannot fetch yfinance metrics without valid ticker. "
-                f"Downstream loaders (value_metrics, positioning_metrics, stability_metrics, etc.) depend on this data."
-            )
+            # Ticker data unavailable (delisted, invalid, or yfinance API issue)
+            logger.debug(f"[YFINANCE_SNAPSHOT] {symbol}: Ticker data unavailable (yfinance API or invalid symbol)")
+            return [
+                {
+                    "symbol": symbol,
+                    "fetched_at": datetime.now(timezone.utc).isoformat(),
+                    "data_available": False,
+                    "unavailable_reason": "yfinance_ticker_unavailable",
+                }
+            ]
 
         info = ticker.info
         if not info or not isinstance(info, dict):
-            raise RuntimeError(
-                f"[YFINANCE_SNAPSHOT] No info dict available for {symbol}. "
-                f"Ticker returned invalid/empty data structure. "
-                f"Cannot proceed without valid company information."
-            )
+            # Ticker returned invalid/empty data structure
+            logger.debug(f"[YFINANCE_SNAPSHOT] {symbol}: Ticker returned invalid data structure")
+            return [
+                {
+                    "symbol": symbol,
+                    "fetched_at": datetime.now(timezone.utc).isoformat(),
+                    "data_available": False,
+                    "unavailable_reason": "yfinance_invalid_info_dict",
+                }
+            ]
 
         # Extract all yfinance metrics into single snapshot
         pe_ratio = info.get("trailingPE")
