@@ -139,16 +139,22 @@ class LambdaHandler(ABC):
                 "This Lambda function does not support database connections."
             )
         try:
-            db_host = host or os.environ.get("DB_HOST")
-            # CRITICAL: Port must be explicitly configured, no defaults
-            db_port_str = str(port) if port else os.environ.get("DB_PORT")
+            # CRITICAL: Use explicit parameters first, then environment variables.
+            # NEVER use "or" operator - it masks False/0/empty string parameters.
+            # Fail-fast if any required config is missing.
+            db_host = host if host is not None else os.environ.get("DB_HOST")
+            db_name = database if database is not None else os.environ.get("DB_NAME")
+            db_user = user if user is not None else os.environ.get("DB_USER")
+            db_password = password if password is not None else os.environ.get("DB_PASSWORD")
+
+            # Port handling: explicitly allow 0 to be invalid (catch it in validation below)
+            db_port_str = str(port) if port is not None else os.environ.get("DB_PORT")
             if not db_port_str:
                 raise ValueError("Database port (DB_PORT) not configured — cannot establish connection")
-            db_port = int(db_port_str)
-
-            db_name = database or os.environ.get("DB_NAME")
-            db_user = user or os.environ.get("DB_USER")
-            db_password = password or os.environ.get("DB_PASSWORD")
+            try:
+                db_port = int(db_port_str)
+            except (ValueError, TypeError) as e:
+                raise ValueError(f"Database port must be numeric: {db_port_str}") from e
 
             if not all([db_host, db_name, db_user]):
                 raise ValueError("Missing required database configuration (host, name, user)")
