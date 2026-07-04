@@ -990,13 +990,19 @@ class MarketHealthDailyLoader(OptimalLoader):
                     vix_dates: set[str] = {row[0].isoformat() for row in cur.fetchall()}
                 if vix_dates:
                     before_sparse = len(health_metrics)
+                    # Track which dates are skipped for audit trail (Issue #25 fix)
+                    skipped_dates = [m["date"] for m in health_metrics if m["date"] not in vix_dates]
                     health_metrics = [m for m in health_metrics if m["date"] in vix_dates]
                     skipped = before_sparse - len(health_metrics)
                     if skipped > 0:
                         logger.info(
                             f"[MARKET_HEALTH] Filtered to VIX-covered dates: {before_sparse} -> "
-                            f"{len(health_metrics)} (skipped {skipped} historical dates without VIX)"
+                            f"{len(health_metrics)} (skipped {skipped} historical dates without VIX). "
+                            f"Skipped dates: {skipped_dates}"
                         )
+                        # Track skipped dates in stats for orchestrator access (Issue #25)
+                        self._stats.set("skipped_dates_vix_coverage", skipped_dates)
+                        self._stats.set("skipped_count_vix_coverage", skipped)
                     if not health_metrics:
                         # FAIL-FAST: Market health is critical for circuit breaker evaluation
                         # Cannot silently defer when VIX filtering eliminates all dates

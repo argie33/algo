@@ -100,6 +100,9 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
 
     items = []
     sector_risk: dict[str, float] = {}  # For aggregating sector allocation
+    total_positions_fetched = len(positions)
+    filtered_positions_count = 0
+    invalid_position_symbols = []
 
     for p in positions:
         d = safe_json_serialize(safe_dict_convert(p))
@@ -121,6 +124,8 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
                 "[POSITIONS] %s: position_value is NULL (current price missing from price_daily) — skipping",
                 symbol,
             )
+            filtered_positions_count += 1
+            invalid_position_symbols.append(f"{symbol}:missing_position_value")
             continue
 
         # Check avg_entry_price (required for P&L calculation and entry point display)
@@ -130,6 +135,8 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
                 "[POSITIONS] %s: avg_entry_price is NULL (required for entry price display) — skipping",
                 symbol,
             )
+            filtered_positions_count += 1
+            invalid_position_symbols.append(f"{symbol}:missing_avg_entry_price")
             continue
 
         # Check current_price (required for current price display and P&L)
@@ -139,6 +146,8 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
                 "[POSITIONS] %s: current_price is NULL (required for price display) — skipping",
                 symbol,
             )
+            filtered_positions_count += 1
+            invalid_position_symbols.append(f"{symbol}:missing_current_price")
             continue
 
         # Validate numeric values
@@ -300,10 +309,33 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
         age_display = f"{age_days}d old" if age_days is not None else "age unknown"
         stale_alerts.append(f"Position data {age_display}")
 
+    # Track coverage metrics for data quality visibility
+    valid_count = len(items)
+    coverage_pct = (valid_count / total_positions_fetched * 100) if total_positions_fetched > 0 else 100.0
+
+    # Alert if significant positions were filtered
+    if filtered_positions_count > 0:
+        logger.warning(
+            f"[POSITIONS DATA QUALITY] Filtered {filtered_positions_count}/{total_positions_fetched} positions "
+            f"({100 - coverage_pct:.1f}% filtered). Valid: {valid_count}. "
+            f"Reasons: {invalid_position_symbols[:10]}"  # Log first 10 for debugging
+        )
+        stale_alerts.append(
+            f"Position data incomplete: {filtered_positions_count} positions filtered "
+            f"(missing price/value data). Showing {valid_count}/{total_positions_fetched} valid positions."
+        )
+
     response_data = {
         "items": items,
         "sector_allocation": sector_allocation,
         "pagination": {"total": len(items), "limit": 10000, "offset": 0},
+        "coverage": {
+            "valid_count": valid_count,
+            "total_count": total_positions_fetched,
+            "filtered_count": filtered_positions_count,
+            "coverage_pct": round(coverage_pct, 1),
+        },
+        "filtered_positions": invalid_position_symbols,
         "stale_alerts": stale_alerts,
         "data_freshness": freshness,
     }

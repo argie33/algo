@@ -87,6 +87,7 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
     - Optional data unavailability via "_data_unavailable" flag (graceful degradation)
     - Each position dict requires: symbol, current_price, avg_entry_price, position_value
     - Optional fields: weinstein_stage, swing_score, sector, company_name/name
+    - Coverage metrics: valid_count, total_count, filtered_count for data quality visibility
     """
     # Issue 3.1 FIX: Use unified normalization function
     pos_items, pos_timestamp, has_err = normalize_positions_data(pos)
@@ -272,10 +273,23 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
 
     content = t
     age_s = f"  [dim]{fmt_age(pos_timestamp)}[/]" if pos_timestamp is not None else ""
+
+    # Extract coverage metrics if available (indicates positions were filtered)
+    coverage_metrics = None
+    if isinstance(pos, dict):
+        coverage_metrics = pos.get("coverage")
+
     if invalid_count > 0:
         logger.error(f"panel_positions: encountered {invalid_count} invalid position(s); display may be incomplete")
         border = "red"
         title_str = f"[bold red]POSITIONS ⚠ DATA ERROR ({valid_count}/{len(pos_items)} valid)[/]"
+    elif coverage_metrics and coverage_metrics.get("filtered_count", 0) > 0:
+        # Positions were filtered at the API level - display coverage
+        total = coverage_metrics.get("total_count", len(pos_items))
+        valid = coverage_metrics.get("valid_count", valid_count)
+        filtered = coverage_metrics.get("filtered_count", 0)
+        border = "yellow"
+        title_str = f"[bold yellow]POSITIONS ⚠ FILTERED ({valid}/{total} valid, {filtered} filtered)[/]"
     else:
         border = "cyan"
         title_str = f"[bold cyan]POSITIONS ({valid_count})[/]"
