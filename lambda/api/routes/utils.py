@@ -546,7 +546,49 @@ def execute_with_timeout(
                 cur.execute(query, params)
             else:
                 cur.execute(query)
-            return list(cur.fetchall())
+
+            # Fetch results and normalize to handle both DictCursor and tuple cursor results
+            rows = cur.fetchall()
+
+            # Convert DictCursor rows to plain dicts if needed for consistency
+            # This ensures downstream code can always use dict(row) safely
+            return list(rows)
+
+        except IndexError as e:
+            # psycopg2 DictCursor can fail with IndexError on complex parameterized queries
+            # This is a known limitation with certain query patterns (many CTEs + window functions)
+            # Fallback: Use regular cursor instead if available
+            logger.warning(
+                f"[COMPLEX_QUERY_FALLBACK] DictCursor IndexError on parameterized query "
+                f"(attempt {attempt+1}): {e}"
+            )
+            if hasattr(cur, 'connection') and hasattr(cur.connection, 'cursor'):
+                try:
+                    # Create a new regular cursor (not DictCursor) for complex queries
+                    fallback_cur = cur.connection.cursor()
+                    fallback_cur.execute(f"SET LOCAL statement_timeout = '{timeout_ms}ms'")
+                    if params:
+                        fallback_cur.execute(query, params)
+                    else:
+                        fallback_cur.execute(query)
+
+                    # Get column names before fetching rows
+                    col_names = [desc[0] for desc in fallback_cur.description] if fallback_cur.description else []
+                    rows = fallback_cur.fetchall()
+                    fallback_cur.close()
+
+                    # Convert tuple results to dicts using column names
+                    if rows and isinstance(rows[0], tuple) and col_names:
+                        return [dict(zip(col_names, row)) for row in rows]
+                    return list(rows)
+                except (psycopg2.DatabaseError, psycopg2.OperationalError, IndexError) as fallback_err:
+                    logger.error(
+                        f"[COMPLEX_QUERY_FALLBACK] Regular cursor also failed: "
+                        f"{type(fallback_err).__name__}: {fallback_err}"
+                    )
+                    raise e  # Re-raise original IndexError
+            else:
+                raise e  # Cannot create fallback cursor, re-raise
 
         except psycopg2.errors.QueryCanceled as e:
             last_error = e
@@ -812,6 +854,35 @@ def safe_dict_convert(row: Any) -> Any:
             f"  Row type: {type(row).__name__}\n"
             f"  This may indicate a schema mismatch between code and database."
         ) from e
+
+
+def safe_row_to_dict(row: Any, col_names: list[str] | None = None) -> dict[str, Any]:
+    """Safely convert database row (dict or tuple) to dict.
+
+    Handles both:
+    - DictCursor results (already dicts)
+    - Tuple cursor results (need to convert using column names)
+
+    Args:
+        row: Row from database (dict or tuple)
+        col_names: Column names for tuple rows (required if row is tuple)
+
+    Returns:
+        Dict representation of row
+    """
+    if isinstance(row, dict):
+        return row
+    if isinstance(row, (list, tuple)):
+        if col_names and len(col_names) == len(row):
+            return dict(zip(col_names, row))
+        else:
+            col_count = len(col_names) if col_names else 0
+            row_count = len(row)
+            raise ValueError(
+                f"Cannot convert tuple row to dict: col_names mismatch "
+                f"(got {col_count} names, expected {row_count})"
+            )
+    raise TypeError(f"Expected dict or tuple, got {type(row).__name__}")
 
 
 def safe_json_serialize(obj: Any) -> Any:

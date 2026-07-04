@@ -204,7 +204,18 @@ def _industry_list(cur: cursor, params: dict[str, Any]) -> Any:
 
     industries = []
     for _idx, row in enumerate(industries_data):
-        ind = safe_json_serialize(dict(row))
+        # Handle both dict results (DictCursor) and tuple results (regular cursor)
+        if isinstance(row, dict):
+            ind = safe_json_serialize(row)
+        else:
+            # Tuple result — should have been converted by execute_with_timeout's fallback
+            # but handle it defensively just in case
+            try:
+                ind = safe_json_serialize(dict(row))
+            except (TypeError, ValueError):
+                logger.error(f"Failed to convert row to dict: {type(row).__name__} {row!r}")
+                continue
+
         composite_result = _sf(ind.get("composite_score"))
         composite = composite_result if isinstance(composite_result, float) else None
         perf_20d_result = _sf(ind.get("perf_20d"))
@@ -319,7 +330,17 @@ def _industry_detail(cur: cursor, industry_name: str) -> Any:
     if not row:
         return error_response(404, "not_found", f"Industry not found: {industry_name}")
 
-    r = safe_json_serialize(dict(row))
+    # Handle both dict results (DictCursor) and tuple results (regular cursor)
+    if isinstance(row, dict):
+        r = safe_json_serialize(row)
+    else:
+        # Tuple result — convert to dict defensively
+        try:
+            r = safe_json_serialize(dict(row))
+        except (TypeError, ValueError):
+            logger.error(f"Failed to convert detail row to dict: {type(row).__name__} {row!r}")
+            return error_response(500, "data_conversion_error", "Failed to process industry detail row")
+
     freshness = check_data_freshness(cur, "stock_scores", "date", warning_days=1)
 
     # Helper function to extract float value from _sf result
