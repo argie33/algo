@@ -18,7 +18,7 @@ from typing import Any
 
 import psycopg2
 
-from loaders.buy_signal_generation_handler import BuySignalGenerationHandler
+from algo.signals.buy_signal_generator import BuySignalGenerator
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.loaders.config import get_default_parallelism
@@ -503,7 +503,7 @@ class SignalsDailyLoader(OptimalLoader):
         BUY: High > recent_swing_high AND close > SMA50 (breakout above pivot with trend filter)
         SELL: Low < recent_swing_low (stop loss trigger)
         """
-        handler = BuySignalGenerationHandler()
+        handler = BuySignalGenerator()
 
         # Validate and retrieve tech_data_age with explicit logging
         if not self._batch_context:

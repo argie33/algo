@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
-"""Buy/sell signal generation handler extracted from SignalsDailyLoader.
+"""Buy/sell signal generation — Swing pivot breakout logic.
 
 Handles:
 - Swing pivot detection (highs and lows)
 - Signal generation logic (BUY/SELL triggers)
 - Volume metrics and market stage computation
 - Entry/exit level calculation
+
+This is the single source of truth for buy/sell signal generation.
+Used by: loaders/load_buy_sell_daily.py, orchestrator Phase 7, backtesting.
 """
 
 import logging
@@ -15,11 +18,11 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
-class BuySignalGenerationHandler:
-    """Handles buy/sell signal generation from technical indicator rows."""
+class BuySignalGenerator:
+    """Generates buy/sell signals from technical indicator data using swing pivot detection."""
 
     def __init__(self) -> None:
-        """Initialize signal generation handler."""
+        """Initialize signal generator."""
 
     def run(self, symbol: str, rows: list[dict[str, Any]], tech_data_age: int | None = None) -> list[dict[str, Any]]:
         """Generate buy/sell signals from technical indicator data.
