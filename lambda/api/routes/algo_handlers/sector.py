@@ -249,6 +249,9 @@ def _get_sector_breadth(cur: cursor) -> Any:
                 sector_breadth AS (
                     SELECT
                         sector,
+                        COUNT(symbol) AS total_symbol_count,
+                        COUNT(symbol) FILTER (WHERE sma_50 IS NOT NULL AND close IS NOT NULL) AS symbols_with_50d,
+                        COUNT(symbol) FILTER (WHERE sma_200 IS NOT NULL AND close IS NOT NULL) AS symbols_with_200d,
                         COUNT(symbol) FILTER (WHERE close IS NOT NULL AND sma_50 IS NOT NULL AND close > sma_50) * 100.0 /
                             NULLIF(COUNT(symbol) FILTER (WHERE sma_50 IS NOT NULL AND close IS NOT NULL), 0) AS pct_above_50d,
                         COUNT(symbol) FILTER (WHERE close IS NOT NULL AND sma_200 IS NOT NULL AND close > sma_200) * 100.0 /
@@ -261,7 +264,10 @@ def _get_sector_breadth(cur: cursor) -> Any:
                     -- CRITICAL: Return NULL instead of 0 - _is_fallback marker indicates missing data
                     ROUND(pct_above_50d::NUMERIC, 2) AS pct_above_50d,
                     ROUND(pct_above_200d::NUMERIC, 2) AS pct_above_200d,
-                    (pct_above_50d IS NULL OR pct_above_200d IS NULL) AS _is_fallback
+                    (pct_above_50d IS NULL OR pct_above_200d IS NULL) AS _is_fallback,
+                    -- Symbol coverage: track what percentage of sector symbols have valid price/technical data
+                    ROUND(100.0 * symbols_with_50d / total_symbol_count::NUMERIC, 1) AS symbol_coverage_50d_pct,
+                    ROUND(100.0 * symbols_with_200d / total_symbol_count::NUMERIC, 1) AS symbol_coverage_200d_pct
                 FROM sector_breadth
                 WHERE pct_above_50d IS NOT NULL OR pct_above_200d IS NOT NULL
                 ORDER BY pct_above_50d DESC NULLS LAST
