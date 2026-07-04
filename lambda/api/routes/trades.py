@@ -4,7 +4,7 @@ import hashlib
 import json as _json
 import logging
 import uuid
-from datetime import date
+from datetime import date, datetime, timezone
 from typing import Any
 
 import psycopg2
@@ -58,7 +58,7 @@ def _check_idempotency(cur: cursor, signature: str) -> dict[str, Any]:
     try:
         cur.execute(
             """
-            SELECT response_data FROM api_idempotency_cache
+            SELECT response_data, created_at FROM api_idempotency_cache
             WHERE request_signature = %s AND created_at > NOW() - INTERVAL '24 hours'
             LIMIT 1
             """,
@@ -67,6 +67,10 @@ def _check_idempotency(cur: cursor, signature: str) -> dict[str, Any]:
         row = cur.fetchone()
         if row:
             cached = dict(_json.loads(row[0]))
+            cache_age_seconds = (datetime.now(timezone.utc) - row[1]).total_seconds()
+            if cache_age_seconds > 86400:  # 24 hours
+                logger.warning(f"[IDEMPOTENCY] Cache TTL exceeded: {cache_age_seconds}s > 86400s. Rejecting stale cache.")
+                return {"cached_response": False}
             cached["cached_response"] = True
             return cached
         return {"cached_response": False}
