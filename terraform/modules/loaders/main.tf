@@ -334,6 +334,17 @@ locals {
       schedule    = "cron(15 8 ? * MON-FRI *)"  # 3:15 AM ET - 20 min after technical starts (allows completion)
     }
 
+    # EOD pipeline: 3:00 PM ET (8:00 PM UTC), Mon-Fri - SEC Edgar financial statements (upstream for quality/growth metrics)
+    # Must run early enough to complete before quality/growth loaders at 4:20 PM
+    "financials_annual_income" = {
+      description = "Load annual income statements from SEC EDGAR - EOD pipeline (upstream for quality/growth metrics)"
+      schedule    = "cron(0 20 ? * MON-FRI *)"  # 3:00 PM ET - starts early for completion
+    }
+    "financials_annual_balance" = {
+      description = "Load annual balance sheets from SEC EDGAR - EOD pipeline (upstream for quality/growth metrics)"
+      schedule    = "cron(5 20 ? * MON-FRI *)"  # 3:05 PM ET - 5 min after income statement
+    }
+
     # EOD pipeline: 4:05 PM ET (9:05 PM UTC), Mon-Fri
     # Loads end-of-day data for 5:30 PM orchestrator run
     "market_health_daily" = {
@@ -349,14 +360,14 @@ locals {
       schedule    = "cron(15 21 ? * MON-FRI *)"  # 4:15 PM ET
     }
 
-    # Metric loaders: Parallel at 4:20 PM ET (after market data available)
+    # Metric loaders: Parallel at 4:20 PM ET (after SEC Edgar financials complete at ~3:30 PM)
     "quality_metrics" = {
-      description = "Load quality metrics from SEC - EOD pipeline"
-      schedule    = "cron(20 21 ? * MON-FRI *)"  # 4:20 PM ET (parallel)
+      description = "Load quality metrics from SEC - EOD pipeline (depends on financials_annual_income/balance)"
+      schedule    = "cron(20 21 ? * MON-FRI *)"  # 4:20 PM ET (parallel, after SEC data available)
     }
     "growth_metrics" = {
-      description = "Load growth metrics from SEC - EOD pipeline"
-      schedule    = "cron(20 21 ? * MON-FRI *)"  # 4:20 PM ET (parallel)
+      description = "Load growth metrics from SEC - EOD pipeline (depends on financials_annual_income)"
+      schedule    = "cron(20 21 ? * MON-FRI *)"  # 4:20 PM ET (parallel, after SEC data available)
     }
     "value_metrics" = {
       description = "Load value metrics (P/E, P/B, P/S) - EOD pipeline"
@@ -375,9 +386,9 @@ locals {
       schedule    = "cron(20 21 ? * MON-FRI *)"  # 4:20 PM ET (parallel)
     }
 
-    # Stock scores: 4:30 PM ET (after metrics complete ~4:25 PM)
+    # Stock scores: 4:30 PM ET (after all metrics complete ~4:25 PM)
     "stock_scores" = {
-      description = "Compute composite stock scores - EOD pipeline"
+      description = "Compute composite stock scores - EOD pipeline (depends on all metric loaders)"
       schedule    = "cron(30 21 ? * MON-FRI *)"  # 4:30 PM ET (after all metrics)
     }
   }
@@ -443,6 +454,8 @@ locals {
     "buy_sell_daily",
     "yfinance_snapshot",
     "dxy_index",
+    "financials_annual_income",
+    "financials_annual_balance",
     "growth_metrics",
     "quality_metrics",
     "value_metrics",
