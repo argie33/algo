@@ -101,7 +101,12 @@ def run(
                 f"Skipped: broker unavailable ({error_msg[:80]})",
             )
         else:
-            reason = error_msg or "reconciliation failed (no reason provided)"
+            # CRITICAL: Always use explicit error message, don't default to generic
+            if not error_msg:
+                logger.error("[RECONCILIATION] Error message missing - data quality issue")
+                reason = "reconciliation failed (error message missing)"
+            else:
+                reason = error_msg
             log_phase_result_fn(
                 "3a",
                 "reconciliation",

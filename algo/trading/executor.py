@@ -304,7 +304,12 @@ class TradeExecutor:
 
         try:
             notif_service = TradeNotificationService()
-            entry_price_disp = executed_price or entry_price
+            # CRITICAL: Don't silently fall back to entry_price if execution price unknown
+            if executed_price is None:
+                logger.error(f"[EXECUTOR] Executed price missing for {symbol} - using entry price")
+                entry_price_disp = entry_price
+            else:
+                entry_price_disp = executed_price
             notif_service._send_notification(
                 subject=f"ENTRY: {symbol}",
                 message=(f"{actual_shares:.2f} sh {symbol} @ ${entry_price_disp:.2f} (stop ${stop_loss_price:.2f})"),

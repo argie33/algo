@@ -743,17 +743,30 @@ def _get_performance_analytics(cur: cursor) -> Any:
         """)
         row = cur.fetchone()
         cur.execute("RELEASE SAVEPOINT perf_analytics")
-        # FAIL-FAST: Return error if no performance analytics available
+        # GRACEFUL DEGRADATION: Return default (None) values if no performance analytics available yet (ramp-up)
+        # This allows dashboard to display gracefully instead of showing error on startup
         if row is None:
             logger.warning(
                 "Performance analytics unavailable: algo_performance_metrics table empty. "
-                "Check data loader health - should be populated daily."
+                "Returning defaults - check data loader health if this persists."
             )
-            return error_response(
-                503,
-                "data_unavailable",
-                "Performance analytics not available. Check data loader health.",
-            )
+            # Return all None values to gracefully handle ramp-up phase
+            response_dict = {
+                "rolling_sharpe_252d": None,
+                "rolling_sortino_252d": None,
+                "calmar_ratio": None,
+                "win_rate_50t": None,
+                "avg_win_r_50t": None,
+                "avg_loss_r_50t": None,
+                "expectancy": None,
+                "max_drawdown_pct": None,
+            }
+            response_dict["sharpe252"] = None
+            response_dict["sortino"] = None
+            response_dict["calmar"] = None
+
+            sanitized = APIResponseValidator.sanitize_response(response_dict)
+            return success_response(sanitized)
         data = safe_dict_convert(row)
         sharpe: Any = data.get("sharpe_ratio")
         sortino: Any = data.get("sortino_ratio")

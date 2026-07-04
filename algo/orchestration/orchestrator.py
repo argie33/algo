@@ -67,7 +67,8 @@ class Orchestrator:
         if env_execution_mode:
             self.config.override("execution_mode", env_execution_mode)
 
-        self.run_date = run_date or datetime.now(EASTERN_TZ).date()
+        # Explicitly default run_date to today if not provided
+        self.run_date = run_date if run_date is not None else datetime.now(EASTERN_TZ).date()
         self.dry_run = dry_run
         self.verbose = verbose
         self.phase_results: dict[int | str, Any] = {}
