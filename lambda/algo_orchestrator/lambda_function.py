@@ -201,7 +201,7 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
         )
         # Track startup success status for metrics
         if not is_test:
-            logger.debug(f"[LAMBDA_STATUS] Orchestrator startup: statusCode will reflect success state")
+            logger.debug("[LAMBDA_STATUS] Orchestrator startup: statusCode will reflect success state")
         # Startup diagnostic: surface critical config state in every CloudWatch log
         logger.info(
             f"[CONFIG] ORCHESTRATOR_DRY_RUN={os.getenv('ORCHESTRATOR_DRY_RUN', '<unset>')} "
