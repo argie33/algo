@@ -293,8 +293,8 @@ def get_cache_age_seconds(data: dict[str, Any]) -> int | None:
 
     age = data.get("_cache_age_seconds")
     if age is None:
-        logger.debug("[API_CACHE] Cache age field is None - treating as fresh data (no cache age available)")
-        return None
+        logger.warning("[API_CACHE] Cache age field is missing from API response - data freshness unknown")
+        return None  # Explicitly: age field missing, not that data is fresh
     if not isinstance(age, int):
         raise ValueError(f"Cache age corrupted: _cache_age_seconds is {type(age).__name__}, expected int. Value: {age}")
     return age
