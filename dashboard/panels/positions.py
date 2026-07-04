@@ -280,7 +280,13 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
         coverage_metrics = pos.get("coverage")
 
     if invalid_count > 0:
-        logger.error(f"panel_positions: encountered {invalid_count} invalid position(s); display may be incomplete")
+        # Panel validation failed on positions that API already validated
+        # This indicates data corruption or format issue between API and panel
+        logger.error(
+            f"panel_positions: encountered {invalid_count} invalid position(s) that passed API validation; "
+            f"this indicates data corruption or format mismatch. Display may be incomplete. "
+            f"Symbols with issues: {[p.get('symbol', '?') for p in pos_items if p in pos_items[:5]]}"
+        )
         border = "red"
         title_str = f"[bold red]POSITIONS ⚠ DATA ERROR ({valid_count}/{len(pos_items)} valid)[/]"
     elif coverage_metrics and coverage_metrics.get("filtered_count", 0) > 0:

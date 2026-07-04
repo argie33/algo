@@ -119,35 +119,35 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
         # CRITICAL: Required fields for dashboard display
         # Check position_value (computed from qty * current_price)
         pos_val_raw = d.get("position_value")
-        if pos_val_raw is None:
+        if pos_val_raw is None or (isinstance(pos_val_raw, str) and not pos_val_raw.strip()):
             logger.warning(
-                "[POSITIONS] %s: position_value is NULL (current price missing from price_daily) — skipping",
+                "[POSITIONS] %s: position_value is NULL or empty (current price missing from price_daily) — skipping",
                 symbol,
             )
             filtered_positions_count += 1
-            invalid_position_symbols.append(f"{symbol}:missing_position_value")
+            invalid_position_symbols.append(f"{symbol}:invalid_position_value")
             continue
 
         # Check avg_entry_price (required for P&L calculation and entry point display)
         entry_raw = d.get("avg_entry_price")
-        if entry_raw is None:
+        if entry_raw is None or (isinstance(entry_raw, str) and not entry_raw.strip()):
             logger.warning(
-                "[POSITIONS] %s: avg_entry_price is NULL (required for entry price display) — skipping",
+                "[POSITIONS] %s: avg_entry_price is NULL or empty (required for entry price display) — skipping",
                 symbol,
             )
             filtered_positions_count += 1
-            invalid_position_symbols.append(f"{symbol}:missing_avg_entry_price")
+            invalid_position_symbols.append(f"{symbol}:invalid_avg_entry_price")
             continue
 
         # Check current_price (required for current price display and P&L)
         cur_price_raw = d.get("current_price")
-        if cur_price_raw is None:
+        if cur_price_raw is None or (isinstance(cur_price_raw, str) and not cur_price_raw.strip()):
             logger.warning(
-                "[POSITIONS] %s: current_price is NULL (required for price display) — skipping",
+                "[POSITIONS] %s: current_price is NULL or empty (required for price display) — skipping",
                 symbol,
             )
             filtered_positions_count += 1
-            invalid_position_symbols.append(f"{symbol}:missing_current_price")
+            invalid_position_symbols.append(f"{symbol}:invalid_current_price")
             continue
 
         # Validate numeric values
