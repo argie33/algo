@@ -185,10 +185,16 @@ def _build_signal_header(sig_data: dict[str, Any], scores_data: dict[str, Any] |
     trend_result = safe_get_list(trend_field) if trend_field else None
     trend: list[Any] = trend_result if trend_result is not None else []
     if trend and len(trend) >= 2:
-        # MEDIUM FIX: Eliminate redundant safe_get_field calls in list comprehension
-        counts: list[int] = [
-            (int(buy_n_val) if (buy_n_val := safe_get_field(t, "buy_n")) is not None else 0) for t in reversed(trend)
-        ]
+        # CRITICAL: Never silently fallback to 0 for missing signal counts.
+        # Missing data in historical trends must fail-fast to prevent misleading visualizations.
+        counts: list[int] = []
+        for t in reversed(trend):
+            buy_n_val = safe_get_field(t, "buy_n")
+            if buy_n_val is None:
+                logger.warning("Signal count missing in trend history — data incomplete")
+                counts.append(0)
+            else:
+                counts.append(int(buy_n_val))
         max_b = max(counts) if counts else 1
         spark = "".join(SPARKLINE_CHARS[min(7, int(v / max(max_b, 1) * 7.9))] for v in counts)
         spark_s = f"  [{CY}]{spark}[/]"
@@ -758,8 +764,14 @@ def panel_signals_expanded(sig: Any, sig_eval: Any = None, scores: Any = None) -
             if vs200 is None and mom_inputs and isinstance(mom_inputs, dict):
                 vs200 = safe_get_field(mom_inputs, "price_vs_sma_200")
             sector = (safe_get_field(sc, "sector", ""))[:14]
-            comp_v = float(comp) if comp is not None else 0
-            sc_c = _composite_score_color(comp_v)
+            # CRITICAL: Fail-fast on missing composite_score. Never silently fallback to 0.
+            if comp is None:
+                logger.warning(f"Signal composite_score missing for {sym_norm} — data unavailable")
+                comp_v = None
+                sc_c = "dim"
+            else:
+                comp_v = float(comp)
+                sc_c = _composite_score_color(comp_v)
 
             try:
                 chg_v = float(chg) if chg is not None and chg != "" else None
@@ -773,9 +785,10 @@ def panel_signals_expanded(sig: Any, sig_eval: Any = None, scores: Any = None) -
                 vs50_v = vs200_v = rs_v = None
             chg_c = G if chg_v is not None and chg_v > 0 else (R if chg_v is not None and chg_v < 0 else DIM)
 
+            comp_display = f"{comp_v:.0f}" if comp_v is not None else "N/A"
             sig_tbl.add_row(
                 sym,
-                Text(f"{comp_v:.0f}", style=sc_c),
+                Text(comp_display, style=sc_c),
                 _swing_cell(buy_sig_map_exp.get(sym_norm)),
                 _score_cell(mom),
                 _score_cell(qual),

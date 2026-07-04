@@ -340,14 +340,26 @@ def panel_performance_spark(  # noqa: C901
     wr_v, closed_wins, adj_l = _calculate_adjusted_win_rate(perf, pos)
     # closed_wins and adj_l are already validated by _calculate_adjusted_win_rate
     l_val = perf.get("l")
-    closed_losses = int(l_val) if l_val is not None and isinstance(l_val, (int, float)) else 0
-    losing_open = adj_l - closed_losses
+    # CRITICAL: Fail-fast on missing closed losses count. Never silently fallback to 0.
+    if l_val is None:
+        logger.error("[PORTFOLIO] Closed losses count 'l' missing — cannot calculate open losing positions")
+        closed_losses = None
+    elif not isinstance(l_val, (int, float)):
+        logger.error(f"[PORTFOLIO] Closed losses 'l' invalid type {type(l_val).__name__}: {l_val}")
+        closed_losses = None
+    else:
+        closed_losses = int(l_val)
+
+    if closed_losses is None or adj_l is None:
+        losing_open = None
+    else:
+        losing_open = adj_l - closed_losses
     avg_win_v = perf.get("avg_win")
     avg_loss_v = perf.get("avg_loss")
     avg_win_s = f"{avg_win_v:.1f}%" if avg_win_v is not None else "--"
     avg_loss_s = f"{avg_loss_v:.1f}%" if avg_loss_v is not None else "--"
     wrc = G if wr_v is not None and wr_v >= 45 else (Y if wr_v is not None and wr_v >= 40 else (R if wr_v is not None else DIM))
-    open_l_s = f" [dim](+{losing_open} open L)[/]" if losing_open > 0 else ""
+    open_l_s = f" [dim](+{losing_open} open L)[/]" if (losing_open is not None and losing_open > 0) else ""
 
     # Header line: trade summary
     wr_s = f"{wr_v:.1f}%" if wr_v is not None else "--"
@@ -608,9 +620,22 @@ def panel_portfolio_perf_expanded(  # noqa: C901
         sharpe_v = safe_float(perf.get("sharpe"), default=None)
         exp = safe_float(perf.get("expectancy"), default=None)
         dd_val = perf.get("maxdd")
-        dd_v = float(dd_val) if isinstance(dd_val, (int, float)) else 0.0
+        # CRITICAL: Fail-fast on missing drawdown. Never silently fallback to 0.0 with green color.
         if dd_val is None:
-            logger.warning("[PORTFOLIO] max_drawdown_pct missing from performance data — showing 0.0")
+            logger.error("[PORTFOLIO] max_drawdown_pct missing from performance data")
+            dd_v = None
+            dd_c = "dim"
+        else:
+            try:
+                dd_v = float(dd_val)
+                dd_c = R if dd_v >= 15 else (Y if dd_v >= 5 else G)
+            except (ValueError, TypeError):
+                logger.error(f"[PORTFOLIO] max_drawdown_pct invalid type {type(dd_val).__name__}: {dd_val}")
+                dd_v = None
+                dd_c = "dim"
+
+        if dd_val is None:
+            pass  # Already logged above
         avg_win = perf.get("avg_win")
         avg_loss = perf.get("avg_loss")
 
@@ -631,7 +656,6 @@ def panel_portfolio_perf_expanded(  # noqa: C901
         exp_c = G if (exp is None or exp >= 0) else R
         str_c = G if streak >= 0 else R
         str_s = f"+{streak}W" if streak >= 0 else f"{abs(streak)}L"
-        dd_c = R if dd_v >= 15 else (Y if dd_v >= 5 else G)
 
         perfblk = Table.grid(padding=(0, 3), expand=False)
         perfblk.add_column("label", style="dim")
