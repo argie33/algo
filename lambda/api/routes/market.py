@@ -834,14 +834,11 @@ def _get_fear_greed_history(cur: cursor, days: int = 30) -> Any:
     history_rows = cur.fetchall()
 
     if not history_rows:
-        return json_response(
-            200,
-            {
-                "current": None,
-                "history": [],
-                "statistics": {"min": None, "max": None, "avg": None},
-                "signals": {"extreme_fear": False, "extreme_greed": False},
-            },
+        logger.error(f"[FEAR_GREED] No fear/greed index data available for {days}-day period")
+        return error_response(
+            503,
+            "fear_greed_unavailable",
+            f"Fear/Greed index data not available for {days}-day period",
         )
 
     history = [safe_json_serialize(dict(h)) for h in history_rows]

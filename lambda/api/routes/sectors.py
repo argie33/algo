@@ -288,6 +288,16 @@ def handle(  # noqa: C901
             sectors = []
             for row in sectors_data:
                 s = safe_json_serialize(dict(row))
+                # CRITICAL: Check if this sector is using fallback data (missing perf from sector_performance)
+                is_fallback = s.get("_is_fallback")
+                if is_fallback:
+                    logger.error(f"[SECTORS_API] Sector performance data missing for {s.get('sector_name')} - using fallback")
+                    return error_response(
+                        503,
+                        "sector_perf_fallback",
+                        f"Sector performance data incomplete for {s.get('sector_name')}",
+                    )
+
                 # FAIL-FAST: Extract float fields upfront, check None before float() conversion
                 from utils.validation import DatabaseResultValidator
 
