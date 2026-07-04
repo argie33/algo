@@ -204,17 +204,19 @@ def _industry_list(cur: cursor, params: dict[str, Any]) -> Any:
 
     industries = []
     for _idx, row in enumerate(industries_data):
-        # Handle both dict results (DictCursor) and tuple results (regular cursor)
-        if isinstance(row, dict):
-            ind = safe_json_serialize(row)
-        else:
-            # Tuple result — should have been converted by execute_with_timeout's fallback
-            # but handle it defensively just in case
-            try:
+        # Handle dict, DictRow (from DictCursor), and tuple (from regular cursor)
+        # All can be converted to dict using dict(row) or dict(zip(cols, row))
+        try:
+            if isinstance(row, dict):
+                # Plain dict from fallback cursor path
+                ind = safe_json_serialize(row)
+            else:
+                # DictRow (from DictCursor) or tuple (from regular cursor)
+                # Both support dict() conversion
                 ind = safe_json_serialize(dict(row))
-            except (TypeError, ValueError):
-                logger.error(f"Failed to convert row to dict: {type(row).__name__} {row!r}")
-                continue
+        except (TypeError, ValueError, KeyError) as e:
+            logger.error(f"Failed to convert row to dict: {type(row).__name__} - {e}")
+            continue
 
         composite_result = _sf(ind.get("composite_score"))
         composite = composite_result if isinstance(composite_result, float) else None
@@ -330,16 +332,18 @@ def _industry_detail(cur: cursor, industry_name: str) -> Any:
     if not row:
         return error_response(404, "not_found", f"Industry not found: {industry_name}")
 
-    # Handle both dict results (DictCursor) and tuple results (regular cursor)
-    if isinstance(row, dict):
-        r = safe_json_serialize(row)
-    else:
-        # Tuple result — convert to dict defensively
-        try:
+    # Handle dict, DictRow (from DictCursor), and tuple (from regular cursor)
+    try:
+        if isinstance(row, dict):
+            # Plain dict from fallback cursor path
+            r = safe_json_serialize(row)
+        else:
+            # DictRow (from DictCursor) or tuple (from regular cursor)
+            # Both support dict() conversion
             r = safe_json_serialize(dict(row))
-        except (TypeError, ValueError):
-            logger.error(f"Failed to convert detail row to dict: {type(row).__name__} {row!r}")
-            return error_response(500, "data_conversion_error", "Failed to process industry detail row")
+    except (TypeError, ValueError, KeyError) as e:
+        logger.error(f"Failed to convert detail row to dict: {type(row).__name__} - {e}")
+        return error_response(500, "data_conversion_error", "Failed to process industry detail row")
 
     freshness = check_data_freshness(cur, "stock_scores", "date", warning_days=1)
 
