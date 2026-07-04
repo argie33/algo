@@ -115,7 +115,8 @@ def fetch_economic_pulse(c: None) -> dict[str, Any]:  # noqa: C901
                             field_name=f"indicator.{i.get('series_id')}.rawValue",
                         )
                         if val is not None and isinstance(val, float):
-                            by_series[i["series_id"]] = val
+                            series_id = i.get("series_id")
+                            by_series[series_id] = val
                     except Exception as e:
                         raise ValueError(f"Invalid indicator value for {i.get('series_id')}: {e}") from e
 
@@ -423,7 +424,13 @@ def fetch_activity(c: None) -> dict[str, Any]:
             logger.debug("[FETCH] No run_id found in activity details - run_id will be None")
 
         # Extract phase events
-        phases = [i for i in items if i.get("action_type") and str(i.get("action_type")).startswith("phase_")]
+        phases = []
+        for item in items:
+            action_type = item.get("action_type")
+            if action_type is not None and isinstance(action_type, str) and action_type.startswith("phase_"):
+                phases.append(item)
+            elif action_type is not None and not isinstance(action_type, str):
+                logger.warning(f"[ACTIVITY] Item has non-string action_type: {type(action_type).__name__}")
 
         return {
             "run_id": run_id,

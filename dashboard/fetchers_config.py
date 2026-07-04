@@ -115,6 +115,13 @@ def fetch_run(c: None) -> dict[str, Any]:
         if summary is None:
             logger.debug("Last-run API response missing summary (optional enrichment)")
 
+        # Check for missing action_type in phase lists (data quality issue if present)
+        phase_lists = [(completed_phases, "completed"), (halted_phases, "halted"), (errored_phases, "errored")]
+        for phase_list, phase_type in phase_lists:
+            missing = [i for i, p in enumerate(phase_list) if p.get("action_type") is None]
+            if missing:
+                logger.warning(f"[RUN_FETCH] {phase_type} phases missing action_type: {missing}")
+
         return {
             "_source": "exec_log",
             "run_id": run_id,
@@ -124,9 +131,9 @@ def fetch_run(c: None) -> dict[str, Any]:
             "errored": api_errored if api_errored is not None else derived_errored,
             "summary": summary,
             "halt_reason": halt_reason,
-            "phases_completed": [p.get("action_type") for p in completed_phases],
-            "phases_halted": [p.get("action_type") for p in halted_phases],
-            "phases_errored": [p.get("action_type") for p in errored_phases],
+            "phases_completed": [p.get("action_type") for p in completed_phases if p.get("action_type") is not None],
+            "phases_halted": [p.get("action_type") for p in halted_phases if p.get("action_type") is not None],
+            "phases_errored": [p.get("action_type") for p in errored_phases if p.get("action_type") is not None],
             "phase_results": phases,
         }
     except Exception as e:

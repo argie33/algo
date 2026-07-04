@@ -146,18 +146,28 @@ def fetch_signal_eval(c: None) -> dict[str, Any]:
         # CRITICAL: Use strict=True for all finance data conversions.
         # Parse errors must raise exceptions, never silently default to None.
         try:
+            total_val = result.get("total")
+            t1_val = result.get("t1")
+            t2_val = result.get("t2")
+            t3_val = result.get("t3")
+            t4_val = result.get("t4")
+            t5_val = result.get("t5")
+            avg_score_val = result.get("avg_score")
+
+            def _safe_int(v: Any) -> int | None:
+                return safe_int(v, default=None, strict=True) if v is not None else None
+
+            def _safe_float(v: Any) -> float | None:
+                return safe_float(v, default=None, strict=True) if v is not None else None
+
             return {
-                "total": safe_int(result.get("total"), default=None, strict=True)
-                if result.get("total") is not None
-                else None,
-                "t1": safe_int(result.get("t1"), default=None, strict=True) if result.get("t1") is not None else None,
-                "t2": safe_int(result.get("t2"), default=None, strict=True) if result.get("t2") is not None else None,
-                "t3": safe_int(result.get("t3"), default=None, strict=True) if result.get("t3") is not None else None,
-                "t4": safe_int(result.get("t4"), default=None, strict=True) if result.get("t4") is not None else None,
-                "t5": safe_int(result.get("t5"), default=None, strict=True) if result.get("t5") is not None else None,
-                "avg_score": safe_float(result.get("avg_score"), default=None, strict=True)
-                if result.get("avg_score") is not None
-                else None,
+                "total": _safe_int(total_val),
+                "t1": _safe_int(t1_val),
+                "t2": _safe_int(t2_val),
+                "t3": _safe_int(t3_val),
+                "t4": _safe_int(t4_val),
+                "t5": _safe_int(t5_val),
+                "avg_score": _safe_float(avg_score_val),
                 "date": result.get("signal_date"),
                 "rejected": result.get("rejected"),
             }
