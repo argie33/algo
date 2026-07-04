@@ -108,7 +108,9 @@ def panel_sector_compact(srank: Any, pos: Any, port: Any, sec_rot: Any = None, i
 
     # Row 1: Rotation signal
     if sec_rot and not _error_panel("sec_rot", sec_rot, "SECTORS") and safe_get_field(sec_rot, "signal"):
-        sig_name = (safe_get_field(sec_rot, "signal") or "").replace("_", " ").title()
+        # MEDIUM FIX: Explicit None check instead of or operator for signal name
+        sig_name_raw = safe_get_field(sec_rot, "signal")
+        sig_name = (sig_name_raw.replace("_", " ").title() if sig_name_raw is not None else "")
         wks = safe_get_field(sec_rot, "weeks")
         if wks is None:
             logger.warning("Sector rotation missing 'weeks' field — cannot display rotation window")
@@ -174,8 +176,15 @@ def panel_sector_compact(srank: Any, pos: Any, port: Any, sec_rot: Any = None, i
             srank_items = None
     elif isinstance(srank, list):
         srank_items = srank
+    # MEDIUM FIX: Explicit None check - don't silently default to empty list
     if srank_items is None:
-        srank_items = []
+        logger.debug("Sector ranking data unavailable: items list not found")
+        return Panel(
+            Group(*rows) if rows else Text("no data", style="dim"),
+            title="[bold cyan]SECTORS & INDUSTRIES[/]  [dim][r] expand[/]",
+            border_style="cyan",
+            padding=(0, 1),
+        )
     valid_srank = srank_items[:6]
     if valid_srank:
         if rows:
@@ -220,8 +229,15 @@ def panel_sector_compact(srank: Any, pos: Any, port: Any, sec_rot: Any = None, i
             irank_items = None
     elif isinstance(irank, list):
         irank_items = irank
+    # MEDIUM FIX: Explicit None check - don't silently default to empty list
     if irank_items is None:
-        irank_items = []
+        logger.debug("Industries ranking data unavailable: items list not found")
+        return Panel(
+            Group(*rows) if rows else Text("no data", style="dim"),
+            title="[bold cyan]SECTORS & INDUSTRIES[/]  [dim][r] expand[/]",
+            border_style="cyan",
+            padding=(0, 1),
+        )
     valid_irank = irank_items if irank_items else []
     if valid_irank:
         rows.append(Rule(style="dim"))
@@ -279,7 +295,9 @@ def panel_sectors_expanded(srank: Any, pos: Any, port: Any, sec_rot: Any = None,
     ]
 
     if sec_rot and not _error_panel("sec_rot", sec_rot, "SECTORS") and safe_get_field(sec_rot, "signal"):
-        sig_name = (safe_get_field(sec_rot, "signal") or "").replace("_", " ").title()
+        # MEDIUM FIX: Explicit None check instead of or operator for signal name (expanded view)
+        sig_name_raw = safe_get_field(sec_rot, "signal")
+        sig_name = (sig_name_raw.replace("_", " ").title() if sig_name_raw is not None else "")
         wks = safe_get_field(sec_rot, "weeks")
         if wks is None:
             wks = 1
@@ -383,9 +401,12 @@ def panel_sectors_expanded(srank: Any, pos: Any, port: Any, sec_rot: Any = None,
                 srank_items_exp = None
         elif isinstance(srank, list):
             srank_items_exp = srank
-        if srank_items_exp is None:
-            srank_items_exp = []
-        valid_srank = srank_items_exp
+        # MEDIUM FIX: Explicit None check instead of silent empty list default
+        if srank_items_exp is not None:
+            valid_srank = srank_items_exp
+        else:
+            logger.debug("Sector rankings expanded: items list not available")
+            valid_srank = []
     if valid_srank:
         rows.append(Text.from_markup("[dim]All sectors  (rank  mom  ↑↓1wk/4wk):[/]"))
         for r in valid_srank:
@@ -409,9 +430,12 @@ def panel_sectors_expanded(srank: Any, pos: Any, port: Any, sec_rot: Any = None,
                 irank_items_exp = None
         elif isinstance(irank, list):
             irank_items_exp = irank
-        if irank_items_exp is None:
-            irank_items_exp = []
-        valid_irank = irank_items_exp if irank_items_exp else []
+        # MEDIUM FIX: Explicit None check instead of silent empty list default
+        if irank_items_exp is not None:
+            valid_irank = irank_items_exp if irank_items_exp else []
+        else:
+            logger.debug("Industries expanded: items list not available")
+            valid_irank = []
     if valid_irank:
         rows.append(Text.from_markup("[dim]All industries  (rank  mom  ↑↓1wk):[/]"))
         for r in valid_irank:

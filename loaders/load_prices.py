@@ -1833,7 +1833,14 @@ class PriceLoader(OptimalLoader):
             if not rows:
                 # Check if upstream fetcher marked data as explicitly unavailable
                 if isinstance(rows, dict) and rows.get("data_unavailable"):
-                    error_msg = f"Price data unavailable for {symbol}: {rows.get('reason', 'unknown reason')}"
+                    # CRITICAL: Validate that unavailable marker includes reason (fail-fast if missing)
+                    reason = rows.get("reason")
+                    if reason is None:
+                        raise ValueError(
+                            f"[{self.table_name}] Data unavailability marker missing required 'reason' field for {symbol}. "
+                            f"API contract violation: data_unavailable=True requires reason. Response: {rows}"
+                        )
+                    error_msg = f"Price data unavailable for {symbol}: {reason}"
                     logger.error(f"[{self.table_name}] {error_msg}")
                     self._stats["symbols_failed"] += 1
                     self._stats["symbols_processed"] += 1

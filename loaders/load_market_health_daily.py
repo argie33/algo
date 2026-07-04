@@ -1132,10 +1132,17 @@ class MarketHealthDailyLoader(OptimalLoader):
             # These rows lack sufficient history for moving average calculation.
             # Only store rows with valid SMA data for circuit breaker decisions.
             if not sma_200:
+                # CRITICAL: Validate date field exists in row (fail-fast if missing)
+                row_date = row.get("date")
+                if row_date is None:
+                    raise ValueError(
+                        f"[MARKET_HEALTH] Row missing required 'date' field. "
+                        f"Cannot skip or audit row without date. Row: {row}"
+                    )
                 logger.debug(
-                    f"[MARKET_HEALTH] Skipping row {row.get('date', 'unknown')}: SMA_200 not yet computed (insufficient history)"
+                    f"[MARKET_HEALTH] Skipping row {row_date}: SMA_200 not yet computed (insufficient history)"
                 )
-                skipped_rows.append(row.get("date", "unknown"))
+                skipped_rows.append(row_date)
                 continue
 
             # Determine market trend and stage

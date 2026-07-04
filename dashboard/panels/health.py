@@ -2036,7 +2036,9 @@ def panel_algo_health(  # noqa: C901
             sts = f"[bold {R}]X ERROR[/]"
         else:
             sts = "[dim]UNKNOWN[/]"
-        rid = (run_fields["run_id"] or "")[:28]
+        # MEDIUM FIX: Explicit None check instead of or operator for run_id display
+        run_id_val = run_fields["run_id"]
+        rid = (run_id_val[:28] if run_id_val is not None else "")
         rows.append(Text.from_markup(f"{sts}{age_s}  [dim]{rid}[/]"))
         halt_r = run_fields["halt_reason"]
         if halt_r is None:
@@ -2046,7 +2048,10 @@ def panel_algo_health(  # noqa: C901
             summary = ""
         phase_results = run_fields["phase_results"]
         if halted or halt_r:
+            # MEDIUM FIX: Explicit None check instead of silent empty list default
             phase_results_guard = phase_results if phase_results is not None else []
+            if phase_results is None:
+                logger.warning("Phase results unavailable for halt reason display")
             for label, detail in _best_halt_reason(halt_r, phase_results_guard):
                 prefix = f"{label}: " if label else ""
                 rows.append(Text.from_markup(f"  [{Y}]→ {prefix}{detail[:80]}[/]"))

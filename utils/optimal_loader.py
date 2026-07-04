@@ -36,7 +36,7 @@ class OptimalLoader:
 
     def __init__(self, backfill_days: int | None = None):
         self._router: Any = None
-        self._backfill_days = backfill_days or int(os.getenv("BACKFILL_DAYS", "0"))
+        self._backfill_days = backfill_days if backfill_days is not None else int(os.getenv("BACKFILL_DAYS", "0"))
         self._batch_context: dict[str, Any] | None = None
         self._execution_start_time: float | None = None
 
@@ -61,7 +61,9 @@ class OptimalLoader:
                 pass
         # AWS environment: use smaller batch size to avoid yfinance rate limiting
         # Local development: use larger batch size (no rate limits)
-        is_aws = bool(os.getenv("AWS_LAMBDA_FUNCTION_NAME") or os.getenv("AWS_EXECUTION_ENV"))
+        lambda_func_name = os.getenv("AWS_LAMBDA_FUNCTION_NAME")
+        exec_env = os.getenv("AWS_EXECUTION_ENV")
+        is_aws = bool(lambda_func_name is not None or exec_env is not None)
         memory_limit_mb = int(os.getenv("ECS_TASK_MEMORY_LIMIT", "512"))
         safe_rows = int((memory_limit_mb * 0.40 * 1024) / 1.5)
 

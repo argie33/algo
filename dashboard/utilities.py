@@ -206,7 +206,14 @@ def compute_sector_agg(pos: Any, port: dict[str, Any]) -> tuple[list[tuple[str, 
         sec = p.get("sector")
         if not sec:
             invalid_count += 1
-            logger.error(f"compute_sector_agg: position missing sector: {p.get('symbol', 'unknown')}")
+            # CRITICAL: Validate symbol field exists for audit trail (fail-fast if missing)
+            symbol = p.get("symbol")
+            if symbol is None:
+                raise ValueError(
+                    f"compute_sector_agg: position missing BOTH sector AND symbol fields. "
+                    f"Cannot identify which position had sector enrichment failure. Position: {p}"
+                )
+            logger.error(f"compute_sector_agg: position {symbol} missing sector field")
             continue
         val = safe_float(p.get("position_value"), default=None)
         pnl = safe_float(p.get("unrealized_pnl_pct"), default=None)

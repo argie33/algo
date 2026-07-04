@@ -123,7 +123,13 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
         is_data_unavailable = bool(pos["_data_unavailable"])
     if is_data_unavailable:
         # Optional data marked unavailable by loader (e.g., missing enrichment)
-        reason = pos.get("reason", "unknown reason")
+        # CRITICAL: Validate that unavailable marker includes reason (fail-fast if missing)
+        reason = pos.get("reason")
+        if reason is None:
+            raise ValueError(
+                f"[POSITIONS] Data unavailability marker missing required 'reason' field. "
+                f"API contract violation: _data_unavailable=True requires reason. Response: {pos}"
+            )
         logger.warning(f"Positions data marked unavailable: {reason}")
         return Panel(
             Text.from_markup(
@@ -188,7 +194,9 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
         days = p.get("days_since_entry", "--")
         stg = p.get("weinstein_stage")  # Optional: Weinstein stage (may be unavailable)
         swg = p.get("minervini_trend_score")  # Optional: Minervini trend score from API
-        sec = (p.get("sector") or "--")[:12]  # Optional: sector enrichment
+        # MEDIUM FIX: Explicit None check instead of or operator for sector display
+        sec_val = p.get("sector")
+        sec = (sec_val[:12] if sec_val is not None else "--")
         rmul = safe_float(
             p.get("r_multiple"), default=None, field_name=f"{symbol}.r_multiple"
         )  # Optional: risk multiple

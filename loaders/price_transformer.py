@@ -372,7 +372,13 @@ class PriceTransformer:
                 )
             filtered_pct = (non_trading_filtered + parse_errors) / total_input * 100
             if rows:
-                symbol = rows[0].get("symbol", "unknown")
+                # CRITICAL: Validate symbol field exists in first row (fail-fast if missing)
+                symbol = rows[0].get("symbol")
+                if symbol is None:
+                    raise ValueError(
+                        f"[TRANSFORMER] First row in batch missing required 'symbol' field. "
+                        f"Cannot identify which symbol had rejection issues. Row: {rows[0]}"
+                    )
                 if filtered_pct > 5:
                     logger.warning(
                         f"[{symbol}] High rejection rate: {non_trading_filtered} non-trading + "
