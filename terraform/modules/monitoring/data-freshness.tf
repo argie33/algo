@@ -137,14 +137,14 @@ resource "aws_cloudwatch_event_rule" "data_freshness_schedule" {
 }
 
 resource "aws_cloudwatch_event_target" "data_freshness_lambda" {
-  count     = var.enable_data_freshness_monitoring ? 1 : 0
+  count     = var.enable_data_freshness_monitoring && var.enable_data_quality_monitors ? 1 : 0
   rule      = aws_cloudwatch_event_rule.data_freshness_schedule[0].name
   target_id = "DataFreshnessLambda"
   arn       = aws_lambda_function.data_freshness_monitor.arn
 }
 
 resource "aws_lambda_permission" "allow_eventbridge" {
-  count         = var.enable_data_freshness_monitoring ? 1 : 0
+  count         = var.enable_data_freshness_monitoring && var.enable_data_quality_monitors ? 1 : 0
   statement_id  = "AllowExecutionFromEventBridge"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.data_freshness_monitor.function_name
