@@ -38,7 +38,8 @@ class IndustryRankingLoader(OptimalLoader):
                     )
 
                 # Rank industries by average composite score; pull historical ranks for comparison
-                # CRITICAL: Only use composite_score where data_completeness >= 50% (real data, not degraded)
+                # CRITICAL: Only use composite_score where data_completeness >= 70% (governance threshold for downstream use)
+                # stock_scores computes at >=50% but rankings must gate to >=70% per GOVERNANCE.md line 62
                 cur.execute("""
                     WITH current_ranks AS (
                         SELECT
@@ -49,7 +50,7 @@ class IndustryRankingLoader(OptimalLoader):
                         FROM company_profile cp
                         LEFT JOIN stock_scores ss ON cp.ticker = ss.symbol
                         WHERE cp.industry IS NOT NULL AND TRIM(cp.industry) != ''
-                          AND (ss.symbol IS NULL OR ss.data_completeness >= 50)
+                          AND (ss.symbol IS NULL OR ss.data_completeness >= 70)
                         GROUP BY cp.industry
                     ),
                     rank_1w AS (

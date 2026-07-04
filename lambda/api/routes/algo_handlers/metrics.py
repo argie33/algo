@@ -304,7 +304,16 @@ def _get_algo_performance(cur: cursor) -> Any:  # noqa: C901
                 """)
             pos_row = cur.fetchone()
             if pos_row:
-                open_positions_count = int(pos_row["total_open"]) if pos_row.get("total_open") is not None else 0
+                # Fail-fast: COUNT(*) always returns non-None. If total_open is None, it indicates data issue.
+                # Do not silently convert to 0.
+                if "total_open" not in pos_row or pos_row["total_open"] is None:
+                    logger.error("Position count query failed - total_open field missing or NULL")
+                    return error_response(
+                        503,
+                        "incomplete_position_data",
+                        "Performance metrics incomplete: Cannot fetch open position count. Query returned NULL.",
+                    )
+                open_positions_count = int(pos_row["total_open"])
                 open_losses_count_raw = pos_row["open_losses"]
                 if open_losses_count_raw is None:
                     logger.error("Position data incomplete: Cannot determine open losing positions")

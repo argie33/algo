@@ -208,20 +208,6 @@ class QualityMetricsLoader(SecFinancialsLoader):
         metrics["interest_coverage"] = None
         metrics["interest_coverage_unavailable_reason"] = "not_implemented"
 
-        score = 50.0
-        if metrics["operating_margin"] is not None:
-            om_score = min(25, metrics["operating_margin"] / 0.8)
-            score += om_score
-        if metrics["net_margin"] is not None:
-            nm_score = min(25, metrics["net_margin"] / 0.4)
-            score += nm_score
-        if metrics["roe"] is not None and metrics["roe"] > 0:
-            roe_score = min(25, metrics["roe"] / 0.6)
-            score += roe_score
-
-        score = max(0, min(100, score))
-        metrics["quality_score"] = float(round(score, 2))
-
         if total_assets and total_assets > 0 and total_liabilities is not None:
             metrics["debt_to_assets"] = float(round(total_liabilities / total_assets, 2))
             metrics["debt_to_assets_unavailable_reason"] = None
@@ -236,9 +222,26 @@ class QualityMetricsLoader(SecFinancialsLoader):
         ]
         has_real_data = any(m is not None for m in computed_metrics)
 
-        metrics["data_unavailable"] = not has_real_data
+        # Fail-fast: only compute quality_score if we have real data. Governance principle: no silent defaults.
         if not has_real_data:
+            metrics["quality_score"] = None
+            metrics["data_unavailable"] = True
             metrics["reason"] = "Metrics computation failed (insufficient or invalid financial data)"
+        else:
+            score = 50.0
+            if metrics["operating_margin"] is not None:
+                om_score = min(25, metrics["operating_margin"] / 0.8)
+                score += om_score
+            if metrics["net_margin"] is not None:
+                nm_score = min(25, metrics["net_margin"] / 0.4)
+                score += nm_score
+            if metrics["roe"] is not None and metrics["roe"] > 0:
+                roe_score = min(25, metrics["roe"] / 0.6)
+                score += roe_score
+
+            score = max(0, min(100, score))
+            metrics["quality_score"] = float(round(score, 2))
+            metrics["data_unavailable"] = False
         metrics["updated_at"] = date.today().isoformat()
 
         return metrics

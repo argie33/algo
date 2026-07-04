@@ -24,14 +24,13 @@ from routes.utils import (
     safe_json_serialize,
 )
 
+from utils.data_queries import (
+    get_open_positions,
+    get_trade_win_loss_stats,
+)
 from utils.validation import (
     APIResponseValidator,
     format_decimal_string,
-)
-from utils.data_queries import (
-    get_open_positions,
-    get_closed_positions,
-    get_trade_win_loss_stats,
 )
 
 logger = logging.getLogger(__name__)
@@ -878,18 +877,27 @@ def _get_circuit_breakers(cur: cursor) -> Any:  # noqa: C901
         try:
             # Get win/loss stats from centralized data query (single source of truth)
             wr_stats = get_trade_win_loss_stats(cur, limit=30)
-            wins = wr_stats["wins"] or 0
-            losses = wr_stats["losses"] or 0
-            total = wr_stats["total"] or 0
-            decisive = wins + losses
-            win_rate = wins / decisive * 100 if decisive > 0 else None
+            # Fail-fast: Check for missing data explicitly. None means no trades (insufficient data),
+            # not "zero wins". Do not convert to 0 (silent fallback).
+            wins = wr_stats["wins"]
+            losses = wr_stats["losses"]
+            total = wr_stats["total"]
+            win_rate = None
             threshold_wr = 40.0
-            if win_rate is not None and total > 0:
+
+            # Only compute win_rate if we have actual data (all values non-None)
+            decisive = None
+            if total is not None and total > 0 and wins is not None and losses is not None:
+                decisive = wins + losses
+                if decisive > 0:
+                    win_rate = wins / decisive * 100
+
+            if win_rate is not None and total is not None and total > 0 and decisive is not None and decisive >= 10:
                 breakers.append(
                     {
                         "id": "win_rate",
                         "label": "Win Rate Floor",
-                        "triggered": win_rate < threshold_wr and decisive >= 10,
+                        "triggered": win_rate < threshold_wr,
                         "current": round(win_rate, 1),
                         "threshold": threshold_wr,
                         "unit": "%",
@@ -1047,7 +1055,13 @@ def _get_dashboard_signals(cur: cursor) -> Any:
                 WHERE date=(SELECT MAX(date) FROM swing_trader_scores)
                   AND score >= 70""")
         count_row = cur.fetchone()
-        qualifying_buy_count = int(count_row["n"]) if count_row and count_row.get("n") is not None else 0
+        # Fail-fast: COUNT(*) always returns a row. If count_row is None, query failed (data unavailable).
+        # Do not convert to 0 (silent fallback).
+        if count_row is None or "n" not in count_row:
+            logger.warning("[DASHBOARD] Count query for qualifying signals failed - data unavailable")
+            qualifying_buy_count = None
+        else:
+            qualifying_buy_count = int(count_row["n"]) if count_row["n"] is not None else 0
         sig_response = {
             "n": qualifying_buy_count,
             "total": total_n,

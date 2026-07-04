@@ -648,7 +648,12 @@ def check_data_freshness(
                 "warning": f"No data in {table_name}",
             }
 
-        max_date_value = result.get("max_value")
+        # Handle both dict-like results (DictCursor) and tuple results (regular cursor)
+        if isinstance(result, dict):
+            max_date_value = result.get("max_value")
+        else:
+            # For tuple results, the MAX() query returns a single column at index 0
+            max_date_value = result[0] if result else None
         if max_date_value is None:
             logger.warning(f"[DATA_FRESHNESS] No rows in {table_name} (max({date_column}) is None)")
             return {

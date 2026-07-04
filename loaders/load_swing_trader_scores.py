@@ -309,7 +309,18 @@ class VectorizedSwingScoresLoader:
                 rsi = float(rsi)
                 momentum_score = self._calculate_momentum_score(rsi)
 
-                volume_score = 70.0  # From price ROC
+                # CRITICAL: volume_score calculation is incomplete (was hardcoded to 70.0)
+                # Price ROC computation from price_daily is missing.
+                # Fail fast rather than use degraded default.
+                # TODO: Implement price_daily ROC calculation for volume_score
+                volume_score: float | None = None
+                # For now, explicitly fail if volume_score cannot be computed
+                unavailable_reason = "missing_implementation:volume_score_calculation"
+                raise ValueError(
+                    f"{symbol}: Volume score calculation not implemented. "
+                    "Price ROC must be calculated from price_daily table. "
+                    "This is a required upstream component for swing trader score."
+                )
 
                 if sig is None or "composite_sqs" not in sig:
                     unavailable_reason = (

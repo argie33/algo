@@ -118,11 +118,11 @@ def _get_stock_scores(
             where_clause += " AND sc.symbol = %s"
             params_list.append(symbol.upper())
         else:
-            # Bulk queries: filter out rights/warrants that inflate composite_score
-            # with a single factor (value) but no market data. At least 3 factors
-            # required (50% of 6) to be considered a real trading candidate.
-            # This matches loader/load_stock_scores.py minimum_required_metrics=3 rule.
-            where_clause += " AND sc.data_completeness >= 50"
+            # Bulk queries: filter out degraded composite scores.
+            # Only return scores with >= 70% metric completeness per GOVERNANCE.md line 62.
+            # stock_scores computes at >=50% but API must gate to >=70% for downstream use.
+            # This prevents clients from receiving degraded data without visibility into completeness %.
+            where_clause += " AND sc.data_completeness >= 70"
 
         # Use LATERAL joins instead of CTEs: CTEs scan all symbols before filtering
         # (full table scans on price_daily/technical_data_daily = timeout for bulk queries).

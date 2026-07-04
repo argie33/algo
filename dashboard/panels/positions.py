@@ -277,7 +277,16 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
         logger.warning("[POSITIONS_PANEL] Coverage metadata missing from API - filtering visibility unavailable")
 
     # Display filtering status with clear explanation of what was filtered
-    if coverage and coverage.get("total_count", 0) > 0 and coverage.get("filtered_count", 0) > 0:
+    # Fail-fast: Check that coverage data is valid before using. Do not silently default to 0.
+    coverage_valid = coverage is not None and isinstance(coverage, dict)
+    has_filtering_info = (
+        coverage_valid
+        and coverage.get("total_count") is not None
+        and coverage.get("total_count", 0) > 0
+        and coverage.get("filtered_count") is not None
+        and coverage.get("filtered_count", 0) > 0
+    )
+    if has_filtering_info and coverage_valid:
         total = coverage["total_count"]
         valid = coverage["valid_count"]
         filt = coverage["filtered_count"]
