@@ -375,12 +375,20 @@ def panel_trades_expanded(trades: Any) -> Any:
             if trade_date is not None:
                 logger.debug(f"[TRADES_PANEL] Trade {safe_get_field(tr, 'trade_id')}: trade_date missing, using signal_date")
         exit_date = safe_get_field(tr, "exit_date")
-        exit_rsn_raw = (safe_get_field(tr, "exit_reason", "")).lower().strip()
-        if exit_rsn_raw and exit_rsn_raw not in exit_short:
+        exit_rsn_val = safe_get_field(tr, "exit_reason")
+        if exit_rsn_val is None:
             logger.warning(
-                f"[TRADES_PANEL] Trade {safe_get_field(tr, 'trade_id')}: unknown exit_reason '{exit_rsn_raw}'. "
-                f"Expected one of {list(exit_short.keys())}. Check API schema or add mapping."
+                f"[TRADES_PANEL] Trade {safe_get_field(tr, 'trade_id')}: exit_reason field missing from API response. "
+                f"Cannot determine exit trigger. Expected one of {list(exit_short.keys())}."
             )
+            exit_rsn_raw = ""
+        else:
+            exit_rsn_raw = str(exit_rsn_val).lower().strip()
+            if exit_rsn_raw not in exit_short:
+                logger.warning(
+                    f"[TRADES_PANEL] Trade {safe_get_field(tr, 'trade_id')}: unknown exit_reason '{exit_rsn_raw}'. "
+                    f"Expected one of {list(exit_short.keys())}. Check API schema or add mapping."
+                )
         exit_rsn = exit_short.get(exit_rsn_raw, "--")
         exit_rsn_c = R if exit_rsn == "stop" else (G if exit_rsn in ("T1", "T2") else (Y if exit_rsn == "man" else DIM))
 

@@ -275,13 +275,25 @@ class LoaderConfigManager:
                     if enabled_attr is None:
                         raise ValueError("[CONFIG_LOADER] CRITICAL: Missing 'enabled' attribute")
                     updated_at_attr = item.get("updated_at")
+                    # GOVERNANCE FIX: Fail-fast on missing timestamp. Don't silently default to empty.
+                    # Timestamp tracks when loader config was last changed (critical metadata).
+                    if not updated_at_attr:
+                        raise ValueError(
+                            f"[CONFIG_LOADER] CRITICAL: Missing 'updated_at' timestamp for loader '{loader_name}'. "
+                            f"Cannot load configuration without timestamp to verify staleness."
+                        )
+                    updated_at_val = updated_at_attr.get("S")
+                    if not updated_at_val:
+                        raise ValueError(
+                            f"[CONFIG_LOADER] CRITICAL: 'updated_at' field is empty/invalid for loader '{loader_name}'. "
+                            f"Got type {type(updated_at_attr)}: {updated_at_attr}"
+                        )
 
                     return {
                         "loader_name": loader_name_attr.get("S", loader_name),
                         "parallelism": int(parallelism_attr.get("N", "1")),
                         "enabled": enabled_attr.get("BOOL", True),
-                        # Explicit handling for timestamp - fail if missing rather than defaulting to empty
-                        "updated_at": (updated_at_attr.get("S", "") if updated_at_attr else None) or "",
+                        "updated_at": updated_at_val,
                     }
                 except (KeyError, ValueError, TypeError) as e:
                     raise RuntimeError(f"[CONFIG_LOADER] CRITICAL: Failed to parse DynamoDB config: {e}") from e
