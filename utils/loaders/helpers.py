@@ -75,8 +75,8 @@ def get_api_key(secret_name: str, env_var: str, default: str | None = None, requ
             f"Configure credentials before proceeding."
         )
 
-    logger.warning(f"Could not find {secret_name} in Secrets Manager or {env_var} in environment")
-    return None
+    logger.critical(f"[LOADERS] Could not find {secret_name} in Secrets Manager or {env_var} in environment — credentials unavailable")
+    return {"data_unavailable": True, "reason": f"credentials_missing:{secret_name}/{env_var}"}
 
 
 # Cache for active symbols to reduce database load under parallelism

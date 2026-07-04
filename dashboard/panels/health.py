@@ -1370,8 +1370,8 @@ def _format_algo_actions_and_activity(
     if action_parts:
         rows.append(Text.from_markup("  ".join(action_parts)))
 
-    # 5-day activity strip
-    if len(valid_metrics) >= 2:
+    # 5-day activity strip (GOVERNANCE: minimum 3/6 metrics, 50% completeness)
+    if len(valid_metrics) >= 3:
         day_parts = []
         for m in valid_metrics[:5]:
             d = m.get("date")
@@ -2499,7 +2499,7 @@ def _build_results_panel(  # noqa: C901
     if action_parts_e:
         right_rows.append(Text.from_markup("  ".join(action_parts_e)))
 
-    if len(valid_metrics_e) >= 2:
+    if len(valid_metrics_e) >= 3:
         day_parts_e = []
         for m in valid_metrics_e[:5]:
             d = m.get("date")

@@ -219,8 +219,9 @@ class DataSourceRouter:
                 sources_attempted=sources_attempted,
                 last_error=last_exc,
             )
-        # No sources attempted (all paused) — this shouldn't happen but return None for safety
-        return None
+        # No sources attempted (all paused) — fail-fast with explicit marker
+        logger.warning("[SOURCE_ROUTER] All data sources paused or unavailable — marking data_unavailable")
+        return {"data_unavailable": True, "reason": "all_sources_paused"}
 
     # ============== OHLCV ==============
 

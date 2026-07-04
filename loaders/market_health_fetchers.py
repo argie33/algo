@@ -219,7 +219,8 @@ class PutCallRatioFetcher:
                         f"[PUT_CALL_RATIO] Permanent error on attempt {attempt}/{self.MAX_RETRIES} for {eval_date}: "
                         f"{last_error_reason}. Will not retry."
                     )
-                    return None
+                    logger.warning(f"[PUT_CALL_RATIO] Returning data_unavailable marker for {eval_date}")
+                    return {"data_unavailable": True, "reason": f"fetch_failed:{last_error_reason}"}
 
                 # Transient error - log and retry if attempts remain
                 if attempt < self.MAX_RETRIES:
@@ -241,7 +242,8 @@ class PutCallRatioFetcher:
         logger.error(
             f"[PUT_CALL_RATIO] All {self.MAX_RETRIES} retries failed for {eval_date}. Reason: {last_error_reason}"
         )
-        return None
+        logger.warning("[PUT_CALL_RATIO] Returning data_unavailable marker after all retries exhausted")
+        return {"data_unavailable": True, "reason": f"all_retries_failed:{last_error_reason}"}
 
     def _fetch_put_call_ratio(self, eval_date: date) -> float | None:
         """Internal put/call fetch implementation.
