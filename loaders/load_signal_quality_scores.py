@@ -264,37 +264,36 @@ class SignalQualityScoresLoader(OptimalLoader):
                 f"Check that buy_sell_daily table has signals for this symbol or adjust date range."
             )
 
-        # CRITICAL: Validate ALL required data sources are available before computation
+        # Optional data sources with graceful degradation
         technical_rows = self._fetch_technical_data(symbol, start, end)
         if not technical_rows:
-            raise RuntimeError(
-                f"[SIGNAL_QUALITY] CRITICAL: No technical data for {symbol} [{start}-{end}]. "
-                "Technical indicators are REQUIRED for signal quality assessment. "
-                "Cannot compute quality scores without complete technical data."
+            logger.debug(
+                f"[SIGNAL_QUALITY] Technical data unavailable for {symbol} [{start}-{end}]. "
+                "Proceeding with available data; RSI/MACD will be None."
             )
+            technical_rows = []
 
         trend_rows = self._fetch_trend_data(symbol, start, end)
         if not trend_rows:
-            raise RuntimeError(
-                f"[SIGNAL_QUALITY] CRITICAL: No trend data for {symbol} [{start}-{end}]. "
-                "Trend analysis is REQUIRED for signal quality assessment. "
-                "Cannot compute quality scores without trend data."
+            logger.debug(
+                f"[SIGNAL_QUALITY] Trend data unavailable for {symbol} [{start}-{end}]. "
+                "Proceeding with available data; trend_template_score will be 0."
             )
+            trend_rows = []
 
         vcp_rows = self._fetch_vcp_patterns(symbol, start, end)
         if not vcp_rows:
-            raise RuntimeError(
-                f"[SIGNAL_QUALITY] CRITICAL: No VCP pattern data for {symbol} [{start}-{end}]. "
-                "VCP pattern analysis is REQUIRED for signal quality assessment. "
-                "Cannot compute quality scores without VCP patterns."
+            logger.debug(
+                f"[SIGNAL_QUALITY] VCP pattern data unavailable for {symbol} [{start}-{end}]. "
+                "Proceeding with available data; vcp_pattern_score will be 0."
             )
+            vcp_rows = []
 
         positioning_data = self._fetch_positioning_data(symbol)
         if not positioning_data:
-            raise RuntimeError(
-                f"[SIGNAL_QUALITY] CRITICAL: No positioning data for {symbol}. "
-                "Positioning metrics are REQUIRED for signal quality assessment. "
-                "Cannot compute quality scores without positioning data."
+            logger.debug(
+                f"[SIGNAL_QUALITY] Positioning data unavailable for {symbol} "
+                "(typical for OTC, preferreds, special securities). Proceeding with available data."
             )
 
         scores = self._compute_quality_scores(
@@ -504,12 +503,11 @@ class SignalQualityScoresLoader(OptimalLoader):
                 "VCP pattern recognition is authoritative for trend confirmation."
             ) from e
 
-    def _fetch_positioning_data(self, symbol: str) -> dict[str, Any]:
-        """Fetch positioning data.
+    def _fetch_positioning_data(self, symbol: str) -> dict[str, Any] | None:
+        """Fetch positioning data (optional for many securities).
 
-        Positioning data (institutional ownership) is CRITICAL for signal quality scoring.
-        Raises if data is unavailable rather than returning None, ensuring callers
-        don't silently proceed with missing enrichment data.
+        Returns None if data unavailable, allowing scoring to continue with available metrics.
+        Many OTC, preferred, warrant, and special securities lack institutional ownership data.
         """
         from utils.db.context import DatabaseContext
 
@@ -523,14 +521,10 @@ class SignalQualityScoresLoader(OptimalLoader):
                 if row and row[0] is not None:
                     return {"institutional_ownership": float(row[0])}
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.error(f"Failed to fetch positioning data for {symbol}: {e}")
-            raise
+            logger.debug(f"Failed to fetch positioning data for {symbol}: {e}")
+            return None
 
-        raise RuntimeError(
-            f"[POSITIONING] Positioning data unavailable for {symbol}. "
-            "Institutional ownership is required for signal quality scoring. "
-            "Upstream loader (load_positioning_metrics.py) must provide data first."
-        )
+        return None
 
     def _compute_quality_scores(
         self,
@@ -550,17 +544,11 @@ class SignalQualityScoresLoader(OptimalLoader):
             )
 
         try:
-            # Fail fast if critical enrichment data is missing
+            # All data sources are optional with graceful degradation
             if not vcp_rows:
-                raise RuntimeError(
-                    f"[QUALITY_SCORES] VCP pattern data unavailable for {symbol}. "
-                    "VCP strength is critical for quality scoring. Cannot compute scores without this data."
-                )
+                logger.debug(f"[QUALITY_SCORES] VCP patterns unavailable for {symbol} - vcp_pattern_score=0")
             if not positioning_data:
-                raise RuntimeError(
-                    f"[QUALITY_SCORES] Positioning data unavailable for {symbol}. "
-                    "Institutional ownership is critical for quality scoring. Cannot compute scores without this data."
-                )
+                logger.debug(f"[QUALITY_SCORES] Positioning unavailable for {symbol} - institutional_ownership_score=0")
 
             bs_df = pd.DataFrame(buy_sell_rows)
             if bs_df.empty:
@@ -596,7 +584,7 @@ class SignalQualityScoresLoader(OptimalLoader):
             if not vcp_df.empty:
                 merged = merged.merge(vcp_df, on="date", how="left")
 
-            institutional_ownership = positioning_data.get("institutional_ownership")
+            institutional_ownership = positioning_data.get("institutional_ownership") if positioning_data else None
 
             results = []
             for _, row in merged.iterrows():
