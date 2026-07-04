@@ -199,7 +199,14 @@ class FredEconomicDataLoader(OptimalLoader):
                         resp = requests.get(fred_url, params=params, timeout=(10, 20))
                         resp.raise_for_status()
                         data = resp.json()
-                        return data if isinstance(data, dict) else {}
+                        # CRITICAL: Fail-fast on schema violation (non-dict response indicates API corruption/schema change)
+                        if not isinstance(data, dict):
+                            raise ValueError(
+                                f"FRED API returned non-dict response: {type(data).__name__}. "
+                                "This indicates API schema change or data corruption. "
+                                f"Response type: {type(data).__name__}, value sample: {str(data)[:100]}"
+                            )
+                        return data
 
                     # Execute API call through circuit breaker
                     resp_data = self._circuit_breaker.execute(
@@ -379,10 +386,18 @@ class FredEconomicDataLoader(OptimalLoader):
                     break
                 except RuntimeError as e:
                     # Circuit breaker raised RuntimeError for REQUIRED data failure (e.g. 400 on
-                    # a retired series ID). Skip this series rather than aborting the whole load.
-                    logger.error(f"[FRED] Circuit breaker failed for {series_id}: {e}; skipping series")
-                    failed_series.append(series_id)
-                    break
+                    # a retired series ID). This is a critical failure that should be visible to
+                    # the orchestrator — do not silently skip, fail-fast instead.
+                    logger.error(
+                        f"[FRED] CRITICAL: Circuit breaker failed for REQUIRED series {series_id}: {e}. "
+                        "Cannot continue FRED data fetch with partial/missing required series."
+                    )
+                    self._circuit_breaker.record_failure()
+                    raise RuntimeError(
+                        f"[FRED] Cannot fetch REQUIRED series {series_id}: {e}. "
+                        "Circuit breaker blocked this series due to permanent failure. "
+                        "Check if series is retired or FRED API has changed."
+                    ) from e
                 except (
                     requests.RequestException,
                     requests.Timeout,

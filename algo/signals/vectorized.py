@@ -113,10 +113,12 @@ class VectorizedSignalGenerator:
 
         for symbol, rows in data_by_symbol.items():
             if len(rows) < self.min_history:
+                logger.warning(f"[VECTORIZED] {symbol}: Insufficient price history for Minervini ({len(rows)} < {self.min_history})")
                 results[symbol] = {
                     "score": 0,
                     "pass": False,
                     "criteria": {},
+                    "failed": True,
                     "reason": "Insufficient price history",
                 }
                 continue
@@ -126,10 +128,12 @@ class VectorizedSignalGenerator:
                 closes = np.array([r["close"] for r in rows if r["close"] is not None])
 
                 if len(closes) < 252:
+                    logger.warning(f"[VECTORIZED] {symbol}: Insufficient valid closes for Minervini ({len(closes)} < 252)")
                     results[symbol] = {
                         "score": 0,
                         "pass": False,
                         "criteria": {},
+                        "failed": True,
                         "reason": "Not enough valid closes",
                     }
                     continue
@@ -235,11 +239,12 @@ class VectorizedSignalGenerator:
                     "pct_from_52w_low": pct_from_low,
                 }
             except (ValueError, TypeError, IndexError) as e:
-                logger.warning(f"Minervini score computation failed for {symbol}: {e}")
+                logger.warning(f"[VECTORIZED] {symbol}: Minervini computation failed: {e}")
                 results[symbol] = {
                     "score": 0,
                     "pass": False,
                     "criteria": {},
+                    "failed": True,
                     "reason": f"Computation error: {str(e)[:50]}",
                 }
 
@@ -253,13 +258,15 @@ class VectorizedSignalGenerator:
 
         for symbol, rows in data_by_symbol.items():
             if len(rows) < self.min_history:
-                results[symbol] = {"stage": 0, "confidence": 0.0}
+                logger.warning(f"[VECTORIZED] {symbol}: Insufficient history for Weinstein ({len(rows)} < {self.min_history})")
+                results[symbol] = {"stage": 0, "confidence": 0.0, "failed": True}
                 continue
 
             try:
                 closes = np.array([r["close"] for r in rows if r["close"] is not None])
                 if len(closes) < 252:
-                    results[symbol] = {"stage": 0, "confidence": 0.0}
+                    logger.warning(f"[VECTORIZED] {symbol}: Insufficient clean closes for Weinstein ({len(closes)} < 252)")
+                    results[symbol] = {"stage": 0, "confidence": 0.0, "failed": True}
                     continue
 
                 # Compute 30-week MA (150 days) and slope
@@ -302,13 +309,15 @@ class VectorizedSignalGenerator:
 
         for symbol, rows in data_by_symbol.items():
             if len(rows) < 21:
-                results[symbol] = {"power_trend": False, "return_21d": None}
+                logger.warning(f"[VECTORIZED] {symbol}: Insufficient history for power trend ({len(rows)} < 21)")
+                results[symbol] = {"power_trend": False, "return_21d": None, "failed": True}
                 continue
 
             try:
                 closes = np.array([r["close"] for r in rows if r["close"] is not None])
                 if len(closes) < 21:
-                    results[symbol] = {"power_trend": False, "return_21d": None}
+                    logger.warning(f"[VECTORIZED] {symbol}: Insufficient clean closes for power trend ({len(closes)} < 21)")
+                    results[symbol] = {"power_trend": False, "return_21d": None, "failed": True}
                     continue
 
                 current = closes[-1] if len(closes) > 0 and not np.isnan(closes[-1]) else None
@@ -352,6 +361,19 @@ class VectorizedSignalGenerator:
         Run all signal computations in parallel.
 
         Returns dict with all symbols and their computed signals.
+
+        CRITICAL: Callers MUST filter results by checking `failed: False` before using.
+        Symbols with failed=True have insufficient data and should not be used for trading.
+        This class does NOT pre-filter results — filtering is the caller's responsibility.
+
+        Result structure:
+        {
+            "minervini": {symbol: {"score": 0-8, "pass": bool, "failed": bool, ...}},
+            "weinstein": {symbol: {"stage": 0-4, "confidence": float, "failed": bool, ...}},
+            "power": {symbol: {"power_trend": bool, "return_21d": float, "failed": bool, ...}},
+            "symbols_processed": int,
+            "actual_eval_date": date,
+        }
         """
         logger.info(f"[VECTORIZED] Fetching price data for {len(symbols)} symbols...")
         data_by_symbol, actual_eval_date = self.fetch_all_price_data(symbols, eval_date)

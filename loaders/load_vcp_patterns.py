@@ -95,12 +95,23 @@ class VCPPatternsLoader:
                     try:
                         self._process_symbol(cur, symbol, process_date)
                         self.symbols_processed += 1
-                    except Exception as e:
-                        logger.warning(
-                            f"[VCP_LOADER] WARN: VCP processing failed for {symbol} {process_date}: {e}. "
-                            f"signal_quality_scorer depends on complete VCP data; this symbol's quality score may be incomplete."
+                    except RuntimeError as e:
+                        # CRITICAL: VCP processing failure indicates missing upstream data or data quality issue
+                        # Do not silently continue — mark symbol as failed with explicit logging so signal_quality_scorer
+                        # can understand which symbols have incomplete VCP data
+                        logger.error(
+                            f"[VCP_LOADER] CRITICAL: VCP processing failed for {symbol} on {process_date}: {e}. "
+                            f"signal_quality_scorer will have incomplete data for this symbol."
                         )
                         self.symbols_failed += 1
+                        # CRITICAL: If too many symbols fail, fail-fast rather than silently degrading
+                        # This prevents downstream consumer (signal_quality_scorer) from using incomplete dataset
+                        if self.symbols_failed > 10:  # Allow small number of individual failures, but not systematic
+                            raise RuntimeError(
+                                f"[VCP_LOADER] Too many VCP processing failures ({self.symbols_failed}+). "
+                                f"Cannot continue with degraded/incomplete VCP data. "
+                                f"Check upstream technical_data_daily and price_daily tables."
+                            ) from e
 
             cur.connection.commit()
 
