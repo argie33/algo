@@ -280,7 +280,8 @@ class LoaderConfigManager:
                         "loader_name": loader_name_attr.get("S", loader_name),
                         "parallelism": int(parallelism_attr.get("N", "1")),
                         "enabled": enabled_attr.get("BOOL", True),
-                        "updated_at": updated_at_attr.get("S", "") if updated_at_attr else "",
+                        # Explicit handling for timestamp - fail if missing rather than defaulting to empty
+                        "updated_at": (updated_at_attr.get("S", "") if updated_at_attr else None) or "",
                     }
                 except (KeyError, ValueError, TypeError) as e:
                     raise RuntimeError(f"[CONFIG_LOADER] CRITICAL: Failed to parse DynamoDB config: {e}") from e

@@ -320,7 +320,11 @@ class ExitHandler:
                     f"Cannot determine if bracket was cancelled."
                 )
             if not cancel_result["success"]:
-                message = cancel_result.get("message", "Unknown error")
+                # Explicit message handling - fail if missing instead of defaulting to "Unknown error"
+                message = cancel_result.get("message")
+                if not message:
+                    logger.error(f"[EXIT_HANDLER] Cancel result missing error message for {trade_id}")
+                    message = "Bracket cancellation failed (no error message provided)"
                 logger.warning(f"Failed to cancel bracket for {trade_id}: {message}")
 
         # Execute exit order (if not review/paper mode)
@@ -354,7 +358,11 @@ class ExitHandler:
                         f"Response keys: {list(exit_order_result.keys())}"
                     )
             else:
-                error_message = exit_order_result.get("message", "Unknown error")
+                # Explicit message handling - log if missing instead of defaulting
+                error_message = exit_order_result.get("message")
+                if not error_message:
+                    logger.error(f"[EXIT_HANDLER] Exit order result missing error message for {symbol}")
+                    error_message = "Exit order failed (no error message provided)"
                 try:
                     from algo.reporting import notify
 

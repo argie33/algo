@@ -179,8 +179,15 @@ def _execute_fetcher_batch(
                 if k_opt and not f.done():
                     k = k_opt
                     meta = FETCHER_METADATA.get(k)
-                    endpoint = meta.get("endpoint", "unknown endpoint") if meta else "unknown endpoint"
-                    desc = meta.get("desc", "") if meta else ""
+                    if meta:
+                        endpoint = meta.get("endpoint", "unknown endpoint")
+                        desc = meta.get("desc", "")  # Display-only, safe empty default with logging
+                        if not desc:
+                            logger.debug(f"[FETCHERS] Fetcher {k} missing description")
+                    else:
+                        endpoint = "unknown endpoint"
+                        desc = ""
+                        logger.debug(f"[FETCHERS] No metadata for fetcher {k}")
                     context = f"{endpoint}" + (f": {desc}" if desc else "")
                     timeout_msg = f"Fetcher {k} ({context}) timed out (exceeded {timeout_sec}s)"
                     logger.warning(timeout_msg)

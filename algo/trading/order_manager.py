@@ -449,7 +449,11 @@ class OrderManager:
                             "message": "Alpaca response missing order id",
                         }
                     filled_price_raw = data.get("filled_avg_price")
-                    order_status = data.get("status", "")
+                    # CRITICAL: Fail if status missing instead of defaulting to empty string
+                    if "status" not in data:
+                        logger.error(f"[ORDER_MANAGER] Alpaca order response missing 'status' field")
+                        raise ValueError("Order status missing from Alpaca response")
+                    order_status = data["status"]
                     if not filled_price_raw:
                         # Market orders return null filled_avg_price when status is "new" or "pending_new"
                         # — the fill comes asynchronously. Treat as success with pending fill price;
