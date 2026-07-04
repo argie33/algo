@@ -867,29 +867,6 @@ def _get_performance_analytics(cur: cursor) -> Any:
         ensure_valid_response("perf_anl", sanitized)
 
         return success_response(sanitized)
-    except RuntimeError as runtime_err:
-        try:
-            cur.execute("ROLLBACK TO SAVEPOINT perf_analytics")
-        except (psycopg2.DatabaseError, psycopg2.OperationalError):
-            pass
-
-        logger.warning(
-            f"Performance analytics conversion error: {runtime_err}. "
-            "Returning defaults for graceful degradation."
-        )
-        return success_response({
-            "rolling_sharpe_252d": None,
-            "rolling_sortino_252d": None,
-            "calmar_ratio": None,
-            "win_rate_50t": None,
-            "avg_win_r_50t": None,
-            "avg_loss_r_50t": None,
-            "expectancy": None,
-            "max_drawdown_pct": None,
-            "sharpe252": None,
-            "sortino": None,
-            "calmar": None,
-        })
     except psycopg2.errors.UndefinedColumn as col_err:
         try:
             cur.execute("ROLLBACK TO SAVEPOINT perf_analytics")
@@ -984,29 +961,6 @@ def _get_performance_analytics(cur: cursor) -> Any:
 
         logger.warning(
             f"Performance analytics database error: {type(e).__name__}: {e}. "
-            "Returning defaults for graceful degradation."
-        )
-        return success_response({
-            "rolling_sharpe_252d": None,
-            "rolling_sortino_252d": None,
-            "calmar_ratio": None,
-            "win_rate_50t": None,
-            "avg_win_r_50t": None,
-            "avg_loss_r_50t": None,
-            "expectancy": None,
-            "max_drawdown_pct": None,
-            "sharpe252": None,
-            "sortino": None,
-            "calmar": None,
-        })
-    except Exception as unexpected_err:
-        try:
-            cur.execute("ROLLBACK TO SAVEPOINT perf_analytics")
-        except (psycopg2.DatabaseError, psycopg2.OperationalError):
-            pass
-
-        logger.error(
-            f"Unexpected error in performance analytics handler: {type(unexpected_err).__name__}: {unexpected_err}. "
             "Returning defaults for graceful degradation."
         )
         return success_response({
