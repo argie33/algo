@@ -207,11 +207,7 @@ def handle(  # noqa: C901
                         LEFT JOIN sector_perf_1d_prior p1 ON p1.sector = l.sector
                         LEFT JOIN sector_perf_5d_prior p5 ON p5.sector = l.sector
                         LEFT JOIN sector_perf_prior p ON p.sector = l.sector
-                        UNION ALL
-                        SELECT DISTINCT cp.sector, 0 AS perf_1d, 0 AS perf_5d, 0 AS perf_20d
-                        FROM company_profile cp
-                        WHERE NOT (SELECT has_data FROM sp_exists)
-                          AND cp.sector IS NOT NULL
+                        WHERE (SELECT has_data FROM sp_exists)
                     ),
                     sector_scores AS (
                         SELECT
@@ -271,6 +267,15 @@ def handle(  # noqa: C901
             )
 
             sectors_data = cur.fetchall()
+
+            # CRITICAL: Verify data is available (not using fallback zeros)
+            if not sectors_data:
+                logger.error("[SECTORS_API] No sector performance data available - sector_performance table may be empty")
+                return error_response(
+                    503,
+                    "sector_data_unavailable",
+                    "Sector performance data not available. Sector ranking pipeline may not have completed.",
+                )
             cur.execute("""SELECT COUNT(DISTINCT sector) as cnt FROM company_profile WHERE sector IS NOT NULL""")
             count_row = cur.fetchone()
             if count_row is None:

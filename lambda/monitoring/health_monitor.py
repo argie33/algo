@@ -101,7 +101,13 @@ def check_loader_health() -> tuple[str, list[dict[str, Any]]]:
                         )
 
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                logger.warning(f"Could not check loader {loader}: {e}")
+                logger.error(f"HEALTH CHECK FAILED for {loader}: {e}")
+                issues.append({
+                    "loader": loader,
+                    "problem": f"Health check database error: {str(e)[:80]}",
+                    "status": "FAILED",
+                    "severity": "CRITICAL"
+                })
 
         cur.close()
         conn.close()

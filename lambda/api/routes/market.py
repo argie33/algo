@@ -200,8 +200,12 @@ def _handle_technicals(cur: cursor) -> Any:
         breadth_rows = execute_with_timeout(cur, breadth_query, timeout_sec=3)
         cur.execute("RELEASE SAVEPOINT technicals_breadth")
         if not breadth_rows:
-            logger.warning("[TECHNICALS_BREADTH] No breadth data available — advancing/declining counts unavailable")
-            base["_breadth_missing"] = True
+            logger.critical("[TECHNICALS_BREADTH] No breadth data available — market health calculation incomplete")
+            raise RuntimeError(
+                "Critical market breadth data unavailable. "
+                "Market breadth (advancing/declining counts) required for complete market health assessment. "
+                "Cannot proceed with incomplete market data."
+            )
         else:
             base["breadth"] = dict(breadth_rows[0])
     except psycopg2.errors.QueryCanceled as e:
