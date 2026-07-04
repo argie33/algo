@@ -1487,14 +1487,10 @@ def main() -> int:
         tracker.complete(symbols_processed=1)
         return 0
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-        logger.error(f"Market health daily load failed: {e}")
+        logger.error(f"[LOADER] Market health daily load failed: {e}. Exit code 1 (ERROR).")
         tracker.failed(error_message=str(e))
-        raise RuntimeError(f"Market health daily loader failed: {e}") from e
+        return 1
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except RuntimeError as e:
-        logger.error(str(e))
-        sys.exit(1)
+    sys.exit(main())

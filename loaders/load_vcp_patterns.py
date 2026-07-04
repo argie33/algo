@@ -14,6 +14,7 @@ This loader is a DEPENDENCY for signal quality score computation.
 """
 
 import logging
+import sys
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
@@ -265,7 +266,30 @@ def load_vcp_patterns(end_date: datetime | None = None) -> dict[str, Any]:
     return loader.run(end_date)
 
 
+def main() -> int:
+    """Load and persist VCP (Volatility Contraction Pattern) data.
+
+    Exit codes: 0=success, 1=error, 2=no_data
+    """
+    try:
+        result = load_vcp_patterns()
+
+        if isinstance(result, dict):
+            rows_inserted = result.get("rows_inserted", 0)
+            if rows_inserted > 0:
+                logger.info(f"[LOADER] VCP Patterns loaded successfully: {result}. Exit code 0 (SUCCESS).")
+                return 0
+            else:
+                logger.warning("[LOADER] VCP Patterns load completed but no rows inserted. Exit code 2 (NO_DATA).")
+                return 2
+        else:
+            logger.error(f"[LOADER] VCP Patterns load returned unexpected result type: {type(result).__name__}. Exit code 1 (ERROR).")
+            return 1
+    except Exception as e:
+        logger.error(f"[LOADER] VCP Patterns load failed: {e}. Exit code 1 (ERROR).", exc_info=True)
+        return 1
+
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    result = load_vcp_patterns()
-    logger.info(f"VCP Patterns Load Summary: {result}")
+    sys.exit(main())

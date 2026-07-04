@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Signal Quality Scores Loader -– Signal strength confirmation from multiple sources.
+"""Signal Quality Scores Loader - Signal strength confirmation from multiple sources.
 
 Computes signal quality scores (0-100) combining buy/sell signal, technical confirmation, and trend.
 Required by Phase 1 data freshness check as tier-2 gate for filtering.
@@ -861,9 +861,11 @@ def main() -> int:
         # Log signal generation metrics for observability and trend detection
         _log_signal_metrics()
 
+        logger.info("[LOADER] Signal quality scores load completed successfully. Exit code 0 (SUCCESS).")
         return 0
     except Exception as e:
-        raise RuntimeError(f"Signal quality scores load failed: {e}") from e
+        logger.error(f"[LOADER] Signal quality scores load failed: {e}. Exit code 1 (ERROR).")
+        return 1
 
 
 def _sync_scores_to_buy_sell() -> None:
@@ -1012,8 +1014,4 @@ def _log_signal_metrics() -> None:
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except RuntimeError as e:
-        logger.error(str(e))
-        sys.exit(1)
+    sys.exit(main())

@@ -693,12 +693,20 @@ def main() -> int:
             )
 
         # Update status to COMPLETED or FAILED based on result
-        if result["rows_inserted"] > 0 or result["error"] is None:
+        if result["rows_inserted"] > 0:
             _update_tech_loader_status("COMPLETED", latest_date=result["latest_date"])
             final_status = "completed"
+            exit_code = 0
+        elif not result["data_available"] and result["error"] is None:
+            # Data unavailable (market closed, etc) - this is NO_DATA, not an error
+            _update_tech_loader_status("COMPLETED", latest_date=result["latest_date"])
+            final_status = "no_data"
+            exit_code = 2
+            logger.info("[LOADER] Technical data unavailable (market closed?). Exit code 2 (NO_DATA).")
         else:
             _update_tech_loader_status("FAILED", result["error"])
             final_status = "failed"
+            exit_code = 1
 
         # Log execution time
         try:
@@ -731,7 +739,7 @@ def main() -> int:
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.warning(f"Unexpected error logging execution (non-critical): {e}", exc_info=True)
 
-        return 0 if final_status == "completed" else 1
+        return exit_code
 
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.error(f"Unexpected error in main: {e}", exc_info=True)

@@ -601,10 +601,11 @@ def main() -> int:  # noqa: C901
         else:
             symbols = get_active_symbols(timeout_secs=300)
             if not symbols:
-                logger.warning("No symbols found in stock_symbols table - exiting")
+                logger.warning("[LOADER] No symbols found in stock_symbols table. Exit code 1 (ERROR).")
                 return 1
     except Exception as e:
-        raise RuntimeError(f"Failed to fetch active symbols: {e}. Cannot proceed without symbol list.") from e
+        logger.error(f"[LOADER] Failed to fetch active symbols: {e}. Exit code 1 (ERROR).")
+        return 1
 
     logger.info(f"Starting buy_sell_daily loader with {len(symbols)} symbols, parallelism={args.parallelism}")
 
@@ -640,10 +641,11 @@ def main() -> int:  # noqa: C901
                 )
                 return 1  # Return error code (1), will retry on next pipeline run
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as status_err:
-        raise RuntimeError(
-            f"CRITICAL: Failed to check price_daily status: {status_err}. "
-            "Cannot verify upstream loader is ready. Aborting to prevent silent dependency failure."
-        ) from status_err
+        logger.error(
+            f"[LOADER] Failed to check price_daily status: {status_err}. "
+            "Cannot verify upstream loader is ready. Exit code 1 (ERROR)."
+        )
+        return 1
 
     # ISSUE #7: Validate dependency - technical_data_daily must be fresh and have good coverage
     try:
@@ -685,10 +687,10 @@ def main() -> int:  # noqa: C901
                 return 1
 
             if not symbols:
-                raise RuntimeError(
-                    "[DEPENDENCY] Symbol list is empty. Cannot calculate coverage percentage. "
-                    "Check stock_symbols table and active symbol configuration."
+                logger.error(
+                    "[DEPENDENCY] Symbol list is empty. Cannot calculate coverage percentage. Exit code 1 (ERROR)."
                 )
+                return 1
 
             cur.execute("""
                 SELECT COUNT(DISTINCT symbol) FROM technical_data_daily
@@ -696,21 +698,21 @@ def main() -> int:  # noqa: C901
             """)
             cur_row = cur.fetchone()
             if cur_row is None or len(cur_row) < 1:
-                raise RuntimeError(
-                    "CRITICAL: Failed to count technical_data_daily symbols. "
-                    "Query returned invalid row structure. Cannot verify coverage."
+                logger.error(
+                    "[DEPENDENCY] Failed to count technical_data_daily symbols. Invalid row structure. Exit code 1 (ERROR)."
                 )
+                return 1
             if cur_row[0] is None:
-                raise RuntimeError(
-                    "CRITICAL: technical_data_daily symbol count query returned NULL. "
-                    "Database query or upstream loader may have failed."
+                logger.error(
+                    "[DEPENDENCY] technical_data_daily symbol count is NULL. Exit code 1 (ERROR)."
                 )
+                return 1
             tech_symbol_count = int(cur_row[0])
             if tech_symbol_count == 0:
-                raise RuntimeError(
-                    "CRITICAL: No symbols found in technical_data_daily on latest date. "
-                    "Upstream loader failed or data missing. Cannot generate signals."
+                logger.error(
+                    "[DEPENDENCY] No symbols found in technical_data_daily on latest date. Exit code 1 (ERROR)."
                 )
+                return 1
 
             coverage_pct = round(100 * tech_symbol_count / len(symbols), 1)
             if coverage_pct < 75:
@@ -723,21 +725,21 @@ def main() -> int:  # noqa: C901
                 f"[DEPENDENCY] ✓ technical_data_daily: {tech_symbol_count}/{len(symbols)} symbols ({coverage_pct}%), age {tech_data_age}d"
             )
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as dep_err:
-        raise RuntimeError(
-            f"[DEPENDENCY] Failed to validate technical_data_daily dependency: {dep_err}. "
-            "Buy/sell signals require technical data availability."
-        ) from dep_err
+        logger.error(
+            f"[LOADER] Failed to validate technical_data_daily dependency: {dep_err}. Exit code 1 (ERROR)."
+        )
+        return 1
 
     loader = SignalsDailyLoader()
     try:
         result = loader.run(symbols, parallelism=args.parallelism)
-        logger.info("Daily signals load completed")
+        logger.info("[LOADER] Daily signals load completed successfully. Exit code 0 (SUCCESS).")
 
         # ISSUE #27 FIX: Make technical data enrichment part of the critical path.
         # Enrichment is MANDATORY for signal quality-if it fails, the entire load fails.
         # This prevents buy_sell_daily from being marked COMPLETED with NULL technical fields.
         # Fail-close: If >5% of records can't be enriched, update loader status to FAILED.
-        logger.info("Starting technical data enrichment (fail-close)...")
+        logger.info("[LOADER] Starting technical data enrichment (fail-close)...")
         from loaders.enrich_buy_sell_daily_technical import enrich_technical_data
 
         try:
@@ -745,12 +747,12 @@ def main() -> int:  # noqa: C901
                 since=today_et - timedelta(days=3), symbols=None, min_success_rate=0.95
             )
             logger.info(
-                f"✓ Technical enrichment complete: {enrich_result['updated']} updated, "
+                f"[LOADER] ✓ Technical enrichment complete: {enrich_result['updated']} updated, "
                 f"{enrich_result['checked']} checked, {enrich_result['nulls_remaining']} nulls remaining"
             )
         except RuntimeError as e:
             # Enrichment failed to meet quality threshold - mark loader as FAILED
-            logger.critical(f"[ENRICHMENT_FAILED] {e!s}")
+            logger.error(f"[LOADER] Technical data enrichment failed: {e}. Exit code 1 (ERROR).")
             try:
                 # Update loader status to FAILED so orchestration detects the failure
                 with DatabaseContext("write") as cur:
@@ -763,16 +765,12 @@ def main() -> int:  # noqa: C901
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as status_err:
                 logger.error(f"[STATUS] Could not update loader status: {status_err}")
 
-            raise RuntimeError(
-                f"[ENRICHMENT_CRITICAL] Technical data enrichment failed. "
-                f"Marked buy_sell_daily loader as FAILED to prevent silent data corruption. "
-                f"Signal quality would be degraded with NULL technical fields. "
-                f"Details: {e!s}"
-            ) from e
+            return 1
 
         return 0
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-        raise RuntimeError(f"Daily signals load failed: {e}") from e
+        logger.error(f"[LOADER] Daily signals load failed: {e}. Exit code 1 (ERROR).")
+        return 1
 
 
 if __name__ == "__main__":

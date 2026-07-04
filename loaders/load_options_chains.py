@@ -18,6 +18,7 @@ Use: python3 loaders/load_options_chains.py [--symbols AAPL,MSFT]
 import argparse
 import logging
 import math
+import sys
 import time
 from datetime import date, datetime
 from typing import Any
@@ -538,4 +539,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

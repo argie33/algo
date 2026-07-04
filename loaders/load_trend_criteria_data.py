@@ -250,12 +250,28 @@ def run() -> dict:  # type: ignore[type-arg]
         raise
 
 
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+def main() -> int:
+    """Compute and persist trend template data.
+
+    Exit codes: 0=success, 1=error, 2=no_data
+    """
     try:
         result = run()
-        logger.info(f"Trend criteria loader completed: {result}")
-        sys.exit(0)
+
+        # Check if result has rows_inserted key for success evaluation
+        rows_inserted = result.get("rows_inserted", 0) if isinstance(result, dict) else 0
+
+        if rows_inserted > 0:
+            logger.info(f"[LOADER] Trend criteria loader completed: {result}. Exit code 0 (SUCCESS).")
+            return 0
+        else:
+            logger.warning("[LOADER] Trend criteria loader completed but no rows inserted. Exit code 2 (NO_DATA).")
+            return 2
     except Exception as exc:
-        logger.error(f"Trend criteria loader failed: {exc}")
-        sys.exit(1)
+        logger.error(f"[LOADER] Trend criteria loader failed: {exc}. Exit code 1 (ERROR).")
+        return 1
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+    sys.exit(main())
