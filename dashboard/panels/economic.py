@@ -139,6 +139,9 @@ def _build_calendar_rows(econ_cal: Any) -> list[Text | Rule]:
                 f"Economic calendar event '{name}' ({ed_raw!s}) missing required 'importance' field - skipping event"
             )
             continue  # Skip events without importance level; cannot render with missing required field
+        if importance_val is None:
+            logger.warning(f"Economic calendar event '{name}' has None importance_val after validation — skipping")
+            continue
         imp = str(importance_val).upper()
         ic = imp_c.get(imp, "dim")
 

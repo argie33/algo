@@ -781,8 +781,12 @@ def _get_holding_period_distribution(cur: cursor) -> Any:
         else:
             buckets[7]["count"] += 1
 
-    filtered_buckets = [b for b in buckets if b["count"] > 0]
-    return list_response(filtered_buckets, total=len(filtered_buckets), limit=None, offset=None)
+    # Return ALL buckets including empty ones so caller can reconstruct full distribution
+    # Track how many had zero data for completeness
+    empty_bucket_count = sum(1 for b in buckets if b["count"] == 0)
+    if empty_bucket_count > 0:
+        logger.debug(f"[METRICS] Holding period distribution: {empty_bucket_count}/{len(buckets)} ranges had zero trades")
+    return list_response(buckets, total=len(buckets), limit=None, offset=None)
 
 
 @db_route_handler("get performance analytics")
@@ -1233,5 +1237,9 @@ def _get_trade_distribution(cur: cursor) -> Any:
         else:
             buckets[6]["count"] += 1
 
-    filtered_buckets = [b for b in buckets if b["count"] > 0]
-    return list_response(filtered_buckets, total=len(filtered_buckets), limit=None, offset=None)
+    # Return ALL buckets including empty ones so caller can reconstruct full distribution
+    # Track how many had zero data for completeness
+    empty_bucket_count = sum(1 for b in buckets if b["count"] == 0)
+    if empty_bucket_count > 0:
+        logger.debug(f"[METRICS] R-multiple distribution: {empty_bucket_count}/{len(buckets)} ranges had zero trades")
+    return list_response(buckets, total=len(buckets), limit=None, offset=None)

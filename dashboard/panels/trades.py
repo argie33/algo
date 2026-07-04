@@ -186,6 +186,9 @@ def panel_recent_trades(trades: Any) -> Any:
             return "—"
         return str(d)[:5]
 
+    display_count = min(12, len(closed_trades))
+    truncation_note = f" [dim](showing {display_count}/{len(closed_trades)})[/]" if len(closed_trades) > 12 else ""
+
     for tr in closed_trades[:12]:
         # Extract trade fields once, then convert to typed values
         sym = safe_get_field(tr, "symbol", "--")
@@ -237,7 +240,7 @@ def panel_recent_trades(trades: Any) -> Any:
     age_s = f"  [dim]{fmt_age(trades_timestamp)}[/]" if trades_timestamp is not None else ""
     return Panel(
         t,
-        title=f"[bold cyan]RECENT TRADES ({len(closed_trades)})[/]{age_s}  [dim][t] expand[/]",
+        title=f"[bold cyan]RECENT TRADES ({len(closed_trades)}){truncation_note}[/]{age_s}  [dim][t] expand[/]",
         border_style="cyan",
         padding=(0, 0),
     )
@@ -279,22 +282,28 @@ def panel_trades_expanded(trades: Any) -> Any:
             padding=(0, 1),
         )
 
-    # Summary stats (from displayed trades; see Performance panel for all-time stats)
-    total = len(closed)
+    # Summary stats (from displayed trades only; see Performance panel for all-time stats)
+    # Display limit is 50; show stats only for trades that will be displayed
+    display_limit = 50
+    displayed_trades = closed[:display_limit]
+    total_all = len(closed)
+    total = len(displayed_trades)
+    truncation_indicator = f" [dim](showing {total} of {total_all})[/]" if total_all > display_limit else ""
+
     # Count wins: only trades with profit_loss_pct data
-    wins = sum(1 for t in closed if (pnl := safe_get_field(t, "profit_loss_pct")) is not None and float(pnl) > 0)
+    wins = sum(1 for t in displayed_trades if (pnl := safe_get_field(t, "profit_loss_pct")) is not None and float(pnl) > 0)
     losses = total - wins
     wr = wins / total * 100 if total else None
     # Sum P&L only from trades with profit_loss_dollars data
-    total_pnl = sum(float(pnl_d) for t in closed if (pnl_d := safe_get_field(t, "profit_loss_dollars")) is not None)
-    avg_r_list = [float(r) for t in closed if (r := safe_get_field(t, "exit_r_multiple")) is not None]
+    total_pnl = sum(float(pnl_d) for t in displayed_trades if (pnl_d := safe_get_field(t, "profit_loss_dollars")) is not None)
+    avg_r_list = [float(r) for t in displayed_trades if (r := safe_get_field(t, "exit_r_multiple")) is not None]
     avg_r = sum(avg_r_list) / len(avg_r_list) if avg_r_list else None
     wc = G if (wr is not None and wr >= 45) else (Y if (wr is not None and wr >= 40) else R)
     pnl_c = G if total_pnl >= 0 else R
     wr_str = f"{wr:.0f}%" if wr is not None else "N/A"
     rows.append(
         Text.from_markup(
-            f"[dim]Showing {total} trades:[/]  [{G}]{wins}W[/][dim]/[/][{R}]{losses}L[/]  "
+            f"[dim]Showing {total} trades{truncation_indicator}:[/]  [{G}]{wins}W[/][dim]/[/][{R}]{losses}L[/]  "
             f"[dim]Win Rate:[/][{wc}]{wr_str}[/]  "
             f"[dim]P&L:[/][{pnl_c}]{sign(total_pnl)}${abs(total_pnl):.0f}[/]"
             + (f"  [dim]Avg R:[/][white]{avg_r:.2f}R[/]" if avg_r is not None else "")
@@ -353,7 +362,7 @@ def panel_trades_expanded(trades: Any) -> Any:
             return "—"
         return str(d)[:6]
 
-    for tr in closed[:50]:
+    for tr in displayed_trades:
         sym = safe_get_field(tr, "symbol", "--")
         pnl_d_raw = safe_get_field(tr, "profit_loss_dollars")
         pnl_p_raw = safe_get_field(tr, "profit_loss_pct")

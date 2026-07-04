@@ -118,7 +118,11 @@ def panel_circuit(cb: Any) -> Panel:  # noqa: C901
             border_style="red",
             padding=(0, 1),
         )
-    any_f = any_raw if isinstance(any_raw, bool) else bool(any_raw)
+    if any_raw is None:
+        logger.warning("[CIRCUIT] Missing 'any' field in circuit breaker data — defaulting to no breakers fired")
+        any_f = False
+    else:
+        any_f = any_raw if isinstance(any_raw, bool) else bool(any_raw)
     hc = R if any_f else G
     if not any_f:
         logger.debug("[CIRCUIT] No breakers triggered — display color defaulting to GREEN")
@@ -261,7 +265,11 @@ def panel_circuit_expanded(cb: Any) -> Panel:  # noqa: C901
             padding=(0, 1),
         )
 
-    any_f = any_f_raw if isinstance(any_f_raw, bool) else bool(any_f_raw)
+    if any_f_raw is None:
+        logger.warning("[CIRCUIT] Missing 'any' field in expanded circuit breaker data — defaulting to no breakers fired")
+        any_f = False
+    else:
+        any_f = any_f_raw if isinstance(any_f_raw, bool) else bool(any_f_raw)
 
     if any_f:
         rows.append(

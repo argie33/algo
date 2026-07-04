@@ -939,7 +939,9 @@ def _format_loader_status(loader: list[Any]) -> list[Text]:
 
     if problem_loader:
         ok_s = f"  [dim]{ok_count} ok[/]" if ok_count > 0 else ""
-        rows.append(Text.from_markup(f"[{Y}]Loaders ({len(problem_loader)} issues){ok_s}:[/]"))
+        display_count = min(3, len(problem_loader))
+        truncation_note = f" [dim](showing {display_count}/{len(problem_loader)})[/]" if len(problem_loader) > 3 else ""
+        rows.append(Text.from_markup(f"[{Y}]Loaders ({len(problem_loader)} issues){truncation_note}{ok_s}:[/]"))
         for r in problem_loader[:3]:
             table_name_val = r.get("table_name")
             if table_name_val is None:
@@ -1950,7 +1952,9 @@ def panel_status(  # noqa: C901
     if problem_loader:
         rows.append(Rule(style="dim"))
         ok_s = f"  [dim]{ok_count} ok[/]" if ok_count > 0 else ""
-        rows.append(Text.from_markup(f"[{Y}]Loaders ({len(problem_loader)} issues){ok_s}:[/]"))
+        display_count = min(3, len(problem_loader))
+        truncation_note = f" [dim](showing {display_count}/{len(problem_loader)})[/]" if len(problem_loader) > 3 else ""
+        rows.append(Text.from_markup(f"[{Y}]Loaders ({len(problem_loader)} issues){truncation_note}{ok_s}:[/]"))
         for r in problem_loader[:3]:
             table_name_val = r.get("table_name")
             if table_name_val is None:

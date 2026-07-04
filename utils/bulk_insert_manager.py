@@ -52,6 +52,8 @@ class BulkInsertManager:
                 )
                 self._schema_cols_cache = {r[0] for r in cur.fetchall()}
             existing_cols = self._schema_cols_cache
+            if not rows:
+                raise ValueError(f"No data rows provided to insert into {self.table_name}")
             all_data_cols = list(rows[0].keys())
             skipped = [c for c in all_data_cols if c not in existing_cols]
             if skipped:
