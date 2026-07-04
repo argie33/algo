@@ -1635,7 +1635,7 @@ jobs:
   #
   run-migrations:
     name: "2f. Run Database Migrations via Lambda"
-    needs: [terraform, build-image, deploy-db-init]
+    needs: [terraform, build-image]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
