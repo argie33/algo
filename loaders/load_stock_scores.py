@@ -452,6 +452,8 @@ class StockScoresLoader(OptimalLoader):
                 "rs_percentile": 0.0,
                 "data_completeness": data_completeness,
                 "unavailable_metrics": json.dumps(unavailable_metrics) if unavailable_metrics else None,
+                "data_unavailable": False,  # EXPLICIT: All required metrics available (fail-fast filters removed unavailable scores)
+                "reason": None,  # EXPLICIT: Score computed successfully from available metrics
                 "updated_at": datetime.now(timezone.utc),
             }
             if unavailable_metrics:

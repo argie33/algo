@@ -94,6 +94,10 @@ class MomentumMetricsLoader(OptimalLoader):
         """Compute 1m/3m/6m/12m momentum from price_daily.
 
         Raises RuntimeError if insufficient price history (< 252 days).
+
+        Returns dict with per-field unavailable_reason markers (explicit pattern from load_quality_metrics.py):
+        - momentum_1m, momentum_3m, momentum_6m, momentum_12m: float or None
+        - momentum_1m_unavailable_reason, momentum_3m_unavailable_reason, etc.: reason string or None
         """
         with DatabaseContext("read") as cur:
             # Get historical prices (most recent first)
@@ -128,11 +132,15 @@ class MomentumMetricsLoader(OptimalLoader):
             ]
 
             momentum = {}
+            unavailable_reasons = {}
             for period_name, days_back in lookback_configs:
                 # Calculate price from N days ago (as close as possible)
                 target_idx = len(sorted_dates) - days_back - 1
                 if target_idx < 0:
                     momentum[f"momentum_{period_name}"] = None
+                    unavailable_reasons[f"momentum_{period_name}_unavailable_reason"] = (
+                        f"insufficient_history: {len(sorted_dates)} dates (need {days_back})"
+                    )
                     continue
 
                 price_old = prices[sorted_dates[target_idx]]
@@ -140,18 +148,26 @@ class MomentumMetricsLoader(OptimalLoader):
 
                 if price_old is None or price_old == 0:
                     momentum[f"momentum_{period_name}"] = None
+                    unavailable_reasons[f"momentum_{period_name}_unavailable_reason"] = (
+                        "invalid_price: zero or None at lookback point"
+                    )
                     continue
 
                 # Return as percentage
                 ret_pct = ((price_new - price_old) / price_old) * 100
                 momentum[f"momentum_{period_name}"] = round(ret_pct, 4)
+                unavailable_reasons[f"momentum_{period_name}_unavailable_reason"] = None  # Data available
 
             return {
                 "symbol": symbol,
                 "momentum_1m": momentum.get("momentum_1m"),
+                "momentum_1m_unavailable_reason": unavailable_reasons.get("momentum_1m_unavailable_reason"),
                 "momentum_3m": momentum.get("momentum_3m"),
+                "momentum_3m_unavailable_reason": unavailable_reasons.get("momentum_3m_unavailable_reason"),
                 "momentum_6m": momentum.get("momentum_6m"),
+                "momentum_6m_unavailable_reason": unavailable_reasons.get("momentum_6m_unavailable_reason"),
                 "momentum_12m": momentum.get("momentum_12m"),
+                "momentum_12m_unavailable_reason": unavailable_reasons.get("momentum_12m_unavailable_reason"),
                 "data_unavailable": False,
                 "created_at": datetime.now(timezone.utc),
             }

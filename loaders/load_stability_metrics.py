@@ -203,8 +203,38 @@ class StabilityMetricsLoader(OptimalLoader):
             beta_result = self._get_beta_from_db(symbol, prices, spy_rows)
 
             # Unpack results: distinguish between numeric values and marker dicts
-            volatility_30d: float | None = None if isinstance(volatility_30d_result, dict) else volatility_30d_result
-            volatility_60d: float | None = None if isinstance(volatility_60d_result, dict) else volatility_60d_result
+            # EXPLICIT TYPE VALIDATION: Fail fast if unexpected type (not float or marker dict)
+            volatility_30d: float | None
+            if isinstance(volatility_30d_result, dict):
+                if not volatility_30d_result.get("data_unavailable"):
+                    raise RuntimeError(
+                        f"[STABILITY_METRICS] {symbol}: volatility_30d marker dict invalid - "
+                        f"expected data_unavailable=True if dict returned, got {volatility_30d_result}"
+                    )
+                volatility_30d = None
+            elif isinstance(volatility_30d_result, float):
+                volatility_30d = volatility_30d_result
+            else:
+                raise RuntimeError(
+                    f"[STABILITY_METRICS] {symbol}: volatility_30d invalid type {type(volatility_30d_result).__name__}. "
+                    f"Expected float or data_unavailable marker dict, got: {volatility_30d_result!r}"
+                )
+
+            volatility_60d: float | None
+            if isinstance(volatility_60d_result, dict):
+                if not volatility_60d_result.get("data_unavailable"):
+                    raise RuntimeError(
+                        f"[STABILITY_METRICS] {symbol}: volatility_60d marker dict invalid - "
+                        f"expected data_unavailable=True if dict returned, got {volatility_60d_result}"
+                    )
+                volatility_60d = None
+            elif isinstance(volatility_60d_result, float):
+                volatility_60d = volatility_60d_result
+            else:
+                raise RuntimeError(
+                    f"[STABILITY_METRICS] {symbol}: volatility_60d invalid type {type(volatility_60d_result).__name__}. "
+                    f"Expected float or data_unavailable marker dict, got: {volatility_60d_result!r}"
+                )
 
             # For 252d and beta, check if they're marker dicts indicating unavailability
             volatility_252d_unavailable = isinstance(volatility_252d_result, dict) and volatility_252d_result.get(
@@ -212,13 +242,30 @@ class StabilityMetricsLoader(OptimalLoader):
             )
             beta_unavailable = isinstance(beta_result, dict) and beta_result.get("data_unavailable")
 
-            # Type narrow: if not dict, must be float (or None for 252d)
-            volatility_252d: float | None = (
-                None
-                if volatility_252d_unavailable
-                else (volatility_252d_result if isinstance(volatility_252d_result, float) else None)
-            )
-            beta: float | None = None if beta_unavailable else (beta_result if isinstance(beta_result, float) else None)
+            # Type narrow: if not dict, must be float (or None for 252d which can legitimately be None from line 202)
+            volatility_252d: float | None
+            if volatility_252d_unavailable:
+                volatility_252d = None
+            elif volatility_252d_result is None:
+                volatility_252d = None
+            elif isinstance(volatility_252d_result, float):
+                volatility_252d = volatility_252d_result
+            else:
+                raise RuntimeError(
+                    f"[STABILITY_METRICS] {symbol}: volatility_252d invalid type {type(volatility_252d_result).__name__}. "
+                    f"Expected float, None, or data_unavailable marker dict, got: {volatility_252d_result!r}"
+                )
+
+            beta: float | None
+            if beta_unavailable:
+                beta = None
+            elif isinstance(beta_result, float):
+                beta = beta_result
+            else:
+                raise RuntimeError(
+                    f"[STABILITY_METRICS] {symbol}: beta invalid type {type(beta_result).__name__}. "
+                    f"Expected float or data_unavailable marker dict, got: {beta_result!r}"
+                )
 
             # STRICT: Stability metrics require COMPLETE data (all three volatilities + beta)
             # Partial metrics lead to inaccurate risk calculations. No fallback to degraded data.

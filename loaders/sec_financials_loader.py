@@ -88,6 +88,10 @@ class SecFinancialsLoader(OptimalLoader):
         Returns:
             Tuple of (revenue, operating_income, net_income) or None if not available.
             All NaN Decimal values are cleaned to None.
+
+        Data Unavailability Patterns:
+            - None: No SEC filing data available (common for micro-caps, OTC, ADRs, new IPOs)
+            - RuntimeError: Database connectivity or permission issue (fail-fast - re-raised)
         """
         from utils.loaders import fetch_one
 
@@ -104,6 +108,11 @@ class SecFinancialsLoader(OptimalLoader):
             )
             if row:
                 return self._clean_row(row)
+            # EXPLICIT: No SEC filing data for this symbol (not an error, expected for ~55% of symbols)
+            logger.debug(
+                f"[{self.table_name}] No annual income statement for {symbol}: "
+                "SEC filing data not available (micro-cap, OTC, ADR, new IPO, or non-US company)"
+            )
             return None
         except Exception as e:
             logger.error(f"[{self.table_name}] Failed to fetch income statement for {symbol}: {e}")
@@ -116,6 +125,10 @@ class SecFinancialsLoader(OptimalLoader):
             Tuple of (total_assets, stockholders_equity, current_assets,
                      total_liabilities, current_liabilities, inventory)
             or None if not available. All NaN Decimal values are cleaned to None.
+
+        Data Unavailability Patterns:
+            - None: No SEC filing data available (common for micro-caps, OTC, ADRs, new IPOs)
+            - RuntimeError: Database connectivity or permission issue (fail-fast - re-raised)
         """
         from utils.loaders import fetch_one
 
@@ -133,6 +146,11 @@ class SecFinancialsLoader(OptimalLoader):
             )
             if row:
                 return self._clean_row(row)
+            # EXPLICIT: No SEC filing data for this symbol (not an error, expected for ~55% of symbols)
+            logger.debug(
+                f"[{self.table_name}] No annual balance sheet for {symbol}: "
+                "SEC filing data not available (micro-cap, OTC, ADR, new IPO, or non-US company)"
+            )
             return None
         except Exception as e:
             logger.error(f"[{self.table_name}] Failed to fetch balance sheet for {symbol}: {e}")
@@ -149,6 +167,10 @@ class SecFinancialsLoader(OptimalLoader):
             List of tuples (fiscal_year, revenue, earnings_per_share) ordered by fiscal_year DESC.
             All NaN Decimal values are cleaned to None.
             Returns None if no data found.
+
+        Data Unavailability Patterns:
+            - None: No multi-year SEC filing history available (common for young companies or those without coverage)
+            - RuntimeError: Database connectivity or permission issue (fail-fast - re-raised)
         """
         from utils.loaders import execute_query
 
@@ -165,6 +187,11 @@ class SecFinancialsLoader(OptimalLoader):
             )
             if rows:
                 return [self._clean_row(row) for row in rows]
+            # EXPLICIT: No multi-year SEC filing history for this symbol (not an error, expected for young companies)
+            logger.debug(
+                f"[{self.table_name}] No income statement history for {symbol}: "
+                "SEC filing data not available or insufficient history (young company, new IPO, or lack of coverage)"
+            )
             return None
         except Exception as e:
             logger.error(f"[{self.table_name}] Failed to fetch income statement history for {symbol}: {e}")

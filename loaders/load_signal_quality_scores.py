@@ -524,6 +524,11 @@ class SignalQualityScoresLoader(OptimalLoader):
             logger.debug(f"Failed to fetch positioning data for {symbol}: {e}")
             return None
 
+        # No row in positioning_metrics: data unavailable (explicit marker for consistency)
+        logger.debug(
+            f"[SIGNAL_QUALITY] Positioning data unavailable for {symbol} (no record in positioning_metrics). "
+            "Common for OTC, preferred stocks, warrants, or special securities lacking institutional ownership tracking."
+        )
         return None
 
     def _compute_quality_scores(
