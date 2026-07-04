@@ -213,7 +213,7 @@ def _is_stale(item: Any, stale_threshold_hours: float = 24) -> bool:
     age = _get_age_hours(item)
     if age is None:
         # No age data available — treat as potentially stale
-        logger.debug(f"Data item missing age_hours/age fields — cannot assess freshness")
+        logger.debug("Data item missing age_hours/age fields — cannot assess freshness")
         return True
     return age > stale_threshold_hours
 
@@ -265,8 +265,8 @@ __all__ = [
     "_build_buy_sig_map",
     "_composite_score_color",
     "_error_panel",
-    "_format_age",
     "_fmt_phases_halted",
+    "_format_age",
     "_get_age_hours",
     "_is_stale",
     "_score_cell",
