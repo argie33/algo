@@ -121,6 +121,21 @@ def _apply_critical_migrations():
                 logger.warning(f"[STARTUP] Could not update {table}: {e}")
                 conn.rollback()
 
+        # Add R-metrics columns to algo_performance_metrics (required by perf_anl endpoint)
+        try:
+            r_metrics_sql = """
+            ALTER TABLE algo_performance_metrics
+            ADD COLUMN IF NOT EXISTS expectancy DECIMAL(8, 4),
+            ADD COLUMN IF NOT EXISTS avg_win_r DECIMAL(8, 4),
+            ADD COLUMN IF NOT EXISTS avg_loss_r DECIMAL(8, 4)
+            """
+            cur.execute(r_metrics_sql)
+            conn.commit()
+            logger.info("[STARTUP] Ensured algo_performance_metrics R-metrics columns exist (expectancy, avg_win_r, avg_loss_r)")
+        except Exception as e:
+            logger.warning(f"[STARTUP] Could not add R-metrics columns to algo_performance_metrics: {e}")
+            conn.rollback()
+
         cur.close()
         conn.close()
         logger.info("[STARTUP] Critical schema migrations completed")
@@ -208,6 +223,10 @@ def fetch_cloudfront_domain_from_secrets() -> tuple[str | None, str | None]:
         except ImportError:
             logger.warning("[CloudFront] boto3 not available, skipping Secrets Manager fetch")
             return None, "boto3 not available"
+        except RuntimeError as re:
+            # Handle "marked for deletion" or other AWS errors gracefully
+            logger.warning(f"[CloudFront] AWS Secrets Manager error (will continue without CloudFront domain): {re}")
+            return None, f"AWS error: {re}"
         except (json.JSONDecodeError, ValueError) as e:
             logger.error(
                 f"[CloudFront] Error fetching from Secrets Manager: {type(e).__name__}: {e}"
