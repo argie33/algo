@@ -319,17 +319,18 @@ locals {
   scheduled_loaders = {
     # Morning pipeline: 2:15 AM ET (7:15 AM UTC), Mon-Fri
     # Loads fresh market data for 9:30 AM signal generation
+    # CRITICAL: Sequenced with sufficient gaps to ensure dependency completion
     "stock_prices_daily" = {
-      description = "Load OHLCV prices - morning pipeline"
-      schedule    = "cron(15 7 ? * MON-FRI *)"  # 2:15 AM ET
+      description = "Load OHLCV prices - morning pipeline (10k+ symbols, ~30 min runtime)"
+      schedule    = "cron(15 7 ? * MON-FRI *)"  # 2:15 AM ET - starts first
     }
     "technical_data_daily" = {
-      description = "Compute 50/200-day SMA - morning pipeline"
-      schedule    = "cron(30 7 ? * MON-FRI *)"  # 2:30 AM ET (after prices)
+      description = "Compute 50/200-day SMA - morning pipeline (depends on prices)"
+      schedule    = "cron(55 7 ? * MON-FRI *)"  # 2:55 AM ET - 40 min after prices start (allows completion)
     }
     "swing_trader_scores" = {
-      description = "Calculate swing scores - morning pipeline"
-      schedule    = "cron(45 7 ? * MON-FRI *)"  # 2:45 AM ET (after technical_data)
+      description = "Calculate swing scores - morning pipeline (depends on technical data)"
+      schedule    = "cron(15 8 ? * MON-FRI *)"  # 3:15 AM ET - 20 min after technical starts (allows completion)
     }
 
     # EOD pipeline: 4:05 PM ET (9:05 PM UTC), Mon-Fri
