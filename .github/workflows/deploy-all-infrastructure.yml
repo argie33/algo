@@ -1241,22 +1241,10 @@ jobs:
             aws lambda wait function-updated --function-name "$FUNC" --region $AWS_REGION
             echo "[OK] db-init Lambda updated: $FUNC"
           else
-            echo "Creating new Lambda..."
-            ROLE_ARN=$(aws iam get-role --role-name ${PROJECT}-lambda-execution-role-${ENVIRONMENT} --query 'Role.Arn' --output text 2>/dev/null || echo "")
-            if [ -z "$ROLE_ARN" ]; then
-              echo "[WARN] Lambda execution role not found, using ARN format..."
-              ROLE_ARN="arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${PROJECT}-lambda-execution-role-${ENVIRONMENT}"
-            fi
-
-            aws lambda create-function \
-              --function-name "$FUNC" \
-              --runtime python3.12 \
-              --role "$ROLE_ARN" \
-              --handler lambda_function.lambda_handler \
-              --zip-file fileb://$ZIP_FILE \
-              --timeout 300 \
-              --region $AWS_REGION
-            echo "[OK] db-init Lambda created: $FUNC"
+            echo "[WARN] db-init Lambda not found: $FUNC"
+            echo "[WARN] Lambda must be created via Terraform or manually."
+            echo "[WARN] db-init.tf in terraform/modules/database has all resources disabled."
+            echo "[WARN] To enable db-init Lambda management, uncomment resources in db-init.tf and create IAM role."
           fi
 
   #
