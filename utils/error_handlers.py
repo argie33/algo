@@ -326,9 +326,13 @@ def make_error_response(
     # Sanitize message (remove credentials, paths, SQL)
     safe_message = sanitize_error_message(message)
 
-    return {
+    response = {
         "statusCode": status_code,
         "errorType": error_type,
         "message": safe_message,
         "_error": safe_message,
     }
+    # Mark 503 errors as transient so dashboard fetchers retry with exponential backoff
+    if status_code == 503:
+        response["_is_transient_503"] = True
+    return response
