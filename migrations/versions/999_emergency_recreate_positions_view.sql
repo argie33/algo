@@ -171,5 +171,10 @@ WHERE ap.quantity > 0 AND ap.status NOT IN ('archived', 'deleted');
 CREATE INDEX IF NOT EXISTS idx_algo_positions_with_risk_symbol
 ON algo_positions(symbol);
 
+-- CRITICAL: Refresh the materialized view immediately after creation
+-- Without this, the view is empty until first REFRESH. Dashboard queries will return 0 positions.
+-- This ensures the view is populated with data from algo_positions table on first deployment.
+REFRESH MATERIALIZED VIEW algo_positions_with_risk;
+
 COMMENT ON MATERIALIZED VIEW algo_positions_with_risk IS
-'CRITICAL: Enriched positions with stops, targets, sector, technical scores, and risk metrics. Single source of truth for dashboard. Emergency recreation 2026-07-04.';
+'CRITICAL: Enriched positions with stops, targets, sector, technical scores, and risk metrics. Single source of truth for dashboard. Emergency recreation 2026-07-04. Refreshed immediately after creation.';
