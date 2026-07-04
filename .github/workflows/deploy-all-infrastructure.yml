@@ -17,6 +17,7 @@ on:
       - 'utils/**'
       - 'config/**'
       - 'monitoring/**'
+      - 'migrations/**'
   workflow_dispatch:
     inputs:
       skip_terraform:
