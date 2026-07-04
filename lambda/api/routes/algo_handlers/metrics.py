@@ -179,7 +179,7 @@ def _get_algo_performance(cur: cursor) -> Any:  # noqa: C901
                 "best_streak": None,
                 "worst_streak": None,
                 "current_streak": None,
-                "expectancy": None,
+                "expectancy_r": None,
             }
         )
 
@@ -212,7 +212,7 @@ def _get_algo_performance(cur: cursor) -> Any:  # noqa: C901
                 "best_streak": None,
                 "worst_streak": None,
                 "current_streak": None,
-                "expectancy": None,
+                "expectancy_r": None,
             }
         )
 
