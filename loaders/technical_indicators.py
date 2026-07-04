@@ -10,10 +10,14 @@ import pandas as pd
 
 
 def compute_rsi(closes: pd.Series, period: int = 14) -> pd.Series:
-    """Compute Relative Strength Index using Wilder's EMA smoothing."""
+    """Compute Relative Strength Index using Wilder's EMA smoothing.
+
+    GOVERNANCE: If price data is missing (NaN), RSI becomes NaN instead of silently
+    defaulting to a calculated value. This preserves data quality visibility.
+    """
     deltas = closes.diff()
-    gains = deltas.where(deltas > 0, 0)
-    losses = -deltas.where(deltas < 0, 0)
+    gains = deltas.where(deltas > 0, np.nan)
+    losses = -deltas.where(deltas < 0, np.nan)
     avg_gain = gains.ewm(com=period - 1, min_periods=period).mean()
     avg_loss = losses.ewm(com=period - 1, min_periods=period).mean()
     rs = avg_gain / avg_loss.replace(0, np.nan)

@@ -113,16 +113,18 @@ def _compute_scores_vectorized(merged: pd.DataFrame) -> pd.DataFrame:
     rsi = pd.to_numeric(merged["rsi_14"], errors="coerce")
 
     # Minervini score (0-8)
-    merged["minervini_trend_score"] = (
-        (close > sma200).astype(int)
-        + (close > sma50).astype(int)
-        + (sma50 > sma200).astype(int)
-        + (roc60 > 0).fillna(False).astype(int)
-        + (roc252 > 10).fillna(False).astype(int)
-        + (rsi > 50).fillna(False).astype(int)
-        + (close > sma200 * 1.10).astype(int)
-        + (roc20 > 0).fillna(False).astype(int)
-    ).astype(float)
+    # GOVERNANCE: NaN indicators become NaN score (fail-fast), not silent 0 (no fallback to False)
+    minervini_components = pd.DataFrame({
+        "c1": (close > sma200).astype(int),
+        "c2": (close > sma50).astype(int),
+        "c3": (sma50 > sma200).astype(int),
+        "c4": (roc60 > 0).where(pd.notna(roc60), pd.NA).astype("Int64"),
+        "c5": (roc252 > 10).where(pd.notna(roc252), pd.NA).astype("Int64"),
+        "c6": (rsi > 50).where(pd.notna(rsi), pd.NA).astype("Int64"),
+        "c7": (close > sma200 * 1.10).astype(int),
+        "c8": (roc20 > 0).where(pd.notna(roc20), pd.NA).astype("Int64"),
+    })
+    merged["minervini_trend_score"] = minervini_components[["c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8"]].sum(axis=1, skipna=False).astype(float)
 
     # Weinstein stage (1-4)
     above200 = close > sma200
@@ -138,7 +140,8 @@ def _compute_scores_vectorized(merged: pd.DataFrame) -> pd.DataFrame:
     merged.loc[roc60 < -5, "trend_direction"] = "down"
 
     # price_above_sma50
-    merged["price_above_sma50"] = (close > sma50).fillna(False)
+    # GOVERNANCE: NaN when SMA missing (fail-fast), not silent False
+    merged["price_above_sma50"] = (close > sma50).where(pd.notna(close) & pd.notna(sma50), pd.NA)
 
     return merged
 
