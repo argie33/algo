@@ -185,12 +185,16 @@ def get_markets_cached() -> dict[str, Any]:
     with _market_cache_lock:
         cached = _market_cache.get("_data")
         now = __import__("time").time()
-        # CRITICAL: Validate cache time is present; missing _time indicates corrupted cache.
-        if cached and "_time" in _market_cache and (now - _market_cache["_time"]) < 5:
-            if not isinstance(cached, dict):
-                logger.warning(f"Market cache corrupted: _data is {type(cached).__name__}, not dict. Force refresh.")
-            else:
-                return cast(dict[str, Any], cached)
+        # CRITICAL: Validate cache time is present AND numeric; missing/invalid _time indicates corrupted cache.
+        if cached and "_time" in _market_cache:
+            cache_time = _market_cache["_time"]
+            if not isinstance(cache_time, (int, float)):
+                logger.warning(f"[MARKET_CACHE] Corrupted cache: _time is {type(cache_time).__name__}, not numeric. Force refresh.")
+            elif (now - cache_time) < 5:
+                if not isinstance(cached, dict):
+                    logger.warning(f"Market cache corrupted: _data is {type(cached).__name__}, not dict. Force refresh.")
+                else:
+                    return cast(dict[str, Any], cached)
 
     mkt = api_call("/api/algo/markets")
     with _market_cache_lock:
@@ -207,9 +211,13 @@ def get_data_status_cached() -> dict[str, Any]:
     with _data_status_cache_lock:
         cached = _data_status_cache.get("_data")
         now = __import__("time").time()
-        # CRITICAL: Validate cache time is present; missing _time indicates corrupted cache.
-        if cached and "_time" in _data_status_cache and (now - _data_status_cache["_time"]) < 10:
-            return cast(dict[str, Any], cached)
+        # CRITICAL: Validate cache time is present AND numeric; missing/invalid _time indicates corrupted cache.
+        if cached and "_time" in _data_status_cache:
+            cache_time = _data_status_cache["_time"]
+            if isinstance(cache_time, (int, float)) and (now - cache_time) < 10:
+                return cast(dict[str, Any], cached)
+            elif not isinstance(cache_time, (int, float)):
+                logger.warning(f"[DATA_STATUS_CACHE] Corrupted cache: _time is {type(cache_time).__name__}, not numeric. Force refresh.")
 
     status = api_call("/api/algo/data-status")
     with _data_status_cache_lock:

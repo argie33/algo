@@ -572,7 +572,9 @@ def panel_orch(run: dict[str, Any] | None, cfg: dict[str, Any], risk: dict[str, 
             # CRITICAL: Explicit None check before accessing .get() result
             # Checking run.get("halted") can return None instead of boolean
             halted_val = run.get("halted")
-            if halt_r or (halted_val is not None and halted_val):
+            if halted_val is None:
+                logger.debug("[HEALTH] Halt status field missing from run data - treating as not halted")
+            if halt_r or (halted_val is True):
                 phase_results_temp = run.get("phase_results")
                 if phase_results_temp is None:
                     phase_results_temp = []
