@@ -751,8 +751,19 @@ def run(
 
                 with DatabaseContext("write", cursor_factory=_extras.RealDictCursor) as cb_cur:
                     cb_metrics = compute_circuit_breaker_metrics(cb_cur, today=run_date)
-                triggered = cb_metrics.get("triggered_count") if cb_metrics else 0
-                any_triggered = cb_metrics.get("any_triggered") if cb_metrics else False
+                if cb_metrics is None:
+                    raise RuntimeError(
+                        f"[PHASE 9 CRITICAL] Circuit breaker metrics computation returned None on {run_date}. "
+                        "Cannot proceed with reconciliation without circuit breaker state."
+                    )
+                triggered = cb_metrics.get("triggered_count")
+                any_triggered = cb_metrics.get("any_triggered")
+                if triggered is None or any_triggered is None:
+                    raise RuntimeError(
+                        f"[PHASE 9 CRITICAL] Circuit breaker metrics incomplete on {run_date}: "
+                        f"triggered_count={triggered}, any_triggered={any_triggered}. "
+                        "Check compute_circuit_breaker_metrics() for data quality issues."
+                    )
                 logger.info(
                     f"[PHASE 9] Circuit breaker metrics written: {triggered} triggered, any_triggered={any_triggered}"
                 )

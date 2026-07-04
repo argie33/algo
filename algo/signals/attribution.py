@@ -300,15 +300,33 @@ class SignalAttributionEngine:
                             try:
                                 if isinstance(swing_components, str):
                                     swing_components = json.loads(swing_components)
-                                comp_data = (
-                                    swing_components.get(component) if isinstance(swing_components, dict) else None
-                                )
-                                comp_value = comp_data.get("pts") if isinstance(comp_data, dict) else comp_data
+
+                                if not isinstance(swing_components, dict):
+                                    logger.debug(
+                                        f"[ATTRIBUTION] Swing components for trade {trade_id} has type "
+                                        f"{type(swing_components).__name__} (expected dict after JSON parse). Skipping."
+                                    )
+                                    continue
+
+                                comp_data = swing_components.get(component)
+                                if comp_data is None:
+                                    logger.debug(f"[ATTRIBUTION] Component {component} missing for trade {trade_id}")
+                                    continue
+
+                                if isinstance(comp_data, dict):
+                                    comp_value = comp_data.get("pts")
+                                else:
+                                    logger.debug(
+                                        f"[ATTRIBUTION] Component {component} data has type {type(comp_data).__name__} "
+                                        f"(expected dict). Trade {trade_id} skipped."
+                                    )
+                                    continue
+
                                 if comp_value is not None:
                                     comp_scores.append(float(comp_value))
                                     r_multiples.append(float(exit_r_multiple))
                             except (json.JSONDecodeError, ValueError) as e:
-                                logger.debug(f"Could not extract {component} from trade {trade_id}: {e}")
+                                logger.debug(f"[ATTRIBUTION] Could not extract {component} from trade {trade_id}: {e}")
                                 continue
 
                         # Calculate IC for this component in this regime

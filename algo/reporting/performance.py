@@ -390,7 +390,17 @@ class LivePerformance:
             backtest_sharpe = backtest_metrics.get("sharpe_ratio")
             backtest_wr = backtest_metrics.get("win_rate_pct")
 
-            live_win_rate = live_wr.get("win_rate_pct") if isinstance(live_wr, dict) else live_wr
+            if isinstance(live_wr, dict):
+                live_win_rate = live_wr.get("win_rate_pct")
+            elif live_wr is None:
+                logger.warning("[PERFORMANCE_METRICS] Live win rate data is None - cannot compute live metrics")
+                live_win_rate = None
+            else:
+                logger.warning(
+                    f"[PERFORMANCE_METRICS] Live win rate has unexpected type {type(live_wr).__name__} "
+                    f"(expected dict or None). Treating as unavailable."
+                )
+                live_win_rate = None
             if backtest_sharpe is None or backtest_sharpe == 0:
                 logger.warning(
                     "[PERFORMANCE_METRICS] Backtest Sharpe ratio is missing or zero. "

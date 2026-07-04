@@ -368,14 +368,20 @@ class DailyFinanceReport:
         warnings = []
 
         risk = report.get("risk")
-        var_95 = risk.get("var_95_pct") if risk else None
+        if risk is None:
+            logger.warning(f"[REPORT] Risk metrics missing for {report['date']} - upstream pipeline incomplete")
+            var_95 = None
+            sharpe_ytd = None
+        else:
+            var_95 = risk.get("var_95_pct")
+            sharpe_ytd = risk.get("sharpe_ytd")
+
         if var_95 is None:
             logger.warning(f"VaR 95% unavailable for {report['date']} - not yet computed by pipeline")
             warnings.append("VaR 95% not yet available - check algo_performance_metrics pipeline")
         elif var_95 > 2.0:
             warnings.append(f"⚠️  VaR > 2% ({var_95:.1f}%) - High daily risk")
 
-        sharpe_ytd = risk.get("sharpe_ytd") if risk else None
         if sharpe_ytd is None:
             logger.warning(f"Sharpe YTD unavailable for {report['date']} - cannot assess strategy quality")
             warnings.append("⚠️  Sharpe YTD missing - strategy quality unavailable")
@@ -383,7 +389,11 @@ class DailyFinanceReport:
             warnings.append(f"⚠️  Sharpe < 0.5 ({sharpe_ytd:.2f}) - Strategy struggling")
 
         portfolio = report.get("portfolio")
-        daily_pnl = portfolio.get("daily_pnl_pct") if portfolio else None
+        if portfolio is None:
+            logger.warning(f"[REPORT] Portfolio metrics missing for {report['date']} - upstream pipeline incomplete")
+            daily_pnl = None
+        else:
+            daily_pnl = portfolio.get("daily_pnl_pct")
         if daily_pnl is None:
             logger.critical(f"Daily P&L unavailable for {report['date']} - cannot assess halt threshold")
             warnings.append(
