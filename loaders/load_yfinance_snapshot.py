@@ -66,52 +66,85 @@ class YFinanceSnapshotLoader(OptimalLoader):
             )
 
         # Extract all yfinance metrics into single snapshot
+        pe_ratio = info.get("trailingPE")
+        pb_ratio = info.get("priceToBook")
+        ps_ratio = info.get("priceToSalesTrailing12Months")
+        peg_ratio = info.get("pegRatio")
+        dividend_yield = info.get("dividendYield")
+        fcf_yield = (
+            info["freeCashflow"] / info["marketCap"]
+            if "freeCashflow" in info
+            and "marketCap" in info
+            and info["freeCashflow"] is not None
+            and info["marketCap"] is not None
+            else None
+        )
+        held_percent_insiders = info.get("insidersPercentHeld")
+        held_percent_institutions = info.get("heldPercentInstitutions")
+        short_interest = info.get("shortPercentOfFloat")
+        beta = info.get("beta")
+        fifty_two_week_high = info.get("fiftyTwoWeekHigh")
+        fifty_two_week_low = info.get("fiftyTwoWeekLow")
+        market_cap = info.get("marketCap")
+        sector = info.get("sector")
+        industry = info.get("industry")
+        country = info.get("country")
+        exchange = info.get("exchange")
+        website = info.get("website")
+        long_name = info.get("longName")
+        earnings_dates = info.get("earningsDates")
+        earnings_date = info.get("earningsDate")
+        recommendation_key = info.get("recommendationKey")
+        number_of_analysts = info.get("numberOfAnalystOpinions")
+        analysts_underweight = info.get("numberOfAnalystsWhoUnderweight")
+        analysts_overweight = info.get("numberOfAnalystsWhoOverweight")
+        analysts_hold = info.get("numberOfAnalystsWhoHold")
+
+        critical_fields = {
+            "pe_ratio": pe_ratio,
+            "pb_ratio": pb_ratio,
+            "market_cap": market_cap,
+            "sector": sector,
+            "long_name": long_name,
+        }
+        missing_critical = [k for k, v in critical_fields.items() if v is None]
+
         return [
             {
                 "symbol": symbol,
                 "fetched_at": datetime.now(timezone.utc).isoformat(),
-                # Value metrics (PE, PB, PS, dividend)
-                "pe_ratio": info.get("trailingPE"),
-                "pb_ratio": info.get("priceToBook"),
-                "ps_ratio": info.get("priceToSalesTrailing12Months"),
-                "peg_ratio": info.get("pegRatio"),
-                "dividend_yield": info.get("dividendYield"),
-                "fcf_yield": (
-                    info["freeCashflow"] / info["marketCap"]
-                    if "freeCashflow" in info
-                    and "marketCap" in info
-                    and info["freeCashflow"] is not None
-                    and info["marketCap"] is not None
+                "pe_ratio": pe_ratio,
+                "pb_ratio": pb_ratio,
+                "ps_ratio": ps_ratio,
+                "peg_ratio": peg_ratio,
+                "dividend_yield": dividend_yield,
+                "fcf_yield": fcf_yield,
+                "held_percent_insiders": held_percent_insiders,
+                "held_percent_institutions": held_percent_institutions,
+                "short_interest": short_interest,
+                "beta": beta,
+                "fifty_two_week_high": fifty_two_week_high,
+                "fifty_two_week_low": fifty_two_week_low,
+                "market_cap": market_cap,
+                "sector": sector,
+                "industry": industry,
+                "country": country,
+                "exchange": exchange,
+                "website": website,
+                "long_name": long_name,
+                "earnings_dates": earnings_dates,
+                "earnings_date": earnings_date,
+                "recommendation_key": recommendation_key,
+                "number_of_analysts": number_of_analysts,
+                "analysts_underweight": analysts_underweight,
+                "analysts_overweight": analysts_overweight,
+                "analysts_hold": analysts_hold,
+                "data_available": len(missing_critical) == 0,
+                "unavailable_reason": (
+                    f"missing_critical_fields: {','.join(missing_critical)}"
+                    if missing_critical
                     else None
                 ),
-                # Positioning metrics (institutional/insider holdings, short interest)
-                "held_percent_insiders": info.get("insidersPercentHeld"),
-                "held_percent_institutions": info.get("heldPercentInstitutions"),
-                "short_interest": info.get("shortPercentOfFloat"),
-                # Stability metrics (beta, volatility)
-                "beta": info.get("beta"),
-                "fifty_two_week_high": info.get("fiftyTwoWeekHigh"),
-                "fifty_two_week_low": info.get("fiftyTwoWeekLow"),
-                "market_cap": info.get("marketCap"),
-                # Company profile data (for load_company_profile.py)
-                "sector": info.get("sector"),
-                "industry": info.get("industry"),
-                "country": info.get("country"),
-                "exchange": info.get("exchange"),
-                "website": info.get("website"),
-                "long_name": info.get("longName"),
-                # Earnings data (for load_earnings_history.py, load_earnings_calendar.py)
-                "earnings_dates": info.get("earningsDates"),
-                "earnings_date": info.get("earningsDate"),
-                # Analyst data (for load_analyst_upgrade_downgrade.py, load_analyst_sentiment_analysis.py)
-                "recommendation_key": info.get("recommendationKey"),
-                "number_of_analysts": info.get("numberOfAnalystOpinions"),
-                "analysts_underweight": info.get("numberOfAnalystsWhoUnderweight"),
-                "analysts_overweight": info.get("numberOfAnalystsWhoOverweight"),
-                "analysts_hold": info.get("numberOfAnalystsWhoHold"),
-                # Raw data for debugging
-                "data_available": True,
-                "unavailable_reason": None,
             }
         ]
 
