@@ -134,11 +134,24 @@ def panel_recent_trades(trades: Any) -> Any:
         )
 
     trades_timestamp = None
+    trades_age_hours = None
     if isinstance(trades, dict):
         trades_timestamp = safe_get_field(trades, "timestamp")
         trades_list = safe_get_field(trades, "items")
+        trades_age_hours = trades.get("age_hours")  # Check freshness
     else:
         trades_list = trades if isinstance(trades, list) else []
+
+    # Data freshness warning if stale
+    stale_style = ""
+    if trades_age_hours is not None:
+        try:
+            ah_f = safe_float(trades_age_hours)
+            if ah_f is not None and ah_f > 24:  # Stale if older than 24 hours
+                stale_style = "yellow"  # Will add ⚠ to title
+                logger.warning(f"[TRADES] Trade data stale ({ah_f:.0f}h)")
+        except (ValueError, TypeError):
+            pass
 
     # Filter to closed trades only — open/pending are in the positions panel
     closed_trades = [
@@ -147,10 +160,11 @@ def panel_recent_trades(trades: Any) -> Any:
 
     if not closed_trades:
         age_s = f"  [dim]{fmt_age(trades_timestamp)}[/]" if trades_timestamp is not None else ""
+        stale_indicator = "[yellow]⚠[/] " if stale_style == "yellow" else ""
         return Panel(
             Text("no closed trades yet", style="dim"),
-            title=f"[bold cyan]RECENT TRADES[/]{age_s}  [dim][t] expand[/]",
-            border_style="cyan",
+            title=f"[bold cyan]{stale_indicator}RECENT TRADES[/]{age_s}  [dim][t] expand[/]",
+            border_style="cyan" if stale_style != "yellow" else "yellow",
             padding=(0, 1),
         )
 

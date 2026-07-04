@@ -104,7 +104,25 @@ def panel_sector_compact(srank: Any, pos: Any, port: Any, sec_rot: Any = None, i
     if err is not None:
         return err
 
+    # Data freshness check
+    stale_indicators = []
+    for data_source, name in [(srank, "srank"), (pos, "positions"), (port, "portfolio"), (sec_rot, "sec_rot")]:
+        if data_source and isinstance(data_source, dict):
+            age_hours = data_source.get("age_hours")
+            if age_hours is not None:
+                try:
+                    ah_f = safe_float(age_hours)
+                    if ah_f is not None and ah_f > 24:  # Stale if older than 24 hours
+                        stale_indicators.append(f"{name} stale ({ah_f:.0f}h)")
+                except (ValueError, TypeError):
+                    pass
+
     rows: list[Text | Rule | Table] = []
+
+    # Add stale data warning if present
+    if stale_indicators:
+        logger.warning(f"[SECTORS] Stale data detected: {', '.join(stale_indicators)}")
+        rows.append(Text.from_markup(f"[yellow]⚠ Data stale: {'; '.join(stale_indicators[:2])}[/]"))
 
     # Row 1: Rotation signal
     if sec_rot and not _error_panel("sec_rot", sec_rot, "SECTORS") and safe_get_field(sec_rot, "signal"):

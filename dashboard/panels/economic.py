@@ -234,7 +234,22 @@ def panel_economic_pulse(eco: Any, econ_cal: Any = None) -> Panel:  # noqa: C901
         logger.error(f"Economic pulse: data error detected: {error_msg}")
         return _error_panel("economic pulse", eco, "ECONOMIC INPUTS", border="bright_magenta")
 
+    # Data freshness check
+    stale_warning = ""
+    if isinstance(eco, dict):
+        age_hours = eco.get("age_hours")
+        if age_hours is not None:
+            try:
+                ah_f = safe_float(age_hours)
+                if ah_f is not None and ah_f > 24:  # Stale if older than 24 hours
+                    stale_warning = f" [yellow]⚠ Data {ah_f:.0f}h old[/]"
+                    logger.warning(f"[ECONOMIC] Economic data stale ({ah_f:.0f}h)")
+            except (ValueError, TypeError):
+                pass
+
     rows: list[Any] = []
+    if stale_warning:
+        rows.append(Text.from_markup(stale_warning))
 
     indicators = extract_economic_indicators(eco)
     t10 = safe_float(indicators.get("t10"), default=None)
