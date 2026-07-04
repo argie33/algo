@@ -289,13 +289,22 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
         )
         border = "red"
         title_str = f"[bold red]POSITIONS ⚠ DATA ERROR ({valid_count}/{len(pos_items)} valid)[/]"
-    elif coverage_metrics and coverage_metrics.get("filtered_count", 0) > 0:
-        # Positions were filtered at the API level - display coverage
-        total = coverage_metrics.get("total_count", len(pos_items))
-        valid = coverage_metrics.get("valid_count", valid_count)
-        filtered = coverage_metrics.get("filtered_count", 0)
-        border = "yellow"
-        title_str = f"[bold yellow]POSITIONS ⚠ FILTERED ({valid}/{total} valid, {filtered} filtered)[/]"
+    elif coverage_metrics:
+        # Coverage metrics present - validate required fields before using them
+        if "filtered_count" not in coverage_metrics or "total_count" not in coverage_metrics:
+            logger.error(f"[POSITIONS] Coverage metrics incomplete: {list(coverage_metrics.keys())}")
+            border = "red"
+            title_str = f"[bold red]POSITIONS ⚠ COVERAGE DATA ERROR ({valid_count} positions)[/]"
+        elif coverage_metrics["filtered_count"] > 0:
+            # Positions were filtered at the API level - display coverage with all required fields
+            total = coverage_metrics["total_count"]  # Explicit access
+            valid = coverage_metrics.get("valid_count", valid_count)
+            filtered = coverage_metrics["filtered_count"]  # Explicit access
+            border = "yellow"
+            title_str = f"[bold yellow]POSITIONS ⚠ FILTERED ({valid}/{total} valid, {filtered} filtered)[/]"
+        else:
+            border = "cyan"
+            title_str = f"[bold cyan]POSITIONS ({valid_count})[/]"
     else:
         border = "cyan"
         title_str = f"[bold cyan]POSITIONS ({valid_count})[/]"

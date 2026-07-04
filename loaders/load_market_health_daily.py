@@ -454,8 +454,19 @@ class MarketHealthDailyLoader(OptimalLoader):
         end_str = end.isoformat()
         matched_count = 0
 
-        # Check if data is available
-        if not result.get("data_unavailable", False):
+        # CRITICAL: Check if data is available - fail if marker missing (don't default to False)
+        if "data_unavailable" not in result:
+            logger.error(
+                "[MARKET_HEALTH] Put/call ratio result missing data_unavailable marker. "
+                "Cannot determine if data is available. Data structure invalid."
+            )
+            raise ValueError(
+                "[MARKET_HEALTH] Put/call result missing required data_unavailable marker. "
+                "Result structure: " + str(result)
+            )
+
+        data_is_unavailable = result["data_unavailable"]
+        if not data_is_unavailable:
             today_pc = result.get("put_call_ratio")
             if today_pc is not None and today_pc != 0.0:
                 for m in health_metrics:

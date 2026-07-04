@@ -1546,9 +1546,10 @@ jobs:
       - name: Invalidate CloudFront Cache
         run: |
           DIST_ID="${{ needs.terraform.outputs.cloudfront_distribution_id }}"
-          if [ -z "$DIST_ID" ] || [ "$DIST_ID" = "None" ]; then
-            echo "ERROR: CloudFront distribution ID not found or empty"
-            exit 1
+          if [ -z "$DIST_ID" ] || [ "$DIST_ID" = "None" ] || [ "$DIST_ID" = "null" ]; then
+            echo "[INFO] CloudFront is disabled (cost optimization) — skipping cache invalidation"
+            echo "[INFO] Frontend assets synced to S3, but invalidation not needed"
+            exit 0
           fi
 
           echo "Creating CloudFront cache invalidation for distribution: $DIST_ID"

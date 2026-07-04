@@ -154,8 +154,24 @@ def _calculate_pre_trade_impact(cur: cursor, body: dict[str, Any]) -> Any:
         projected_sector_dollars = current_sector_dollars + actual_dollars
         projected_sector_pct = projected_sector_dollars / portfolio_value * 100
 
-        # Track "Unknown" sector exposure - silently absorbs undefined sectors which masks concentration risk
-        unknown_sector_exposure = sector_exposure.get("Unknown", 0)
+        # CRITICAL: Unknown sector exposure MUST be present (query should COALESCE it).
+        # Fail fast if missing to prevent silent data quality issues.
+        if "Unknown" not in sector_exposure:
+            logger.error("[SECTOR_RISK] Unknown sector exposure missing from query result")
+            return error_response(
+                503,
+                "sector_exposure_incomplete",
+                "Unknown sector exposure missing. Database query incomplete (check COALESCE in SQL).",
+            )
+
+        unknown_sector_exposure = sector_exposure["Unknown"]  # Explicit access, no fallback
+        if not isinstance(unknown_sector_exposure, (int, float)) or unknown_sector_exposure < 0:
+            return error_response(
+                503,
+                "data_corruption",
+                f"Invalid Unknown sector exposure value: {unknown_sector_exposure}",
+            )
+
         unknown_sector_pct = (unknown_sector_exposure / portfolio_value * 100) if portfolio_value > 0 else 0
         if unknown_sector_pct > 10:
             logger.warning(

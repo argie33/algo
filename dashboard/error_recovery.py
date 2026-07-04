@@ -194,13 +194,14 @@ class RenderRecovery:
                     status = self.state.get_recovery_status()
                     logger.error(f"Giving up on render after {self.state.retry_count} attempts")
 
-                # Return last good render if available, else error panel
-                if self.state.last_good_layout:
-                    logger.info(f"Using cached render from {self.state.last_good_time}")
-                    return self.state.last_good_layout, status
-                else:
-                    logger.error("No cached render available - displaying error panel")
-                    return self._create_error_panel(e, status), status
+                # CRITICAL: For finance apps, NEVER return stale cached renders.
+                # Stale position/price/metric data is worse than no data.
+                # Always display error panel to prevent silent use of outdated information.
+                logger.error(
+                    f"Render failed permanently - showing error instead of stale cached render "
+                    f"(cache age: {self.state.last_good_time})"
+                )
+                return self._create_error_panel(e, status), status
 
     def should_retry_data_load(self) -> bool:
         """Check if data reload should be triggered (e.g., in watch mode).
