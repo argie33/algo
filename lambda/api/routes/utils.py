@@ -579,14 +579,14 @@ def execute_with_timeout(
 
                     # Convert tuple results to dicts using column names
                     if rows and isinstance(rows[0], tuple) and col_names:
-                        return [dict(zip(col_names, row)) for row in rows]
+                        return [dict(zip(col_names, row, strict=False)) for row in rows]
                     return list(rows)
                 except (psycopg2.DatabaseError, psycopg2.OperationalError, IndexError) as fallback_err:
                     logger.error(
                         f"[COMPLEX_QUERY_FALLBACK] Regular cursor also failed: "
                         f"{type(fallback_err).__name__}: {fallback_err}"
                     )
-                    raise e  # Re-raise original IndexError
+                    raise e from None  # Re-raise original IndexError
             else:
                 raise e  # Cannot create fallback cursor, re-raise
 
@@ -874,7 +874,7 @@ def safe_row_to_dict(row: Any, col_names: list[str] | None = None) -> dict[str, 
         return row
     if isinstance(row, (list, tuple)):
         if col_names and len(col_names) == len(row):
-            return dict(zip(col_names, row))
+            return dict(zip(col_names, row, strict=False))
         else:
             col_count = len(col_names) if col_names else 0
             row_count = len(row)

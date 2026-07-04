@@ -21,8 +21,8 @@ from .numeric import NumericValidator
 from .schema import SchemaValidator
 
 __all__ = [
-    "DataValidator",
     "CompletenessValidator",
+    "DataValidator",
     "NumericValidator",
     "SchemaValidator",
 ]
