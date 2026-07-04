@@ -420,10 +420,18 @@ def get_pool_status() -> dict[str, Any]:
                 f"Pool status keys: {list(idle_status.keys())}"
             )
 
+    # CRITICAL FIX: Extract validated fields explicitly — validation above ensures they exist
+    idle_count = idle_status.get("idle_connections")
+    if idle_count is None:
+        raise RuntimeError("Pool status validation passed but 'idle_connections' is None — data race or validation logic error")
+    max_idle = idle_status.get("max_idle_sec")
+    if max_idle is None:
+        raise RuntimeError("Pool status validation passed but 'max_idle_sec' is None — data race or validation logic error")
+
     return {
         "semaphore": _pool_semaphore.status(),
-        "idle_connections": idle_status.get("idle_connections", 0),
-        "max_idle_sec": idle_status.get("max_idle_sec", 300),
+        "idle_connections": idle_count,
+        "max_idle_sec": max_idle,
         "max_concurrent_loaders": 10,
         "max_pool_connections": 20,
     }

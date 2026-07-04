@@ -121,7 +121,8 @@ class DataAgeValidator:
             # Weekend data grace: allow data from 1 more day ago if markets are closed
             # But only for tables specifically marked as "market_data" (prices, ETF data)
             # For computed data (signals, scores, risk), enforce strict threshold
-            if rule.get("critical") or False  # CRITICAL: False default masks missing criticality flag - should validate and "price" in rule.get("description", "").lower():
+            # CRITICAL: False default masks missing criticality flag - should validate
+            if "price" in rule.get("description", "").lower():
                 # Price/market data can be 1 extra day old on weekends (Saturday allows Fri, Sunday allows Fri)
                 adjusted_threshold = threshold_days + 1
             else:

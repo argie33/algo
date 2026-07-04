@@ -536,7 +536,14 @@ def _optimize_weights(config: Any, run_date: _date, log_phase_result_fn: Callabl
         logger.error(error_msg)
         raise RuntimeError(error_msg)
 
-    changes = opt_result.get("changes", [])
+    # CRITICAL FIX: Explicit check for changes field instead of empty list default
+    changes = opt_result.get("changes")
+    if changes is None:
+        logger.warning("Weight optimization result missing 'changes' field — defaulting to empty list")
+        changes = []
+    elif not isinstance(changes, list):
+        logger.error(f"Weight optimization 'changes' is not a list: {type(changes)}. Defaulting to empty list.")
+        changes = []
     log_phase_result_fn(
         7,
         "weight_optimization",

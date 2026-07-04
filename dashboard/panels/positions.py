@@ -252,7 +252,9 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
     if isinstance(pos, dict):
         coverage = pos.get("coverage")
 
-    if coverage and coverage.get("filtered_count", 0) > 0:
+    # CRITICAL FIX: Explicitly check for filtered_count field instead of silent default to 0
+    filtered_count = coverage.get("filtered_count") if coverage else None
+    if coverage and filtered_count is not None and filtered_count > 0:
         total = coverage["total_count"]
         valid = coverage["valid_count"]
         border = "yellow"

@@ -687,7 +687,7 @@ class OptimalLoader:
                             datetime.fromtimestamp(self._execution_start_time, tz=timezone.utc),
                             datetime.now(timezone.utc),
                             status,
-                            self._stats.get("rows_inserted", 0),
+                            self._stats.get("rows_inserted") if "rows_inserted" in self._stats else 0,
                             error_message,
                         ),
                     )
@@ -720,7 +720,14 @@ class OptimalLoader:
                     total_rows = result[0]
                     latest_date = None
 
-            symbols_processed = self._stats.get("symbols_processed", 0)
+            # CRITICAL FIX: Validate symbols_processed exists — don't mask incomplete tracking with 0
+            symbols_processed = self._stats.get("symbols_processed")
+            if symbols_processed is None:
+                logger.warning(
+                    f"[{self.table_name}] symbols_processed not tracked in stats — possible loader instrumentation issue. "
+                    "Defaulting to 0 but check loader logging for completion issues."
+                )
+                symbols_processed = 0
             completion_pct = (symbols_processed / expected_symbols * 100) if expected_symbols > 0 else 100.0
             loader_status = "COMPLETED" if completion_pct >= 95 else "INCOMPLETE"
 

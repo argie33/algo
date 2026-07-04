@@ -33,6 +33,9 @@ class APIResponseValidator:
     def sanitize_response(data: Any, path: str = "root") -> Any:
         """Recursively sanitize response data, filtering nulls from lists while preserving them in dicts.
 
+        CRITICAL CHANGE: Now logs when array items are filtered (None values removed).
+        This prevents silent data loss where None tuples are removed without indication.
+
         Args:
             data: Response data to sanitize (dict, list, scalar, or None)
             path: Current path in the data structure (for logging)
@@ -52,11 +55,22 @@ class APIResponseValidator:
 
         elif isinstance(data, list):
             sanitized_list: list[Any] = []
+            filtered_count = 0
             for i, item in enumerate(data):
                 new_path = f"{path}[{i}]"
                 if item is None:
+                    filtered_count += 1
                     continue  # Filter out None items from arrays
                 sanitized_list.append(APIResponseValidator.sanitize_response(item, new_path))
+
+            # GOVERNANCE: Log when data is silently filtered so operators see completeness issues
+            if filtered_count > 0:
+                logger.warning(
+                    f"[DATA_INCOMPLETE] Array at {path} had {filtered_count} None items filtered out. "
+                    f"Original length: {len(data)}, After filtering: {len(sanitized_list)}. "
+                    f"Consider marking response as data_unavailable if filtering indicates missing upstream data."
+                )
+
             return sanitized_list
 
         else:

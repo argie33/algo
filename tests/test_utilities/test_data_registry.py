@@ -87,7 +87,16 @@ class TestDataRegistry:
         Returns:
             List of test-only entry point names
         """
-        return [name for name, details in TestDataRegistry.TEST_ENTRY_POINTS.items() if details.get("test_only", False)]
+        # CRITICAL FIX: Explicit check for test_only field instead of False default
+        result = []
+        for name, details in TestDataRegistry.TEST_ENTRY_POINTS.items():
+            test_only = details.get("test_only")
+            if test_only is None:
+                # Field missing — assume not test-only by default
+                continue
+            if test_only:
+                result.append(name)
+        return result
 
     @staticmethod
     def get_entry_point_markers(name: str) -> list[str]:
@@ -102,7 +111,15 @@ class TestDataRegistry:
         entry = TestDataRegistry.TEST_ENTRY_POINTS.get(name)
         if entry is None:
             return []
-        return entry.get("markers", [])
+        # CRITICAL FIX: Explicit check for markers field instead of empty list default
+        markers = entry.get("markers")
+        if markers is None:
+            return []
+        elif not isinstance(markers, list):
+            import logging
+            logging.getLogger(__name__).warning(f"Entry point {name} markers field is not a list: {type(markers)}")
+            return []
+        return markers
 
     @staticmethod
     def get_all_markers() -> set[str]:
@@ -113,7 +130,15 @@ class TestDataRegistry:
         """
         all_markers = set()
         for entry in TestDataRegistry.TEST_ENTRY_POINTS.values():
-            all_markers.update(entry.get("markers", []))
+            # CRITICAL FIX: Explicit check for markers field instead of empty list default
+            markers = entry.get("markers")
+            if markers is None:
+                continue
+            elif isinstance(markers, list):
+                all_markers.update(markers)
+            else:
+                import logging
+                logging.getLogger(__name__).warning(f"Entry markers field is not a list: {type(markers)}")
         return all_markers
 
     @staticmethod

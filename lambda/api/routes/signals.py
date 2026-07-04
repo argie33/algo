@@ -81,10 +81,14 @@ def handle(
             return _get_signals_stocks(cur, limit, timeframe, symbol_filter)
         elif path == "/api/signals/etf":
             # Extract and validate limit parameter (optional, default 500)
-            limit_list = params.get("limit", [])
-            if not isinstance(limit_list, list):
+            # CRITICAL FIX: Don't mask missing parameters with empty list — explicit None check
+            limit_list = params.get("limit")
+            if limit_list is None:
+                limit_str = "500"
+            elif not isinstance(limit_list, list):
                 return error_response(400, "bad_request", "limit parameter must be a list")
-            limit_str = limit_list[0] if limit_list else "500"
+            else:
+                limit_str = limit_list[0] if limit_list else "500"
             try:
                 limit = safe_limit(limit_str, max_val=10000)
             except (ValueError, TypeError) as e:

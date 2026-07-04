@@ -215,9 +215,13 @@ def _create_manual_trade(cur: cursor, body: dict[str, Any], idempotency_key: str
         if idempotency_key:
             signature = _compute_request_signature(idempotency_key, body)
             cache_check = _check_idempotency(cur, signature)
-            if cache_check.get("cached_response", False):
+            # CRITICAL FIX: Explicit check for cached_response field — don't mask missing cache status with False
+            has_cached = cache_check.get("cached_response")
+            if has_cached is True:
                 logger.info(f"Returning cached response for idempotent request: {idempotency_key}")
                 return cache_check
+            elif has_cached is None:
+                logger.warning(f"Idempotency check returned None for cached_response field — cache status unknown for {idempotency_key}")
 
         try:
             req = ManualTradeRequest(**body)

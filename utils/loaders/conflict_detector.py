@@ -100,7 +100,10 @@ class LoaderConflictDetector:
                     name = loader.get("table_name")
                     if name is None:
                         raise ValueError("Loader record missing table_name — loader status tracking corrupted")
-                    table_counts[name] = table_counts.get(name, 0) + 1
+                    # Explicit initialization for counter tracking (fail-fast if key missing)
+                    if name not in table_counts:
+                        table_counts[name] = 0
+                    table_counts[name] = table_counts[name] + 1
 
                 conflicts = [name for name, count in table_counts.items() if count > 1]
 

@@ -250,7 +250,16 @@ def _wrap_response(response: Any) -> Any:
             pagination = response.get("pagination")
             total = pagination.get("total") if pagination and isinstance(pagination, dict) else None
             if total is None:
-                total = len(response.get("items", []))
+                # CRITICAL FIX: Explicit check for items field instead of silent empty list default
+                items = response.get("items")
+                if items is None:
+                    logger.warning("Response missing 'items' field — cannot compute total count. Defaulting to 0.")
+                    total = 0
+                elif isinstance(items, list):
+                    total = len(items)
+                else:
+                    logger.error(f"Response 'items' field is not a list: {type(items)}. Defaulting total to 0.")
+                    total = 0
             payload["total"] = total
 
         wrapped = {"statusCode": 200, "data": payload}

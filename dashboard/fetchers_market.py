@@ -253,7 +253,12 @@ def fetch_market(c: None) -> dict[str, Any]:
             result["fed_unavailable"] = True
 
         # Put/call ratio is optional enrichment data (non-critical for regime detection)
-        put_call_unavailable = market_health.get("put_call_ratio_data_unavailable", False)
+        # CRITICAL FIX: Explicit check for data_unavailable flag instead of False default
+        put_call_unavailable = market_health.get("put_call_ratio_data_unavailable")
+        if put_call_unavailable is None:
+            # Field missing — assume data availability unknown, try to fetch it
+            put_call_unavailable = False
+            logger.debug("Optional market_health field 'put_call_ratio_data_unavailable' missing — will attempt to fetch")
         if not put_call_unavailable:
             pcr_val = market_health.get("put_call_ratio")
             if pcr_val is not None:

@@ -351,6 +351,7 @@ def _get_algo_performance(cur: cursor) -> Any:  # noqa: C901
             if snap_rows:
                 equity_vals = []
                 missing_portfolio_values = []
+                missing_return_pcts = []
                 for i, r in enumerate(snap_rows):
                     if "total_portfolio_value" not in r:
                         raise RuntimeError(
@@ -364,24 +365,36 @@ def _get_algo_performance(cur: cursor) -> Any:  # noqa: C901
                     equity_vals.append(float(pv))
 
                 if missing_portfolio_values:
-                    logger.warning(
+                    error_msg = (
                         f"[METRICS] {len(missing_portfolio_values)} snapshots have NULL total_portfolio_value: "
                         f"{missing_portfolio_values[:3]}{'...' if len(missing_portfolio_values) > 3 else ''}. "
-                        "Equity curve will have gaps."
+                        "Cannot compute equity curve with missing portfolio values."
                     )
+                    logger.error(error_msg)
+                    return error_response(503, "incomplete_snapshot_data", error_msg)
 
-                # Last 10 in chronological order; panel takes [-5:] for the 5 most recent
-                recent_rets = [
-                    [
-                        (
-                            r["snapshot_date"].isoformat()
-                            if hasattr(r["snapshot_date"], "isoformat")
-                            else str(r["snapshot_date"])
-                        ),
-                        (float(r["daily_return_pct"]) if r.get("daily_return_pct") is not None else None),
-                    ]
-                    for r in snap_rows[-10:]
-                ]
+                # FAIL-FAST: daily_return_pct is REQUIRED for all recent returns display
+                recent_rets = []
+                for r in snap_rows[-10:]:
+                    daily_ret = r.get("daily_return_pct")
+                    if daily_ret is None:
+                        snap_date = r.get("snapshot_date", "unknown")
+                        missing_return_pcts.append(snap_date)
+                        continue
+                    date_str = (
+                        r["snapshot_date"].isoformat()
+                        if hasattr(r["snapshot_date"], "isoformat")
+                        else str(r["snapshot_date"])
+                    )
+                    recent_rets.append([date_str, float(daily_ret)])
+
+                if missing_return_pcts:
+                    error_msg = (
+                        f"[METRICS] {len(missing_return_pcts)} recent snapshots missing daily_return_pct: "
+                        f"{missing_return_pcts}. Cannot display return history without complete data."
+                    )
+                    logger.error(error_msg)
+                    return error_response(503, "incomplete_return_data", error_msg)
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as eq_err:
             logger.error(f"CRITICAL: Could not fetch equity sparkline data for performance: {eq_err}")
             return error_response(

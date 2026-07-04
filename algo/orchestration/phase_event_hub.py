@@ -165,18 +165,31 @@ class PhaseEventHub:
             self.event_history.pop(0)
 
         # Invoke all subscribers for this event type
-        for callback in self.subscribers.get(event.event_type, []):
-            try:
-                callback(event)
-            except Exception as e:
-                logger.error(f"[EVENT_HUB] Subscriber failed for {event.event_type}: {e}")
+        # CRITICAL FIX: Explicit checks for subscriber lists instead of empty defaults
+        type_subscribers = self.subscribers.get(event.event_type)
+        if type_subscribers is None:
+            logger.debug(f"[EVENT_HUB] No subscribers registered for {event.event_type}")
+        elif isinstance(type_subscribers, list):
+            for callback in type_subscribers:
+                try:
+                    callback(event)
+                except Exception as e:
+                    logger.error(f"[EVENT_HUB] Subscriber failed for {event.event_type}: {e}")
+        else:
+            logger.warning(f"[EVENT_HUB] Subscriber list for {event.event_type} is not a list: {type(type_subscribers)}")
 
         # Also invoke any "wildcard" subscribers listening to all events
-        for callback in self.subscribers.get("*", []):
-            try:
-                callback(event)
-            except Exception as e:
-                logger.error(f"[EVENT_HUB] Wildcard subscriber failed: {e}")
+        wildcard_subscribers = self.subscribers.get("*")
+        if wildcard_subscribers is None:
+            logger.debug("[EVENT_HUB] No wildcard subscribers registered")
+        elif isinstance(wildcard_subscribers, list):
+            for callback in wildcard_subscribers:
+                try:
+                    callback(event)
+                except Exception as e:
+                    logger.error(f"[EVENT_HUB] Wildcard subscriber failed: {e}")
+        else:
+            logger.warning(f"[EVENT_HUB] Wildcard subscriber list is not a list: {type(wildcard_subscribers)}")
 
     def get_history(self, event_type: str | None = None, phase_num: int | str | None = None) -> list[PhaseEvent]:
         """Get event history, optionally filtered by type or phase.

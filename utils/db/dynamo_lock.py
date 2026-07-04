@@ -212,7 +212,15 @@ class DynamoDBLockManager:
             else:
                 # Scan and clean all expired locks
                 response = self.table.scan()
-                for item in response.get("Items", []):
+                # CRITICAL FIX: Explicit check for Items field instead of empty list default
+                items = response.get("Items")
+                if items is None:
+                    logger.warning("[LOCK_CLEANUP] DynamoDB scan returned no Items field — treating as empty")
+                    items = []
+                elif not isinstance(items, list):
+                    logger.error(f"[LOCK_CLEANUP] DynamoDB Items field is not a list: {type(items)} — skipping cleanup")
+                    items = []
+                for item in items:
                     if item.get("expires_at", "") < cutoff_time:
                         self.table.delete_item(Key={"lock_key": item["lock_key"]})
                         logger.info(f"[LOCK_CLEANUP] Deleted expired lock {item['lock_key']}")

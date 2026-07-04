@@ -150,14 +150,29 @@ def test_stale_cache_not_cached_in_memory():
 
     # Verify we got FRESH data (fail-fast: markets endpoint requires fresh data)
     assert result2.get("_error") is None, "Should NOT have error on successful API call"
-    assert result2.get("current", {}).get("spy_close") == 505.5, "Should have NEW SPY value (505.5)"
-    assert result2.get("current", {}).get("regime") == "confirmed_uptrend", "Should have NEW regime"
+
+    # CRITICAL FIX: Explicit nested checks instead of dict default fallback
+    current_data = result2.get("current")
+    if current_data is None:
+        raise AssertionError("Should have NEW 'current' field with market data, but got None")
+    if not isinstance(current_data, dict):
+        raise AssertionError(f"'current' field must be dict, got {type(current_data)}")
+
+    spy_close = current_data.get("spy_close")
+    assert spy_close == 505.5, f"Should have NEW SPY value (505.5), got {spy_close}"
+
+    regime = current_data.get("regime")
+    assert regime == "confirmed_uptrend", f"Should have NEW regime (confirmed_uptrend), got {regime}"
+
     assert call_count == 1, f"Should have called API for fresh data, got {call_count}"
 
+    # For logging, safely extract spy_close again
+    current_for_log = result2.get("current")
+    spy_for_log = current_for_log.get("spy_close") if current_for_log else "unknown"
     print(
         "[OK] Fail-fast markets caching correctly handles API recovery:\n"
         f"  Step 1: 503 -> returned error (fail-fast, no stale cache fallback)\n"
-        f"  Step 2: API recovered -> returned fresh data with SPY={result2.get('current', {}).get('spy_close')}\n"
+        f"  Step 2: API recovered -> returned fresh data with SPY={spy_for_log}\n"
         "  Key: Error was NOT cached in _markets_cache, allowing next call to retry and recover"
     )
 

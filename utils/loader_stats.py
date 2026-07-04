@@ -33,7 +33,10 @@ class LoaderStats:
     def add_source(self, source: str, count: int = 1) -> None:
         """Add to source distribution."""
         with self._lock:
-            self._stats["source_distribution"][source] = self._stats["source_distribution"].get(source, 0) + count
+            # Explicit initialization for counter tracking
+            if source not in self._stats["source_distribution"]:
+                self._stats["source_distribution"][source] = 0
+            self._stats["source_distribution"][source] = self._stats["source_distribution"][source] + count
 
     def set(self, key: str, value: Any) -> None:
         """Set a stat value."""

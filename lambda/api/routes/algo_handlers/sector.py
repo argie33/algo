@@ -155,6 +155,20 @@ def _get_algo_evaluate(cur: cursor) -> Any:
                 },
             )
 
+        # FAIL-FAST: Score range metrics are REQUIRED for signal evaluation
+        score_range_fields = ["min_score", "median_score", "avg_score", "top_score"]
+        missing_scores = [f for f in score_range_fields if sig_dict.get(f) is None]
+        if missing_scores:
+            logger.error(f"Signal score metrics incomplete: missing {missing_scores}")
+            return json_response(
+                503,
+                {
+                    "stage": "incomplete_data",
+                    "_error": f"Signal evaluation incomplete: score metrics unavailable ({', '.join(missing_scores)}). "
+                    "Signal evaluation requires complete score distribution data.",
+                },
+            )
+
         return json_response(
             200,
             {
@@ -165,12 +179,10 @@ def _get_algo_evaluate(cur: cursor) -> Any:
                     "excellent_sqs_70": sig_dict["candidates_excellent"],
                     "exceptional_sqs_80": sig_dict["candidates_exceptional"],
                     "score_range": {
-                        "min": (float(sig_dict["min_score"]) if sig_dict.get("min_score") is not None else None),
-                        "median": (
-                            float(sig_dict["median_score"]) if sig_dict.get("median_score") is not None else None
-                        ),
-                        "average": (float(sig_dict["avg_score"]) if sig_dict.get("avg_score") is not None else None),
-                        "max": (float(sig_dict["top_score"]) if sig_dict.get("top_score") is not None else None),
+                        "min": float(sig_dict["min_score"]),
+                        "median": float(sig_dict["median_score"]),
+                        "average": float(sig_dict["avg_score"]),
+                        "max": float(sig_dict["top_score"]),
                     },
                 },
                 "constraints": {

@@ -88,7 +88,13 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
 
         # Parse event payload
         source = event.get("source", "eventbridge")
-        is_test = event.get("test", False)
+        # CRITICAL FIX: Explicit check for test flag instead of False default
+        is_test = event.get("test")
+        if is_test is None:
+            is_test = False
+        elif not isinstance(is_test, bool):
+            logger.warning(f"Event 'test' field is not a boolean: {type(is_test)}, defaulting to False")
+            is_test = bool(is_test)
 
         # ORCHESTRATOR_DRY_RUN env var (set by Terraform) is the baseline.
         # Event payload 'dry_run' key overrides it for manual invocations.
@@ -166,11 +172,15 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
 
                 secret_str = get_secret("algo/orchestrator", default="{}")
                 orch_state = _json.loads(secret_str)
-                if orch_state.get("orchestrator_dry_run", False) in (True, "true", "1"):
+                # CRITICAL FIX: Explicit check for orchestrator_dry_run field
+                dry_run_flag = orch_state.get("orchestrator_dry_run")
+                if dry_run_flag is not None and dry_run_flag in (True, "true", "1"):
                     logger.warning(
                         "[F-02] Circuit breaker halted trading — orchestrator_dry_run=true in Secrets Manager"
                     )
                     dry_run = True
+                elif dry_run_flag is not None and dry_run_flag not in (False, "false", "0", None):
+                    logger.warning(f"[F-02] Unexpected orchestrator_dry_run value: {dry_run_flag}, treating as False")
             except (json.JSONDecodeError, ValueError) as _cb_err:
                 logger.error(
                     f"[F-02] CRITICAL: Could not check circuit breaker state: {_cb_err} — halting trading for safety"

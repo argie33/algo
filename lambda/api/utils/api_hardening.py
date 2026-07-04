@@ -147,4 +147,10 @@ def is_critical_data_missing(data: Any) -> bool:
         return False
 
     # Either error marker or data_unavailable flag means critical data is missing
-    return "_error" in data or data.get("data_unavailable", False)
+    # CRITICAL FIX: Explicit check for data_unavailable field instead of False default
+    if "_error" in data:
+        return True
+    data_unavailable = data.get("data_unavailable")
+    if data_unavailable is None:
+        return False  # Field missing means data is available (explicit absence != unavailability)
+    return bool(data_unavailable)

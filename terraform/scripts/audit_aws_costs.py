@@ -50,7 +50,10 @@ print("\n🗄️  RDS SNAPSHOTS")
 print("-" * 70)
 try:
     response = rds.describe_db_snapshots()
-    snapshots = response.get('DBSnapshots', [])
+    # CRITICAL FIX: Explicit check for DBSnapshots field
+    snapshots = response.get('DBSnapshots')
+    if snapshots is None:
+        snapshots = []
 
     if not snapshots:
         print("  ✅ No RDS snapshots")
@@ -73,7 +76,10 @@ print("\n🪣 S3 BUCKETS")
 print("-" * 70)
 try:
     response = s3.list_buckets()
-    buckets = response.get('Buckets', [])
+    # CRITICAL FIX: Explicit check for Buckets field
+    buckets = response.get('Buckets')
+    if buckets is None:
+        buckets = []
 
     if not buckets:
         print("  ✅ No S3 buckets")
@@ -84,7 +90,11 @@ try:
             try:
                 # List objects
                 obj_response = s3.list_objects_v2(Bucket=name, MaxKeys=1000)
-                size = sum([obj.get('Size', 0) for obj in obj_response.get('Contents', [])])
+                # CRITICAL FIX: Explicit check for Contents field
+                contents = obj_response.get('Contents')
+                if contents is None:
+                    contents = []
+                size = sum([obj.get('Size') if obj.get('Size') is not None else 0 for obj in contents])
                 total_size += size
                 size_mb = size / (1024*1024)
                 print(f"  📦 {name}: {size_mb:.1f}MB")
@@ -100,7 +110,10 @@ print("\n⚡ LAMBDA FUNCTIONS")
 print("-" * 70)
 try:
     response = lambda_client.list_functions()
-    functions = response.get('Functions', [])
+    # CRITICAL FIX: Explicit check for Functions field
+    functions = response.get('Functions')
+    if functions is None:
+        functions = []
 
     if not functions:
         print("  ✅ No Lambda functions")
@@ -118,7 +131,10 @@ print("\n📋 CLOUDWATCH LOGS")
 print("-" * 70)
 try:
     response = logs.describe_log_groups(limit=50)
-    log_groups = response.get('logGroups', [])
+    # CRITICAL FIX: Explicit check for logGroups field
+    log_groups = response.get('logGroups')
+    if log_groups is None:
+        log_groups = []
 
     if not log_groups:
         print("  ✅ No CloudWatch log groups")
