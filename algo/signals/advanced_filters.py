@@ -493,8 +493,7 @@ class AdvancedFilters:
         +1 pt:  Minervini power trend (20%+ in 21 days)
         Capped at 5.
 
-        Returns 0 score if setup data unavailable (graceful degradation).
-        Raises on data retrieval errors.
+        Raises ValueError if setup data unavailable (fail-fast). No graceful degradation.
         """
         try:
             if self._signal_api is None:
@@ -637,8 +636,7 @@ class AdvancedFilters:
     def _earnings_quality_score(self, symbol: str, cur: Any) -> tuple[float, float]:
         """Compute earnings quality score from earnings_metrics.
 
-        Returns 0 score if data unavailable (graceful degradation).
-        Raises on data retrieval errors.
+        Raises ValueError if earnings metrics missing (fail-fast). No graceful degradation.
         """
         cur.execute(
             """
