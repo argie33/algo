@@ -208,61 +208,43 @@ class SignalsDailyLoader(OptimalLoader):
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:  # noqa: C901
         """Generate signals from technical data."""
-        from datetime import datetime, timezone
+        # Validate batch context was properly initialized
+        if not self._batch_context or "end_date" not in self._batch_context:
+            raise RuntimeError(
+                "[BUY_SELL_DAILY] Batch context not properly initialized. "
+                "_prepare_batch_context() must be called before fetch_incremental(). "
+                "This indicates run() was called but batch context setup failed or was skipped."
+            )
+        end = self._batch_context["end_date"]
 
-        from algo.infrastructure import MarketCalendar
-
-        # ROOT CAUSE #4 FIX: Use cached end_date from batch context (computed once for all symbols)
-        # instead of recomputing and re-verifying trading day for each symbol.
-        # This eliminates per-symbol timezone and trading day calculations.
-        if self._batch_context and "end_date" in self._batch_context:
-            end = self._batch_context["end_date"]
-        else:
-            # Fallback if batch context unavailable
-            now_utc = datetime.now(timezone.utc)
-            now_et = now_utc.astimezone(EASTERN_TZ)
-            end = now_et.date()
-            while end > date(2020, 1, 1) and not MarketCalendar.is_trading_day(end):
-                end = end - timedelta(days=1)
-
-        # On ECS restart the in-memory watermark is empty, so since=None.
         # ISSUE #9 FIX: Look up symbol watermark from pre-cached batch_context
         # (populated at startup with all symbols' watermarks in one query).
-        # Fallback to database query only on cache miss (for newly added symbols).
-        # This prevents stalls on ECS restart when fetching per-symbol watermarks.
-        #
-        # BUGFIX: Use per-symbol watermark, not global watermark. Different symbols generate signals
-        # on different schedules - some may have max_date=2026-06-03, others 2026-06-17.
-        # Using global watermark caused symbols like AAPL to be skipped even when behind.
+        # Database fallback only for newly added symbols not in pre-cached watermarks.
+        # Prevents stalls on ECS restart when fetching per-symbol watermarks.
         if since is None:
             try:
-                # Try cache first (populated in _prepare_batch_context)
-                if not self._batch_context:
-                    logger.debug(
-                        f"[WATERMARK] {symbol}: Batch context not initialized - "
-                        "falling back to database query for watermark"
+                # CRITICAL: Validate symbol_watermarks exists in batch_context
+                symbol_watermarks = self._batch_context.get("symbol_watermarks")
+                if symbol_watermarks is None:
+                    raise RuntimeError(
+                        f"[WATERMARK] {symbol}: 'symbol_watermarks' missing from batch context. "
+                        "_prepare_batch_context() must populate symbol_watermarks dict. "
+                        "This indicates batch context initialization failed or was incomplete."
                     )
-                    symbol_watermarks = None
-                else:
-                    symbol_watermarks = self._batch_context.get("symbol_watermarks")
-                    if symbol_watermarks is None:
-                        logger.debug(
-                            f"[WATERMARK] {symbol}: 'symbol_watermarks' missing from batch context - "
-                            "falling back to database query"
-                        )
 
                 max_date = None
-                if symbol_watermarks is not None and isinstance(symbol_watermarks, dict):
-                    max_date = symbol_watermarks.get(symbol)
-                    if max_date is None:
-                        logger.debug(
-                            f"[WATERMARK] {symbol}: Not found in cached symbol_watermarks - "
-                            "likely newly added symbol, querying database"
-                        )
+                if not isinstance(symbol_watermarks, dict):
+                    raise TypeError(
+                        f"[WATERMARK] symbol_watermarks must be dict, got {type(symbol_watermarks).__name__}. "
+                        "Batch context corrupted."
+                    )
 
-                # Cache miss: query database as fallback
+                # Lookup in pre-cached watermarks
+                max_date = symbol_watermarks.get(symbol)
                 if max_date is None:
-                    logger.debug(f"[WATERMARK] {symbol}: Querying database for watermark (cache miss)")
+                    # Cache miss: symbol not in pre-cached watermarks (likely newly added)
+                    # Query database as legitimate fallback for new symbols
+                    logger.debug(f"[WATERMARK] {symbol}: Not in cached watermarks - querying database for new symbol")
                     with DatabaseContext("read") as cur:
                         cur.execute(
                             "SELECT MAX(date) FROM buy_sell_daily WHERE symbol = %s",

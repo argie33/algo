@@ -544,11 +544,15 @@ class SignalQualityScoresLoader(OptimalLoader):
             )
 
         try:
-            # All data sources are optional with graceful degradation
-            if not vcp_rows:
-                logger.debug(f"[QUALITY_SCORES] VCP patterns unavailable for {symbol} - vcp_pattern_score=0")
-            if not positioning_data:
-                logger.debug(f"[QUALITY_SCORES] Positioning unavailable for {symbol} - institutional_ownership_score=0")
+            # Track which optional data sources are available
+            # If unavailable, components will be None instead of silently defaulting to 0
+            has_vcp_data = bool(vcp_rows)
+            has_positioning_data = bool(positioning_data)
+
+            if not has_vcp_data:
+                logger.warning(f"[QUALITY_SCORES] VCP patterns unavailable for {symbol} - vcp_pattern_score will be None")
+            if not has_positioning_data:
+                logger.debug(f"[QUALITY_SCORES] Positioning unavailable for {symbol} - institutional_ownership_score will be None")
 
             bs_df = pd.DataFrame(buy_sell_rows)
             if bs_df.empty:
@@ -639,8 +643,8 @@ class SignalQualityScoresLoader(OptimalLoader):
                             f"This field is required for accurate signal quality scoring. Raw error: {e}"
                         ) from e
 
-                # Institutional ownership score (0-10)
-                institutional_ownership_score = 0
+                # Institutional ownership score (0-10) — None if positioning data unavailable
+                institutional_ownership_score = None
                 if institutional_ownership is not None and not pd.isna(institutional_ownership):
                     if institutional_ownership >= 60:
                         institutional_ownership_score = 10
@@ -668,8 +672,8 @@ class SignalQualityScoresLoader(OptimalLoader):
                             f"This field is required for market stage analysis. Raw error: {e}"
                         ) from e
 
-                # VCP pattern score (0-10)
-                vcp_pattern_score = 0
+                # VCP pattern score (0-10) — None if VCP data unavailable
+                vcp_pattern_score = None
                 vcp_strength = row["vcp_strength"] if "vcp_strength" in row.index else None
                 if vcp_strength is not None and not pd.isna(vcp_strength):
                     try:
@@ -693,17 +697,22 @@ class SignalQualityScoresLoader(OptimalLoader):
                 distribution_days_score = None
                 earnings_proximity_score = None
 
-                # Composite score: only include components with real data
-                score_components = [
-                    base_quality_score,
-                    volume_confirmation_score,
-                    trend_template_score,
-                    distance_from_high_score,
-                    institutional_ownership_score,
-                    market_stage_score,
-                    vcp_pattern_score,
-                ]
-                composite_sqs = sum(score_components)
+                # Composite score: only include components with real data (non-None values)
+                all_components = {
+                    "base_quality": base_quality_score,
+                    "volume_confirmation": volume_confirmation_score,
+                    "trend_template": trend_template_score,
+                    "distance_from_high": distance_from_high_score,
+                    "institutional_ownership": institutional_ownership_score,
+                    "market_stage": market_stage_score,
+                    "vcp_pattern": vcp_pattern_score,
+                }
+                real_components = [v for v in all_components.values() if v is not None]
+                unavailable_components = {k: v for k, v in all_components.items() if v is None}
+
+                composite_sqs = sum(real_components) if real_components else 0
+                data_completeness = min(99.99, round((len(real_components) / 7.0) * 100, 2))
+
                 unclamped_composite = int(composite_sqs)
                 if unclamped_composite > 100:
                     log_date = row["date"] if "date" in row.index else "unknown"
@@ -723,10 +732,10 @@ class SignalQualityScoresLoader(OptimalLoader):
                     tech_age = (signal_date - max_tech_date.date()).days if max_tech_date is not None else None
                     trend_age = (signal_date - max_trend_date.date()).days if max_trend_date is not None else None
 
-                    # CRITICAL: distribution_days_score and earnings_proximity_score are intentionally None
-                    # because upstream loaders have not provided these data sources. Do NOT convert None to
-                    # int() — that will raise TypeError and mask the root cause (missing upstream data).
-                    # Instead, leave as None in output so consuming systems can detect data unavailability.
+                    # CRITICAL: None values indicate missing data. Do NOT convert to 0.
+                    # distribution_days_score and earnings_proximity_score are intentionally None
+                    # because upstream loaders have not provided these data sources.
+                    # Other components (institutional_ownership, vcp_pattern) are None if upstream data unavailable.
                     results.append(
                         {
                             "symbol": symbol,
@@ -735,12 +744,14 @@ class SignalQualityScoresLoader(OptimalLoader):
                             "volume_confirmation_score": int(volume_confirmation_score),
                             "trend_template_score": int(trend_template_score),
                             "distance_from_high_score": int(distance_from_high_score),
-                            "institutional_ownership_score": int(institutional_ownership_score),
+                            "institutional_ownership_score": institutional_ownership_score,  # int or None
                             "market_stage_score": int(market_stage_score),
-                            "vcp_pattern_score": int(vcp_pattern_score),
+                            "vcp_pattern_score": vcp_pattern_score,  # int or None
                             "distribution_days_score": distribution_days_score,  # None (data unavailable)
                             "earnings_proximity_score": earnings_proximity_score,  # None (data unavailable)
                             "composite_sqs": composite_sqs,
+                            "data_completeness": data_completeness,  # % of components available
+                            "unavailable_components": list(unavailable_components.keys()),  # Track which are missing
                             "buy_sell_daily_age_days": bs_age,
                             "technical_data_age_days": tech_age,
                             "trend_template_age_days": trend_age,

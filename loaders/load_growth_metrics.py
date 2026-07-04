@@ -162,7 +162,12 @@ class GrowthMetricsLoader(SecFinancialsLoader):
                     else:
                         metrics[f"revenue_growth_{lookback}y"] = None
                         metrics[f"revenue_growth_{lookback}y_unavailable_reason"] = "insufficient_revenue_data"
-                except (TypeError, ValueError):
+                except (TypeError, ValueError) as e:
+                    logger.error(
+                        f"[GROWTH_METRICS] {symbol}: Revenue growth calculation failed for {lookback}y lookback. "
+                        f"Error: {e}. Latest revenue: {latest_rev}, previous: {prev_rev}. "
+                        f"This indicates a data type issue, not just missing upstream data."
+                    )
                     metrics[f"revenue_growth_{lookback}y"] = None
                     metrics[f"revenue_growth_{lookback}y_unavailable_reason"] = "revenue_calculation_error"
             else:
@@ -185,7 +190,12 @@ class GrowthMetricsLoader(SecFinancialsLoader):
                     else:
                         metrics[f"eps_growth_{lookback}y"] = None
                         metrics[f"eps_growth_{lookback}y_unavailable_reason"] = "insufficient_eps_data"
-                except (TypeError, ValueError):
+                except (TypeError, ValueError) as e:
+                    logger.error(
+                        f"[GROWTH_METRICS] {symbol}: EPS growth calculation failed for {lookback}y lookback. "
+                        f"Error: {e}. Latest EPS: {latest_eps}, previous: {prev_eps}. "
+                        f"This indicates a data type issue, not just missing upstream data."
+                    )
                     metrics[f"eps_growth_{lookback}y"] = None
                     metrics[f"eps_growth_{lookback}y_unavailable_reason"] = "eps_calculation_error"
             else:
