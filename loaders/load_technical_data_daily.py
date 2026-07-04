@@ -103,6 +103,13 @@ class VectorizedTechnicalLoader:
 
             logger.info(f"Computed indicators: {len(indicators_df)} rows")
 
+            if indicators_df.empty:
+                raise RuntimeError(
+                    "[TECHNICAL] Indicators dataframe is empty after computation. "
+                    "This indicates vectorized computation failed or produced no valid indicator values. "
+                    "Check upstream price data and indicator calculation functions."
+                )
+
             inserted = self._bulk_insert(indicators_df, since_date)
 
             # Get the latest date in the computed indicators
@@ -399,11 +406,11 @@ class VectorizedTechnicalLoader:
             RuntimeError: If database operation fails
         """
         if df.empty:
-            logger.warning(
-                "[BULK_INSERT] No indicator data to insert: dataframe is empty. "
-                "This may indicate upstream computation failure or no price data available."
+            raise RuntimeError(
+                "[TECHNICAL] Cannot bulk insert empty indicator dataframe. "
+                "This should have been caught by caller. "
+                "Indicates programming error or upstream data validation failure."
             )
-            return 0
 
         # Filter to only new data if incremental
         if since_date:

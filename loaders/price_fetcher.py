@@ -430,7 +430,13 @@ class PriceFetcher:
     def _record_successful_fetch(self) -> None:
         """Record a successful fetch and reset rate limit counters if API has recovered."""
         if self._rate_limit_errors > 0:
-            error_window = time.time() - (self._rate_limit_error_start_time or time.time())
+            if self._rate_limit_error_start_time is None:
+                raise RuntimeError(
+                    "[PRICE_FETCHER] Inconsistent state: _rate_limit_errors > 0 but _rate_limit_error_start_time is None. "
+                    "This indicates rate limit error tracking is broken. "
+                    "Check _handle_rate_limit_error() initialization."
+                )
+            error_window = time.time() - self._rate_limit_error_start_time
             logger.info(
                 f"[RATE_LIMIT] API recovered after {self._rate_limit_errors} errors "
                 f"({error_window:.0f}s duration). Resetting rate limit counters."
@@ -506,7 +512,12 @@ class PriceFetcher:
             logger.info(
                 f"[RATE_LIMIT] Retrying batch={batch_size} with increased request pacing (attempt {attempt + 1}/{max_attempts})..."
             )
-            error_duration = time.time() - self._rate_limit_error_start_time if self._rate_limit_error_start_time else 0
+            if self._rate_limit_error_start_time is None:
+                raise RuntimeError(
+                    "[PRICE_FETCHER] Rate limit retry called but error_start_time not set. "
+                    "This indicates _handle_rate_limit_error() was not called first."
+                )
+            error_duration = time.time() - self._rate_limit_error_start_time
             base_wait = min(30, (2**attempt) * 5)
             jitter = random.uniform(0.9, 1.1)
             wait_time = base_wait * jitter
@@ -516,7 +527,12 @@ class PriceFetcher:
 
         # Reduce batch size and retry
         new_batch_size = max(1, batch_size // 2)
-        error_duration = time.time() - self._rate_limit_error_start_time if self._rate_limit_error_start_time else 0
+        if self._rate_limit_error_start_time is None:
+            raise RuntimeError(
+                "[PRICE_FETCHER] Batch size reduction retry called but error_start_time not set. "
+                "This indicates _handle_rate_limit_error() was not called first."
+            )
+        error_duration = time.time() - self._rate_limit_error_start_time
         total_elapsed = elapsed_sec + error_duration
 
         base_wait = min(60, (2**attempt) * 2)
