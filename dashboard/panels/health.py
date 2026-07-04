@@ -518,8 +518,14 @@ def panel_orch(run: dict[str, Any] | None, cfg: dict[str, Any], risk: dict[str, 
             for p in phase_results:
                 name_val = p.get("name")
                 phase_val = p.get("phase")
+                # CRITICAL: Missing phase is data quality issue - log and use placeholder
                 if phase_val is None:
-                    phase_val = ""
+                    logger.warning(
+                        f"[HEALTH] Phase result missing 'phase' field. Available: {list(p.keys())}. "
+                        f"Phase visibility degraded - cannot identify phase execution details."
+                    )
+                    # Use placeholder to indicate unavailable, not silent empty
+                    phase_val = "unknown"
                 raw = (name_val if name_val is not None else phase_val).lower()
                 parts = raw.split("_")
                 base = "_".join(parts[:2]) if len(parts) >= 2 else raw
@@ -535,22 +541,34 @@ def panel_orch(run: dict[str, Any] | None, cfg: dict[str, Any], risk: dict[str, 
                         )
                     short = fallback_short
                 ps_raw = p.get("status")
+                # CRITICAL: Missing status is data integrity issue - must log and handle explicitly
                 if ps_raw is None:
-                    ps_raw = ""
-                ps = ps_raw.lower()
+                    logger.warning(
+                        f"[HEALTH] Phase status missing 'status' field. Available: {list(p.keys())}. "
+                        f"Cannot determine phase success/failure - health indication unavailable."
+                    )
+                    ps = "unknown"  # Explicit marker; will render as red X
+                else:
+                    ps = ps_raw.lower()
                 pc = G if ps in PHASE_SUCCESS_STATES else (Y if ps in PHASE_HALTED_STATES else R)
                 pi = "✓" if ps in PHASE_SUCCESS_STATES else ("~" if ps in PHASE_HALTED_STATES else "✗")
                 pbadges.append(f"[{pc}]{pi}{short}[/]")
             # Show halt reason if halted
             halt_r = run.get("halt_reason")
-            # CRITICAL: Explicit None check instead of implicit empty string fallback
-            # Missing halt reason indicates incomplete data, should not be hidden
+            # CRITICAL: Missing halt reason when algo halted is MISSION-CRITICAL data loss
+            # Must log explicitly - traders need to know why algo halted
             if halt_r is None:
-                halt_r = ""
+                logger.error(
+                    f"[HEALTH] CRITICAL: Execution history missing 'halt_reason' when halted. "
+                    f"Available: {list(run.keys())}. "
+                    f"Cannot diagnose why algo halted — critical diagnostic information lost."
+                )
             summary = run.get("summary")
-            # CRITICAL: Explicit None check instead of implicit empty string fallback
+            # Log if summary missing but don't fail - can use phase results as fallback
             if summary is None:
-                summary = ""
+                logger.debug(
+                    "[HEALTH] Execution summary missing. Will use phase results for halt explanation."
+                )
             # CRITICAL: Explicit None check before accessing .get() result
             # Checking run.get("halted") can return None instead of boolean
             halted_val = run.get("halted")
@@ -586,8 +604,10 @@ def panel_orch(run: dict[str, Any] | None, cfg: dict[str, Any], risk: dict[str, 
                 phases_list = []
             for p in phases_list:
                 at_raw = p.get("action_type")
+                # Missing action_type in audit log means cannot identify phase - skip this entry
                 if at_raw is None:
-                    at_raw = ""
+                    logger.warning(f"[HEALTH] Audit log entry missing 'action_type'. Keys: {list(p.keys())}. Skipping entry.")
+                    continue  # Skip entry - cannot process without action type
                 at = at_raw
                 if not at.startswith("phase_"):
                     continue
@@ -607,9 +627,12 @@ def panel_orch(run: dict[str, Any] | None, cfg: dict[str, Any], risk: dict[str, 
                         logger.debug(f"[HEALTH] Audit phase '{phase_key}' not in PHASE_NAMES, using: {default_short}")
                     short = default_short[:9]
                 ps_raw = p.get("status")
+                # Missing status in audit log means cannot determine phase result
                 if ps_raw is None:
-                    ps_raw = ""
-                ps = ps_raw
+                    logger.warning(f"[HEALTH] Audit log phase {phase_key} missing 'status'. Keys: {list(p.keys())}. Using 'unknown'.")
+                    ps = "unknown"  # Will render as red X
+                else:
+                    ps = ps_raw
                 pc = G if ps == "success" else (Y if ps in ("halt", "warn") else R)
                 pi = "✓" if ps == "success" else ("~" if ps in ("halt", "warn") else "✗")
                 pbadges.append(f"[{pc}]{pi}{short}[/]")
@@ -696,9 +719,13 @@ def _format_exec_history_summary(exec_hist: list[Any] | None) -> list[Text]:
     )
     if last_halt:
         lhr = last_halt.get("halt_reason")
-        # CRITICAL: Explicit None check instead of implicit fallback
+        # CRITICAL: Missing halt_reason when algo last halted is MISSION-CRITICAL data loss
         if lhr is None:
-            lhr = ""
+            logger.error(
+                f"[HEALTH] CRITICAL: Last halt event missing 'halt_reason'. "
+                f"Available: {list(last_halt.keys())}. "
+                f"Cannot diagnose why algo last halted — critical diagnostic data lost."
+            )
         lph = _fmt_phases_halted(last_halt.get("phases_halted"))
         # CRITICAL: Explicit conditional instead of OR fallback
         # Missing halt reason must be distinguished from empty phases
@@ -707,14 +734,17 @@ def _format_exec_history_summary(exec_hist: list[Any] | None) -> list[Text]:
         elif lph:
             body = lph
         else:
-            body = None
-        if body:
-            # CRITICAL: Explicit None check and membership test
-            if lph and lph not in (lhr or ""):
+            body = "[dim]—[/] halt reason unavailable"  # Explicit marker
+        if body and body != "[dim]—[/] halt reason unavailable":
+            # CRITICAL: Explicit None check instead of OR fallback
+            # Only compare if both lhr and lph exist
+            if lph and lhr and lph not in lhr:
                 ph_s = f"  [dim]({lph})[/]"
             else:
                 ph_s = ""
             rows.append(Text.from_markup(f"  [{Y}]a†³ {body[:55]}[/]{ph_s}"))
+        elif body == "[dim]—[/] halt reason unavailable":
+            rows.append(Text.from_markup(f"  [{Y}]a†³ {body}[/]"))
 
     return rows
 
@@ -763,10 +793,10 @@ def _format_recent_trade_events(act: dict[str, Any] | None) -> list[Text]:
     ]
     for a in trade_evts[:4]:
         at_raw = a.get("action_type")
-        # CRITICAL: Explicit None check instead of implicit fallback
+        # CRITICAL: Missing action_type means cannot classify trade event
         if at_raw is None:
-            logger.warning(f"[HEALTH] Trade event missing 'action_type'. Keys: {list(a.keys())}")
-            at_raw = ""
+            logger.error(f"[HEALTH] Trade event missing 'action_type'. Keys: {list(a.keys())}. Cannot classify trade event.")
+            continue  # Skip this event entirely - cannot render without type
         at = at_raw
         det = a.get("details")
         if isinstance(det, str):
@@ -778,13 +808,17 @@ def _format_recent_trade_events(act: dict[str, Any] | None) -> list[Text]:
         elif not isinstance(det, dict) and det is not None:
             det = None
         sym_raw = det.get("symbol") if det else None
-        # CRITICAL: Explicit None check instead of implicit empty string fallback
+        # CRITICAL: Missing symbol is critical for identifying which position was affected
         if sym_raw is None:
-            sym_raw = ""
-        sym = sym_raw
+            logger.warning(f"[HEALTH] Trade event missing symbol in details. Action: {at}. Cannot identify affected position.")
+            sym = "—"  # Explicit marker for unavailable data
+        else:
+            sym = sym_raw
         ic = G if ("executed" in at or at == "position_exited") else (Y if "placed" in at else R)
         lbl = at.replace("_", " ").title()[:20]
-        rows.append(Text.from_markup(f"  [{ic}]{lbl}{(' ' + sym) if sym else ''}[/]"))
+        # Show symbol availability status clearly
+        sym_display = f" ({sym})" if sym != "—" else " (symbol unavailable)"
+        rows.append(Text.from_markup(f"  [{ic}]{lbl}{sym_display}[/]"))
 
     return rows
 

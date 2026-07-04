@@ -146,8 +146,16 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
             if v is None and isinstance(f.get("put_call_ratio"), dict):
                 v = safe_float(f["put_call_ratio"].get("put_call_ratio"), default=None)
             if v is None and isinstance(f.get("put_call_ratio"), dict):
-                # Fallback to pts score if actual ratio unavailable
-                v = safe_float(f["put_call_ratio"].get("pts"), default=None)
+                # CRITICAL: pts score is DIFFERENT from actual put_call_ratio
+                # Do not silently use it as fallback - only use if we explicitly log it
+                pts_fallback = safe_float(f["put_call_ratio"].get("pts"), default=None)
+                if pts_fallback is not None:
+                    logger.warning(
+                        "[EXPOSURE] Actual put_call_ratio unavailable. "
+                        "Showing derived pts score instead. "
+                        "Risk metrics may be estimated, not precise."
+                    )
+                    v = pts_fallback
             if v is not None:
                 return f" {v:.2f}"
             reason = f.get("reason")
