@@ -220,6 +220,17 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
           LaunchType           = "FARGATE"
           TaskDefinition       = var.loader_task_definition_arns["stock_prices_daily"]
           NetworkConfiguration = local.network_config
+          Overrides = {
+            ContainerOverrides = [{
+              Name = "algo-stock_prices_daily"
+              Environment = [
+                { Name = "LOADER_INTERVALS", Value = "1d,1wk,1mo" },
+                { Name = "LOADER_ASSET_CLASSES", Value = "stock,etf" },
+                { Name = "LOADER_PARALLELISM", Value = "1" },
+                { Name = "LOADER_CHUNK_SIZE", Value = "100" }
+              ]
+            }]
+          }
         }
         Retry = [{
           ErrorEquals     = ["States.ALL"]
@@ -418,6 +429,14 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
           LaunchType           = "FARGATE"
           TaskDefinition       = var.loader_task_definition_arns["swing_trader_scores"]
           NetworkConfiguration = local.network_config
+          Overrides = {
+            ContainerOverrides = [{
+              Name = "algo-swing_trader_scores"
+              Environment = [
+                { Name = "LOADER_PARALLELISM", Value = "1" }
+              ]
+            }]
+          }
         }
         Retry = [{
           ErrorEquals     = ["States.ALL"]
@@ -471,6 +490,14 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
           LaunchType           = "FARGATE"
           TaskDefinition       = var.loader_task_definition_arns["technical_data_daily"]
           NetworkConfiguration = local.network_config
+          Overrides = {
+            ContainerOverrides = [{
+              Name = "algo-technical_data_daily"
+              Environment = [
+                { Name = "LOADER_PARALLELISM", Value = "1" }
+              ]
+            }]
+          }
         }
         Retry = [{
           ErrorEquals     = ["States.ALL"]
@@ -2008,6 +2035,14 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
           LaunchType           = "FARGATE"
           TaskDefinition       = var.loader_task_definition_arns["growth_metrics"]
           NetworkConfiguration = local.network_config
+          Overrides = {
+            ContainerOverrides = [{
+              Name = "algo-growth_metrics"
+              Environment = [
+                { Name = "LOADER_PARALLELISM", Value = "2" }
+              ]
+            }]
+          }
         }
         Retry = [{
           ErrorEquals     = ["States.ALL"]
@@ -2058,6 +2093,14 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
           LaunchType           = "FARGATE"
           TaskDefinition       = var.loader_task_definition_arns["quality_metrics"]
           NetworkConfiguration = local.network_config
+          Overrides = {
+            ContainerOverrides = [{
+              Name = "algo-quality_metrics"
+              Environment = [
+                { Name = "LOADER_PARALLELISM", Value = "2" }
+              ]
+            }]
+          }
         }
         Retry = [{
           ErrorEquals     = ["States.ALL"]
@@ -2207,6 +2250,14 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
           LaunchType           = "FARGATE"
           TaskDefinition       = var.loader_task_definition_arns["stock_scores"]
           NetworkConfiguration = local.network_config
+          Overrides = {
+            ContainerOverrides = [{
+              Name = "algo-stock_scores"
+              Environment = [
+                { Name = "LOADER_PARALLELISM", Value = "2" }
+              ]
+            }]
+          }
         }
         Retry = [{
           ErrorEquals     = ["States.ALL"]
