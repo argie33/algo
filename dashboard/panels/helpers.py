@@ -68,17 +68,23 @@ def _build_buy_sig_map(buy_sigs: Any) -> dict[str, float]:
     """Map symbol -> signal-quality (swing) score from buy-signal records. Uses normalized symbols.
 
     FAIL-FAST: buy_sigs must not be None; caller must validate.
+    Tracks skipped items with explicit logging for audit trail.
     """
     if buy_sigs is None:
         raise ValueError(
             "[BUY_SIGNALS] Cannot build signal map: buy_sigs is None. Upstream pipeline did not return buy signal data."
         )
     out: dict[str, float] = {}
-    for bs in buy_sigs:
+    skipped_count = 0
+    for idx, bs in enumerate(buy_sigs):
         if not isinstance(bs, dict):
+            logger.debug(f"[BUY_SIGNALS] Skipped item {idx}: not a dict (type={type(bs).__name__})")
+            skipped_count += 1
             continue
         sym = bs.get("symbol")
         if not sym:
+            logger.debug(f"[BUY_SIGNALS] Skipped item {idx}: missing or empty 'symbol' field")
+            skipped_count += 1
             continue
         sym_norm = str(sym).upper().strip()
 
@@ -93,6 +99,9 @@ def _build_buy_sig_map(buy_sigs: Any) -> dict[str, float]:
                 logger.warning(f"Failed to convert score for {sym}: {e}")
         else:
             logger.warning(f"Buy signal {sym}: missing signal_quality_score and swing_score")
+
+    if skipped_count > 0:
+        logger.warning(f"[BUY_SIGNALS] Skipped {skipped_count} invalid items out of {len(buy_sigs)} total")
 
     return out
 
@@ -159,9 +168,12 @@ def _best_halt_reason(top_level: str, phase_results: list[Any]) -> list[tuple[st
         )
 
     # Now phase_results is guaranteed to be a list/tuple - iterate without fallback
-    for p in phase_results:
+    skipped_non_dict = 0
+    skipped_missing_name = 0
+    for idx, p in enumerate(phase_results):
         if not isinstance(p, dict):
-            logger.debug(f"Skipping non-dict phase result entry: {type(p).__name__}")
+            logger.debug(f"Skipping phase result entry {idx}: not a dict (type={type(p).__name__})")
+            skipped_non_dict += 1
             continue
         ps = p.get("status")
         ps = (ps if ps is not None else "").lower()
@@ -171,7 +183,8 @@ def _best_halt_reason(top_level: str, phase_results: list[Any]) -> list[tuple[st
         phase_field_used = "name"
         if raw is None:
             if "phase" not in p or p["phase"] is None:
-                logger.debug("Halted phase has no 'name' or 'phase' field; skipping")
+                logger.debug(f"Halted phase result {idx}: no 'name' or 'phase' field; skipping")
+                skipped_missing_name += 1
                 continue
             raw = p["phase"]
             phase_field_used = "phase"
@@ -204,6 +217,15 @@ def _best_halt_reason(top_level: str, phase_results: list[Any]) -> list[tuple[st
             found.append((label, detail))
         elif pdata is None:
             logger.debug(f"No halt reason detail found in phase '{label}'")
+    total_skipped = skipped_non_dict + skipped_missing_name
+    if total_skipped > 0:
+        skip_ratio = total_skipped / len(phase_results) if phase_results else 0
+        logger.warning(
+            f"[PHASE_RESULTS] Skipped {total_skipped} phase results "
+            f"({100*skip_ratio:.1f}% of {len(phase_results)}): "
+            f"{skipped_non_dict} non-dict, {skipped_missing_name} missing name"
+        )
+
     if not found and top_level:
         logger.debug(f"No per-phase halt details found; using top-level reason: {top_level}")
         found.append(("", top_level))
