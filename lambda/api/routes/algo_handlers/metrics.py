@@ -924,7 +924,9 @@ def _get_performance_analytics(cur: cursor) -> Any:
                 logger.error(f"Fallback query also failed: {fallback_err}. Table may be missing.")
                 raise fallback_err from col_err
         else:
-            raise col_err
+            # Column missing is not about R-metrics - likely a real schema issue
+            logger.error(f"Unexpected column missing in perf_anl query: {col_err}")
+            return error_response(503, "schema_error", f"Performance analytics schema issue: {col_err}")
     except psycopg2.errors.UndefinedTable as table_err:
         try:
             cur.execute("ROLLBACK TO SAVEPOINT perf_analytics")
