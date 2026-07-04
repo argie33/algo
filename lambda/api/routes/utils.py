@@ -579,7 +579,7 @@ def execute_with_timeout(
 
                     # Convert tuple results to dicts using column names
                     if rows and isinstance(rows[0], tuple) and col_names:
-                        return [dict(zip(col_names, row, strict=False)) for row in rows]
+                        return [dict(zip(col_names, row)) for row in rows]
                     return list(rows)
                 except (psycopg2.DatabaseError, psycopg2.OperationalError, IndexError) as fallback_err:
                     logger.error(
