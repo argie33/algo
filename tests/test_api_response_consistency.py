@@ -50,13 +50,16 @@ def test_unwrap_list_response():
 
 
 def test_unwrap_direct_fields_response():
-    """Test unwrapping response with direct fields."""
+    """Test unwrapping response with direct fields wrapped in data."""
+    # API responses must have 'data' wrapper for consistency
     response = {
         "statusCode": 200,
-        "n": 5,
-        "total": 10,
-        "buy_sigs": [{"symbol": "ABC"}],
-        "grades": {"a": 2, "b": 3},
+        "data": {
+            "n": 5,
+            "total": 10,
+            "buy_sigs": [{"symbol": "ABC"}],
+            "grades": {"a": 2, "b": 3},
+        },
     }
     unwrapped = _unwrap_api_response(response)
     assert unwrapped["statusCode"] == 200, "statusCode should be preserved for error detection"
@@ -67,11 +70,13 @@ def test_unwrap_direct_fields_response():
 
 
 def test_unwrap_preserves_metadata():
-    """Test that data_freshness and other metadata is preserved."""
+    """Test that metadata in data wrapper is preserved."""
     response = {
         "statusCode": 200,
-        "items": [{"id": 1}],
-        "data_freshness": {"is_stale": False, "data_age_days": 0},
+        "data": {
+            "items": [{"id": 1}],
+            "data_freshness": {"is_stale": False, "data_age_days": 0},
+        },
     }
     unwrapped = _unwrap_api_response(response)
     assert unwrapped["statusCode"] == 200, "statusCode should be preserved"
@@ -81,10 +86,11 @@ def test_unwrap_preserves_metadata():
 
 
 def test_unwrap_empty_response():
-    """Test unwrapping empty response."""
-    response = {"statusCode": 200}
+    """Test unwrapping empty response with data wrapper."""
+    # Even empty responses must have 'data' wrapper for consistency
+    response = {"statusCode": 200, "data": {}}
     unwrapped = _unwrap_api_response(response)
-    assert unwrapped == {"statusCode": 200}, "statusCode should be preserved"
+    assert unwrapped == {"statusCode": 200}, "statusCode should be preserved, data contents unwrapped"
     print("[OK] Empty response unwrapping works")
 
 
@@ -97,7 +103,7 @@ def test_data_fetcher_error_detection():
     assert unwrapped.get("key") == "value", "Payload should be available"
 
     # Error response with error details in data field
-    response = {"statusCode": 400, "error": "invalid_param", "details": "x is required"}
+    response = {"statusCode": 400, "data": {"error": "invalid_param", "details": "x is required"}}
     unwrapped = _unwrap_api_response(response)
     assert unwrapped["statusCode"] == 400, "Error status should be detectable"
     assert unwrapped.get("error") == "invalid_param", "Error details should be preserved"
@@ -124,7 +130,7 @@ class TestUnwrapWithMalformedData:
 
     def test_items_as_string_instead_of_list(self):
         """If items is string instead of list, len() downstream might fail."""
-        response = {"statusCode": 200, "items": "not_a_list"}
+        response = {"statusCode": 200, "data": {"items": "not_a_list"}}
         unwrapped = _unwrap_api_response(response)
         assert unwrapped["items"] == "not_a_list", "Should preserve malformed items"
 
