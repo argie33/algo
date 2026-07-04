@@ -173,13 +173,14 @@ def panel_portfolio(
     # Instead, log and indicate data unavailable (not the same as zero/empty)
     from algo.infrastructure.market_calendar import MarketCalendar
 
-    # Optional fields - API guarantees they're valid floats or None
-    # No re-validation needed; trust API's data contract
-    dr = port.get("daily_return_pct")
+    # Optional fields - convert to float to be defensive against API changes
+    dr_val = port.get("daily_return_pct")
+    dr = float(dr_val) if dr_val is not None else None
     if dr is None and MarketCalendar.is_trading_day():
         logger.warning("Portfolio metric missing on trading day: daily_return_pct")
 
-    urp = port.get("unrealized_pnl_pct")
+    urp_val = port.get("unrealized_pnl_pct")
+    urp = float(urp_val) if urp_val is not None else None
 
     cum = port.get("cumulative_return_pct")
     if cum is None and MarketCalendar.is_trading_day():
