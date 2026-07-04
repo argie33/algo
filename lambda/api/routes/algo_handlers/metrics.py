@@ -25,6 +25,10 @@ from routes.utils import (
     success_response,
 )
 
+from utils.data_queries import (
+    get_recent_trade_pnls,
+    get_trade_performance_stats,
+)
 from utils.validation import (
     APIResponseValidator,
     format_decimal_string,
@@ -32,11 +36,6 @@ from utils.validation import (
 from utils.validation.response_validation import (
     get_optional_field,
     get_required_field,
-)
-from utils.data_queries import (
-    get_open_positions,
-    get_trade_performance_stats,
-    get_recent_trade_pnls,
 )
 
 logger = logging.getLogger(__name__)
@@ -854,10 +853,7 @@ def _get_performance_analytics(cur: cursor) -> Any:
             pass
 
         if "avg_win_r" in str(col_err) or "avg_loss_r" in str(col_err) or "expectancy" in str(col_err):
-            logger.warning(
-                f"R-metrics columns not yet migrated: {col_err}. "
-                "Falling back to query without R-metrics."
-            )
+            logger.warning(f"R-metrics columns not yet migrated: {col_err}. Falling back to query without R-metrics.")
             try:
                 cur.execute("SAVEPOINT perf_analytics_fallback")
                 cur.execute("""
@@ -902,9 +898,7 @@ def _get_performance_analytics(cur: cursor) -> Any:
         except (psycopg2.DatabaseError, psycopg2.OperationalError):
             pass
 
-        logger.warning(
-            f"Performance metrics table missing: {table_err}. " "Returning all-None for ramp-up."
-        )
+        logger.warning(f"Performance metrics table missing: {table_err}. Returning all-None for ramp-up.")
         return success_response(
             {
                 "rolling_sharpe_252d": None,
@@ -932,8 +926,7 @@ def _get_performance_analytics(cur: cursor) -> Any:
             logger.warning(f"Savepoint rollback failed: {save_err}. Continuing with graceful degradation.")
 
         logger.warning(
-            f"Performance analytics database error: {type(e).__name__}: {e}. "
-            "Returning all-None for ramp-up."
+            f"Performance analytics database error: {type(e).__name__}: {e}. Returning all-None for ramp-up."
         )
         return success_response(
             {
@@ -992,8 +985,7 @@ def _get_performance_metrics_endpoint(cur: cursor) -> Any:
         )
     except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as col_err:
         logger.warning(
-            f"Performance metrics table/columns unavailable: {col_err}. "
-            "Returning None values for graceful degradation."
+            f"Performance metrics table/columns unavailable: {col_err}. Returning None values for graceful degradation."
         )
         return json_response(
             200,

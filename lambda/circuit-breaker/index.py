@@ -32,6 +32,8 @@ logger.setLevel(os.environ.get("LOG_LEVEL", "INFO"))
 # Add project root to path for importing config module
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+from utils.data_queries import get_open_portfolio_totals  # noqa: E402
+
 dynamodb = boto3.resource("dynamodb")
 
 
@@ -95,22 +97,16 @@ def get_portfolio_pnl(max_attempts: int = 3):
             cur = conn.cursor()
 
             # Get current portfolio: total position value and current unrealized P&L
-            # CRITICAL: Do NOT use COALESCE(..., 0) - missing data must be NULL, not silently 0
-            cur.execute("""
-                SELECT SUM(position_value) as total_equity,
-                       SUM(unrealized_pnl) as current_pnl
-                FROM algo_positions
-                WHERE status = 'open'
-            """)
-            row = cur.fetchone()
-            if row is None:
-                raise RuntimeError("Circuit breaker: Cannot query portfolio positions from database")
-            if row[0] is None or row[1] is None:
+            # Use centralized data query (single source of truth)
+            portfolio_data = get_open_portfolio_totals(cur)
+            total_equity = portfolio_data.get("total_equity")
+            current_pnl = portfolio_data.get("current_pnl")
+            if total_equity is None or current_pnl is None:
                 raise RuntimeError(
-                    f"Circuit breaker: Portfolio data unavailable: total_equity={row[0]}, current_pnl={row[1]} (no open positions or data missing)"
+                    f"Circuit breaker: Portfolio data unavailable: total_equity={total_equity}, current_pnl={current_pnl} (no open positions or data missing)"
                 )
-            total_equity = float(row[0])
-            current_pnl = float(row[1])
+            total_equity = float(total_equity)
+            current_pnl = float(current_pnl)
 
             # Get session opening P&L snapshot (captured at market open).
             # CRITICAL: Do NOT use COALESCE(..., 0) - must detect missing snapshots

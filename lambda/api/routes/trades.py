@@ -29,6 +29,7 @@ from routes.utils import (
 )
 
 from shared_contracts.response_validator import ResponseValidator
+from utils.data_queries import count_trades_by_status, get_trades_by_status
 from utils.validation import CognitoValidator
 
 logger = logging.getLogger(__name__)
@@ -69,7 +70,9 @@ def _check_idempotency(cur: cursor, signature: str) -> dict[str, Any]:
             cached = dict(_json.loads(row[0]))
             cache_age_seconds = (datetime.now(timezone.utc) - row[1]).total_seconds()
             if cache_age_seconds > 86400:  # 24 hours
-                logger.warning(f"[IDEMPOTENCY] Cache TTL exceeded: {cache_age_seconds}s > 86400s. Rejecting stale cache.")
+                logger.warning(
+                    f"[IDEMPOTENCY] Cache TTL exceeded: {cache_age_seconds}s > 86400s. Rejecting stale cache."
+                )
                 return {"cached_response": False}
             cached["cached_response"] = True
             return cached
@@ -128,59 +131,32 @@ def handle(
             offset = safe_offset(extract_param(params, "offset") or "0")
             status_filter = extract_param(params, "status")
 
-            # SECURITY FIX: Validate status filter against whitelist (enum validation)
-            valid_statuses = {
-                "pending",
-                "open",
-                "closed",
-                "filled",
-                "cancelled",
-                "rejected",
-            }
+            # Normalize status filter (centralized validation in data_queries)
             if status_filter:
-                if status_filter.lower() not in valid_statuses:
-                    return error_response(400, "bad_request", f"Invalid status value: {status_filter}")
                 status_filter = status_filter.lower()
 
-            where_clauses = []
-            where_args = []
-            if status_filter:
-                where_clauses.append("status = %s")
-                where_args.append(status_filter)
+            try:
+                cur.execute("SET LOCAL statement_timeout = '5000ms'")
+                # Get trades from centralized data query (single source of truth)
+                trades = get_trades_by_status(cur, status=status_filter, limit=limit, offset=offset)
 
-            where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
-            query = f"""
-                SELECT trade_id, symbol, signal_date, trade_date, entry_time,
-                       entry_price, entry_quantity, entry_reason,
-                       exit_price, exit_date, exit_reason,
-                       stop_loss_price, status, profit_loss_dollars, profit_loss_pct,
-                       execution_mode, created_at
-                FROM algo_trades
-                WHERE {where_sql}
-                ORDER BY created_at DESC LIMIT %s OFFSET %s
-            """
-            query_args = [*where_args, limit, offset]
-            cur.execute("SET LOCAL statement_timeout = '5000ms'")
-            cur.execute(query, query_args)
-            trades = cur.fetchall()
-            # Count total trades (use only where clause args, no limit/offset)
-            count_query = f"SELECT COUNT(*) FROM algo_trades WHERE {where_sql}"
-            count_args = where_args
-            cur.execute("SET LOCAL statement_timeout = '3000ms'")
-            cur.execute(count_query, count_args)
-            count_row = cur.fetchone()
-            total = count_row[0] if count_row and count_row[0] is not None else 0
-            freshness = check_data_freshness(cur, "algo_trades", "created_at", warning_days=1)
-            trades_result = list_response(
-                [safe_json_serialize(dict(t)) for t in trades],
-                total=total,
-                data_freshness=freshness,
-            )
-            is_valid, error_msg = ResponseValidator.validate_endpoint_response("trades", trades_result)
-            if not is_valid:
-                logger.error(f"Endpoint response validation failed: {error_msg}")
-                return error_response(500, "response_validation_error", error_msg or "Trades validation failed")
-            return trades_result
+                # Count total trades (use centralized counter)
+                cur.execute("SET LOCAL statement_timeout = '3000ms'")
+                total = count_trades_by_status(cur, status=status_filter)
+
+                freshness = check_data_freshness(cur, "algo_trades", "created_at", warning_days=1)
+                trades_result = list_response(
+                    [safe_json_serialize(dict(t)) for t in trades],
+                    total=total,
+                    data_freshness=freshness,
+                )
+                is_valid, error_msg = ResponseValidator.validate_endpoint_response("trades", trades_result)
+                if not is_valid:
+                    logger.error(f"Endpoint response validation failed: {error_msg}")
+                    return error_response(500, "response_validation_error", error_msg or "Trades validation failed")
+                return trades_result
+            except ValueError as e:
+                return error_response(400, "bad_request", str(e))
         elif path == "/api/trades/summary":
             if not _check_admin_access(jwt_claims):
                 raise_api_error(403, "forbidden", "Admin access required")

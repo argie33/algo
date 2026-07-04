@@ -8,6 +8,7 @@ Principle: One query pattern, used everywhere. Never duplicate WHERE clauses.
 """
 
 from typing import Any
+
 from psycopg2.extensions import cursor
 
 
@@ -17,24 +18,30 @@ def get_open_positions(cur: cursor, limit: int = 1000) -> list[dict[str, Any]]:
     Returns positions from algo_positions_with_risk view filtered by status='open'.
     Single source of truth: all open position queries use this function.
     """
-    cur.execute("""
+    cur.execute(
+        """
         SELECT * FROM algo_positions_with_risk
         WHERE status = 'open'
         ORDER BY position_value DESC
         LIMIT %s
-    """, (limit,))
-    return cur.fetchall()
+    """,
+        (limit,),
+    )
+    return cur.fetchall()  # type: ignore
 
 
 def get_closed_positions(cur: cursor, limit: int = 100) -> list[dict[str, Any]]:
     """Get recent closed positions."""
-    cur.execute("""
+    cur.execute(
+        """
         SELECT * FROM algo_positions_with_risk
         WHERE status = 'closed'
         ORDER BY updated_at DESC
         LIMIT %s
-    """, (limit,))
-    return cur.fetchall()
+    """,
+        (limit,),
+    )
+    return cur.fetchall()  # type: ignore
 
 
 def get_recent_completed_trades(cur: cursor, limit: int = 30) -> list[dict[str, Any]]:
@@ -43,13 +50,16 @@ def get_recent_completed_trades(cur: cursor, limit: int = 30) -> list[dict[str, 
     Used by dashboard for win rate calculations and performance metrics.
     Only returns trades with exit_date IS NOT NULL to ensure completeness.
     """
-    cur.execute("""
+    cur.execute(
+        """
         SELECT * FROM algo_trades
         WHERE status = 'closed' AND exit_date IS NOT NULL
         ORDER BY exit_date DESC
         LIMIT %s
-    """, (limit,))
-    return cur.fetchall()
+    """,
+        (limit,),
+    )
+    return cur.fetchall()  # type: ignore
 
 
 def get_trade_win_loss_stats(cur: cursor, limit: int = 30) -> dict[str, int | None]:
@@ -66,7 +76,8 @@ def get_trade_win_loss_stats(cur: cursor, limit: int = 30) -> dict[str, int | No
         - losses: Count of trades with profit_loss_pct < 0
         - total: Total trade count
     """
-    cur.execute("""
+    cur.execute(
+        """
         SELECT COUNT(*) FILTER (WHERE profit_loss_pct > 0) as wins,
                COUNT(*) FILTER (WHERE profit_loss_pct < 0) as losses,
                COUNT(*) as total
@@ -76,7 +87,9 @@ def get_trade_win_loss_stats(cur: cursor, limit: int = 30) -> dict[str, int | No
             WHERE status = 'closed' AND exit_date IS NOT NULL
             ORDER BY exit_date DESC LIMIT %s
         ) recent_trades
-    """, (limit,))
+    """,
+        (limit,),
+    )
     row = cur.fetchone()
     if not row:
         return {"wins": None, "losses": None, "total": None}
@@ -95,7 +108,8 @@ def get_trade_performance_stats(cur: cursor) -> dict[str, Any]:
 
     Returns: Dict with aggregated trade metrics (all values may be None if no trades exist)
     """
-    cur.execute("""
+    cur.execute(
+        """
         SELECT
             AVG(CASE WHEN profit_loss_pct > 0 THEN profit_loss_pct END) AS avg_win_pct,
             AVG(CASE WHEN profit_loss_pct < 0 THEN profit_loss_pct END) AS avg_loss_pct,
@@ -105,7 +119,8 @@ def get_trade_performance_stats(cur: cursor) -> dict[str, Any]:
             NULLIF(ABS(SUM(CASE WHEN profit_loss_dollars < 0 THEN profit_loss_dollars ELSE 0 END)), 0) AS gross_loss_dollars
         FROM algo_trades
         WHERE status = 'closed' AND exit_date IS NOT NULL
-    """)
+    """
+    )
     row = cur.fetchone()
     return dict(row) if row else {}
 
@@ -121,67 +136,132 @@ def get_recent_trade_pnls(cur: cursor, limit: int = 30) -> list[float | None]:
 
     Returns: List of profit_loss_pct values (may contain None)
     """
-    cur.execute("""
+    cur.execute(
+        """
         SELECT profit_loss_pct FROM algo_trades
         WHERE status = 'closed' AND exit_date IS NOT NULL AND profit_loss_pct IS NOT NULL
         ORDER BY exit_date DESC, trade_id DESC LIMIT %s
-    """, (limit,))
+    """,
+        (limit,),
+    )
     rows = cur.fetchall()
     return [row["profit_loss_pct"] for row in rows] if rows else []
 
 
+def get_open_portfolio_totals(cur: cursor) -> dict[str, float | None]:
+    """Get aggregate portfolio metrics for open positions.
+
+    Single source of truth for portfolio equity and unrealized P&L.
+    Used by circuit breakers for position-level risk management.
+
+    Returns: Dict with keys:
+        - total_equity: Sum of position_value for open positions (may be None)
+        - current_pnl: Sum of unrealized_pnl for open positions (may be None)
+    """
+    cur.execute(
+        """
+        SELECT SUM(position_value) as total_equity,
+               SUM(unrealized_pnl) as current_pnl
+        FROM algo_positions
+        WHERE status = 'open'
+    """
+    )
+    row = cur.fetchone()
+    if not row:
+        return {"total_equity": None, "current_pnl": None}
+    return {
+        "total_equity": row[0],
+        "current_pnl": row[1],
+    }
+
+
 def get_all_positions(cur: cursor, limit: int = 1000) -> list[dict[str, Any]]:
     """Get all positions (open and closed)."""
-    cur.execute("""
+    cur.execute(
+        """
         SELECT * FROM algo_positions_with_risk
         ORDER BY position_value DESC
         LIMIT %s
-    """, (limit,))
-    return cur.fetchall()
+    """,
+        (limit,),
+    )
+    return cur.fetchall()  # type: ignore
 
 
 def get_trades_by_status(
-    cur: cursor,
-    status: str | None = None,
-    limit: int = 200
+    cur: cursor, status: str | None = None, limit: int = 200, offset: int = 0
 ) -> list[dict[str, Any]]:
-    """Get trades filtered by status.
+    """Get trades filtered by status with pagination.
 
     Args:
         cur: Database cursor
-        status: Filter trades by status ('open', 'closed', 'halted', 'cancelled')
+        status: Filter trades by status ('pending', 'open', 'closed', 'filled', 'cancelled', 'rejected')
                 If None, returns all trades
         limit: Maximum number of trades to return
+        offset: Number of trades to skip (for pagination)
 
     Returns: List of trade records
 
     Raises: ValueError if status is invalid
     """
-    valid_statuses = {"open", "closed", "halted", "cancelled", None}
+    valid_statuses = {"pending", "open", "closed", "filled", "cancelled", "rejected", None}
     if status is not None and status not in valid_statuses:
         raise ValueError(f"Invalid status: {status}. Must be one of {valid_statuses}")
 
     if status is None:
         where_clause = ""
-        params = (limit,)
+        params: tuple[Any, ...] = (limit, offset)
     else:
         where_clause = "WHERE status = %s"
-        params = (status, limit)
+        params = (status, limit, offset)
 
-    cur.execute(f"""
-        SELECT * FROM algo_trades
+    cur.execute(
+        f"""
+        SELECT trade_id, symbol, signal_date, trade_date, entry_time,
+               entry_price, entry_quantity, entry_reason,
+               exit_price, exit_date, exit_reason,
+               stop_loss_price, status, profit_loss_dollars, profit_loss_pct,
+               execution_mode, created_at
+        FROM algo_trades
         {where_clause}
-        ORDER BY trade_date DESC, trade_id DESC
-        LIMIT %s
-    """, params)
-    return cur.fetchall()
+        ORDER BY created_at DESC
+        LIMIT %s OFFSET %s
+    """,
+        params,
+    )
+    return cur.fetchall()  # type: ignore
 
 
-def get_signals_by_score(
-    cur: cursor,
-    min_score: float,
-    max_records: int = 30
-) -> list[dict[str, Any]]:
+def count_trades_by_status(cur: cursor, status: str | None = None) -> int:
+    """Count trades matching status filter.
+
+    Single source of truth for trade counts used with pagination.
+
+    Args:
+        cur: Database cursor
+        status: Filter trades by status (same valid values as get_trades_by_status)
+
+    Returns: Count of matching trades
+
+    Raises: ValueError if status is invalid
+    """
+    valid_statuses = {"pending", "open", "closed", "filled", "cancelled", "rejected", None}
+    if status is not None and status not in valid_statuses:
+        raise ValueError(f"Invalid status: {status}. Must be one of {valid_statuses}")
+
+    if status is None:
+        where_clause = ""
+        params: tuple[Any, ...] = ()
+    else:
+        where_clause = "WHERE status = %s"
+        params = (status,)
+
+    cur.execute(f"SELECT COUNT(*) FROM algo_trades {where_clause}", params)
+    row = cur.fetchone()
+    return int(row[0]) if row and row[0] is not None else 0
+
+
+def get_signals_by_score(cur: cursor, min_score: float, max_records: int = 30) -> list[dict[str, Any]]:
     """Get swing trader signals above minimum score threshold.
 
     Single source of truth for signal score filtering.
@@ -194,7 +274,8 @@ def get_signals_by_score(
 
     Returns: List of signal records sorted by score descending
     """
-    cur.execute("""
+    cur.execute(
+        """
         SELECT s.symbol, s.score, s.components, s.date,
                cp.sector, cp.industry,
                t.weinstein_stage,
@@ -209,24 +290,25 @@ def get_signals_by_score(
           AND s.score >= %s
         ORDER BY s.score DESC
         LIMIT %s
-    """, (min_score, max_records))
-    return cur.fetchall()
+    """,
+        (min_score, max_records),
+    )
+    return cur.fetchall()  # type: ignore
 
 
-def get_recent_trades(
-    cur: cursor,
-    days_back: int = 30,
-    limit: int = 100
-) -> list[dict[str, Any]]:
+def get_recent_trades(cur: cursor, days_back: int = 30, limit: int = 100) -> list[dict[str, Any]]:
     """Get closed trades from the last N days."""
-    cur.execute("""
+    cur.execute(
+        """
         SELECT * FROM algo_trades
         WHERE status = 'closed'
           AND exit_date >= CURRENT_DATE - %s
         ORDER BY exit_date DESC, trade_id DESC
         LIMIT %s
-    """, (days_back, limit))
-    return cur.fetchall()
+    """,
+        (days_back, limit),
+    )
+    return cur.fetchall()  # type: ignore
 
 
 def count_open_positions(cur: cursor) -> int:
@@ -238,20 +320,25 @@ def count_open_positions(cur: cursor) -> int:
 
 def sum_open_position_value(cur: cursor) -> float:
     """Get total portfolio value of open positions. Single source of truth."""
-    cur.execute("""
+    cur.execute(
+        """
         SELECT SUM(position_value) as total
         FROM algo_positions
         WHERE status = 'open'
-    """)
+    """
+    )
     row = cur.fetchone()
     return float(row["total"]) if row and row["total"] is not None else 0.0
 
 
 def get_positions_by_symbol(cur: cursor, symbol: str) -> list[dict[str, Any]]:
     """Get all positions (open and closed) for a specific symbol."""
-    cur.execute("""
+    cur.execute(
+        """
         SELECT * FROM algo_positions_with_risk
         WHERE symbol = %s
         ORDER BY created_at DESC
-    """, (symbol,))
-    return cur.fetchall()
+    """,
+        (symbol,),
+    )
+    return cur.fetchall()  # type: ignore
