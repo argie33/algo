@@ -139,7 +139,6 @@ class AlertManager:
             except Exception as e:
                 send_errors.append(f"SNS: {e}")
 
-
         if send_errors:
             raise RuntimeError(
                 f"[CRITICAL] Data patrol alert send failed for run {patrol_run_id}: {'; '.join(send_errors)}. "
@@ -183,7 +182,6 @@ class AlertManager:
                 self._publish_sns(subject, body_text)
             except Exception as e:
                 logger.error(f"Position alert SNS failed (non-blocking): {e}")
-
 
     def send_loader_alert(self, findings: list[tuple[str, str, str]]) -> None:
         """Send alert when loader fails or data is stale. Non-blocking.
@@ -244,7 +242,6 @@ class AlertManager:
             except Exception as e:
                 logger.error(f"Loader alert SNS failed (non-blocking): {e}")
 
-
     def critical(self, message: str) -> None:
         """Send a generic critical alert. Non-blocking.
 
@@ -265,7 +262,6 @@ class AlertManager:
                 self._publish_sns(subject, body_text)
             except Exception as e:
                 logger.error(f"Critical alert SNS failed (non-blocking): {e}")
-
 
     def _send_email(self, subject: str, body: str) -> None:
         """Send email via SMTP."""
@@ -294,6 +290,3 @@ class AlertManager:
         except (smtplib.SMTPException, RuntimeError, OSError, ConnectionError) as e:
             logger.error(f"Email failed: {e}")
             raise
-
-
-

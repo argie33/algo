@@ -874,7 +874,7 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
                 "value": None,
                 "signal": "neutral",
                 "data_unavailable": True,
-                "reason": "vix_regime_missing_from_market_exposure_computation"
+                "reason": "vix_regime_missing_from_market_exposure_computation",
             }
 
         response = list_response(sectors, total=len(sectors), limit=None, offset=None)

@@ -172,6 +172,8 @@ def panel_market_full(mkt: Any, sentiment: Any = None) -> Panel:  # noqa: C901
     trend_s = trend.upper()
     halt_s = " ".join(str(h)[:16] for h in halts[:2]) if halts else "none"
     hc = Y if halts else DIM
+    if not halts:
+        logger.debug("[MARKET_PANEL] No trading halts — display color defaulting to DIM")
 
     uvc = G if upvol is not None and upvol >= 60 else (Y if upvol is not None and upvol >= 50 else R)
     pcr_c = DIM if pcr is None else (G if pcr <= 0.8 else (Y if pcr <= 1.0 else R))
@@ -382,6 +384,8 @@ def panel_market_expanded(mkt: Any, sentiment: Any = None) -> Panel:
 
     rows.append(Rule(style="dim"))
     hc = Y if halts else G
+    if not halts:
+        logger.debug("[MARKET_EXPANDED] No trading halts — display color defaulting to GREEN")
     halt_s = "  |  ".join(str(h)[:35] for h in halts[:3]) if halts else "none"
     rows.append(Text.from_markup(f"  [dim]Trading Halt:[/] [{hc}]{halt_s}[/]"))
 
@@ -495,6 +499,8 @@ def panel_header_market(  # noqa: C901
         halts = _get_market_halts(mkt, "Market details panel")
         halt_s = " ".join(str(h)[:14] for h in halts[:2]) if halts else "none"
         hc_col = Y if halts else DIM
+        if not halts:
+            logger.debug("[MARKET_HEADER] No trading halts — display color defaulting to DIM")
         line5 = f"[dim]Halt:[/][{hc_col}]{halt_s}[/]"
         if _fed_ok:
             line5 += f"  [dim]Fed:[/][white]{str(fed)[:18]}[/]"
@@ -513,10 +519,12 @@ def panel_header_market(  # noqa: C901
         if cfg:
             mode = cfg.get("mode")
             if mode is None:
+                logger.debug("[MARKET_HEADER] Config mode not available — defaulting to '?'")
                 mode = "?"
             mc2 = G if "LIVE" in str(mode) else Y
             enabled = cfg.get("enabled")
             if enabled is None:
+                logger.debug("[MARKET_HEADER] Config enabled flag missing — defaulting to True")
                 enabled = True
             en_s = "ENABLED" if enabled else "DISABLED"
             ec = G if enabled else R

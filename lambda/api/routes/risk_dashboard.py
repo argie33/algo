@@ -390,6 +390,7 @@ def _get_position_sizing_audit(cur: cursor, days: int) -> Any:
 
             # FAIL-FAST: Extract required position sizing fields upfront with validation
             from utils.validation import DatabaseResultValidator
+
             symbol = DatabaseResultValidator.safe_get_str(row, "symbol", strict=True)
             base_shares = DatabaseResultValidator.safe_get_int(row, "base_shares", strict=True)
             final_shares = DatabaseResultValidator.safe_get_int(row, "final_shares", strict=True)
@@ -455,6 +456,7 @@ def _get_stop_loss_audit(cur: cursor, days: int) -> Any:
 
             # FAIL-FAST: Extract required stop loss audit fields upfront with validation
             from utils.validation import DatabaseResultValidator
+
             symbol = DatabaseResultValidator.safe_get_str(row, "symbol", strict=True)
             stop_method = DatabaseResultValidator.safe_get_str(row, "stop_method", strict=True)
             stop_reasoning = DatabaseResultValidator.safe_get_str(row, "stop_reasoning", strict=True)
@@ -505,6 +507,7 @@ def _get_exit_rules_distribution(cur: cursor, days: int) -> Any:
         for row in cur.fetchall():
             # FAIL-FAST: Extract required exit rules fields upfront with validation
             from utils.validation import DatabaseResultValidator
+
             exit_rule = DatabaseResultValidator.safe_get_str(row, "exit_rule", strict=True)
             count = DatabaseResultValidator.safe_get_int(row, "count", strict=True)
             winning = DatabaseResultValidator.safe_get_int(row, "winning_count", default=0)

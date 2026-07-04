@@ -127,7 +127,9 @@ def _calculate_pre_trade_impact(cur: cursor, body: dict[str, Any]) -> Any:
                     try:
                         sector_val = float(sector_val_raw)
                         if sector_val < 0:
-                            error_msg = f"Sector {sr['sector']} has negative exposure ({sector_val}) — data corruption detected"
+                            error_msg = (
+                                f"Sector {sr['sector']} has negative exposure ({sector_val}) — data corruption detected"
+                            )
                             logger.error(error_msg)
                             return error_response(503, "data_corruption", error_msg)
                     except (ValueError, TypeError) as e:
@@ -204,9 +206,7 @@ def _calculate_pre_trade_impact(cur: cursor, body: dict[str, Any]) -> Any:
                 "projected_pct": format_decimal_string(projected_sector_pct, precision=2),
                 "warning": sector_warning,
                 "warning_msg": (
-                    f"Sector {sector} would reach {projected_sector_pct:.1f}% (limit 30%)"
-                    if sector_warning
-                    else None
+                    f"Sector {sector} would reach {projected_sector_pct:.1f}% (limit 30%)" if sector_warning else None
                 ),
             },
         }

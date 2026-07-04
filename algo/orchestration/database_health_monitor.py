@@ -180,8 +180,15 @@ class DatabaseHealthMonitor:
                         retry_delay_sec *= 1.5
                     continue
 
-                task_status = tasks[0].get("lastStatus", "UNKNOWN")
-                desired_status = tasks[0].get("desiredStatus", "UNKNOWN")
+                # CRITICAL: Validate ECS task status fields exist (fail-fast if missing)
+                task_status = tasks[0].get("lastStatus")
+                desired_status = tasks[0].get("desiredStatus")
+                if task_status is None or desired_status is None:
+                    raise ValueError(
+                        f"[TASK_TERMINATION] ECS task missing required status fields. "
+                        f"lastStatus={task_status}, desiredStatus={desired_status}. "
+                        f"Cannot determine task state. This indicates ECS API contract violation. Task: {tasks[0]}"
+                    )
 
                 logger.debug(
                     f"[TASK_TERMINATION] Attempt {attempt}: {loader_name} lastStatus={task_status}, desiredStatus={desired_status}"

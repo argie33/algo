@@ -217,7 +217,14 @@ class Orchestrator:
 
                 started_at = task.get("startedAt")
                 if not started_at:
-                    task_arn = task.get("taskArn", "unknown")
+                    # CRITICAL: Validate taskArn field exists for error context (fail-fast if missing)
+                    task_arn = task.get("taskArn")
+                    if task_arn is None:
+                        raise ValueError(
+                            f"[CRITICAL] Task missing BOTH startedAt AND taskArn fields. "
+                            f"Cannot assess hung loader or identify which task failed. "
+                            f"This indicates ECS metadata corruption or schema change. Task: {task}"
+                        )
                     raise ValueError(
                         f"[CRITICAL] Task missing startedAt field — cannot assess if hung. "
                         f"This indicates ECS metadata corruption or schema change. "
@@ -1088,7 +1095,13 @@ class Orchestrator:
                 )
 
             if not executor_result["success"]:
-                error_phase = executor_result.get("error_phase", "unknown")
+                # CRITICAL: Validate error_phase field exists when success=False (fail-fast if missing)
+                error_phase = executor_result.get("error_phase")
+                if error_phase is None:
+                    raise ValueError(
+                        f"[EXECUTOR] Execution failed but missing required 'error_phase' field. "
+                        f"Cannot identify which phase halted. Result: {executor_result}"
+                    )
                 logger.critical(f"[EXECUTOR] Phase sequence halted at Phase {error_phase}")
                 return self._final_report()
 

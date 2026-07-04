@@ -125,9 +125,7 @@ class AAIISentimentLoader(OptimalLoader):
                         if not cookie_name or not cookie_value:
                             skipped_reason = f"name={cookie_name}, value present={bool(cookie_value)}"
                             skipped_cookies.append(skipped_reason)
-                            logger.warning(
-                                f"[AAII_SENTIMENT] Skipping invalid cookie: {skipped_reason}"
-                            )
+                            logger.warning(f"[AAII_SENTIMENT] Skipping invalid cookie: {skipped_reason}")
                             continue
 
                         session.cookies.set(cookie_name, cookie_value, domain=cookie_domain)

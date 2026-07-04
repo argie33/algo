@@ -76,9 +76,16 @@ class VectorizedTechnicalLoader:
             # Do NOT fall back to stale data - fail-fast enforcement
             price_freshness = DataAgeValidator.check("price_daily")
             if not price_freshness["is_fresh"]:
+                # CRITICAL: Validate threshold_days field exists in freshness result (fail-fast if missing)
+                threshold_days = price_freshness.get("threshold_days")
+                if threshold_days is None:
+                    raise ValueError(
+                        f"[TECHNICAL_DATA CRITICAL] Freshness check result missing required 'threshold_days' field. "
+                        f"Cannot validate age constraint. Result: {price_freshness}"
+                    )
                 raise RuntimeError(
                     f"[TECHNICAL_DATA CRITICAL] Cannot compute technical indicators with stale price data. "
-                    f"Price data is {price_freshness['age_days']} days old (threshold {price_freshness.get('threshold_days', 1)} days). "
+                    f"Price data is {price_freshness['age_days']} days old (threshold {threshold_days} days). "
                     f"Message: {price_freshness['message']}. "
                     f"Fix: Ensure price_daily loader completed successfully with fresh data."
                 )

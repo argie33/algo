@@ -285,6 +285,7 @@ def handle(  # noqa: C901
                 s = safe_json_serialize(dict(row))
                 # FAIL-FAST: Extract float fields upfront, check None before float() conversion
                 from utils.validation import DatabaseResultValidator
+
                 composite = DatabaseResultValidator.safe_get_float(s, "composite_score", default=None)
                 perf1d = DatabaseResultValidator.safe_get_float(s, "perf_1d", default=None)
                 perf5d = DatabaseResultValidator.safe_get_float(s, "perf_5d", default=None)

@@ -199,6 +199,9 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
         logger.info(
             f"Orchestrator invoked: source={source}, is_test={is_test}, dry_run={dry_run}, execution_mode={execution_mode}, run_identifier={run_identifier}"
         )
+        # Track startup success status for metrics
+        if not is_test:
+            logger.debug(f"[LAMBDA_STATUS] Orchestrator startup: statusCode will reflect success state")
         # Startup diagnostic: surface critical config state in every CloudWatch log
         logger.info(
             f"[CONFIG] ORCHESTRATOR_DRY_RUN={os.getenv('ORCHESTRATOR_DRY_RUN', '<unset>')} "
@@ -353,8 +356,13 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
             reason = result["reason"]
 
             # Return response
+            response_status_code = 200 if success else 500
+            if not success:
+                logger.warning(f"[LAMBDA_RESPONSE] Orchestrator failed — returning statusCode {response_status_code} with error status")
+            else:
+                logger.info(f"[LAMBDA_RESPONSE] Orchestrator succeeded — returning statusCode {response_status_code}")
             return {
-                "statusCode": 200 if success else 500,
+                "statusCode": response_status_code,
                 "body": json.dumps(
                     {
                         "status": "success" if success else "error",

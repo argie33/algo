@@ -33,7 +33,11 @@ class BaseAPIError(Exception):
         # Explicitly handle None for context (don't silently default to {})
         self.context = context if context is not None else {}
         env_correlation = os.getenv("CORRELATION_ID")
-        self.correlation_id = correlation_id if correlation_id is not None else (env_correlation if env_correlation is not None else str(uuid.uuid4())[:8])
+        self.correlation_id = (
+            correlation_id
+            if correlation_id is not None
+            else (env_correlation if env_correlation is not None else str(uuid.uuid4())[:8])
+        )
         super().__init__(self.message)
 
     def to_response(self) -> dict[str, Any]:

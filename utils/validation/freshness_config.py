@@ -166,20 +166,6 @@ FRESHNESS_RULES = {
         "applies_to": ["orchestrator_all"],
     },
     # === SUPPORTING TABLES (Optional, soft warnings only) ===
-    "sector_ranking": {
-        "critical": False,
-        "max_age_days": 14,
-        "description": "Relative sector strength rankings",
-        "purpose": "Sector rotation analysis, sector selection",
-        "applies_to": ["dashboard"],
-    },
-    "economic_data": {
-        "critical": False,
-        "max_age_days": 14,
-        "description": "Economic indicators (CPI, unemployment, Treasury yields)",
-        "purpose": "Economic context, regime classification",
-        "applies_to": ["dashboard", "api"],
-    },
     "algo_trades": {
         "critical": False,
         "max_age_days": 1,

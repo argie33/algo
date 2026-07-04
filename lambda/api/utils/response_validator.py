@@ -80,9 +80,7 @@ def validate_critical_data(data: dict[str, Any], field_name: str) -> ValidationR
     }
 
 
-def validate_required_fields(
-    data: dict[str, Any], required_fields: list[str], context: str
-) -> ValidationResult:
+def validate_required_fields(data: dict[str, Any], required_fields: list[str], context: str) -> ValidationResult:
     """Validate that all required fields are present and not None.
 
     Args:

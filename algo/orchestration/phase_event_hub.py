@@ -176,7 +176,9 @@ class PhaseEventHub:
                 except Exception as e:
                     logger.error(f"[EVENT_HUB] Subscriber failed for {event.event_type}: {e}")
         else:
-            logger.warning(f"[EVENT_HUB] Subscriber list for {event.event_type} is not a list: {type(type_subscribers)}")
+            logger.warning(
+                f"[EVENT_HUB] Subscriber list for {event.event_type} is not a list: {type(type_subscribers)}"
+            )
 
         # Also invoke any "wildcard" subscribers listening to all events
         wildcard_subscribers = self.subscribers.get("*")

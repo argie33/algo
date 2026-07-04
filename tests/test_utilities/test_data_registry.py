@@ -117,6 +117,7 @@ class TestDataRegistry:
             return []
         elif not isinstance(markers, list):
             import logging
+
             logging.getLogger(__name__).warning(f"Entry point {name} markers field is not a list: {type(markers)}")
             return []
         return markers
@@ -138,6 +139,7 @@ class TestDataRegistry:
                 all_markers.update(markers)
             else:
                 import logging
+
                 logging.getLogger(__name__).warning(f"Entry markers field is not a list: {type(markers)}")
         return all_markers
 

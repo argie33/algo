@@ -798,9 +798,7 @@ def run(
 
     # Calculate execution rejection rate for observability
     total_evaluated = executed_count + skipped_count + failed_count
-    execution_rejection_rate = round(
-        (skipped_count / total_evaluated * 100) if total_evaluated > 0 else 0, 1
-    )
+    execution_rejection_rate = round((skipped_count / total_evaluated * 100) if total_evaluated > 0 else 0, 1)
     if execution_rejection_rate > 20:
         logger.warning(
             f"[PHASE 8] High execution rejection rate: {execution_rejection_rate}% "

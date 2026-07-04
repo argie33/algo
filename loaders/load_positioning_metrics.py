@@ -79,8 +79,15 @@ class PositioningMetricsLoader(OptimalLoader):
                 return [self._unavailable_record(symbol, "No yfinance_snapshot record")]
 
             if not row.get("data_available"):
-                logger.info(f"[POSITIONING_METRICS] Snapshot unavailable for {symbol}: {row.get('unavailable_reason')}")
-                return [self._unavailable_record(symbol, row.get("unavailable_reason", "Unknown"))]
+                # CRITICAL: Validate unavailable_reason field exists (fail-fast if missing)
+                unavailable_reason = row.get("unavailable_reason")
+                if unavailable_reason is None:
+                    raise ValueError(
+                        f"[POSITIONING_METRICS] {symbol} marked data_available=False but missing required 'unavailable_reason' field. "
+                        f"API contract violation: unavailable data must include reason. Row: {row}"
+                    )
+                logger.info(f"[POSITIONING_METRICS] Snapshot unavailable for {symbol}: {unavailable_reason}")
+                return [self._unavailable_record(symbol, unavailable_reason)]
 
             # Extract positioning metrics from snapshot
             insider_ownership = row["held_percent_insiders"]

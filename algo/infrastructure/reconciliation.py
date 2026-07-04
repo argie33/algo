@@ -880,7 +880,14 @@ class DailyReconciliation:
             missing_data_symbols = []
             for sym in retryable:
                 ap = alpaca_map[sym]
-                required_fields = ["qty", "avg_entry_price", "current_price", "market_value", "unrealized_pl", "unrealized_plpc"]
+                required_fields = [
+                    "qty",
+                    "avg_entry_price",
+                    "current_price",
+                    "market_value",
+                    "unrealized_pl",
+                    "unrealized_plpc",
+                ]
                 for field in required_fields:
                     if not hasattr(ap, field) or getattr(ap, field) is None:
                         missing_data_symbols.append(f"{sym}:{field}")
@@ -1365,7 +1372,13 @@ class DailyReconciliation:
             initial_val = self.broker.fetch_initial_capital()
             # Check if dict (error marker) or float (valid data)
             if isinstance(initial_val, dict):
-                error_reason = initial_val.get("error", "unknown")
+                # CRITICAL: Validate error field exists when dict is returned (fail-fast if missing)
+                error_reason = initial_val.get("error")
+                if error_reason is None:
+                    raise ValueError(
+                        f"CRITICAL: Broker returned dict (error marker) but missing required 'error' field. "
+                        f"Cannot determine what went wrong. This indicates API contract violation. Response: {initial_val}"
+                    )
                 raise ValueError(
                     f"CRITICAL: Broker returned empty portfolio history (error: {error_reason}). "
                     "Initial capital cannot be determined from Alpaca. "

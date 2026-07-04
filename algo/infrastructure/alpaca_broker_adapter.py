@@ -39,6 +39,28 @@ class AlpacaBrokerAdapter(BrokerAdapter):
         """Alpaca API base URL (Alpaca-specific endpoint)."""
         return self.alpaca_sync.alpaca_base_url
 
+    def _get_api_timeout(self) -> float:
+        """Get API request timeout from config. Fail-fast if not configured.
+
+        Returns:
+            Timeout in seconds (float).
+
+        Raises:
+            ValueError: If timeout not configured in config object.
+        """
+        timeout = self.config.get("api_request_timeout_seconds")
+        if timeout is None:
+            raise ValueError(
+                "CRITICAL: Alpaca API request timeout not configured. "
+                "Configuration must include 'api_request_timeout_seconds'. "
+                "Cannot proceed with API calls without timeout specification."
+            )
+        if not isinstance(timeout, (int, float)) or timeout <= 0:
+            raise ValueError(
+                f"CRITICAL: Alpaca API timeout must be positive number, got {timeout}. Invalid configuration."
+            )
+        return float(timeout)
+
     def fetch_account(self) -> dict[str, Any]:
         """Fetch account data from Alpaca REST API.
 
@@ -58,7 +80,7 @@ class AlpacaBrokerAdapter(BrokerAdapter):
                     "APCA-API-KEY-ID": self.alpaca_sync.alpaca_key,
                     "APCA-API-SECRET-KEY": self.alpaca_sync.alpaca_secret,
                 },
-                timeout=self.config.get("api_request_timeout_seconds", 5),
+                timeout=self._get_api_timeout(),
             )
             if resp.status_code == 200:
                 data = resp.json()
@@ -141,7 +163,7 @@ class AlpacaBrokerAdapter(BrokerAdapter):
                     "APCA-API-KEY-ID": self.alpaca_sync.alpaca_key,
                     "APCA-API-SECRET-KEY": self.alpaca_sync.alpaca_secret,
                 },
-                timeout=self.config.get("api_request_timeout_seconds", 5),
+                timeout=self._get_api_timeout(),
             )
             if resp.status_code == 200:
                 data = resp.json()
@@ -192,7 +214,7 @@ class AlpacaBrokerAdapter(BrokerAdapter):
                     "APCA-API-KEY-ID": self.alpaca_sync.alpaca_key,
                     "APCA-API-SECRET-KEY": self.alpaca_sync.alpaca_secret,
                 },
-                timeout=self.config.get("api_request_timeout_seconds", 5),
+                timeout=self._get_api_timeout(),
             )
             if resp.status_code == 200:
                 orders = resp.json()

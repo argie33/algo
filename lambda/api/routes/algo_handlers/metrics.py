@@ -435,8 +435,12 @@ def _get_algo_performance(cur: cursor) -> Any:  # noqa: C901
         avg_loss_pct = get_optional_field(trade_stats, "avg_loss_pct") if isinstance(trade_stats, dict) else None
         avg_win_r = get_optional_field(trade_stats, "avg_win_r") if isinstance(trade_stats, dict) else None
         avg_loss_r = get_optional_field(trade_stats, "avg_loss_r") if isinstance(trade_stats, dict) else None
-        gross_win_dollars = get_optional_field(trade_stats, "gross_win_dollars") if isinstance(trade_stats, dict) else None
-        gross_loss_dollars = get_optional_field(trade_stats, "gross_loss_dollars") if isinstance(trade_stats, dict) else None
+        gross_win_dollars = (
+            get_optional_field(trade_stats, "gross_win_dollars") if isinstance(trade_stats, dict) else None
+        )
+        gross_loss_dollars = (
+            get_optional_field(trade_stats, "gross_loss_dollars") if isinstance(trade_stats, dict) else None
+        )
 
         response_data = {
             "total_trades": total_trades,
@@ -839,7 +843,7 @@ def _get_performance_analytics(cur: cursor) -> Any:
             "r_metrics_migration_incomplete",
             "Performance analytics R-metrics schema not available. Migration 108 required. "
             "R-metrics (avg_win_r, avg_loss_r, expectancy) are REQUIRED for risk-aware position sizing. "
-            "Apply database migration and retry."
+            "Apply database migration and retry.",
         )
     except (
         psycopg2.OperationalError,

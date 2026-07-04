@@ -349,6 +349,8 @@ def _build_freshness_panel(hlth_items: list[Any], ready_to_trade: bool | None) -
             st = st_raw
         ok = st == "ok"
         ic = G if ok else (Y if st == "empty" else R)
+        if st not in ("ok", "empty"):
+            logger.debug(f"[HEALTH] Health item {nm} status '{st}' mapped to RED color indicator")
         ii = "✓" if ok else ("-" if st == "empty" else "✗")
         rc = "bold white" if role == "CRIT" else (Y if role == "IMP" else DIM)
         row_count = safe_int(r.get("row_count"), default=None)
@@ -1065,10 +1067,12 @@ def _format_audit_log_summary(audit: list[Any]) -> list[Text]:
     for a in notable:
         action_type_val = a.get("action_type")
         if action_type_val is None:
+            logger.debug("[HEALTH] Audit entry missing action_type field — defaulting to empty string")
             action_type_val = ""
         at = (action_type_val if action_type_val else "").replace("_", " ")
         symbol_val = a.get("symbol")
         if symbol_val is None:
+            logger.debug("[HEALTH] Audit entry missing symbol field — defaulting to empty string")
             symbol_val = ""
         sym = symbol_val if symbol_val else ""
         st_raw = a.get("status")
@@ -1491,10 +1495,12 @@ def _format_notifications_section(valid_notifs: list[Any]) -> list[Text | Rule]:
     for n in valid_notifs[:5]:
         severity_val = n.get("severity")
         if severity_val is None:
+            logger.debug("[HEALTH] Notification missing severity — defaulting to 'info' (DIM color)")
             severity_val = "info"
         sc = SEV_COLORS.get(severity_val, DIM)
         title_val = n.get("title")
         if title_val is None:
+            logger.debug("[HEALTH] Notification missing title — defaulting to empty string")
             title_val = ""
         raw_t = title_val if title_val else ""
         title = next(
@@ -1572,8 +1578,12 @@ def panel_status(  # noqa: C901
     cfg_params = extract_config_params(cfg_v) if cfg_v else {}
     mode_raw = cfg_params.get("mode")
     mode = mode_raw if mode_raw is not None else ""
+    if mode_raw is None:
+        logger.debug("[HEALTH_STATUS] Config mode missing — display color defaulting to YELLOW (paper mode)")
     en_raw = cfg_params.get("enabled")
     en = en_raw if en_raw is not None else True
+    if en_raw is None:
+        logger.debug("[HEALTH_STATUS] Config enabled flag missing — defaulting to True")
     mc = G if "LIVE" in str(mode) else Y
     ec = G if en else R
     en_s = "ENABLED" if en else "DISABLED"
@@ -2488,10 +2498,14 @@ def _build_results_panel(  # noqa: C901
         for n in valid_notifs:
             severity_val = n.get("severity")
             if severity_val is None:
+                logger.warning("[RESULTS_PANEL] Notification missing severity — defaulting to 'info' for color")
                 severity_val = "info"
             sc = SEV_COLORS.get(severity_val, DIM)
+            if severity_val not in SEV_COLORS:
+                logger.debug(f"[RESULTS_PANEL] Notification severity '{severity_val}' not in SEV_COLORS — using DIM default")
             title_val = n.get("title")
             if title_val is None:
+                logger.warning("[RESULTS_PANEL] Notification missing title — defaulting to empty string")
                 title_val = ""
             title = title_val if title_val else ""
             age = fmt_age(n.get("created_at"))
@@ -2508,14 +2522,17 @@ def _build_results_panel(  # noqa: C901
         for a in valid_audit_exp[:20]:
             action_type_val = a.get("action_type")
             if action_type_val is None:
+                logger.debug("[RESULTS_AUDIT] Audit entry missing action_type — defaulting to empty string")
                 action_type_val = ""
             at = (action_type_val if action_type_val else "").replace("_", " ")
             symbol_val = a.get("symbol")
             if symbol_val is None:
+                logger.debug("[RESULTS_AUDIT] Audit entry missing symbol — defaulting to empty string")
                 symbol_val = ""
             sym = symbol_val if symbol_val else ""
             st_a_raw = a.get("status")
             if st_a_raw is None:
+                logger.debug("[RESULTS_AUDIT] Audit entry missing status field — defaulting to empty string")
                 st_a_raw = ""
             st_a = st_a_raw
             sc = G if st_a in ("success", "ok") else (Y if st_a in ("warn", "warning") else R)

@@ -117,9 +117,7 @@ def handle(  # noqa: C901
 
                 # Calculate data completeness
                 total_rows = len(rows) + len(skipped_rows)
-                data_completeness_pct = round(
-                    (len(rows) / total_rows * 100) if total_rows > 0 else 0, 1
-                )
+                data_completeness_pct = round((len(rows) / total_rows * 100) if total_rows > 0 else 0, 1)
                 if data_completeness_pct < 100:
                     logger.warning(
                         f"[PRICE DATA] Data completeness: {data_completeness_pct}% "
@@ -181,7 +179,7 @@ def handle(  # noqa: C901
                 price_result = {"symbols": result, "limit": limit}
 
                 # Add data completeness metric to response
-                if 'data_completeness_pct' in locals():
+                if "data_completeness_pct" in locals():
                     price_result["data_completeness_pct"] = data_completeness_pct
                     if data_completeness_pct < 100:
                         price_result["data_incomplete"] = True

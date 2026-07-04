@@ -243,14 +243,17 @@ def _dispatch(  # noqa: C901
     # Trade preview calculation
     if method == "POST" and path == "/api/algo/preview":
         if not body:
+            logger.warning("[PREVIEW_CALC] Request body missing — raising 400 error")
             raise_api_error(400, "bad_request", "Request body required")
         if not isinstance(body, dict):
+            logger.warning(f"[PREVIEW_CALC] Request body is not dict, got {type(body).__name__} — raising 400 error")
             raise_api_error(400, "bad_request", "Request body must be a JSON object")
         return _calculate_trade_preview(cur, body)
 
     # Pre-trade impact calculation
     if method == "POST" and path == "/api/algo/pre-trade-impact":
         if not isinstance(body, dict):
+            logger.warning(f"[PRE_TRADE] Request body is not dict, got {type(body).__name__} — raising 400 error")
             raise_api_error(400, "bad_request", "Request body is required and must be a JSON object")
         return _calculate_pre_trade_impact(cur, cast(dict[str, Any], body))
 
@@ -313,6 +316,8 @@ def _dispatch(  # noqa: C901
             )
         is_admin = _check_admin_access(jwt_claims)
         effective_user_id = None if is_admin else user_id
+        if not status_filter:
+            logger.debug("[ALGO_TRADES] No status filter specified — returning all trade statuses")
         return _get_algo_trades(cur, limit, user_id=effective_user_id, status=status_filter)
     elif path == "/api/algo/positions":
         if jwt_claims is not None and not _check_admin_access(jwt_claims):
@@ -343,6 +348,7 @@ def _dispatch(  # noqa: C901
         limit = safe_limit(extract_param(params, "limit"), max_val=10000, default=100)
         offset_str = extract_param(params, "offset")
         if offset_str is None:
+            logger.debug("[PATROL_LOG] Offset parameter missing — defaulting to '0'")
             offset_str = "0"
         offset = safe_offset(offset_str)
         return _get_patrol_log(cur, limit, offset)
@@ -397,6 +403,7 @@ def _dispatch(  # noqa: C901
     elif path == "/api/algo/sector-stage2":
         return _get_sector_stage2(cur)
     elif path == "/api/algo/config":
+        logger.debug("[CONFIG_ENDPOINT] Returning full algo configuration")
         return _get_algo_config(cur)
     elif path == "/api/algo/last-run":
         return _get_last_run(cur)

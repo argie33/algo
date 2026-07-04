@@ -263,10 +263,10 @@ class StabilityMetricsLoader(OptimalLoader):
             # FAIL-FAST: Missing ANY component makes all stability metrics unavailable
             # Partial metrics compromise risk accuracy
             has_complete_metrics = (
-                volatility_30d is not None and
-                volatility_60d is not None and
-                volatility_252d is not None and
-                beta is not None
+                volatility_30d is not None
+                and volatility_60d is not None
+                and volatility_252d is not None
+                and beta is not None
             )
             data_unavailable = not has_complete_metrics
             reason = "; ".join(unavailability_reasons) if unavailability_reasons else None

@@ -120,6 +120,8 @@ def panel_circuit(cb: Any) -> Panel:  # noqa: C901
         )
     any_f = any_raw if isinstance(any_raw, bool) else bool(any_raw)
     hc = R if any_f else G
+    if not any_f:
+        logger.debug("[CIRCUIT] No breakers triggered — display color defaulting to GREEN")
     hs = f"✗ {n_f} BREAKER{'S' if n_f != 1 else ''} FIRED" if any_f else "✓ ALL CLEAR"
     tbl = Table.grid(padding=(0, 1), expand=True)
     tbl.add_column("a", ratio=1)
@@ -177,6 +179,11 @@ def panel_circuit(cb: Any) -> Panel:  # noqa: C901
         else:
             util = 0
         fc = R if fired else (Y if util >= 0.75 else G)
+        if not fired and util < 0.75:
+            logger.debug(
+                f"[CIRCUIT] Breaker {lbl_s} not fired and utilization {util:.1%} "
+                f"below warning threshold — color defaulting to GREEN"
+            )
         ind = "[bold red] ![/]" if fired else ""
         pct_s = f"[dim] {util * 100:.0f}%[/]" if not fired else ""
         cur_fmt = (
@@ -355,6 +362,11 @@ def panel_circuit_expanded(cb: Any) -> Panel:  # noqa: C901
                     elif util >= 0.75:
                         status = Text.from_markup(f"[{Y}]WARNING[/]")
                     else:
+                        if util < 0.75:
+                            logger.debug(
+                                f"[CIRCUIT_EXPANDED] Breaker {lbl} utilization {util:.1%} "
+                                f"below threshold — status defaulting to CLEAR"
+                            )
                         status = Text.from_markup(f"[{G}]CLEAR[/]")
 
             tbl.add_row(

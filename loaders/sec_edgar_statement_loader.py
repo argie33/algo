@@ -79,7 +79,7 @@ class SecEdgarStatementLoader(OptimalLoader):
                         "symbol": symbol,
                         "fiscal_year": 0,
                         "data_unavailable": True,
-                        "reason": f"no_{self.period}_{self.statement_type}_data_in_sec_edgar_reit_or_special_entity"
+                        "reason": f"no_{self.period}_{self.statement_type}_data_in_sec_edgar_reit_or_special_entity",
                     }
                 ]
 

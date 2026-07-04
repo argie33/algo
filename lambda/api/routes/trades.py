@@ -221,7 +221,9 @@ def _create_manual_trade(cur: cursor, body: dict[str, Any], idempotency_key: str
                 logger.info(f"Returning cached response for idempotent request: {idempotency_key}")
                 return cache_check
             elif has_cached is None:
-                logger.warning(f"Idempotency check returned None for cached_response field — cache status unknown for {idempotency_key}")
+                logger.warning(
+                    f"Idempotency check returned None for cached_response field — cache status unknown for {idempotency_key}"
+                )
 
         try:
             req = ManualTradeRequest(**body)

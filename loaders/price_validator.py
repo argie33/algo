@@ -265,7 +265,13 @@ class PriceValidator:
 
             if close is not None and high is not None and low is not None:
                 if not (low <= close <= high):
-                    symbol = row.get("symbol", "unknown")
+                    # CRITICAL: Validate symbol field exists for audit (fail-fast if missing)
+                    symbol = row.get("symbol")
+                    if symbol is None:
+                        raise ValueError(
+                            f"[VALIDATOR] Row with out-of-range prices missing required 'symbol' field. "
+                            f"Cannot identify which symbol had validation failure. Row: {row}"
+                        )
                     logger.debug(f"[{symbol}] Price out of range: close={close}, high={high}, low={low}")
                     return False
                 if not (high >= low):

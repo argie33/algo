@@ -314,10 +314,12 @@ def handle(  # noqa: C901
                 target = DatabaseResultValidator.safe_get_float(rd, "target_price", default=None)
                 if target is not None:
                     date_str = DatabaseResultValidator.safe_get_str(rd, "date", default=None)
-                    price_targets.append({
-                        "date": date_str,
-                        "target": target,
-                    })
+                    price_targets.append(
+                        {
+                            "date": date_str,
+                            "target": target,
+                        }
+                    )
             freshness = check_data_freshness(cur, "analyst_sentiment_analysis", "date", warning_days=7)
             analyst_result = {
                 "metrics": metrics,
@@ -418,7 +420,9 @@ def handle(  # noqa: C901
 
             # FAIL-FAST: Extract optional price target fields upfront
             target_price_social = DatabaseResultValidator.safe_get_float(latest, "target_price", default=None)
-            upside_downside_social = DatabaseResultValidator.safe_get_float(latest, "upside_downside_percent", default=None)
+            upside_downside_social = DatabaseResultValidator.safe_get_float(
+                latest, "upside_downside_percent", default=None
+            )
 
             sentiment_data = {
                 "totalAnalysts": total,

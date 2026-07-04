@@ -106,7 +106,11 @@ class MetricsPublisher:
             raise ValueError(f"phase_results must be a dict, got {type(phase_results).__name__}")
 
         self._emit("OrchestratorSuccess", 1 if success else 0)
+        if not success:
+            logger.debug("Metrics: OrchestratorSuccess metric emitted with value 0 (failed)")
         self._emit("OrchestratorFailure", 0 if success else 1)
+        if success:
+            logger.debug("Metrics: OrchestratorFailure metric emitted with value 0 (not failed)")
 
         for phase_num, result in phase_results.items():
             if not isinstance(result, dict):
@@ -120,11 +124,15 @@ class MetricsPublisher:
                 1 if phase_ok else 0,
                 dimensions={"Phase": str(phase_num)},
             )
+            if not phase_ok:
+                logger.debug(f"Metrics: Phase {phase_num} PhaseSuccess metric emitted with value 0 (failed)")
             self._emit(
                 "PhaseFailure",
                 0 if phase_ok else 1,
                 dimensions={"Phase": str(phase_num)},
             )
+            if phase_ok:
+                logger.debug(f"Metrics: Phase {phase_num} PhaseFailure metric emitted with value 0 (no failure)")
 
     def put_signal_count(self, signals: int, signal_type: str = "BUY") -> None:
         """How many signals generated today.
@@ -142,6 +150,8 @@ class MetricsPublisher:
             raise ValueError(f"signal_type must be non-empty string, got {signal_type!r}")
 
         self._emit("SignalsGenerated", signals, dimensions={"SignalType": signal_type})
+        if signals == 0:
+            logger.debug(f"Metrics: SignalsGenerated metric emitted with value 0 for type '{signal_type}'")
 
     def put_trade_count(self, trades: int) -> None:
         """How many trades placed in this orchestrator run.
@@ -301,6 +311,8 @@ class MetricsPublisher:
             1 if fired else 0,
             dimensions={"Breaker": breaker_name},
         )
+        if not fired:
+            logger.debug(f"Metrics: CircuitBreakerFired metric emitted with value 0 for breaker '{breaker_name}'")
 
     def flush(self) -> None:
         """Call at end of run to send any remaining buffered metrics."""

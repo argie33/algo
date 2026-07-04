@@ -139,7 +139,11 @@ class VectorizedSignalGenerator:
                 sma150 = self._rolling_mean(closes, 150)
                 sma200 = self._rolling_mean(closes, 200)
                 # SMA200 slope: (current - 5 bars ago) / (5 bars ago)
-                sma200_slope = (sma200[-1] - sma200[-6]) / sma200[-6] if len(sma200) > 6 and not np.isnan(sma200[-1]) and not np.isnan(sma200[-6]) and sma200[-6] > 0 else None
+                sma200_slope = (
+                    (sma200[-1] - sma200[-6]) / sma200[-6]
+                    if len(sma200) > 6 and not np.isnan(sma200[-1]) and not np.isnan(sma200[-6]) and sma200[-6] > 0
+                    else None
+                )
 
                 # Compute 52-week high/low
                 high52 = np.max(closes[-252:]) if len(closes) >= 252 else np.max(closes)
@@ -174,14 +178,26 @@ class VectorizedSignalGenerator:
                     criteria["close_above_sma200"] = False
 
                 # 4. SMA50 > SMA150
-                if sma50[-1] is not None and not np.isnan(sma50[-1]) and sma150[-1] is not None and not np.isnan(sma150[-1]) and sma50[-1] > sma150[-1]:
+                if (
+                    sma50[-1] is not None
+                    and not np.isnan(sma50[-1])
+                    and sma150[-1] is not None
+                    and not np.isnan(sma150[-1])
+                    and sma50[-1] > sma150[-1]
+                ):
                     score += 1
                     criteria["sma50_above_sma150"] = True
                 else:
                     criteria["sma50_above_sma150"] = False
 
                 # 5. SMA150 > SMA200
-                if sma150[-1] is not None and not np.isnan(sma150[-1]) and sma200[-1] is not None and not np.isnan(sma200[-1]) and sma150[-1] > sma200[-1]:
+                if (
+                    sma150[-1] is not None
+                    and not np.isnan(sma150[-1])
+                    and sma200[-1] is not None
+                    and not np.isnan(sma200[-1])
+                    and sma150[-1] > sma200[-1]
+                ):
                     score += 1
                     criteria["sma150_above_sma200"] = True
                 else:
@@ -248,7 +264,11 @@ class VectorizedSignalGenerator:
 
                 # Compute 30-week MA (150 days) and slope
                 ma150 = self._rolling_mean(closes, 150)
-                ma150_slope = (ma150[-1] - ma150[-6]) / ma150[-6] if len(ma150) > 6 and not np.isnan(ma150[-1]) and not np.isnan(ma150[-6]) and ma150[-6] > 0 else None
+                ma150_slope = (
+                    (ma150[-1] - ma150[-6]) / ma150[-6]
+                    if len(ma150) > 6 and not np.isnan(ma150[-1]) and not np.isnan(ma150[-6]) and ma150[-6] > 0
+                    else None
+                )
 
                 c = closes[-1] if len(closes) > 0 else np.nan
                 sma200 = self._rolling_mean(closes, 200)
@@ -293,7 +313,11 @@ class VectorizedSignalGenerator:
 
                 current = closes[-1] if len(closes) > 0 and not np.isnan(closes[-1]) else None
                 prior = closes[-21] if len(closes) > 20 and not np.isnan(closes[-21]) else None
-                ret_21d = ((current - prior) / prior * 100) if current is not None and prior is not None and prior > 0 else None
+                ret_21d = (
+                    ((current - prior) / prior * 100)
+                    if current is not None and prior is not None and prior > 0
+                    else None
+                )
 
                 # CRITICAL: Fail fast if return calculation failed
                 # Do NOT silently default to False — this masks data quality issues

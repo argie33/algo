@@ -239,6 +239,7 @@ def _industry_list(cur: cursor, params: dict[str, Any]) -> Any:
 
         # FAIL-FAST: Extract required fields upfront with safe validation
         from utils.validation import DatabaseResultValidator
+
         industry = DatabaseResultValidator.safe_get_str(ind, "industry", default=None)
         sector = DatabaseResultValidator.safe_get_str(ind, "sector", default=None)
         rank_1w = DatabaseResultValidator.safe_get_int(ind, "rank_1w_ago", default=None)
@@ -376,18 +377,21 @@ def _industry_trend(cur: cursor, industry_name: str, params: dict[str, Any]) -> 
     rows = cur.fetchall()
     # FAIL-FAST: Extract trend data fields upfront with safe validation
     from utils.validation import DatabaseResultValidator
+
     trend_data = []
     for r in rows:
         date_val = DatabaseResultValidator.safe_get_str(r, "date", default=None)
         avg_price = DatabaseResultValidator.safe_get_float(r, "avg_price", default=None)
         stock_cnt = DatabaseResultValidator.safe_get_int(r, "stock_count", default=None)
         strength_score = DatabaseResultValidator.safe_get_float(r, "daily_strength_score", default=None)
-        trend_data.append({
-            "date": date_val,
-            "avgPrice": avg_price,
-            "stockCount": stock_cnt,
-            "dailyStrengthScore": strength_score,
-        })
+        trend_data.append(
+            {
+                "date": date_val,
+                "avgPrice": avg_price,
+                "stockCount": stock_cnt,
+                "dailyStrengthScore": strength_score,
+            }
+        )
 
     freshness = check_data_freshness(cur, "price_daily", "date", warning_days=1)
     result = {

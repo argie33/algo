@@ -7,7 +7,8 @@ silent .get() patterns with fail-fast error handling.
 Enforces governance: No silent fallbacks, all missing data must be explicit.
 """
 
-from typing import Any, Callable, TypeVar
+from collections.abc import Callable
+from typing import Any, TypeVar
 
 T = TypeVar("T")
 
@@ -169,9 +170,7 @@ def validate_response_structure(
     return status
 
 
-def ensure_field_present(
-    data: dict[str, Any], field: str, validator: Callable[[Any], bool] | None = None
-) -> bool:
+def ensure_field_present(data: dict[str, Any], field: str, validator: Callable[[Any], bool] | None = None) -> bool:
     """Check that field is present and optionally valid.
 
     Raises RuntimeError if validation fails.

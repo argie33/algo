@@ -404,7 +404,13 @@ class StockScoresLoader(OptimalLoader):
                     # Handle marker dicts (data unavailable) separately from float scores
                     if isinstance(clamped_value_score, dict) and clamped_value_score.get("data_unavailable"):
                         # Marker returned — data unavailable for this metric
-                        reason = clamped_value_score.get("reason", "unknown_reason")
+                        # CRITICAL: Validate reason field exists when data_unavailable=True (fail-fast if missing)
+                        reason = clamped_value_score.get("reason")
+                        if reason is None:
+                            raise ValueError(
+                                f"[STOCK_SCORES] {symbol} metric '{metric_name}' marked data_unavailable but missing required 'reason' field. "
+                                f"API contract violation: unavailable markers must include reason. Marker: {clamped_value_score}"
+                            )
                         unavailable_metrics[metric_name] = reason
                         logger.debug(f"[STOCK_SCORES] {metric_name} unavailable for {symbol}: {reason}")
                     elif clamped_value_score is None:

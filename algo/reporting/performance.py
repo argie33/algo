@@ -377,7 +377,8 @@ class LivePerformance:
                     "data_unavailable": True,
                     "reason": "incomplete_live_metrics",
                     "missing": [
-                        name for name, val in [
+                        name
+                        for name, val in [
                             ("sharpe", live_sharpe),
                             ("win_rate", live_wr),
                             ("max_drawdown", live_max_dd),
