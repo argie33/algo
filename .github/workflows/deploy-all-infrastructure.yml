@@ -1734,7 +1734,7 @@ jobs:
               --timeout 300 \
               --memory-size 512 \
               --region $AWS_REGION \
-              --environment "Variables={DB_NAME=algo,AWS_REGION=$AWS_REGION}" || echo "[WARN] Could not create Lambda (may already exist in different state)"
+              --environment "Variables={DB_NAME=algo}" || echo "[WARN] Could not create Lambda (may already exist in different state)"
           fi
 
           echo "[OK] Migration Lambda ready: $LAMBDA_NAME"
