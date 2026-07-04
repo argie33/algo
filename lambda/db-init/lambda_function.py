@@ -1,3 +1,4 @@
+# DEPLOY_TRIGGER: 2026-07-04 074457
 #!/usr/bin/env python3
 """
 Database schema initialization Lambda for RDS PostgreSQL.
@@ -473,3 +474,4 @@ def lambda_handler(event, context):  # noqa: C901
     except psycopg2.DatabaseError as e:
         logger.error(f"Init failed: {e}", exc_info=True)
         return {"statusCode": 500, "body": json.dumps(f"Init failed: {e}")}
+
