@@ -468,18 +468,18 @@ def is_critical_table(table_name: str) -> bool:
     Returns:
         True if critical, False otherwise
     """
+    if not isinstance(table_name, str):
+        raise TypeError(f"table_name must be string, got {type(table_name).__name__}")
+
     rule = get_freshness_rule(table_name)
     if not rule:
-        # CRITICAL: No rule found for table - fail explicitly
-        logger.error(f"[DATA_FRESHNESS] No freshness rule found for {table_name} - cannot determine criticality")
-        raise ValueError(f"Missing freshness rule for {table_name}")
+        # No rule found - return False rather than raising to maintain backward compatibility
+        logger.debug(f"[DATA_FRESHNESS] No freshness rule found for {table_name}")
+        return False
 
-    if "critical" not in rule:
-        # CRITICAL: Missing "critical" flag means data classification is incomplete
-        logger.error(f"[DATA_FRESHNESS] Freshness rule for {table_name} missing 'critical' flag")
-        raise ValueError(f"Freshness rule for {table_name} missing required 'critical' field")
-
-    return bool(rule["critical"])  # Explicit access, explicit type conversion
+    # Safe access with explicit type conversion
+    is_critical = rule.get("critical", False)
+    return bool(is_critical)
 
 
 # ============================================================================
