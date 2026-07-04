@@ -20,6 +20,17 @@ from algo.orchestration.phase_event_hub import (
     PhaseStatus,
     get_event_hub,
 )
+
+# Import all phase executors at module load time (not dynamically)
+from algo.orchestrator.phase1_data_freshness import run as run_phase1
+from algo.orchestrator.phase2_circuit_breakers import run as run_phase2
+from algo.orchestrator.phase3_position_monitor import run as run_phase3
+from algo.orchestrator.phase4_reconciliation import run as run_phase4
+from algo.orchestrator.phase5_exposure_policy import run as run_phase5
+from algo.orchestrator.phase6_exit_execution import run as run_phase6
+from algo.orchestrator.phase7_signal_generation import run as run_phase7
+from algo.orchestrator.phase8_entry_execution import run as run_phase8
+from algo.orchestrator.phase9_reconciliation import run as run_phase9
 from algo.orchestrator.phase_executor import OrchestratorPhaseExecutor, PhaseDefinition
 from algo.orchestrator.phase_registry import PhaseRegistry
 from algo.reporting import AlertManager
@@ -670,8 +681,6 @@ class Orchestrator:
         Removes all the complex grace period / hung task detection logic.
         """
         self.log_phase_start(1, "DATA FRESHNESS CHECK")
-        from algo.orchestrator.phase1_data_freshness import run as run_phase1
-
         result = run_phase1(
             self.config,
             self.run_date,
@@ -722,8 +731,6 @@ class Orchestrator:
     def phase_2_circuit_breakers(self) -> bool:
         """Thin delegation to phase2_circuit_breakers module."""
         self.log_phase_start(2, "CIRCUIT BREAKERS")
-        from algo.orchestrator.phase2_circuit_breakers import run as run_phase2
-
         result = run_phase2(
             self.config,
             self.run_date,
@@ -738,8 +745,6 @@ class Orchestrator:
     def phase_3_position_monitor(self) -> bool:
         """Thin delegation to phase3_position_monitor module."""
         self.log_phase_start(3, "POSITION MONITOR")
-        from algo.orchestrator.phase3_position_monitor import run as run_phase3
-
         result = run_phase3(
             self.config,
             self.run_date,
@@ -777,8 +782,6 @@ class Orchestrator:
     def phase_5_exposure_policy(self) -> bool:
         """Thin delegation to phase5_exposure_policy module."""
         self.log_phase_start(5, "EXPOSURE POLICY ACTIONS")
-        from algo.orchestrator.phase5_exposure_policy import run as run_phase5
-
         result = run_phase5(
             self.config,
             self.run_date,
@@ -819,8 +822,6 @@ class Orchestrator:
         self.log_phase_start(9, "RECONCILIATION & SNAPSHOT")
         # No halt flag check: snapshot must always be written so circuit breakers
         # have accurate portfolio state on the next invocation.
-        from algo.orchestrator.phase9_reconciliation import run as run_phase9
-
         result = run_phase9(self.config, self.run_date, self.log_phase_result)
         self._phase9_result = result
         if "positions" in result.data:
@@ -908,8 +909,6 @@ class Orchestrator:
 
     def _executor_phase_4(self, **kwargs: Any) -> Any:
         """Executor wrapper for Phase 4: Reconciliation."""
-        from algo.orchestrator.phase4_reconciliation import run as run_phase4
-
         result = run_phase4(
             self.config,
             self.run_date,
@@ -932,8 +931,6 @@ class Orchestrator:
 
         PHASE DEPENDENCY FIX: Fetches validated data from Phase 3 and 5.
         """
-        from algo.orchestrator.phase6_exit_execution import run as run_phase6
-
         if executor:
             position_recs = executor.get_phase_data_required(3, "recommendations")
             exposure_actions = executor.get_phase_data_required(5, "actions")
@@ -958,8 +955,6 @@ class Orchestrator:
 
         PHASE DEPENDENCY FIX: Fetches validated data from Phase 5.
         """
-        from algo.orchestrator.phase7_signal_generation import run as run_phase7
-
         exposure_constraints = executor.get_phase_data_required(5, "constraints") if executor else None
 
         result = run_phase7(
@@ -979,8 +974,6 @@ class Orchestrator:
         PHASE DEPENDENCY FIX: Now passes executor so phase can fetch validated data
         from Phase 7 and 5 instead of relying on instance attributes.
         """
-        from algo.orchestrator.phase8_entry_execution import run as run_phase8
-
         result = run_phase8(
             self.config,
             self.run_date,
