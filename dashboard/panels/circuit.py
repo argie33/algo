@@ -134,17 +134,17 @@ def panel_circuit(cb: Any) -> Panel:  # noqa: C901
 
     def fmt_b(br: Any) -> str:
         if br is None:
-            return ""
+            return "[red]✗ INVALID[/]"  # Breaker data missing
         if not isinstance(br, dict):
             logger.debug("[CIRCUIT] Breaker entry is not a dict: got %s", type(br).__name__)
-            return ""
+            return "[red]✗ INVALID[/]"  # Corrupted data
         fired = br.get("triggered")
         if fired is None:
             logger.debug("[CIRCUIT] Breaker missing 'triggered' status - cannot render")
-            return ""
+            return "[red]✗ INVALID[/]"  # Critical field missing
         if not isinstance(fired, bool):
             logger.debug("[CIRCUIT] Breaker 'triggered' is not bool: got %s", type(fired).__name__)
-            return ""
+            return "[red]✗ INVALID[/]"  # Data type error
         thr = br.get("threshold")
         cur = br.get("current")
         lbl_raw = br.get("label")

@@ -74,9 +74,9 @@ class SignFormatter(FormatterStrategy):
         """Return '+' for non-negative, '' for negative."""
         try:
             v = float(value)
-            return "+" if v >= 0 else ""
+            return "+" if v >= 0 else "-"  # Always return explicit +/- sign, not empty
         except (ValueError, TypeError):
-            return ""
+            return "--"  # Error case - explicit marker, not empty
 
 
 class MarketHoursFormatter(FormatterStrategy):

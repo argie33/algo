@@ -119,27 +119,27 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
         """Return a short value string for a factor key."""
         # Early return if factors dict has error markers
         if error_boundary.has_error(factors):
-            return ""
+            return "[yellow]⚠[/]"  # Mark as unavailable, not empty
         if not factors or key not in factors:
-            return ""
+            return "[yellow]⚠[/]"  # Data unavailable, not empty
         f = factors[key]
         if not isinstance(f, dict):
-            return ""
+            return "[yellow]⚠[/]"  # Corrupted data structure
         # Early return if factor data has error markers
         if error_boundary.has_error(f):
-            return ""
+            return "[yellow]⚠[/]"  # Data unavailable
         if key == "trend_30wk":
             v = f.get("price_vs_ma_pct")
-            return f" {'+' if v is not None and v >= 0 else ''}{v:.1f}%" if v is not None else ""
+            return f" {'+' if v is not None and v >= 0 else ''}{v:.1f}%" if v is not None else "[yellow]⚠[/]"
         if key == "breadth_50dma":
             v = f.get("value")
-            return f" {v:.0f}%" if v is not None else ""
+            return f" {v:.0f}%" if v is not None else "[yellow]⚠[/]"
         if key == "breadth_200dma":
             v = f.get("value")
-            return f" {v:.0f}%" if v is not None else ""
+            return f" {v:.0f}%" if v is not None else "[yellow]⚠[/]"
         if key == "spy_momentum":
             v = f.get("value")
-            return f" {v:+.1f}%" if v is not None else ""
+            return f" {v:+.1f}%" if v is not None else "[yellow]⚠[/]"
         if key == "put_call_ratio":
             v = f.get("value")
             # Handle nested structure: put_call_ratio might be {put_call_ratio, pts, max, score}
@@ -153,26 +153,26 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
             reason = f.get("reason")
             if not reason and isinstance(f.get("put_call_ratio"), dict):
                 reason = f["put_call_ratio"].get("reason")
-            return " [yellow]⚠[/]" if reason else ""
+            return " [yellow]⚠[/]" if reason else "[yellow]⚠[/]"  # Always mark unavailable
         if key == "vix_regime":
             v = f.get("value")
-            return f" {v:.1f}" if v is not None else ""
+            return f" {v:.1f}" if v is not None else "[yellow]⚠[/]"
         if key == "new_highs_lows":
             nh = f.get("new_highs")
             nl = f.get("new_lows")
             if nh is not None and nl is not None:
                 net = nh - nl
                 return f" {'+' if net >= 0 else ''}{net}"
-            return ""
+            return "[yellow]⚠[/]"  # Missing metric data
         if key == "credit_spread":
             v = f.get("value")
-            return f" {v:.2f}" if v is not None else ""
+            return f" {v:.2f}" if v is not None else "[yellow]⚠[/]"
         if key == "ad_line":
             rel = f.get("relation")
             if rel and isinstance(rel, str):
                 rel_display = rel.replace("_", " ")[:8]
                 return f" {rel_display}"
-            return ""
+            return "[yellow]⚠[/]"  # Missing relation field
         if key == "aaii_sentiment":
             bull = f.get("bullish_pct")
             bear = f.get("bearish_pct")
@@ -181,18 +181,18 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
                 b_pct = bull * 100 if bull <= 1.0 else bull
                 be_pct = bear * 100 if bear <= 1.0 else bear
                 return f" B:{b_pct:.0f}%/Be:{be_pct:.0f}%"
-            return ""
+            return "[yellow]⚠[/]"  # Missing sentiment data
         if key == "naaim":
             v = f.get("value")
-            return f" {v:.0f}" if v is not None else ""
+            return f" {v:.0f}" if v is not None else "[yellow]⚠[/]"
         if key == "distribution_days":
             cnt = f.get("count")
             regime = f.get("regime")
             if cnt is not None:
                 regime_display = regime[:5] if regime else "?"
                 return f" {cnt}d/{regime_display}"
-            return ""
-        return ""
+            return "[yellow]⚠[/]"  # Missing count data
+        return "[yellow]⚠[/]"  # Unknown factor key
 
     factor_map = [
         ("trend_30wk", "30-Week Trend", 15),

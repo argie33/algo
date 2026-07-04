@@ -270,7 +270,9 @@ class PutCallRatioFetcher:
                 try:
                     exp_date = datetime.strptime(exp_str, "%Y-%m-%d").date()
                     exp_dates.append(exp_date)
-                except ValueError:
+                except ValueError as e:
+                    # Log invalid dates so user knows which ones were skipped
+                    logger.warning(f"[PUT_CALL_FETCHER] Invalid expiration date format: {exp_str!r} - {e}")
                     continue
 
             if not exp_dates:
