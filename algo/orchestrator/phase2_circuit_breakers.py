@@ -116,7 +116,7 @@ def run(
             # GOVERNANCE: Fail-fast on data contract violations. If halted=True, halt_reasons MUST be present.
             if "halt_reasons" not in result:
                 error = PhaseError(
-                    category=ErrorCategory.PERMANENT,
+                    category=ErrorCategory.DATA_INVALID,
                     message="Circuit breaker halt triggered but halt_reasons missing from result",
                     root_cause="Data contract violation: halted=True requires halt_reasons list",
                     recoverable=False,
