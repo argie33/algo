@@ -704,7 +704,13 @@ def panel_signals_expanded(sig: Any, sig_eval: Any = None, scores: Any = None) -
     rows.append(Text.from_markup(f"[{Y}][bold]DETAILED SCORE BREAKDOWN[/][/]"))
 
     buy_sig_map_exp = _build_buy_sig_map(buy_sigs)
-    rows.append(Text.from_markup(f"[dim]Top {len(top_scores or [])} candidates with component scores[/]"))
+    # GOVERNANCE: Log explicitly when optional data is missing (fail-fast visibility).
+    if top_scores is None:
+        logger.warning("Signals panel: top_scores is None, showing 0 candidates")
+        display_count = 0
+    else:
+        display_count = len(top_scores)
+    rows.append(Text.from_markup(f"[dim]Top {display_count} candidates with component scores[/]"))
 
     if top_scores:
         sig_tbl = Table(

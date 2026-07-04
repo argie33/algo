@@ -342,7 +342,7 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
 
             # CRITICAL: Validate all required response fields to catch contract changes
             # If orchestrator doesn't return these, it's either a code change or a runtime error
-            required_fields = ["skipped", "reason"]
+            required_fields = ["skipped", "reason", "phases"]
             for field in required_fields:
                 if field not in result:
                     raise ValueError(
@@ -351,6 +351,13 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
                         f"This indicates either: (1) orchestrator code changed, "
                         f"(2) orchestrator failed silently, or (3) response contract broken."
                     )
+            # Validate phases is a list
+            phases = result["phases"]
+            if not isinstance(phases, list):
+                raise ValueError(
+                    f"Orchestrator response 'phases' must be a list, got {type(phases).__name__}. "
+                    f"Data contract violation: phases field is required and must be a list."
+                )
 
             skipped = result["skipped"]
             reason = result["reason"]
@@ -370,7 +377,7 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
                             "Orchestrator completed successfully" if success else "Orchestrator encountered errors"
                         ),
                         "run_id": run_id,
-                        "phases": result.get("phases") or [],  # Validate phases exists; default to empty if missing
+                        "phases": phases,
                         "skipped": skipped,
                         "reason": reason,
                         "source": source,

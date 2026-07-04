@@ -84,7 +84,11 @@ class TickerCache:
                     },
                     f,
                 )
-            logger.debug(f"Saved ticker cache to file ({len(self._ticker_cache or {})} symbols)")
+            # GOVERNANCE: Fail-fast on data quality issues. Log explicitly if cache is None.
+            cache_len = len(self._ticker_cache) if self._ticker_cache is not None else 0
+            if self._ticker_cache is None:
+                logger.warning("Saved ticker cache file but cache is None (no data loaded)")
+            logger.debug(f"Saved ticker cache to file ({cache_len} symbols)")
         except (json.JSONDecodeError, ValueError) as e:
             logger.debug(f"Could not save ticker cache file: {e}")
 
@@ -151,7 +155,10 @@ class TickerCache:
         if self._ticker_cache is None or time.time() - self._ticker_cache_time > self._cache_ttl:
             self._refresh_ticker_cache()
 
-        cik = (self._ticker_cache or {}).get(symbol.upper())
+        # GOVERNANCE: Fail-fast on data quality issues. Cache must be loaded after refresh.
+        if self._ticker_cache is None:
+            raise RuntimeError("SEC ticker cache failed to load (cache is None after refresh)")
+        cik = self._ticker_cache.get(symbol.upper())
         if not cik:
             raise ValueError(f"Symbol {symbol} not found in SEC ticker cache")
         return cik

@@ -2616,7 +2616,24 @@ def panel_algo_health_expanded(
 
     hlth_items, ready_to_trade = extract_health_items(hlth if hlth is not None else {})
     left_panel = _build_freshness_panel(hlth_items, ready_to_trade)
-    right_panel = _build_results_panel(run, act, algo_metrics or [], exec_hist or [], risk, notifs, audit or [])
+    # GOVERNANCE: Log when optional data sources are missing (fail-fast visibility).
+    # These fallbacks to empty lists are intentional for UI graceful degradation.
+    if algo_metrics is None:
+        logger.warning("Health panel: algo_metrics is None, using empty list for display")
+        algo_metrics_display = []
+    else:
+        algo_metrics_display = algo_metrics
+    if exec_hist is None:
+        logger.warning("Health panel: exec_hist is None, using empty list for display")
+        exec_hist_display = []
+    else:
+        exec_hist_display = exec_hist
+    if audit is None:
+        logger.warning("Health panel: audit is None, using empty list for display")
+        audit_display = []
+    else:
+        audit_display = audit
+    right_panel = _build_results_panel(run, act, algo_metrics_display, exec_hist_display, risk, notifs, audit_display)
 
     dual = Layout()
     dual.split_row(

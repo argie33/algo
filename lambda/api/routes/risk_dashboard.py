@@ -53,16 +53,40 @@ def handle(
     elif path == "/api/algo/risk-dashboard/exposure-tier":
         return _get_exposure_tier_info(cur)
     elif path == "/api/algo/risk-dashboard/position-sizing-audit":
-        days = params.get("days", ["30"])
-        days_int = safe_limit(days[0], max_val=365, default=30)
+        # GOVERNANCE: Explicit parameter validation instead of silent defaults.
+        days = params.get("days") if params and isinstance(params, dict) else None
+        if days is None:
+            logger.debug("days parameter missing, using default=30")
+            days_int = 30
+        elif isinstance(days, list) and len(days) > 0:
+            days_int = safe_limit(days[0], max_val=365, default=30)
+        else:
+            logger.warning(f"Invalid days parameter: {days}, using default=30")
+            days_int = 30
         return _get_position_sizing_audit(cur, days_int)
     elif path == "/api/algo/risk-dashboard/stop-loss-audit":
-        days = params.get("days", ["30"])
-        days_int = safe_limit(days[0], max_val=365, default=30)
+        # GOVERNANCE: Explicit parameter validation instead of silent defaults.
+        days = params.get("days") if params and isinstance(params, dict) else None
+        if days is None:
+            logger.debug("days parameter missing, using default=30")
+            days_int = 30
+        elif isinstance(days, list) and len(days) > 0:
+            days_int = safe_limit(days[0], max_val=365, default=30)
+        else:
+            logger.warning(f"Invalid days parameter: {days}, using default=30")
+            days_int = 30
         return _get_stop_loss_audit(cur, days_int)
     elif path == "/api/algo/risk-dashboard/exit-rules":
-        days = params.get("days", ["30"])
-        days_int = safe_limit(days[0], max_val=365, default=30)
+        # GOVERNANCE: Explicit parameter validation instead of silent defaults.
+        days = params.get("days") if params and isinstance(params, dict) else None
+        if days is None:
+            logger.debug("days parameter missing, using default=30")
+            days_int = 30
+        elif isinstance(days, list) and len(days) > 0:
+            days_int = safe_limit(days[0], max_val=365, default=30)
+        else:
+            logger.warning(f"Invalid days parameter: {days}, using default=30")
+            days_int = 30
         return _get_exit_rules_distribution(cur, days_int)
     else:
         return error_response(404, "not_found", f"No risk dashboard handler for {path}")

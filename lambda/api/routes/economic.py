@@ -358,24 +358,32 @@ def _get_leading_indicators(cur: cursor) -> Any:  # noqa: C901
                     history = yoy_history
 
             # Calculate trend (up/down/flat) on the (possibly transformed) history
+            # GOVERNANCE: Fail-fast on insufficient data. No silent fallbacks to defaults.
             if len(history) >= 2:
-                recent_avg = sum([h["value"] for h in history[-3:] if h["value"] is not None] or [0]) / max(
-                    1, len([h for h in history[-3:] if h["value"] is not None])
-                )
-                older_avg = sum([h["value"] for h in history[:3] if h["value"] is not None] or [0]) / max(
-                    1, len([h for h in history[:3] if h["value"] is not None])
-                )
-                if older_avg and recent_avg:
-                    if recent_avg > older_avg * 1.01:
-                        trend = "up"
-                    elif recent_avg < older_avg * 0.99:
-                        trend = "down"
+                recent_values = [h["value"] for h in history[-3:] if h["value"] is not None]
+                older_values = [h["value"] for h in history[:3] if h["value"] is not None]
+
+                # Require at least one valid data point in each period for trend calculation
+                if len(recent_values) == 0:
+                    logger.warning("Insufficient data for recent trend calculation (0 valid values in last 3 periods). Setting trend=None.")
+                    trend = None
+                elif len(older_values) == 0:
+                    logger.warning("Insufficient data for older trend calculation (0 valid values in first 3 periods). Setting trend=None.")
+                    trend = None
+                else:
+                    recent_avg = sum(recent_values) / len(recent_values)
+                    older_avg = sum(older_values) / len(older_values)
+                    if older_avg and recent_avg:
+                        if recent_avg > older_avg * 1.01:
+                            trend = "up"
+                        elif recent_avg < older_avg * 0.99:
+                            trend = "down"
+                        else:
+                            trend = "flat"
                     else:
                         trend = "flat"
-                else:
-                    trend = "flat"
             else:
-                trend = "flat"
+                trend = None
 
             # Compute MoM change from the most recent two history entries
             change = None

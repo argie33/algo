@@ -751,8 +751,27 @@ class Orchestrator:
         self._phase3_result = result
         if not result.ok:
             return False
-        recs = result.data.get("recommendations")
-        self._position_recs = recs if recs is not None else []
+        # GOVERNANCE: Fail-fast on data contract violations. Phase 3 MUST provide recommendations.
+        if "recommendations" not in result.data:
+            self.log_phase_result(
+                3,
+                "position_monitor",
+                "error",
+                "Phase 3 data contract violated: missing 'recommendations' key in result",
+            )
+            logger.error("Phase 3 returned ok=True but missing recommendations in data contract")
+            return False
+        recs = result.data["recommendations"]
+        if not isinstance(recs, list):
+            self.log_phase_result(
+                3,
+                "position_monitor",
+                "error",
+                f"Phase 3 data contract violated: recommendations must be list, got {type(recs).__name__}",
+            )
+            logger.error(f"Phase 3 recommendations not a list: {type(recs)}")
+            return False
+        self._position_recs = recs
         return True
 
     def phase_5_exposure_policy(self) -> bool:
@@ -771,9 +790,28 @@ class Orchestrator:
         self._phase5_result = result
         if not result.ok:
             return False
+        # GOVERNANCE: Fail-fast on data contract violations. Phase 5 MUST provide actions.
+        if "actions" not in result.data:
+            self.log_phase_result(
+                5,
+                "exposure_policy",
+                "error",
+                "Phase 5 data contract violated: missing 'actions' key in result",
+            )
+            logger.error("Phase 5 returned ok=True but missing actions in data contract")
+            return False
+        actions = result.data["actions"]
+        if not isinstance(actions, list):
+            self.log_phase_result(
+                5,
+                "exposure_policy",
+                "error",
+                f"Phase 5 data contract violated: actions must be list, got {type(actions).__name__}",
+            )
+            logger.error(f"Phase 5 actions not a list: {type(actions)}")
+            return False
         self._exposure_constraints = result.data.get("constraints")
-        actions = result.data.get("actions")
-        self._exposure_actions = actions if actions is not None else []
+        self._exposure_actions = actions
         return True
 
     def phase_9_reconcile(self) -> bool:

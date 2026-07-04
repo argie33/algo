@@ -113,7 +113,28 @@ def run(
             )
 
         if result["halted"]:
-            halt_reasons = result.get("halt_reasons", ["unknown"])
+            # GOVERNANCE: Fail-fast on data contract violations. If halted=True, halt_reasons MUST be present.
+            if "halt_reasons" not in result:
+                error = PhaseError(
+                    category=ErrorCategory.PERMANENT,
+                    message="Circuit breaker halt triggered but halt_reasons missing from result",
+                    root_cause="Data contract violation: halted=True requires halt_reasons list",
+                    recoverable=False,
+                    log_level="error",
+                )
+                log_phase_error(2, error, log_phase_result_fn)
+                return PhaseResult(
+                    2,
+                    "circuit_breakers",
+                    "error",
+                    {},
+                    True,
+                    "Circuit breaker error: halt_reasons missing (data contract violation)",
+                )
+            halt_reasons = result["halt_reasons"]
+            if not isinstance(halt_reasons, list) or len(halt_reasons) == 0:
+                logger.warning(f"Circuit breaker halt_reasons invalid type or empty: {type(halt_reasons)}, defaulting to ['unknown']")
+                halt_reasons = ["unknown"]
             alerts.send_position_alert(
                 "PORTFOLIO",
                 "ACCOUNT_CIRCUIT_BREAKER",
