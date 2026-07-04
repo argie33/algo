@@ -18,7 +18,6 @@ Use: python3 loaders/load_options_chains.py [--symbols AAPL,MSFT]
 import argparse
 import logging
 import math
-import sys
 import time
 from datetime import date, datetime
 from typing import Any
@@ -469,11 +468,16 @@ class OptionsLoader:
         return 1
 
 
-def main() -> None:
+def main() -> int:
     """Load options chains and IV history from yfinance.
 
+    Governance: Fail-fast on missing data. No silent fallbacks.
+    Exit codes must be unambiguous:
+    - 0: Data fetched and stored successfully
+    - 1: Error (validation failure, collection error, unexpected exception)
+    - 2: No data (graceful condition - options data unavailable for symbols)
+
     Validates: symbols list not empty, date format valid.
-    Exits with code 1 if no data collected, 0 on success.
     """
     # Configure logging
     logging.basicConfig(
@@ -501,32 +505,36 @@ def main() -> None:
             eval_date = datetime.strptime(args.date, "%Y-%m-%d").date()
         except ValueError as e:
             logger.error(f"Invalid date format: {args.date}. Use YYYY-MM-DD format. Error: {e}")
-            sys.exit(1)
+            return 1
 
     try:
         loader = OptionsLoader()
         result = loader.run(symbols=args.symbols, eval_date=eval_date)
 
         if result["symbols_processed"] == 0:
-            logger.error("No symbols processed - options data collection failed")
-            sys.exit(1)
+            logger.error("No symbols processed - options data collection failed. Exit code 1 (ERROR).")
+            return 1
 
         if result.get("data_unavailable"):
-            logger.warning(f"Options data unavailable: {result.get('reason', 'unknown')}. Details: {result}")
-            sys.exit(1)
+            logger.warning(
+                f"Options data unavailable: {result.get('reason', 'unknown')}. "
+                f"Exit code 2 (NO_DATA) — downstream will omit options enrichment. "
+                f"Details: {result}"
+            )
+            return 2
 
-        logger.info(f"Success: {result}")
-        sys.exit(0)
+        logger.info(f"Success: Loaded options data. Exit code 0 (SUCCESS). Result: {result}")
+        return 0
 
     except ValueError as e:
-        logger.error(f"Validation error: {e}")
-        sys.exit(1)
+        logger.error(f"Validation error: {e}. Exit code 1 (ERROR).")
+        return 1
     except RuntimeError as e:
-        logger.error(f"Fatal error: {e}")
-        sys.exit(1)
+        logger.error(f"Fatal error: {e}. Exit code 1 (ERROR).")
+        return 1
     except Exception as e:
-        logger.critical(f"Unexpected error: {e}")
-        sys.exit(1)
+        logger.critical(f"Unexpected error: {e}. Exit code 1 (ERROR).")
+        return 1
 
 
 if __name__ == "__main__":
