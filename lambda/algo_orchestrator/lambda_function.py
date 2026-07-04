@@ -370,7 +370,7 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
                             "Orchestrator completed successfully" if success else "Orchestrator encountered errors"
                         ),
                         "run_id": run_id,
-                        "phases": result.get("phases"),
+                        "phases": result.get("phases") or [],  # Validate phases exists; default to empty if missing
                         "skipped": skipped,
                         "reason": reason,
                         "source": source,
