@@ -158,28 +158,30 @@ def _get_algo_performance(cur: cursor) -> Any:  # noqa: C901
         row = cur.fetchone()
     except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as col_err:
         logger.warning(f"Performance metrics table/columns unavailable: {col_err}. Returning defaults.")
-        return success_response({
-            "total_trades": None,
-            "winning": None,
-            "losing": None,
-            "breakeven": None,
-            "win_rate": None,
-            "profit_factor": None,
-            "total_pnl": None,
-            "total_pnl_pct": None,
-            "avg_trade_pct": None,
-            "best_trade": None,
-            "worst_trade": None,
-            "sharpe": None,
-            "sortino": None,
-            "calmar": None,
-            "max_drawdown": None,
-            "cagr": None,
-            "best_streak": None,
-            "worst_streak": None,
-            "current_streak": None,
-            "expectancy": None,
-        })
+        return success_response(
+            {
+                "total_trades": None,
+                "winning": None,
+                "losing": None,
+                "breakeven": None,
+                "win_rate": None,
+                "profit_factor": None,
+                "total_pnl": None,
+                "total_pnl_pct": None,
+                "avg_trade_pct": None,
+                "best_trade": None,
+                "worst_trade": None,
+                "sharpe": None,
+                "sortino": None,
+                "calmar": None,
+                "max_drawdown": None,
+                "cagr": None,
+                "best_streak": None,
+                "worst_streak": None,
+                "current_streak": None,
+                "expectancy": None,
+            }
+        )
 
     # GRACEFUL DEGRADATION: Return empty/None values if pre-computed metrics unavailable
     # This allows dashboard to display during ramp-up phase instead of showing error
@@ -189,28 +191,30 @@ def _get_algo_performance(cur: cursor) -> Any:  # noqa: C901
             "Pre-computed metrics should be generated daily at 4:45 PM ET by compute_performance_metrics.py. "
             "Check data loader health. Returning defaults for dashboard graceful degradation."
         )
-        return success_response({
-            "total_trades": None,
-            "winning": None,
-            "losing": None,
-            "breakeven": None,
-            "win_rate": None,
-            "profit_factor": None,
-            "total_pnl": None,
-            "total_pnl_pct": None,
-            "avg_trade_pct": None,
-            "best_trade": None,
-            "worst_trade": None,
-            "sharpe": None,
-            "sortino": None,
-            "calmar": None,
-            "max_drawdown": None,
-            "cagr": None,
-            "best_streak": None,
-            "worst_streak": None,
-            "current_streak": None,
-            "expectancy": None,
-        })
+        return success_response(
+            {
+                "total_trades": None,
+                "winning": None,
+                "losing": None,
+                "breakeven": None,
+                "win_rate": None,
+                "profit_factor": None,
+                "total_pnl": None,
+                "total_pnl_pct": None,
+                "avg_trade_pct": None,
+                "best_trade": None,
+                "worst_trade": None,
+                "sharpe": None,
+                "sortino": None,
+                "calmar": None,
+                "max_drawdown": None,
+                "cagr": None,
+                "best_streak": None,
+                "worst_streak": None,
+                "current_streak": None,
+                "expectancy": None,
+            }
+        )
 
     try:
         metrics = safe_dict_convert(row)
@@ -785,7 +789,9 @@ def _get_holding_period_distribution(cur: cursor) -> Any:
     # Track how many had zero data for completeness
     empty_bucket_count = sum(1 for b in buckets if b["count"] == 0)
     if empty_bucket_count > 0:
-        logger.debug(f"[METRICS] Holding period distribution: {empty_bucket_count}/{len(buckets)} ranges had zero trades")
+        logger.debug(
+            f"[METRICS] Holding period distribution: {empty_bucket_count}/{len(buckets)} ranges had zero trades"
+        )
     return list_response(buckets, total=len(buckets), limit=None, offset=None)
 
 
@@ -900,22 +906,32 @@ def _get_performance_analytics(cur: cursor) -> Any:
                         "rolling_sortino_252d": None,
                         "calmar_ratio": None,
                         "win_rate_50t": None,
-                        "avg_win_r_50t": None,
-                        "avg_loss_r_50t": None,
-                        "expectancy": None,
+                        "avg_win_r_50t": 0.0,
+                        "avg_loss_r_50t": 0.0,
+                        "expectancy": 0.0,
                         "max_drawdown_pct": None,
                     }
                 else:
                     data = safe_dict_convert(row)
                     response_dict = {
-                        "rolling_sharpe_252d": float(data.get("sharpe_ratio")) if data.get("sharpe_ratio") is not None else None,
-                        "rolling_sortino_252d": float(data.get("sortino_ratio")) if data.get("sortino_ratio") is not None else None,
-                        "calmar_ratio": float(data.get("calmar_ratio")) if data.get("calmar_ratio") is not None else None,
-                        "win_rate_50t": float(data.get("win_rate_pct")) if data.get("win_rate_pct") is not None else None,
-                        "avg_win_r_50t": None,
-                        "avg_loss_r_50t": None,
-                        "expectancy": None,
-                        "max_drawdown_pct": float(data.get("max_drawdown_pct")) if data.get("max_drawdown_pct") is not None else None,
+                        "rolling_sharpe_252d": (
+                            float(data.get("sharpe_ratio")) if data.get("sharpe_ratio") is not None else None
+                        ),
+                        "rolling_sortino_252d": (
+                            float(data.get("sortino_ratio")) if data.get("sortino_ratio") is not None else None
+                        ),
+                        "calmar_ratio": (
+                            float(data.get("calmar_ratio")) if data.get("calmar_ratio") is not None else None
+                        ),
+                        "win_rate_50t": (
+                            float(data.get("win_rate_pct")) if data.get("win_rate_pct") is not None else None
+                        ),
+                        "avg_win_r_50t": 0.0,
+                        "avg_loss_r_50t": 0.0,
+                        "expectancy": 0.0,
+                        "max_drawdown_pct": (
+                            float(data.get("max_drawdown_pct")) if data.get("max_drawdown_pct") is not None else None
+                        ),
                     }
 
                 response_dict["sharpe252"] = response_dict["rolling_sharpe_252d"]
@@ -938,22 +954,23 @@ def _get_performance_analytics(cur: cursor) -> Any:
             pass
 
         logger.warning(
-            f"Performance metrics table missing: {table_err}. "
-            "Returning defaults for graceful degradation."
+            f"Performance metrics table missing: {table_err}. " "Returning defaults for graceful degradation."
         )
-        return success_response({
-            "rolling_sharpe_252d": None,
-            "rolling_sortino_252d": None,
-            "calmar_ratio": None,
-            "win_rate_50t": None,
-            "avg_win_r_50t": None,
-            "avg_loss_r_50t": None,
-            "expectancy": None,
-            "max_drawdown_pct": None,
-            "sharpe252": None,
-            "sortino": None,
-            "calmar": None,
-        })
+        return success_response(
+            {
+                "rolling_sharpe_252d": None,
+                "rolling_sortino_252d": None,
+                "calmar_ratio": None,
+                "win_rate_50t": None,
+                "avg_win_r_50t": None,
+                "avg_loss_r_50t": None,
+                "expectancy": None,
+                "max_drawdown_pct": None,
+                "sharpe252": None,
+                "sortino": None,
+                "calmar": None,
+            }
+        )
     except (
         psycopg2.OperationalError,
         psycopg2.DatabaseError,
@@ -969,19 +986,21 @@ def _get_performance_analytics(cur: cursor) -> Any:
             f"Performance analytics database error: {type(e).__name__}: {e}. "
             "Returning defaults for graceful degradation."
         )
-        return success_response({
-            "rolling_sharpe_252d": None,
-            "rolling_sortino_252d": None,
-            "calmar_ratio": None,
-            "win_rate_50t": None,
-            "avg_win_r_50t": None,
-            "avg_loss_r_50t": None,
-            "expectancy": None,
-            "max_drawdown_pct": None,
-            "sharpe252": None,
-            "sortino": None,
-            "calmar": None,
-        })
+        return success_response(
+            {
+                "rolling_sharpe_252d": None,
+                "rolling_sortino_252d": None,
+                "calmar_ratio": None,
+                "win_rate_50t": None,
+                "avg_win_r_50t": None,
+                "avg_loss_r_50t": None,
+                "expectancy": None,
+                "max_drawdown_pct": None,
+                "sharpe252": None,
+                "sortino": None,
+                "calmar": None,
+            }
+        )
 
 
 @db_route_handler("get performance metrics endpoint")

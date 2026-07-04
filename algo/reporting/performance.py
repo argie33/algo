@@ -372,7 +372,7 @@ class LivePerformance:
             live_expectancy = self.expectancy(50)
             live_max_dd = self.max_drawdown()
 
-            if not all([live_sharpe, live_wr, live_max_dd]):
+            if not all([live_sharpe, live_wr, live_expectancy, live_max_dd]):
                 return {
                     "data_unavailable": True,
                     "reason": "incomplete_live_metrics",
@@ -381,6 +381,7 @@ class LivePerformance:
                         for name, val in [
                             ("sharpe", live_sharpe),
                             ("win_rate", live_wr),
+                            ("expectancy", live_expectancy),
                             ("max_drawdown", live_max_dd),
                         ]
                         if not val
