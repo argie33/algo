@@ -288,9 +288,10 @@ locals {
     "dxy_index"             = "load_dxy_index.py"
     "growth_metrics"        = "load_growth_metrics.py"
     "quality_metrics"       = "load_quality_metrics.py"
-    "value_metrics"         = "load_value_metrics_v2.py"
+    "value_metrics"         = "load_value_metrics.py"
     "positioning_metrics"   = "load_positioning_metrics.py"
     "stability_metrics"     = "load_stability_metrics.py"
+    "momentum_metrics"      = "load_momentum_metrics.py"
     "stock_scores"          = "load_stock_scores.py"
 
     "market_constituents"         = "load_market_constituents.py"
@@ -369,6 +370,10 @@ locals {
       description = "Load stability metrics (dividend yield) - EOD pipeline"
       schedule    = "cron(20 21 ? * MON-FRI *)"  # 4:20 PM ET (parallel)
     }
+    "momentum_metrics" = {
+      description = "Load momentum metrics (1m/3m/6m/12m returns) - EOD pipeline"
+      schedule    = "cron(20 21 ? * MON-FRI *)"  # 4:20 PM ET (parallel)
+    }
 
     # Stock scores: 4:30 PM ET (after metrics complete ~4:25 PM)
     "stock_scores" = {
@@ -403,6 +408,7 @@ locals {
     "value_metrics"         = { cpu = 1024, memory = 2048, timeout = 1800, parallelism = 1 }
     "positioning_metrics"   = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 2 }
     "stability_metrics"     = { cpu = 1024, memory = 2048, timeout = 1800, parallelism = 2 }
+    "momentum_metrics"      = { cpu = 1024, memory = 2048, timeout = 1800, parallelism = 2 }
     "stock_scores"          = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
 
     "market_constituents"         = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
@@ -441,7 +447,8 @@ locals {
     "quality_metrics",
     "value_metrics",
     "positioning_metrics",
-    "stability_metrics"
+    "stability_metrics",
+    "momentum_metrics"
   ])
 }
 
