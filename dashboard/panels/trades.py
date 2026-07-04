@@ -181,7 +181,10 @@ def panel_recent_trades(trades: Any) -> Any:
                 return _dt.fromisoformat(d.replace("Z", "+00:00")).strftime("%b%d")
             except (ValueError, TypeError):
                 return d[5:10]
-        return str(d or "--")[:5]
+        if d is None:
+            logger.warning("[TRADES] Trade date field is missing (None)")
+            return "—"
+        return str(d)[:5]
 
     for tr in closed_trades[:12]:
         # Extract trade fields once, then convert to typed values
@@ -345,7 +348,10 @@ def panel_trades_expanded(trades: Any) -> Any:
                 return _dt.fromisoformat(d.replace("Z", "+00:00")).strftime("%b%d")
             except (ValueError, TypeError):
                 return d[5:10]
-        return str(d or "--")[:6]
+        if d is None:
+            logger.warning("[TRADES] Trade date field is missing (None)")
+            return "—"
+        return str(d)[:6]
 
     for tr in closed[:50]:
         sym = safe_get_field(tr, "symbol", "--")

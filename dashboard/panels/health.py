@@ -1881,7 +1881,11 @@ def panel_status(  # noqa: C901
         rows.append(Text.from_markup("[dim]Daily trade activity:[/]"))
         for m in valid_metrics[:5]:
             d = m.get("date")
-            d_s = d.strftime("%b %d") if hasattr(d, "strftime") else str(d or "--")
+            if d is None or not hasattr(d, "strftime"):
+                logger.warning("[HEALTH] Daily metrics missing date field")
+                d_s = "—"
+            else:
+                d_s = d.strftime("%b %d")
 
             # Explicit validation: all action counts must be present
             ta_raw = m.get("total_actions")
@@ -2486,7 +2490,11 @@ def _build_results_panel(  # noqa: C901
         day_parts_e = []
         for m in valid_metrics_e[:5]:
             d = m.get("date")
-            d_s = d.strftime("%d") if hasattr(d, "strftime") else str(d or "")[-2:]
+            if d is None or not hasattr(d, "strftime"):
+                logger.warning("[HEALTH] Execution metrics missing date field")
+                d_s = "—"
+            else:
+                d_s = d.strftime("%d")
             en = m.get("entries")
             ex = m.get("exits")
             en_s = str(int(en)) if en is not None else "--"
@@ -2508,7 +2516,11 @@ def _build_results_panel(  # noqa: C901
         for r in valid_hist_e:
             s = _get_status_safe(r)
             dt = r.get("started_at")
-            dt_s = dt.strftime("%b %d  %I:%M %p") if hasattr(dt, "strftime") else str(dt or "")[:16]
+            if dt is None or not hasattr(dt, "strftime"):
+                logger.warning("[HEALTH] Execution history missing started_at timestamp")
+                dt_s = "—"
+            else:
+                dt_s = dt.strftime("%b %d  %I:%M %p")
             ic = G if s in PHASE_SUCCESS_STATES else (Y if s == "halted" else R)
             ii = "v" if s in PHASE_SUCCESS_STATES else ("~" if s == "halted" else "x")
             hr = r.get("halt_reason")

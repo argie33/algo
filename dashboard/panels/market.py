@@ -232,10 +232,14 @@ def panel_market_full(mkt: Any, sentiment: Any = None) -> Panel:  # noqa: C901
     if bmom_pcr:
         lines.append("  ".join(bmom_pcr))
     halt_fed = f"[dim]Trading Halt:[/][{hc}]{halt_s}[/]"
-    if fed and str(fed).lower() not in ("unknown", "n/a", "none", ""):
+    if fed is None:
+        logger.warning("[MARKET_PANEL] Fed environment data missing (None) - macro context unavailable")
+    elif isinstance(fed, str) and fed.lower() in ("unknown", "n/a", "none", ""):
+        logger.warning(f"[MARKET_PANEL] Fed environment data invalid ('{fed}') - macro context unavailable")
+    elif isinstance(fed, str) and fed.lower() not in ("unknown", "n/a", "none", ""):
         halt_fed += f"  [dim]Fed Environment:[/][white]{fed[:20]}[/]"
-    elif fed and str(fed).lower() in ("unknown", "n/a", "none", "") or fed is None:
-        logger.warning(f"[MARKET_PANEL] Fed environment data missing/invalid: '{fed}' - macro context unavailable")
+    else:
+        logger.warning(f"[MARKET_PANEL] Fed environment data has unexpected type: {type(fed).__name__}")
     lines.append(halt_fed)
     if sentiment and not has_error(sentiment):
         fg_v = sentiment.get("fg")

@@ -893,11 +893,16 @@ def panel_portfolio_perf_expanded(  # noqa: C901
                     Text(conc_display, style=conc_c),
                 )
                 if svar is not None and svar > 0:
+                    if risk_date is None:
+                        logger.warning("[PORTFOLIO] Risk metrics present but risk_date field missing")
+                        risk_date_str = "—"
+                    else:
+                        risk_date_str = str(risk_date)[:10]
                     rtbl.add_row(
                         "Stressed VaR:",
                         Text(f"{svar:.2f}%", style=R),
                         "Risk Date:",
-                        Text(str(risk_date or "--")[:10], style="dim"),
+                        Text(risk_date_str, style="dim"),
                     )
                 rows.append(rtbl)
         except (ValueError, TypeError):

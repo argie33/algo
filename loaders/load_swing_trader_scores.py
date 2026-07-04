@@ -410,7 +410,7 @@ class VectorizedSwingScoresLoader:
                     f"Inserting unavailable marker for visibility."
                 )
                 # Use trend date if available, otherwise today
-                score_date = trend.get("date") if trend else end_date
+                score_date = trend.get("date") if trend is not None else end_date
                 results.append(
                     {
                         "symbol": symbol,
