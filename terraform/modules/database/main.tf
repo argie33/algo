@@ -113,7 +113,7 @@ resource "aws_db_instance" "main" {
   # Dev is paper-trading only with non-critical workload; performance troubleshooting not needed.
   # Production enables this for slow-query diagnosis on live capital.
   performance_insights_enabled          = var.environment == "prod" ? true : false
-  performance_insights_retention_period = 7
+  performance_insights_retention_period = var.environment == "prod" ? 7 : null
 
   # Apply parameter changes immediately to fix connection pool exhaustion
   # max_connections is set to apply_method=immediate, so no reboot is required
