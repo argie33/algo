@@ -631,6 +631,10 @@ def _swing_heartbeat_worker(stop_event: threading.Event) -> None:
 
 
 def main() -> int:
+    """Vectorized Swing Trader Scores Loader.
+
+    Exit codes: 0=success, 1=error, 2=no_data
+    """
     parser = argparse.ArgumentParser(description="Vectorized Swing Trader Scores Loader")
     parser.add_argument(
         "--today",

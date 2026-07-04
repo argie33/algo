@@ -600,6 +600,10 @@ def _apply_schema_migrations() -> None:
 
 
 def main() -> int:
+    """Vectorized Technical Data Loader.
+
+    Exit codes: 0=success, 1=error, 2=no_data
+    """
     parser = argparse.ArgumentParser(description="Vectorized Technical Data Loader")
     parser.add_argument("--limit", type=int, default=None, help="Limit to N symbols (for testing)")
     parser.add_argument("--since", type=str, help="Only load data after YYYY-MM-DD")

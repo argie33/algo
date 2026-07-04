@@ -772,6 +772,10 @@ class SignalQualityScoresLoader(OptimalLoader):
 
 
 def main() -> int:
+    """Load signal quality scores.
+
+    Exit codes: 0=success, 1=error, 2=no_data
+    """
     parser = argparse.ArgumentParser(description="Load signal quality scores")
     parser.add_argument("--symbols", type=str, help="Comma-separated symbols")
     parser.add_argument(

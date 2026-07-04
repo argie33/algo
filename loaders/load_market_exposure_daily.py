@@ -34,7 +34,10 @@ logger = logging.getLogger(__name__)
 
 
 def main() -> int:
-    """Compute and persist market_exposure_daily for latest trading date."""
+    """Compute and persist market_exposure_daily for latest trading date.
+
+    Exit codes: 0=success, 1=error, 2=no_data
+    """
     from utils.db.context import DatabaseContext
 
     table_name = "market_exposure_daily"

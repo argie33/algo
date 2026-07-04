@@ -1455,6 +1455,10 @@ def _write_vix_family_prices(start: date, end: date) -> int:  # noqa: C901
 
 
 def main() -> int:
+    """Load market health daily metrics.
+
+    Exit codes: 0=success, 1=error, 2=no_data
+    """
     from utils.logging.history_tracker import LoaderHistoryTracker
 
     parser = argparse.ArgumentParser(description="Load market health daily metrics")
