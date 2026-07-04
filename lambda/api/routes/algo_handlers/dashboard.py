@@ -113,7 +113,8 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
                 "Check algo_positions table for NULL symbol fields."
             )
 
-        # position_value is required for display; positions without current price data are skipped
+        # CRITICAL: Required fields for dashboard display
+        # Check position_value (computed from qty * current_price)
         pos_val_raw = d.get("position_value")
         if pos_val_raw is None:
             logger.warning(
@@ -121,6 +122,26 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
                 symbol,
             )
             continue
+
+        # Check avg_entry_price (required for P&L calculation and entry point display)
+        entry_raw = d.get("avg_entry_price")
+        if entry_raw is None:
+            logger.warning(
+                "[POSITIONS] %s: avg_entry_price is NULL (required for entry price display) — skipping",
+                symbol,
+            )
+            continue
+
+        # Check current_price (required for current price display and P&L)
+        cur_price_raw = d.get("current_price")
+        if cur_price_raw is None:
+            logger.warning(
+                "[POSITIONS] %s: current_price is NULL (required for price display) — skipping",
+                symbol,
+            )
+            continue
+
+        # Validate numeric values
         try:
             pos_val = float(pos_val_raw)
         except (ValueError, TypeError) as e:
@@ -130,10 +151,25 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
                 f"All positions must have numeric position_value for dashboard display."
             ) from e
 
+        try:
+            entry = float(entry_raw)
+        except (ValueError, TypeError) as e:
+            raise RuntimeError(
+                f"[DASHBOARD CRITICAL] Position {symbol} has invalid avg_entry_price ({entry_raw}): {e}. "
+                f"Entry price must be numeric for P&L calculations."
+            ) from e
+
+        try:
+            cur_price = float(cur_price_raw)
+        except (ValueError, TypeError) as e:
+            raise RuntimeError(
+                f"[DASHBOARD CRITICAL] Position {symbol} has invalid current_price ({cur_price_raw}): {e}. "
+                f"Current price must be numeric for display."
+            ) from e
+
         # Compute ladder_pct_* fields for visualization (Issue #2)
         # These fields are OPTIONAL - positions without stop/target prices are still valid
-        entry_raw = d.get("avg_entry_price")
-        cur_price_raw = d.get("current_price")
+        # Note: entry_raw and cur_price_raw already extracted and validated above
         stop_raw = d.get("stop_loss_price")
         t1_raw = d.get("target_1_price")
         t2_raw = d.get("target_2_price")
