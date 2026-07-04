@@ -276,11 +276,14 @@ def _industry_list(cur: cursor, params: dict[str, Any]) -> Any:
         )
 
     freshness = check_data_freshness(cur, "industry_ranking", "date_recorded", warning_days=1)
+
+    # EXPLICIT: Ensure response fields have correct types for validation
+    # Database may return Decimals that get converted to float; explicitly cast to int
     result = {
-        "items": industries,
-        "total": total,
-        "page": page,
-        "limit": limit,
+        "items": industries,  # list
+        "total": int(total) if total is not None else 0,  # MUST be int for validation
+        "page": int(page) if page is not None else 1,  # MUST be int for validation
+        "limit": int(limit) if limit is not None else 500,  # MUST be int for validation
         "data_freshness": freshness,
     }
 
