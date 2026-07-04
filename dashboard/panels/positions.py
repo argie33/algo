@@ -78,7 +78,7 @@ from ..utilities import (
     optional=True,
     description="Positions",
 )
-def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extended: bool = False) -> Any:
+def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extended: bool = False) -> Any:  # noqa: C901
     """Display open positions table. Normalizes input from {"items": [...]} format.
 
     Data Contract:
@@ -174,15 +174,30 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
             continue
 
         # Get numeric fields - API guaranteed these are valid floats
-        entry = safe_float(p.get("avg_entry_price"), default=None, field_name=f"{symbol}.entry")
-        price = safe_float(p.get("current_price"), default=None, field_name=f"{symbol}.price")
-        pval = safe_float(p.get("position_value"), default=None, field_name=f"{symbol}.value")
+        # Do NOT re-validate here — the API already confirmed these are valid.
+        # safe_float with default=None was causing additional filtering.
+        entry = p.get("avg_entry_price")
+        price = p.get("current_price")
+        pval = p.get("position_value")
 
-        # If parsing failed, this is unexpected (API should have caught it)
+        # If any required field is missing, something went wrong — fail visibly
         if entry is None or price is None or pval is None:
             logger.error(
-                f"panel_positions[{symbol}]: API validation passed but parse failed - data format issue. "
-                f"entry={entry}, price={price}, value={pval}"
+                f"panel_positions[{symbol}]: API response missing required field. "
+                f"entry={entry}, price={price}, value={pval}. "
+                f"API contract violation — should not happen if API validation works."
+            )
+            continue
+
+        # Convert to float if not already (safe conversion without default fallback)
+        try:
+            entry = float(entry) if not isinstance(entry, float) else entry
+            price = float(price) if not isinstance(price, float) else price
+            pval = float(pval) if not isinstance(pval, float) else pval
+        except (ValueError, TypeError) as e:
+            logger.error(
+                f"panel_positions[{symbol}]: Failed to convert API fields to float: {e}. "
+                f"API response data format mismatch (expected numeric, got {type(entry).__name__}/{type(price).__name__}/{type(pval).__name__})"
             )
             continue
 
@@ -272,15 +287,17 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
     if isinstance(pos, dict):
         coverage = pos.get("coverage")
 
-    # CRITICAL FIX: Explicitly check for filtered_count field instead of silent default to 0
-    filtered_count = coverage.get("filtered_count") if coverage else None
     if coverage is None:
         logger.warning("[POSITIONS_PANEL] Coverage metadata missing from API - filtering visibility unavailable")
-    if coverage and filtered_count is not None and filtered_count > 0:
+
+    # Display filtering status with clear explanation of what was filtered
+    if coverage and coverage.get("total_count", 0) > 0 and coverage.get("filtered_count", 0) > 0:
         total = coverage["total_count"]
         valid = coverage["valid_count"]
+        filt = coverage["filtered_count"]
         border = "yellow"
-        title_str = f"[bold yellow]POSITIONS ({valid}/{total} valid)[/]"
+        # Show: "POSITIONS (2/15 valid, 13 filtered)"
+        title_str = f"[bold yellow]POSITIONS ({valid}/{total} valid, {filt} filtered)[/]"
     else:
         border = "cyan"
         title_str = f"[bold cyan]POSITIONS ({valid_count})[/]"

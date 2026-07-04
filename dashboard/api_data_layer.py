@@ -625,16 +625,17 @@ def _unwrap_api_response(response: dict[str, Any]) -> dict[str, Any]:
             )
             payload = {"_error": f"Response data field is {type(data_field).__name__}, expected dict"}
     else:
-        # Fallback for error responses that have no 'data' field
-        # Keep statusCode but remove other metadata markers
-        payload = {k: v for k, v in response.items() if k not in ("statusCode", "headers")}
-        if not payload:
-            # Empty payload after filtering - log explicitly that response contains no data
-            logger.warning(
-                f"API response has no data field and no other fields (after filtering metadata). "
-                f"Original response keys: {list(response.keys())}. "
-                f"This may indicate an error response with missing 'data' field."
-            )
+        # CRITICAL: Error responses without 'data' field must not fallback to empty payload.
+        # Empty payload (no data, no explicit error) is ambiguous and masks actual API errors.
+        logger.error(
+            f"API response missing required 'data' field. "
+            f"Response has no error information. Original response keys: {list(response.keys())}. "
+            f"Cannot unwrap response without 'data' field."
+        )
+        payload = {
+            "_error": "API response malformed: missing 'data' field and no error information available",
+            "_status_code": status_code,
+        }
 
     # Preserve statusCode at top level so callers can distinguish errors from success
     result: dict[str, Any] = {"statusCode": status_code}

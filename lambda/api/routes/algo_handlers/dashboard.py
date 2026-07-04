@@ -1,6 +1,7 @@
 """Route: algo"""
 
 import logging
+import math
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
@@ -122,6 +123,29 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
             logger.warning(
                 f"[POSITIONS] {symbol}: missing or invalid numeric field(s) "
                 f"(position_value, avg_entry_price, or current_price) — skipping"
+            )
+            filtered_positions_count += 1
+            continue
+
+        # CRITICAL: Reject NaN and Infinity values - these indicate data corruption
+        # All position metrics must be valid positive numbers
+        if math.isnan(pos_val) or math.isinf(pos_val):
+            logger.warning(
+                f"[POSITIONS] {symbol}: position_value is {pos_val} (NaN or Infinity) — data corruption — skipping"
+            )
+            filtered_positions_count += 1
+            continue
+
+        if math.isnan(entry) or math.isinf(entry):
+            logger.warning(
+                f"[POSITIONS] {symbol}: avg_entry_price is {entry} (NaN or Infinity) — data corruption — skipping"
+            )
+            filtered_positions_count += 1
+            continue
+
+        if math.isnan(cur_price) or math.isinf(cur_price):
+            logger.warning(
+                f"[POSITIONS] {symbol}: current_price is {cur_price} (NaN or Infinity) — data corruption — skipping"
             )
             filtered_positions_count += 1
             continue

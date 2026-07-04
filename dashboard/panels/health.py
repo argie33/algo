@@ -1383,16 +1383,27 @@ def _format_algo_actions_and_activity(
                 d_s = str(d)[-2:]
             en = m.get("entries")
             ex = m.get("exits")
+            # CRITICAL: Fail-fast on missing execution counts. Never silently fallback to 0.
+            # Must distinguish between "0 entries executed" and "data unavailable".
             try:
-                en_i = int(en) if en is not None else 0
-                ex_i = int(ex) if ex is not None else 0
-            except (TypeError, ValueError):
-                en_i = 0
-                ex_i = 0
-            en_s = str(en_i) if en is not None else "--"
-            ex_s = str(ex_i) if ex is not None else "--"
-            e_c = G if en_i > 0 else DIM
-            x_c = Y if ex_i > 0 else DIM
+                if en is None:
+                    logger.warning("Execution metric 'entries' missing — data unavailable")
+                    en_i = None
+                else:
+                    en_i = int(en)
+                if ex is None:
+                    logger.warning("Execution metric 'exits' missing — data unavailable")
+                    ex_i = None
+                else:
+                    ex_i = int(ex)
+            except (TypeError, ValueError) as e:
+                logger.error(f"Execution metrics type conversion failed: {e}")
+                en_i = None
+                ex_i = None
+            en_s = str(en_i) if en_i is not None else "--"
+            ex_s = str(ex_i) if ex_i is not None else "--"
+            e_c = G if (en_i is not None and en_i > 0) else DIM
+            x_c = Y if (ex_i is not None and ex_i > 0) else DIM
             day_parts.append(f"[dim]{d_s}:[/][{e_c}]{en_s}↑[/][{x_c}]{ex_s}↓[/]")
         rows.append(Text.from_markup("[dim]5d activity:[/] " + "  ".join(day_parts)))
 
@@ -2427,18 +2438,41 @@ def _build_results_panel(  # noqa: C901
         algo_metrics if (algo_metrics and not (isinstance(algo_metrics, dict) and has_error(algo_metrics))) else []
     )
     today_m_e = valid_metrics_e[0] if valid_metrics_e else {}
+    # CRITICAL: Fail-fast on missing execution counts in fallback logic.
+    # Never cascade None→0 silently without logging.
     if not entries_exec:
         en = today_m_e.get("entries")
-        entries_exec = int(en) if en is not None else 0
+        if en is None:
+            logger.warning("Fallback: Execution metric 'entries' still missing — data unavailable")
+            entries_exec = None
+        else:
+            try:
+                entries_exec = int(en)
+            except (ValueError, TypeError):
+                logger.error(f"Fallback: Invalid entries type {type(en).__name__}: {en}")
+                entries_exec = None
     if not exits_exec:
         ex = today_m_e.get("exits")
-        exits_exec = int(ex) if ex is not None else 0
+        if ex is None:
+            logger.warning("Fallback: Execution metric 'exits' still missing — data unavailable")
+            exits_exec = None
+        else:
+            try:
+                exits_exec = int(ex)
+            except (ValueError, TypeError):
+                logger.error(f"Fallback: Invalid exits type {type(ex).__name__}: {ex}")
+                exits_exec = None
 
     action_parts_e = []
     if signals_gen > 0:
         action_parts_e.append(f"[dim]Signals:[/][white]{signals_gen}[/]")
-    action_parts_e.append(f"[dim]Entries:[/][{G if entries_exec > 0 else DIM}]{entries_exec}[/]")
-    action_parts_e.append(f"[dim]Exits:[/][{Y if exits_exec > 0 else DIM}]{exits_exec}[/]")
+    # Handle None entries_exec and exits_exec - show "?" when data unavailable instead of 0
+    entries_display = entries_exec if entries_exec is not None else "?"
+    exits_display = exits_exec if exits_exec is not None else "?"
+    entries_color = (G if (entries_exec is not None and entries_exec > 0) else DIM)
+    exits_color = (Y if (exits_exec is not None and exits_exec > 0) else DIM)
+    action_parts_e.append(f"[dim]Entries:[/][{entries_color}]{entries_display}[/]")
+    action_parts_e.append(f"[dim]Exits:[/][{exits_color}]{exits_display}[/]")
     avg_sig_score_e = today_m_e.get("avg_signal_score")
     if avg_sig_score_e is not None:
         avg_sig_v = float(avg_sig_score_e)

@@ -316,7 +316,12 @@ def panel_performance_spark(  # noqa: C901
         str_s = "No data"
         str_c = "dim"
     else:
-        streak = int(streak_val) if isinstance(streak_val, (int, float)) else 0
+        if isinstance(streak_val, (int, float)):
+            streak = int(streak_val)
+        else:
+            # CRITICAL: Log invalid type conversion, don't silently fallback to 0
+            logger.error(f"[PORTFOLIO] Win/loss streak is invalid type {type(streak_val).__name__}: {streak_val}")
+            streak = 0
         str_s = f"+{streak}W" if streak >= 0 else f"{abs(streak)}L"
         str_c = G if streak >= 0 else R
     unrlzd = perf.get("unrealized_pnl")
@@ -664,9 +669,10 @@ def panel_portfolio_perf_expanded(  # noqa: C901
             "Open Positions:",
             Text(str(open_cnt) if open_cnt is not None else "--", style="white"),
         )
+        dd_display = f"-{dd_v:.1f}%" if dd_v is not None else "--"
         perfblk.add_row(
             "Max Drawdown:",
-            Text(f"-{dd_v:.1f}%" if dd_v else "--", style=dd_c),
+            Text(dd_display, style=dd_c),
             "Sharpe (annl.):",
             Text(f"{sharpe_v:.2f}" if sharpe_v is not None else "--", style="white"),
         )
