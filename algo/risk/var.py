@@ -337,10 +337,13 @@ class ValueAtRisk:
                 positions = cur.fetchall()
 
                 if not positions:
-                    logger.info("No open positions: returning zero beta exposure")
+                    # CRITICAL: No open positions means portfolio has no market exposure
+                    # This is valid state (zero beta is correct), but must be marked explicitly
+                    logger.info("No open positions: portfolio beta is zero (not available state)")
                     return {
                         "portfolio_beta": 0.0,
-                        "interpretation": "No open positions - portfolio beta is zero",
+                        "interpretation": "No open positions - portfolio has zero market exposure",
+                        "data_unavailable": False,  # Explicitly mark: zero is valid, not missing data
                         "positions": [],
                         "portfolio_value": 0.0,
                     }
@@ -559,7 +562,9 @@ class ValueAtRisk:
                 positions = cur.fetchall()
 
                 if not positions:
-                    logger.info("No open positions: returning zero concentration")
+                    # CRITICAL: No open positions means portfolio has no concentration
+                    # This is valid state (zero concentration is correct), but must be marked explicitly
+                    logger.info("No open positions: portfolio concentration is zero (not available state)")
                     return {
                         "top_holdings": [],
                         "sector_exposure": {},
@@ -567,7 +572,8 @@ class ValueAtRisk:
                         "max_single_position": 0.0,
                         "herfindahl_index": 0.0,
                         "top_5_concentration_pct": 0.0,
-                        "interpretation": "No open positions - portfolio concentration is zero",
+                        "interpretation": "No open positions - portfolio has zero concentration",
+                        "data_unavailable": False,  # Explicitly mark: zero is valid, not missing data
                         "portfolio_value": 0.0,
                     }
 

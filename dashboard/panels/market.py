@@ -6,6 +6,8 @@ from typing import TYPE_CHECKING, Any, cast
 
 from rich.console import ConsoleRenderable, RichCast
 
+from utils.validation.framework import StrictValidationError
+
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
@@ -207,8 +209,10 @@ def panel_market_full(mkt: Any, sentiment: Any = None) -> Panel:  # noqa: C901
     ycs = None
     try:
         ycs = safe_float(mkt.get("ycs"), field_name="ycs")
-    except Exception:
-        logger.debug("[MARKET_PANEL] Yield curve slope missing - optional economic indicator unavailable")
+    except (StrictValidationError, ValueError, TypeError) as e:
+        logger.warning(f"[MARKET_PANEL] Yield curve slope conversion failed ({type(e).__name__}): {e}")
+    except Exception as e:
+        logger.error(f"[MARKET_PANEL] Unexpected error converting yield_curve_slope: {type(e).__name__}: {e}")
 
     bmom_pcr = []
     if pcr is not None:

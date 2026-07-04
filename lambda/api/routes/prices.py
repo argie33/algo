@@ -281,16 +281,20 @@ def handle(  # noqa: C901
                         )
                     # Symbol exists but no data for this date range — valid empty result
 
+            # CRITICAL: Fail-fast when asset class doesn't match (stock requested, ETF returned)
+            if asset_class_mismatch:
+                return error_response(
+                    503,
+                    "asset_class_mismatch",
+                    f"Requested stock prices unavailable for {symbol}. ETF data available instead (different asset class). "
+                    f"Cannot use ETF pricing for position sizing. Fail-fast: data type mismatch.",
+                )
+
             freshness = check_data_freshness(cur, used_table, "date", warning_days=1)
             result = list_response(
                 [safe_json_serialize(dict(r)) for r in rows] if rows else [],
                 data_freshness=freshness,
             )
-            # EXPLICIT FLAG: Mark if data came from unexpected asset class
-            if asset_class_mismatch:
-                result["asset_class_mismatch"] = True
-                result["requested_asset_class"] = "stock"
-                result["returned_asset_class"] = "etf"
             is_valid, error_msg = ResponseValidator.validate_endpoint_response("prices", result)
             if not is_valid:
                 logger.error(f"Endpoint response validation failed: {error_msg}")

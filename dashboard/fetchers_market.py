@@ -269,8 +269,11 @@ def fetch_market(c: None) -> dict[str, Any]:
             if pcr_val is not None:
                 try:
                     result["pcr"] = safe_float(pcr_val, field_name="market.put_call_ratio", strict=True)
-                except Exception:
-                    logger.debug("Put/call ratio conversion failed, marking as unavailable")
+                except (StrictValidationError, ValueError, TypeError) as e:
+                    logger.warning(f"[MARKET] Put/call ratio conversion failed ({type(e).__name__}): {e}. Marking as unavailable.")
+                    result["pcr_unavailable"] = True
+                except Exception as e:
+                    logger.error(f"[MARKET] Unexpected error converting put_call_ratio: {type(e).__name__}: {e}")
                     result["pcr_unavailable"] = True
             else:
                 # Upstream said available but value is None — flag as data quality issue
@@ -285,8 +288,11 @@ def fetch_market(c: None) -> dict[str, Any]:
         if ycs_val is not None:
             try:
                 result["ycs"] = safe_float(ycs_val, field_name="market.yield_curve_slope", strict=True)
-            except Exception:
-                logger.debug("Yield curve slope conversion failed, marking as unavailable")
+            except (StrictValidationError, ValueError, TypeError) as e:
+                logger.warning(f"[MARKET] Yield curve slope conversion failed ({type(e).__name__}): {e}. Marking as unavailable.")
+                result["ycs_unavailable"] = True
+            except Exception as e:
+                logger.error(f"[MARKET] Unexpected error converting yield_curve_slope: {type(e).__name__}: {e}")
                 result["ycs_unavailable"] = True
         else:
             result["ycs_unavailable"] = True
@@ -440,8 +446,11 @@ def fetch_risk_metrics(c: None) -> dict[str, Any]:
         if stressed_var is not None:
             try:
                 result["svar"] = safe_float(stressed_var, field_name="svar", strict=True)
-            except Exception:
-                logger.debug("Stressed VaR conversion failed, marking as unavailable")
+            except (StrictValidationError, ValueError, TypeError) as e:
+                logger.warning(f"[MARKET] Stressed VaR conversion failed ({type(e).__name__}): {e}. Marking as unavailable.")
+                result["svar_unavailable"] = True
+            except Exception as e:
+                logger.error(f"[MARKET] Unexpected error converting stressed_var: {type(e).__name__}: {e}")
                 result["svar_unavailable"] = True
         else:
             result["svar_unavailable"] = True

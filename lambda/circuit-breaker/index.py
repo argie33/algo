@@ -255,12 +255,16 @@ def lambda_handler(event, context):
             current_pnl, _, variance = get_portfolio_pnl()
         except RuntimeError as pnl_err:
             logger.error(f"Portfolio P&L calculation failed (fail-closed): {pnl_err}")
-            _set_halt(
-                table,
-                True,
-                f"Portfolio P&L calculation failed: {str(pnl_err)[:80]}",
-                check_time,
-            )
+            try:
+                _set_halt(
+                    table,
+                    True,
+                    f"Portfolio P&L calculation failed: {str(pnl_err)[:80]}",
+                    check_time,
+                )
+            except (RuntimeError, Exception) as halt_err:
+                logger.critical(f"CRITICAL: Failed to set halt flag on P&L failure: {halt_err}")
+                raise
             return {
                 "statusCode": 500,
                 "body": json.dumps(
@@ -274,12 +278,16 @@ def lambda_handler(event, context):
 
         if variance is None:
             logger.error("Unable to calculate variance after retries — halting trading (fail-closed)")
-            _set_halt(
-                table,
-                True,
-                "Unable to calculate portfolio variance after retries (fail-closed)",
-                check_time,
-            )
+            try:
+                _set_halt(
+                    table,
+                    True,
+                    "Unable to calculate portfolio variance after retries (fail-closed)",
+                    check_time,
+                )
+            except (RuntimeError, Exception) as halt_err:
+                logger.critical(f"CRITICAL: Failed to set halt flag on variance=None: {halt_err}")
+                raise
             return {
                 "statusCode": 500,
                 "body": json.dumps(
@@ -298,12 +306,16 @@ def lambda_handler(event, context):
 
         if variance > threshold:
             logger.critical(f"CIRCUIT BREAKER TRIGGERED: variance {variance:.1%} exceeds {threshold:.1%}")
-            _set_halt(
-                table,
-                True,
-                f"Portfolio variance {variance:.1%} exceeds {threshold:.1%}",
-                check_time,
-            )
+            try:
+                _set_halt(
+                    table,
+                    True,
+                    f"Portfolio variance {variance:.1%} exceeds {threshold:.1%}",
+                    check_time,
+                )
+            except (RuntimeError, Exception) as halt_err:
+                logger.critical(f"CRITICAL: Failed to set halt flag on threshold breach: {halt_err}")
+                raise
             return {
                 "statusCode": 200,
                 "body": json.dumps(
@@ -316,12 +328,16 @@ def lambda_handler(event, context):
             }
         else:
             logger.info(f"Circuit breaker OK: variance {variance:.1%} < threshold {threshold:.1%}")
-            _set_halt(
-                table,
-                False,
-                f"Circuit breaker reset: variance {variance:.1%} < {threshold:.1%}",
-                check_time,
-            )
+            try:
+                _set_halt(
+                    table,
+                    False,
+                    f"Circuit breaker reset: variance {variance:.1%} < {threshold:.1%}",
+                    check_time,
+                )
+            except (RuntimeError, Exception) as halt_err:
+                logger.critical(f"CRITICAL: Failed to reset halt flag: {halt_err}")
+                raise
             return {
                 "statusCode": 200,
                 "body": json.dumps(
