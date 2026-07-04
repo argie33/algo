@@ -464,13 +464,23 @@ def run(  # noqa: C901
             try:
                 cur.execute("SELECT MAX(date) FROM price_daily WHERE symbol = '^VIX'")
                 vix_row = cur.fetchone()
-                vix_max_date = vix_row[0] if vix_row else None
+                if not vix_row:
+                    logger.warning("[PHASE 1] VIX data missing from price_daily — falling back to global max_date for health checks")
+                    vix_max_date = None
+                else:
+                    vix_max_date = vix_row[0]
 
                 cur.execute("SELECT MAX(date) FROM market_health_daily")
                 health_row = cur.fetchone()
-                health_max_date = health_row[0] if health_row else None
+                if not health_row:
+                    logger.warning("[PHASE 1] market_health_daily table empty — falling back to global max_date for exposure checks")
+                    health_max_date = None
+                else:
+                    health_max_date = health_row[0]
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.warning(f"[PHASE 1] Could not fetch VIX/health reference dates: {e} — using global max_date")
+                vix_max_date = None
+                health_max_date = None
 
             # Map each table to its upstream reference date for staleness comparison
             table_reference_dates = {

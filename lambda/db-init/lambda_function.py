@@ -407,6 +407,16 @@ def lambda_handler(event, context):  # noqa: C901
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.info(f"data_unavailable indexes may already exist: {e}")
 
+        # Add R-metrics columns to algo_performance_metrics for perf_anl API (idempotent)
+        # Migration 113: Missing columns cause perf_anl endpoint to fail with 500 error
+        try:
+            cursor.execute("ALTER TABLE algo_performance_metrics ADD COLUMN IF NOT EXISTS avg_win_r NUMERIC(8, 4)")
+            cursor.execute("ALTER TABLE algo_performance_metrics ADD COLUMN IF NOT EXISTS avg_loss_r NUMERIC(8, 4)")
+            cursor.execute("ALTER TABLE algo_performance_metrics ADD COLUMN IF NOT EXISTS expectancy NUMERIC(8, 4)")
+            logger.info("Added R-metrics columns (avg_win_r, avg_loss_r, expectancy) to algo_performance_metrics")
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            logger.info(f"R-metrics columns may already exist on algo_performance_metrics: {e}")
+
         sql_script = ""
         try:
             # SECURITY FIX S-07: Use absolute path to prevent path traversal

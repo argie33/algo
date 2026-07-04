@@ -68,11 +68,14 @@ def run(
 
         if not actions:
             logger.info("  No exposure-policy actions")
+            tier_display = constraints['tier_name'] if constraints else "no_entry_constraint"
+            if not constraints:
+                logger.info("  [PHASE 5] No entry constraints defined (all tiers open)")
             log_phase_result_fn(
                 5,
                 "exposure_policy",
                 "success",
-                f"tier={constraints['tier_name'] if constraints else 'n/a'}, no actions",
+                f"tier={tier_display}, no actions",
             )
             return PhaseResult(
                 5,
@@ -107,7 +110,11 @@ def run(
             r_str = f"{r_mult:+.2f}" if r_mult is not None else "N/A"
             logger.info(f"    {a['symbol']:6s} -> {a['action'].upper():15s} R={r_str}  {a['reason']}")
 
-        tier_name = constraints["tier_name"] if constraints else "unknown"
+        if constraints is None:
+            logger.warning("[PHASE 5] Exposure actions computed without entry constraints (all tiers open)")
+            tier_name = "no_entry_constraint"
+        else:
+            tier_name = constraints["tier_name"]
         # Validate counts dict has required keys before logging
         log_phase_result_fn(
             5,

@@ -421,7 +421,11 @@ class DailyReconciliation:
                 )
 
                 market = cur.fetchone()
-                market_trend = market[0] if market else "unknown"
+                if market is None:
+                    logger.warning(f"[RECONCILIATION] Market trend data missing for {reconcile_date} (no row in market_health_daily)")
+                    market_trend = "data_unavailable"
+                else:
+                    market_trend = market[0]
 
                 # Calculate additional metrics (no COALESCE — catch missing data explicitly)
                 cur.execute(
