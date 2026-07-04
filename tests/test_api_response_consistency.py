@@ -33,11 +33,14 @@ def test_unwrap_single_object_response():
 
 def test_unwrap_list_response():
     """Test unwrapping list_response format."""
+    # Proper list_response format has 'data' wrapper with 'items' inside
     response = {
         "statusCode": 200,
-        "items": [{"symbol": "AAPL", "price": 150}, {"symbol": "MSFT", "price": 320}],
-        "total": 2,
-        "pagination": {"limit": 10, "offset": 0},
+        "data": {
+            "items": [{"symbol": "AAPL", "price": 150}, {"symbol": "MSFT", "price": 320}],
+            "total": 2,
+            "pagination": {"limit": 10, "offset": 0},
+        },
     }
     unwrapped = _unwrap_api_response(response)
     assert unwrapped["statusCode"] == 200, "statusCode should be preserved for error detection"
