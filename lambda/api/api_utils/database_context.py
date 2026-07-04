@@ -28,7 +28,7 @@ This file re-exports utils.DatabaseContext with API-appropriate defaults.
 import sys
 from typing import Any
 
-from psycopg2.extras import DictCursor
+from psycopg2.cursor import cursor as _cursor
 
 sys.path.insert(0, "/".join(__file__.split("/")[:-4]))  # Navigate to root
 from utils.db.context import DatabaseContext as _DatabaseContext
@@ -42,6 +42,10 @@ class DatabaseContext(_DatabaseContext):
     Re-exports utils.DatabaseContext but:
     - Sets timeout=20 (API Gateway limit)
     - Disables correlation_id tracking (enable_correlation_tracking=False)
+    - Uses regular cursor instead of DictCursor for compatibility with complex queries
+
+    Note: Routes must handle tuple results and convert to dicts as needed.
+    This avoids psycopg2 DictCursor limitations with complex parameterized queries.
 
     Usage (REST API):
         with DatabaseContext('read') as cur:
@@ -53,15 +57,19 @@ class DatabaseContext(_DatabaseContext):
         self,
         role: str = "read",
         timeout: int = 20,
-        cursor_factory: type[Any] = DictCursor,
+        cursor_factory: type[Any] = None,
     ) -> None:
         """Initialize REST API context with disabled correlation tracking.
 
         Args:
             role: 'read' or 'write'
             timeout: Connection timeout in seconds (default 20s for API Gateway)
-            cursor_factory: psycopg2 cursor factory
+            cursor_factory: psycopg2 cursor factory (defaults to regular cursor)
         """
+        # Default to regular cursor for API (avoids DictCursor query complexity issues)
+        if cursor_factory is None:
+            cursor_factory = _cursor
+
         # Always disable correlation tracking for API calls
         super().__init__(
             role=role,
