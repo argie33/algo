@@ -50,6 +50,7 @@ def _build_buy_sig_map(buy_sigs: Any) -> dict[str, float]:
             continue
         sym = bs.get("symbol")
         if not sym:
+            logger.debug("[HELPERS] Buy signal missing or empty symbol field — skipping")
             continue
         sym_norm = str(sym).upper().strip()
 
@@ -139,7 +140,8 @@ def _best_halt_reason(top_level: str, phase_results: list[Any]) -> list[tuple[st
         elif not isinstance(pdata, dict) and pdata is not None:
             pdata = None
         detail = next(
-            (str(pdata[k]) for k in fields if pdata and k in pdata and pdata[k] and len(str(pdata[k])) > 3),
+            (str(pdata[k]) for k in fields
+             if pdata and k in pdata and pdata[k] is not None and len(str(pdata[k])) > 3),
             "",
         )
         if detail:
