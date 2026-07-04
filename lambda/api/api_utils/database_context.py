@@ -28,7 +28,7 @@ This file re-exports utils.DatabaseContext with API-appropriate defaults.
 import sys
 from typing import Any
 
-from psycopg2.cursor import cursor as _cursor
+from psycopg2.extensions import cursor as cursor_class
 
 sys.path.insert(0, "/".join(__file__.split("/")[:-4]))  # Navigate to root
 from utils.db.context import DatabaseContext as _DatabaseContext
@@ -57,7 +57,7 @@ class DatabaseContext(_DatabaseContext):
         self,
         role: str = "read",
         timeout: int = 20,
-        cursor_factory: type[Any] = None,
+        cursor_factory: type[Any] | None = None,
     ) -> None:
         """Initialize REST API context with disabled correlation tracking.
 
@@ -68,7 +68,7 @@ class DatabaseContext(_DatabaseContext):
         """
         # Default to regular cursor for API (avoids DictCursor query complexity issues)
         if cursor_factory is None:
-            cursor_factory = _cursor
+            cursor_factory = cursor_class
 
         # Always disable correlation tracking for API calls
         super().__init__(
