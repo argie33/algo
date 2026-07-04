@@ -250,13 +250,15 @@ def panel_sector_compact(srank: Any, pos: Any, port: Any, sec_rot: Any = None, i
         for a, b in zip(valid_irank[:4][::2], [*valid_irank[:4][1::2], None], strict=False):
             na = (safe_get_field(a, "industry", ""))[:14]
             mma = safe_get_field(a, "momentum_score")
-            ms_a = f"[dim] mom:{float(mma):.0f}[/]" if mma is not None else ""
+            mma_f = safe_float(mma)
+            ms_a = f"[dim] mom:{mma_f:.0f}[/]" if mma_f is not None else ""
             rank_a = safe_get_field(a, "current_rank", "--")
             la = f"[{CY}]#{rank_a:<2}[/] [white]{na}[/]{ms_a}{_rdelta(a)}"
             if b:
                 nb = (safe_get_field(b, "industry", ""))[:14]
                 mmb = safe_get_field(b, "momentum_score")
-                ms_b = f"[dim] mom:{float(mmb):.0f}[/]" if mmb is not None else ""
+                mmb_f = safe_float(mmb)
+                ms_b = f"[dim] mom:{mmb_f:.0f}[/]" if mmb_f is not None else ""
                 rank_b = safe_get_field(b, "current_rank", "--")
                 lb = f"[{CY}]#{rank_b:<2}[/] [white]{nb}[/]{ms_b}{_rdelta(b)}"
             else:
@@ -414,7 +416,8 @@ def panel_sectors_expanded(srank: Any, pos: Any, port: Any, sec_rot: Any = None,
         for r in valid_srank:
             nm = str(safe_get_field(r, "sector_name", ""))
             mm = safe_get_field(r, "momentum_score")
-            ms = f"[dim]  mom:{float(mm):.0f}[/]" if mm is not None else ""
+            mm_f = safe_float(mm)
+            ms = f"[dim]  mom:{mm_f:.0f}[/]" if mm_f is not None else ""
             rank_str = str(safe_get_field(r, "current_rank", ""))
             rows.append(
                 Text.from_markup(f"  [{G}]#{rank_str:<2}[/]  [white]{nm:<28}[/]{ms}  {_rdelta(r, wk4='rank_4w_ago')}")
@@ -443,7 +446,8 @@ def panel_sectors_expanded(srank: Any, pos: Any, port: Any, sec_rot: Any = None,
         for r in valid_irank:
             nm = str(safe_get_field(r, "industry", ""))
             mm = safe_get_field(r, "momentum_score")
-            ms = f"[dim]  mom:{float(mm):.0f}[/]" if mm is not None else ""
+            mm_f = safe_float(mm)
+            ms = f"[dim]  mom:{mm_f:.0f}[/]" if mm_f is not None else ""
             rank_str = str(safe_get_field(r, "current_rank", ""))
             rows.append(Text.from_markup(f"  [{CY}]#{rank_str:<2}[/]  [white]{nm:<32}[/]{ms}  {_rdelta(r)}"))
 

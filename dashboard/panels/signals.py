@@ -503,19 +503,11 @@ def _build_scores_table(top_scores: list[Any]) -> list[Text | Table]:
         rs_pct = safe_get_field(sc, "rs_percentile")
         chg = safe_get_field(sc, "change_percent")
         sector = (safe_get_field(sc, "sector", ""))[:12]
-        comp_v: float | None = float(comp) if comp is not None else None
+        comp_v: float | None = safe_float(comp)
         sc_c: str = _composite_score_color(comp_v) if comp_v is not None else DIM
-
-        try:
-            chg_v: float | None = float(chg) if chg is not None and chg != "" else None
-        except (ValueError, TypeError):
-            chg_v = None
+        chg_v: float | None = safe_float(chg)
         chg_c: str = G if chg_v is not None and chg_v > 0 else (R if chg_v is not None and chg_v < 0 else DIM)
-
-        try:
-            rs_v: float | None = float(rs_pct) if rs_pct is not None and rs_pct != "" else None
-        except (ValueError, TypeError):
-            rs_v = None
+        rs_v: float | None = safe_float(rs_pct)
 
         t.add_row(
             sym,
@@ -607,7 +599,7 @@ def panel_signals_compact(sig: Any, sig_eval: Any = None, scores: Any = None) ->
         parts = []
         for a in near[:8]:
             score_val = safe_get_field(a, "score")
-            sc = float(score_val) if score_val is not None else None
+            sc = safe_float(score_val)
             sc_s = f"{sc:.0f}" if sc is not None else "--"
             sym = safe_get_field(a, "symbol", "")
             parts.append(f"[{CY}]{sym}[/][dim]{sc_s}[/]")
@@ -697,7 +689,7 @@ def panel_signals_expanded(sig: Any, sig_eval: Any = None, scores: Any = None) -
         parts = []
         for s in top_a:
             score_val = safe_get_field(s, "score")
-            sc = float(score_val) if score_val is not None else None
+            sc = safe_float(score_val)
             if sc is not None:
                 sc_c = G if sc >= 90 else ("bright_green" if sc >= 85 else "green")
                 parts.append(f"[{sc_c}]{safe_get_field(s, 'symbol', '')}[/][dim]{sc:.0f}[/]")
@@ -754,8 +746,9 @@ def panel_signals_expanded(sig: Any, sig_eval: Any = None, scores: Any = None) -
             stab = safe_get_field(sc, "stability_score")
             pos = safe_get_field(sc, "positioning_score")
             rs_pct = safe_get_field(sc, "rs_percentile")
-            price = safe_get_field(sc, "current_price")
             chg = safe_get_field(sc, "change_percent")
+            price = safe_get_field(sc, "current_price")
+            price_f = safe_float(price)
             mom_inputs = safe_get_field(sc, "momentum_inputs")
             vs50 = safe_get_field(sc, "price_vs_sma_50")
             if vs50 is None and mom_inputs and isinstance(mom_inputs, dict):
@@ -770,19 +763,13 @@ def panel_signals_expanded(sig: Any, sig_eval: Any = None, scores: Any = None) -
                 comp_v = None
                 sc_c = "dim"
             else:
-                comp_v = float(comp)
-                sc_c = _composite_score_color(comp_v)
+                comp_v = safe_float(comp)
+                sc_c = _composite_score_color(comp_v) if comp_v is not None else DIM
 
-            try:
-                chg_v = float(chg) if chg is not None and chg != "" else None
-            except (ValueError, TypeError):
-                chg_v = None
-            try:
-                vs50_v = float(vs50) if vs50 is not None else None
-                vs200_v = float(vs200) if vs200 is not None else None
-                rs_v = float(rs_pct) if rs_pct is not None and rs_pct != "" else None
-            except (ValueError, TypeError):
-                vs50_v = vs200_v = rs_v = None
+            chg_v = safe_float(chg)
+            vs50_v = safe_float(vs50)
+            vs200_v = safe_float(vs200)
+            rs_v = safe_float(rs_pct)
             chg_c = G if chg_v is not None and chg_v > 0 else (R if chg_v is not None and chg_v < 0 else DIM)
 
             comp_display = f"{comp_v:.0f}" if comp_v is not None else "N/A"
@@ -800,7 +787,7 @@ def panel_signals_expanded(sig: Any, sig_eval: Any = None, scores: Any = None) -
                     f"{rs_v:.0f}" if rs_v is not None else "--",
                     style=G if rs_v is not None and rs_v >= 70 else DIM,
                 ),
-                Text(f"${float(price):.2f}" if price else "--", style=DIM),
+                Text(f"${price_f:.2f}" if price_f is not None else "--", style=DIM),
                 Text(f"{chg_v:+.1f}%" if chg_v is not None else "--", style=chg_c),
                 Text(
                     f"{vs50_v:+.1f}%" if vs50_v is not None else "--",
