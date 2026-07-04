@@ -35,7 +35,9 @@ def safe_extract(data: dict[str, Any], *keys: str, defaults: dict[str, Any] | No
         result = safe_extract(cfg, "mode", "enabled", "max_pos_n")
         mode = result["mode"]  # Guaranteed to exist
     """
-    defaults = defaults or {}
+    # Explicitly handle None case instead of using "or" operator
+    if defaults is None:
+        defaults = {}
     result = {}
 
     for key in keys:

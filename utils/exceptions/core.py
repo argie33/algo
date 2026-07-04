@@ -30,7 +30,8 @@ class BaseAPIError(Exception):
         self.message = message
         self.status_code = status_code or self.status_code
         self.error_type = error_type or self.error_type
-        self.context = context or {}
+        # Explicitly handle None for context (don't silently default to {})
+        self.context = context if context is not None else {}
         self.correlation_id = correlation_id or os.getenv("CORRELATION_ID", str(uuid.uuid4())[:8])
         super().__init__(self.message)
 

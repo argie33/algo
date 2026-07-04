@@ -59,7 +59,7 @@ from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
-from dashboard.data_validation import StrictValidationError, safe_float, safe_int
+from dashboard.data_validation import safe_float, safe_int
 
 from ..formatters import (
     fmt_age,
@@ -155,42 +155,51 @@ def panel_portfolio(
     if npos_raw is None:
         raise ValueError("Portfolio position_count missing")
 
-    # FAIL-FAST: Data already validated as non-None above; no defensive defaults
-    # Using defaults here would mask validation failures and hide missing data
-    pv = safe_float(pv_raw, field_name="total_portfolio_value")
-    cash = safe_float(cash_raw, field_name="total_cash")
-    npos = safe_int(npos_raw, field_name="position_count")
+    # DATA CONTRACT: API validates and converts all critical fields to proper numeric types
+    # Panel trusts API validation. If conversion fails here, it's data corruption.
+    try:
+        pv = float(pv_raw)
+        cash = float(cash_raw)
+        npos = int(npos_raw)
+    except (ValueError, TypeError) as e:
+        logger.error(
+            f"Portfolio data corruption: failed to convert validated fields. "
+            f"pv_raw={pv_raw}, cash_raw={cash_raw}, npos_raw={npos_raw}. Error: {e}"
+        )
+        raise RuntimeError("Portfolio data format error — API validation failed") from e
 
     # STRICT: Optional enrichment metrics—explicitly handle missing data
     # These are computed daily; missing values should not silently default to None
     # Instead, log and indicate data unavailable (not the same as zero/empty)
     from algo.infrastructure.market_calendar import MarketCalendar
 
-    dr_raw = port.get("daily_return_pct")
-    dr = safe_float(dr_raw, default=None) if dr_raw is not None else None
+    # Optional fields - API guarantees they're valid floats or None
+    # No re-validation needed; trust API's data contract
+    dr = port.get("daily_return_pct")
     if dr is None and MarketCalendar.is_trading_day():
         logger.warning("Portfolio metric missing on trading day: daily_return_pct")
 
-    urp_raw = port.get("unrealized_pnl_pct")
-    urp = safe_float(urp_raw, default=None) if urp_raw is not None else None
+    urp = port.get("unrealized_pnl_pct")
 
-    cum_raw = port.get("cumulative_return_pct")
-    cum = safe_float(cum_raw, default=None) if cum_raw is not None else None
+    cum = port.get("cumulative_return_pct")
     if cum is None and MarketCalendar.is_trading_day():
         logger.warning("Portfolio metric missing on trading day: cumulative_return_pct")
 
-    mxdd_raw = port.get("max_drawdown_pct")
-    mxdd = safe_float(mxdd_raw, default=None) if mxdd_raw is not None else None
+    mxdd = port.get("max_drawdown_pct")
     if mxdd is None and MarketCalendar.is_trading_day():
         logger.warning("Portfolio metric missing on trading day: max_drawdown_pct")
 
-    lgpos_raw = port.get("largest_position_pct")
-    lgpos = safe_float(lgpos_raw, default=None) if lgpos_raw is not None else None
+    lgpos = port.get("largest_position_pct")
     snap = port.get("snapshot_date")
     max_n_val = cfg.get("max_pos_n") if cfg else None
     if max_n_val is None:
         raise ValueError("max_pos_n config missing — cannot render portfolio position limits")
-    max_n = safe_int(max_n_val, default=0, field_name="max_pos_n")
+    # Config should always provide valid int, trust it
+    try:
+        max_n = int(max_n_val)
+    except (ValueError, TypeError):
+        logger.error(f"Config max_pos_n is invalid: {max_n_val}")
+        raise RuntimeError("Config corruption: max_pos_n must be integer") from None
     snap_s = f"  [dim]{fmt_age(snap)}[/]" if snap is not None else ""
     # Header: portfolio value + age
     header = Text.from_markup(f"[bold white]{fmt_money(pv)}[/]{snap_s}")
@@ -234,24 +243,27 @@ def panel_portfolio(
 
     # Largest position
     if lgpos is not None:
+        # API guarantees lgpos is valid float - trust it
         try:
-            lgpos_f = safe_float(lgpos, field_name="largest_position_pct", strict=True)
+            lgpos_f = float(lgpos)
             lp_c = R if lgpos_f >= 20 else (Y if lgpos_f >= 15 else "white")
             tbl.add_row(
                 cell("Largest Position:", f"[{lp_c}]{lgpos_f:.1f}%[/]"),
                 Text(""),
             )
-        except StrictValidationError:
-            logger.warning("Largest position value conversion failed")
+        except (ValueError, TypeError):
+            logger.error(f"Largest position format error: {lgpos} - data corruption")
+            # Skip rendering this metric if conversion fails
 
     # Risk metrics (VaR, CVaR, Beta, concentration, Stressed VaR)
-    # CRITICAL: Fail-fast on missing risk metrics — don't silently hide them!
+    # DATA CONTRACT: API validates all risk metrics as floats or None
     if risk and not has_error(risk):
-        var_v = safe_float(risk["var95"], field_name="var95")
-        cvar_v = safe_float(risk["cvar95"], field_name="cvar95")
-        beta_v = safe_float(risk["beta"], field_name="beta")
-        conc5_v = safe_float(risk["conc5"], field_name="conc5")
-        svar_v = safe_float(risk.get("svar"), field_name="svar", strict=True) if risk.get("svar") is not None else None
+        # Trust API's validation - these are guaranteed valid floats
+        var_v = risk.get("var95")
+        cvar_v = risk.get("cvar95")
+        beta_v = risk.get("beta")
+        conc5_v = risk.get("conc5")
+        svar_v = risk.get("svar")
 
         # All critical fields available — render
         if var_v is not None and var_v > 0 and cvar_v is not None and beta_v is not None and conc5_v is not None:

@@ -228,7 +228,10 @@ def _fetch_drawdown_info(cur: cursor) -> Any:
     peak = float(row["peak"])
     current = float(row["current"])
     if peak <= 0:
-        return {"current_drawdown_pct": None, "status": "invalid_peak_value", "error": f"Peak value invalid ({peak})"}
+        raise ValueError(
+            f"Portfolio snapshot data invalid: peak value must be > 0, got {peak}. "
+            "This indicates corrupted data or abnormal portfolio state. Check algo_portfolio_snapshots."
+        )
     drawdown_pct = (peak - current) / peak * 100
 
     return {

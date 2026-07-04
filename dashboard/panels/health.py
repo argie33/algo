@@ -403,8 +403,6 @@ def _format_orch_config_string(cfg_params: dict[str, Any]) -> str:
 
 def _extract_orch_risk_metrics_string(risk: dict[str, Any] | None) -> str:
     """Extract and format risk metrics for orchestration panel."""
-    from dashboard.data_validation import safe_float
-
     from ..utilities import R
 
     if not risk or has_error(risk):
@@ -420,11 +418,13 @@ def _extract_orch_risk_metrics_string(risk: dict[str, Any] | None) -> str:
         if var95_check_f <= 0 or not isinstance(risk_dict, dict):
             return f"\n[{R}][error] Risk metrics invalid[/]"
         risk_metrics = extract_risk_metrics(risk_dict)
-        var95_val = safe_float(risk_metrics.get("var95"), default=None)
-        beta_val = safe_float(risk_metrics.get("beta"), default=None)
-        cvar95_val = safe_float(risk_metrics.get("cvar95"), default=None)
-        conc5_val = safe_float(risk_metrics.get("conc5"), default=None)
-        svar_val = safe_float(risk_metrics.get("svar"), default=None)
+        # DATA CONTRACT: API validates risk metrics as floats or None - trust it
+        var95_val = risk_metrics.get("var95")
+        beta_val = risk_metrics.get("beta")
+        cvar95_val = risk_metrics.get("cvar95")
+        conc5_val = risk_metrics.get("conc5")
+        svar_val = risk_metrics.get("svar")
+
         if None in (var95_val, beta_val, cvar95_val, conc5_val):
             missing_fields = [
                 name
@@ -437,10 +437,12 @@ def _extract_orch_risk_metrics_string(risk: dict[str, Any] | None) -> str:
                 if val is None
             ]
             return f"\n[{R}]⚠ Risk metrics incomplete[/] - missing: {', '.join(missing_fields)}"
-        var95_val = cast(float, var95_val)
-        beta_val = cast(float, beta_val)
-        cvar95_val = cast(float, cvar95_val)
-        conc5_val = cast(float, conc5_val)
+
+        # Cast to float for calculations - API guarantees valid types
+        var95_val = float(var95_val)
+        beta_val = float(beta_val)
+        cvar95_val = float(cvar95_val)
+        conc5_val = float(conc5_val)
         # CRITICAL: When beta = 0 (no open positions), show "--" instead of "0.00"
         beta_display = "--" if beta_val <= 0 else f"{beta_val:.2f}"
         beta_c = "dim" if beta_val <= 0 else (R if beta_val >= 1.2 else (Y if beta_val >= 0.8 else G))
