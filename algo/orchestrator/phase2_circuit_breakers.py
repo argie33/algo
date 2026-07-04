@@ -126,10 +126,10 @@ def run(
                 return PhaseResult(
                     2,
                     "circuit_breakers",
-                    "error",
+                    "halted",
                     {},
                     True,
-                    "Circuit breaker error: halt_reasons missing (data contract violation)",
+                    "Circuit breaker halt: halt_reasons missing (data contract violation)",
                 )
             halt_reasons = result["halt_reasons"]
             if not isinstance(halt_reasons, list) or len(halt_reasons) == 0:
