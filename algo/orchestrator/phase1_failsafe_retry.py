@@ -58,9 +58,10 @@ CRITICAL_INCOMPLETE_LOADERS = {
 # trigger retry since they don't block trading. Phase 1 only retries CRITICAL loaders.
 # REVERTED 2026-06-28: value_metrics and positioning_metrics were promoted to critical
 # but caused cascade failure—they don't complete reliably under AWS constraints.
-# stock_scores is designed to work with partial metrics (min_required_metrics=1),
-# so incomplete metric tables are acceptable; complete-but-partial data is better than
-# blocking trading entirely due to slow upstream loaders.
+# UPDATED 2026-07-04: stock_scores enforces min_required_metrics=3 (per GOVERNANCE.md)
+# to prevent single-metric bias (100% weight on one factor). Incomplete metric tables
+# will be marked data_unavailable; stocks will not score if insufficient metrics. This
+# is correct behavior per GOVERNANCE: fail-fast on incomplete data, never degrade silently.
 AUXILIARY_INCOMPLETE_LOADERS = {
     "growth_metrics",
     "positioning_metrics",
@@ -179,10 +180,12 @@ def check_and_retry_incomplete_loaders(dry_run: bool = False) -> dict[str, Any]:
                     # Only retry CRITICAL loaders. AUXILIARY loaders are nice-to-have;
                     # don't spend time retrying them since they don't block trading.
                     if not is_crit:
-                        logger.info(
-                            f"[PHASE 1 FAILSAFE] Skipping retry for auxiliary loader {table_name} "
-                            f"({completion_pct:.1f}%, {symbols_missing} missing). "
-                            "Auxiliary data missing is acceptable; trading proceeds without enrichment."
+                        logger.warning(
+                            f"[PHASE 1 FAILSAFE] AUXILIARY LOADER INCOMPLETE: {table_name} "
+                            f"{completion_pct:.1f}% ({symbols_missing} missing). "
+                            f"No retry attempted—auxiliary enrichment data is optional. "
+                            f"Stock scores will reflect missing data via data_unavailable flags. "
+                            f"This is correct behavior per GOVERNANCE (explicit unavailability markers)."
                         )
                         results["still_failing"].append(table_name)
                         continue
