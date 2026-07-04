@@ -2071,7 +2071,13 @@ def log_loader_execution(
 
 
 def main() -> int:
-    """Read config from environment variables (set by ECS task definition)."""
+    """Read config from environment variables (set by ECS task definition).
+
+    Governance: Fail-fast on missing data. No silent fallbacks.
+    Exit codes must be unambiguous:
+    - 0: Success (prices fetched and stored)
+    - 1: Error (database/API failure, validation error)
+    """
     start_time = time.time()
 
     # Setup socket-level timeouts to prevent hanging on network operations
