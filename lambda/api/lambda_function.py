@@ -7,6 +7,7 @@ Deployment: Fixed Secrets Manager secret name for password sync.
 import json
 import logging
 import os
+import sys
 import threading
 from typing import Any
 
@@ -1217,6 +1218,46 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     # Keeps one Lambda container alive to eliminate VPC cold-start 502s for real users.
     if event.get("source") == "warmup":
         return {"statusCode": 200, "body": "warm"}
+
+    # EventBridge Orchestrator invocation (scheduled trading runs: 9:30 AM, 1 PM, 3 PM, 5:30 PM ET)
+    # Runs the algo orchestrator (Phase 1-9) to monitor positions and execute trades
+    if event.get("source") == "eventbridge-scheduler":
+        try:
+            import subprocess
+            run_id = event.get("run_identifier", "unknown")
+            logger.info(f"[ORCHESTRATOR_TRIGGER] EventBridge invoked orchestrator: run_id={run_id}")
+
+            # Invoke orchestrator as subprocess with run_identifier
+            result = subprocess.run(
+                [sys.executable, "-m", "algo.orchestration.orchestrator", f"--run-id={run_id}"],
+                capture_output=True,
+                text=True,
+                timeout=600,  # 10 min timeout (orchestrator has 600s phase timeout)
+            )
+
+            logger.info(f"[ORCHESTRATOR_COMPLETE] run_id={run_id}, exit_code={result.returncode}")
+            if result.stdout:
+                logger.info(f"[ORCHESTRATOR_OUTPUT] {result.stdout[:500]}")
+            if result.stderr:
+                logger.warning(f"[ORCHESTRATOR_ERROR] {result.stderr[:500]}")
+
+            return {
+                "statusCode": 200 if result.returncode == 0 else 500,
+                "body": json.dumps({
+                    "orchestrator_run_id": run_id,
+                    "exit_code": result.returncode,
+                    "success": result.returncode == 0,
+                })
+            }
+        except Exception as e:
+            logger.error(f"[ORCHESTRATOR_FAILED] Exception: {type(e).__name__}: {e}", exc_info=True)
+            return {
+                "statusCode": 500,
+                "body": json.dumps({
+                    "error": "orchestrator_failed",
+                    "message": str(e)
+                })
+            }
 
     # Health checks are handled via api_router (routes/health.py) for consistent response format
     # All health endpoints (basic, detailed, pipeline) now route through normal flow
