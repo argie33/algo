@@ -51,9 +51,9 @@ from typing import Any
 
 import psycopg2
 
+from algo.infrastructure import get_config
 from algo.orchestrator.phase_result import PhaseResult
 from algo.risk import LiquidityChecks
-from config.thresholds import ThresholdConfig
 from utils.db.context import DatabaseContext
 
 logger = logging.getLogger(__name__)
@@ -588,7 +588,7 @@ def run(
     phase_start = time.time()
     logger.info("[PHASE 7] Starting signal generation")
 
-    min_close_quality = ThresholdConfig.min_close_quality_pct() / 100.0
+    min_close_quality = float(get_config().get("min_close_quality_pct")) / 100.0
 
     # ISSUE #8 FIX: Guard rails — check critical dependencies BEFORE signal generation
     # Fails fast if ANY dependency is unavailable, preventing silent degradation

@@ -35,10 +35,13 @@ class SignalScorer:
             Tuple of (weak, medium, strong) thresholds, or defaults if config unavailable.
         """
         try:
-            from config.thresholds import ThresholdConfig
+            from algo.infrastructure import get_config
 
-            t = ThresholdConfig.get_signal_strength_thresholds()
-            return t["weak"], t["medium"], t["strong"]
+            config = get_config()
+            weak = float(config.get("signal_weak_threshold"))
+            medium = float(config.get("signal_medium_threshold"))
+            strong = float(config.get("signal_strong_threshold"))
+            return weak, medium, strong
         except Exception as e:
             logger.debug(f"Failed to load thresholds from config: {e}")
             return (

@@ -97,9 +97,11 @@ class PriceLoader(OptimalLoader):
 
         # Initialize specialists
         self._is_eod_pipeline = self._detect_eod_pipeline_context()
-        from config.thresholds import ThresholdConfig
+        from algo.infrastructure import get_config
 
-        self._rate_limit_circuit_break_threshold = ThresholdConfig.get_rate_limit_threshold(self._is_eod_pipeline)
+        config = get_config()
+        key = "loader_rate_limit_circuit_break_threshold_eod" if self._is_eod_pipeline else "loader_rate_limit_circuit_break_threshold_morning"
+        self._rate_limit_circuit_break_threshold = int(config.get(key))
 
         # Instantiate specialists - each handles a specific concern
         self.fetcher = PriceFetcher(
@@ -1319,10 +1321,10 @@ class PriceLoader(OptimalLoader):
         import time
         from concurrent.futures import ThreadPoolExecutor, as_completed
 
-        from config.thresholds import ThresholdConfig
+        from algo.infrastructure import get_config
 
         task_timeout_sec = 25200
-        emergency_multiplier = ThresholdConfig.loader_emergency_mode_threshold_multiplier()
+        emergency_multiplier = float(get_config().get("loader_emergency_mode_threshold_multiplier"))
         emergency_mode_threshold = task_timeout_sec * emergency_multiplier
         completion_threshold_pct = 0.10
         emergency_mode_enabled = False

@@ -18,9 +18,8 @@ logger = logging.getLogger(__name__)
 class BuySignalGenerationHandler:
     """Handles buy/sell signal generation from technical indicator rows."""
 
-    def __init__(self, loader: Any) -> None:
-        """Initialize with reference to SignalsDailyLoader."""
-        self.loader = loader
+    def __init__(self) -> None:
+        """Initialize signal generation handler."""
 
     def run(self, symbol: str, rows: list[dict[str, Any]], tech_data_age: int | None = None) -> list[dict[str, Any]]:
         """Generate buy/sell signals from technical indicator data.

@@ -166,40 +166,26 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
         t.add_column("Sector", style="dim", no_wrap=True, max_width=12)
     valid_count = 0
     for p in pos_items:
-        # API already validated all required fields. Trust it and just display.
+        # TRUST API FILTERING: All positions here are already validated by API layer
+        # If data is invalid, it's a contract violation — don't silently skip, raise to catch bugs
         symbol = p.get("symbol")
-        if not symbol:
-            # Shouldn't happen - API filters these out
-            logger.error("panel_positions: position missing symbol (should be filtered by API)")
-            continue
-
-        # Get numeric fields - API guaranteed these are valid floats
-        # Do NOT re-validate here — the API already confirmed these are valid.
-        # safe_float with default=None was causing additional filtering.
         entry = p.get("avg_entry_price")
         price = p.get("current_price")
         pval = p.get("position_value")
 
-        # If any required field is missing, something went wrong — fail visibly
-        if entry is None or price is None or pval is None:
-            logger.error(
-                f"panel_positions[{symbol}]: API response missing required field. "
-                f"entry={entry}, price={price}, value={pval}. "
-                f"API contract violation — should not happen if API validation works."
+        # Fail fast if API contract is violated (API should have filtered these)
+        if not symbol or entry is None or price is None or pval is None:
+            raise RuntimeError(
+                f"[POSITIONS_PANEL] API contract violation: required field missing. "
+                f"API should have filtered this: symbol={symbol}, entry={entry}, price={price}, value={pval}. "
+                f"Check: (1) API filtering in lambda/api/routes/algo_handlers/dashboard.py, "
+                f"(2) Dashboard data contract in shared_contracts/"
             )
-            continue
 
-        # Convert to float if not already (safe conversion without default fallback)
-        try:
-            entry = float(entry) if not isinstance(entry, float) else entry
-            price = float(price) if not isinstance(price, float) else price
-            pval = float(pval) if not isinstance(pval, float) else pval
-        except (ValueError, TypeError) as e:
-            logger.error(
-                f"panel_positions[{symbol}]: Failed to convert API fields to float: {e}. "
-                f"API response data format mismatch (expected numeric, got {type(entry).__name__}/{type(price).__name__}/{type(pval).__name__})"
-            )
-            continue
+        # Convert to float (safe, no try-except needed — API already validated these are numeric)
+        entry = float(entry) if not isinstance(entry, float) else entry
+        price = float(price) if not isinstance(price, float) else price
+        pval = float(pval) if not isinstance(pval, float) else pval
 
         # Optional fields - safe_float handles None gracefully
         stop = safe_float(p.get("stop_loss_price"), default=None, field_name=f"{symbol}.stop")

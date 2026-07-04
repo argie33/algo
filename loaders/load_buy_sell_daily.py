@@ -503,7 +503,7 @@ class SignalsDailyLoader(OptimalLoader):
         BUY: High > recent_swing_high AND close > SMA50 (breakout above pivot with trend filter)
         SELL: Low < recent_swing_low (stop loss trigger)
         """
-        handler = BuySignalGenerationHandler(self)
+        handler = BuySignalGenerationHandler()
 
         # Validate and retrieve tech_data_age with explicit logging
         if not self._batch_context:
