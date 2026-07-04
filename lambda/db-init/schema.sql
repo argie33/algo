@@ -472,6 +472,53 @@ CREATE TABLE IF NOT EXISTS buy_sell_monthly (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_buy_sell_monthly_unique ON buy_sell_monthly(symbol, timeframe, date);
 
 --
+-- YFINANCE SNAPSHOT - Cache all yfinance data in one table to avoid redundant API calls
+--
+CREATE TABLE IF NOT EXISTS yfinance_snapshot (
+    symbol VARCHAR(20) PRIMARY KEY,
+    fetched_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    -- Value metrics (PE, PB, PS, dividend)
+    pe_ratio DECIMAL(10, 2),
+    pb_ratio DECIMAL(10, 2),
+    ps_ratio DECIMAL(10, 2),
+    peg_ratio DECIMAL(10, 2),
+    dividend_yield DECIMAL(10, 4),
+    fcf_yield DECIMAL(10, 4),
+    -- Positioning metrics (institutional/insider holdings, short interest)
+    held_percent_insiders DECIMAL(8, 2),
+    held_percent_institutions DECIMAL(8, 2),
+    short_interest DECIMAL(8, 2),
+    -- Stability metrics (beta, volatility)
+    beta DECIMAL(10, 4),
+    fifty_two_week_high DECIMAL(12, 4),
+    fifty_two_week_low DECIMAL(12, 4),
+    market_cap BIGINT,
+    -- Company profile data
+    sector VARCHAR(100),
+    industry VARCHAR(100),
+    country VARCHAR(50),
+    exchange VARCHAR(50),
+    website VARCHAR(255),
+    long_name VARCHAR(255),
+    -- Earnings data
+    earnings_dates JSONB,
+    earnings_date BIGINT,
+    -- Analyst data
+    recommendation_key VARCHAR(50),
+    number_of_analysts INT,
+    analysts_underweight INT,
+    analysts_overweight INT,
+    analysts_hold INT,
+    -- Data quality markers
+    data_available BOOLEAN DEFAULT TRUE,
+    unavailable_reason TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_yfinance_snapshot_fetched ON yfinance_snapshot(fetched_at);
+CREATE INDEX IF NOT EXISTS idx_yfinance_snapshot_market_cap ON yfinance_snapshot(market_cap);
+
+--
 -- QUALITY METRICS
 --
 
