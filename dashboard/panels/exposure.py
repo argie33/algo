@@ -129,25 +129,25 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
         if error_boundary.has_error(f):
             return "[yellow]⚠[/]"  # Data unavailable
         if key == "trend_30wk":
-            v = f.get("price_vs_ma_pct")
+            v = safe_float(f.get("price_vs_ma_pct"), default=None)
             return f" {'+' if v is not None and v >= 0 else ''}{v:.1f}%" if v is not None else "[yellow]⚠[/]"
         if key == "breadth_50dma":
-            v = f.get("value")
+            v = safe_float(f.get("value"), default=None)
             return f" {v:.0f}%" if v is not None else "[yellow]⚠[/]"
         if key == "breadth_200dma":
-            v = f.get("value")
+            v = safe_float(f.get("value"), default=None)
             return f" {v:.0f}%" if v is not None else "[yellow]⚠[/]"
         if key == "spy_momentum":
-            v = f.get("value")
+            v = safe_float(f.get("value"), default=None)
             return f" {v:+.1f}%" if v is not None else "[yellow]⚠[/]"
         if key == "put_call_ratio":
-            v = f.get("value")
+            v = safe_float(f.get("value"), default=None)
             # Handle nested structure: put_call_ratio might be {put_call_ratio, pts, max, score}
             if v is None and isinstance(f.get("put_call_ratio"), dict):
-                v = f["put_call_ratio"].get("put_call_ratio")
+                v = safe_float(f["put_call_ratio"].get("put_call_ratio"), default=None)
             if v is None and isinstance(f.get("put_call_ratio"), dict):
                 # Fallback to pts score if actual ratio unavailable
-                v = f["put_call_ratio"].get("pts")
+                v = safe_float(f["put_call_ratio"].get("pts"), default=None)
             if v is not None:
                 return f" {v:.2f}"
             reason = f.get("reason")
@@ -155,17 +155,17 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
                 reason = f["put_call_ratio"].get("reason")
             return " [yellow]⚠[/]" if reason else "[yellow]⚠[/]"  # Always mark unavailable
         if key == "vix_regime":
-            v = f.get("value")
+            v = safe_float(f.get("value"), default=None)
             return f" {v:.1f}" if v is not None else "[yellow]⚠[/]"
         if key == "new_highs_lows":
-            nh = f.get("new_highs")
-            nl = f.get("new_lows")
+            nh = safe_float(f.get("new_highs"), default=None)
+            nl = safe_float(f.get("new_lows"), default=None)
             if nh is not None and nl is not None:
                 net = nh - nl
-                return f" {'+' if net >= 0 else ''}{net}"
+                return f" {'+' if net >= 0 else ''}{int(net)}"
             return "[yellow]⚠[/]"  # Missing metric data
         if key == "credit_spread":
-            v = f.get("value")
+            v = safe_float(f.get("value"), default=None)
             return f" {v:.2f}" if v is not None else "[yellow]⚠[/]"
         if key == "ad_line":
             rel = f.get("relation")
@@ -174,8 +174,8 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
                 return f" {rel_display}"
             return "[yellow]⚠[/]"  # Missing relation field
         if key == "aaii_sentiment":
-            bull = f.get("bullish_pct")
-            bear = f.get("bearish_pct")
+            bull = safe_float(f.get("bullish_pct"), default=None)
+            bear = safe_float(f.get("bearish_pct"), default=None)
             if bull is not None and bear is not None:
                 # Values are fractions (0.4 = 40%); multiply to display as percentages
                 b_pct = bull * 100 if bull <= 1.0 else bull
@@ -183,14 +183,14 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
                 return f" B:{b_pct:.0f}%/Be:{be_pct:.0f}%"
             return "[yellow]⚠[/]"  # Missing sentiment data
         if key == "naaim":
-            v = f.get("value")
+            v = safe_float(f.get("value"), default=None)
             return f" {v:.0f}" if v is not None else "[yellow]⚠[/]"
         if key == "distribution_days":
-            cnt = f.get("count")
+            cnt = safe_float(f.get("count"), default=None)
             regime = f.get("regime")
             if cnt is not None:
                 regime_display = regime[:5] if regime else "?"
-                return f" {cnt}d/{regime_display}"
+                return f" {int(cnt)}d/{regime_display}"
             return "[yellow]⚠[/]"  # Missing count data
         return "[yellow]⚠[/]"  # Unknown factor key
 

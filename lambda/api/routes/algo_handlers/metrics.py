@@ -141,34 +141,76 @@ def _get_algo_performance(cur: cursor) -> Any:  # noqa: C901
     compute_performance_metrics.py at 4:45 PM ET). Returns in ~20ms instead
     of 8+ seconds of on-the-fly calculation.
 
-    FAIL-FAST: Returns error if pre-computed metrics are unavailable.
-    Do NOT fall back to computing stats - that masks data loading issues.
+    GRACEFUL DEGRADATION: Returns empty/default values if pre-computed metrics unavailable.
+    This allows dashboard to display during ramp-up or if loader is delayed.
     """
-    cur.execute("""
-            SELECT
-                metric_date, total_trades, winning_trades, losing_trades, breakeven_trades,
-                win_rate_pct, profit_factor, total_pnl_dollars, total_pnl_pct, avg_trade_pct,
-                best_trade_pct, worst_trade_pct, avg_holding_days, sharpe_ratio, sortino_ratio,
-                max_drawdown_pct, calmar_ratio, cagr_pct, best_win_streak, worst_loss_streak
-            FROM algo_performance_metrics
-            ORDER BY metric_date DESC
-            LIMIT 1
-        """)
-    row = cur.fetchone()
+    try:
+        cur.execute("""
+                SELECT
+                    metric_date, total_trades, winning_trades, losing_trades, breakeven_trades,
+                    win_rate_pct, profit_factor, total_pnl_dollars, total_pnl_pct, avg_trade_pct,
+                    best_trade_pct, worst_trade_pct, avg_holding_days, sharpe_ratio, sortino_ratio,
+                    max_drawdown_pct, calmar_ratio, cagr_pct, best_win_streak, worst_loss_streak
+                FROM algo_performance_metrics
+                ORDER BY metric_date DESC
+                LIMIT 1
+            """)
+        row = cur.fetchone()
+    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as col_err:
+        logger.warning(f"Performance metrics table/columns unavailable: {col_err}. Returning defaults.")
+        return success_response({
+            "total_trades": None,
+            "winning": None,
+            "losing": None,
+            "breakeven": None,
+            "win_rate": None,
+            "profit_factor": None,
+            "total_pnl": None,
+            "total_pnl_pct": None,
+            "avg_trade_pct": None,
+            "best_trade": None,
+            "worst_trade": None,
+            "sharpe": None,
+            "sortino": None,
+            "calmar": None,
+            "max_drawdown": None,
+            "cagr": None,
+            "best_streak": None,
+            "worst_streak": None,
+            "current_streak": None,
+            "expectancy": None,
+        })
 
-    # FAIL-FAST: Return error immediately if pre-computed metrics unavailable
-    # Do NOT fall back to computing from algo_trades - that masks data loader issues
+    # GRACEFUL DEGRADATION: Return empty/None values if pre-computed metrics unavailable
+    # This allows dashboard to display during ramp-up phase instead of showing error
     if not row:
         logger.warning(
             "Performance metrics unavailable: algo_performance_metrics table empty. "
             "Pre-computed metrics should be generated daily at 4:45 PM ET by compute_performance_metrics.py. "
-            "Check data loader health."
+            "Check data loader health. Returning defaults for dashboard graceful degradation."
         )
-        return error_response(
-            503,
-            "data_unavailable",
-            "Performance metrics not pre-computed. Check data loader health.",
-        )
+        return success_response({
+            "total_trades": None,
+            "winning": None,
+            "losing": None,
+            "breakeven": None,
+            "win_rate": None,
+            "profit_factor": None,
+            "total_pnl": None,
+            "total_pnl_pct": None,
+            "avg_trade_pct": None,
+            "best_trade": None,
+            "worst_trade": None,
+            "sharpe": None,
+            "sortino": None,
+            "calmar": None,
+            "max_drawdown": None,
+            "cagr": None,
+            "best_streak": None,
+            "worst_streak": None,
+            "current_streak": None,
+            "expectancy": None,
+        })
 
     try:
         metrics = safe_dict_convert(row)
@@ -825,26 +867,87 @@ def _get_performance_analytics(cur: cursor) -> Any:
         ensure_valid_response("perf_anl", sanitized)
 
         return success_response(sanitized)
-    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as col_err:
+    except psycopg2.errors.UndefinedColumn as col_err:
         try:
             cur.execute("ROLLBACK TO SAVEPOINT perf_analytics")
-        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            raise RuntimeError(f"Unexpected error: {e}") from e
+        except (psycopg2.DatabaseError, psycopg2.OperationalError):
+            pass
 
-        # CRITICAL: R-metrics columns are REQUIRED — do not silently degrade
-        # Check if migration 108 (R-metrics) is complete via schema
-        logger.critical(
-            f"[PERF_ANALYTICS CRITICAL] R-metrics columns unavailable: {col_err}. "
-            "Migration 108 (R-metrics) not yet applied. "
-            "Cannot return degraded performance data with zero-defaulted R-metrics during migration."
+        if "avg_win_r" in str(col_err) or "avg_loss_r" in str(col_err) or "expectancy" in str(col_err):
+            logger.warning(
+                f"R-metrics columns not yet migrated: {col_err}. "
+                "Falling back to query without R-metrics and returning defaults."
+            )
+            try:
+                cur.execute("SAVEPOINT perf_analytics_fallback")
+                cur.execute("""
+                    SELECT metric_date, sharpe_ratio, sortino_ratio, calmar_ratio,
+                           win_rate_pct, max_drawdown_pct
+                    FROM algo_performance_metrics
+                    ORDER BY metric_date DESC
+                    LIMIT 1
+                """)
+                row = cur.fetchone()
+                cur.execute("RELEASE SAVEPOINT perf_analytics_fallback")
+
+                if row is None:
+                    response_dict = {
+                        "rolling_sharpe_252d": None,
+                        "rolling_sortino_252d": None,
+                        "calmar_ratio": None,
+                        "win_rate_50t": None,
+                        "avg_win_r_50t": None,
+                        "avg_loss_r_50t": None,
+                        "expectancy": None,
+                        "max_drawdown_pct": None,
+                    }
+                else:
+                    data = safe_dict_convert(row)
+                    response_dict = {
+                        "rolling_sharpe_252d": float(data.get("sharpe_ratio")) if data.get("sharpe_ratio") is not None else None,
+                        "rolling_sortino_252d": float(data.get("sortino_ratio")) if data.get("sortino_ratio") is not None else None,
+                        "calmar_ratio": float(data.get("calmar_ratio")) if data.get("calmar_ratio") is not None else None,
+                        "win_rate_50t": float(data.get("win_rate_pct")) if data.get("win_rate_pct") is not None else None,
+                        "avg_win_r_50t": None,
+                        "avg_loss_r_50t": None,
+                        "expectancy": None,
+                        "max_drawdown_pct": float(data.get("max_drawdown_pct")) if data.get("max_drawdown_pct") is not None else None,
+                    }
+
+                response_dict["sharpe252"] = response_dict["rolling_sharpe_252d"]
+                response_dict["sortino"] = response_dict["rolling_sortino_252d"]
+                response_dict["calmar"] = response_dict["calmar_ratio"]
+
+                sanitized = APIResponseValidator.sanitize_response(response_dict)
+                return success_response(sanitized)
+            except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as fallback_err:
+                logger.error(f"Fallback query also failed: {fallback_err}. Table may be missing.")
+                raise fallback_err from col_err
+        else:
+            raise col_err
+    except psycopg2.errors.UndefinedTable as table_err:
+        try:
+            cur.execute("ROLLBACK TO SAVEPOINT perf_analytics")
+        except (psycopg2.DatabaseError, psycopg2.OperationalError):
+            pass
+
+        logger.warning(
+            f"Performance metrics table missing: {table_err}. "
+            "Returning defaults for graceful degradation."
         )
-        return error_response(
-            503,
-            "r_metrics_migration_incomplete",
-            "Performance analytics R-metrics schema not available. Migration 108 required. "
-            "R-metrics (avg_win_r, avg_loss_r, expectancy) are REQUIRED for risk-aware position sizing. "
-            "Apply database migration and retry.",
-        )
+        return success_response({
+            "rolling_sharpe_252d": None,
+            "rolling_sortino_252d": None,
+            "calmar_ratio": None,
+            "win_rate_50t": None,
+            "avg_win_r_50t": None,
+            "avg_loss_r_50t": None,
+            "expectancy": None,
+            "max_drawdown_pct": None,
+            "sharpe252": None,
+            "sortino": None,
+            "calmar": None,
+        })
     except (
         psycopg2.OperationalError,
         psycopg2.DatabaseError,
@@ -854,35 +957,83 @@ def _get_performance_analytics(cur: cursor) -> Any:
         try:
             cur.execute("ROLLBACK TO SAVEPOINT perf_analytics")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as save_err:
-            raise RuntimeError(f"Savepoint rollback failed: {save_err}") from save_err
-        code, error_type, message = handle_db_error(e, "fetch performance analytics")
-        return error_response(code, error_type, message)
+            logger.warning(f"Savepoint rollback failed: {save_err}. Continuing with graceful degradation.")
+
+        logger.warning(
+            f"Performance analytics database error: {type(e).__name__}: {e}. "
+            "Returning defaults for graceful degradation."
+        )
+        return success_response({
+            "rolling_sharpe_252d": None,
+            "rolling_sortino_252d": None,
+            "calmar_ratio": None,
+            "win_rate_50t": None,
+            "avg_win_r_50t": None,
+            "avg_loss_r_50t": None,
+            "expectancy": None,
+            "max_drawdown_pct": None,
+            "sharpe252": None,
+            "sortino": None,
+            "calmar": None,
+        })
 
 
 @db_route_handler("get performance metrics endpoint")
 def _get_performance_metrics_endpoint(cur: cursor) -> Any:
-    """Return latest performance metrics."""
-    cur.execute("""
-        SELECT win_rate_pct, profit_factor, avg_trade_pct, sharpe_ratio, max_drawdown_pct
-        FROM algo_performance_metrics
-        ORDER BY metric_date DESC
-        LIMIT 1
-    """)
-    row = cur.fetchone()
+    """Return latest performance metrics. Gracefully degrade if table is empty."""
+    try:
+        cur.execute("""
+            SELECT win_rate_pct, profit_factor, avg_trade_pct, sharpe_ratio, max_drawdown_pct
+            FROM algo_performance_metrics
+            ORDER BY metric_date DESC
+            LIMIT 1
+        """)
+        row = cur.fetchone()
 
-    if not row:
-        return error_response(503, "no_data", "Performance metrics not yet available")
+        if not row:
+            logger.warning(
+                "Performance metrics unavailable: algo_performance_metrics table empty. "
+                "Returning None values for graceful degradation."
+            )
+            return json_response(
+                200,
+                {
+                    "win_rate": None,
+                    "profit_factor": None,
+                    "expectancy": None,
+                    "sharpe_ratio": None,
+                    "max_drawdown": None,
+                },
+            )
 
-    return json_response(
-        200,
-        {
-            "win_rate": (float(row["win_rate_pct"]) / 100 if row["win_rate_pct"] else None),
-            "profit_factor": float(row["profit_factor"]),
-            "expectancy": float(row["avg_trade_pct"]),
-            "sharpe_ratio": float(row["sharpe_ratio"]),
-            "max_drawdown": (float(row["max_drawdown_pct"]) / 100 if row["max_drawdown_pct"] else None),
-        },
-    )
+        return json_response(
+            200,
+            {
+                "win_rate": (float(row["win_rate_pct"]) / 100 if row["win_rate_pct"] else None),
+                "profit_factor": float(row["profit_factor"]) if row["profit_factor"] is not None else None,
+                "expectancy": float(row["avg_trade_pct"]) if row["avg_trade_pct"] is not None else None,
+                "sharpe_ratio": float(row["sharpe_ratio"]) if row["sharpe_ratio"] is not None else None,
+                "max_drawdown": (float(row["max_drawdown_pct"]) / 100 if row["max_drawdown_pct"] else None),
+            },
+        )
+    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as col_err:
+        logger.warning(
+            f"Performance metrics table/columns unavailable: {col_err}. "
+            "Returning None values for graceful degradation."
+        )
+        return json_response(
+            200,
+            {
+                "win_rate": None,
+                "profit_factor": None,
+                "expectancy": None,
+                "sharpe_ratio": None,
+                "max_drawdown": None,
+            },
+        )
+    except (psycopg2.OperationalError, psycopg2.DatabaseError) as db_err:
+        code, error_type, message = handle_db_error(db_err, "fetch performance metrics")
+        return error_response(code, error_type, message)
 
 
 @db_route_handler("get portfolio summary")

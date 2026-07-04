@@ -191,12 +191,24 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
         pnl = safe_float(p.get("unrealized_pnl_pct"), default=None, field_name=f"{symbol}.pnl")
 
         # Extract optional enrichment fields (low-priority data — graceful degradation)
-        days = p.get("days_since_entry", "--")
+        days_raw = p.get("days_since_entry")
+        if days_raw is None:
+            logger.debug(f"[POSITIONS_PANEL] Position {symbol}: days_since_entry unavailable (optional enrichment)")
+            days = "--"
+        else:
+            days = str(days_raw)
         stg = p.get("weinstein_stage")  # Optional: Weinstein stage (may be unavailable)
+        if stg is None:
+            logger.debug(f"[POSITIONS_PANEL] Position {symbol}: weinstein_stage unavailable (optional enrichment)")
         swg = p.get("minervini_trend_score")  # Optional: Minervini trend score from API
-        # MEDIUM FIX: Explicit None check instead of or operator for sector display
+        if swg is None:
+            logger.debug(f"[POSITIONS_PANEL] Position {symbol}: minervini_trend_score unavailable (optional enrichment)")
         sec_val = p.get("sector")
-        sec = (sec_val[:12] if sec_val is not None else "--")
+        if sec_val is None:
+            logger.debug(f"[POSITIONS_PANEL] Position {symbol}: sector unavailable (optional enrichment)")
+            sec = "--"
+        else:
+            sec = str(sec_val)[:12]
         rmul = safe_float(
             p.get("r_multiple"), default=None, field_name=f"{symbol}.r_multiple"
         )  # Optional: risk multiple

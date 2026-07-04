@@ -1154,7 +1154,17 @@ if not IMPORT_ERROR:
 
 def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     """Handle API Gateway v2 (HTTP API) requests by routing to extracted handler modules."""
-    path = event.get("rawPath") or event.get("path", "UNKNOWN")
+    # GOVERNANCE FIX: Explicit path extraction (supports both HTTP API and REST API event formats)
+    # HTTP API v2: uses "rawPath"; REST API v1: uses "path"
+    path = event.get("rawPath")
+    if not path:
+        path = event.get("path")
+    if not path:
+        logger.warning(
+            f"[LAMBDA_START] Request missing path field. Expected 'rawPath' (HTTP API v2) or 'path' (REST API v1). "
+            f"Event keys: {list(event.keys())}. Using 'UNKNOWN' for logging."
+        )
+        path = "UNKNOWN"
     logger.info(f"[LAMBDA_START] Handling {event.get('httpMethod', 'GET')} {path}")
 
     # Credential cache uses 5-minute TTL to balance freshness with API costs

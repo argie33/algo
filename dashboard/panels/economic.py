@@ -138,11 +138,35 @@ def _build_calendar_rows(econ_cal: Any) -> list[Text | Rule]:
         ic = imp_c.get(imp, "dim")
 
         forecast_val = ev.get("forecast")
-        f_v = forecast_val if forecast_val is not None else ev.get("forecast_value")
         actual_val = ev.get("actual")
-        a_v = actual_val if actual_val is not None else ev.get("actual_value")
         previous_val = ev.get("previous")
-        p_v = previous_val if previous_val is not None else ev.get("previous_value")
+        # GOVERNANCE FIX: Fail-fast on schema mismatch — expect consistent field names.
+        # Do not silently accept alternate field names (forecast_value, actual_value, previous_value).
+        # This prevents silent data corruption from schema drift.
+        if forecast_val is None and ev.get("forecast_value") is not None:
+            event_id = ev.get("event_name", "unknown")
+            logger.warning(
+                f"Economic calendar: Event '{event_id}' API using alternate field 'forecast_value' instead of 'forecast'. "
+                f"This indicates schema version mismatch. Skipping event to prevent data inconsistency."
+            )
+            continue
+        if actual_val is None and ev.get("actual_value") is not None:
+            event_id = ev.get("event_name", "unknown")
+            logger.warning(
+                f"Economic calendar: Event '{event_id}' API using alternate field 'actual_value' instead of 'actual'. "
+                f"This indicates schema version mismatch. Skipping event to prevent data inconsistency."
+            )
+            continue
+        if previous_val is None and ev.get("previous_value") is not None:
+            event_id = ev.get("event_name", "unknown")
+            logger.warning(
+                f"Economic calendar: Event '{event_id}' API using alternate field 'previous_value' instead of 'previous'. "
+                f"This indicates schema version mismatch. Skipping event to prevent data inconsistency."
+            )
+            continue
+        f_v = forecast_val
+        a_v = actual_val
+        p_v = previous_val
 
         if ed == today:
             when = "TODAY"
@@ -174,7 +198,11 @@ def _build_calendar_rows(econ_cal: Any) -> list[Text | Rule]:
                 vals += f"[dim] P={p_f:.1f}[/]"
 
         et = ev.get("event_time")
-        et_s = f" [dim]{str(et)[:5]}[/]" if et else ""
+        if et is None:
+            logger.debug(f"Economic calendar event '{name}': event_time field missing (optional enrichment)")
+            et_s = ""
+        else:
+            et_s = f" [dim]{str(et)[:5]}[/]"
         rows.append(Text.from_markup(f"[{ic}]{when!s:<5}[/]{et_s} [white]{name!s}[/]{vals}"))
 
     return rows
