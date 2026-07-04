@@ -105,15 +105,21 @@ When seeing `data_unavailable=TRUE` markers appearing for a new class of symbols
 
 ---
 
-## Orchestrator Phases
+## Orchestrator Phases (9 Total)
 
-1. Data freshness (halt if >1 trading day stale)
-2. Circuit breakers (halt on: drawdown ≥20%, daily loss ≥2%, loss streak ≥3, open risk ≥4%, VIX ≥35, market stage=4, weekly loss ≥5%, win rate <40%)
-3. Position monitor + exposure policy
-4. Execute exits (unblocked by halt)
-5. Signal generation (blocked by halt)
-6. Trade entries (blocked by halt)
-7. Reconciliation + reporting (unblocked by halt)
+Orchestrator executes all 9 phases in sequence per `algo/orchestrator/phase_registry.py`:
+
+1. **Data Freshness Check** — Validates upstream loader data freshness; halts if >1 trading day stale. Always runs (skips if halted: NO)
+2. **Circuit Breakers** — Checks 8 risk metrics (drawdown ≥20%, daily loss ≥2%, loss streak ≥3, open risk ≥4%, VIX ≥35, market stage=4, weekly loss ≥5%, win rate <40%); sets halt flag. Always runs (skips if halted: NO)
+3. **Position Monitor** — Reviews open positions, checks against risk limits, validates data integrity. Skipped if halted (skip_if_halted: YES)
+4. **Reconciliation** — Reconciles broker positions vs. algo_trades table. Skipped if halted (skip_if_halted: YES)
+5. **Exposure Policy Actions** — Enforces sector/exposure limits, may liquidate excess. Skipped if halted (skip_if_halted: YES)
+6. **Exit Execution** — Executes stop-loss/target exits unblocked by halt. Always runs (always_run: YES, skip_if_halted: NO)
+7. **Signal Generation & Ranking** — Generates BUY/SELL signals from technical + fundamental scores. Skipped if halted (skip_if_halted: YES)
+8. **Entry Execution** — Executes BUY trades from ranked signals. Skipped if halted (skip_if_halted: YES)
+9. **Reconciliation & Snapshot** — Final portfolio reconciliation, creates snapshot for dashboard. Always runs (always_run: YES, skip_if_halted: NO)
+
+**Key Principle:** Phases 1, 2, 6, 9 always run (exits/halts/reporting unblocked by circuit breaker). Phases 3-5, 7-8 skip if halt flag set (trading entry/exposure management blocked).
 
 ---
 
