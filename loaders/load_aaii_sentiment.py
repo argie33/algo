@@ -201,6 +201,30 @@ class AAIISentimentLoader(OptimalLoader):
             )
             raise RuntimeError(error_msg) from e
 
+    @staticmethod
+    def _drop_rows_with_logging(df: Any) -> Any:
+        """Drop rows with missing data and log the count.
+
+        Governance: Explicit visibility of data filtering. No silent drops.
+        """
+        before_date_drop = len(df)
+        df = df.dropna(subset=["Date"])
+        after_date_drop = len(df)
+        if after_date_drop < before_date_drop:
+            logger.warning(
+                f"[AAII_SENTIMENT] Dropped {before_date_drop - after_date_drop} rows with missing Date values"
+            )
+
+        before_sentiment_drop = len(df)
+        df = df.dropna(subset=["Bullish", "Neutral", "Bearish"], how="any")
+        after_sentiment_drop = len(df)
+        if after_sentiment_drop < before_sentiment_drop:
+            logger.warning(
+                f"[AAII_SENTIMENT] Dropped {before_sentiment_drop - after_sentiment_drop} rows "
+                f"with missing sentiment data (Bullish, Neutral, or Bearish)"
+            )
+        return df
+
     def fetch_global(self, since: date | None) -> list[dict[str, Any]] | dict[str, Any]:
         """Fetch AAII sentiment data from Excel file.
 
@@ -306,8 +330,7 @@ class AAIISentimentLoader(OptimalLoader):
                     )
 
                 # Remove rows with missing dates or sentiment data
-                df = df.dropna(subset=["Date"])
-                df = df.dropna(subset=["Bullish", "Neutral", "Bearish"], how="any")
+                df = self._drop_rows_with_logging(df)
 
                 df["Date"] = df["Date"].dt.strftime("%Y-%m-%d")
                 df.sort_values("Date", inplace=True)
