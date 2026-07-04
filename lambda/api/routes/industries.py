@@ -270,7 +270,6 @@ def _industry_list(cur: cursor, params: dict[str, Any]) -> Any:
                 "current_trend": trend_label,
                 "pe": {
                     "trailing": _extract_float(_sf(ind.get("avg_trailing_pe"))),
-                    "forward": _extract_float(_sf(ind.get("avg_forward_pe"))),
                     "percentile": _extract_float(_sf(ind.get("pe_percentile"))),
                 },
             }
