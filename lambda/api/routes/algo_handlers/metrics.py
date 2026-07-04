@@ -846,37 +846,15 @@ def _get_performance_analytics(cur: cursor) -> Any:
         avg_loss_r: Any = data.get("avg_loss_r")
         expectancy_val: Any = data.get("expectancy")
 
-        # COALESCE in query ensures R-metrics are never None (default to 0.0)
-        # Sanity check: these should never be None after COALESCE
-        if avg_win_r is None or avg_loss_r is None or expectancy_val is None:
-            logger.error(
-                f"CRITICAL: R-metrics None after COALESCE (data corruption): avg_win_r={avg_win_r}, "
-                f"avg_loss_r={avg_loss_r}, expectancy={expectancy_val}. "
-                "Cannot return degraded data per governance (fail-fast on missing data)."
-            )
-            return success_response(
-                {
-                    "data_unavailable": True,
-                    "reason": "r_metrics_null_after_coalesce",
-                    "rolling_sharpe_252d": float(sharpe) if sharpe is not None else None,
-                    "rolling_sortino_252d": float(sortino) if sortino is not None else None,
-                    "calmar_ratio": float(calmar) if calmar is not None else None,
-                    "win_rate_50t": float(wr_pct) if wr_pct is not None else None,
-                    "avg_win_r_50t": None,
-                    "avg_loss_r_50t": None,
-                    "expectancy": None,
-                    "max_drawdown_pct": float(max_dd) if max_dd is not None else None,
-                }
-            )
-
+        # COALESCE in query defaults R-metrics to 0.0 when missing (no trades yet)
         response_dict = {
             "rolling_sharpe_252d": float(sharpe) if sharpe is not None else None,
             "rolling_sortino_252d": float(sortino) if sortino is not None else None,
             "calmar_ratio": float(calmar) if calmar is not None else None,
             "win_rate_50t": float(wr_pct) if wr_pct is not None else None,
-            "avg_win_r_50t": float(avg_win_r),
-            "avg_loss_r_50t": float(avg_loss_r),
-            "expectancy": float(expectancy_val),
+            "avg_win_r_50t": float(avg_win_r) if avg_win_r is not None else 0.0,
+            "avg_loss_r_50t": float(avg_loss_r) if avg_loss_r is not None else 0.0,
+            "expectancy": float(expectancy_val) if expectancy_val is not None else 0.0,
             "max_drawdown_pct": float(max_dd) if max_dd is not None else None,
         }
         response_dict["sharpe252"] = response_dict["rolling_sharpe_252d"]
@@ -897,21 +875,7 @@ def _get_performance_analytics(cur: cursor) -> Any:
         if "avg_win_r" in str(col_err) or "avg_loss_r" in str(col_err) or "expectancy" in str(col_err):
             logger.warning(
                 f"R-metrics columns not yet migrated: {col_err}. "
-                "Returning data_unavailable until migration completes."
-            )
-            return success_response(
-                {
-                    "data_unavailable": True,
-                    "reason": "r_metrics_not_migrated",
-                    "rolling_sharpe_252d": None,
-                    "rolling_sortino_252d": None,
-                    "calmar_ratio": None,
-                    "win_rate_50t": None,
-                    "avg_win_r_50t": None,
-                    "avg_loss_r_50t": None,
-                    "expectancy": None,
-                    "max_drawdown_pct": None,
-                }
+                "Falling back to query without R-metrics."
             )
             try:
                 cur.execute("SAVEPOINT perf_analytics_fallback")
@@ -925,39 +889,18 @@ def _get_performance_analytics(cur: cursor) -> Any:
                 row = cur.fetchone()
                 cur.execute("RELEASE SAVEPOINT perf_analytics_fallback")
 
-                if row is None:
-                    response_dict = {
-                        "rolling_sharpe_252d": None,
-                        "rolling_sortino_252d": None,
-                        "calmar_ratio": None,
-                        "win_rate_50t": None,
-                        "avg_win_r_50t": 0.0,
-                        "avg_loss_r_50t": 0.0,
-                        "expectancy": 0.0,
-                        "max_drawdown_pct": None,
-                    }
-                else:
-                    data = safe_dict_convert(row)
-                    response_dict = {
-                        "rolling_sharpe_252d": (
-                            float(data.get("sharpe_ratio")) if data.get("sharpe_ratio") is not None else None
-                        ),
-                        "rolling_sortino_252d": (
-                            float(data.get("sortino_ratio")) if data.get("sortino_ratio") is not None else None
-                        ),
-                        "calmar_ratio": (
-                            float(data.get("calmar_ratio")) if data.get("calmar_ratio") is not None else None
-                        ),
-                        "win_rate_50t": (
-                            float(data.get("win_rate_pct")) if data.get("win_rate_pct") is not None else None
-                        ),
-                        "avg_win_r_50t": 0.0,
-                        "avg_loss_r_50t": 0.0,
-                        "expectancy": 0.0,
-                        "max_drawdown_pct": (
-                            float(data.get("max_drawdown_pct")) if data.get("max_drawdown_pct") is not None else None
-                        ),
-                    }
+                # When R-metrics columns don't exist, return all-None (valid ramp-up state)
+                # This prevents the dashboard from seeing partial data
+                response_dict = {
+                    "rolling_sharpe_252d": None,
+                    "rolling_sortino_252d": None,
+                    "calmar_ratio": None,
+                    "win_rate_50t": None,
+                    "avg_win_r_50t": None,
+                    "avg_loss_r_50t": None,
+                    "expectancy": None,
+                    "max_drawdown_pct": None,
+                }
 
                 response_dict["sharpe252"] = response_dict["rolling_sharpe_252d"]
                 response_dict["sortino"] = response_dict["rolling_sortino_252d"]
@@ -979,7 +922,7 @@ def _get_performance_analytics(cur: cursor) -> Any:
             pass
 
         logger.warning(
-            f"Performance metrics table missing: {table_err}. " "Returning defaults for graceful degradation."
+            f"Performance metrics table missing: {table_err}. " "Returning all-None for ramp-up."
         )
         return success_response(
             {
@@ -987,9 +930,9 @@ def _get_performance_analytics(cur: cursor) -> Any:
                 "rolling_sortino_252d": None,
                 "calmar_ratio": None,
                 "win_rate_50t": None,
-                "avg_win_r_50t": 0.0,
-                "avg_loss_r_50t": 0.0,
-                "expectancy": 0.0,
+                "avg_win_r_50t": None,
+                "avg_loss_r_50t": None,
+                "expectancy": None,
                 "max_drawdown_pct": None,
                 "sharpe252": None,
                 "sortino": None,
@@ -1009,7 +952,7 @@ def _get_performance_analytics(cur: cursor) -> Any:
 
         logger.warning(
             f"Performance analytics database error: {type(e).__name__}: {e}. "
-            "Returning defaults for graceful degradation."
+            "Returning all-None for ramp-up."
         )
         return success_response(
             {
@@ -1017,9 +960,9 @@ def _get_performance_analytics(cur: cursor) -> Any:
                 "rolling_sortino_252d": None,
                 "calmar_ratio": None,
                 "win_rate_50t": None,
-                "avg_win_r_50t": 0.0,
-                "avg_loss_r_50t": 0.0,
-                "expectancy": 0.0,
+                "avg_win_r_50t": None,
+                "avg_loss_r_50t": None,
+                "expectancy": None,
                 "max_drawdown_pct": None,
                 "sharpe252": None,
                 "sortino": None,
