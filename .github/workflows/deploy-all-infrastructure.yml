@@ -1703,6 +1703,19 @@ jobs:
               --zip-file fileb://migration_lambda.zip \
               --region $AWS_REGION
             aws lambda wait function-updated --function-name "$LAMBDA_NAME" --region $AWS_REGION
+
+            # Also ensure VPC config is set if not already
+            VPC_ID=$(cd terraform && terraform output -raw vpc_id 2>/dev/null || echo "")
+            PRIVATE_SUBNETS=$(cd terraform && terraform output -json private_subnet_ids 2>/dev/null | jq -r '.[]' | tr '\n' ',' | sed 's/,$//')
+            RDS_SG=$(cd terraform && terraform output -raw rds_security_group_id 2>/dev/null || echo "")
+
+            if [ ! -z "$VPC_ID" ] && [ ! -z "$PRIVATE_SUBNETS" ] && [ ! -z "$RDS_SG" ]; then
+              echo "[INFO] Updating Lambda VPC config"
+              aws lambda update-function-configuration \
+                --function-name "$LAMBDA_NAME" \
+                --vpc-config SubnetIds="$PRIVATE_SUBNETS",SecurityGroupIds="$RDS_SG" \
+                --region $AWS_REGION || echo "[WARN] Could not update VPC config"
+            fi
           else
             echo "[INFO] Creating temporary Lambda: $LAMBDA_NAME"
             # Use the existing Lambda execution role that already has VPC/DB/Secrets Manager permissions
@@ -1713,16 +1726,37 @@ jobs:
             # - VPC access (ENI management)
             # - RDS Secrets Manager read permissions
             # - CloudWatch Logs permissions
-            aws lambda create-function \
-              --function-name "$LAMBDA_NAME" \
-              --runtime python3.12 \
-              --role "$ROLE_ARN" \
-              --handler lambda_function.lambda_handler \
-              --zip-file fileb://migration_lambda.zip \
-              --timeout 300 \
-              --memory-size 512 \
-              --region $AWS_REGION \
-              --environment "Variables={DB_NAME=algo}" || echo "[WARN] Could not create Lambda (may already exist in different state)"
+            # Get VPC configuration from Terraform outputs
+            VPC_ID=$(cd terraform && terraform output -raw vpc_id 2>/dev/null || echo "")
+            PRIVATE_SUBNETS=$(cd terraform && terraform output -json private_subnet_ids 2>/dev/null | jq -r '.[]' | tr '\n' ',' | sed 's/,$//')
+            RDS_SG=$(cd terraform && terraform output -raw rds_security_group_id 2>/dev/null || echo "")
+
+            if [ -z "$VPC_ID" ] || [ -z "$PRIVATE_SUBNETS" ] || [ -z "$RDS_SG" ]; then
+              echo "[WARN] VPC config incomplete, creating Lambda without VPC access (will fail)"
+              aws lambda create-function \
+                --function-name "$LAMBDA_NAME" \
+                --runtime python3.12 \
+                --role "$ROLE_ARN" \
+                --handler lambda_function.lambda_handler \
+                --zip-file fileb://migration_lambda.zip \
+                --timeout 300 \
+                --memory-size 512 \
+                --region $AWS_REGION \
+                --environment "Variables={DB_NAME=algo}" || echo "[WARN] Could not create Lambda"
+            else
+              echo "[INFO] Creating Lambda with VPC access: Subnets=$PRIVATE_SUBNETS, SG=$RDS_SG"
+              aws lambda create-function \
+                --function-name "$LAMBDA_NAME" \
+                --runtime python3.12 \
+                --role "$ROLE_ARN" \
+                --handler lambda_function.lambda_handler \
+                --zip-file fileb://migration_lambda.zip \
+                --timeout 300 \
+                --memory-size 512 \
+                --vpc-config SubnetIds="$PRIVATE_SUBNETS",SecurityGroupIds="$RDS_SG" \
+                --region $AWS_REGION \
+                --environment "Variables={DB_NAME=algo}" || echo "[WARN] Could not create Lambda"
+            fi
           fi
 
           echo "[OK] Migration Lambda ready: $LAMBDA_NAME"
