@@ -384,6 +384,29 @@ def lambda_handler(event, context):  # noqa: C901
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.info(f"industry_ranking history columns may already exist: {e}")
 
+        # Add data_unavailable columns to score tables for explicit marker support (idempotent)
+        try:
+            cursor.execute("ALTER TABLE stock_scores ADD COLUMN IF NOT EXISTS data_unavailable BOOLEAN DEFAULT FALSE")
+            cursor.execute("ALTER TABLE stock_scores ADD COLUMN IF NOT EXISTS reason VARCHAR(500)")
+            logger.info("Added data_unavailable columns to stock_scores")
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            logger.info(f"stock_scores data_unavailable columns may already exist: {e}")
+
+        try:
+            cursor.execute("ALTER TABLE swing_trader_scores ADD COLUMN IF NOT EXISTS data_unavailable BOOLEAN DEFAULT FALSE")
+            cursor.execute("ALTER TABLE swing_trader_scores ADD COLUMN IF NOT EXISTS unavailability_reason VARCHAR(500)")
+            logger.info("Added data_unavailable columns to swing_trader_scores")
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            logger.info(f"swing_trader_scores data_unavailable columns may already exist: {e}")
+
+        # Create indexes for faster data_unavailable filtering (idempotent)
+        try:
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_stock_scores_data_unavailable ON stock_scores(data_unavailable, symbol)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_swing_trader_scores_data_unavailable ON swing_trader_scores(data_unavailable, symbol, date)")
+            logger.info("Created data_unavailable indexes")
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            logger.info(f"data_unavailable indexes may already exist: {e}")
+
         sql_script = ""
         try:
             # SECURITY FIX S-07: Use absolute path to prevent path traversal
