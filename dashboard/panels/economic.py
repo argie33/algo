@@ -115,6 +115,11 @@ def _build_calendar_rows(econ_cal: Any) -> list[Text | Rule]:
                 ed = date.fromisoformat(str(ed_raw))
             except (ValueError, TypeError) as e:
                 logger.warning(f"Economic calendar: cannot parse event_date '{ed_raw}': {e}")
+        else:
+            # GOVERNANCE FIX: Log when event_date is missing from API response
+            # Don't silently use "--" without indication that date is unavailable
+            event_id = ev.get("event_name", "unknown")
+            logger.warning(f"Economic calendar event '{event_id}': event_date field missing from API response - will display as '--'")
 
         event_name_val = ev.get("event_name")
         if event_name_val is None:
