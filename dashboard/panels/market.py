@@ -234,6 +234,8 @@ def panel_market_full(mkt: Any, sentiment: Any = None) -> Panel:  # noqa: C901
     halt_fed = f"[dim]Trading Halt:[/][{hc}]{halt_s}[/]"
     if fed and str(fed).lower() not in ("unknown", "n/a", "none", ""):
         halt_fed += f"  [dim]Fed Environment:[/][white]{fed[:20]}[/]"
+    elif fed and str(fed).lower() in ("unknown", "n/a", "none", "") or fed is None:
+        logger.warning(f"[MARKET_PANEL] Fed environment data missing/invalid: '{fed}' - macro context unavailable")
     lines.append(halt_fed)
     if sentiment and not has_error(sentiment):
         fg_v = sentiment.get("fg")

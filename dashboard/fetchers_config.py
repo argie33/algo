@@ -57,8 +57,9 @@ def _get_data_status_cached() -> dict[str, Any]:
             return data
         except Exception as e:
             error_result = {"_error": str(e)}
-            _data_status_cache["result"] = error_result
-            _data_status_cache["_time"] = now
+            logger.error(f"[CONFIG_CACHE] API call failed: {e}. Not caching error response.")
+            # CRITICAL: Do not cache error responses - only cache successful data
+            # Returning error without caching forces retry on next call
             return error_result
 
 

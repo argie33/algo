@@ -241,13 +241,14 @@ def check_data_freshness() -> tuple[str, list[dict[str, Any]]]:
 def send_metric(metric_name: str, value: float, unit: str = "None", dimensions: dict[str, str] | None = None) -> None:
     """Send custom CloudWatch metric."""
     try:
-        metric_dims = []
         if dimensions is None:
-            logger.warning(
-                f"[HEALTH_MONITOR] Metric '{metric_name}' published without dimensions. Monitoring may lack context."
+            logger.error(
+                f"[HEALTH_MONITOR] Cannot publish metric '{metric_name}' without dimensions. "
+                f"Audit context required for all health metrics."
             )
-        else:
-            metric_dims = [{"Name": k, "Value": v} for k, v in dimensions.items()]
+            return  # Fail-fast: do not publish metrics without audit context
+
+        metric_dims = [{"Name": k, "Value": v} for k, v in dimensions.items()]
 
         cloudwatch.put_metric_data(
             Namespace="Algo/HealthMonitor",
