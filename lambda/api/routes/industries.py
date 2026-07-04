@@ -120,7 +120,7 @@ def _industry_list(cur: cursor, params: dict[str, Any]) -> Any:
             JOIN company_profile cp ON pd.symbol = cp.ticker
             WHERE pd.date >= (SELECT d FROM latest_d) - INTERVAL '30 days'
               AND cp.industry IS NOT NULL
-              AND pd.symbol NOT LIKE '^%%'
+              AND pd.symbol NOT LIKE '^%'
             GROUP BY cp.industry
         ),
         industry_scores AS (

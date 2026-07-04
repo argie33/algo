@@ -148,7 +148,7 @@ class OptionsLoader:
                 f"({coverage_pct:.0f}%) had options data. {symbols_no_options} symbols skipped. "
                 f"This may indicate incomplete market data or options data issues."
             )
-            # Still mark as partial/degraded, not unavailable (some data is better than none)
+            data_unavailable = True
             result_reason = "partial_options_coverage"
         elif data_unavailable:
             result_reason = "no_options_data_collected"

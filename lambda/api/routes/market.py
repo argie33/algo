@@ -95,9 +95,9 @@ def _handle_breadth(cur: cursor) -> Any:
             COUNT(t.symbol) AS total
         FROM date_pairs dp
         JOIN price_daily t ON t.date = dp.d
-            AND t.symbol NOT LIKE '^%%' AND t.close IS NOT NULL
+            AND t.symbol NOT LIKE '^%' AND t.close IS NOT NULL
         JOIN price_daily y ON y.date = dp.prev_d AND y.symbol = t.symbol
-            AND y.symbol NOT LIKE '^%%' AND y.close IS NOT NULL
+            AND y.symbol NOT LIKE '^%' AND y.close IS NOT NULL
         GROUP BY dp.d
         ORDER BY dp.d DESC
         LIMIT 10

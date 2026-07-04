@@ -246,7 +246,7 @@ def _get_sector_breadth(cur: cursor) -> Any:
                         pd.symbol, pd.close
                     FROM price_daily pd
                     WHERE pd.date >= CURRENT_DATE - INTERVAL '7 days'
-                      AND pd.symbol NOT LIKE '^%%'
+                      AND pd.symbol NOT LIKE '^%'
                     ORDER BY pd.symbol, pd.date DESC
                 ),
                 distinct_symbols AS (

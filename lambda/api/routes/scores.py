@@ -103,8 +103,7 @@ def _get_stock_scores(
 
         where_clause = """
             WHERE sc.composite_score > 0
-            AND NOT EXISTS (SELECT 1 FROM etf_symbols WHERE symbol = sc.symbol)
-            AND ss.etf = 'N'
+            AND (ss.symbol NOT IN (SELECT symbol FROM etf_symbols) AND (ss.etf IS NULL OR ss.etf = 'N'))
             """
         params_list: list[Any] = []
 
@@ -120,9 +119,10 @@ def _get_stock_scores(
             params_list.append(symbol.upper())
         else:
             # Bulk queries: filter out rights/warrants that inflate composite_score
-            # with a single factor (value) but no market data. At least 2 factors
-            # required (33.33% of 6) to be considered a real trading candidate.
-            where_clause += " AND sc.data_completeness >= 33.33"
+            # with a single factor (value) but no market data. At least 3 factors
+            # required (50% of 6) to be considered a real trading candidate.
+            # This matches loader/load_stock_scores.py minimum_required_metrics=3 rule.
+            where_clause += " AND sc.data_completeness >= 50"
 
         # Use LATERAL joins instead of CTEs: CTEs scan all symbols before filtering
         # (full table scans on price_daily/technical_data_daily = timeout for bulk queries).
