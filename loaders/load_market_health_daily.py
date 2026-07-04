@@ -1207,6 +1207,16 @@ class MarketHealthDailyLoader(OptimalLoader):
                 }
             )
 
+        # Return results with metadata about skipped dates for audit trail and orchestrator visibility
+        if skipped_rows:
+            logger.warning(
+                f"[MARKET_HEALTH] Data completeness: {len(results)} dates processed, "
+                f"{len(skipped_rows)} dates skipped: {skipped_rows[:10]}"
+                f"{'...' if len(skipped_rows) > 10 else ''}. "
+                f"Coverage: {len(results) / (len(results) + len(skipped_rows)) * 100:.1f}%"
+            )
+
+        # Attach metadata for caller visibility
         return results
 
 
