@@ -214,7 +214,7 @@ def _industry_list(cur: cursor, params: dict[str, Any]) -> Any:
                 # DictRow (from DictCursor) or tuple (from regular cursor)
                 # Both support dict() conversion
                 ind = safe_json_serialize(dict(row))
-        except (TypeError, ValueError, KeyError) as e:
+        except (TypeError, ValueError, KeyError, IndexError) as e:
             logger.error(f"Failed to convert row to dict: {type(row).__name__} - {e}")
             continue
 
@@ -341,7 +341,7 @@ def _industry_detail(cur: cursor, industry_name: str) -> Any:
             # DictRow (from DictCursor) or tuple (from regular cursor)
             # Both support dict() conversion
             r = safe_json_serialize(dict(row))
-    except (TypeError, ValueError, KeyError) as e:
+    except (TypeError, ValueError, KeyError, IndexError) as e:
         logger.error(f"Failed to convert detail row to dict: {type(row).__name__} - {e}")
         return error_response(500, "data_conversion_error", "Failed to process industry detail row")
 
