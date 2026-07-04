@@ -33,6 +33,11 @@ from utils.validation.response_validation import (
     get_optional_field,
     get_required_field,
 )
+from utils.data_queries import (
+    get_open_positions,
+    get_trade_performance_stats,
+    get_recent_trade_pnls,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -245,24 +250,9 @@ def _get_algo_performance(cur: cursor) -> Any:  # noqa: C901
         win_loss_total = winning + losing
 
         # Compute trade-level metrics missing from algo_performance_metrics (CRITICAL for performance panel)
-        trade_stats = {}
         try:
-            cur.execute("""
-                    SELECT
-                        AVG(CASE WHEN profit_loss_pct > 0 THEN profit_loss_pct END) AS avg_win_pct,
-                        AVG(CASE WHEN profit_loss_pct < 0 THEN profit_loss_pct END) AS avg_loss_pct,
-                        AVG(CASE WHEN exit_r_multiple > 0 THEN exit_r_multiple END) AS avg_win_r,
-                        AVG(CASE WHEN exit_r_multiple < 0 THEN exit_r_multiple END) AS avg_loss_r,
-                        -- CRITICAL: Remove outer COALESCE to detect missing trade data
-                        -- NULL means no winning trades found (different from 0 winning dollars)
-                        NULLIF(SUM(CASE WHEN profit_loss_dollars > 0 THEN profit_loss_dollars ELSE 0 END), 0) AS gross_win_dollars,
-                        NULLIF(ABS(SUM(CASE WHEN profit_loss_dollars < 0 THEN profit_loss_dollars ELSE 0 END)), 0) AS gross_loss_dollars
-                    FROM algo_trades
-                    WHERE status = 'closed' AND exit_date IS NOT NULL
-                """)
-            ts_row = cur.fetchone()
-            if ts_row:
-                trade_stats = safe_dict_convert(ts_row)
+            # Use centralized data query (single source of truth)
+            trade_stats = get_trade_performance_stats(cur)
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as te:
             logger.error(f"CRITICAL: Could not compute trade-level stats: {te}")
             return error_response(
@@ -274,22 +264,13 @@ def _get_algo_performance(cur: cursor) -> Any:  # noqa: C901
         # Compute current win/loss streak from most recent closed trades (CRITICAL for performance panel)
         current_streak = 0
         try:
-            cur.execute("""
-                    SELECT profit_loss_pct FROM algo_trades
-                    WHERE status = 'closed' AND exit_date IS NOT NULL AND profit_loss_pct IS NOT NULL
-                    ORDER BY exit_date DESC, trade_id DESC LIMIT 30
-                """)
-            recent_trades = cur.fetchall()
-            if recent_trades:
-                first_pnl_raw = recent_trades[0]["profit_loss_pct"]
-                if first_pnl_raw is None:
-                    first_pnl = None
-                else:
-                    first_pnl = float(first_pnl_raw)
+            # Use centralized data query (single source of truth)
+            pnl_values = get_recent_trade_pnls(cur, limit=30)
+            if pnl_values:
+                first_pnl = float(pnl_values[0]) if pnl_values[0] is not None else None
                 if first_pnl is not None:
                     is_win_streak = first_pnl > 0
-                    for t in recent_trades:
-                        pnl_raw = t["profit_loss_pct"]
+                    for pnl_raw in pnl_values:
                         if pnl_raw is None:
                             break
                         pnl = float(pnl_raw)

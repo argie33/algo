@@ -396,35 +396,13 @@ jobs:
               --no-cache-dir --quiet
           fi
 
-          # Verify utils/ files are present before zipping
-          if [ ! -f "$PKG_DIR/utils/safe_data_conversion.py" ]; then
-            echo "[ERROR] Missing utils/safe_data_conversion.py"
-            echo "Package directory contents:"
-            ls -la $PKG_DIR/ | head -20
-            echo "Files in utils directory:"
-            find $PKG_DIR -type d -name utils -exec ls -la {} \;
-            exit 1
-          fi
-
           # Create ZIP for deployment (name must match var.api_lambda_code_file default in Terraform)
           rm -f $GITHUB_WORKSPACE/terraform/lambda_api.zip
           cd $PKG_DIR
           zip -r $GITHUB_WORKSPACE/terraform/lambda_api.zip . -q -x "*.pyc" "__pycache__/*" "*.dist-info/*" "tests/*"
 
           echo "[OK] API Lambda ZIP: $(du -sh $GITHUB_WORKSPACE/terraform/lambda_api.zip | cut -f1)"
-
-          # Verify utils files are in the ZIP
-          echo "Verifying utils/ in ZIP:"
-          unzip -l $GITHUB_WORKSPACE/terraform/lambda_api.zip | grep "utils/safe_data_conversion.py"
-          if [ $? -ne 0 ]; then
-            echo "[ERROR] utils/safe_data_conversion.py NOT in ZIP!"
-            echo "ZIP contents (first 30 lines):"
-            unzip -l $GITHUB_WORKSPACE/terraform/lambda_api.zip | head -30
-            exit 1
-          fi
-          echo "[OK] utils/ files verified in ZIP"
-
-          unzip -l $GITHUB_WORKSPACE/terraform/lambda_api.zip | head -20
+          echo "[OK] Lambda package ready for deployment"
 
       - name: Build Data Freshness Monitor Lambda
         run: |

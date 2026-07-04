@@ -121,20 +121,8 @@ def _apply_critical_migrations():
                 logger.warning(f"[STARTUP] Could not update {table}: {e}")
                 conn.rollback()
 
-        # Add R-metrics columns to algo_performance_metrics (required by perf_anl endpoint)
-        try:
-            r_metrics_sql = """
-            ALTER TABLE algo_performance_metrics
-            ADD COLUMN IF NOT EXISTS expectancy DECIMAL(8, 4),
-            ADD COLUMN IF NOT EXISTS avg_win_r DECIMAL(8, 4),
-            ADD COLUMN IF NOT EXISTS avg_loss_r DECIMAL(8, 4)
-            """
-            cur.execute(r_metrics_sql)
-            conn.commit()
-            logger.info("[STARTUP] Ensured algo_performance_metrics R-metrics columns exist (expectancy, avg_win_r, avg_loss_r)")
-        except Exception as e:
-            logger.warning(f"[STARTUP] Could not add R-metrics columns to algo_performance_metrics: {e}")
-            conn.rollback()
+        # NOTE: R-metrics columns (expectancy, avg_win_r, avg_loss_r) are created by lambda/db-init/lambda_function.py
+        # DO NOT duplicate column creation here. The db-init Lambda is authoritative for schema initialization.
 
         cur.close()
         conn.close()

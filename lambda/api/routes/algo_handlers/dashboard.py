@@ -28,6 +28,11 @@ from utils.validation import (
     APIResponseValidator,
     format_decimal_string,
 )
+from utils.data_queries import (
+    get_open_positions,
+    get_closed_positions,
+    get_trade_win_loss_stats,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -48,45 +53,8 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
     # Initialize alerts tracking early so it can be used throughout
     stale_alerts = []
 
-    cur.execute("""
-            SELECT
-            symbol,
-            company_name,
-            quantity,
-            avg_entry_price,
-            current_price,
-            position_value,
-            unrealized_pnl,
-            unrealized_pnl_pct,
-            status,
-            days_since_entry,
-            stop_loss_price,
-            target_1_price,
-            target_2_price,
-            target_3_price,
-            target_1_r_multiple,
-            target_2_r_multiple,
-            target_3_r_multiple,
-            sector,
-            industry,
-            r_multiple,
-            initial_risk_per_share,
-            open_risk_dollars,
-            distance_to_stop_pct,
-            distance_to_t1_pct,
-            distance_to_t2_pct,
-            distance_to_t3_pct,
-            minervini_trend_score,
-            weinstein_stage,
-            percent_from_52w_low,
-            percent_from_52w_high,
-            stage_in_exit_plan
-            FROM algo_positions_with_risk
-            WHERE status = 'open'
-            ORDER BY position_value DESC
-            LIMIT 1000
-        """)
-    positions = cur.fetchall()
+    # Get open positions from centralized data query (single source of truth)
+    positions = get_open_positions(cur, limit=1000)
 
     if not positions:
         logger.error(
@@ -908,53 +876,38 @@ def _get_circuit_breakers(cur: cursor) -> Any:  # noqa: C901
 
         # CB9: Win rate floor
         try:
-            cur.execute("""
-                    SELECT COUNT(*) FILTER (WHERE profit_loss_pct > 0) as wins,
-                           COUNT(*) FILTER (WHERE profit_loss_pct < 0) as losses,
-                           COUNT(*) as total
-                    FROM (
-                        SELECT profit_loss_pct
-                        FROM algo_trades
-                        WHERE status = 'closed' AND exit_date IS NOT NULL
-                        ORDER BY exit_date DESC LIMIT 30
-                    ) recent_trades
-                """)
-            wr_result = cur.fetchone()
-            if wr_result:
-                wins = int(wr_result["wins"])
-                losses = int(wr_result["losses"])
-                decisive = wins + losses
-                if decisive <= 0:
-                    win_rate = None
-                else:
-                    win_rate = wins / decisive * 100
-                threshold_wr = 40.0
-                if win_rate is not None:
-                    breakers.append(
-                        {
-                            "id": "win_rate",
-                            "label": "Win Rate Floor",
-                            "triggered": win_rate < threshold_wr and decisive >= 10,
-                            "current": round(win_rate, 1),
-                            "threshold": threshold_wr,
-                            "unit": "%",
-                            "description": f"Halt if win rate drops below {threshold_wr:.0f}% (last 30 closed)",
-                        }
-                    )
-                else:
-                    breakers.append(
-                        {
-                            "id": "win_rate",
-                            "label": "Win Rate Floor",
-                            "triggered": False,
-                            "current": None,
-                            "threshold": threshold_wr,
-                            "unit": "%",
-                            "description": "Insufficient trades to calculate win rate",
-                        }
-                    )
+            # Get win/loss stats from centralized data query (single source of truth)
+            wr_stats = get_trade_win_loss_stats(cur, limit=30)
+            wins = wr_stats["wins"] or 0
+            losses = wr_stats["losses"] or 0
+            total = wr_stats["total"] or 0
+            decisive = wins + losses
+            win_rate = wins / decisive * 100 if decisive > 0 else None
+            threshold_wr = 40.0
+            if win_rate is not None and total > 0:
+                breakers.append(
+                    {
+                        "id": "win_rate",
+                        "label": "Win Rate Floor",
+                        "triggered": win_rate < threshold_wr and decisive >= 10,
+                        "current": round(win_rate, 1),
+                        "threshold": threshold_wr,
+                        "unit": "%",
+                        "description": f"Halt if win rate drops below {threshold_wr:.0f}% (last 30 closed)",
+                    }
+                )
             else:
-                raise ValueError("No trade data")
+                breakers.append(
+                    {
+                        "id": "win_rate",
+                        "label": "Win Rate Floor",
+                        "triggered": False,
+                        "current": None,
+                        "threshold": threshold_wr,
+                        "unit": "%",
+                        "description": "Insufficient trades to calculate win rate",
+                    }
+                )
         except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.error(f"CB9 (win_rate) computation failed: {type(e).__name__}: {e}")
             breakers.append(
