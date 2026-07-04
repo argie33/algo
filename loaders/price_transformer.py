@@ -203,9 +203,15 @@ class PriceTransformer:
             is_trading_day = MarketCalendar.is_trading_day(row_date)
 
         if not is_trading_day and tracker:
+            # CRITICAL: Fail fast if symbol is None - don't default to "unknown"
+            if symbol is None:
+                raise ValueError(
+                    f"[PRICE_TRANSFORMER] Cannot validate trading day: symbol is None (upstream data error). "
+                    f"Data row: date={row_date}. Cannot proceed without symbol for audit tracking."
+                )
             try:
                 tracker.record_error(
-                    symbol=symbol or "unknown",
+                    symbol=symbol,  # Explicit access - symbol MUST exist at this point
                     error_type="NON_TRADING_DAY",
                     error_message="Data for non-trading day (weekend/holiday)",
                     resolution="rejected",

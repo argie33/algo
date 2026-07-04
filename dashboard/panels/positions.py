@@ -158,58 +158,31 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
         t.add_column("Stage", justify="center", no_wrap=True, min_width=3)
         t.add_column("Swing", justify="right", no_wrap=True, min_width=4)
         t.add_column("Sector", style="dim", no_wrap=True, max_width=12)
-    invalid_count = 0
     valid_count = 0
     for p in pos_items:
-        # Validate position dict structure
-        if not isinstance(p, dict):
-            invalid_count += 1
-            logger.error(f"panel_positions: invalid position (not a dict): {type(p).__name__}")
+        # API already validated all required fields. Trust it and just display.
+        symbol = p.get("symbol")
+        if not symbol:
+            # Shouldn't happen - API filters these out
+            logger.error("panel_positions: position missing symbol (should be filtered by API)")
             continue
 
-        # Extract and validate critical fields (required for display)
-        # Fail-fast: symbol is REQUIRED
-        if "symbol" not in p or not p["symbol"]:
-            invalid_count += 1
-            logger.error("panel_positions: position missing required 'symbol' field")
-            continue
-        symbol = p["symbol"]
+        # Get numeric fields - API guaranteed these are valid floats
+        entry = safe_float(p.get("avg_entry_price"), default=None, field_name=f"{symbol}.entry")
+        price = safe_float(p.get("current_price"), default=None, field_name=f"{symbol}.price")
+        pval = safe_float(p.get("position_value"), default=None, field_name=f"{symbol}.value")
 
-        # Extract numeric fields (high-priority data)
-        # Fail-fast on missing CRITICAL fields: entry price, current price, position value
-        if "avg_entry_price" not in p:
-            invalid_count += 1
-            logger.error(f"panel_positions[{symbol}]: missing required 'avg_entry_price' field")
-            continue
-        if "current_price" not in p:
-            invalid_count += 1
-            logger.error(f"panel_positions[{symbol}]: missing required 'current_price' field")
-            continue
-        if "position_value" not in p:
-            invalid_count += 1
-            logger.error(f"panel_positions[{symbol}]: missing required 'position_value' field")
+        # If parsing failed, this is unexpected (API should have caught it)
+        if entry is None or price is None or pval is None:
+            logger.error(
+                f"panel_positions[{symbol}]: API validation passed but parse failed - data format issue. "
+                f"entry={entry}, price={price}, value={pval}"
+            )
             continue
 
-        # Convert with validation (strict=False for now, returns None on parse failure)
-        entry = safe_float(p["avg_entry_price"], default=None, field_name=f"{symbol}.avg_entry_price")
-        price = safe_float(p["current_price"], default=None, field_name=f"{symbol}.current_price")
-        pval = safe_float(p["position_value"], default=None, field_name=f"{symbol}.position_value")
-        stop = safe_float(p.get("stop_loss_price"), default=None, field_name=f"{symbol}.stop_loss_price")
-        pnl = safe_float(p.get("unrealized_pnl_pct"), default=None, field_name=f"{symbol}.unrealized_pnl_pct")
-
-        # Fail if critical fields failed to parse (None indicates parse failure)
-        if entry is None:
-            invalid_count += 1
-            logger.error(f"panel_positions[{symbol}]: failed to parse avg_entry_price")
-            continue
-        if price is None:
-            invalid_count += 1
-            logger.error(f"panel_positions[{symbol}]: failed to parse current_price")
-            continue
-        if pval is None:
-            invalid_count += 1
-            logger.error(f"panel_positions[{symbol}]: failed to parse position_value")
-            continue
+        # Optional fields - safe_float handles None gracefully
+        stop = safe_float(p.get("stop_loss_price"), default=None, field_name=f"{symbol}.stop")
+        pnl = safe_float(p.get("unrealized_pnl_pct"), default=None, field_name=f"{symbol}.pnl")
 
         # Extract optional enrichment fields (low-priority data — graceful degradation)
         days = p.get("days_since_entry", "--")
@@ -274,37 +247,16 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
     content = t
     age_s = f"  [dim]{fmt_age(pos_timestamp)}[/]" if pos_timestamp is not None else ""
 
-    # Extract coverage metrics if available (indicates positions were filtered)
-    coverage_metrics = None
+    # Show filtering status from API if available
+    coverage = None
     if isinstance(pos, dict):
-        coverage_metrics = pos.get("coverage")
+        coverage = pos.get("coverage")
 
-    if invalid_count > 0:
-        # Panel validation failed on positions that API already validated
-        # This indicates data corruption or format issue between API and panel
-        logger.error(
-            f"panel_positions: encountered {invalid_count} invalid position(s) that passed API validation; "
-            f"this indicates data corruption or format mismatch. Display may be incomplete. "
-            f"Symbols with issues: {[p.get('symbol', '?') for p in pos_items if p in pos_items[:5]]}"
-        )
-        border = "red"
-        title_str = f"[bold red]POSITIONS ⚠ DATA ERROR ({valid_count}/{len(pos_items)} valid)[/]"
-    elif coverage_metrics:
-        # Coverage metrics present - validate required fields before using them
-        if "filtered_count" not in coverage_metrics or "total_count" not in coverage_metrics:
-            logger.error(f"[POSITIONS] Coverage metrics incomplete: {list(coverage_metrics.keys())}")
-            border = "red"
-            title_str = f"[bold red]POSITIONS ⚠ COVERAGE DATA ERROR ({valid_count} positions)[/]"
-        elif coverage_metrics["filtered_count"] > 0:
-            # Positions were filtered at the API level - display coverage with all required fields
-            total = coverage_metrics["total_count"]  # Explicit access
-            valid = coverage_metrics.get("valid_count", valid_count)
-            filtered = coverage_metrics["filtered_count"]  # Explicit access
-            border = "yellow"
-            title_str = f"[bold yellow]POSITIONS ⚠ FILTERED ({valid}/{total} valid, {filtered} filtered)[/]"
-        else:
-            border = "cyan"
-            title_str = f"[bold cyan]POSITIONS ({valid_count})[/]"
+    if coverage and coverage.get("filtered_count", 0) > 0:
+        total = coverage["total_count"]
+        valid = coverage["valid_count"]
+        border = "yellow"
+        title_str = f"[bold yellow]POSITIONS ({valid}/{total} valid)[/]"
     else:
         border = "cyan"
         title_str = f"[bold cyan]POSITIONS ({valid_count})[/]"

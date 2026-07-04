@@ -99,96 +99,43 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
         stale_alerts.append("Position data unavailable: algo_positions sync incomplete")
 
     items = []
-    sector_risk: dict[str, float] = {}  # For aggregating sector allocation
+    sector_risk: dict[str, float] = {}
     total_positions_fetched = len(positions)
     filtered_positions_count = 0
-    invalid_position_symbols = []
 
     for p in positions:
         d = safe_json_serialize(safe_dict_convert(p))
         symbol = d.get("symbol")
 
-        # CRITICAL: Symbol is required to identify position; fail-fast if missing
         if not symbol:
-            raise RuntimeError(
-                "[DASHBOARD CRITICAL] Position missing symbol identifier. "
-                "Cannot display position without knowing which security it represents. "
-                "Check algo_positions table for NULL symbol fields."
-            )
-
-        # CRITICAL: Required fields for dashboard display
-        # Check position_value (computed from qty * current_price)
-        pos_val_raw = d.get("position_value")
-        if pos_val_raw is None or (isinstance(pos_val_raw, str) and not pos_val_raw.strip()):
-            logger.warning(
-                "[POSITIONS] %s: position_value is NULL or empty (current price missing from price_daily) — skipping",
-                symbol,
-            )
+            logger.error("[POSITIONS] Position missing symbol — skipping")
             filtered_positions_count += 1
-            invalid_position_symbols.append(f"{symbol}:invalid_position_value")
             continue
 
-        # Check avg_entry_price (required for P&L calculation and entry point display)
-        entry_raw = d.get("avg_entry_price")
-        if entry_raw is None or (isinstance(entry_raw, str) and not entry_raw.strip()):
+        # Validate and convert all required numeric fields upfront
+        # If ANY required field is missing, None, empty, or non-numeric → skip this position
+        try:
+            pos_val = float(d.get("position_value"))
+            entry = float(d.get("avg_entry_price"))
+            cur_price = float(d.get("current_price"))
+        except (ValueError, TypeError, AttributeError):
             logger.warning(
-                "[POSITIONS] %s: avg_entry_price is NULL or empty (required for entry price display) — skipping",
-                symbol,
+                f"[POSITIONS] {symbol}: missing or invalid numeric field(s) "
+                f"(position_value, avg_entry_price, or current_price) — skipping"
             )
             filtered_positions_count += 1
-            invalid_position_symbols.append(f"{symbol}:invalid_avg_entry_price")
             continue
-
-        # Check current_price (required for current price display and P&L)
-        cur_price_raw = d.get("current_price")
-        if cur_price_raw is None or (isinstance(cur_price_raw, str) and not cur_price_raw.strip()):
-            logger.warning(
-                "[POSITIONS] %s: current_price is NULL or empty (required for price display) — skipping",
-                symbol,
-            )
-            filtered_positions_count += 1
-            invalid_position_symbols.append(f"{symbol}:invalid_current_price")
-            continue
-
-        # Validate numeric values
-        try:
-            pos_val = float(pos_val_raw)
-        except (ValueError, TypeError) as e:
-            raise RuntimeError(
-                f"[DASHBOARD CRITICAL] Position {symbol} has invalid position_value ({pos_val_raw}): {e}. "
-                f"Position data corruption detected. "
-                f"All positions must have numeric position_value for dashboard display."
-            ) from e
-
-        try:
-            entry = float(entry_raw)
-        except (ValueError, TypeError) as e:
-            raise RuntimeError(
-                f"[DASHBOARD CRITICAL] Position {symbol} has invalid avg_entry_price ({entry_raw}): {e}. "
-                f"Entry price must be numeric for P&L calculations."
-            ) from e
-
-        try:
-            cur_price = float(cur_price_raw)
-        except (ValueError, TypeError) as e:
-            raise RuntimeError(
-                f"[DASHBOARD CRITICAL] Position {symbol} has invalid current_price ({cur_price_raw}): {e}. "
-                f"Current price must be numeric for display."
-            ) from e
 
         # Compute ladder_pct_* fields for visualization (Issue #2)
         # These fields are OPTIONAL - positions without stop/target prices are still valid
-        # Note: entry_raw and cur_price_raw already extracted and validated above
         stop_raw = d.get("stop_loss_price")
         t1_raw = d.get("target_1_price")
         t2_raw = d.get("target_2_price")
         t3_raw = d.get("target_3_price")
 
-        # Only compute ladder if we have the core price fields needed for visualization
+        # Only compute ladder if we have all price fields
         try:
-            if all(v is not None for v in [entry_raw, cur_price_raw, stop_raw, t1_raw, t2_raw, t3_raw]):
-                entry = float(entry_raw)
-                cur_price = float(cur_price_raw)
+            if all(v is not None for v in [stop_raw, t1_raw, t2_raw, t3_raw]):
                 stop = float(stop_raw)
                 t1 = float(t1_raw)
                 t2 = float(t2_raw)
@@ -317,8 +264,7 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
     if filtered_positions_count > 0:
         logger.warning(
             f"[POSITIONS DATA QUALITY] Filtered {filtered_positions_count}/{total_positions_fetched} positions "
-            f"({100 - coverage_pct:.1f}% filtered). Valid: {valid_count}. "
-            f"Reasons: {invalid_position_symbols[:10]}"  # Log first 10 for debugging
+            f"({100 - coverage_pct:.1f}% filtered). Valid: {valid_count}."
         )
         stale_alerts.append(
             f"Position data incomplete: {filtered_positions_count} positions filtered "
@@ -335,7 +281,6 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
             "filtered_count": filtered_positions_count,
             "coverage_pct": round(coverage_pct, 1),
         },
-        "filtered_positions": invalid_position_symbols,
         "stale_alerts": stale_alerts,
         "data_freshness": freshness,
     }
