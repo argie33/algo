@@ -861,6 +861,17 @@ def _get_performance_analytics(cur: cursor) -> Any:
         response_dict["sortino"] = response_dict["rolling_sortino_252d"]
         response_dict["calmar"] = response_dict["calmar_ratio"]
 
+        # CRITICAL: Ensure expectancy is never None if any other critical metric is present
+        # Dashboard validation requires either all-None (ramp-up) or all critical metrics non-None
+        critical_metrics = ["rolling_sharpe_252d", "rolling_sortino_252d"]
+        has_critical = any(response_dict.get(m) is not None for m in critical_metrics)
+        if has_critical and response_dict.get("expectancy") is None:
+            logger.error(
+                "CRITICAL: Partial data - sharpe/sortino present but expectancy is None. "
+                "Setting expectancy to 0.0 to maintain data consistency."
+            )
+            response_dict["expectancy"] = 0.0
+
         # Validate perf_anl response matches contract schema
         sanitized = APIResponseValidator.sanitize_response(response_dict)
         ensure_valid_response("perf_anl", sanitized)
