@@ -1034,6 +1034,7 @@ def _get_correlation_matrix(cur: cursor) -> Any:  # noqa: C901
         )
 
     prices_by_symbol: dict[str, list[Any]] = {}
+    skipped_price_rows: list[dict[str, Any]] = []
     for row in rows:
         sym = row["symbol"]
         if sym not in prices_by_symbol:
@@ -1046,6 +1047,7 @@ def _get_correlation_matrix(cur: cursor) -> Any:  # noqa: C901
                     f"Check upstream price data source and loader."
                 )
             logger.warning(f"Market API: Invalid close price for {sym} on {row['date']}: {row['close']}; skipping")
+            skipped_price_rows.append({"symbol": sym, "date": row.get("date"), "close": row["close"]})
             continue
         prices_by_symbol[sym].append((row["date"], float(row["close"])))
 

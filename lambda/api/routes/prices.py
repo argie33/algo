@@ -230,6 +230,7 @@ def handle(  # noqa: C901
             """).format(psycopg2.sql.Identifier(table_name), psycopg2.sql.SQL(where_clause))
             rows = execute_with_timeout(cur, query, [*qparams, limit], timeout_sec=10)
             used_table = table_name
+            asset_class_mismatch = False
             if not rows:
                 # No data in stock table — try ETF table
                 etf_query = psycopg2.sql.SQL("""
@@ -243,6 +244,13 @@ def handle(  # noqa: C901
                     psycopg2.sql.SQL(where_clause),
                 )
                 rows = execute_with_timeout(cur, etf_query, [*qparams, limit], timeout_sec=10)
+                if rows:
+                    # CRITICAL: We found ETF data but stock data was requested
+                    asset_class_mismatch = True
+                    logger.warning(
+                        f"[PRICES_API] Fallback to ETF data for {symbol}: requested stock data unavailable. "
+                        f"Returning ETF price history instead."
+                    )
                 used_table = etf_table_name
 
                 if not rows:
@@ -278,6 +286,11 @@ def handle(  # noqa: C901
                 [safe_json_serialize(dict(r)) for r in rows] if rows else [],
                 data_freshness=freshness,
             )
+            # EXPLICIT FLAG: Mark if data came from unexpected asset class
+            if asset_class_mismatch:
+                result["asset_class_mismatch"] = True
+                result["requested_asset_class"] = "stock"
+                result["returned_asset_class"] = "etf"
             is_valid, error_msg = ResponseValidator.validate_endpoint_response("prices", result)
             if not is_valid:
                 logger.error(f"Endpoint response validation failed: {error_msg}")

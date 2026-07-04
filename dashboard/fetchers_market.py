@@ -253,13 +253,18 @@ def fetch_market(c: None) -> dict[str, Any]:
             result["fed_unavailable"] = True
 
         # Put/call ratio is optional enrichment data (non-critical for regime detection)
-        # CRITICAL FIX: Explicit check for data_unavailable flag instead of False default
+        # CRITICAL FIX: When availability flag is missing from upstream, mark as unavailable (fail-safe)
         put_call_unavailable = market_health.get("put_call_ratio_data_unavailable")
         if put_call_unavailable is None:
-            # Field missing — assume data availability unknown, try to fetch it
-            put_call_unavailable = False
-            logger.debug("Optional market_health field 'put_call_ratio_data_unavailable' missing — will attempt to fetch")
-        if not put_call_unavailable:
+            # Field missing from upstream API — this means we don't know availability status
+            # Fail-safe: mark as unavailable until confirmed present
+            logger.warning(
+                "[MARKET] Put/call ratio availability flag missing from upstream API response. "
+                "Marking put/call ratio as unavailable (fail-safe)."
+            )
+            result["pcr_unavailable"] = True
+        elif not put_call_unavailable:
+            # Upstream says data is available — fetch it
             pcr_val = market_health.get("put_call_ratio")
             if pcr_val is not None:
                 try:
@@ -268,8 +273,11 @@ def fetch_market(c: None) -> dict[str, Any]:
                     logger.debug("Put/call ratio conversion failed, marking as unavailable")
                     result["pcr_unavailable"] = True
             else:
+                # Upstream said available but value is None — flag as data quality issue
+                logger.warning("[MARKET] Put/call ratio marked available but value is None")
                 result["pcr_unavailable"] = True
         else:
+            # Upstream says data is unavailable
             result["pcr_unavailable"] = True
 
         # Yield curve slope is optional enrichment data
