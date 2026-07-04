@@ -57,7 +57,7 @@ class AnalystUpgradeDowngradeLoader(OptimalLoader):
                 f"Upstream loader failed or API unavailable. Cannot proceed without yfinance data."
             )
 
-        if not row.get("number_of_analysts"):
+        if row.get("number_of_analysts") is None:
             raise RuntimeError(
                 f"[ANALYST_UPGRADE_DOWNGRADE] {symbol}: No analyst opinions available in yfinance. "
                 f"This is legitimate for micro-cap stocks; data is missing but loader succeeded. "

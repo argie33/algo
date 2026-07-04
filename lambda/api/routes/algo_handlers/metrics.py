@@ -847,16 +847,27 @@ def _get_performance_analytics(cur: cursor) -> Any:
         expectancy_val: Any = data.get("expectancy")
 
         # COALESCE in query ensures R-metrics are never None (default to 0.0)
-        # If still None, handle gracefully by defaulting to 0.0 (no trades yet)
+        # Sanity check: these should never be None after COALESCE
         if avg_win_r is None or avg_loss_r is None or expectancy_val is None:
-            logger.warning(
-                f"R-metrics missing after COALESCE (may indicate early ramp-up): avg_win_r={avg_win_r}, "
+            logger.error(
+                f"CRITICAL: R-metrics None after COALESCE (data corruption): avg_win_r={avg_win_r}, "
                 f"avg_loss_r={avg_loss_r}, expectancy={expectancy_val}. "
-                "Defaulting to 0.0 for missing metrics."
+                "Cannot return degraded data per governance (fail-fast on missing data)."
             )
-            avg_win_r = 0.0 if avg_win_r is None else avg_win_r
-            avg_loss_r = 0.0 if avg_loss_r is None else avg_loss_r
-            expectancy_val = 0.0 if expectancy_val is None else expectancy_val
+            return success_response(
+                {
+                    "data_unavailable": True,
+                    "reason": "r_metrics_null_after_coalesce",
+                    "rolling_sharpe_252d": float(sharpe) if sharpe is not None else None,
+                    "rolling_sortino_252d": float(sortino) if sortino is not None else None,
+                    "calmar_ratio": float(calmar) if calmar is not None else None,
+                    "win_rate_50t": float(wr_pct) if wr_pct is not None else None,
+                    "avg_win_r_50t": None,
+                    "avg_loss_r_50t": None,
+                    "expectancy": None,
+                    "max_drawdown_pct": float(max_dd) if max_dd is not None else None,
+                }
+            )
 
         response_dict = {
             "rolling_sharpe_252d": float(sharpe) if sharpe is not None else None,
@@ -886,7 +897,21 @@ def _get_performance_analytics(cur: cursor) -> Any:
         if "avg_win_r" in str(col_err) or "avg_loss_r" in str(col_err) or "expectancy" in str(col_err):
             logger.warning(
                 f"R-metrics columns not yet migrated: {col_err}. "
-                "Falling back to query without R-metrics and returning defaults."
+                "Returning data_unavailable until migration completes."
+            )
+            return success_response(
+                {
+                    "data_unavailable": True,
+                    "reason": "r_metrics_not_migrated",
+                    "rolling_sharpe_252d": None,
+                    "rolling_sortino_252d": None,
+                    "calmar_ratio": None,
+                    "win_rate_50t": None,
+                    "avg_win_r_50t": None,
+                    "avg_loss_r_50t": None,
+                    "expectancy": None,
+                    "max_drawdown_pct": None,
+                }
             )
             try:
                 cur.execute("SAVEPOINT perf_analytics_fallback")

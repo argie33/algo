@@ -157,8 +157,8 @@ class MarketConstituentsLoader(OptimalLoader):
                     "Cannot proceed with incomplete enrichment."
                 )
 
-            sp500_count = sum(1 for r in base_symbols if r.get("is_sp500"))
-            russell_count = sum(1 for r in base_symbols if r.get("is_russell2000"))
+            sp500_count = sum(1 for r in base_symbols if r.get("is_sp500") is True)
+            russell_count = sum(1 for r in base_symbols if r.get("is_russell2000") is True)
 
             logger.info(
                 f"Enriched {len(base_symbols)} symbols with index membership. "

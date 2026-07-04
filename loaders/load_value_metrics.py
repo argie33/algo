@@ -89,6 +89,9 @@ class ValueMetricsLoader(OptimalLoader):
                 logger.info(f"[VALUE_METRICS] Snapshot unavailable for {symbol}: {unavailable_reason}")
                 return [self._unavailable_record(symbol, unavailable_reason)]
 
+            critical_metrics = [row["market_cap"], row["pe_ratio"], row["pb_ratio"], row["ps_ratio"]]
+            has_missing_critical = any(m is None for m in critical_metrics)
+
             return [
                 {
                     "symbol": symbol,
@@ -111,7 +114,7 @@ class ValueMetricsLoader(OptimalLoader):
                     "held_percent_insiders_unavailable_reason": "moved_to_positioning_metrics",
                     "held_percent_institutions": None,
                     "held_percent_institutions_unavailable_reason": "moved_to_positioning_metrics",
-                    "data_unavailable": False,
+                    "data_unavailable": has_missing_critical,
                     "updated_at": datetime.now(timezone.utc).isoformat(),
                 }
             ]
