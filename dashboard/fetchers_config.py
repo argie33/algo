@@ -181,7 +181,6 @@ def fetch_algo_config(c: None) -> dict[str, Any]:
             "max_position_size_pct",
             "max_positions",
             "max_positions_per_sector",
-            "min_swing_score",
             "base_risk_pct",
             "t1_target_r_multiple",
         ]
@@ -221,7 +220,6 @@ def fetch_algo_config(c: None) -> dict[str, Any]:
             "max_position_size_pct",
             "max_positions",
             "max_positions_per_sector",
-            "min_swing_score",
             "base_risk_pct",
             "t1_target_r_multiple",
         ]
@@ -238,7 +236,6 @@ def fetch_algo_config(c: None) -> dict[str, Any]:
             "max_pos_pct": float(cfg["max_position_size_pct"]),
             "max_pos_n": int(cfg["max_positions"]),
             "max_sec_n": int(cfg["max_positions_per_sector"]),
-            "min_score": float(cfg["min_swing_score"]),
             "base_risk": float(cfg["base_risk_pct"]),
             "t1_r": float(cfg["t1_target_r_multiple"]),
         }
