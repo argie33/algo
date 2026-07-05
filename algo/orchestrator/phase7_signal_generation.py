@@ -296,8 +296,8 @@ def _get_candidates_from_buysell(
                         ORDER BY symbol, date DESC
                     ) bsd
                     JOIN stock_scores ss ON ss.symbol = bsd.symbol
-                    INNER JOIN swing_trader_scores sts ON sts.symbol = bsd.symbol
-                        AND sts.date <= %s AND sts.score IS NOT NULL
+                    LEFT JOIN swing_trader_scores sts ON sts.symbol = bsd.symbol
+                        AND sts.date <= %s
                     JOIN LATERAL (
                         SELECT close, high, low
                         FROM price_daily
@@ -723,7 +723,8 @@ def run(  # noqa: C901
     signal_source = "buysell_breakout"
 
     # ISSUE #3 FIX: All trend and close quality validation now happens at SQL level in _get_candidates_from_buysell().
-    # Candidates here are already filtered for: close > sma_50, close_position > min_close_quality, swing_score IS NOT NULL.
+    # Candidates here are already filtered for: close > sma_50, close_position > min_close_quality.
+    # swing_score is optional (LEFT JOIN) since swing_trader_scores computation was removed.
     # This eliminates wasted I/O and ensures silent data quality drift is detected immediately.
     quality_filtered = raw_candidates
 
