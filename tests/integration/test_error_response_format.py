@@ -64,7 +64,9 @@ class TestErrorResponseFormat:
         assert response["errorType"] == "gateway_timeout"
         assert response["message"] == "Request timeout"
         assert response["_error"] == "Request timeout"
-        assert "_is_transient_504" not in response, "504 errors should NOT be marked as transient - they indicate performance issues to fix"
+        assert "_is_transient_504" not in response, (
+            "504 errors should NOT be marked as transient - they indicate performance issues to fix"
+        )
 
     def test_json_response_success_format(self):
         """json_response(200, data) should return {statusCode, data}."""

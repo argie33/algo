@@ -86,7 +86,7 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
                     SELECT ticker, sector FROM company_profile
                     WHERE ticker IN ({placeholders})
                     """,
-                    tuple(open_symbols)
+                    tuple(open_symbols),
                 )
                 for row in cur.fetchall():
                     # Handle both dict-like and tuple returns
@@ -247,9 +247,13 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
         if (current_sector == "Unknown" or current_sector is None or current_sector == "") and symbol in sector_map:
             d["sector"] = sector_map[symbol]
             logger.debug(f"[POSITIONS] {symbol}: enriched sector from company_profile: {sector_map[symbol]}")
-        elif (current_sector == "Unknown" or current_sector is None or current_sector == "") and symbol not in sector_map:
+        elif (
+            current_sector == "Unknown" or current_sector is None or current_sector == ""
+        ) and symbol not in sector_map:
             # Position has missing/invalid sector and not in company_profile — this is a data quality issue
-            logger.warning(f"[POSITIONS DATA QUALITY] {symbol}: sector missing/invalid ({current_sector!r}) and not found in company_profile")
+            logger.warning(
+                f"[POSITIONS DATA QUALITY] {symbol}: sector missing/invalid ({current_sector!r}) and not found in company_profile"
+            )
 
         items.append(d)
         logger.debug(f"[POSITIONS] Added {symbol} to items list (total now: {len(items)})")

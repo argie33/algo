@@ -247,12 +247,10 @@ module.exports = {
   sendPlaceholder: (
     res,
     errorMessage = "Data unavailable",
-    statusCode = 503,
-    dataType = "items"
+    statusCode = 503
   ) => {
     // FAIL-FAST: sendPlaceholder should send proper errors, not success with placeholders
     // This violates fail-fast governance: must return success: false to indicate failure
-    // The dataType parameter is ignored - we now always return error responses
     return module.exports.sendError(res, errorMessage, statusCode);
   },
 };

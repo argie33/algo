@@ -31,7 +31,6 @@ const { getActiveTiers, getActiveTier } = require("../utils/tiers");
 const { getSwingGrades, getGradeForScore } = require("../utils/grades");
 const {
   requireNumericField,
-  requirePrice,
   requirePortfolioValue,
   requireSignalQuality,
   requireExposure,
@@ -41,9 +40,7 @@ const {
 } = require("../utils/strictValidation");
 const {
   createErrorResponse,
-  createPartialResponse,
-  isDataError: isDataErrorEnvelope,
-  collectErrors
+  createPartialResponse
 } = require("../utils/errorEnvelopes");
 
 const router = express.Router();
