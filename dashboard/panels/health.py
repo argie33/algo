@@ -1505,8 +1505,9 @@ def _format_run_history_summary(valid_hist: list[Any] | None) -> list[Text]:
         else:
             body = None
         if body:
-            # CRITICAL: Explicit None check and membership test
-            if lph and lph not in (lhr or ""):
+            # HIGH-002 FIX: Explicit None check instead of OR fallback
+            # If lhr is None (no halt reason), treat it as missing data, not empty string
+            if lph and lhr is not None and lph not in lhr:
                 ph_s = f"  [dim]({lph})[/]"
             else:
                 ph_s = ""
@@ -2621,7 +2622,8 @@ def _build_results_panel(  # noqa: C901
                 hr = ""
             lph = _fmt_phases_halted(r.get("phases_halted"))
             body = hr or lph
-            ph_s = f"  [dim]({lph})[/]" if lph and lph not in (hr or "") else ""
+            # HIGH-003 FIX: Remove redundant OR fallback — hr is already guaranteed to be string
+            ph_s = f"  [dim]({lph})[/]" if lph and lph not in hr else ""
             hr_s = f"  [{Y}]-> {body}[/]{ph_s}" if body else ""
             right_rows.append(Text.from_markup(f"  [{ic}]{ii}[/] [dim]{dt_s}[/]  [{ic}]{s}[/]{hr_s}"))
 
