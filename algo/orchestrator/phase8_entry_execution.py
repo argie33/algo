@@ -67,7 +67,13 @@ def _batch_fetch_technical_data(
     """
 
     if not symbols_with_precomputed:
-        raise ValueError("No precomputed technical data available for entry execution")
+        # Phase 5 didn't run or produced no candidates (e.g., circuit breaker halted entry)
+        # This is not an error—it means no entries are allowed. Return empty dict to signal no trades.
+        logger.warning(
+            "[PHASE8] No precomputed technical data available for entry execution. "
+            "Phase 5 likely halted or produced no candidates. No entries will be executed this run."
+        )
+        return {}
 
     # Separate symbols that have precomputed values from those that don't
 

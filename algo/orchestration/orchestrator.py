@@ -184,6 +184,30 @@ class Orchestrator:
                 raise
             raise RuntimeError(f"[STARTUP] Config validation failed: {e}") from e
 
+        # 4. Validate database schema (required tables and views)
+        try:
+            with DatabaseContext("read") as cur:
+                # Check algo_positions view exists (critical for portfolio monitoring)
+                cur.execute(
+                    """
+                    SELECT EXISTS (
+                        SELECT 1 FROM information_schema.views
+                        WHERE table_name = 'algo_positions'
+                    ) AS view_exists
+                    """
+                )
+                row = cur.fetchone()
+                if not row or not row.get("view_exists"):
+                    raise RuntimeError(
+                        "[STARTUP] CRITICAL: algo_positions view not found. "
+                        "Run migrations to create required database objects."
+                    )
+                logger.info("[OK] Database schema validation passed: algo_positions view exists")
+        except Exception as e:
+            if "CRITICAL" in str(e):
+                raise
+            logger.warning(f"[STARTUP] Database schema validation skipped (non-critical): {e}")
+
     def _kill_long_running_loaders(self) -> None:  # noqa: C901
         """CRITICAL: Kill hung loaders (analytics + critical-path) if approaching next orchestrator run.
 
