@@ -302,6 +302,35 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
         from algo.infrastructure import get_config
 
         config = get_config()
+
+        # CRITICAL: Validate all required config keys exist BEFORE running orchestrator
+        # Catches config issues at startup rather than deep in Phase 1
+        required_config_keys = [
+            "enable_algo",
+            "execution_mode",
+            "phase1_min_coverage_pct",
+            "phase1_min_symbol_count",
+            "max_position_size_pct",
+            "max_positions",
+            "base_risk_pct",
+        ]
+        missing_keys = [k for k in required_config_keys if k not in config]
+        if missing_keys:
+            logger.critical(
+                f"[LAMBDA STARTUP] CRITICAL: Missing required config keys at orchestrator startup. "
+                f"Missing: {missing_keys}. Database must have algo_config entries for these keys. "
+                f"Cannot proceed without configuration."
+            )
+            return {
+                "statusCode": 500,
+                "body": json.dumps({
+                    "status": "error",
+                    "message": f"Missing required config keys: {', '.join(missing_keys)}. Cannot initialize orchestrator.",
+                    "source": source,
+                }),
+            }
+        logger.info(f"[LAMBDA STARTUP] Config validation passed — {len(required_config_keys)} required keys present")
+
         orchestrator = Orchestrator(
             config=config,
             run_date=run_date,
