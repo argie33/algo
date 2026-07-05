@@ -7,9 +7,19 @@ Verify pipeline-loaded tables are fresh before trading:
 2. market_health_daily: Market breadth metrics — HALT if stale
 3. market_exposure_daily: Market regime / exposure limits — HALT if stale
 4. earnings_calendar: Earnings dates for blackout window gating — HALT if stale
-5. trend_template_data: Minervini/Weinstein criteria — WARNING if stale
-6. swing_trader_scores: Legacy scoring — WARNING if stale
-7. sector_ranking: Sector data for last trading day — WARNING if stale
+5. growth_metrics: Multi-year revenue/EPS growth metrics — HALT if stale (ADDED 2026-07-05)
+6. quality_metrics: Financial quality metrics (ROE/margins/ratios) — HALT if stale (ADDED 2026-07-05)
+7. value_metrics: Valuation metrics (P/E, P/B, etc.) — HALT if stale (ADDED 2026-07-05)
+8. positioning_metrics: Ownership and short interest — HALT if stale (ADDED 2026-07-05)
+9. stability_metrics: Volatility and beta metrics — HALT if stale (ADDED 2026-07-05)
+10. trend_template_data: Minervini/Weinstein criteria — WARNING if stale
+11. swing_trader_scores: Legacy scoring — WARNING if stale
+12. sector_ranking: Sector data for last trading day — WARNING if stale
+
+CRITICAL FIX 2026-07-05: Metric loaders (growth, quality, value, positioning, stability)
+are now required for stock scoring. Per phase1_failsafe_retry.py, these are CRITICAL loaders
+that must complete and remain fresh. stock_scores requires minimum 3/6 metrics per GOVERNANCE.md
+to prevent single-metric bias. Stale metrics = stale scores = HALT.
 
 Phase 5 generates stock_scores and signals on-the-fly from price_daily input.
 Excluded: stock_scores (orchestrator output), technical_data_daily, buy_sell_daily (no longer in pipeline).
@@ -426,6 +436,13 @@ def run(  # noqa: C901
                 "market_health_daily": "Market health (breadth/regime)",
                 "market_exposure_daily": "Market exposure limits",
                 "earnings_calendar": "Earnings dates (blackout window gating)",
+                # CRITICAL FIX 2026-07-05: Added metric loaders to freshness checks
+                # These are now critical per phase1_failsafe_retry.py changes
+                "growth_metrics": "Growth metrics (essential for stock scoring)",
+                "quality_metrics": "Quality metrics (essential for stock scoring)",
+                "value_metrics": "Value metrics (essential for stock scoring)",
+                "positioning_metrics": "Positioning metrics (essential for stock scoring)",
+                "stability_metrics": "Stability metrics (essential for stock scoring)",
             }
             # Warning-only tables: stale -> logged, trading continues
             warn_tables = {

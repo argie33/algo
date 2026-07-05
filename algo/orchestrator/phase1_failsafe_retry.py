@@ -50,24 +50,26 @@ CRITICAL_INCOMPLETE_LOADERS = {
     # Other critical loaders
     "stock_scores",
     "technical_data_daily",
+    # Metric loaders: essential for stock scoring (FIXED 2026-07-05)
+    # CRITICAL: These are no longer auxiliary. stock_scores requires minimum 3/6 metrics
+    # per GOVERNANCE.md. Missing metrics cause scores to degrade or fail entirely.
+    "growth_metrics",  # Required for growth_score calculation
+    "quality_metrics",  # Required for quality_score calculation
+    "value_metrics",  # Required for value_score calculation
+    "positioning_metrics",  # Required for positioning_score calculation
+    "stability_metrics",  # Required for stability_score calculation
     # NOTE: swing_trader_scores is optional enrichment (legacy), not critical
 }
 
 # Loaders that are auxiliary (warn if incomplete after retry, but allow proceeding)
 # NOTE: These loaders are nice-to-have enrichments; failing to load them should NOT
 # trigger retry since they don't block trading. Phase 1 only retries CRITICAL loaders.
-# REVERTED 2026-06-28: value_metrics and positioning_metrics were promoted to critical
-# but caused cascade failure—they don't complete reliably under AWS constraints.
-# UPDATED 2026-07-04: stock_scores enforces min_required_metrics=3 (per GOVERNANCE.md)
-# to prevent single-metric bias (100% weight on one factor). Incomplete metric tables
-# will be marked data_unavailable; stocks will not score if insufficient metrics. This
-# is correct behavior per GOVERNANCE: fail-fast on incomplete data, never degrade silently.
+# UPDATED 2026-07-05: All metric loaders (growth, positioning, quality, stability, value)
+# moved to CRITICAL_INCOMPLETE_LOADERS. These are essential for stock scoring per
+# GOVERNANCE.md: stock_scores requires minimum 3/6 metrics (50% completeness).
+# Incomplete metrics cause scores to degrade or fail entirely. Metric loaders must be
+# retried and must complete with sufficient coverage (>70%) before stock_scores publishes.
 AUXILIARY_INCOMPLETE_LOADERS = {
-    "growth_metrics",
-    "positioning_metrics",
-    "quality_metrics",
-    "stability_metrics",
-    "value_metrics",
     "analyst_sentiment_analysis",
     "sector_ranking",
     "trend_template_data",

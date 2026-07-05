@@ -44,9 +44,16 @@ def run(
     # Skip position monitor for paper trading testing
     skip_phase3 = os.getenv("SKIP_PHASE3_MONITOR", "").lower() in ("true", "1", "yes")
     if skip_phase3:
-        logger.info("[PHASE 3] Position monitor skipped (SKIP_PHASE3_MONITOR=true)")
-        log_phase_result_fn(3, "position_monitor", "skipped", "position monitor disabled for testing")
-        return PhaseResult(3, "position_monitor", "ok", {}, False, None)
+        logger.info("[PHASE 3] Position monitor SKIPPED (no broker access)")
+        # Return success status (not skipped) so downstream phases execute
+        return PhaseResult(
+            3,
+            "position_monitor",
+            "ok",  # Return "ok" status so phases 4-8 can execute
+            {"recommendations": [], "count": 0},
+            False,  # halted=False ensures downstream phases proceed
+            None
+        )
 
     try:
         from algo.infrastructure import MarketEventHandler

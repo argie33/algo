@@ -78,9 +78,15 @@ class StockScoresLoader(OptimalLoader):
 
         with handle_db_errors("validate_upstream_metrics"):
             with DatabaseContext("read") as cur:
+                # CRITICAL FIX 2026-07-05: growth_metrics is no longer optional.
+                # Stock scores require minimum 3/6 metrics per GOVERNANCE.md for valid trading signals.
+                # If growth_metrics is incomplete, stocks will score with insufficient factors, biasing
+                # toward value/momentum and away from growth signals. This is dangerous for growth-focused
+                # portfolios. Enforce minimum coverage threshold.
                 required_metric_tables = {
                     "value_metrics": 0.80,
-                    "positioning_metrics": 0.70,  # Fixed: was lowered to 0.50 to work around validation bug
+                    "growth_metrics": 0.70,  # CRITICAL: Growth is essential scoring factor
+                    "positioning_metrics": 0.70,
                     "stability_metrics": 0.85,
                 }
                 # SEC-filing-dependent metrics: acceptable to have 0% real data if upstream
@@ -88,7 +94,6 @@ class StockScoresLoader(OptimalLoader):
                 # the loader never ran at all (0 rows in table).
                 optional_sec_metric_tables = {
                     "quality_metrics",
-                    "growth_metrics",
                 }
 
                 for table_name, min_coverage in required_metric_tables.items():
