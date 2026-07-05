@@ -117,14 +117,15 @@ def fetch_portfolio(c: None) -> dict[str, Any]:
         # Validate required fields are present and non-None
         if port.get("total_portfolio_value") is None:
             record_data_quality_issue("portfolio", "total_portfolio_value", "none_value")
-            return FetcherValidator.build_error_response("Portfolio total_portfolio_value is None")
+            return FetcherValidator.build_error_response("Portfolio total_portfolio_value is None")  # Explicit return
         if port.get("total_cash") is None:
             record_data_quality_issue("portfolio", "total_cash", "none_value")
-            return FetcherValidator.build_error_response("Portfolio total_cash is None")
+            return FetcherValidator.build_error_response("Portfolio total_cash is None")  # Explicit return
         if port.get("position_count") is None:
             record_data_quality_issue("portfolio", "position_count", "none_value")
-            return FetcherValidator.build_error_response("Portfolio position_count is None")
+            return FetcherValidator.build_error_response("Portfolio position_count is None")  # Explicit return
 
+        # SAFE: Values are validated non-None above, so direct dict access is safe
         tpv = float(port["total_portfolio_value"])
         tc = float(port["total_cash"])
         pc = int(port["position_count"])

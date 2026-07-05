@@ -26,7 +26,7 @@ T = TypeVar("T")
 def route_handler(
     auth_required: bool = False,
     admin_required: bool = False,
-) -> Callable[[Callable], Callable]:
+) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Decorator for consistent route handling with error boundaries.
 
     Handles:
@@ -41,7 +41,7 @@ def route_handler(
             return json_response(200, {"status": "ok"})
     """
 
-    def decorator(func: Callable) -> Callable:
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         @wraps(func)
         def wrapper(
             cur: cursor,

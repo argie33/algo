@@ -227,13 +227,13 @@ def fetch_algo_config(c: None) -> dict[str, Any]:
 
         return {
             "enabled": enabled,
-            "mode": cfg.get("execution_mode", "paper"),
-            "max_pos_pct": float(cfg.get("max_position_size_pct", 5.0)),
-            "max_pos_n": int(cfg.get("max_positions", 15)),
-            "max_sec_n": int(cfg.get("max_positions_per_sector", 3)),
-            "min_score": float(cfg.get("min_swing_score", 50.0)),
-            "base_risk": float(cfg.get("base_risk_pct", 0.02)),
-            "t1_r": float(cfg.get("t1_target_r_multiple", 3.0)),
+            "mode": cfg["execution_mode"],
+            "max_pos_pct": float(cfg["max_position_size_pct"]),
+            "max_pos_n": int(cfg["max_positions"]),
+            "max_sec_n": int(cfg["max_positions_per_sector"]),
+            "min_score": float(cfg["min_swing_score"]),
+            "base_risk": float(cfg["base_risk_pct"]),
+            "t1_r": float(cfg["t1_target_r_multiple"]),
         }
     except Exception as e:
         error_msg = format_fetcher_error("cfg", e)
