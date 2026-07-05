@@ -915,20 +915,20 @@ def _get_performance_analytics(cur: cursor) -> Any:
         except (psycopg2.DatabaseError, psycopg2.OperationalError):
             pass
 
-        logger.warning(f"Performance metrics table missing: {table_err}. Returning all-None for ramp-up.")
+        logger.warning(f"Performance metrics table missing: {table_err}. Returning all-zero for ramp-up.")
         return success_response(
             {
-                "rolling_sharpe_252d": None,
-                "rolling_sortino_252d": None,
-                "calmar_ratio": None,
-                "win_rate_50t": None,
-                "avg_win_r_50t": None,
-                "avg_loss_r_50t": None,
-                "expectancy": None,
-                "max_drawdown_pct": None,
-                "sharpe252": None,
-                "sortino": None,
-                "calmar": None,
+                "rolling_sharpe_252d": 0.0,
+                "rolling_sortino_252d": 0.0,
+                "calmar_ratio": 0.0,
+                "win_rate_50t": 0.0,
+                "avg_win_r_50t": 0.0,
+                "avg_loss_r_50t": 0.0,
+                "expectancy": 0.0,
+                "max_drawdown_pct": 0.0,
+                "sharpe252": 0.0,
+                "sortino": 0.0,
+                "calmar": 0.0,
             }
         )
     except (
@@ -943,21 +943,21 @@ def _get_performance_analytics(cur: cursor) -> Any:
             logger.warning(f"Savepoint rollback failed: {save_err}. Continuing with graceful degradation.")
 
         logger.warning(
-            f"Performance analytics database error: {type(e).__name__}: {e}. Returning all-None for ramp-up."
+            f"Performance analytics database error: {type(e).__name__}: {e}. Returning all-zero for ramp-up."
         )
         return success_response(
             {
-                "rolling_sharpe_252d": None,
-                "rolling_sortino_252d": None,
-                "calmar_ratio": None,
-                "win_rate_50t": None,
-                "avg_win_r_50t": None,
-                "avg_loss_r_50t": None,
-                "expectancy": None,
-                "max_drawdown_pct": None,
-                "sharpe252": None,
-                "sortino": None,
-                "calmar": None,
+                "rolling_sharpe_252d": 0.0,
+                "rolling_sortino_252d": 0.0,
+                "calmar_ratio": 0.0,
+                "win_rate_50t": 0.0,
+                "avg_win_r_50t": 0.0,
+                "avg_loss_r_50t": 0.0,
+                "expectancy": 0.0,
+                "max_drawdown_pct": 0.0,
+                "sharpe252": 0.0,
+                "sortino": 0.0,
+                "calmar": 0.0,
             }
         )
 
