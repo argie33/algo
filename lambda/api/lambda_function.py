@@ -4,6 +4,8 @@ Routes requests to extracted handler modules via api_router.
 Deployment: Fixed Secrets Manager secret name for password sync.
 """
 
+from __future__ import annotations
+
 import json
 import logging
 import os
@@ -1026,9 +1028,6 @@ def require_auth(event: dict[str, Any], path: str) -> tuple[bool, bool, str | No
         "/api/algo/trade-distribution",  # Trade distribution (needed for dashboard in dev mode)
         "/api/algo/holding-period-distribution",  # Holding period distribution (needed for dashboard in dev mode)
         "/api/algo/stage-distribution",  # Stage distribution (needed for dashboard in dev mode)
-        "/api/audit/trail",  # Audit trail (needed for dashboard in dev mode)
-        "/api/audit/trades",  # Audit trades (needed for dashboard in dev mode)
-        "/api/audit/config",  # Audit config (needed for dashboard in dev mode)
         "/api/algo/rejection-funnel",  # Signal evaluation (needed for dashboard in dev mode)
         "/api/economic",  # Economic indicators (public data)
         "/api/sectors",  # Sector analysis (aggregate market data only)

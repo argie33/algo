@@ -1158,7 +1158,13 @@ class Orchestrator:
             self.db_monitor.health_check_diagnostics()
 
             logger.info("\n[LOADER CHECK] Verifying critical loaders have run recently...")
-            self._check_loader_health()
+            try:
+                self._check_loader_health()
+            except RuntimeError as e:
+                logger.error(
+                    f"[LOADER HEALTH CHECK] {e}. Proceeding to Phase 1 which will re-evaluate. "
+                    f"If loaders remain stale, Phase 1 will halt."
+                )
 
             # On non-trading days, skip broker reconciliation and all trading phases, but run metrics
             skip_phases = None
@@ -1175,7 +1181,14 @@ class Orchestrator:
                 ]  # Skip broker reconciliation, position adjustments, signal gen, entry/exit execution
 
             logger.info("\n[PROACTIVE WAIT] Waiting for critical loaders to complete before Phase 1...")
-            loaders_ready = self._wait_for_critical_loaders_proactive(max_wait_seconds=300)
+            try:
+                loaders_ready = self._wait_for_critical_loaders_proactive(max_wait_seconds=300)
+            except RuntimeError as e:
+                logger.error(
+                    f"[PROACTIVE LOADER WAIT] {e}. Proceeding to Phase 1 anyway. "
+                    f"Manual intervention may be needed if loaders don't recover."
+                )
+                loaders_ready = False
             if loaders_ready:
                 logger.info("[OK] All critical loaders completed before Phase 1")
             else:
