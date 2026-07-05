@@ -7,8 +7,6 @@ Eliminates 50-100 LOC of copy-paste fetching logic.
 """
 
 import logging
-import random
-import time
 from collections.abc import Callable
 from datetime import date, timedelta
 from typing import Any
@@ -62,99 +60,6 @@ def fetch_financial_data_from_source(
     except Exception as e:
         logger.warning(f"[{source_name}] Failed to fetch{' for ' + symbol if symbol else ''}: {e}")
         return [{"data_unavailable": True, "reason": f"{source_name}_fetch_error: {str(e)[:50]}"}]
-
-
-def fetch_dxy_from_iex() -> list[dict[str, Any]]:
-    """Fetch ICE DXY from IEX Cloud API with retry logic for transient errors.
-
-    Returns:
-        list: [{"date": "2026-06-29", "value": 101.13}, ...] or data_unavailable marker
-    """
-    import requests
-
-    from utils.loaders import get_api_key
-
-    iex_key = get_api_key("algo/iex_cloud", "IEX_API_KEY", required=False)
-    if not iex_key:
-        logger.warning("[IEX] DXY API key not configured")
-        return [{"data_unavailable": True, "reason": "iex_api_key_not_configured"}]
-
-    url = "https://cloud.iexapis.com/stable/stock/DXY/chart/1y"
-    max_retries = 4
-    base_delay = 2
-
-    for attempt in range(max_retries):
-        try:
-            resp = requests.get(url, params={"token": iex_key}, timeout=(10, 20))
-
-            # Retry on transient server errors: 502, 503, 504
-            if resp.status_code in (502, 503, 504):
-                if attempt < max_retries - 1:
-                    wait_time = base_delay * (2**attempt) + random.uniform(0, 1)
-                    status_names = {502: "bad gateway", 503: "service unavailable", 504: "gateway timeout"}
-                    status_name = status_names.get(resp.status_code, f"error {resp.status_code}")
-                    logger.warning(
-                        f"[IEX] DXY fetch {status_name} ({resp.status_code}). "
-                        f"Retry in {wait_time:.1f}s (attempt {attempt + 1}/{max_retries})"
-                    )
-                    time.sleep(wait_time)
-                    continue
-                else:
-                    logger.error(
-                        f"[IEX] DXY fetch failed after {max_retries} retries on {resp.status_code}: {resp.reason}"
-                    )
-                    return [{"data_unavailable": True, "reason": f"iex_http_error_{resp.status_code}"}]
-
-            resp.raise_for_status()
-
-            data = resp.json()
-            if not data or not isinstance(data, list):
-                logger.warning("[IEX] DXY API returned empty data")
-                return [{"data_unavailable": True, "reason": "iex_returned_empty_data"}]
-
-            rows = []
-            for item in data:
-                try:
-                    rows.append({"date": item["date"], "value": float(item["close"])})
-                except (KeyError, ValueError, TypeError) as e:
-                    logger.debug(f"[IEX] Skipping malformed DXY record: {e}")
-                    continue
-
-            logger.info(f"[IEX] Fetched {len(rows)} DXY records")
-            return rows
-
-        except requests.exceptions.Timeout:
-            if attempt < max_retries - 1:
-                wait_time = base_delay * (2**attempt) + random.uniform(0, 1)
-                logger.warning(
-                    f"[IEX] DXY fetch timeout. Retry in {wait_time:.1f}s (attempt {attempt + 1}/{max_retries})"
-                )
-                time.sleep(wait_time)
-                continue
-            else:
-                logger.error(f"[IEX] DXY fetch timeout after {max_retries} retries")
-                return [{"data_unavailable": True, "reason": "iex_timeout"}]
-        except requests.exceptions.ConnectionError as e:
-            if attempt < max_retries - 1:
-                wait_time = base_delay * (2**attempt) + random.uniform(0, 1)
-                logger.warning(
-                    f"[IEX] DXY fetch connection error: {e}. "
-                    f"Retry in {wait_time:.1f}s (attempt {attempt + 1}/{max_retries})"
-                )
-                time.sleep(wait_time)
-                continue
-            else:
-                logger.error(f"[IEX] DXY fetch connection error after {max_retries} retries: {e}")
-                return [{"data_unavailable": True, "reason": "iex_connection_error"}]
-        except requests.exceptions.HTTPError as e:
-            logger.error(f"[IEX] DXY fetch HTTP error: {e}")
-            return [{"data_unavailable": True, "reason": f"iex_http_error: {str(e)[:30]}"}]
-        except Exception as e:
-            logger.error(f"[IEX] DXY fetch failed unexpectedly: {e}")
-            return [{"data_unavailable": True, "reason": f"iex_unexpected_error: {str(e)[:30]}"}]
-
-    logger.error("[IEX] DXY fetch exhausted all retries")
-    return [{"data_unavailable": True, "reason": "iex_exhausted_retries"}]
 
 
 def fetch_dxy_from_yahoo() -> list[dict[str, Any]]:
