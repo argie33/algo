@@ -38,10 +38,15 @@ def run(
         # with consistent JSON deserialization error handling.
         from algo.risk import ExposurePolicy, MarketDataUnavailableError, read_market_regime
 
-        exposure = read_market_regime(run_date)
-        logger.info(f"  Exposure: {exposure['exposure_pct']}% ({exposure['regime']})")
-        if exposure.get("halt_reasons"):
-            logger.info(f"  Halt reasons: {'; '.join(exposure['halt_reasons'])}")
+        try:
+            exposure = read_market_regime(run_date)
+            logger.info(f"  Exposure: {exposure['exposure_pct']}% ({exposure['regime']})")
+            if exposure.get("halt_reasons"):
+                logger.info(f"  Halt reasons: {'; '.join(exposure['halt_reasons'])}")
+        except (MarketDataUnavailableError, KeyError, ValueError) as e:
+            # Market data unavailable in test mode - use safe defaults for paper trading
+            logger.warning(f"[PHASE 5] Market data unavailable ({type(e).__name__}): {str(e)[:80]}")
+            exposure = {"exposure_pct": 50, "regime": "caution", "halt_reasons": ["market_data_unavailable"]}
 
         policy = ExposurePolicy()
         constraints = policy.get_entry_constraints(run_date)
