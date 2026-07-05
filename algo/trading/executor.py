@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import math
+import os
 import time
 from collections.abc import Callable
 from decimal import Decimal
@@ -35,7 +36,6 @@ from algo.trading.notification_dispatcher import NotificationDispatcher
 from algo.trading.order_manager import OrderManager
 from algo.trading.position_tracker import PositionTracker
 from algo.trading.trade_context import TradeContext
-from config.api_endpoints import get_alpaca_base_url
 from config.credential_manager import get_alpaca_credentials
 from utils.db import DatabaseContext
 from utils.db.advisory_locks import (
@@ -89,10 +89,26 @@ class TradeExecutor:
 
     def __init__(self, config: AlgoConfig | dict[str, Any]) -> None:
         self.config = config
+
+        # Get execution mode from config first (supports both dict and AlgoConfig objects)
+        if "execution_mode" not in config or not config["execution_mode"]:
+            raise ValueError(
+                "CRITICAL: 'execution_mode' config missing or empty. "
+                "Cannot proceed without explicit execution mode (paper/review/auto). "
+                "Silently defaulting to paper would hide configuration errors. "
+                "Check configuration and restart."
+            )
+        mode_str = str(config["execution_mode"]).lower()
+        self.execution_mode_strategy = create_execution_mode_strategy(mode_str)
+        self.execution_mode = mode_str
+
         alpaca_creds = get_alpaca_credentials()
         self.alpaca_key = alpaca_creds["key"]
         self.alpaca_secret = alpaca_creds["secret"]
-        self.alpaca_base_url = get_alpaca_base_url()
+
+        # Use strategy pattern to resolve correct endpoint based on execution mode
+        configured_url = os.getenv("APCA_API_BASE_URL")
+        self.alpaca_base_url = self.execution_mode_strategy.resolve_base_url(configured_url)
 
         # Explicit validation: credentials must be present and non-empty
         if not self.alpaca_key or not self.alpaca_secret or not self.alpaca_base_url:
@@ -104,6 +120,11 @@ class TradeExecutor:
             )
             logger.critical(error_msg)
             raise ValueError(error_msg)
+
+        # Validate initialization with execution mode strategy
+        self.execution_mode_strategy.validate_and_log_initialization(
+            self.alpaca_key, self.alpaca_secret, self.alpaca_base_url
+        )
 
         # Wire TCA engine for execution quality tracking
         from algo.trading import TCAEngine
@@ -119,18 +140,6 @@ class TradeExecutor:
         from algo.trading.trade_validator import TradeValidator
 
         self.validator = TradeValidator(config, self.pretrade)
-
-        # Get execution mode from config (supports both dict and AlgoConfig objects)
-        if "execution_mode" not in config or not config["execution_mode"]:
-            raise ValueError(
-                "CRITICAL: 'execution_mode' config missing or empty. "
-                "Cannot proceed without explicit execution mode (paper/review/auto). "
-                "Silently defaulting to paper would hide configuration errors. "
-                "Check configuration and restart."
-            )
-        mode_str = str(config["execution_mode"]).lower()
-        self.execution_mode_strategy = create_execution_mode_strategy(mode_str)
-        self.execution_mode = mode_str
 
         # Validate R-multiple config values at init time (fail-fast) — must come before
         # handler initializations since EntryHandler and ExitHandler read these attributes

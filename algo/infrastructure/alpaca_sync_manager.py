@@ -6,11 +6,12 @@ independent testing of position sync logic.
 """
 
 import logging
+import os
 from typing import Any
 
 import requests
 
-from config.api_endpoints import get_alpaca_base_url
+from algo.trading.executor_strategies import create_execution_mode_strategy
 from config.credential_manager import get_credential_manager
 
 logger = logging.getLogger(__name__)
@@ -41,7 +42,12 @@ class AlpacaSyncManager:
 
         self._alpaca_key = creds["key"]
         self._alpaca_secret = creds["secret"]
-        self._alpaca_base_url = get_alpaca_base_url()
+
+        # Use execution mode from config to determine correct Alpaca endpoint
+        execution_mode = self.config.get("execution_mode", "paper") if isinstance(self.config, dict) else self.config.execution_mode
+        strategy = create_execution_mode_strategy(str(execution_mode).lower())
+        configured_url = os.getenv("APCA_API_BASE_URL")
+        self._alpaca_base_url = strategy.resolve_base_url(configured_url)
 
     @property
     def alpaca_key(self) -> str | None:

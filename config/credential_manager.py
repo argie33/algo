@@ -488,7 +488,29 @@ class CredentialManager:
                     f"[CREDENTIALS] Could not fetch Alpaca credentials from configured secret: {_sanitize_error(e)}"
                 )
         elif algo_secrets_arn and self._is_aws and not is_paper_mode:
-            logger.info("[CREDENTIALS] Live mode: skipping ALGO_SECRETS_ARN (contains paper keys), using algo/alpaca")
+            logger.info("[CREDENTIALS] Live mode: skipping ALGO_SECRETS_ARN (contains paper keys), checking algo/alpaca")
+            # Step 2b (Live Mode): Try algo/alpaca secret for live credentials
+            try:
+                client = self._get_secrets_client()
+                if client:
+                    response = client.get_secret_value(SecretId="algo/alpaca")
+                    secret_string = response.get("SecretString")
+                    if not secret_string:
+                        logger.warning("[CREDENTIALS] algo/alpaca secret exists but contains no SecretString")
+                    else:
+                        creds = _json.loads(secret_string)
+                        key = creds.get("APCA_API_KEY_ID")
+                        secret = creds.get("APCA_API_SECRET_KEY")
+                        if key and secret:
+                            logger.info("[CREDENTIALS] Alpaca credentials loaded from algo/alpaca (live mode)")
+                            return {"key": key, "secret": secret}
+                        else:
+                            logger.warning("[CREDENTIALS] algo/alpaca exists but missing APCA_API_KEY_ID or APCA_API_SECRET_KEY")
+            except (ClientError, BotoCoreError) as e:
+                logger.warning(
+                    f"[CREDENTIALS] Could not fetch live credentials from algo/alpaca: {_sanitize_error(e)} "
+                    f"(falling through to environment variables)"
+                )
 
         # Step 3: Try environment variables (APCA_API_KEY_ID / APCA_API_SECRET_KEY)
         key_env = os.getenv("APCA_API_KEY_ID")
