@@ -23,20 +23,20 @@ def classify_exception(error: Exception) -> tuple[int, str, str]:
     """
     # Database errors
     if isinstance(error, psycopg2.errors.UndefinedTable):
-        return 404, "not_found", f"Database table not found: {str(error)}"
+        return 404, "not_found", f"Database table not found: {error!s}"
     if isinstance(error, psycopg2.errors.UndefinedColumn):
-        return 404, "not_found", f"Database column not found: {str(error)}"
+        return 404, "not_found", f"Database column not found: {error!s}"
     if isinstance(error, psycopg2.OperationalError):
-        return 503, "service_unavailable", f"Database connection error: {str(error)}"
+        return 503, "service_unavailable", f"Database connection error: {error!s}"
     if isinstance(error, psycopg2.DatabaseError):
-        return 500, "database_error", f"Database error: {str(error)}"
+        return 500, "database_error", f"Database error: {error!s}"
     if isinstance(error, psycopg2.IntegrityError):
-        return 409, "conflict", f"Data integrity error: {str(error)}"
+        return 409, "conflict", f"Data integrity error: {error!s}"
     if isinstance(error, psycopg2.ProgrammingError):
-        return 400, "bad_request", f"Invalid SQL: {str(error)}"
+        return 400, "bad_request", f"Invalid SQL: {error!s}"
 
     # Generic error fallback
-    return 500, "internal_error", f"Unexpected error: {str(error)}"
+    return 500, "internal_error", f"Unexpected error: {error!s}"
 
 
 @contextmanager

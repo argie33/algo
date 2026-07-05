@@ -1228,6 +1228,7 @@ jobs:
           echo "[OK] db-init Lambda ZIP: $(du -sh $GITHUB_WORKSPACE/terraform/lambda_artifacts/db-init.zip | cut -f1)"
 
       - name: Deploy db-init Lambda
+        id: deploy_db_init
         run: |
           PROJECT=$(grep '^project_name' terraform/terraform.tfvars | cut -d'"' -f2)
           ENVIRONMENT=$(grep '^environment' terraform/terraform.tfvars | cut -d'"' -f2)
@@ -1245,12 +1246,40 @@ jobs:
               --region $AWS_REGION
             aws lambda wait function-updated --function-name "$FUNC" --region $AWS_REGION
             echo "[OK] db-init Lambda updated: $FUNC"
+            echo "function_exists=true" >> $GITHUB_OUTPUT
           else
             echo "[WARN] db-init Lambda not found: $FUNC"
             echo "[WARN] Lambda must be created via Terraform or manually."
             echo "[WARN] db-init.tf in terraform/modules/database has all resources disabled."
             echo "[WARN] To enable db-init Lambda management, uncomment resources in db-init.tf and create IAM role."
+            echo "function_exists=false" >> $GITHUB_OUTPUT
           fi
+          echo "function_name=${FUNC}" >> $GITHUB_OUTPUT
+
+      - name: Invoke db-init Lambda to Create Tables
+        if: steps.deploy_db_init.outputs.function_exists == 'true'
+        run: |
+          FUNC="${{ steps.deploy_db_init.outputs.function_name }}"
+          echo "Invoking db-init Lambda: $FUNC"
+
+          # Invoke synchronously to wait for completion
+          RESPONSE=$(aws lambda invoke \
+            --function-name "$FUNC" \
+            --region $AWS_REGION \
+            --log-type Tail \
+            /tmp/db-init-response.json 2>&1)
+
+          echo "Response: $RESPONSE"
+
+          # Check response
+          if [ -f /tmp/db-init-response.json ]; then
+            echo "db-init response:"
+            cat /tmp/db-init-response.json
+          fi
+
+          # Wait a moment for async DB operations
+          sleep 5
+          echo "[OK] db-init Lambda invoked successfully"
 
   #
   # STEP 2b -- Docker image for ECS loaders
