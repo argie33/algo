@@ -280,12 +280,14 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
     # Fail-fast: Check that coverage data is valid before using. Do not silently default to 0.
     coverage_valid = coverage is not None and isinstance(coverage, dict)
     has_filtering_info = False
-    if coverage_valid:
+    if coverage_valid and isinstance(coverage, dict):
+        total_count = coverage.get("total_count")
+        filtered_count = coverage.get("filtered_count")
         has_filtering_info = (
-            coverage.get("total_count") is not None
-            and coverage.get("total_count") > 0
-            and coverage.get("filtered_count") is not None
-            and coverage.get("filtered_count") > 0
+            total_count is not None
+            and total_count > 0
+            and filtered_count is not None
+            and filtered_count > 0
         )
     if has_filtering_info and coverage_valid:
         # coverage is guaranteed to be dict at this point

@@ -322,7 +322,7 @@ def _build_funnel_row(sig_eval_data: dict[str, Any] | None) -> list[Text]:
     if ev_tot is not None and ev_t5 is not None:
         ev_c = G if ev_t5 >= 20 else (Y if ev_t5 >= 5 else R)
         rejected_result = safe_get_list(safe_get_field(funnel, "rejected", []))
-        rejected: list[Any] = rejected_result if rejected_result is not None else []
+        rejected: list[Any] = rejected_result if isinstance(rejected_result, list) else []
 
         blocks_s: str = ""
         if rejected:
