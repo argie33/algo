@@ -12,7 +12,10 @@ All use consistent format: {statusCode, data, statusMessage?, data_freshness?}
 
 from __future__ import annotations
 
+import logging
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 class ResponseFormatter:
@@ -163,8 +166,16 @@ class ResponseFormatter:
         """
         from utils.error_handlers import sanitize_error_message
 
-        # Sanitize message to prevent credential/PII leakage
-        sanitized_msg = sanitize_error_message(message or "")
+        # CRITICAL: Require message to be provided. None indicates missing error context.
+        # Do not silently replace with empty string — log the omission so operators see the problem.
+        if message is None:
+            logger.error(
+                f"[ResponseFormatter.error] CRITICAL: message is None for error_code={error_code}. "
+                f"Cannot create error response without context. Using placeholder message."
+            )
+            message = f"Error {error_code} — no message provided"
+
+        sanitized_msg = sanitize_error_message(message)
 
         response: dict[str, Any] = {
             "statusCode": status,
@@ -173,11 +184,13 @@ class ResponseFormatter:
             "_error": sanitized_msg,  # Redundant field for compatibility
         }
 
-        # Mark 503 errors as transient so dashboard fetchers retry with backoff
-        # NOTE: 504 Gateway Timeout indicates SLOW QUERIES that need optimization
-        # Per governance: fail-fast, don't hide problems with retries
+        # Mark 503/504 errors as transient so dashboard fetchers retry with exponential backoff
+        # Both indicate temporary service issues (503=overloaded, 504=slow query) that usually recover
+        # Dashboard retry logic depends on these markers to distinguish transient vs permanent failures
         if status == 503:
             response["_is_transient_503"] = True
+        elif status == 504:
+            response["_is_transient_504"] = True
 
         return response
 

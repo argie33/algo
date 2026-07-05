@@ -671,6 +671,7 @@ def _format_handler_error(e: Exception) -> dict[str, Any]:
             "errorType": "timeout",
             "message": msg,
             "_error": msg,
+            "_is_transient_504": True,  # Mark as transient for dashboard retry logic
         }
 
     else:
