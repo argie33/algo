@@ -345,12 +345,17 @@ class BuySignalGenerator:
 
         return int(sum(vols_50) / len(vols_50))
 
-    def _determine_market_stage(self, close: float, sma_50: float | None, sma_200: float | None) -> str | None:
+    def _determine_market_stage(self, close: float, sma_50: float | None, sma_200: float | None) -> str | dict[str, Any] | None:
         """Determine market stage from moving average positions.
 
-        Returns None if moving averages or close price unavailable.
-        This is optional enrichment; logs at DEBUG level to indicate missing optional data.
-        Callers treat None as "data unavailable for optional enrichment" with full logging context.
+        Returns:
+            str: Stage name ("Stage 1", "Stage 2", "Stage 3", "Stage 4") if determinable
+            dict: With data_unavailable marker if data missing
+                {"data_unavailable": True, "reason": str}
+            None: If SMA relationship doesn't fit any stage
+
+        Per CLAUDE.md governance: Optional enrichment must return explicit data_unavailable
+        markers instead of silently returning None, enabling visibility into data failures.
         """
         if close and sma_50 and sma_200:
             if close > sma_50 > sma_200:
@@ -363,9 +368,9 @@ class BuySignalGenerator:
                 return "Stage 3"
             logger.debug(
                 f"[SIGNAL_METRICS] Market stage cannot be determined from SMA relationship "
-                f"(close={close}, sma_50={sma_50}, sma_200={sma_200}): "
-                f"optional enrichment unavailable - will return None to signal"
+                f"(close={close}, sma_50={sma_50}, sma_200={sma_200})"
             )
+            return None
         else:
             missing = []
             if not close:
@@ -374,11 +379,9 @@ class BuySignalGenerator:
                 missing.append("sma_50")
             if sma_200 is None:
                 missing.append("sma_200")
-            logger.debug(
-                f"[SIGNAL_METRICS] Cannot determine market stage - missing: {', '.join(missing)}: "
-                f"optional enrichment unavailable - will return None to signal"
-            )
-        return None
+            reason = f"missing_fields: {', '.join(missing)}"
+            logger.debug(f"[SIGNAL_METRICS] Cannot determine market stage - {reason}")
+            return {"data_unavailable": True, "reason": reason}
 
     def _calculate_entry_exit_levels(
         self,
