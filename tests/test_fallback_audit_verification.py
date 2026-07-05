@@ -13,7 +13,7 @@ from algo.signals.buy_signal_generator import BuySignalGenerator
 class TestSignalGeneratorFallbacks:
     """Test fallback patterns in signal generation."""
 
-    def test_market_stage_ambiguous_sma_returns_marker(self):
+    def test_market_stage_ambiguous_sma_returns_marker(self) -> None:
         """Market stage should return explicit marker when SMA relationships are ambiguous."""
         gen = BuySignalGenerator()
 
@@ -27,18 +27,18 @@ class TestSignalGeneratorFallbacks:
         assert "reason" in result, "Should have reason field"
         assert "ambiguous" in result["reason"].lower(), "Reason should mention ambiguous"
 
-    def test_market_stage_missing_fields_returns_marker(self):
+    def test_market_stage_missing_fields_returns_marker(self) -> None:
         """Market stage should return explicit marker when required fields missing."""
         gen = BuySignalGenerator()
 
         # Missing close price
-        result = gen._determine_market_stage(close=None, sma_50=100, sma_200=90)
+        result = gen._determine_market_stage(close=None, sma_50=100.0, sma_200=90.0)  # type: ignore
 
         assert isinstance(result, dict), "Should return dict when data missing"
         assert result.get("data_unavailable") is True, "Should have data_unavailable=True"
         assert "missing_fields" in result["reason"], "Reason should mention missing fields"
 
-    def test_market_stage_valid_returns_stage_string(self):
+    def test_market_stage_valid_returns_stage_string(self) -> None:
         """Market stage should return stage string when all data valid."""
         gen = BuySignalGenerator()
 
@@ -52,14 +52,14 @@ class TestSignalGeneratorFallbacks:
 class TestBuySignalGeneratorFallbacks:
     """Test buy signal generator fail-fast patterns."""
 
-    def test_insufficient_data_raises_error(self):
+    def test_insufficient_data_raises_error(self) -> None:
         """Signal generation should fail-fast on insufficient data."""
         gen = BuySignalGenerator()
 
         with pytest.raises(RuntimeError):
             gen.run("TEST", [], tech_data_age=None)
 
-    def test_poor_data_quality_raises_error(self):
+    def test_poor_data_quality_raises_error(self) -> None:
         """Signal generation should fail-fast on poor data quality."""
         gen = BuySignalGenerator()
 
