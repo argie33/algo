@@ -204,8 +204,7 @@ def fetch_scores(c: None) -> dict[str, Any]:
             # IMPORTANT: Distinguish between temporary service issues and real errors
             # Scores are non-critical enrichment — 503 (unavailable) and 504 (query timeout)
             # are both transient; allow signals to display without score rankings
-            has_504_error = error_msg is not None and "504" in str(error_msg)
-            is_transient = top_data.get("_is_transient_503") or has_504_error
+            is_transient = top_data.get("_is_transient_503") or top_data.get("_is_transient_504")
             if is_transient:
                 logger.warning(
                     f"Scores API temporarily unavailable: {error_msg} - "

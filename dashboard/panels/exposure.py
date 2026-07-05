@@ -309,7 +309,10 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
         sig_display = sig.replace("_", " ")[:18] if isinstance(sig, str) else ""
         items.append(f"[dim]Sector Rotation:[/] [{R}]{sr_pen:+.0f}[/] [dim]{sig_display}[/]")
     if eco_pen is not None and eco_pen < 0 and eco:
-        eco_err = eco.get("error")
+        # Check for error marker in economic overlay data
+        eco_err = None
+        if error_boundary.has_error(eco):
+            eco_err = error_boundary.get_error_message(eco)
         eco_err_display = eco_err[:18] if isinstance(eco_err, str) else ""
         items.append(
             f"[dim]Economic Overlay:[/] [{R}]{eco_pen:+.0f}[/]"
@@ -654,7 +657,10 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
             logger.debug("[EXPOSURE_EXPANDED_ADJ] sector_rotation present but pts field missing")
             rows.append(Text.from_markup("  [dim]Sector Rotation:[/] [red]✗ pts calculation failed[/]"))
         if eco_pen is not None and eco:
-            eco_err = eco.get("error")
+            # Check for error marker in economic overlay data
+            eco_err = None
+            if error_boundary.has_error(eco):
+                eco_err = error_boundary.get_error_message(eco)
             eco_err_display = eco_err[:30] if isinstance(eco_err, str) else ""
             ec = R if eco_pen < 0 else G
             rows.append(
