@@ -44,9 +44,11 @@ class AlpacaSyncManager:
         self._alpaca_secret = creds["secret"]
 
         # Use execution mode from config to determine correct Alpaca endpoint
-        execution_mode = (
-            self.config.get("execution_mode", "paper") if isinstance(self.config, dict) else self.config.execution_mode
-        )
+        if isinstance(self.config, dict):
+            execution_mode = self.config.get("execution_mode", "paper")
+        else:
+            # AlgoConfig object - use get() method, not direct attribute access
+            execution_mode = self.config.get("execution_mode", "paper")
         strategy = create_execution_mode_strategy(str(execution_mode).lower())
         configured_url = os.getenv("APCA_API_BASE_URL")
         self._alpaca_base_url = strategy.resolve_base_url(configured_url)
