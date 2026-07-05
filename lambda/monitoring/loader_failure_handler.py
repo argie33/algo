@@ -19,6 +19,7 @@ logger.setLevel(logging.INFO)
 CRITICAL_LOADERS = {
     "stock_prices_daily",  # Blocks: technicals, buy_sell, signals, scores
     "stock_symbols",  # Reference data; blocks price loading
+    "technical_data_daily",  # Blocks: buy_sell_daily signal generation (Phase 5)
     # NOTE: swing_trader_scores is optional enrichment (legacy), not critical for core signals
 }
 

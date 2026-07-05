@@ -686,7 +686,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
           loader_name        = "market_exposure_daily"
           "error.$"          = "$.loaderError.Error"
           "error_message.$"  = "$.loaderError.Cause"
-          is_critical_loader = true
+          is_critical_loader = false
         }
         ResultPath = "$.failureLog"
         Retry = [{
@@ -857,10 +857,16 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         }]
         Catch = [{
           ErrorEquals = ["States.ALL"]
-          Next        = "PipelineSuccess"
+          Next        = "ValidationFailureHalt"
           ResultPath  = "$.logError"
         }]
-        Next = "PipelineSuccess"
+        Next = "ValidationFailureHalt"
+      }
+
+      ValidationFailureHalt = {
+        Type  = "Fail"
+        Error = "PIPELINE_VALIDATION_FAILED"
+        Cause = "Orchestrator validation failed - data quality check failed. Check CloudWatch logs for details."
       }
 
       PipelineSuccess = {
@@ -2024,12 +2030,12 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
       }
 
       # ── Growth Metrics (depends on financial data) ──
-      # FIXED: Increase timeout from 3600s to 14400s (4h) to handle 5000+ symbols with parallelism=2
-      # With parallelism=2, execution takes ~20-41 minutes; 4h provides safe buffer
+      # FIXED: Realistic timeout of 110 minutes (2.7x expected 41 min max)
+      # With parallelism=2, execution takes ~20-41 minutes; 6600s provides good detection of hangs
       GrowthMetrics = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 14400
+        TimeoutSeconds = 6600
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
@@ -2082,12 +2088,12 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
       }
 
       # ── Quality Metrics (depends on financial data) ──
-      # FIXED: Increase timeout from 3600s to 14400s (4h) to handle 5000+ symbols with parallelism=2
-      # With parallelism=2, execution takes ~20-41 minutes; 4h provides safe buffer
+      # FIXED: Realistic timeout of 110 minutes (2.7x expected 41 min max)
+      # With parallelism=2, execution takes ~20-41 minutes; 6600s provides good detection of hangs
       QualityMetrics = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 14400
+        TimeoutSeconds = 6600
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
@@ -2240,11 +2246,11 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
       }
 
       # ── Stock Composite Scores (depends on all above metrics) ──
-      # FIXED: Increase timeout from 3600s (1h) to 7200s (2h) to allow full weighted score calculation with upstream validation
+      # FIXED: Realistic timeout of 60 minutes (2x expected 30 min)
       StockScores = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 7200
+        TimeoutSeconds = 3600
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
