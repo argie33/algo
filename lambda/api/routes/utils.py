@@ -206,14 +206,12 @@ def error_response(code: int, typ: str, msg: str | None) -> Any:
     DEPRECATED: Prefer raising APIException subclasses instead.
     Use raise_api_error() or raise_db_error() helper functions.
     """
-    import logging
-
     # Sanitize message to remove credentials, paths, SQL
     from utils.error_handlers import sanitize_error_message
 
     # HIGH-005 FIX: Require message, don't silently replace None with empty string
     if msg is None:
-        logging.error(f"[error_response] message is None for code {code}, typ={typ}")
+        logger.error(f"[error_response] message is None for code {code}, typ={typ}")
         msg = f"Error {typ} ({code})"
 
     msg = sanitize_error_message(msg)
