@@ -189,8 +189,8 @@ def _get_notifications(
         if severity and severity not in valid_severities:
             return error_response(400, "bad_request", f"Invalid severity: {severity}")
 
-        where_clauses = []
-        where_params = []
+        where_clauses: list[str] = []
+        where_params: list[str | int] = []
 
         if kind:
             where_clauses.append("kind = %s")

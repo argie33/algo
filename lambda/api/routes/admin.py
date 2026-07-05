@@ -211,7 +211,7 @@ def _get_loader_status(cur: cursor) -> Any:
                 "row_count": row["row_count"],
                 "latest_date": (row["latest_date"].isoformat() if row["latest_date"] else None),
                 "status": status,
-                "age_hours": round(age_hours, 1),
+                "age_hours": round(age_hours, 1) if age_hours is not None else None,
                 "health": health,
                 "error": row["error_message"],
             }

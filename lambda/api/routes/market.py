@@ -497,19 +497,13 @@ def _handle_seasonality(cur: cursor) -> Any:
                     {
                         "name": (best_month.get("month_name") if best_month else None),
                         "avg_return_pct": (
-                            float(best_month.get("avg_return"))
-                            if best_month and best_month.get("avg_return") is not None
-                            else None
+                            float(val) if (val := best_month.get("avg_return")) is not None else None
                         ),
                         "win_rate_pct": (
                             round(
-                                (float(best_month.get("winning_years")) / float(best_month.get("years_counted")) * 100),
+                                (float(wy) / float(yc) * 100),
                                 1,
-                            )
-                            if best_month
-                            and best_month.get("winning_years") is not None
-                            and best_month.get("years_counted") is not None
-                            else None
+                            ) if (wy := best_month.get("winning_years")) is not None and (yc := best_month.get("years_counted")) is not None else None
                         ),
                     }
                     if best_month
@@ -519,23 +513,15 @@ def _handle_seasonality(cur: cursor) -> Any:
                     {
                         "name": (worst_month.get("month_name") if worst_month else None),
                         "avg_return_pct": (
-                            float(worst_month.get("avg_return"))
-                            if worst_month and worst_month.get("avg_return") is not None
-                            else None
+                            float(val) if (val := worst_month.get("avg_return")) is not None else None
                         ),
                         "win_rate_pct": (
                             round(
                                 (
-                                    float(worst_month.get("winning_years"))
-                                    / float(worst_month.get("years_counted"))
-                                    * 100
+                                    float(wy) / float(yc) * 100
                                 ),
                                 1,
-                            )
-                            if worst_month
-                            and worst_month.get("winning_years") is not None
-                            and worst_month.get("years_counted") is not None
-                            else None
+                            ) if (wy := worst_month.get("winning_years")) is not None and (yc := worst_month.get("years_counted")) is not None else None
                         ),
                     }
                     if worst_month
@@ -545,14 +531,10 @@ def _handle_seasonality(cur: cursor) -> Any:
                     {
                         "name": best_dow.get("day") if best_dow else None,
                         "avg_return_pct": (
-                            float(best_dow.get("avg_return"))
-                            if best_dow and best_dow.get("avg_return") is not None
-                            else None
+                            float(val) if (val := best_dow.get("avg_return")) is not None else None
                         ),
                         "win_rate_pct": (
-                            float(best_dow.get("win_rate"))
-                            if best_dow and best_dow.get("win_rate") is not None
-                            else None
+                            float(val) if (val := best_dow.get("win_rate")) is not None else None
                         ),
                     }
                     if best_dow
@@ -562,14 +544,10 @@ def _handle_seasonality(cur: cursor) -> Any:
                     {
                         "name": worst_dow.get("day") if worst_dow else None,
                         "avg_return_pct": (
-                            float(worst_dow.get("avg_return"))
-                            if worst_dow and worst_dow.get("avg_return") is not None
-                            else None
+                            float(val) if (val := worst_dow.get("avg_return")) is not None else None
                         ),
                         "win_rate_pct": (
-                            float(worst_dow.get("win_rate"))
-                            if worst_dow and worst_dow.get("win_rate") is not None
-                            else None
+                            float(val) if (val := worst_dow.get("win_rate")) is not None else None
                         ),
                     }
                     if worst_dow

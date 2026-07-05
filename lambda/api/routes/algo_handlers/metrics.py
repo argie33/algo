@@ -843,7 +843,7 @@ def _get_performance_analytics(cur: cursor) -> Any:
         expectancy_val: Any = data.get("expectancy")
 
         # COALESCE in query defaults R-metrics to 0.0 when missing (no trades yet)
-        response_dict = {
+        response_dict: dict[str, float | None] = {
             "rolling_sharpe_252d": float(sharpe) if sharpe is not None else None,
             "rolling_sortino_252d": float(sortino) if sortino is not None else None,
             "calmar_ratio": float(calmar) if calmar is not None else None,

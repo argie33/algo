@@ -597,7 +597,7 @@ def _get_yield_curve_full(cur: cursor) -> Any:  # noqa: C901
             "STLFSI4": history.get("STLFSI4"),
             "ANFCI": history.get("ANFCI"),
         }
-        stress_latest = {}
+        stress_latest: dict[str, Any] = {}
         for k, v in stress_history.items():
             if v is None:
                 stress_latest[k] = None
