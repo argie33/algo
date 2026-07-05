@@ -1675,26 +1675,35 @@ resource "aws_iam_user_policy_attachment" "developer_cognito" {
 }
 
 data "aws_iam_policy_document" "developer_cognito" {
+  # CRITICAL: Developer role restricted to read-only Cognito operations for inspection/debugging
+  # REMOVED: AdminCreateUser, AdminSetUserPassword, AdminDeleteUser (privilege escalation risk)
+  # These are rarely needed locally and should be managed via Terraform/IaC
   statement {
-    sid    = "CognitoUserAdmin"
+    sid    = "CognitoReadOnly"
     effect = "Allow"
     actions = [
-      "cognito-idp:AdminCreateUser",
-      "cognito-idp:AdminSetUserPassword",
-      "cognito-idp:AdminDeleteUser",
+      # Read-only operations for inspection
       "cognito-idp:AdminGetUser",
-      "cognito-idp:AdminUpdateUserAttributes",
-      "cognito-idp:AdminSetUserMFAPreference",
-      "cognito-idp:AdminEnableUser",
-      "cognito-idp:AdminDisableUser",
-      "cognito-idp:AdminAddUserToGroup",
-      "cognito-idp:AdminRemoveUserFromGroup",
       "cognito-idp:AdminListGroupsForUser",
       "cognito-idp:ListUsers",
       "cognito-idp:ListUserPools",
       "cognito-idp:ListGroups",
       "cognito-idp:DescribeUserPool",
       "cognito-idp:DescribeUserPoolClient"
+    ]
+    resources = ["arn:aws:cognito-idp:${var.aws_region}:${var.aws_account_id}:userpool/*"]
+  }
+
+  # Scoped write: Update user attributes only (not passwords, not user creation/deletion)
+  # Used for: resetting MFA, enabling/disabling temp accounts created by Terraform
+  statement {
+    sid    = "CognitoUserAttributesOnly"
+    effect = "Allow"
+    actions = [
+      "cognito-idp:AdminUpdateUserAttributes",
+      "cognito-idp:AdminSetUserMFAPreference",
+      "cognito-idp:AdminEnableUser",
+      "cognito-idp:AdminDisableUser"
     ]
     resources = ["arn:aws:cognito-idp:${var.aws_region}:${var.aws_account_id}:userpool/*"]
   }
