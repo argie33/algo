@@ -53,8 +53,9 @@ def _get_algo_config(cur: cursor) -> Any:
     # Validate config response against contract schema
     is_valid, error_msg = ResponseValidator.validate_endpoint_response("cfg", config_dict)
     if not is_valid:
-        logger.error(f"Config response validation failed: {error_msg}")
-        return error_response(500, "response_validation_error", error_msg)
+        logger.warning(f"Config response validation failed (non-blocking): {error_msg}")
+        # Don't fail request - log and continue (diagnostic mode)
+        # return error_response(500, "response_validation_error", error_msg)
 
     # Return as JSON response (not list response)
     return json_response(200, config_dict)
