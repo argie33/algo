@@ -200,7 +200,8 @@ def error_response(code: int, typ: str, msg: str | None) -> Any:
     All error responses include HTTP status code for client-side error handling.
     The _error field enables consistent error detection across the dashboard.
 
-    For 503/504 errors, marks them as transient so dashboard fetchers retry with backoff.
+    For 503 errors, marks them as transient so dashboard fetchers retry with backoff.
+    Note: 504 errors indicate slow queries - these should NOT be retried silently.
 
     DEPRECATED: Prefer raising APIException subclasses instead.
     Use raise_api_error() or raise_db_error() helper functions.
@@ -211,11 +212,10 @@ def error_response(code: int, typ: str, msg: str | None) -> Any:
     msg = sanitize_error_message(msg or "")
 
     response = cast(dict[str, Any], {"statusCode": code, "errorType": typ, "message": msg, "_error": msg})
-    # Mark 503/504 errors as transient so dashboard fetchers retry with exponential backoff
+    # Mark 503 errors as transient so dashboard fetchers retry with exponential backoff
+    # Per governance: 504 timeout errors indicate performance issues that need fixing, not retrying
     if code == 503:
         response["_is_transient_503"] = True
-    elif code == 504:
-        response["_is_transient_504"] = True
     return response
 
 

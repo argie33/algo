@@ -53,14 +53,18 @@ class TestErrorResponseFormat:
         assert response.get("_is_transient_503") is True, "503 errors must be marked as transient for retry logic"
 
     def test_error_response_504(self):
-        """error_response() with 504 should include _error field and mark as transient."""
+        """error_response() with 504 should include _error field WITHOUT transient marking.
+
+        Per governance: 504 timeouts indicate slow queries that need optimization,
+        not transient failures to retry. Fail fast and make problems visible.
+        """
         response = error_response(504, "gateway_timeout", "Request timeout")
 
         assert response["statusCode"] == 504
         assert response["errorType"] == "gateway_timeout"
         assert response["message"] == "Request timeout"
         assert response["_error"] == "Request timeout"
-        assert response.get("_is_transient_504") is True, "504 errors must be marked as transient for retry logic"
+        assert "_is_transient_504" not in response, "504 errors should NOT be marked as transient - they indicate performance issues to fix"
 
     def test_json_response_success_format(self):
         """json_response(200, data) should return {statusCode, data}."""
@@ -126,8 +130,9 @@ class TestErrorResponseFormat:
             assert response["errorType"] == f"error_type_{code}"
             assert response["message"] == f"Message {code}"
             assert response["_error"] == f"Message {code}"
-            # 503/504 errors have extra transient flags for retry logic
-            expected_len = 5 if code in (503, 504) else 4
+            # 503 errors have transient flag for retry logic
+            # 504 errors do NOT have transient flag - they indicate slow queries to fix
+            expected_len = 5 if code == 503 else 4
             assert len(response) == expected_len, (
                 f"Code {code} should have {expected_len} fields, got {len(response)}: {response.keys()}"
             )

@@ -173,11 +173,11 @@ class ResponseFormatter:
             "_error": sanitized_msg,  # Redundant field for compatibility
         }
 
-        # Mark 503/504 errors as transient so dashboard fetchers retry with backoff
+        # Mark 503 errors as transient so dashboard fetchers retry with backoff
+        # NOTE: 504 Gateway Timeout indicates SLOW QUERIES that need optimization
+        # Per governance: fail-fast, don't hide problems with retries
         if status == 503:
             response["_is_transient_503"] = True
-        elif status == 504:
-            response["_is_transient_504"] = True
 
         return response
 

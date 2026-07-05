@@ -665,13 +665,12 @@ def _format_handler_error(e: Exception) -> dict[str, Any]:
 
     # Request timeouts
     elif "Timeout" in error_type or "timeout" in error_msg.lower():
-        msg = "Request exceeded statement_timeout"
+        msg = "Request exceeded statement_timeout - query is too slow, needs optimization"
         return {
             "statusCode": 504,
             "errorType": "timeout",
             "message": msg,
             "_error": msg,
-            "_is_transient_504": True,
         }
 
     else:
