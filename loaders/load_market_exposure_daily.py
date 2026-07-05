@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-
 """
 Load market_exposure_daily: Compute market regime + exposure % from price & market health data.
 
@@ -28,6 +27,7 @@ Validation & Error Handling (Fail-Fast):
 
 Time: ~2-5 seconds (vectorized computation, minimal DB load)
 """
+from __future__ import annotations
 
 import logging
 import sys
