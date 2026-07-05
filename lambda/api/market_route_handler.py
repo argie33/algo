@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Market Route Handler - Polymorphic market route handlers (eliminates switch statements)."""
 
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from typing import Any
 

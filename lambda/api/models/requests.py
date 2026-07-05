@@ -1,5 +1,6 @@
 """Pydantic models for API request bodies - single source of truth for request validation."""
 
+
 from __future__ import annotations
 
 import logging
@@ -50,7 +51,7 @@ class TradePreviewRequest(BaseModel):
     @classmethod
     def validate_symbol_field(cls, v: str) -> str:
         try:
-            return cast(str, validate_symbol(v))
+            return validate_symbol(v)
         except ValidationError as e:
             raise ValueError(str(e)) from None
 
@@ -61,7 +62,7 @@ class TradePreviewRequest(BaseModel):
             entry_price = info.data["entry_price"]
             if v >= entry_price:
                 raise ValueError("Stop loss price must be below entry price")
-        return cast(float | None, v)
+        return v
 
 
 class ContactSubmissionRequest(BaseModel):
@@ -77,7 +78,7 @@ class ContactSubmissionRequest(BaseModel):
     @classmethod
     def validate_email_field(cls, v: Any) -> str:
         try:
-            return cast(str, validate_email(v))
+            return validate_email(v)
         except ValidationError as e:
             raise ValueError(str(e)) from None
 
@@ -146,7 +147,7 @@ class PreTradeImpactRequest(BaseModel):
     @classmethod
     def validate_symbol_field(cls, v: str) -> str:
         try:
-            return cast(str, validate_symbol(v))
+            return validate_symbol(v)
         except ValidationError as e:
             raise ValueError(str(e)) from None
 
@@ -165,7 +166,7 @@ class ManualTradeRequest(BaseModel):
     @classmethod
     def validate_symbol_field(cls, v: str) -> str:
         try:
-            return cast(str, validate_symbol(v))
+            return validate_symbol(v)
         except ValidationError as e:
             raise ValueError(str(e)) from None
 
@@ -195,7 +196,7 @@ class ManualTradeRequest(BaseModel):
     def validate_stop_loss(cls, v: Any, info: ValidationInfo) -> float | None:
         if v is not None and v <= 0:
             raise ValueError("Stop loss price must be greater than 0")
-        return cast(float | None, v)
+        return v
 
 
 class PositionUpdateRequest(BaseModel):

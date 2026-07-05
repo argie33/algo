@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Response Formatter - Standard API response formatting."""
 
+from __future__ import annotations
+
 from typing import Any
 
 

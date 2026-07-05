@@ -1,5 +1,7 @@
 """Pydantic models for API responses - single source of truth for response types."""
 
+from __future__ import annotations
+
 from datetime import datetime
 from typing import Any, TypeVar
 

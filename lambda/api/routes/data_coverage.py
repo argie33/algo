@@ -12,6 +12,8 @@ Returns comprehensive data coverage diagnostics:
 For use in dashboard and automated monitoring.
 """
 
+from __future__ import annotations
+
 import logging
 from datetime import date as _date
 from datetime import datetime, timezone

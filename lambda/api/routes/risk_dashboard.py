@@ -9,6 +9,8 @@ Endpoints:
   /api/algo/risk-dashboard/exit-rules - Which exit rules fired most
 """
 
+from __future__ import annotations
+
 import json
 import logging
 from datetime import datetime, timezone

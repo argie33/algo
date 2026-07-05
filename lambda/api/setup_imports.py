@@ -5,6 +5,8 @@ This module handles setting up sys.path once for the Lambda API runtime.
 All Lambda API modules should import this at the module level to ensure proper import resolution.
 """
 
+from __future__ import annotations
+
 import sys
 from pathlib import Path
 

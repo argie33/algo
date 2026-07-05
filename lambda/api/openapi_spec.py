@@ -8,6 +8,8 @@ Provides complete OpenAPI 3.0 spec for:
 - Data freshness metadata
 """
 
+from __future__ import annotations
+
 from typing import Any
 
 from api_utils.config import API_VERSION

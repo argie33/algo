@@ -1,5 +1,7 @@
 """Routes - lazy loading for resilience."""
 
+from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
 # Note: Modules are loaded dynamically by api_router.py using __import__()

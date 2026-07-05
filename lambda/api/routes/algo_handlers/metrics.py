@@ -1,5 +1,7 @@
 """Route: algo"""
 
+from __future__ import annotations
+
 # mypy: disable-error-code=no-any-return
 
 import logging
@@ -42,7 +44,7 @@ from utils.validation.response_validation import (
 logger = logging.getLogger(__name__)
 
 
-def _ensure_portfolio_fields(data: dict) -> Any:
+def _ensure_portfolio_fields(data: dict[str, Any]) -> Any:
     """Validate portfolio response has all required fields. Fail-fast if missing.
 
     CRITICAL: Portfolio value and cash must never be None - they're essential for trading.

@@ -7,6 +7,8 @@ from loaders and dashboard components. It ensures:
 3. Dashboard consumers can distinguish retryable vs permanent failures
 """
 
+from __future__ import annotations
+
 import logging
 from typing import Any
 

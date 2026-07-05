@@ -10,6 +10,8 @@ Usage:
     result = invoke_api("/api/algo/performance")
 """
 
+from __future__ import annotations
+
 import json
 import logging
 import os

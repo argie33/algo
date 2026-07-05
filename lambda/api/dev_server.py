@@ -5,6 +5,8 @@ Runs the Lambda function locally on port 3001 for frontend development.
 Usage: python dev_server.py
 """
 
+from __future__ import annotations
+
 import importlib
 import json
 import logging

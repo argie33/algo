@@ -1,5 +1,7 @@
 """Route: algo"""
 
+from __future__ import annotations
+
 import logging
 import math
 from datetime import date, datetime, timedelta, timezone

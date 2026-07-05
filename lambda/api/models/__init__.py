@@ -1,5 +1,7 @@
 """API response and request models."""
 
+from __future__ import annotations
+
 from .requests import (
     ContactSubmissionRequest,
     ManualTradeRequest,

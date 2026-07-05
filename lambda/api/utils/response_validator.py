@@ -5,6 +5,8 @@ before returning responses. When critical data contains 'data_unavailable'
 markers, the API fails fast with a proper error response.
 """
 
+from __future__ import annotations
+
 import logging
 from typing import Any, TypedDict
 

@@ -1,5 +1,7 @@
 """Route: algo - Refactored dispatcher with modular handlers."""
 
+from __future__ import annotations
+
 import logging
 import re
 from typing import Any, cast
@@ -101,7 +103,7 @@ from .positions import handle as handle_positions
 logger = logging.getLogger(__name__)
 
 
-def _check_admin_access(jwt_claims: dict | None) -> bool:
+def _check_admin_access(jwt_claims: dict[str, Any] | None) -> bool:
     """Check if user has admin access from verified JWT claims only."""
     if not jwt_claims:
         return False

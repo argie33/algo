@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # Set up imports for Lambda API - ensures routes and api_utils are importable
 import sys
 from pathlib import Path

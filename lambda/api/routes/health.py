@@ -1,5 +1,7 @@
 """Route: health - Health check endpoints (basic, detailed, pipeline)"""
 
+from __future__ import annotations
+
 import logging
 from datetime import datetime, timezone
 from typing import Any

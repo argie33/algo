@@ -1,5 +1,7 @@
 """Route: algo"""
 
+from __future__ import annotations
+
 import json
 import logging
 from datetime import date, datetime, timedelta, timezone
@@ -34,8 +36,8 @@ from .signals import _TIER_CONFIG
 logger = logging.getLogger(__name__)
 
 
-@db_route_handler("get data quality")
-@validate_api_response("health")# type: ignore[untyped-decorator]
+@db_route_handler("get data quality")  # type: ignore[untyped-decorator]
+@validate_api_response("health")  # type: ignore[untyped-decorator]
 def _get_data_quality(cur: cursor) -> Any:
     """Get detailed data quality summary by table from latest data_patrol_log run."""
     try:

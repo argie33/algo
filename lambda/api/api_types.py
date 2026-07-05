@@ -4,6 +4,8 @@ Provides TypedDict definitions for improved type safety in route handlers,
 allowing mypy and IDE type checkers to validate parameter usage.
 """
 
+from __future__ import annotations
+
 from typing import Any, TypedDict
 
 

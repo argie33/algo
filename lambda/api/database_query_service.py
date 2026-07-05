@@ -5,6 +5,8 @@ Provides a simple interface for common query patterns used across 50+ API handle
 Reduces coupling: handlers call db.query(...) instead of cur.execute(...).
 """
 
+from __future__ import annotations
+
 from typing import Any, cast
 
 

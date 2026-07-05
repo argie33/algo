@@ -1,5 +1,7 @@
 """Context manager for PostgreSQL SAVEPOINT handling with automatic rollback on error."""
 
+from __future__ import annotations
+
 import logging
 from collections.abc import Generator
 from contextlib import contextmanager

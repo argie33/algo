@@ -4,6 +4,8 @@ Instead of returning error response dicts from route handlers, raise these excep
 The error boundary middleware in api_router catches them and formats standardized responses.
 """
 
+from __future__ import annotations
+
 import logging
 
 logger = logging.getLogger(__name__)

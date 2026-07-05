@@ -1,5 +1,7 @@
 """Route: algo"""
 
+from __future__ import annotations
+
 import logging
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
@@ -140,6 +142,7 @@ def _calculate_pre_trade_impact(cur: cursor, body: dict[str, Any]) -> Any:
         if port_error:
             return port_error
         _, portfolio_value, open_positions = port_data
+        assert isinstance(portfolio_value, (int, float)) and isinstance(open_positions, int)
 
         # Determine position size - CRITICAL: both position_dollars and position_pct are optional,
         # but at least one must be provided. Do NOT default to implicit 0.75% — caller must specify intent.
@@ -385,8 +388,8 @@ def _calculate_trade_preview(cur: cursor, body: dict[str, Any]) -> Any:
         return error_response(code, error_type, message)
 
 
-@db_route_handler("fetch rejection funnel")
-@validate_api_response("sig")# type: ignore[untyped-decorator]
+@db_route_handler("fetch rejection funnel")  # type: ignore[untyped-decorator]
+@validate_api_response("sig")  # type: ignore[untyped-decorator]
 def _get_rejection_funnel(cur: cursor) -> Any:  # noqa: C901
     """Get signal rejection funnel with detailed breakdown by filter."""
     try:
@@ -655,8 +658,8 @@ def _get_rejection_reason_description(reason: str) -> str:
     return reason or "Unknown rejection reason"
 
 
-@db_route_handler("fetch swing scores")
-@validate_api_response("scores")# type: ignore[untyped-decorator]
+@db_route_handler("fetch swing scores")  # type: ignore[untyped-decorator]
+@validate_api_response("scores")  # type: ignore[untyped-decorator]
 def _get_swing_scores(cur: cursor, limit: int = 100, min_score: float | None = None, symbol: str | None = None) -> Any:
     """Get swing trade candidates with scoring."""
     try:
@@ -702,8 +705,8 @@ def _get_swing_scores(cur: cursor, limit: int = 100, min_score: float | None = N
         return error_response(code, error_type, message)
 
 
-@db_route_handler("fetch swing scores history")
-@validate_api_response("scores")# type: ignore[untyped-decorator]
+@db_route_handler("fetch swing scores history")  # type: ignore[untyped-decorator]
+@validate_api_response("scores")  # type: ignore[untyped-decorator]
 def _get_swing_scores_history(cur: cursor, days: int = 30) -> Any:
     """Get swing scores historical data."""
     try:

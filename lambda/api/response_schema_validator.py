@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Response Schema Validator - Runtime schema validation."""
 
+from __future__ import annotations
+
 from typing import Any
 
 

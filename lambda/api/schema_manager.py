@@ -5,6 +5,8 @@ This is a safety mechanism to handle migrations that should be applied
 before the API can safely execute queries.
 """
 
+from __future__ import annotations
+
 import logging
 
 logger = logging.getLogger(__name__)

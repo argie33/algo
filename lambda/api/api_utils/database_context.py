@@ -24,6 +24,8 @@ Why separate behavior?
 This file re-exports utils.DatabaseContext with API-appropriate defaults.
 """
 
+from __future__ import annotations
+
 # Import the unified implementation from utils
 import sys
 from typing import Any

@@ -4,6 +4,8 @@ All parameters are read from environment variables at Lambda cold start,
 with sensible defaults for development and production environments.
 """
 
+from __future__ import annotations
+
 import logging
 import os
 import threading

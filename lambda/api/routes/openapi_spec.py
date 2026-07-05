@@ -1,5 +1,7 @@
 """Route: openapi_spec - Serve OpenAPI specification and UI."""
 
+from __future__ import annotations
+
 import logging
 from typing import Any
 

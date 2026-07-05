@@ -8,6 +8,8 @@ Dev mode allows testing without Cognito JWT tokens.
 In production, this code path is unreachable because COGNITO_USER_POOL_ID is always set.
 """
 
+from __future__ import annotations
+
 import logging
 import os
 from typing import Any
