@@ -10,6 +10,7 @@ import psycopg2.errors
 import psycopg2.extras
 import psycopg2.sql
 from psycopg2.extensions import cursor
+from routes.auth_guard import RouteAuthGuard
 from routes.utils import (
     check_data_freshness,
     error_response,
@@ -23,23 +24,6 @@ from routes.utils import (
 logger = logging.getLogger(__name__)
 
 
-def _check_admin_access(jwt_claims: dict[str, Any] | None) -> bool:
-    """Check if user has admin access from verified JWT claims.
-
-    Only admin users can view audit logs.
-    Audit logs contain sensitive trading decisions and system internals.
-    """
-    if not jwt_claims:
-        return False
-    groups = jwt_claims.get("cognito:groups")
-    if groups is None:
-        groups = []
-    is_admin = "admin" in groups
-    if not is_admin:
-        logger.info(f"Audit access denied: user {jwt_claims.get('sub')} not in admin group. Groups: {groups}")
-    return is_admin
-
-
 def handle(
     cur: cursor,
     path: str,
@@ -51,7 +35,7 @@ def handle(
     """Handle /api/audit/* endpoints."""
     # Require admin authorization for all audit endpoints (bypass in dev mode)
     # In development, public endpoints (jwt_claims=None) are allowed without admin check
-    if not _check_admin_access(jwt_claims):
+    if not RouteAuthGuard.check_admin_access(jwt_claims):
         return error_response(403, "forbidden", "Admin access required to view audit logs")
 
     try:

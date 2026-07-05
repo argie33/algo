@@ -394,12 +394,12 @@ def safe_int(
     if value is None:
         if strict:
             raise StrictValidationError(f"Cannot convert None to int {error_ctx}")
-        return default
+        return default  # type: ignore[return-value]
 
     if isinstance(value, bool):
         if strict:
             raise StrictValidationError(f"Cannot convert bool to int (ambiguous: {value!r}) {error_ctx}")
-        return default
+        return default  # type: ignore[return-value]
 
     try:
         return int(value)
@@ -407,7 +407,7 @@ def safe_int(
         if strict:
             raise StrictValidationError(f"Cannot convert {value!r} to int {error_ctx}: {e}") from e
         logger.warning(f"Cannot convert {value!r} to int {error_ctx}: {e}")
-        return default
+        return default  # type: ignore[return-value]
 
 
 def safe_parse_date(value: Any, context: str = "", strict: bool = True) -> date | None:

@@ -100,212 +100,83 @@ def normalize_to_utc_datetime(dt: date | datetime | None) -> dict[str, Any] | da
 
 
 def safe_limit(limit_str: str | None, max_val: int = 5000, default: int | None = None) -> int:
-    """Parse and validate limit parameter. Optionally use default if missing.
-
-    Args:
-        limit_str: Limit value (string or None)
-        max_val: Maximum allowed value (default 5000)
-        default: Default value if limit_str is None/empty. If None, raises error on missing.
-
-    Returns:
-        Validated limit value (between 1 and max_val)
-
-    Raises:
-        BadRequest: If limit_str invalid and no default provided
-    """
-    if not limit_str:
-        if default is not None:
-            # EXPLICIT: Validate default is within acceptable range
-            if default < 1 or default > max_val:
-                logger.warning(f"[SAFE_LIMIT] Provided default {default} out of range [1, {max_val}], clamping")
-            return min(max(default, 1), max_val)
-        raise_api_error(400, "BadRequest", "limit parameter is required")
-        return max_val  # unreachable
+    """DEPRECATED: Use ParamValidator.limit() instead. Thin wrapper for backward compatibility."""
+    from routes.param_validators import ParamValidationError, ParamValidator
 
     try:
-        value = int(limit_str)
-        if value <= 0:
-            raise_api_error(400, "BadRequest", "limit must be greater than 0")
-            return max_val  # unreachable
-        # EXPLICIT: Clamp to max_val and log if clamping occurred
-        if value > max_val:
-            logger.info(f"[SAFE_LIMIT] Requested limit {value} exceeds max {max_val}, clamping")
-        return min(value, max_val)
-    except (ValueError, TypeError):
-        raise_api_error(400, "BadRequest", "limit must be a valid integer")
-        return max_val  # unreachable
+        return cast(int, ParamValidator.limit(limit_str, max_val=max_val, default=default))
+    except ParamValidationError as e:
+        raise_api_error(e.status_code, e.error_type, e.message)
 
 
 def safe_offset(offset_str: str | None, max_val: int = 1000000) -> int:
-    """Parse and validate offset parameter. Always fails fast on invalid input."""
-    if not offset_str:
-        raise_api_error(400, "BadRequest", "offset parameter is required")
-        return 0  # unreachable
+    """DEPRECATED: Use ParamValidator.offset() instead. Thin wrapper for backward compatibility."""
+    from routes.param_validators import ParamValidationError, ParamValidator
+
     try:
-        value = int(offset_str)
-        if value < 0:
-            raise_api_error(400, "BadRequest", "offset must be non-negative")
-            return 0  # unreachable
-        return min(value, max_val)
-    except (ValueError, TypeError):
-        raise_api_error(400, "BadRequest", "offset must be a valid integer")
-        return 0  # unreachable
+        return cast(int, ParamValidator.offset(offset_str, max_val=max_val))
+    except ParamValidationError as e:
+        raise_api_error(e.status_code, e.error_type, e.message)
 
 
 def safe_days(days_str: str | None, max_val: int = 365, default: int | None = None) -> int:
-    """Parse and validate days parameter. Optionally use default if missing.
-
-    Args:
-        days_str: Days value (string or None)
-        max_val: Maximum allowed value (default 365)
-        default: Default value if days_str is None/empty. If None, raises error on missing.
-
-    Returns:
-        Validated days value (between 1 and max_val)
-
-    Raises:
-        BadRequest: If days_str invalid and no default provided
-    """
-    if not days_str:
-        if default is not None:
-            # EXPLICIT: Validate default is within acceptable range
-            if default < 1 or default > max_val:
-                logger.warning(f"[SAFE_DAYS] Provided default {default} out of range [1, {max_val}], clamping")
-            return min(max(default, 1), max_val)
-        raise_api_error(400, "BadRequest", "days parameter is required")
-        return max_val  # unreachable
+    """DEPRECATED: Use ParamValidator.days() instead. Thin wrapper for backward compatibility."""
+    from routes.param_validators import ParamValidationError, ParamValidator
 
     try:
-        value = int(days_str)
-        if value < 1:
-            raise_api_error(400, "BadRequest", "days must be at least 1")
-            return max_val  # unreachable
-        # EXPLICIT: Clamp to max_val and log if clamping occurred
-        if value > max_val:
-            logger.info(f"[SAFE_DAYS] Requested days {value} exceeds max {max_val}, clamping")
-        return min(value, max_val)
-    except (ValueError, TypeError):
-        raise_api_error(400, "BadRequest", "days must be a valid integer")
-        return max_val  # unreachable
+        return cast(int, ParamValidator.days(days_str, max_val=max_val, default=default))
+    except ParamValidationError as e:
+        raise_api_error(e.status_code, e.error_type, e.message)
 
 
 def safe_page(page_str: str | None, default: int | None = None) -> int:
-    """Parse and validate page parameter. Optionally use default if missing.
-
-    Args:
-        page_str: Page value (string or None)
-        default: Default value if page_str is None/empty. If None, raises error on missing.
-
-    Returns:
-        Validated page number (>= 1)
-
-    Raises:
-        BadRequest: If page_str invalid and no default provided
-    """
-    if not page_str:
-        if default is not None:
-            # EXPLICIT: Validate default is at least 1
-            if default < 1:
-                logger.warning(f"[SAFE_PAGE] Provided default {default} is < 1, using 1")
-            return max(default, 1)
-        raise_api_error(400, "BadRequest", "page parameter is required")
-        return 1  # unreachable
+    """DEPRECATED: Use ParamValidator.page() instead. Thin wrapper for backward compatibility."""
+    from routes.param_validators import ParamValidationError, ParamValidator
 
     try:
-        value = int(page_str)
-        if value < 1:
-            raise_api_error(400, "BadRequest", "page must be at least 1")
-            return 1  # unreachable
-        return value
-    except (ValueError, TypeError):
-        raise_api_error(400, "BadRequest", "page must be a valid integer")
-        return 1  # unreachable
+        return cast(int, ParamValidator.page(page_str, default=default))
+    except ParamValidationError as e:
+        raise_api_error(e.status_code, e.error_type, e.message)
 
 
 def safe_int(int_str: str | None, min_val: int | None = None, max_val: int | None = None) -> int:
-    """Parse and validate integer parameter. Always fails fast on invalid input."""
-    if int_str is None or int_str == "":
-        raise_api_error(400, "BadRequest", "parameter is required")
+    """DEPRECATED: Use ParamValidator.int() instead. Thin wrapper for backward compatibility."""
+    from routes.param_validators import ParamValidationError, ParamValidator
+
     try:
-        value = int(int_str)
-        if min_val is not None and value < min_val:
-            raise_api_error(400, "BadRequest", f"value must be at least {min_val}")
-        if max_val is not None and value > max_val:
-            raise_api_error(400, "BadRequest", f"value must be at most {max_val}")
-        return value
-    except (ValueError, TypeError):
-        raise_api_error(400, "BadRequest", "value must be a valid integer")
+        return cast(int, ParamValidator.int(int_str, min_val=min_val, max_val=max_val))
+    except ParamValidationError as e:
+        raise_api_error(e.status_code, e.error_type, e.message)
 
 
 def safe_float(float_str: str | None, min_val: float | None = None, max_val: float | None = None) -> float:
-    """Parse and validate float parameter. Always fails fast on invalid input."""
-    if float_str is None or float_str == "":
-        raise_api_error(400, "BadRequest", "parameter is required")
+    """DEPRECATED: Use ParamValidator.float() instead. Thin wrapper for backward compatibility."""
+    from routes.param_validators import ParamValidationError, ParamValidator
+
     try:
-        value = float(float_str)
-        if min_val is not None and value < min_val:
-            raise_api_error(400, "BadRequest", f"value must be at least {min_val}")
-        if max_val is not None and value > max_val:
-            raise_api_error(400, "BadRequest", f"value must be at most {max_val}")
-        return value
-    except (ValueError, TypeError):
-        raise_api_error(400, "BadRequest", "value must be a valid float")
+        return cast(float, ParamValidator.float(float_str, min_val=min_val, max_val=max_val))
+    except ParamValidationError as e:
+        raise_api_error(e.status_code, e.error_type, e.message)
 
 
 def safe_string(value_str: str | None, allowed_values: set[str] | None = None, max_length: int = 100) -> str:
-    """Validate and sanitize string parameter. Always fails fast on invalid input.
+    """DEPRECATED: Use ParamValidator.string() instead. Thin wrapper for backward compatibility."""
+    from routes.param_validators import ParamValidationError, ParamValidator
 
-    Args:
-        value_str: String to validate
-        allowed_values: Set of allowed values (whitelist)
-        max_length: Maximum allowed length
-
-    Returns:
-        Validated string
-
-    Raises:
-        BadRequest: If validation fails
-    """
-    if not value_str:
-        raise_api_error(400, "BadRequest", "parameter is required")
-
-    value_str = str(value_str)
-
-    # Enforce max length
-    if len(value_str) > max_length:
-        raise_api_error(400, "BadRequest", f"value exceeds maximum length of {max_length}")
-
-    # Check against whitelist if provided
-    if allowed_values is not None:
-        if value_str not in allowed_values:
-            raise_api_error(400, "BadRequest", f"value must be one of: {', '.join(allowed_values)}")
-
-    return value_str
+    try:
+        return cast(str, ParamValidator.string(value_str, allowed_values=allowed_values, max_length=max_length))
+    except ParamValidationError as e:
+        raise_api_error(e.status_code, e.error_type, e.message)
 
 
 def safe_symbol(symbol_str: str | None) -> str:
-    """Validate stock symbol (alphanumeric + dash + caret for indices). Always fails fast.
+    """DEPRECATED: Use ParamValidator.symbol() instead. Thin wrapper for backward compatibility."""
+    from routes.param_validators import ParamValidationError, ParamValidator
 
-    Args:
-        symbol_str: Symbol to validate
-
-    Returns:
-        Validated symbol in uppercase
-
-    Raises:
-        BadRequest: If validation fails
-    """
-    if not symbol_str:
-        raise_api_error(400, "BadRequest", "symbol parameter is required")
-
-    symbol = str(symbol_str).upper()
-    if len(symbol) > 10:
-        raise_api_error(400, "BadRequest", "symbol must be 10 characters or less")
-
-    if not all(c.isalnum() or c in "-^." for c in symbol):
-        raise_api_error(400, "BadRequest", "symbol contains invalid characters")
-
-    return symbol
+    try:
+        return cast(str, ParamValidator.symbol(symbol_str))
+    except ParamValidationError as e:
+        raise_api_error(e.status_code, e.error_type, e.message)
 
 
 def get_api_version_headers() -> dict[str, str]:
