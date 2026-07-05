@@ -291,9 +291,10 @@ class SignalQualityScoresLoader(OptimalLoader):
                 vcp_rows = []
 
             positioning_data = self._fetch_positioning_data(symbol)
-            if not positioning_data:
+            if positioning_data.get("data_unavailable"):
                 logger.debug(
                     f"[SIGNAL_QUALITY] Positioning data unavailable for {symbol} "
+                    f"({positioning_data.get('reason', 'unknown')}). "
                     "(typical for OTC, preferreds, special securities). Proceeding with available data."
                 )
 
@@ -539,11 +540,15 @@ class SignalQualityScoresLoader(OptimalLoader):
                 "VCP pattern recognition is authoritative for trend confirmation."
             ) from e
 
-    def _fetch_positioning_data(self, symbol: str) -> dict[str, Any] | None:
+    def _fetch_positioning_data(self, symbol: str) -> dict[str, Any]:
         """Fetch positioning data (optional for many securities).
 
-        Returns None if data unavailable, allowing scoring to continue with available metrics.
+        Returns:
+            dict: With institutional_ownership field if available
+            dict: With data_unavailable marker if data missing or database error
+
         Many OTC, preferred, warrant, and special securities lack institutional ownership data.
+        Per CLAUDE.md governance: Return explicit markers instead of None.
         """
         from utils.db.context import DatabaseContext
 
@@ -558,14 +563,13 @@ class SignalQualityScoresLoader(OptimalLoader):
                     return {"institutional_ownership": float(row[0])}
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.debug(f"Failed to fetch positioning data for {symbol}: {e}")
-            return None
+            return {"data_unavailable": True, "reason": f"database_error: {type(e).__name__}"}
 
-        # No row in positioning_metrics: data unavailable (explicit marker for consistency)
         logger.debug(
             f"[SIGNAL_QUALITY] Positioning data unavailable for {symbol} (no record in positioning_metrics). "
             "Common for OTC, preferred stocks, warrants, or special securities lacking institutional ownership tracking."
         )
-        return None
+        return {"data_unavailable": True, "reason": "no_positioning_record"}
 
     def _compute_quality_scores(
         self,
