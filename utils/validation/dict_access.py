@@ -91,7 +91,6 @@ class SafeDict:
 
         current = self._data
         path = " → ".join(keys)
-        field_label = field_name or path
 
         for i, key in enumerate(keys):
             if not isinstance(current, dict):
@@ -310,9 +309,9 @@ class SafeDict:
             raise ValueError(f"Required field missing: {field_name or path} {self._context_str()}")
         try:
             return int(value)
-        except (ValueError, TypeError):
+        except (ValueError, TypeError) as e:
             path = " → ".join(keys)
-            raise ValueError(f"Cannot convert {field_name or path}={value!r} to int {self._context_str()}")
+            raise ValueError(f"Cannot convert {field_name or path}={value!r} to int {self._context_str()}") from e
 
     def required_float(self, *keys: str, field_name: str | None = None) -> float:
         """Get required float value (raises ValueError if missing or invalid).
@@ -336,9 +335,9 @@ class SafeDict:
             raise ValueError(f"Required field missing: {field_name or path} {self._context_str()}")
         try:
             return float(value)
-        except (ValueError, TypeError):
+        except (ValueError, TypeError) as e:
             path = " → ".join(keys)
-            raise ValueError(f"Cannot convert {field_name or path}={value!r} to float {self._context_str()}")
+            raise ValueError(f"Cannot convert {field_name or path}={value!r} to float {self._context_str()}") from e
 
     # ──────────────────────────────────────────────────────────────────────────
     # UTILITY
