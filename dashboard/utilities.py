@@ -201,18 +201,14 @@ def compute_sector_agg(pos: Any, port: dict[str, Any]) -> tuple[list[tuple[str, 
             invalid_count += 1
             logger.error(f"compute_sector_agg: position has error field: {p.get('_error')}")
             continue
-        # Sector is critical for aggregation; fail if missing instead of silently using "Unknown"
+        # Sector is important for aggregation; skip positions without sector data
         sec = p.get("sector")
         if not sec:
             invalid_count += 1
-            # CRITICAL: Validate symbol field exists for audit trail (fail-fast if missing)
+            # Log missing sector for audit trail
             symbol = p.get("symbol")
-            if symbol is None:
-                raise ValueError(
-                    f"compute_sector_agg: position missing BOTH sector AND symbol fields. "
-                    f"Cannot identify which position had sector enrichment failure. Position: {p}"
-                )
-            logger.error(f"compute_sector_agg: position {symbol} missing sector field")
+            if symbol is not None:
+                logger.warning(f"compute_sector_agg: skipping position {symbol} (missing sector enrichment)")
             continue
         val = safe_float(p.get("position_value"), default=None)
         pnl = safe_float(p.get("unrealized_pnl_pct"), default=None)
@@ -225,7 +221,7 @@ def compute_sector_agg(pos: Any, port: dict[str, Any]) -> tuple[list[tuple[str, 
             sd[sec]["pnls"].append(pnl)
 
     if invalid_count > 0:
-        raise ValueError(f"Cannot compute sector aggregation: encountered {invalid_count} invalid position(s)")
+        logger.warning(f"compute_sector_agg: skipped {invalid_count} position(s) with missing sector enrichment")
 
     sorted_secs = sorted(sd.items(), key=lambda x: -x[1]["val"])
     total_secs = len(sorted_secs)

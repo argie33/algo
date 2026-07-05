@@ -241,11 +241,15 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
         if "percent_from_52w_high" in d:
             d["pct_from_52w_high"] = d.pop("percent_from_52w_high")
 
-        # FIX: Override "Unknown" sector with real data from company_profile if available
+        # FIX: Ensure ALL positions have sector data from company_profile
+        # Enrich if: (1) sector is "Unknown", (2) sector is None, (3) sector is empty string
         current_sector = d.get("sector")
-        if current_sector == "Unknown" and symbol in sector_map:
+        if (current_sector == "Unknown" or current_sector is None or current_sector == "") and symbol in sector_map:
             d["sector"] = sector_map[symbol]
             logger.debug(f"[POSITIONS] {symbol}: enriched sector from company_profile: {sector_map[symbol]}")
+        elif (current_sector == "Unknown" or current_sector is None or current_sector == "") and symbol not in sector_map:
+            # Position has missing/invalid sector and not in company_profile — this is a data quality issue
+            logger.warning(f"[POSITIONS DATA QUALITY] {symbol}: sector missing/invalid ({current_sector!r}) and not found in company_profile")
 
         items.append(d)
         logger.debug(f"[POSITIONS] Added {symbol} to items list (total now: {len(items)})")
