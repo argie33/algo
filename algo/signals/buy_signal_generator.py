@@ -37,12 +37,32 @@ class BuySignalGenerator:
 
         Raises:
             RuntimeError: If technical data is unavailable (required for signal generation)
+            ValueError: If data quality is insufficient (<80% complete OHLCV)
         """
         if not rows:
             raise RuntimeError(
                 f"[SIGNAL_GENERATION_MISSING_DATA] Cannot generate buy/sell signals for {symbol}: "
                 f"technical data unavailable. Signal generation requires OHLCV and indicator values."
             )
+
+        # Fail-fast: Validate data quality before processing
+        # Pivot detection requires ~80% completeness of OHLC data to be reliable
+        required_fields = ["open", "high", "low", "close"]
+        complete_rows = 0
+        for row in rows:
+            if all(row.get(field) is not None for field in required_fields):
+                complete_rows += 1
+
+        data_completeness = (complete_rows / len(rows) * 100) if rows else 0
+        if data_completeness < 80:
+            raise ValueError(
+                f"[SIGNAL_GENERATION_POOR_DATA_QUALITY] {symbol}: "
+                f"Data completeness is {data_completeness:.0f}% ({complete_rows}/{len(rows)} rows have all OHLC fields). "
+                f"Fail-fast: pivot detection requires >=80% complete OHLCV data for reliability. "
+                f"Incomplete data indicates upstream loader or data quality issue. "
+                f"Verify: (1) price loader running successfully, (2) sufficient trading history, (3) database data integrity."
+            )
+
         signals = []
 
         for i, row in enumerate(rows):
@@ -89,14 +109,13 @@ class BuySignalGenerator:
             # Phase 3: Compute metrics if signal generated
             if signal_type:
                 vol_surge, volume_surge_capped = self._compute_volume_surge(volume, rows, i)
-                avg_vol_50d_result = self._compute_avg_volume_50d(rows, i)
-                # Check for explicit _data_unavailable marker on optional enrichment
                 avg_vol_50d = None
-                if isinstance(avg_vol_50d_result, dict) and avg_vol_50d_result.get("_data_unavailable"):
-                    # Enrichment unavailable; explicitly logged at INFO level in _compute_avg_volume_50d
-                    pass
-                elif isinstance(avg_vol_50d_result, int):
-                    avg_vol_50d = avg_vol_50d_result
+                try:
+                    avg_vol_50d = self._compute_avg_volume_50d(rows, i)
+                except ValueError as e:
+                    # Optional enrichment failed; log and continue with None value
+                    logger.debug(f"[SIGNAL_GENERATION] {symbol} [{row.get('date')}]: {str(e)}")
+                    avg_vol_50d = None
                 market_stage = self._determine_market_stage(close, sma_50, sma_200)
 
                 # Phase 4: Calculate entry/exit levels
@@ -291,31 +310,40 @@ class BuySignalGenerator:
 
         return vol_surge, volume_surge_capped
 
-    def _compute_avg_volume_50d(self, rows: list[dict[str, Any]], i: int) -> int | dict[str, Any]:
+    def _compute_avg_volume_50d(self, rows: list[dict[str, Any]], i: int) -> int:
         """Compute 50-bar average volume.
 
         Returns int if sufficient historical data available.
-        Returns dict with _data_unavailable marker if enrichment cannot be computed (optional enrichment).
-        This is optional enrichment; logs at INFO level when enrichment cannot be computed.
-        Callers must check for _data_unavailable marker explicitly before using the value.
+        Raises ValueError if insufficient history (explicit fail-fast for data quality).
+
+        Args:
+            rows: List of technical data rows
+            i: Current bar index (position in rows)
+
+        Returns:
+            50-bar average volume as integer
+
+        Raises:
+            ValueError: If insufficient history (< 10 bars or insufficient volume data)
         """
-        if i >= 10:
-            vols_50: list[Any] = [
-                rows[j].get("volume") for j in range(max(0, i - 50), i) if rows[j].get("volume") is not None
-            ]
-            if vols_50:
-                return int(sum(vols_50) / len(vols_50))
-            logger.info(
-                f"[SIGNAL_METRICS] Insufficient volume data to compute 50d average (bar index {i}): "
-                f"optional enrichment unavailable"
+        if i < 10:
+            raise ValueError(
+                f"[SIGNAL_METRICS] Cannot compute 50d volume average: insufficient history. "
+                f"Current bar index {i}, but require >= 10 bars for meaningful average. "
+                f"Fail-fast: enrichment requires minimum data depth. Early bars cannot be reliably scored."
             )
-            return {"_data_unavailable": True, "reason": "insufficient_volume_history"}
-        else:
-            logger.info(
-                f"[SIGNAL_METRICS] Insufficient history for 50d average (only {i} bars, need >= 10): "
-                f"optional enrichment unavailable"
+
+        vols_50: list[Any] = [
+            rows[j].get("volume") for j in range(max(0, i - 50), i) if rows[j].get("volume") is not None
+        ]
+        if not vols_50:
+            raise ValueError(
+                f"[SIGNAL_METRICS] Cannot compute 50d volume average: no volume data in 50-bar window. "
+                f"Bar index {i}, searched {i - max(0, i - 50)} bars. "
+                f"Fail-fast: volume data missing — data quality issue in technical data loader."
             )
-            return {"_data_unavailable": True, "reason": "insufficient_history"}
+
+        return int(sum(vols_50) / len(vols_50))
 
     def _determine_market_stage(self, close: float, sma_50: float | None, sma_200: float | None) -> str | None:
         """Determine market stage from moving average positions.
