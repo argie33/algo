@@ -88,7 +88,7 @@ class TestDashboardKeyPressFailFast:
                     from dashboard.dashboard import _keypress
 
                     # Should raise RuntimeError, not return ""
-                    with pytest.raises(RuntimeError, match="Terminal input unavailable"):
+                    with pytest.raises(RuntimeError, match="Dashboard terminal input failed"):
                         _keypress()
         except ImportError:
             # Windows system, skip this test

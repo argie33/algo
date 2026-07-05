@@ -58,7 +58,7 @@ class DynamoDBLockManager:
         self.is_available = True
 
         try:
-            self.dynamodb = boto3.resource("dynamodb")
+            self.dynamodb = boto3.resource("dynamodb", region_name=os.getenv("AWS_REGION", "us-east-1"))
             self.table = self.dynamodb.Table(self.table_name)
             self._conditional_check_failed = self.dynamodb.meta.client.exceptions.ConditionalCheckFailedException
             self._throttling_exception = self.dynamodb.meta.client.exceptions.ProvisionedThroughputExceededException
