@@ -131,8 +131,8 @@ class MomentumMetricsLoader(OptimalLoader):
                 ("12m", 252),
             ]
 
-            momentum = {}
-            unavailable_reasons = {}
+            momentum: dict[str, float | None] = {}
+            unavailable_reasons: dict[str, str | None] = {}
             for period_name, days_back in lookback_configs:
                 # Calculate price from N days ago (as close as possible)
                 target_idx = len(sorted_dates) - days_back - 1

@@ -1523,7 +1523,7 @@ class MarketExposure:
         }
         return result
 
-    def _economic_regime_overlay(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:  # pylint: disable=too-many-locals,too-many-branches
+    def _economic_regime_overlay(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:  # pylint: disable=too-many-locals,too-many-branches # noqa: C901
         """Post-score macro stress penalty from yield curve, credit trend, jobless claims.
 
         Inspired by Yardeni/Slok/Goldman FCI methodology: when macro cycle signals

@@ -15,6 +15,7 @@ from loaders.loader_helper import setup_imports
 setup_imports()
 
 import logging  # noqa: E402
+from collections.abc import Iterable  # noqa: E402
 from datetime import date  # noqa: E402
 from typing import Any  # noqa: E402
 
@@ -170,7 +171,7 @@ class AnnualIncomeStatementLoader(SecEdgarStatementLoader):
 
         return result
 
-    def run(self, symbols, parallelism: int = 1, backfill_days: int | None = None):
+    def run(self, symbols: Iterable[str], parallelism: int = 1, backfill_days: int | None = None) -> dict[str, Any]:
         """Execute loader. Delegates to base class."""
         return super().run(symbols, parallelism=parallelism, backfill_days=backfill_days)
 

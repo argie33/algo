@@ -1065,7 +1065,7 @@ class MarketHealthDailyLoader(OptimalLoader):
                 "Cannot compute market health without SPY price data."
             ) from e
 
-    def _compute_market_health(self, rows: list[dict[str, float | int | None | str]]) -> list[dict[str, Any]]:
+    def _compute_market_health(self, rows: list[dict[str, float | int | None | str]]) -> list[dict[str, Any]]:  # noqa: C901
         if not rows:
             raise RuntimeError(
                 "[MARKET_HEALTH] Cannot compute market health: no price data available. "

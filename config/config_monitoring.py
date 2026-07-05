@@ -25,7 +25,7 @@ class ConfigSourceMonitor:
     def __init__(self, config: Any):
         """Initialize with config object that has _sources dict."""
         self.config = config
-        self._sources = getattr(config, "_sources", {})
+        self._sources: dict[str, str] = getattr(config, "_sources", {})
 
     def get_source(self, key: str) -> str:
         """Get source of a config value."""

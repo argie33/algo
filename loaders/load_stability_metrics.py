@@ -102,7 +102,27 @@ class StabilityMetricsLoader(OptimalLoader):
                 }
             ]
 
-    def _compute_stability_metrics(self, symbol: str) -> dict[str, Any]:
+    def _unpack_volatility_result(self, result: float | dict[str, Any], field_name: str, symbol: str) -> float | None:
+        """Unpack volatility result: float or marker dict with data_unavailable.
+
+        Raises RuntimeError if result is invalid type.
+        """
+        if isinstance(result, dict):
+            if not result.get("data_unavailable"):
+                raise RuntimeError(
+                    f"[STABILITY_METRICS] {symbol}: {field_name} marker dict invalid - "
+                    f"expected data_unavailable=True if dict returned, got {result}"
+                )
+            return None
+        elif isinstance(result, float):
+            return result
+        else:
+            raise RuntimeError(
+                f"[STABILITY_METRICS] {symbol}: {field_name} invalid type {type(result).__name__}. "
+                f"Expected float or data_unavailable marker dict, got: {result!r}"
+            )
+
+    def _compute_stability_metrics(self, symbol: str) -> dict[str, Any]:  # noqa: C901
         """Compute volatility from price_daily and beta from price_daily (SPY correlation).
 
         Beta is computed by regressing stock daily returns against SPY daily returns from

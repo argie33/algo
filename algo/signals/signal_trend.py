@@ -38,7 +38,7 @@ class SignalTrendMixin:
         except (TypeError, ValueError):
             return False
 
-    def _compute_minervini_from_prices(self, cur: Any, symbol: str, eval_date: Any) -> dict[str, Any]:
+    def _compute_minervini_from_prices(self, cur: Any, symbol: str, eval_date: Any) -> dict[str, Any]:  # noqa: C901
         """Compute Minervini 8-point trend score on-the-fly from price_daily."""
         cur.execute(
             """SELECT date, close, volume FROM price_daily

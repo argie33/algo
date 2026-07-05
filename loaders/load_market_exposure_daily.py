@@ -32,15 +32,17 @@ Time: ~2-5 seconds (vectorized computation, minimal DB load)
 import logging
 import sys
 from datetime import date
+from typing import Any
 
 import psycopg2
+from psycopg2.extensions import cursor as PsycopgCursor  # noqa: N812
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
-def _insert_unavailable_marker(cur, eval_date: date, reason: str) -> None:
+def _insert_unavailable_marker(cur: PsycopgCursor[Any], eval_date: date, reason: str) -> None:
     """Insert a data_unavailable marker row into market_exposure_daily.
 
     Args:
@@ -81,7 +83,7 @@ def _insert_unavailable_marker(cur, eval_date: date, reason: str) -> None:
     )
 
 
-def main() -> int:
+def main() -> int:  # noqa: C901
     """Compute and persist market_exposure_daily for latest trading date.
 
     Exit codes: 0=success, 1=error, 2=no_data

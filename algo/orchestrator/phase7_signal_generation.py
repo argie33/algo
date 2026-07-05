@@ -560,7 +560,7 @@ def _check_critical_dependencies(run_date: _date, log_phase_result_fn: Callable[
     return True, None
 
 
-def run(
+def run(  # noqa: C901
     run_date: _date,
     dry_run: bool,
     verbose: bool,

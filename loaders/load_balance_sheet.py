@@ -15,6 +15,7 @@ from loaders.loader_helper import setup_imports
 setup_imports()
 
 import logging  # noqa: E402
+from collections.abc import Iterable  # noqa: E402
 from datetime import date  # noqa: E402
 from typing import Any  # noqa: E402
 
@@ -208,6 +209,7 @@ class AnnualBalanceSheetLoader(SecEdgarStatementLoader):
             fiscal_year = row.get("fiscal_year")
 
             # Build key to look up in input map
+            key: tuple[Any, ...] | None
             if self.period == "annual":
                 key = (symbol, fiscal_year) if symbol and fiscal_year is not None else None
             else:
@@ -231,10 +233,10 @@ class AnnualBalanceSheetLoader(SecEdgarStatementLoader):
 
         return transformed
 
-    def run(self, symbols, parallelism: int = 1, backfill_days: int | None = None):
+    def run(self, symbols: Iterable[str], parallelism: int = 1, backfill_days: int | None = None) -> dict[str, Any]:
         """Execute loader. Delegates to base class."""
         return super().run(symbols, parallelism=parallelism, backfill_days=backfill_days)
 
 
 if __name__ == "__main__":
-    run_loader(AnnualBalanceSheetLoader, sys.argv[1:])
+    sys.exit(run_loader(AnnualBalanceSheetLoader))

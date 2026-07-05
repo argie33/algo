@@ -383,7 +383,7 @@ class OrderManager:
             "Alpaca API unreachable. Cannot proceed without status confirmation."
         )
 
-    def send_market_exit(self, symbol: str, shares: float, execution_mode: str) -> dict[str, Any]:
+    def send_market_exit(self, symbol: str, shares: float, execution_mode: str) -> dict[str, Any]:  # noqa: C901
         """Send a market sell order to Alpaca.
 
         Returns { success, order_id, filled_price }.

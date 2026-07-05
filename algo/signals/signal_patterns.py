@@ -240,7 +240,7 @@ class SignalPatternsMixin:
 
         return cast(dict[str, Any], self._with_cursor(_analyze_vcp))
 
-    def classify_base_type(self, symbol: str, eval_date: Any) -> dict[str, Any]:
+    def classify_base_type(self, symbol: str, eval_date: Any) -> dict[str, Any]:  # noqa: C901
         """
         Classify the current base into canonical chart pattern types.
         """

@@ -156,7 +156,7 @@ class AdvancedFilters:
 
     # ---------- Per-candidate evaluation ----------
 
-    def evaluate_candidate(
+    def evaluate_candidate(  # noqa: C901
         self,
         symbol: str,
         signal_date: Any,
