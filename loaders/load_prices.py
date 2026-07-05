@@ -2175,13 +2175,15 @@ def main() -> int:
                 )
             acquired = row[0]
         if not acquired:
-            logger.warning("[MAIN] Skipping: another stock_prices_daily instance already running (advisory lock held)")
             try:
                 _lock_conn.close()
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as close_err:
                 logger.debug("Could not close lock connection: %s", close_err)
             _lock_conn = None
-            return 0
+            raise RuntimeError(
+                "[LOAD_PRICES] CRITICAL: Another stock_prices_daily instance already running (advisory lock held). "
+                "Price updates cannot proceed. Check for concurrent loader instances."
+            )
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as _lock_err:
         logger.warning(
             "[MAIN] Advisory lock check failed (%s) - proceeding without lock",

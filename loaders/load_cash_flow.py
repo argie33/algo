@@ -193,7 +193,8 @@ class AnnualCashFlowLoader(SecEdgarStatementLoader):
 
                 # Still count this as a failed symbol for stats
                 self._stats.increment("symbols_failed")
-                return 0
+                # Re-raise original error after inserting marker; caller must know load failed
+                raise
             except Exception as marker_err:
                 # If we can't even insert the marker, log and re-raise original error
                 logger.error(

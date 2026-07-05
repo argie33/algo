@@ -188,6 +188,11 @@ def _get_loader_status(cur: cursor) -> Any:
     now = datetime.now(timezone.utc)
     loaders = []
     for row in rows:
+        if "last_updated" not in row:
+            raise RuntimeError(
+                "[HEALTH] Database query returned row without 'last_updated' field. "
+                "Query result structure corrupted or column missing."
+            )
         utc_result = normalize_to_utc_datetime(row["last_updated"])
         if isinstance(utc_result, datetime):
             age_hours = (now - utc_result).total_seconds() / 3600

@@ -149,7 +149,10 @@ def _compute_scores_vectorized(merged: pd.DataFrame) -> pd.DataFrame:
 def _upsert_batch(cur: psycopg2.extensions.cursor, rows: list) -> int:  # type: ignore[type-arg]
     """Upsert a batch of rows into trend_template_data."""
     if not rows:
-        return 0  # Return 0 rows inserted instead of raising error
+        raise ValueError(
+            "[LOAD_TREND_CRITERIA] Cannot upsert empty row batch. "
+            "Input data is required — possible stale data or upstream processing failure."
+        )
 
     cur.executemany(
         """
