@@ -11,7 +11,6 @@ from routes.utils import (
     db_route_handler,
     error_response,
     json_response,
-    list_response,
     safe_dict_convert,
     safe_json_serialize,
 )
@@ -29,34 +28,36 @@ def _get_algo_config(cur: cursor) -> Any:
     cur.execute("SELECT key, value, value_type, description, updated_at FROM algo_config ORDER BY key")
     rows = cur.fetchall()
 
-    # Build config with defaults and categorization
-    config_items = []
+    # Build config dict keyed by config key (matches dashboard contract schema)
+    config_dict = {}
     for row in rows:
-        config_dict = safe_json_serialize(safe_dict_convert(row))
-        key = config_dict["key"]
+        row_dict = safe_json_serialize(safe_dict_convert(row))
+        key = row_dict["key"]
+        value = row_dict.get("value")
 
-        # Get default value and metadata from AlgoConfig.DEFAULTS
-        if key in AlgoConfig.DEFAULTS:
-            default_val = AlgoConfig.DEFAULTS[key][0]
-            config_dict["default_value"] = default_val
-            config_dict["is_custom"] = str(config_dict["value"]).strip() != str(default_val).strip()
+        # Use key directly as dict key (e.g., "algo_enabled": true)
+        # Convert string "true"/"false" to boolean if needed
+        if isinstance(value, str):
+            if value.lower() == "true":
+                config_dict[key] = True
+            elif value.lower() == "false":
+                config_dict[key] = False
+            else:
+                try:
+                    config_dict[key] = float(value) if "." in value else int(value)
+                except (ValueError, TypeError):
+                    config_dict[key] = value
         else:
-            config_dict["default_value"] = None
-            config_dict["is_custom"] = True
-
-        # Categorize by key name patterns
-        config_dict["category"] = AlgoConfig.get_config_category(key)
-        config_items.append(config_dict)
-
-    response = list_response(config_items)
+            config_dict[key] = value
 
     # Validate config response against contract schema
-    is_valid, error_msg = ResponseValidator.validate_endpoint_response("cfg", response["data"])
+    is_valid, error_msg = ResponseValidator.validate_endpoint_response("cfg", config_dict)
     if not is_valid:
         logger.error(f"Config response validation failed: {error_msg}")
         return error_response(500, "response_validation_error", error_msg)
 
-    return response
+    # Return as JSON response (not list response)
+    return json_response(200, config_dict)
 
 
 @db_route_handler("fetch algo config key")
