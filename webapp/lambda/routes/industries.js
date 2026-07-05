@@ -36,7 +36,27 @@ async function fetchIndustries(req, res) {
       return sendError(res, "Invalid pagination offset calculated", 400);
     }
 
+    // Debug logging
+    console.log("[INDUSTRIES] Query parameters:", {
+      limit: limitNum,
+      offset: offset,
+      offsetType: typeof offset,
+      page: pageNum,
+      limitType: typeof limitNum,
+    });
+
+    // Ensure parameters are explicit numbers before query
+    if (!Number.isInteger(limitNum) || limitNum < 1) {
+      return sendError(res, "Invalid limit parameter: must be positive integer", 400);
+    }
+    if (!Number.isInteger(offset) || offset < 0) {
+      return sendError(res, "Invalid offset parameter: must be non-negative integer", 400);
+    }
+
     // Parallelize data and count queries
+    const params = [limitNum, offset];
+    console.log("[INDUSTRIES_QUERY] Executing with params:", params);
+
     const [result, countResult] = await Promise.all([
       query(
         `
@@ -102,7 +122,7 @@ async function fetchIndustries(req, res) {
       ORDER BY r.current_rank, r.stock_count DESC
       LIMIT $1 OFFSET $2
     `,
-        [limitNum, offset]
+        params
       ),
       query(
         `SELECT COUNT(DISTINCT industry) as count FROM company_profile WHERE industry IS NOT NULL`
