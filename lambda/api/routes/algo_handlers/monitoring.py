@@ -159,7 +159,7 @@ def _get_last_run(cur: cursor) -> Any:
 
 
 @db_route_handler("fetch notifications")  # type: ignore[untyped-decorator]
-@validate_api_response("notif")  # type: ignore[untyped-decorator]
+@validate_api_response("notifs")  # type: ignore[untyped-decorator]
 def _get_notifications(
     cur: cursor, params: dict[str, Any] | None = None, jwt_claims: dict[str, Any] | None = None
 ) -> Any:
