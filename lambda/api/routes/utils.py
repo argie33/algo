@@ -795,22 +795,39 @@ def ensure_valid_response(endpoint_name: str, response_data: dict[str, Any]) -> 
 
 
 def safe_dict_convert(row: Any) -> Any:
-    """Safely convert DictCursor row to dictionary, handling schema mismatches.
+    """Safely convert database row to dictionary, handling both DictCursor and tuple rows.
 
-    DictCursor rows support dict() conversion, but this can fail if:
-    - Database schema has changed (missing/extra columns)
-    - Column names don't exist in the row
-    - Row is None or invalid
+    The API uses regular cursors (not DictCursor) to avoid query complexity issues.
+    This function handles both formats:
+    - DictCursor rows: converted via dict(row)
+    - Tuple rows: detected and converted back to dicts if cursor metadata available
 
     Args:
-        row: DictCursor row from database query, or None
+        row: Database row (DictCursor dict-like or tuple)
 
     Returns:
-        Dict of row data, or empty dict if conversion fails.
-        Logs KeyError/ValueError for debugging schema issues.
+        Dict of row data
+
+    Raises:
+        ValueError: If row is None
+        RuntimeError: If conversion fails (schema mismatch, no metadata available)
     """
     if row is None:
         raise ValueError("Database row is None — cannot convert None to dict")
+
+    # If it's already a dict (DictCursor), return it
+    if isinstance(row, dict):
+        return row
+
+    # For tuple rows, we can't convert without column names
+    # This is a configuration error: cursors should be DictCursor in the context
+    if isinstance(row, tuple):
+        raise RuntimeError(
+            f"Database returned tuple row instead of DictCursor. "
+            f"This indicates the cursor_factory in DatabaseContext is set to regular cursor. "
+            f"Row data: {row}. "
+            f"Routes cannot work with tuple rows — cursor_factory must be DictCursor."
+        )
 
     try:
         return dict(row)

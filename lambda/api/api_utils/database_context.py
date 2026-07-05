@@ -28,7 +28,7 @@ This file re-exports utils.DatabaseContext with API-appropriate defaults.
 import sys
 from typing import Any
 
-from psycopg2.extensions import cursor as cursor_class
+from psycopg2.extras import DictCursor
 
 sys.path.insert(0, "/".join(__file__.split("/")[:-4]))  # Navigate to root
 from utils.db.context import DatabaseContext as _DatabaseContext
@@ -42,15 +42,15 @@ class DatabaseContext(_DatabaseContext):
     Re-exports utils.DatabaseContext but:
     - Sets timeout=20 (API Gateway limit)
     - Disables correlation_id tracking (enable_correlation_tracking=False)
-    - Uses regular cursor instead of DictCursor for compatibility with complex queries
+    - Uses DictCursor for dict-like row access (required by route handlers)
 
-    Note: Routes must handle tuple results and convert to dicts as needed.
-    This avoids psycopg2 DictCursor limitations with complex parameterized queries.
+    All route handlers call safe_dict_convert() expecting dict-like row objects.
+    DictCursor provides this interface transparently.
 
     Usage (REST API):
         with DatabaseContext('read') as cur:
             cur.execute("SELECT * FROM table")
-            rows = cur.fetchall()
+            rows = cur.fetchall()  # Returns list of dict-like DictCursor rows
     """
 
     def __init__(
@@ -64,11 +64,11 @@ class DatabaseContext(_DatabaseContext):
         Args:
             role: 'read' or 'write'
             timeout: Connection timeout in seconds (default 20s for API Gateway)
-            cursor_factory: psycopg2 cursor factory (defaults to regular cursor)
+            cursor_factory: psycopg2 cursor factory (defaults to DictCursor)
         """
-        # Default to regular cursor for API (avoids DictCursor query complexity issues)
+        # Use DictCursor for API (route handlers expect dict-like rows)
         if cursor_factory is None:
-            cursor_factory = cursor_class
+            cursor_factory = DictCursor
 
         # Always disable correlation tracking for API calls
         super().__init__(
