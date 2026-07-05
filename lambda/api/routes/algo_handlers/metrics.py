@@ -842,16 +842,16 @@ def _get_performance_analytics(cur: cursor) -> Any:
         avg_loss_r: Any = data.get("avg_loss_r")
         expectancy_val: Any = data.get("expectancy")
 
-        # COALESCE in query defaults R-metrics to 0.0 when missing (no trades yet)
-        response_dict_final: dict[str, float | None] = {
-            "rolling_sharpe_252d": float(sharpe) if sharpe is not None else None,
-            "rolling_sortino_252d": float(sortino) if sortino is not None else None,
-            "calmar_ratio": float(calmar) if calmar is not None else None,
-            "win_rate_50t": float(wr_pct) if wr_pct is not None else None,
+        # All strict fields must be non-None per response contract
+        response_dict_final: dict[str, float] = {
+            "rolling_sharpe_252d": float(sharpe) if sharpe is not None else 0.0,
+            "rolling_sortino_252d": float(sortino) if sortino is not None else 0.0,
+            "calmar_ratio": float(calmar) if calmar is not None else 0.0,
+            "win_rate_50t": float(wr_pct) if wr_pct is not None else 0.0,
             "avg_win_r_50t": float(avg_win_r) if avg_win_r is not None else 0.0,
             "avg_loss_r_50t": float(avg_loss_r) if avg_loss_r is not None else 0.0,
             "expectancy": float(expectancy_val) if expectancy_val is not None else 0.0,
-            "max_drawdown_pct": float(max_dd) if max_dd is not None else None,
+            "max_drawdown_pct": float(max_dd) if max_dd is not None else 0.0,
         }
         response_dict_final["sharpe252"] = response_dict_final["rolling_sharpe_252d"]
         response_dict_final["sortino"] = response_dict_final["rolling_sortino_252d"]
