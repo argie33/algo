@@ -16,6 +16,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
+from auth_utils import check_admin_access
 from psycopg2.extensions import cursor
 from routes.utils import (
     check_data_freshness,
@@ -27,14 +28,7 @@ from routes.utils import (
     safe_limit,
 )
 
-from utils.validation import CognitoValidator
-
 logger = logging.getLogger(__name__)
-
-
-def _check_admin_access(jwt_claims: dict[str, Any] | None) -> bool:
-    """Check if user has admin access from verified JWT claims only."""
-    return bool(CognitoValidator.validate_admin_access(jwt_claims))
 
 
 def handle(
@@ -46,7 +40,7 @@ def handle(
     jwt_claims: dict[str, Any] | None = None,
 ) -> Any:
     """Route risk dashboard endpoints."""
-    if not _check_admin_access(jwt_claims):
+    if not check_admin_access(jwt_claims):
         return error_response(403, "forbidden", "Admin access required")
     if path == "/api/algo/risk-dashboard":
         return _get_comprehensive_risk_dashboard(cur)

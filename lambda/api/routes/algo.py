@@ -8,6 +8,7 @@ from typing import Any, cast
 
 import psycopg2
 import psycopg2.errors
+from auth_utils import check_admin_access
 from database_query_service import DatabaseQueryService
 from psycopg2.extensions import cursor
 from routes.utils import (
@@ -26,7 +27,6 @@ from utils.rate_limiting import (
     check_admin_rate_limit,
     check_public_rate_limit,
 )
-from utils.validation import CognitoValidator
 
 from .algo_handlers.config import (
     _get_algo_config,
@@ -103,13 +103,6 @@ from .positions import handle as handle_positions
 logger = logging.getLogger(__name__)
 
 
-def _check_admin_access(jwt_claims: dict[str, Any] | None) -> bool:
-    """Check if user has admin access from verified JWT claims only."""
-    if not jwt_claims:
-        return False
-    return bool(CognitoValidator.validate_admin_access(jwt_claims))
-
-
 def handle(
     cur: cursor,
     path: str,
@@ -166,7 +159,7 @@ def _dispatch(  # noqa: C901
     # Notification mark-as-read
     if method == "PATCH" and path.endswith("/read") and "/notifications/" in path:
         notif_id = path.split("/notifications/")[-1].replace("/read", "")
-        if not _check_admin_access(jwt_claims):
+        if not check_admin_access(jwt_claims):
             logger.warning(f"Unauthorized notification mark-read attempt by {user_id}")
             raise_api_error(403, "forbidden", "Admin access required")
         try:
@@ -197,7 +190,7 @@ def _dispatch(  # noqa: C901
     # Notification delete
     if method == "DELETE" and "/notifications/" in path:
         notif_id = path.split("/notifications/")[-1]
-        if not _check_admin_access(jwt_claims):
+        if not check_admin_access(jwt_claims):
             logger.warning(f"Unauthorized notification delete attempt by {user_id}")
             raise_api_error(403, "forbidden", "Admin access required")
         try:
@@ -224,7 +217,7 @@ def _dispatch(  # noqa: C901
 
     # Data patrol trigger
     if method == "POST" and path == "/api/algo/patrol":
-        if not _check_admin_access(jwt_claims):
+        if not check_admin_access(jwt_claims):
             logger.warning(f"Unauthorized algo patrol access attempt by {user_id}")
             raise_api_error(403, "forbidden", "Admin access required")
 
@@ -265,7 +258,7 @@ def _dispatch(  # noqa: C901
 
     # Config key sub-routes with custom dispatch
     if path.startswith("/api/algo/config/"):
-        if not _check_admin_access(jwt_claims):
+        if not check_admin_access(jwt_claims):
             logger.warning(f"Unauthorized algo config access attempt by {user_id}")
             raise_api_error(403, "forbidden", "Admin access required")
         key = path[len("/api/algo/config/") :]
@@ -287,7 +280,7 @@ def _dispatch(  # noqa: C901
             return _reset_algo_config_key(cur, key, actor)
 
     if path.startswith("/api/algo/execution/details/"):
-        if not _check_admin_access(jwt_claims):
+        if not check_admin_access(jwt_claims):
             logger.warning(f"Unauthorized execution history access attempt by {user_id}")
             raise_api_error(403, "forbidden", "Admin access required")
         run_id = path.split("/api/algo/execution/details/")[-1]
@@ -295,12 +288,12 @@ def _dispatch(  # noqa: C901
 
     # Dispatch to handler functions by path
     if path == "/api/algo/status":
-        if jwt_claims is not None and not _check_admin_access(jwt_claims):
+        if jwt_claims is not None and not check_admin_access(jwt_claims):
             logger.warning(f"Unauthorized algo status access attempt by {user_id}")
             raise_api_error(403, "forbidden", "Admin access required")
         return _get_algo_status(cur)
     elif path == "/api/algo/trades":
-        if jwt_claims is not None and not _check_admin_access(jwt_claims):
+        if jwt_claims is not None and not check_admin_access(jwt_claims):
             logger.warning(f"Unauthorized algo trades access attempt by {user_id}")
             raise_api_error(403, "forbidden", "Admin access required")
         limit = safe_limit(extract_param(params, "limit"), max_val=10000, default=100)
@@ -316,13 +309,13 @@ def _dispatch(  # noqa: C901
                 "bad_request",
                 f"Invalid status '{status_filter}'. Must be one of: open, closed, halted, cancelled",
             )
-        is_admin = _check_admin_access(jwt_claims)
+        is_admin = check_admin_access(jwt_claims)
         effective_user_id = None if is_admin else user_id
         if not status_filter:
             logger.debug("[ALGO_TRADES] No status filter specified — returning all trade statuses")
         return _get_algo_trades(cur, limit, user_id=effective_user_id, status=status_filter)
     elif path == "/api/algo/positions":
-        if jwt_claims is not None and not _check_admin_access(jwt_claims):
+        if jwt_claims is not None and not check_admin_access(jwt_claims):
             logger.warning(f"Unauthorized algo positions access attempt by {user_id}")
             raise_api_error(403, "forbidden", "Admin access required")
         return _get_algo_positions(cur, user_id=user_id)
@@ -331,7 +324,7 @@ def _dispatch(  # noqa: C901
     elif path == "/api/algo/performance":
         return _get_algo_performance(cur)
     elif path == "/api/algo/circuit-breakers":
-        if jwt_claims is not None and not _check_admin_access(jwt_claims):
+        if jwt_claims is not None and not check_admin_access(jwt_claims):
             logger.warning(f"Unauthorized algo circuit-breakers access attempt by {user_id}")
             raise_api_error(403, "forbidden", "Admin access required")
         return _get_circuit_breakers(cur)
@@ -344,7 +337,7 @@ def _dispatch(  # noqa: C901
         # Public endpoint (dashboard dev mode) - no auth required
         return _get_notifications(cur, params, jwt_claims)
     elif path == "/api/algo/patrol-log":
-        if jwt_claims is not None and not _check_admin_access(jwt_claims):
+        if jwt_claims is not None and not check_admin_access(jwt_claims):
             logger.warning(f"Unauthorized algo patrol-log access attempt by {user_id}")
             raise_api_error(403, "forbidden", "Admin access required")
         limit = safe_limit(extract_param(params, "limit"), max_val=10000, default=100)
@@ -468,19 +461,19 @@ def _dispatch(  # noqa: C901
         limit = safe_limit(extract_param(params, "limit"), max_val=1000, default=50)
         return _get_orchestrator_execution_recent(cur, days, limit)
     elif path == "/api/algo/execution/failed":
-        if jwt_claims is not None and not _check_admin_access(jwt_claims):
+        if jwt_claims is not None and not check_admin_access(jwt_claims):
             logger.warning(f"Unauthorized execution history access attempt by {user_id}")
             raise_api_error(403, "forbidden", "Admin access required")
         days = safe_days(extract_param(params, "days"), max_val=90, default=30)
         return _get_orchestrator_execution_failed(cur, days)
     elif path == "/api/algo/execution/patterns":
-        if jwt_claims is not None and not _check_admin_access(jwt_claims):
+        if jwt_claims is not None and not check_admin_access(jwt_claims):
             logger.warning(f"Unauthorized execution history access attempt by {user_id}")
             raise_api_error(403, "forbidden", "Admin access required")
         days = safe_days(extract_param(params, "days"), max_val=90, default=30)
         return _get_orchestrator_execution_patterns(cur, days)
     elif path == "/api/algo/execution/stats":
-        if jwt_claims is not None and not _check_admin_access(jwt_claims):
+        if jwt_claims is not None and not check_admin_access(jwt_claims):
             logger.warning(f"Unauthorized execution history access attempt by {user_id}")
             raise_api_error(403, "forbidden", "Admin access required")
         days = safe_days(extract_param(params, "days"), max_val=90, default=7)

@@ -1,7 +1,7 @@
 """Centralized authentication and authorization guards for API routes.
 
 Single source of truth for all auth checks (admin, user, role-based).
-Replaces 7 duplicate _check_admin_access() implementations.
+Replaces 7 duplicate check_admin_access() implementations.
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ class RouteAuthGuard:
         if not RouteAuthGuard.check_admin_access(jwt_claims):
             return error_response(403, "forbidden", "Admin access required")
 
-    Replaces: _check_admin_access() in audit.py, admin.py, and 5 other files
+    Replaces: check_admin_access() in audit.py, admin.py, and 5 other files
     """
 
     @staticmethod

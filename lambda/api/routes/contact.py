@@ -11,6 +11,7 @@ from typing import Any
 import psycopg2
 import psycopg2.errors
 import psycopg2.extras
+from auth_utils import check_admin_access
 from models.requests import ContactSubmissionRequest
 from psycopg2.extensions import cursor
 from pydantic import ValidationError
@@ -24,13 +25,7 @@ from routes.utils import (
     safe_limit,
 )
 
-from utils.validation import CognitoValidator, DynamoDBValidator
-
-
-def _check_admin_access(jwt_claims: dict[str, Any] | None) -> bool:
-    """Check if user has admin access from verified JWT claims only."""
-    return bool(CognitoValidator.validate_admin_access(jwt_claims))
-
+from utils.validation import DynamoDBValidator
 
 logger = logging.getLogger(__name__)
 
@@ -164,7 +159,7 @@ def handle(
         if path == "/api/contact/submissions":
             if not jwt_claims or not jwt_claims.get("sub"):
                 return error_response(401, "unauthorized", "Authentication required")
-            if not _check_admin_access(jwt_claims):
+            if not check_admin_access(jwt_claims):
                 logger.warning(f"Unauthorized contact submissions access attempt by {jwt_claims.get('sub')}")
                 return error_response(403, "forbidden", "Admin access required")
             if method == "GET":

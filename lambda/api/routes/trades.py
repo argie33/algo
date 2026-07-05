@@ -13,6 +13,7 @@ import psycopg2
 import psycopg2.errors
 import psycopg2.extras
 import psycopg2.sql
+from auth_utils import check_admin_access
 from models.requests import ManualTradeRequest
 from psycopg2.extensions import cursor
 from pydantic import ValidationError
@@ -32,13 +33,8 @@ from routes.utils import (
 
 from shared_contracts.response_validator import ResponseValidator
 from utils.data_queries import count_trades_by_status, get_trades_by_status
-from utils.validation import CognitoValidator
 
 logger = logging.getLogger(__name__)
-
-
-def _check_admin_access(jwt_claims: dict[str, Any] | None) -> bool:
-    return bool(CognitoValidator.validate_admin_access(jwt_claims))
 
 
 def _compute_request_signature(idempotency_key: str, body: dict[str, Any]) -> str:
@@ -120,7 +116,7 @@ def handle(
     """Handle /api/trades and /api/trades/* endpoints."""
     try:
         if path == "/api/trades/manual" and method == "POST":
-            if not _check_admin_access(jwt_claims):
+            if not check_admin_access(jwt_claims):
                 raise_api_error(403, "forbidden", "Admin access required")
             if not body:
                 raise_api_error(400, "bad_request", "Request body is required")
@@ -128,7 +124,7 @@ def handle(
             idempotency_key = headers.get("idempotency-key") if headers else None
             return _create_manual_trade(cur, body_dict, idempotency_key)
         if path == "/api/trades":
-            if not _check_admin_access(jwt_claims):
+            if not check_admin_access(jwt_claims):
                 raise_api_error(403, "forbidden", "Admin access required")
             limit = safe_limit(extract_param(params, "limit"), max_val=5000, default=500)
             offset = safe_offset(extract_param(params, "offset") or "0")
@@ -161,7 +157,7 @@ def handle(
             except ValueError as e:
                 return error_response(400, "bad_request", str(e))
         elif path == "/api/trades/summary":
-            if not _check_admin_access(jwt_claims):
+            if not check_admin_access(jwt_claims):
                 raise_api_error(403, "forbidden", "Admin access required")
             cur.execute("SET LOCAL statement_timeout = '4000ms'")
             cur.execute("""

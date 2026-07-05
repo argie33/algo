@@ -29,25 +29,13 @@ from routes.utils import (
 )
 
 from utils.rate_limiting import ADMIN_RATE_LIMITS, check_admin_rate_limit
-from utils.validation import CognitoValidator
 
 # Add parent directory to sys.path to enable imports from lambda/api module
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from api_types import JWTClaims, RouteBody, RouteParams
+from auth_utils import check_admin_access
 
 logger = logging.getLogger(__name__)
-
-
-def _check_admin_access(jwt_claims: dict[str, Any] | JWTClaims | None) -> bool:
-    """Check if user has admin access from verified JWT claims only.
-
-    Checks the 'cognito:groups' claim for 'admin' group membership.
-    Never trust role from query params - only from JWT signature.
-    Validates JWT claims structure before checking group membership.
-    """
-    if not jwt_claims:
-        return False
-    return bool(CognitoValidator.validate_admin_access(jwt_claims))
 
 
 def _audit_log_admin_action(
@@ -100,7 +88,7 @@ def handle(
         user_id = jwt_claims["sub"]
 
         # Require admin role for all admin endpoints (bypass in dev mode)
-        if not _check_admin_access(jwt_claims):
+        if not check_admin_access(jwt_claims):
             _audit_log_admin_action(cur, user_id, path, "denied", "insufficient permissions")
             return error_response(403, "forbidden", "Admin access required")
 

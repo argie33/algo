@@ -7,6 +7,7 @@ from typing import Any
 
 import psycopg2
 import psycopg2.errors
+from auth_utils import check_admin_access
 from models.requests import PositionUpdateRequest
 from psycopg2.extensions import cursor
 from pydantic import ValidationError
@@ -19,15 +20,8 @@ from routes.utils import (
 )
 
 from shared_contracts.response_validator import ResponseValidator
-from utils.validation import CognitoValidator
 
 logger = logging.getLogger(__name__)
-
-
-def _check_admin_access(jwt_claims: dict[str, Any] | None) -> bool:
-    """Check if user has admin access from verified JWT claims only."""
-    result = CognitoValidator.validate_admin_access(jwt_claims)
-    return bool(result)
 
 
 def handle(
@@ -41,7 +35,7 @@ def handle(
     """Handle /api/position/* endpoints."""
     try:
         if path == "/api/position/update" and method in ("POST", "PUT"):
-            if not _check_admin_access(jwt_claims):
+            if not check_admin_access(jwt_claims):
                 raise_api_error(403, "forbidden", "Admin access required")
             if body is None:
                 raise_api_error(400, "bad_request", "Request body is required")

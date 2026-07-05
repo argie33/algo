@@ -9,7 +9,6 @@ import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from enum import Enum
 from typing import Any
 
 from rich.layout import Layout
@@ -17,19 +16,17 @@ from rich.markup import escape
 from rich.panel import Panel
 from rich.text import Text
 
+from algo.exceptions import ErrorCategory
+
 logger = logging.getLogger(__name__)
 
 
-class ErrorCategory(Enum):
-    """Classify exceptions for retry decision-making."""
-
-    TRANSIENT = "transient"  # Temporary failures that may recover (network, timeout)
-    PERMANENT = "permanent"  # Fatal failures that won't recover (malformed data)
-    UNKNOWN = "unknown"  # Treat cautiously with lower retry limits
-
-
 def categorize_error(e: Exception) -> ErrorCategory:
-    """Classify an exception as transient, permanent, or unknown."""
+    """Classify an exception as transient, permanent, or unknown.
+
+    Maps exceptions to algo.exceptions.ErrorCategory for consistent retry logic.
+    Falls back to PERMANENT for unknown errors (fail-safe behavior).
+    """
     # Transient: network, timeout, rate-limit
     if isinstance(e, (TimeoutError, ConnectionError, BrokenPipeError)):
         return ErrorCategory.TRANSIENT
@@ -40,8 +37,8 @@ def categorize_error(e: Exception) -> ErrorCategory:
     if isinstance(e, (ValueError, KeyError, TypeError, AttributeError, IndexError)):
         return ErrorCategory.PERMANENT
 
-    # Unknown: default to cautious treatment
-    return ErrorCategory.UNKNOWN
+    # Permanent: default to cautious fail-safe (don't retry unknown errors)
+    return ErrorCategory.PERMANENT
 
 
 @dataclass
@@ -56,7 +53,6 @@ class RenderState:
     next_retry_time: datetime | None = None
     max_retries_transient: int = 10  # Retry transient errors up to 10 times
     max_retries_permanent: int = 3  # Give up on permanent errors sooner
-    max_retries_unknown: int = 5  # Conservative for unknown errors
     error_log: list[tuple[datetime, str, str]] = field(default_factory=list)  # Track all errors for diagnostics
 
     def get_recovery_status(self) -> str:
@@ -80,10 +76,7 @@ class RenderState:
             if self.retry_count >= self.max_retries_permanent:
                 return "[red]Permanent error - no more retries. Reload dashboard to continue.[/]"
             return f"[red]Permanent error (malformed data), attempting repair (attempt {self.retry_count})...[/]"
-        else:  # UNKNOWN
-            if self.retry_count >= self.max_retries_unknown:
-                return f"[red]Unknown error - giving up after {self.max_retries_unknown} attempts. Check logs.[/]"
-            return f"[yellow]Unknown error, retrying cautiously... (attempt {self.retry_count})[/]"
+        return "[red]Error with unknown category - no more retries. Reload dashboard to continue.[/]"
 
     def should_retry(self) -> bool:
         """Determine if we should retry based on error category and attempt count."""
@@ -92,10 +85,8 @@ class RenderState:
 
         if self.error_category == ErrorCategory.TRANSIENT:
             return self.retry_count < self.max_retries_transient
-        elif self.error_category == ErrorCategory.PERMANENT:
+        else:  # PERMANENT (fail-safe default for unknown/unclassified errors)
             return self.retry_count < self.max_retries_permanent
-        else:  # UNKNOWN
-            return self.retry_count < self.max_retries_unknown
 
     def next_backoff_delay(self) -> float:
         """Calculate delay before next retry in seconds."""
@@ -180,8 +171,8 @@ class RenderRecovery:
                     logger.error(error_msg)
                 elif self.state.error_category == ErrorCategory.TRANSIENT:
                     logger.warning(error_msg)
-                else:  # UNKNOWN
-                    logger.warning(error_msg)
+                else:
+                    logger.warning(f"Unclassified error: {error_msg}")
 
                 if self.state.should_retry():
                     # Schedule next retry
