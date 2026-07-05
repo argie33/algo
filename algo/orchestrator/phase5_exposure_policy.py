@@ -51,6 +51,11 @@ def run(
         policy = ExposurePolicy()
         constraints = policy.get_entry_constraints(run_date)
 
+        # Ensure constraints have all required fields, even if unavailable
+        if constraints and "min_swing_grade" not in constraints:
+            logger.warning("[PHASE 5] Constraints missing min_swing_grade - using default")
+            constraints.setdefault("min_swing_grade", "B")
+
         if constraints:
             logger.info(f"  Tier: {constraints['tier_name']} — {constraints['description']}")
             logger.info(
