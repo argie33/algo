@@ -171,13 +171,6 @@ class Orchestrator:
                         percent_from_52w_high
                       FROM trend_template_data
                       ORDER BY symbol, date DESC
-                    ),
-                    latest_swing AS (
-                      SELECT DISTINCT ON (symbol)
-                        symbol,
-                        score AS swing_score
-                      FROM swing_trader_scores
-                      ORDER BY symbol, date DESC
                     )
                     SELECT
                       ap.id,
@@ -205,7 +198,6 @@ class Orchestrator:
                       lt_tech.weinstein_stage,
                       lt_tech.percent_from_52w_low,
                       lt_tech.percent_from_52w_high,
-                      ls.swing_score,
                       CASE
                         WHEN lp.current_price IS NULL OR ap.stop_loss_price IS NULL AND ap.current_stop_price IS NULL OR ap.avg_entry_price = 0
                         THEN NULL
@@ -249,7 +241,6 @@ class Orchestrator:
                     LEFT JOIN latest_trades lt ON ap.symbol = lt.symbol
                     LEFT JOIN latest_technical lt_tech ON ap.symbol = lt_tech.symbol
                     LEFT JOIN company_profile cp ON ap.symbol = cp.ticker
-                    LEFT JOIN latest_swing ls ON ap.symbol = ls.symbol
                     WHERE ap.quantity > 0 AND ap.status NOT IN ('archived', 'deleted')
                 """
                 )
