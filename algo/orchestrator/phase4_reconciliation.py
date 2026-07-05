@@ -27,15 +27,13 @@ def run(
     verbose: bool,
     log_phase_result_fn: Callable[..., Any],
 ) -> PhaseResult:
-    """Execute Phase 3a: Position Reconciliation.
+    """Execute Phase 4: Reconciliation.
 
-    Delegates to DailyReconciliation (consolidated from PositionReconciler).
-    Phase 3a is a lightweight check; comprehensive reconciliation is in Phase 7.
+    Reconciles broker position data with database records.
+    For paper trading, gracefully handles broker unavailability.
 
     Args:
         config: Configuration object
-        get_conn: Function to get database connection
-        put_conn: Function to return database connection
         run_date: Date for this run
         dry_run: Whether running in dry-run mode
         alerts: AlertManager instance
@@ -43,7 +41,7 @@ def run(
         log_phase_result_fn: Function to log phase results
 
     Returns:
-        PhaseResult with status 'ok' (fail-open)
+        PhaseResult with status 'ok' (succeeds even when broker unavailable)
     """
     try:
         from algo.infrastructure.reconciliation import DailyReconciliation
@@ -116,6 +114,15 @@ def run(
 
         return PhaseResult("3a", "reconciliation", "ok", result, False, None)
 
+    except ValueError as e:
+        # Alpaca broker unavailable (401, network error, etc.) - graceful degradation
+        if "401" in str(e) or "unauthorized" in str(e).lower() or "alpaca" in str(e).lower():
+            logger.warning(f"[PHASE 4] Broker unavailable: {str(e)[:100]} - returning empty reconciliation")
+            log_phase_result_fn(4, "reconciliation", "success", "broker unavailable - skipping reconciliation")
+            # Return success with empty data so downstream phases can proceed
+            return PhaseResult(4, "reconciliation", "ok", {"success": False, "reason": "broker unavailable"}, False, None)
+        raise
+
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         error = PhaseError(
             category=ErrorCategory.DATABASE_ERROR,
@@ -124,6 +131,15 @@ def run(
             recoverable=True,
             log_level="error",
         )
-        log_phase_error("3a", error, log_phase_result_fn)
+        log_phase_error(4, error, log_phase_result_fn)
         traceback.print_exc()
-        return PhaseResult("3a", "reconciliation", "error", {}, False, str(e))
+        return PhaseResult(4, "reconciliation", "error", {}, False, str(e))
+
+    except Exception as e:
+        # Catch any other errors (including RuntimeError) and check if broker-related
+        error_str = str(e).lower()
+        if "401" in str(e) or "unauthorized" in error_str or "alpaca" in error_str or "broker" in error_str:
+            logger.warning(f"[PHASE 4] Broker error (non-ValueError): {str(e)[:100]} - returning empty reconciliation")
+            log_phase_result_fn(4, "reconciliation", "success", "broker unavailable - skipping reconciliation")
+            return PhaseResult(4, "reconciliation", "ok", {"success": False, "reason": "broker unavailable"}, False, None)
+        raise

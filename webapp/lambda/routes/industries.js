@@ -203,6 +203,7 @@ async function fetchIndustries(req, res) {
     return sendPaginated(res, industries, {
       page: pageNum,
       limit: limitNum,
+      offset: offset,
       total,
       totalPages,
       hasNext: pageNum < totalPages,
