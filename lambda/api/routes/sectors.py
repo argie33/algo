@@ -375,7 +375,7 @@ def handle(  # noqa: C901
             sector_result = {
                 "items": sectors_list,
                 "total": total,
-                "offset": offset,
+                "page": page,
                 "limit": limit,
                 "data_freshness": freshness,
             }
