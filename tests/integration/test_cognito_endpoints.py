@@ -35,116 +35,116 @@ class TestAdminEndpointProtection:
         #     if not _check_admin_access(jwt_claims):
         #         return error_response(403, 'forbidden', 'Admin access required')
 
-        from routes.algo import _check_admin_access
+        from auth_utils import check_admin_access
 
-        is_authorized = _check_admin_access(admin_claims)
+        is_authorized = check_admin_access(admin_claims)
         assert is_authorized is True, "Admin should be authorized for /api/algo/status"
 
     def test_api_algo_status_trader_denied(self, mock_cursor):
         """Trader user should be denied /api/algo/status (403)."""
         trader_claims = {"sub": "test-trader-user", "cognito:groups": ["trader"]}
 
-        from routes.algo import _check_admin_access
+        from auth_utils import check_admin_access
 
-        is_authorized = _check_admin_access(trader_claims)
+        is_authorized = check_admin_access(trader_claims)
         assert is_authorized is False, "Trader should be denied access to /api/algo/status"
 
     def test_api_algo_performance_admin_allowed(self, mock_cursor):
         """Admin user should access /api/algo/performance (200)."""
         admin_claims = {"sub": "test-admin-user", "cognito:groups": ["admin"]}
-        from routes.algo import _check_admin_access
+        from auth_utils import check_admin_access
 
         # Endpoint check at line 127-131
-        is_authorized = _check_admin_access(admin_claims)
+        is_authorized = check_admin_access(admin_claims)
         assert is_authorized is True, "Admin should be authorized for /api/algo/performance"
 
     def test_api_algo_performance_trader_denied(self, mock_cursor):
         """Trader user should be denied /api/algo/performance (403)."""
         trader_claims = {"sub": "test-trader-user", "cognito:groups": ["trader"]}
-        from routes.algo import _check_admin_access
+        from auth_utils import check_admin_access
 
-        is_authorized = _check_admin_access(trader_claims)
+        is_authorized = check_admin_access(trader_claims)
         assert is_authorized is False, "Trader should be denied access to /api/algo/performance"
 
     def test_api_algo_positions_admin_allowed(self, mock_cursor):
         """Admin user should access /api/algo/positions (200)."""
         admin_claims = {"sub": "test-admin-user", "cognito:groups": ["admin"]}
-        from routes.algo import _check_admin_access
+        from auth_utils import check_admin_access
 
         # Endpoint check at line 117-121
-        is_authorized = _check_admin_access(admin_claims)
+        is_authorized = check_admin_access(admin_claims)
         assert is_authorized is True, "Admin should be authorized for /api/algo/positions"
 
     def test_api_algo_positions_trader_denied(self, mock_cursor):
         """Trader user should be denied /api/algo/positions (403)."""
         trader_claims = {"sub": "test-trader-user", "cognito:groups": ["trader"]}
-        from routes.algo import _check_admin_access
+        from auth_utils import check_admin_access
 
-        is_authorized = _check_admin_access(trader_claims)
+        is_authorized = check_admin_access(trader_claims)
         assert is_authorized is False, "Trader should be denied access to /api/algo/positions"
 
     def test_api_algo_circuit_breakers_admin_allowed(self, mock_cursor):
         """Admin user should access /api/algo/circuit-breakers (200)."""
         admin_claims = {"sub": "test-admin-user", "cognito:groups": ["admin"]}
-        from routes.algo import _check_admin_access
+        from auth_utils import check_admin_access
 
-        is_authorized = _check_admin_access(admin_claims)
+        is_authorized = check_admin_access(admin_claims)
         assert is_authorized is True, "Admin should be authorized for /api/algo/circuit-breakers"
 
     def test_api_algo_circuit_breakers_trader_denied(self, mock_cursor):
         """Trader user should be denied /api/algo/circuit-breakers (403)."""
         trader_claims = {"sub": "test-trader-user", "cognito:groups": ["trader"]}
-        from routes.algo import _check_admin_access
+        from auth_utils import check_admin_access
 
-        is_authorized = _check_admin_access(trader_claims)
+        is_authorized = check_admin_access(trader_claims)
         assert is_authorized is False, "Trader should be denied access to /api/algo/circuit-breakers"
 
     def test_api_algo_config_admin_allowed(self, mock_cursor):
         """Admin user should access /api/algo/config (200)."""
         admin_claims = {"sub": "test-admin-user", "cognito:groups": ["admin"]}
-        from routes.algo import _check_admin_access
+        from auth_utils import check_admin_access
 
-        is_authorized = _check_admin_access(admin_claims)
+        is_authorized = check_admin_access(admin_claims)
         assert is_authorized is True, "Admin should be authorized for /api/algo/config"
 
     def test_api_algo_config_trader_denied(self, mock_cursor):
         """Trader user should be denied /api/algo/config (403)."""
         trader_claims = {"sub": "test-trader-user", "cognito:groups": ["trader"]}
-        from routes.algo import _check_admin_access
+        from auth_utils import check_admin_access
 
-        is_authorized = _check_admin_access(trader_claims)
+        is_authorized = check_admin_access(trader_claims)
         assert is_authorized is False, "Trader should be denied access to /api/algo/config"
 
     def test_api_algo_last_run_admin_allowed(self, mock_cursor):
         """Admin user should access /api/algo/last-run (200)."""
         admin_claims = {"sub": "test-admin-user", "cognito:groups": ["admin"]}
-        from routes.algo import _check_admin_access
+        from auth_utils import check_admin_access
 
-        is_authorized = _check_admin_access(admin_claims)
+        is_authorized = check_admin_access(admin_claims)
         assert is_authorized is True, "Admin should be authorized for /api/algo/last-run"
 
     def test_api_algo_last_run_trader_denied(self, mock_cursor):
         """Trader user should be denied /api/algo/last-run (403)."""
         trader_claims = {"sub": "test-trader-user", "cognito:groups": ["trader"]}
-        from routes.algo import _check_admin_access
+        from auth_utils import check_admin_access
 
-        is_authorized = _check_admin_access(trader_claims)
+        is_authorized = check_admin_access(trader_claims)
         assert is_authorized is False, "Trader should be denied access to /api/algo/last-run"
 
     def test_api_algo_data_status_admin_allowed(self, mock_cursor):
         """Admin user should access /api/algo/data-status (200)."""
         admin_claims = {"sub": "test-admin-user", "cognito:groups": ["admin"]}
-        from routes.algo import _check_admin_access
+        from auth_utils import check_admin_access
 
-        is_authorized = _check_admin_access(admin_claims)
+        is_authorized = check_admin_access(admin_claims)
         assert is_authorized is True, "Admin should be authorized for /api/algo/data-status"
 
     def test_api_algo_data_status_trader_denied(self, mock_cursor):
         """Trader user should be denied /api/algo/data-status (403)."""
         trader_claims = {"sub": "test-trader-user", "cognito:groups": ["trader"]}
-        from routes.algo import _check_admin_access
+        from auth_utils import check_admin_access
 
-        is_authorized = _check_admin_access(trader_claims)
+        is_authorized = check_admin_access(trader_claims)
         assert is_authorized is False, "Trader should be denied access to /api/algo/data-status"
 
 
@@ -174,12 +174,12 @@ class TestPublicEndpointAccess:
             "sub": "test-trader-user",
             "cognito:groups": ["trader"],
         }  # Non-admin user
-        from routes.algo import _check_admin_access
+        from auth_utils import check_admin_access
 
-        # Verify _check_admin_access is NOT called for this endpoint
+        # Verify check_admin_access is NOT called for this endpoint
         # by checking that trader claims don't grant access
-        # (if the endpoint called _check_admin_access, this would fail access)
-        _check_admin_access(trader_claims)
+        # (if the endpoint called check_admin_access, this would fail access)
+        check_admin_access(trader_claims)
         # For markets endpoint, we don't care about authorization check
         # The endpoint itself doesn't enforce admin-only access
         assert True, "/api/algo/markets is public (verified by code review)"
@@ -191,10 +191,10 @@ class TestPublicEndpointAccess:
             "sub": "test-trader-user",
             "cognito:groups": ["trader"],
         }  # Non-admin user
-        from routes.algo import _check_admin_access
+        from auth_utils import check_admin_access
 
         # Scores endpoint is public - doesn't require admin check
-        _check_admin_access(trader_claims)
+        check_admin_access(trader_claims)
         # For scores endpoint, authorization check doesn't apply
         # The endpoint itself doesn't enforce admin-only access
         assert True, "/api/scores is public (verified by code review)"
@@ -206,10 +206,10 @@ class TestPublicEndpointAccess:
             "sub": "test-trader-user",
             "cognito:groups": ["trader"],
         }  # Non-admin user
-        from routes.algo import _check_admin_access
+        from auth_utils import check_admin_access
 
         # Prices endpoint is public - doesn't require admin check
-        _check_admin_access(trader_claims)
+        check_admin_access(trader_claims)
         # For prices endpoint, authorization check doesn't apply
         # The endpoint itself doesn't enforce admin-only access
         assert True, "/api/prices is public (verified by code review)"
