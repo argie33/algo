@@ -6,6 +6,7 @@ with {data_unavailable: True, reason: "..."} instead of bare None.
 """
 
 import pytest
+
 from algo.signals.buy_signal_generator import BuySignalGenerator
 
 
