@@ -540,17 +540,28 @@ def run(
         sma_50 = data.get("sma_50")
         atr_14 = data.get("atr_14")
         close = data.get("close")
-        if not (sma_50 is not None and atr_14 is not None and close is not None):
-            continue
+        if sma_50 is None or atr_14 is None or close is None:
+            raise RuntimeError(
+                f"[PHASE 8] {sym}: Required technical data missing from Phase 5 signal. "
+                f"SMA_50={sma_50}, ATR_14={atr_14}, close={close}. "
+                f"Fail-fast: cannot execute trades with incomplete technical indicators. "
+                f"Verify Phase 5 (signal generation) computes all required fields before qualifying trades."
+            )
         if not _is_valid_numeric(sma_50):
-            logger.error(f"[PHASE 8] {sym}: SMA_50 is {type(sma_50).__name__} (expected float), skipping precomputed")
-            continue
+            raise ValueError(
+                f"[PHASE 8] {sym}: SMA_50={sma_50} is {type(sma_50).__name__}, expected float. "
+                f"Fail-fast: technical data type validation failed. Verify Phase 5 signal data integrity."
+            )
         if not _is_valid_numeric(atr_14):
-            logger.error(f"[PHASE 8] {sym}: ATR_14 is {type(atr_14).__name__} (expected float), skipping precomputed")
-            continue
+            raise ValueError(
+                f"[PHASE 8] {sym}: ATR_14={atr_14} is {type(atr_14).__name__}, expected float. "
+                f"Fail-fast: technical data type validation failed. Verify Phase 5 signal data integrity."
+            )
         if not _is_valid_numeric(close):
-            logger.error(f"[PHASE 8] {sym}: Close is {type(close).__name__} (expected float), skipping precomputed")
-            continue
+            raise ValueError(
+                f"[PHASE 8] {sym}: close={close} is {type(close).__name__}, expected float. "
+                f"Fail-fast: technical data type validation failed. Verify Phase 5 signal data integrity."
+            )
         precomputed_count += 1
 
     logger.info(
