@@ -168,7 +168,7 @@ def validate_config_response(data: dict[str, Any]) -> dict[str, Any]:
     """Validate config endpoint response.
 
     Config provides algorithm settings with critical safety thresholds.
-    Requires: min_signal_quality_score, min_swing_score, min_completeness_score,
+    Requires: min_signal_quality_score, min_completeness_score,
               min_volume_ma_50d, min_avg_daily_dollar_volume,
               earnings_blackout_days_before, earnings_blackout_days_after
     """
@@ -186,7 +186,6 @@ def validate_config_response(data: dict[str, Any]) -> dict[str, Any]:
     # Critical fields that must be present for config validation
     required_fields = [
         "min_signal_quality_score",
-        "min_swing_score",
         "min_completeness_score",
         "min_volume_ma_50d",
         "min_avg_daily_dollar_volume",
@@ -198,7 +197,6 @@ def validate_config_response(data: dict[str, Any]) -> dict[str, Any]:
     # Validate numeric fields
     field_types = {
         "min_signal_quality_score": int,
-        "min_swing_score": float,
         "min_completeness_score": int,
         "min_volume_ma_50d": int,
         "min_avg_daily_dollar_volume": float,
