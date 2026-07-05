@@ -309,18 +309,21 @@ class VectorizedSwingScoresLoader:
                 rsi = float(rsi)
                 momentum_score = self._calculate_momentum_score(rsi)
 
-                # CRITICAL: volume_score calculation is incomplete (was hardcoded to 70.0)
-                # Price ROC computation from price_daily is missing.
-                # Fail fast rather than use degraded default.
-                # TODO: Implement price_daily ROC calculation for volume_score
-                volume_score: float | None = None
-                # For now, explicitly fail if volume_score cannot be computed
-                unavailable_reason = "missing_implementation:volume_score_calculation"
-                raise ValueError(
-                    f"{symbol}: Volume score calculation not implemented. "
-                    "Price ROC must be calculated from price_daily table. "
-                    "This is a required upstream component for swing trader score."
-                )
+                # Calculate volume_score from volume_ma_50 in technical_data
+                # Volume is a key swing trading indicator (increased volume on breakouts = conviction)
+                if tech is None or "volume_ma_50" not in tech:
+                    unavailable_reason = (
+                        "upstream_dependency_missing:technical_data_daily"
+                        if tech is None
+                        else "upstream_data_incomplete:volume_ma_50_missing"
+                    )
+                    raise ValueError(f"Volume MA data missing for {symbol}")
+                vol_ma = tech["volume_ma_50"]
+                if not pd.notna(vol_ma):
+                    unavailable_reason = "upstream_data_quality:volume_ma_50_nan"
+                    raise ValueError(f"Volume MA value is NaN for {symbol}")
+                vol_ma_float = float(vol_ma)
+                volume_score = self._calculate_volume_score(vol_ma_float)
 
                 if sig is None or "composite_sqs" not in sig:
                     unavailable_reason = (
@@ -472,6 +475,35 @@ class VectorizedSwingScoresLoader:
         else:
             # Strong overbought: 70 = 60, 100 = 100
             return 60 + ((min(rsi, 100) - 70) / 30) * 40
+
+    def _calculate_volume_score(self, volume_ma_50: float) -> float:
+        """Convert volume MA to score (0-100 scale).
+
+        Volume is key for swing trading: increased volume on breakouts = conviction.
+        Uses 50-day moving average as baseline to filter out noise.
+
+        Scoring:
+        - vol_ma < 300k shares (low volume): score 30-50
+        - vol_ma 300k-1M: score 50-70 (target range)
+        - vol_ma > 1M: score 70-95 (excellent volume)
+        """
+        if volume_ma_50 <= 0:
+            return 30.0  # Zero volume is problematic
+
+        # Scale volume to 0-100
+        # Baseline (300k shares) = 50, Peak (2M shares) = 95
+        if volume_ma_50 < 300_000:
+            # Low volume: 0 -> 30, 300k -> 50
+            return max(20.0, (volume_ma_50 / 300_000) * 50)
+        elif volume_ma_50 < 1_000_000:
+            # Mid range: 300k -> 50, 1M -> 70
+            return 50 + ((min(volume_ma_50, 1_000_000) - 300_000) / 700_000) * 20
+        elif volume_ma_50 < 2_000_000:
+            # High volume: 1M -> 70, 2M -> 90
+            return 70 + ((min(volume_ma_50, 2_000_000) - 1_000_000) / 1_000_000) * 20
+        else:
+            # Exceptional volume: 2M+ -> 90-95
+            return min(95.0, 90 + ((volume_ma_50 - 2_000_000) / 5_000_000) * 5)
 
     def _bulk_insert(self, df: pd.DataFrame) -> int:
         """Bulk insert all scores at once using COPY (fast batch insert).
