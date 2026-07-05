@@ -85,12 +85,12 @@ def _calculate_adjusted_win_rate(
     if wr_val is None or w_val is None or l_val is None:
         raise ValueError(f"Performance metrics incomplete: wr={wr_val}, wins={w_val}, losses={l_val}")
 
-    w_i = safe_int(w_val, default=0, field_name="closed_wins")
-    l_i = safe_int(l_val, default=0, field_name="closed_losses")
+    w_i = safe_int(w_val, default=0, field_name="closed_wins") or 0
+    l_i = safe_int(l_val, default=0, field_name="closed_losses") or 0
 
-    closed_wins = w_i
-    closed_losses = l_i
-    losing_open = 0
+    closed_wins: int = w_i
+    closed_losses: int = l_i
+    losing_open: int = 0
 
     if pos and not has_error(pos):
         pos_items, _, _ = normalize_positions_data(pos)
@@ -102,7 +102,7 @@ def _calculate_adjusted_win_rate(
                     if pnl < 0:
                         losing_open += 1
 
-    total_trades = closed_wins + closed_losses + losing_open
+    total_trades: int = closed_wins + closed_losses + losing_open
     if total_trades == 0:
         logger.debug("[PORTFOLIO] No trades yet - win rate is undefined")
         return None, closed_wins, closed_losses + losing_open
