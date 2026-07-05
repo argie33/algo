@@ -371,10 +371,11 @@ def handle(  # noqa: C901
                 )
 
             freshness = check_data_freshness(cur, "sector_ranking", "date", warning_days=1)
+            offset = (page - 1) * limit
             sector_result = {
                 "items": sectors_list,
                 "total": total,
-                "page": page,
+                "offset": offset,
                 "limit": limit,
                 "data_freshness": freshness,
             }

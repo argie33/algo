@@ -318,7 +318,7 @@ def _industry_list(cur: cursor, params: dict[str, Any]) -> Any:
     result = {
         "items": industries,
         "total": int(total) if total is not None else 0,
-        "page": int(page) if page is not None else 1,
+        "offset": offset,
         "limit": int(limit) if limit is not None else 500,
         "data_freshness": freshness,
     }
