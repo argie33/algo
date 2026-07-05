@@ -61,12 +61,16 @@ class PositioningMetricsLoader(OptimalLoader):
         Returns record with data_unavailable=True if positioning data unavailable in snapshot.
         """
         try:
+            from datetime import timedelta
+
             from utils.db.context import DatabaseContext
 
             with DatabaseContext("read") as cur:
+                # FRESHNESS CHECK: Verify yfinance_snapshot data is recent (within 24 hours)
                 cur.execute(
                     """
-                    SELECT held_percent_insiders, held_percent_institutions, short_interest, data_available, unavailable_reason
+                    SELECT held_percent_insiders, held_percent_institutions, short_interest, data_available,
+                           unavailable_reason, updated_at
                     FROM yfinance_snapshot
                     WHERE symbol = %s
                     """,
@@ -77,6 +81,15 @@ class PositioningMetricsLoader(OptimalLoader):
             if not row:
                 logger.info(f"[POSITIONING_METRICS] No snapshot for {symbol} — yfinance_snapshot loader not yet run?")
                 return [self._unavailable_record(symbol, "No yfinance_snapshot record")]
+
+            # Validate freshness: snapshot should be from today or yesterday max
+            if row.get("updated_at"):
+                snapshot_age = datetime.now(timezone.utc) - row["updated_at"]
+                if snapshot_age > timedelta(hours=24):
+                    logger.warning(
+                        f"[POSITIONING_METRICS] {symbol} snapshot data is stale ({snapshot_age.total_seconds()/3600:.1f}h old)"
+                    )
+                    return [self._unavailable_record(symbol, f"Stale snapshot data ({snapshot_age.total_seconds()/3600:.0f}h old)")]
 
             if not row.get("data_available"):
                 # CRITICAL: Validate unavailable_reason field exists (fail-fast if missing)

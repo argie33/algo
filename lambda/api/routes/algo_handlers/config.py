@@ -13,6 +13,7 @@ from routes.utils import (
     json_response,
     safe_dict_convert,
     safe_json_serialize,
+    validate_api_response,
 )
 
 from algo.infrastructure import AlgoConfig
@@ -20,6 +21,7 @@ from algo.infrastructure import AlgoConfig
 logger = logging.getLogger(__name__)
 
 
+@validate_api_response("cfg")
 @db_route_handler("fetch algo config")
 def _get_algo_config(cur: cursor) -> Any:
     """Return all algo configuration rows with defaults and categorization for TIER 3 visibility."""

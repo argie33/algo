@@ -897,6 +897,83 @@ def handle_db_error(
     return status_code, error_type, message
 
 
+def validate_api_response(endpoint_name: str) -> Callable[[Callable[..., dict[str, Any]]], Callable[..., dict[str, Any]]]:
+    """Decorator: Validate API response matches contract schema before returning.
+
+    Ensures all responses conform to the published dashboard API contract.
+    If response doesn't match schema, returns explicit error instead of silent mismatch.
+
+    Args:
+        endpoint_name: Name of endpoint (e.g., 'cfg', 'run', 'port') from DASHBOARD_ENDPOINTS
+
+    Example:
+        @validate_api_response('cfg')
+        def _get_algo_config(cur): ...
+
+    CRITICAL: This decorator:
+    - Validates successful responses against contract
+    - Skips validation for error responses (they have their own format)
+    - Raises explicit error if format mismatches (doesn't silently pass)
+    - Logs the contract violation for debugging
+    """
+
+    def decorator(func: Callable[..., dict[str, Any]]) -> Callable[..., dict[str, Any]]:
+        @wraps(func)
+        def wrapper(*args: Any, **kwargs: Any) -> dict[str, Any]:
+            response = func(*args, **kwargs)
+
+            # Skip validation for error responses (400, 401, 403, 404, 500, 503)
+            # Error responses have their own format and don't need contract validation
+            if isinstance(response, dict) and response.get("statusCode") in (
+                400,
+                401,
+                403,
+                404,
+                500,
+                503,
+            ):
+                return response
+
+            # Validate successful responses
+            try:
+                from shared_contracts.response_validator import ResponseValidator
+
+                # Extract data to validate (could be in response["data"] or direct dict)
+                data_to_validate = response.get("data", response) if isinstance(response, dict) else response
+
+                is_valid, error_msg = ResponseValidator.validate_endpoint_response(endpoint_name, data_to_validate)
+
+                if not is_valid:
+                    logger.error(
+                        f"[VALIDATION] Response format mismatch for {endpoint_name}: {error_msg}. "
+                        f"API response doesn't match contract. Check that handler returns {endpoint_name} schema."
+                    )
+                    logger.debug(f"[VALIDATION] Response data: {data_to_validate}")
+
+                    # Return explicit error (don't silently pass)
+                    return error_response(
+                        500,
+                        "response_validation_error",
+                        f"API contract violation for {endpoint_name}: {error_msg}. "
+                        "Check API logs for contract details.",
+                    )
+
+                return response
+
+            except ImportError as e:
+                # ResponseValidator not available (should not happen in Lambda)
+                logger.warning(f"[VALIDATION] ResponseValidator not available: {e} - skipping validation")
+                return response
+            except Exception as e:
+                # Validation itself failed (shouldn't happen, but don't break the API)
+                logger.error(f"[VALIDATION] Validation check crashed for {endpoint_name}: {e}")
+                return response
+
+        return wrapper
+
+    return decorator
+
+
 def db_route_handler(
     operation_name: str, default_error_response: Any = None
 ) -> Callable[[Callable[..., dict[str, Any]]], Callable[..., dict[str, Any]]]:
