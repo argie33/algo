@@ -1262,8 +1262,10 @@ class Orchestrator:
 
         # Concurrency lock — prevent two orchestrators running at once
         # which would risk duplicate trades or double-counting circuit breakers
-        # Skip lock check in dry-run mode (no actual trades)
-        if not self.dry_run:
+        # Skip lock check in dry-run mode (no actual trades) or paper trading mode (dev/test)
+        skip_lock_check = self.dry_run or os.getenv("SKIP_ORCHESTRATOR_LOCK", "").lower() in ("true", "1", "yes")
+
+        if not skip_lock_check:
             lock_acquired = self._acquire_run_lock()
             if not lock_acquired:
                 if self.lock_manager.is_available:
@@ -1281,7 +1283,8 @@ class Orchestrator:
                         "error": "Distributed lock system unavailable. Cannot proceed with trading.",
                     }
         else:
-            logger.info("[DRY-RUN] Skipping distributed lock check (dry-run mode)")
+            reason = "dry-run mode" if self.dry_run else "SKIP_ORCHESTRATOR_LOCK environment variable"
+            logger.info(f"[LOCK-SKIP] Skipping distributed lock check ({reason})")
 
         try:
             logger.info(f"\n{'=' * 70}")
