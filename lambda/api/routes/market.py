@@ -422,9 +422,9 @@ def _handle_distribution_days(cur: cursor) -> Any:
 def _handle_seasonality(cur: cursor) -> Any:
     """Handle /api/market/seasonality endpoint."""
     # Seasonality tables are market-wide aggregates (SPY-based)
-    monthly_data = []
-    best_month = None
-    worst_month = None
+    monthly_data: list[dict[str, Any]] = []
+    best_month: dict[str, Any] | None = None
+    worst_month: dict[str, Any] | None = None
     cur.execute("SET LOCAL statement_timeout = '2000ms'")
     try:
         cur.execute("""
@@ -452,9 +452,9 @@ def _handle_seasonality(cur: cursor) -> Any:
         logger.error(f"[SEASONALITY] Monthly query error: {type(e).__name__}")
         raise_db_error(e, "seasonality monthly query")
 
-    dow_data = []
-    best_dow = None
-    worst_dow = None
+    dow_data: list[dict[str, Any]] = []
+    best_dow: dict[str, Any] | None = None
+    worst_dow: dict[str, Any] | None = None
     try:
         cur.execute("""
             SELECT day, day_num, avg_return, win_rate, days_counted

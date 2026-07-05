@@ -23,7 +23,7 @@ if _repo_root not in sys.path:
 import argparse
 import threading
 import time
-from typing import Any, cast
+from typing import Any
 from urllib.parse import urlparse
 
 try:

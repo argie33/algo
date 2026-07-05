@@ -557,7 +557,7 @@ def _get_yield_curve_full(cur: cursor) -> Any:  # noqa: C901
             "VIXCLS": vixcls,
         }
         # Extract latest values: fail if history exists but lacks "value" key (data structure error)
-        credit_latest = {}
+        credit_latest: dict[str, Any] = {}
         for k, v in credit_history.items():
             if v is None:
                 credit_latest[k] = None
@@ -577,7 +577,7 @@ def _get_yield_curve_full(cur: cursor) -> Any:  # noqa: C901
             "T5YIE": history.get("T5YIE"),
             "T10YIE": history.get("T10YIE"),
         }
-        breakevens_latest = {}
+        breakevens_latest: dict[str, Any] = {}
         for k, v in breakevens_history.items():
             if v is None:
                 breakevens_latest[k] = None

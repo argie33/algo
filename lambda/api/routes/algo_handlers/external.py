@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 
 @db_route_handler("get economic calendar")
-@validate_api_response("econ_cal")
+@validate_api_response("econ_cal")# type: ignore[untyped-decorator]
 def _get_economic_calendar(cur: cursor) -> Any:
     """Get economic calendar data with freshness validation.
 
@@ -66,7 +66,7 @@ def _get_economic_calendar(cur: cursor) -> Any:
 
 
 @db_route_handler("get sentiment")
-@validate_api_response("sentiment")
+@validate_api_response("sentiment")# type: ignore[untyped-decorator]
 def _get_sentiment(cur: cursor) -> Any:
     """Get market sentiment data.
 

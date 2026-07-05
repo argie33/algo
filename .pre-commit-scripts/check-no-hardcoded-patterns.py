@@ -19,7 +19,7 @@ def check_file(filepath: str) -> list[str]:
     violations = []
 
     try:
-        with open(filepath, "r") as f:
+        with open(filepath) as f:
             content = f.read()
             lines = content.split("\n")
     except Exception as e:

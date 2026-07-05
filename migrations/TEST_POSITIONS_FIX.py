@@ -178,7 +178,7 @@ def test_memory_system():
             print(f"✗ FAIL: MEMORY.md not found at {memory_file}")
             return False
 
-        with open(memory_file, 'r') as f:
+        with open(memory_file) as f:
             content = f.read()
 
         checks = {

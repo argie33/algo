@@ -279,7 +279,7 @@ class DatabaseResultValidator:
             return default
 
     @staticmethod
-    def safe_get_int(row: dict[str, Any] | None, key: str, default: int = 0, strict: bool = False) -> int:
+    def safe_get_int(row: dict[str, Any] | None, key: str, default: int | None = 0, strict: bool = False) -> int | None:
         """Safely extract and convert int from database row.
 
         Note: Uses default value when missing/invalid. Log when fallback is used.
