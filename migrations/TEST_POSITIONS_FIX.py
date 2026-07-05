@@ -15,10 +15,13 @@ Usage:
   python TEST_POSITIONS_FIX.py
 """
 
+import logging
 import os
 import sys
 
 sys.path.insert(0, os.getcwd())
+
+logger = logging.getLogger(__name__)
 
 def test_database_view():
     """Test 1: Database materialized view exists and has data"""
@@ -75,8 +78,8 @@ def test_positions_api():
         try:
             from dashboard import api_data_layer
             api_data_layer._response_cache.clear()
-        except:
-            pass
+        except Exception as e:
+            logger.warning(f"[MIGRATION] Could not clear API data layer cache: {e}")
 
         from dashboard.api_data_layer import api_call
 

@@ -366,11 +366,9 @@ class BuySignalGenerator:
                 return "Stage 4"
             elif close < sma_200 and close > sma_50:
                 return "Stage 3"
-            logger.debug(
-                f"[SIGNAL_METRICS] Market stage cannot be determined from SMA relationship "
-                f"(close={close}, sma_50={sma_50}, sma_200={sma_200})"
-            )
-            return None
+            reason = f"ambiguous_sma_relationship (close={close}, sma_50={sma_50}, sma_200={sma_200})"
+            logger.debug(f"[SIGNAL_METRICS] Market stage cannot be determined from SMA relationship - {reason}")
+            return {"data_unavailable": True, "reason": reason}
         else:
             missing = []
             if not close:
