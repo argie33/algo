@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from contextlib import contextmanager
 from typing import Any
 
@@ -67,3 +68,31 @@ def log_sanitizer(prefix: str):  # type: ignore[no-untyped-def]
             logger.warning(msg)
 
     yield SanitizedLogger(prefix)
+
+
+def sanitize_error_message(message: str) -> str:
+    """Sanitize error messages to remove sensitive information (PII, SQL, etc).
+
+    Args:
+        message: Error message to sanitize
+
+    Returns:
+        Sanitized error message safe for API response
+    """
+    if not isinstance(message, str):
+        return str(message)
+
+    # Remove SQL query details (anything between common SQL keywords)
+    sanitized = re.sub(r'(SELECT|INSERT|UPDATE|DELETE|FROM|WHERE|JOIN|ON).*?(;|$)', '[SQL]', message, flags=re.IGNORECASE)
+
+    # Remove file paths and credentials
+    sanitized = re.sub(r'(/[a-zA-Z0-9/_.-]*)', '[path]', sanitized)
+    sanitized = re.sub(r'(password|token|secret|key)[\s=:]*[^,\s]+', r'\1=[redacted]', sanitized, flags=re.IGNORECASE)
+
+    # Remove email addresses
+    sanitized = re.sub(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', '[email]', sanitized)
+
+    # Remove IP addresses
+    sanitized = re.sub(r'\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b', '[ip]', sanitized)
+
+    return sanitized

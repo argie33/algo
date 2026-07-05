@@ -1,7 +1,8 @@
-"""Validation utilities for database results."""
+"""Validation utilities for database results and API responses."""
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 
@@ -93,3 +94,39 @@ class DatabaseResultValidator:
         if isinstance(value, str):
             return value.lower() in ("true", "1", "yes")
         return bool(value)
+
+
+class APIResponseValidator:
+    """Validates and sanitizes API response data."""
+
+    @staticmethod
+    def sanitize_response(data: Any) -> Any:
+        """Sanitize response data to ensure it's JSON-serializable.
+
+        Args:
+            data: Response data to sanitize
+
+        Returns:
+            Sanitized data that can be JSON-serialized
+        """
+        if data is None:
+            return None
+
+        if isinstance(data, (str, int, float, bool)):
+            return data
+
+        if isinstance(data, dict):
+            # Sanitize dict values
+            return {k: APIResponseValidator.sanitize_response(v) for k, v in data.items()}
+
+        if isinstance(data, (list, tuple)):
+            # Sanitize list items
+            return [APIResponseValidator.sanitize_response(item) for item in data]
+
+        # Try to JSON-serialize to check if it's serializable
+        try:
+            json.dumps(data)
+            return data
+        except (TypeError, ValueError):
+            # If not serializable, convert to string
+            return str(data)
