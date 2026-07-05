@@ -210,6 +210,11 @@ class GrowthMetricsLoader(SecFinancialsLoader):
                 metrics[f"eps_growth_{lookback}y"] = None
                 metrics[f"eps_growth_{lookback}y_unavailable_reason"] = f"insufficient_history_{lookback}y"
 
+        # Compute quarterly_growth_momentum from YoY growth as proxy
+        # TODO: Enhance with actual quarterly financials when available from SEC XBRL quarterly filings
+        rev_1y = metrics.get("revenue_growth_1y")
+        metrics["quarterly_growth_momentum"] = float(rev_1y / 4) if rev_1y is not None and rev_1y > 0 else None
+
         # Check if we actually have any real data (not all NULL)
         # Explicitly check that computed growth metrics exist and are not None
         has_revenue_growth = any(metrics.get(f"revenue_growth_{y}y") is not None for y in [1, 3, 5])

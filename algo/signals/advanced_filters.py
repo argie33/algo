@@ -663,11 +663,10 @@ class AdvancedFilters:
     def _growth_score(self, symbol: str, cur: Any) -> tuple[float, dict[str, Any]]:
         cur.execute(
             """
-            SELECT revenue_growth_3y_cagr, eps_growth_3y_cagr,
+            SELECT revenue_growth_3y, eps_growth_3y,
                    quarterly_growth_momentum, revenue_growth_yoy
             FROM growth_metrics
             WHERE symbol = %s
-            ORDER BY date DESC LIMIT 1
             """,
             (symbol,),
         )
@@ -687,14 +686,19 @@ class AdvancedFilters:
             raise ValueError(
                 f"EPS 3-year CAGR missing for {symbol}. Cannot evaluate growth metrics without complete growth data."
             )
-        if row[2] is None:
-            raise ValueError(
-                f"Momentum data missing for {symbol}. Cannot evaluate growth catalyst without recent momentum metrics."
-            )
+        # Quarterly momentum is optional; use YoY as fallback if missing
         rev_3y = float(row[0])
         eps_3y = float(row[1])
-        mom = float(row[2])
+        mom = float(row[2]) if row[2] is not None else None
         rev_yoy = float(row[3]) if row[3] is not None else None
+
+        # If quarterly momentum missing, use YoY growth as momentum proxy (conservative)
+        if mom is None:
+            if rev_yoy is not None and rev_yoy > 0:
+                mom = rev_yoy * 0.5  # Half weight on YoY momentum as fallback
+            else:
+                mom = 0.0
+
         # Allocate catalyst_growth weight across 3 metrics (EPS, revenue, momentum)
         catalyst_growth_weight = FilterRegistry.get_weight("catalyst_growth")
         pts_per_metric = catalyst_growth_weight / 3.0
