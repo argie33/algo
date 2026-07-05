@@ -69,6 +69,11 @@ class QualityMetricsLoader(SecFinancialsLoader):
     Migration 0044 was incomplete, leaving 11 required columns missing in AWS RDS.
     This loader now creates missing columns automatically, preventing silent data loss.
 
+    CRITICAL FIX 2026-07-05: Handles rate limiting and transient failures gracefully.
+    When yfinance/SEC APIs hit rate limits (429) or timeouts, marks data unavailable
+    rather than crashing, allowing partial loads to complete and stock_scores to compute
+    from available metrics instead of failing entirely.
+
     Inherits from SecFinancialsLoader to eliminate 200+ lines of duplication with
     growth_metrics.py (shared NaN handling, balance sheet/income statement fetching,
     schema healing, and data_unavailable patterns).
@@ -77,6 +82,7 @@ class QualityMetricsLoader(SecFinancialsLoader):
     table_name = "quality_metrics"
     primary_key = ("symbol",)
     watermark_field = "updated_at"
+    max_fail_rate = 50.0  # Allow 50% failure rate when hitting rate limits; still load partial data
 
     # Required columns with data types (auto-created if missing)
     REQUIRED_COLUMNS = {
