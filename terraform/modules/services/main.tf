@@ -31,12 +31,18 @@ data "aws_lambda_layer_version" "api_deps" {
 # Shared dependencies Lambda layer (numpy, pandas, scipy for Phase 7 optimization + IC computation)
 # ZIP lives at terraform/lambda/shared-deps-layer.zip (committed to repo, built by build-lambda-layer.yml).
 # path.root = terraform/ (root module dir), so the zip is at path.root/lambda/shared-deps-layer.zip.
+
+locals {
+  shared_deps_layer_path = "${path.root}/lambda/shared-deps-layer.zip"
+  shared_deps_layer_exists = fileexists(local.shared_deps_layer_path)
+}
+
 resource "aws_lambda_layer_version" "shared_deps" {
-  count                    = fileexists("${path.root}/lambda/shared-deps-layer.zip") ? 1 : 0
-  filename                 = "${path.root}/lambda/shared-deps-layer.zip"
+  count                    = local.shared_deps_layer_exists ? 1 : 0
+  filename                 = local.shared_deps_layer_path
   layer_name               = "${var.project_name}-shared-deps-${var.environment}"
   compatible_runtimes      = ["python3.12"]
-  source_code_hash         = fileexists("${path.root}/lambda/shared-deps-layer.zip") ? filebase64sha256("${path.root}/lambda/shared-deps-layer.zip") : null
+  source_code_hash         = local.shared_deps_layer_exists ? filebase64sha256(local.shared_deps_layer_path) : null
   compatible_architectures = ["x86_64"]
 }
 
@@ -157,8 +163,8 @@ resource "aws_lambda_function" "api" {
 
   lifecycle {
     precondition {
-      condition     = local.api_lambda_use_s3 || fileexists("${path.root}/${var.api_lambda_code_file}")
-      error_message = "Lambda code must be available either via S3 (api_lambda_s3_bucket configured) or as local file (${path.root}/${var.api_lambda_code_file})"
+      condition     = local.api_lambda_use_s3 || (var.api_lambda_code_file == "" || fileexists("${path.root}/${var.api_lambda_code_file}"))
+      error_message = "Lambda code must be available either via S3 (api_lambda_s3_bucket configured) or as local file (${path.root}/${var.api_lambda_code_file}). If file is empty string, S3 must be configured."
     }
     ignore_changes = [filename, source_code_hash]
   }

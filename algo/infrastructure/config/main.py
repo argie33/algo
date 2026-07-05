@@ -39,7 +39,56 @@ def validate_environment() -> None:
 
 
 class AlgoConfig:
-    """Configuration manager with hot-reload from database."""
+    """Configuration manager with hot-reload from database.
+
+    CONFIGURATION SOURCE PRECEDENCE (Priority Order - Highest to Lowest)
+    ====================================================================
+
+    All configuration values are resolved in this exact order:
+
+    TIER 1 (Highest Priority): DATABASE
+    ├─ Source: algo_config table (PostgreSQL)
+    ├─ Hotreloadable: YES - changes apply immediately without Lambda redeploy
+    ├─ Method: get_field(key) queries latest value from algo_config
+    ├─ Example: UPDATE algo_config SET value='60' WHERE key='min_signal_quality_score'
+    ├─ Tracking: _sources[key] = "database"
+    └─ Use Case: Production hotfix (e.g., raise risk gate without deploying Lambda)
+
+    TIER 2 (Medium Priority): OVERRIDE
+    ├─ Source: Programmatic overrides (testing, manual intervention)
+    ├─ Hotreloadable: YES (in-memory, clears on Lambda cold start)
+    ├─ Method: set_override(key, value) or direct dict manipulation
+    ├─ Example: AlgoConfig().set_override("algo_enabled", False)
+    ├─ Tracking: _sources[key] = "override"
+    └─ Use Case: Temporary disable during incident response
+
+    TIER 3 (Lowest Priority): DEFAULTS
+    ├─ Source: AlgoConfig.DEFAULTS dict (defined in this file)
+    ├─ Hotreloadable: NO - requires code push + Lambda redeploy
+    ├─ Method: Direct access to DEFAULTS dict
+    ├─ Example: AlgoConfig.DEFAULTS["max_positions"][0]
+    ├─ Tracking: _sources[key] = "default_fallback"
+    └─ Use Case: Initialization when database value not yet set
+
+    CRITICAL CONSTRAINT:
+    ====================
+    Environment variables are NOT used for dynamic configuration.
+    All configuration that needs to be hotreloadable must go in the algo_config table.
+    Environment variables are reserved for deployment settings (ORCHESTRATOR_EXECUTION_MODE, etc.)
+
+    Examples of what goes WHERE:
+    ├─ Database: min_signal_quality_score, max_positions, base_risk_pct (frequently tuned)
+    ├─ Override: algo_enabled flag during incident response
+    ├─ Defaults: All filter thresholds, risk parameters (baseline)
+    └─ Environment: ORCHESTRATOR_EXECUTION_MODE, ORCHESTRATOR_DRY_RUN, AWS_REGION
+
+    Implementation Note:
+    ====================
+    The _sources dict tracks which tier each value came from. This enables:
+    1. Debugging: "Is this value from database or default?"
+    2. Monitoring: "Which configs are overridden?"
+    3. Auditing: "What was the effective config at time T?"
+    """
 
     # Import validation schema from separate module (extracted for maintainability)
     from ..config_schema import VALIDATION_SCHEMA
@@ -994,6 +1043,7 @@ class AlgoConfig:
         return "Other"
 
     def __init__(self) -> None:
+        import os
         import time
 
         t0 = time.time()
@@ -1004,12 +1054,33 @@ class AlgoConfig:
         self._load_defaults()
         t1 = time.time()
         logger.info(f"[AlgoConfig] defaults loaded in {t1 - t0:.2f}s")
-        self._load_from_database()
-        t2 = time.time()
-        logger.info(f"[AlgoConfig] database loaded in {t2 - t1:.2f}s, total {t2 - t0:.2f}s")
 
-        # CRITICAL: Detect if config database load failed (all values still at defaults)
-        self._detect_config_db_failure()
+        # Load from database, but make it optional for paper trading mode
+        is_paper_trading = os.getenv("ALPACA_PAPER_TRADING", "true").strip().lower() != "false"
+        try:
+            self._load_from_database()
+            t2 = time.time()
+            logger.info(f"[AlgoConfig] database loaded in {t2 - t1:.2f}s, total {t2 - t0:.2f}s")
+            # CRITICAL: Detect if config database load failed (all values still at defaults)
+            self._detect_config_db_failure()
+        except Exception as e:
+            if is_paper_trading:
+                # Paper trading: database failure is not blocking, use defaults
+                logger.warning(
+                    f"[AlgoConfig] Database loading failed in paper mode (non-blocking): {e}. "
+                    f"Using default configuration values."
+                )
+                t2 = time.time()
+                logger.info(f"[AlgoConfig] Using defaults due to DB unavailability, total {t2 - t0:.2f}s")
+            else:
+                # Live trading: database failure is blocking (fail-fast)
+                logger.critical(f"[AlgoConfig] Database loading FAILED in live mode (blocking): {e}")
+                raise RuntimeError(
+                    f"[CRITICAL] Configuration database unavailable in LIVE TRADING MODE. "
+                    f"Cannot proceed without valid configuration. "
+                    f"Ensure database is accessible and algo_config table is populated. "
+                    f"Root cause: {e}"
+                ) from e
 
         self._validate_critical_thresholds()
         t_crit = time.time()

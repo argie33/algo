@@ -107,19 +107,11 @@ class Orchestrator:
         self.db_monitor = DatabaseHealthMonitor(self.alerts)
         self.halt_manager = HaltFlagManager(self.alerts, self.log_phase_result)
 
-        # CRITICAL: Validate Alpaca credentials EARLY (before any phases run)
-        # Fail-fast if credentials missing instead of discovering at Phase 6
-        try:
-            from algo.infrastructure.alpaca_sync_manager import AlpacaSyncManager
-
-            AlpacaSyncManager(config)  # Raises ValueError if API key/secret missing
-            logger.info("[STARTUP] Alpaca credentials validated successfully")
-        except ValueError as e:
-            raise RuntimeError(
-                f"[CRITICAL] Alpaca credentials invalid at startup: {e} "
-                f"Orchestrator cannot proceed without valid Alpaca authentication. "
-                f"Verify ALPACA_API_KEY and ALPACA_SECRET_KEY in Secrets Manager."
-            ) from e
+        # NOTE: Alpaca credential validation deferred to Phase 4 (DailyReconciliation)
+        # This allows Phases 1-3 (data refresh) to run even if Alpaca credentials are temporarily
+        # unavailable. Credential validation happens when AlpacaSyncManager is instantiated in
+        # Phase 4, failing the reconciliation phase but not blocking data pipelines.
+        logger.info("[STARTUP] Orchestrator ready. Alpaca credentials will be validated in Phase 4.")
 
     def cleanup(self) -> None:
         """No-op: RDS Proxy handles connection cleanup."""
