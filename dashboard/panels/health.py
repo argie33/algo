@@ -1759,7 +1759,7 @@ def panel_status(  # noqa: C901
         summary = run.get("summary")
         if summary is None:
             summary = ""
-        if run.get("halted") or halt_r:
+        if run.get("halted") is True or halt_r:
             pr_val = run.get("phase_results") if isinstance(run, dict) else None
             if pr_val is None:
                 pr_val = []
@@ -2451,7 +2451,7 @@ def _build_results_panel(  # noqa: C901
         summary = run.get("summary")
         if summary is None:
             summary = ""
-        if run.get("halted") or halt_r:
+        if run.get("halted") is True or halt_r:
             phase_results_val = run.get("phase_results")
             phase_results_list = phase_results_val if phase_results_val is not None else []
             for label, detail in _best_halt_reason(halt_r, phase_results_list):

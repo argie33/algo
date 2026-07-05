@@ -522,9 +522,11 @@ def _get_rejection_funnel(cur: cursor) -> Any:  # noqa: C901
             )
 
             for row in cur.fetchall():
-                reason_text = str(row["rejection_reason"] or "")
+                # MEDIUM-FIX: Explicit None handling instead of OR fallback
+                rejection_reason = row["rejection_reason"]
+                reason_text = str(rejection_reason) if rejection_reason is not None else None
                 count = row["count"]
-                if not reason_text or count is None:
+                if reason_text is None or count is None:
                     continue
                 rejected_list.append(
                     {
@@ -633,7 +635,8 @@ _TIER_CONFIG = {
 
 def _get_rejection_reason_description(reason: str) -> str:
     """Generate human-readable description for rejection reason."""
-    reason_lower = (reason or "").lower()
+    # MEDIUM-FIX: Explicit None handling instead of OR fallback
+    reason_lower = reason.lower() if reason is not None else ""
     descriptions = {
         "52w low": "Price within 5% of 52-week low (weak signal near lows)",
         "52-week low proximity": "Price within 5% of 52-week low (weak signal near lows)",
