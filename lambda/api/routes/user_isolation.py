@@ -45,7 +45,7 @@ def get_user_id(jwt_claims: dict[str, Any] | None) -> str:
         raise ValueError("[AUTH] Cognito sub (user ID) missing from JWT claims")
 
     logger.debug(f"[USER] Authenticated as {user_id}")
-    return user_id
+    return cast(str, user_id)
 
 
 def require_user(jwt_claims: dict[str, Any] | None) -> str:
@@ -64,7 +64,7 @@ def require_user(jwt_claims: dict[str, Any] | None) -> str:
     return get_user_id(jwt_claims)
 
 
-def scope_query(sql: str, user_id: str, table_alias: str | None = None) -> tuple[str, dict]:
+def scope_query(sql: str, user_id: str, table_alias: str | None = None) -> tuple[str, dict[str, Any]]:
     """Add user scoping WHERE clause to SQL query.
 
     For queries that select from tables with cognito_sub column, automatically
@@ -145,7 +145,7 @@ def get_user_alpaca_credentials(cur: cursor, user_id: str, default_to_shared: bo
         from config.credential_manager import get_alpaca_credentials
 
         logger.debug(f"[ALPACA] Attempting to load user-scoped credentials for {user_id}")
-        creds = get_alpaca_credentials(user_id=user_id)
+        creds: dict[str, str] | None = get_alpaca_credentials(user_id=user_id)
 
         # Validate credentials structure
         if creds and not _validate_credentials_structure(creds):

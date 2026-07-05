@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, cast
 
 import psycopg2
 import psycopg2.errors
@@ -306,6 +306,8 @@ def _get_leading_indicators(cur: cursor) -> Any:  # noqa: C901
         for row in all_history:
             # FAIL-FAST: Extract series_id with safe validation
             sid = DatabaseResultValidator.safe_get_str(row, "series_id", strict=True)
+            if sid is None:
+                raise RuntimeError("BUG: series_id extraction failed with strict=True")
             if sid not in history_by_series:
                 history_by_series[sid] = []
             # FAIL-FAST: Extract date and value with validation
@@ -410,9 +412,8 @@ def _get_leading_indicators(cur: cursor) -> Any:  # noqa: C901
                 }
             )
 
-        result = {"indicators": indicators}
-
-        # Flag if any indicators were skipped due to missing data
+        # Build result dict with proper typing for all potential keys
+        result: dict[str, Any] = {"indicators": indicators}
         if skipped_indicators:
             result["indicators_incomplete"] = True
             result["skipped_indicators_count"] = len(skipped_indicators)
@@ -422,11 +423,12 @@ def _get_leading_indicators(cur: cursor) -> Any:  # noqa: C901
                 len(skipped_indicators),
             )
 
-        is_valid, error_msg = ResponseValidator.validate_endpoint_response("economic/indicators", result)
+        is_valid, error_msg_raw = ResponseValidator.validate_endpoint_response("economic/indicators", result)
         if not is_valid:
-            logger.error(f"Economic indicators response validation failed: {error_msg}")
+            error_msg_str = error_msg_raw or "Economic indicators validation failed"
+            logger.error(f"Economic indicators response validation failed: {error_msg_str}")
             return error_response(
-                500, "response_validation_error", error_msg or "Economic indicators validation failed"
+                500, "response_validation_error", error_msg_str
             )
 
         return json_response(200, result)
@@ -523,6 +525,8 @@ def _get_yield_curve_full(cur: cursor) -> Any:  # noqa: C901
         for row in history_rows:
             # FAIL-FAST: Extract series_id, date, value with safe validation
             sid = DatabaseResultValidator.safe_get_str(row, "series_id", strict=True)
+            if sid is None:
+                raise RuntimeError("BUG: series_id extraction failed with strict=True")
             date_val = DatabaseResultValidator.safe_get_str(row, "date", strict=True)
             value_val = DatabaseResultValidator.safe_get_float(row, "value", default=None)
             if sid not in history_by_series:
@@ -580,7 +584,7 @@ def _get_yield_curve_full(cur: cursor) -> Any:  # noqa: C901
             "T10YIE": history.get("T10YIE"),
         }
         breakevens_latest: dict[str, Any] = {}
-        for k, v in breakevens_history.items():
+        for k, v in breakevens_history.items():  # type: ignore[assignment]
             if v is None:
                 breakevens_latest[k] = None
             elif not isinstance(v, list) or len(v) == 0:
@@ -600,7 +604,7 @@ def _get_yield_curve_full(cur: cursor) -> Any:  # noqa: C901
             "ANFCI": history.get("ANFCI"),
         }
         stress_latest: dict[str, Any] = {}
-        for k, v in stress_history.items():
+        for k, v in stress_history.items():  # type: ignore[assignment]
             if v is None:
                 stress_latest[k] = None
             elif not isinstance(v, list) or len(v) == 0:

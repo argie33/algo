@@ -424,7 +424,7 @@ def extract_param(
             raise_api_error(400, "BadRequest", f"Required parameter is empty: {key}")
         return default
 
-    return value
+    return cast(str | None, value)
 
 
 def raise_api_error(status_code: int, error_type: str, message: str | None) -> NoReturn:
@@ -930,7 +930,7 @@ def validate_api_response(endpoint_name: str) -> Callable[[Callable[P, dict[str,
         endpoint_name: Name of endpoint (e.g., 'cfg', 'run', 'port') from DASHBOARD_ENDPOINTS
 
     Example:
-        @validate_api_response('cfg')
+        @validate_api_response('cfg')  # type: ignore[untyped-decorator]
         def _get_algo_config(cur): ...
 
     CRITICAL: This decorator:
@@ -974,12 +974,12 @@ def validate_api_response(endpoint_name: str) -> Callable[[Callable[P, dict[str,
                     logger.debug(f"[VALIDATION] Response data: {data_to_validate}")
 
                     # Return explicit error (don't silently pass)
-                    return error_response(
+                    return cast(dict[str, Any], error_response(
                         500,
                         "response_validation_error",
                         f"API contract violation for {endpoint_name}: {error_msg}. "
                         "Check API logs for contract details.",
-                    )
+                    ))
 
                 return response
 
@@ -1017,7 +1017,7 @@ def db_route_handler(
                               This parameter is kept for backward compatibility.
 
     Example:
-        @db_route_handler('fetch user data')
+        @db_route_handler('fetch user data')  # type: ignore[untyped-decorator]
         def _get_users(cur): ...
     """
 
@@ -1036,7 +1036,7 @@ def db_route_handler(
                 code, error_type, message = handle_db_error(e, operation_name)
                 # Always return proper error response with correct HTTP status code
                 # Never return 200 OK with empty data - use proper 503/504/500 instead
-                return error_response(code, error_type, message)
+                return cast(dict[str, Any], error_response(code, error_type, message))
 
         return wrapper
 

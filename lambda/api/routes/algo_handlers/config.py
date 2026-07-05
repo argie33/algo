@@ -23,7 +23,7 @@ from algo.infrastructure import AlgoConfig
 logger = logging.getLogger(__name__)
 
 
-@validate_api_response("cfg")
+@validate_api_response("cfg")  # type: ignore[untyped-decorator]
 @db_route_handler("fetch algo config")# type: ignore[untyped-decorator]
 def _get_algo_config(cur: cursor) -> Any:
     """Return all algo configuration rows with defaults and categorization for TIER 3 visibility."""
@@ -32,7 +32,7 @@ def _get_algo_config(cur: cursor) -> Any:
         rows = cur.fetchall()
 
         # Build config dict keyed by config key (matches dashboard contract schema)
-        config_dict = {}
+        config_dict: dict[str, Any] = {}
         if rows:
             for row in rows:
                 try:
@@ -76,8 +76,8 @@ def _get_algo_config(cur: cursor) -> Any:
         return error_response(500, "internal_error", f"Config handler error: {str(e)[:100]}")
 
 
-@db_route_handler("fetch algo config key")
-@validate_api_response("cfg")# type: ignore[untyped-decorator]
+@db_route_handler("fetch algo config key")  # type: ignore[untyped-decorator]
+@validate_api_response("cfg")  # type: ignore[untyped-decorator]
 def _get_algo_config_key(cur: cursor, key: str) -> Any:
     """Return a single algo config key."""
     cur.execute(

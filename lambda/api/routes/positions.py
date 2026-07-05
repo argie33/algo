@@ -24,7 +24,7 @@ from utils.validation import CognitoValidator
 logger = logging.getLogger(__name__)
 
 
-def _check_admin_access(jwt_claims: dict | None) -> bool:
+def _check_admin_access(jwt_claims: dict[str, Any] | None) -> bool:
     """Check if user has admin access from verified JWT claims only."""
     result = CognitoValidator.validate_admin_access(jwt_claims)
     return bool(result)
@@ -54,7 +54,7 @@ def handle(
         raise_db_error(e, "handle positions")
 
 
-def _update_position(cur, body: dict[str, Any]) -> Any:
+def _update_position(cur: cursor, body: dict[str, Any]) -> Any:
     """POST/PUT /api/position/update - Update position parameters with validation.
 
     Validates:

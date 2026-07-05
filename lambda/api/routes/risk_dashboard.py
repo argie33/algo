@@ -32,7 +32,7 @@ from utils.validation import CognitoValidator
 logger = logging.getLogger(__name__)
 
 
-def _check_admin_access(jwt_claims: dict | None) -> bool:
+def _check_admin_access(jwt_claims: dict[str, Any] | None) -> bool:
     """Check if user has admin access from verified JWT claims only."""
     return bool(CognitoValidator.validate_admin_access(jwt_claims))
 

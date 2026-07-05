@@ -75,7 +75,7 @@ def validate_dashboard_data(
     return True, None
 
 
-def ensure_critical_data(response: dict[str, Any], field: str) -> dict[str, Any]:
+def ensure_critical_data(response: dict[str, Any], field: str) -> Any:
     """Ensure critical field is present and not marked unavailable.
 
     Args:
@@ -122,7 +122,7 @@ def check_data_error(data: Any, context: str = "") -> str | None:
 
     # Check for error marker
     if "_error" in data:
-        error_msg = data.get("_error", "Unknown error")
+        error_msg = str(data.get("_error", "Unknown error"))
         logger.warning(f"[HARDENING] {context} error: {error_msg}")
         return error_msg
 

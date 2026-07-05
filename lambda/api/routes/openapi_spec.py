@@ -12,12 +12,12 @@ logger = logging.getLogger(__name__)
 
 
 def handle(
-    cur,
+    cur: Any,
     path: str,
-    method,
-    params,
-    body: dict | None = None,
-    jwt_claims: dict | None = None,
+    method: str,
+    params: dict[str, Any],
+    body: dict[str, Any] | None = None,
+    jwt_claims: dict[str, Any] | None = None,
 ) -> Any:
     """Handle OpenAPI spec endpoints.
 

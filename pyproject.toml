@@ -61,7 +61,6 @@ disallow_untyped_decorators = true
 exclude = [
     "^migrations/",
     "^tests/",
-    "^lambda/",
 ]
 
 [[tool.mypy.overrides]]

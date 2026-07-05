@@ -163,34 +163,16 @@ def fetch_algo_config(c: None) -> dict[str, Any]:
             record_data_quality_issue("cfg", "type", "not_dict", type(raw).__name__)
             return FetcherValidator.build_error_response(error_msg)
 
-        # API returns {items: [{key, value, value_type, ...}], total: N}
-        if "items" not in raw:
-            error_msg = "Config API response missing 'items' key (API contract violation)"
+        # API returns flat dict: {key: value, key: value, ...}
+        # (Previously returned {items: [{key, value, value_type, ...}]})
+        if not raw:
+            error_msg = "Config API response is empty"
             logger.error(error_msg)
-            record_data_quality_issue("cfg", "validation", "missing_items_key")
+            record_data_quality_issue("cfg", "validation", "empty_config")
             return FetcherValidator.build_error_response(error_msg)
 
-        items = raw["items"]
-        if not isinstance(items, list):
-            error_msg = f"Config 'items' is not a list: {type(items).__name__}"
-            logger.error(error_msg)
-            record_data_quality_issue("cfg", "validation", "items_not_list")
-            return FetcherValidator.build_error_response(error_msg)
-
-        if not items:
-            error_msg = "Config API response has no items (empty config)"
-            logger.error(error_msg)
-            record_data_quality_issue("cfg", "validation", "empty_items")
-            return FetcherValidator.build_error_response(error_msg)
-
-        # STRICT: Build config dict allowing None values (will be validated below)
-        # Explicit: only include items that have a 'key' field
-        cfg = {}
-        for i in items:
-            if "key" in i:
-                key = i["key"]
-                # Value can be None (will be caught by required_config validation below)
-                cfg[key] = i.get("value")
+        # Use the raw data as config (already a flat dict)
+        cfg = raw
 
         # Issue #8: enable_algo is REQUIRED - no default to True (fail-closed)
         required_config = [

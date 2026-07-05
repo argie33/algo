@@ -355,6 +355,11 @@ def handle(  # noqa: C901
             found_symbols = set()
             for row in rows:
                 sym = DatabaseResultValidator.safe_get_str(row, "symbol", strict=True)
+                if sym is None:
+                    raise RuntimeError(
+                        "BUG: safe_get_str with strict=True returned None. "
+                        "This indicates data corruption or validation bypass."
+                    )
                 result3[sym].append(safe_json_serialize(dict(row)))
                 found_symbols.add(sym)
 
@@ -377,6 +382,11 @@ def handle(  # noqa: C901
                     for row in etf_rows:
                         # FAIL-FAST: Extract symbol with safe validation in ETF batch processing
                         sym = DatabaseResultValidator.safe_get_str(row, "symbol", strict=True)
+                        if sym is None:
+                            raise RuntimeError(
+                                "BUG: safe_get_str with strict=True returned None. "
+                                "This indicates data corruption or validation bypass."
+                            )
                         result3[sym].append(safe_json_serialize(dict(row)))
 
             batch_result = {"symbols": result3, "limit": limit}

@@ -67,8 +67,8 @@ def _ensure_portfolio_fields(data: dict[str, Any]) -> Any:
     return data
 
 
-@db_route_handler("get algo metrics")
-@validate_api_response("perf")# type: ignore[untyped-decorator]
+@db_route_handler("get algo metrics")  # type: ignore[untyped-decorator]
+@validate_api_response("perf")  # type: ignore[untyped-decorator]
 def _get_algo_metrics(cur: cursor) -> Any:
     """Get daily algo metrics (total actions, entries, exits). Fail-fast if unavailable."""
     try:
@@ -141,8 +141,8 @@ def _get_algo_metrics(cur: cursor) -> Any:
         return error_response(code, error_type, message)
 
 
-@db_route_handler("calculate performance")
-@validate_api_response("perf")# type: ignore[untyped-decorator]
+@db_route_handler("calculate performance")  # type: ignore[untyped-decorator]
+@validate_api_response("perf")  # type: ignore[untyped-decorator]
 def _get_algo_performance(cur: cursor) -> Any:  # noqa: C901
     """Get comprehensive algo performance metrics from pre-computed daily snapshot.
 
@@ -374,8 +374,8 @@ def _get_algo_performance(cur: cursor) -> Any:  # noqa: C901
             raise RuntimeError(f"Unexpected error: {e}") from e
 
         # Equity curve values from portfolio snapshots for sparkline and recent returns strip (CRITICAL for performance panel)
-        equity_vals: list = []
-        recent_rets: list = []
+        equity_vals: list[Any] = []
+        recent_rets: list[Any] = []
         try:
             cutoff = (datetime.now(timezone.utc) - timedelta(days=90)).date()
             cur.execute(
@@ -550,8 +550,8 @@ def _get_algo_performance(cur: cursor) -> Any:  # noqa: C901
         return error_response(code, error_type, message)
 
 
-@db_route_handler("get algo portfolio")
-@validate_api_response("port")# type: ignore[untyped-decorator]
+@db_route_handler("get algo portfolio")  # type: ignore[untyped-decorator]
+@validate_api_response("port")  # type: ignore[untyped-decorator]
 def _get_algo_portfolio(cur: cursor) -> Any:
     """Get latest portfolio snapshot data with structured unrealized PnL breakdown.
 
@@ -679,8 +679,8 @@ def _get_algo_portfolio(cur: cursor) -> Any:
         return error_response(503, "service_error", f"Portfolio service error: {type(e).__name__}")
 
 
-@db_route_handler("get daily return histogram")
-@validate_api_response("perf")# type: ignore[untyped-decorator]
+@db_route_handler("get daily return histogram")  # type: ignore[untyped-decorator]
+@validate_api_response("perf")  # type: ignore[untyped-decorator]
 def _get_daily_return_histogram(cur: cursor) -> Any:
     """Return histogram of daily portfolio returns with stats."""
     cur.execute("""
@@ -733,8 +733,8 @@ def _get_daily_return_histogram(cur: cursor) -> Any:
     return response
 
 
-@db_route_handler("get holding period distribution")
-@validate_api_response("perf")# type: ignore[untyped-decorator]
+@db_route_handler("get holding period distribution")  # type: ignore[untyped-decorator]
+@validate_api_response("perf")  # type: ignore[untyped-decorator]
 def _get_holding_period_distribution(cur: cursor) -> Any:
     """Return distribution of position holding periods in days."""
     cur.execute("""
@@ -792,8 +792,8 @@ def _get_holding_period_distribution(cur: cursor) -> Any:
     return list_response(buckets, total=len(buckets), limit=None, offset=None)
 
 
-@db_route_handler("get performance analytics")
-@validate_api_response("perf")# type: ignore[untyped-decorator]
+@db_route_handler("get performance analytics")  # type: ignore[untyped-decorator]
+@validate_api_response("perf_anl")  # type: ignore[untyped-decorator]
 def _get_performance_analytics(cur: cursor) -> Any:
     """Get performance analytics data from algo_performance_metrics. Fail-fast if unavailable."""
     try:
@@ -845,7 +845,7 @@ def _get_performance_analytics(cur: cursor) -> Any:
         expectancy_val: Any = data.get("expectancy")
 
         # COALESCE in query defaults R-metrics to 0.0 when missing (no trades yet)
-        response_dict: dict[str, float | None] = {
+        response_dict_final: dict[str, float | None] = {
             "rolling_sharpe_252d": float(sharpe) if sharpe is not None else None,
             "rolling_sortino_252d": float(sortino) if sortino is not None else None,
             "calmar_ratio": float(calmar) if calmar is not None else None,
@@ -855,12 +855,12 @@ def _get_performance_analytics(cur: cursor) -> Any:
             "expectancy": float(expectancy_val) if expectancy_val is not None else 0.0,
             "max_drawdown_pct": float(max_dd) if max_dd is not None else None,
         }
-        response_dict["sharpe252"] = response_dict["rolling_sharpe_252d"]
-        response_dict["sortino"] = response_dict["rolling_sortino_252d"]
-        response_dict["calmar"] = response_dict["calmar_ratio"]
+        response_dict_final["sharpe252"] = response_dict_final["rolling_sharpe_252d"]
+        response_dict_final["sortino"] = response_dict_final["rolling_sortino_252d"]
+        response_dict_final["calmar"] = response_dict_final["calmar_ratio"]
 
         # Validate perf_anl response matches contract schema
-        sanitized = APIResponseValidator.sanitize_response(response_dict)
+        sanitized = APIResponseValidator.sanitize_response(response_dict_final)
         ensure_valid_response("perf_anl", sanitized)
 
         return success_response(sanitized)
@@ -963,8 +963,8 @@ def _get_performance_analytics(cur: cursor) -> Any:
         )
 
 
-@db_route_handler("get performance metrics endpoint")
-@validate_api_response("perf")# type: ignore[untyped-decorator]
+@db_route_handler("get performance metrics endpoint")  # type: ignore[untyped-decorator]
+@validate_api_response("perf")  # type: ignore[untyped-decorator]
 def _get_performance_metrics_endpoint(cur: cursor) -> Any:
     """Return latest performance metrics. Gracefully degrade if table is empty."""
     try:
@@ -1021,8 +1021,8 @@ def _get_performance_metrics_endpoint(cur: cursor) -> Any:
         return error_response(code, error_type, message)
 
 
-@db_route_handler("get portfolio summary")
-@validate_api_response("port")# type: ignore[untyped-decorator]
+@db_route_handler("get portfolio summary")  # type: ignore[untyped-decorator]
+@validate_api_response("port")  # type: ignore[untyped-decorator]
 def _get_portfolio_summary(cur: cursor) -> Any:
     """Return portfolio summary with current value and allocation."""
     cur.execute("""
@@ -1080,8 +1080,8 @@ def _get_portfolio_summary(cur: cursor) -> Any:
     )
 
 
-@db_route_handler("get risk metrics")
-@validate_api_response("risk")# type: ignore[untyped-decorator]
+@db_route_handler("get risk metrics")  # type: ignore[untyped-decorator]
+@validate_api_response("risk")  # type: ignore[untyped-decorator]
 def _get_risk_metrics(cur: cursor) -> Any:
     """Get portfolio risk metrics. Fail-fast if unavailable."""
     try:
@@ -1144,8 +1144,8 @@ def _get_risk_metrics(cur: cursor) -> Any:
         return error_response(code, error_type, message)
 
 
-@db_route_handler("get stage distribution")
-@validate_api_response("perf")# type: ignore[untyped-decorator]
+@db_route_handler("get stage distribution")  # type: ignore[untyped-decorator]
+@validate_api_response("perf")  # type: ignore[untyped-decorator]
 def _get_stage_distribution(cur: cursor) -> Any:
     """Return distribution of positions by Weinstein stage."""
     cur.execute("""
@@ -1177,8 +1177,8 @@ def _get_stage_distribution(cur: cursor) -> Any:
     return list_response(distribution, total=len(distribution), limit=None, offset=None)
 
 
-@db_route_handler("get trade distribution")
-@validate_api_response("perf")# type: ignore[untyped-decorator]
+@db_route_handler("get trade distribution")  # type: ignore[untyped-decorator]
+@validate_api_response("perf")  # type: ignore[untyped-decorator]
 def _get_trade_distribution(cur: cursor) -> Any:
     """Return distribution of trade outcomes by R-multiple."""
     cur.execute("""

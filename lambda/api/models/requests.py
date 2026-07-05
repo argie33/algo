@@ -62,7 +62,7 @@ class TradePreviewRequest(BaseModel):
             entry_price = info.data["entry_price"]
             if v >= entry_price:
                 raise ValueError("Stop loss price must be below entry price")
-        return v
+        return cast(float | None, v)
 
 
 class ContactSubmissionRequest(BaseModel):
@@ -196,7 +196,7 @@ class ManualTradeRequest(BaseModel):
     def validate_stop_loss(cls, v: Any, info: ValidationInfo) -> float | None:
         if v is not None and v <= 0:
             raise ValueError("Stop loss price must be greater than 0")
-        return v
+        return cast(float | None, v)
 
 
 class PositionUpdateRequest(BaseModel):

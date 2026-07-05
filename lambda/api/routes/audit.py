@@ -23,7 +23,7 @@ from routes.utils import (
 logger = logging.getLogger(__name__)
 
 
-def _check_admin_access(jwt_claims: dict | None) -> bool:
+def _check_admin_access(jwt_claims: dict[str, Any] | None) -> bool:
     """Check if user has admin access from verified JWT claims.
 
     Only admin users can view audit logs.

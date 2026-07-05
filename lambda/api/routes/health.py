@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, cast
 
 from api_utils.config import get_config
 from psycopg2.extensions import cursor
@@ -200,10 +200,11 @@ def _handle_basic(cur: cursor) -> Any:
             return error_response(503, "service_unavailable", "Critical health check failed - see details for issues")
 
         # Validate response matches contract before returning
-        is_valid, error_msg = ResponseValidator.validate_endpoint_response("health", health)
+        is_valid, error_msg_raw = ResponseValidator.validate_endpoint_response("health", health)
         if not is_valid:
-            logger.error(f"Health response validation failed: {error_msg}")
-            return error_response(500, "response_validation_error", error_msg)
+            error_msg_str: str = error_msg_raw or "Health response validation failed"
+            logger.error(f"Health response validation failed: {error_msg_str}")
+            return error_response(500, "response_validation_error", error_msg_str)
 
         return success_response(health)
 

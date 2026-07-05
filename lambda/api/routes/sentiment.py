@@ -527,7 +527,7 @@ def handle(  # noqa: C901
         return error_response(code, error_type, message)
 
 
-def _get_vix_data(cur) -> Any:
+def _get_vix_data(cur: cursor) -> Any:
     """Get latest VIX data and historical trend."""
     try:
         cur.execute("""

@@ -7,7 +7,7 @@ import json as _json
 import logging
 import uuid
 from datetime import date, datetime, timezone
-from typing import Any
+from typing import Any, cast
 
 import psycopg2
 import psycopg2.errors
@@ -37,7 +37,7 @@ from utils.validation import CognitoValidator
 logger = logging.getLogger(__name__)
 
 
-def _check_admin_access(jwt_claims: dict | None) -> bool:
+def _check_admin_access(jwt_claims: dict[str, Any] | None) -> bool:
     return bool(CognitoValidator.validate_admin_access(jwt_claims))
 
 
@@ -124,8 +124,9 @@ def handle(
                 raise_api_error(403, "forbidden", "Admin access required")
             if not body:
                 raise_api_error(400, "bad_request", "Request body is required")
+            body_dict = cast(dict[str, Any], body)
             idempotency_key = headers.get("idempotency-key") if headers else None
-            return _create_manual_trade(cur, body, idempotency_key)
+            return _create_manual_trade(cur, body_dict, idempotency_key)
         if path == "/api/trades":
             if not _check_admin_access(jwt_claims):
                 raise_api_error(403, "forbidden", "Admin access required")

@@ -261,7 +261,7 @@ def _get_stock_scores(
             else:
                 raise
 
-        def _f(v):
+        def _f(v: Any) -> float | None:
             return float(v) if v is not None else None
 
         items = []
