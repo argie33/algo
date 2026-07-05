@@ -936,10 +936,7 @@ def db_route_handler(
                 code, error_type, message = handle_db_error(e, operation_name)
                 # Always return proper error response with correct HTTP status code
                 # Never return 200 OK with empty data - use proper 503/504/500 instead
-                return json_response(
-                    code,
-                    {"errorType": error_type, "message": message, "_error": message},
-                )
+                return error_response(code, error_type, message)
 
         return wrapper
 
