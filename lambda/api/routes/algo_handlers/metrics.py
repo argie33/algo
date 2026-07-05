@@ -34,8 +34,6 @@ from utils.data_queries import (
 from utils.validation import (
     APIResponseValidator,
     format_decimal_string,
-)
-from utils.validation.response_validation import (
     get_optional_field,
     get_required_field,
 )

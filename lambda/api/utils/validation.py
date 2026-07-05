@@ -130,3 +130,126 @@ class APIResponseValidator:
         except (TypeError, ValueError):
             # If not serializable, convert to string
             return str(data)
+
+
+def get_optional_field(data: dict[str, Any] | None, key: str, default: Any = None) -> Any:
+    """Safely extract an optional field from a dictionary.
+
+    Args:
+        data: Dictionary to extract from
+        key: Key to extract
+        default: Default value if key missing or value is None
+
+    Returns:
+        Field value or default
+    """
+    if not isinstance(data, dict):
+        return default
+    return data.get(key, default)
+
+
+def get_required_field(data: dict[str, Any], key: str) -> Any:
+    """Safely extract a required field from a dictionary.
+
+    Args:
+        data: Dictionary to extract from
+        key: Key to extract
+
+    Returns:
+        Field value
+
+    Raises:
+        KeyError: If key missing
+    """
+    if not isinstance(data, dict):
+        raise TypeError(f"Expected dict, got {type(data).__name__}")
+    if key not in data:
+        raise KeyError(f"Required field missing: {key}")
+    return data[key]
+
+
+def format_decimal_string(value: Any, precision: int = 2, allow_none: bool = True) -> str | None:
+    """Format a numeric value as a string with specified decimal places.
+
+    Args:
+        value: Value to format (int, float, Decimal, or string)
+        precision: Number of decimal places (default 2)
+        allow_none: If True, return None for None input; if False, raise error
+
+    Returns:
+        Formatted string or None
+    """
+    if value is None:
+        if allow_none:
+            return None
+        raise ValueError("Value is None but allow_none=False")
+
+    if isinstance(value, str):
+        try:
+            value = float(value)
+        except ValueError:
+            raise ValueError(f"Cannot convert string to float: {value}")
+
+    try:
+        return f"{float(value):.{precision}f}"
+    except (TypeError, ValueError) as e:
+        raise ValueError(f"Cannot format value as decimal: {value}") from e
+
+
+def safe_float(value: Any, default: float | None = None) -> float | None:
+    """Safely convert a value to float.
+
+    Args:
+        value: Value to convert
+        default: Default value if conversion fails or value is None
+
+    Returns:
+        Float value or default
+    """
+    if value is None:
+        return default
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+# Data freshness rules for different table types
+# Maps table_name to max_age_hours before data is considered stale
+FRESHNESS_RULES = {
+    "price_daily": 24,
+    "technical_data_daily": 24,
+    "market_exposure_daily": 24,
+    "stock_scores": 24,
+    "quality_metrics": 168,  # 7 days
+    "growth_metrics": 168,  # 7 days
+    "value_metrics": 168,  # 7 days
+    "positioning_metrics": 168,  # 7 days
+    "stability_metrics": 168,  # 7 days
+    "market_health_daily": 24,
+    "industry_ranking": 168,  # 7 days
+    "sector_ranking": 24,
+    "buy_sell_daily": 24,
+}
+
+
+def assert_safe_table(table_name: str) -> str:
+    """Verify table name is safe for SQL queries (alphanumeric + underscore only).
+
+    Args:
+        table_name: Table name to validate
+
+    Returns:
+        The table name if safe
+
+    Raises:
+        ValueError: If table name contains unsafe characters
+    """
+    if not isinstance(table_name, str):
+        raise ValueError(f"Table name must be string, got {type(table_name).__name__}")
+
+    # Only allow alphanumeric and underscore
+    if not all(c.isalnum() or c == "_" for c in table_name):
+        raise ValueError(f"Table name contains unsafe characters: {table_name}")
+
+    return table_name

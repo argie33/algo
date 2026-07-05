@@ -53,7 +53,7 @@ class ResponseFormatter:
         Returns:
             {statusCode: 200, data: {...}, data_freshness?: {...}, statusMessage?: "..."}
         """
-        from utils.validation.api_response import APIResponseValidator
+        from utils.validation import APIResponseValidator
 
         response: dict[str, Any] = {
             "statusCode": status,
@@ -127,7 +127,7 @@ class ResponseFormatter:
         Returns:
             {statusCode: 200, data: {items: [...], total: X, limit?: Y, offset?: Z}, data_freshness?: {...}}
         """
-        from utils.validation.api_response import APIResponseValidator
+        from utils.validation import APIResponseValidator
 
         sanitized_items = APIResponseValidator.sanitize_response(items if items is not None else [])
         total_count = total if total is not None else len(sanitized_items)

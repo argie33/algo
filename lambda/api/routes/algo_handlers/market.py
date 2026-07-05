@@ -28,8 +28,7 @@ from routes.utils import (
 )
 
 from shared_contracts.response_validator import ResponseValidator
-from utils.validation import format_decimal_string
-from utils.validation.response_validation import get_optional_field
+from utils.validation import format_decimal_string, get_optional_field
 
 from .signals import _TIER_CONFIG
 
@@ -163,7 +162,7 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
         from algo.infrastructure import MarketCalendar
 
         try:
-            from utils.validation.freshness_config import FRESHNESS_RULES
+            from utils.validation import FRESHNESS_RULES
 
             _fr = FRESHNESS_RULES
         except ImportError:
