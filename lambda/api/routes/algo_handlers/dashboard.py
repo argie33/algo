@@ -452,7 +452,7 @@ def _get_circuit_breakers(cur: cursor) -> Any:  # noqa: C901
 
                 table_safe = assert_safe_table(table)
                 cur.execute(psycopg2.sql.SQL("SELECT 1 FROM {} LIMIT 1").format(psycopg2.sql.Identifier(table_safe)))
-            except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedSchema):
+            except psycopg2.errors.UndefinedTable:
                 missing_tables.append(table)
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.error(f"Unexpected error checking table {table}: {type(e).__name__}: {e}")
