@@ -99,10 +99,13 @@ class TriggerLoadersHandler(LambdaHandler):
 
         # Set environment variables for ECS task
         environment_overrides = {
-            # Metric loaders need extended timeout (600s = 10 min for yfinance + SEC filings)
+            # SEC loaders + metric loaders need extended timeout (600s = 10 min for SEC EDGAR + yfinance)
             "LOADER_TIMEOUT_SEC": "600"
             if loader_name
-            in {"quality_metrics", "growth_metrics", "value_metrics", "positioning_metrics", "stability_metrics"}
+            in {
+                "income_statement", "balance_sheet", "cash_flow",
+                "quality_metrics", "growth_metrics", "value_metrics", "positioning_metrics", "stability_metrics"
+            }
             else "300",
             # Reduce batch size in AWS to avoid yfinance rate limiting
             "LOADER_CHUNK_SIZE": "100",
