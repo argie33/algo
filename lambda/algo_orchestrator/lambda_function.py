@@ -268,6 +268,24 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
                     ),
                 }
 
+        # Verify EventBridge schedules are enabled (auto-fix if disabled)
+        # This addresses issue where loaders don't run because schedules become disabled
+        try:
+            import boto3
+            scheduler = boto3.client('scheduler', region_name='us-east-1')
+            schedules = scheduler.list_schedules(MaxResults=50)
+            algo_schedules = [s['Name'] for s in schedules.get('Schedules', []) if 'algo' in s['Name'].lower()]
+            for sched_name in algo_schedules:
+                try:
+                    sched = scheduler.get_schedule(Name=sched_name)
+                    if sched.get('State') == 'DISABLED':
+                        scheduler.update_schedule(Name=sched_name, State='ENABLED')
+                        logger.info(f"[STARTUP] Re-enabled EventBridge schedule: {sched_name}")
+                except Exception:
+                    pass
+        except Exception:
+            logger.debug("[STARTUP] EventBridge schedule check skipped (non-critical)")
+
         # Set execution_mode in environment before creating orchestrator
         # (orchestrator.__init__ will pick it up from ORCHESTRATOR_EXECUTION_MODE)
         # Always write to env to override any Terraform-set residual value (e.g. "paper")
