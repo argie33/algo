@@ -1956,10 +1956,19 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
 # ============================================================
 # Computed Metrics Pipeline - Daily Stock Metrics
 # FIXED Issue #31: Wire quality/growth/value/stability loaders into Step Functions
-# Metrics (5:00 PM ET): Runs AFTER financial pipeline completes
-# Depends on: financial_data_pipeline (must complete by 5:00 PM)
-# Computes: quality_metrics, growth_metrics, value_metrics, stability_metrics, stock_scores
-# Runs sequentially to respect dependencies and avoid RDS connection pool exhaustion
+# FIXED 2026-07-05: Growth metrics now CRITICAL → require financial data; increased schedule buffer
+#
+# Timeline:
+# - 4:05 PM ET: financial_data_pipeline starts (timeout 110 min → completes by ~5:55 PM)
+# - 7:00 PM ET: computed_metrics_pipeline starts (175 min buffer ensures financial data ready)
+#
+# Why 175-min buffer: financial pipeline 6600s (110 min) + 60 min margin of safety
+# Growth/quality metrics depend on annual_income_statement, balance_sheet, cash_flow
+# If financial data incomplete at 7:00 PM:
+# - growth_metrics → data_unavailable markers
+# - Phase 1 failsafe → retries (now critical)
+# - stock_scores validates 70% coverage → explicit fail-fast if insufficient
+# Result: No silent degradation; missing financials = explicit data_unavailable flags
 # ============================================================
 
 resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
@@ -2698,7 +2707,7 @@ resource "aws_scheduler_schedule" "financial_data_pipeline_trigger" {
 
 resource "aws_scheduler_schedule" "computed_metrics_pipeline_trigger" {
   name                         = "${var.project_name}-computed-metrics-pipeline-${var.environment}"
-  description                  = "Daily computed metrics: quality/growth/value/stability/scores - 7:00 PM ET (FIXED: delayed to ensure financial_data_pipeline completes)"
+  description                  = "Daily computed metrics: quality/growth/value/stability/scores - 7:00 PM ET (CRITICAL FIX 2026-07-05: growth_metrics now required; 175min buffer after financial pipeline @ 4:05 PM)"
   schedule_expression          = "cron(0 19 ? * MON-FRI *)"
   schedule_expression_timezone = "America/New_York"
   state                        = "ENABLED"

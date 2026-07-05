@@ -54,7 +54,7 @@ async function fetchIndustries(req, res) {
     }
 
     // Parallelize data and count queries
-    const params = [limitNum, offset];
+    const params = [parseInt(limitNum, 10), parseInt(offset, 10)];
     console.log("[INDUSTRIES_QUERY] Executing with params:", params);
 
     const [result, countResult] = await Promise.all([
@@ -169,13 +169,13 @@ async function fetchIndustries(req, res) {
         stock_count: (() => {
           if (row.stock_count == null) {
             throw new Error(
-              `Missing stock_count for industry ${row.industry_name}`
+              `Missing stock_count for industry ${row.industry}`
             );
           }
           const v = parseInt(row.stock_count, 10);
           if (isNaN(v)) {
             throw new Error(
-              `Invalid stock_count for industry ${row.industry_name}: ${row.stock_count}`
+              `Invalid stock_count for industry ${row.industry}: ${row.stock_count}`
             );
           }
           return v;

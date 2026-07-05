@@ -309,6 +309,17 @@ class StockScoresLoader(OptimalLoader):
             unavailable_metrics = {
                 name: get_marker_reason(score) for name, score in all_scores.items() if not is_real_score(score)
             }
+
+            # CRITICAL FIX 2026-07-05: Warn when scores degrade from 6/6 to 3/6 metrics
+            # Traders need visibility into metric set completeness
+            if data_count < 6 and data_count >= 3:
+                missing = sorted([k for k, v in all_scores.items() if not is_real_score(v)])
+                logger.warning(
+                    f"[STOCK_SCORES] {symbol}: Score computed with {data_count}/6 metrics ({100.0*data_count/6:.0f}% complete). "
+                    f"Missing: {', '.join(missing)}. This may introduce bias if critical factors are missing. "
+                    f"Check upstream metric loaders for failures."
+                )
+
             # Cap at 99.99 to fit in NUMERIC(4,2) database column
             data_completeness = min(99.99, round((data_count / 6.0) * 100, 2))
 
