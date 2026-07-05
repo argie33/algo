@@ -75,8 +75,8 @@ def fetch_portfolio(c: None) -> dict[str, Any]:
         # Check for API error first
         is_error, error_msg = FetcherValidator.check_api_error(port)
         if is_error:
-            logger.error(error_msg)
-            record_data_quality_issue("portfolio", "api_call", "api_error", error_msg)
+            logger.error(error_msg or "unknown error")
+            record_data_quality_issue("portfolio", "api_call", "api_error", error_msg or "unknown error")
             return FetcherValidator.build_error_response(error_msg)
 
         # Validate required fields exist
@@ -97,7 +97,7 @@ def fetch_portfolio(c: None) -> dict[str, Any]:
         if data_age is not None and data_age > max_age_with_grace:
             error_msg = f"Data is stale ({data_age}s old, max {max_age_with_grace}s including grace period)"
             logger.error(error_msg)
-            record_data_quality_issue("portfolio", "freshness", "stale_data", error_msg)
+            record_data_quality_issue("portfolio", "freshness", "stale_data", error_msg or "stale data")
             return FetcherValidator.build_error_response(error_msg)
 
         # WARN: Data is older than 24 hours but still within acceptable range
@@ -105,7 +105,7 @@ def fetch_portfolio(c: None) -> dict[str, Any]:
         # Check Phase 9 reconciliation logs if concerned.
         hours_24_seconds = 86400
         is_stale_24h = data_age is not None and data_age > hours_24_seconds
-        if is_stale_24h:
+        if is_stale_24h and data_age is not None:
             logger.warning(
                 f"[DATA_QUALITY] Portfolio data is {data_age}s old ({data_age / 3600:.1f} hours). "
                 f"This is normal on non-trading days but unexpected on trading days. "
@@ -202,8 +202,8 @@ def fetch_positions(c: None) -> dict[str, Any]:
         # Check for API error
         is_error, error_msg = FetcherValidator.check_api_error(data)
         if is_error:
-            record_data_quality_issue("pos", "api_call", "api_error", error_msg)
-            return FetcherValidator.build_error_response(error_msg)
+            record_data_quality_issue("pos", "api_call", "api_error", error_msg or "api error")
+            return FetcherValidator.build_error_response(error_msg or "api error")
 
         result = data
         if isinstance(result, dict):
