@@ -449,7 +449,8 @@ def _normalize_exposure(exp: dict) -> Any:
             raise ValueError(f"exposure_pct {exposure_pct} outside valid range [0,100]")
     except (TypeError, ValueError) as e:
         raise ValueError(
-            f"exposure_pct type/range validation failed: {e} (got {type(exposure_pct_raw).__name__}: {exposure_pct_raw})"
+            f"exposure_pct type/range validation failed: {e} "
+            f"(got {type(exposure_pct_raw).__name__}: {exposure_pct_raw})"
         ) from e
 
     # Validate regime is not "unknown" or empty string
