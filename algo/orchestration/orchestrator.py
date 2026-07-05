@@ -116,6 +116,67 @@ class Orchestrator:
     def cleanup(self) -> None:
         """No-op: RDS Proxy handles connection cleanup."""
 
+    def _validate_startup_configuration(self) -> None:
+        """CRITICAL: Validate all required configuration at startup.
+
+        Checks:
+        1. Alpaca credentials available (API key + secret)
+        2. execution_mode is set and valid (paper/live/auto)
+        3. Required config keys present
+
+        Raises RuntimeError if any validation fails.
+        """
+        logger.info("[STARTUP VALIDATION] Checking required configuration...")
+
+        # 1. Validate Alpaca credentials
+        try:
+            from algo.config.credential_manager import CredentialManager
+            creds = CredentialManager()
+            api_key = creds.get_password("APCA_API_KEY_ID", default=None)
+            api_secret = creds.get_password("APCA_API_SECRET_KEY", default=None)
+            if not api_key or not api_secret:
+                raise RuntimeError(
+                    "[STARTUP] CRITICAL: Alpaca credentials missing. "
+                    "Configure APCA_API_KEY_ID and APCA_API_SECRET_KEY via AWS Secrets Manager or environment."
+                )
+            logger.info("[OK] Alpaca credentials validated")
+        except ValueError as e:
+            raise RuntimeError(f"[STARTUP] Credential validation failed: {e}") from e
+
+        # 2. Validate execution_mode
+        execution_mode = self.config.get("execution_mode")
+        if not execution_mode or execution_mode not in ("paper", "live", "auto"):
+            raise RuntimeError(
+                f"[STARTUP] CRITICAL: execution_mode must be 'paper', 'live', or 'auto'. "
+                f"Current value: {execution_mode!r}. Configure via algo_config table."
+            )
+        logger.info(f"[OK] execution_mode validated: {execution_mode}")
+
+        # 3. Validate required config keys exist
+        try:
+            required_keys = [
+                "max_sector_positions",
+                "max_industry_positions",
+                "max_positions",
+                "min_signal_quality_score",
+                "min_swing_score",
+            ]
+            missing = []
+            for key in required_keys:
+                val = self.config.get(key)
+                if val is None:
+                    missing.append(key)
+            if missing:
+                raise RuntimeError(
+                    f"[STARTUP] CRITICAL: Missing required config keys: {', '.join(missing)}. "
+                    "Add these to algo_config table."
+                )
+            logger.info("[OK] All required config keys present")
+        except Exception as e:
+            if "CRITICAL" in str(e):
+                raise
+            raise RuntimeError(f"[STARTUP] Config validation failed: {e}") from e
+
     def _kill_long_running_loaders(self) -> None:  # noqa: C901
         """CRITICAL: Kill hung loaders (analytics + critical-path) if approaching next orchestrator run.
 
@@ -1086,6 +1147,9 @@ class Orchestrator:
 
             logger.info("\n[CHECK] Monitoring RDS connection pool...")
             self.db_monitor.check_connection_pool_health()
+
+            logger.info("\n[CHECK] Validating startup configuration...")
+            self._validate_startup_configuration()
 
             logger.info("\n[CHECK] Killing long-running analytics loaders...")
             self._kill_long_running_loaders()
