@@ -490,7 +490,10 @@ def _get_market(cur: cursor) -> Any:
             SELECT market_trend, market_stage, vix_level,
                    up_volume_percent, advance_decline_ratio, new_highs_count,
                    new_lows_count, breadth_momentum_10d, put_call_ratio,
-                   yield_curve_slope, fed_rate_environment
+                   put_call_ratio_data_unavailable, put_call_ratio_unavailable_reason,
+                   yield_curve_slope, yield_curve_data_unavailable, yield_curve_unavailable_reason,
+                   fed_rate_environment, fed_rate_data_unavailable, fed_rate_unavailable_reason,
+                   spy_change_pct
             FROM market_health_daily
             ORDER BY date DESC LIMIT 1
         """)

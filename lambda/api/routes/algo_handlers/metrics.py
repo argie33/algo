@@ -815,20 +815,21 @@ def _get_performance_analytics(cur: cursor) -> Any:
                 "Performance analytics unavailable: algo_performance_metrics table empty. "
                 "Returning defaults - check data loader health if this persists."
             )
-            # Return all None values to gracefully handle ramp-up phase
+            # Return 0.0 for all metrics to gracefully handle ramp-up phase
+            # Strict fields must be non-None per response contract
             response_dict = {
-                "rolling_sharpe_252d": None,
-                "rolling_sortino_252d": None,
-                "calmar_ratio": None,
-                "win_rate_50t": None,
-                "avg_win_r_50t": None,
-                "avg_loss_r_50t": None,
-                "expectancy": None,
-                "max_drawdown_pct": None,
+                "rolling_sharpe_252d": 0.0,
+                "rolling_sortino_252d": 0.0,
+                "calmar_ratio": 0.0,
+                "win_rate_50t": 0.0,
+                "avg_win_r_50t": 0.0,
+                "avg_loss_r_50t": 0.0,
+                "expectancy": 0.0,
+                "max_drawdown_pct": 0.0,
             }
-            response_dict["sharpe252"] = None
-            response_dict["sortino"] = None
-            response_dict["calmar"] = None
+            response_dict["sharpe252"] = 0.0
+            response_dict["sortino"] = 0.0
+            response_dict["calmar"] = 0.0
 
             sanitized = APIResponseValidator.sanitize_response(response_dict)
             return success_response(sanitized)
@@ -882,17 +883,17 @@ def _get_performance_analytics(cur: cursor) -> Any:
                 row = cur.fetchone()
                 cur.execute("RELEASE SAVEPOINT perf_analytics_fallback")
 
-                # When R-metrics columns don't exist, return all-None (valid ramp-up state)
-                # This prevents the dashboard from seeing partial data
+                # When R-metrics columns don't exist, return all 0.0 (valid ramp-up state)
+                # Strict fields must be non-None per response contract
                 response_dict = {
-                    "rolling_sharpe_252d": None,
-                    "rolling_sortino_252d": None,
-                    "calmar_ratio": None,
-                    "win_rate_50t": None,
-                    "avg_win_r_50t": None,
-                    "avg_loss_r_50t": None,
-                    "expectancy": None,
-                    "max_drawdown_pct": None,
+                    "rolling_sharpe_252d": 0.0,
+                    "rolling_sortino_252d": 0.0,
+                    "calmar_ratio": 0.0,
+                    "win_rate_50t": 0.0,
+                    "avg_win_r_50t": 0.0,
+                    "avg_loss_r_50t": 0.0,
+                    "expectancy": 0.0,
+                    "max_drawdown_pct": 0.0,
                 }
 
                 response_dict["sharpe252"] = response_dict["rolling_sharpe_252d"]

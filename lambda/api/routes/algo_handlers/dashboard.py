@@ -1111,7 +1111,6 @@ def _get_dashboard_signals(cur: cursor) -> Any:
 
 
 @db_route_handler("fetch equity curve")  # type: ignore[untyped-decorator]
-@validate_api_response("perf")  # type: ignore[untyped-decorator]
 def _get_equity_curve(cur: cursor, days: int = 180) -> Any:
     """Get equity curve for last N days."""
     try:
