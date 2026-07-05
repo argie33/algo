@@ -971,8 +971,9 @@ def log_api_request(
             "method": method,
             "path": path,
             "status_code": status_code,
-            "user_id": user_id or "anonymous",
-            "error": error_msg or "",
+            "user_id": user_id if user_id else "anonymous",
+            # HIGH-006 FIX: Preserve None instead of replacing with empty string
+            "error": error_msg,
         }
 
         logger.info(json.dumps(audit_log))

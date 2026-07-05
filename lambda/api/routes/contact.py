@@ -194,9 +194,11 @@ def _submit_contact(cur: cursor, body: dict[str, Any]) -> Any:
 
     name = req.name
     email = req.email
-    subject = req.subject or ""
+    # HIGH-004 FIX: Explicitly handle None values instead of OR fallback
+    # Preserve data integrity: None means field was not provided
+    subject = req.subject if req.subject is not None else "(no subject)"
     message = req.message
-    phone = req.phone or ""
+    phone = req.phone if req.phone is not None else "(not provided)"
 
     # SECURITY L-NEW-01: Return 200 even when rate limited � a 429 lets an
     # attacker enumerate whether an email has submitted recently.

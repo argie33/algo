@@ -85,8 +85,9 @@ def _calculate_adjusted_win_rate(
     if wr_val is None or w_val is None or l_val is None:
         raise ValueError(f"Performance metrics incomplete: wr={wr_val}, wins={w_val}, losses={l_val}")
 
-    w_i = safe_int(w_val, default=0, field_name="closed_wins") or 0
-    l_i = safe_int(l_val, default=0, field_name="closed_losses") or 0
+    # HIGH-001 FIX: Remove double fallback — safe_int already uses default=0
+    w_i = safe_int(w_val, default=0, field_name="closed_wins")
+    l_i = safe_int(l_val, default=0, field_name="closed_losses")
 
     closed_wins: int = w_i
     closed_losses: int = l_i

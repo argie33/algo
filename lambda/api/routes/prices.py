@@ -311,7 +311,8 @@ def handle(  # noqa: C901
         # Returns {symbols: {SYM: [{date, open, high, low, close, volume}, ...]}}
         # Replaces N concurrent per-symbol calls with one batch query.
         elif len(parts) >= 4 and parts[3] == "batch-history":
-            symbols_raw = extract_param(params, "symbols", required=False, default="") or ""
+            # HIGH-007 FIX: Remove redundant OR fallback — extract_param already uses default=""
+            symbols_raw = extract_param(params, "symbols", required=False, default="")
             symbols = [s.strip().upper() for s in symbols_raw.split(",") if s.strip()]
             if not symbols:
                 return error_response(400, "bad_request", "symbols parameter required")
