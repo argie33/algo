@@ -6,7 +6,7 @@ This catches silent failures that unit tests don't detect.
 import pytest
 
 
-def _minimal_good_data():
+def _minimal_good_data() -> dict[str, object]:
     """Provide minimal realistic data that panels need."""
     return {
         "run": {"run_at": "2024-01-01", "success": True},
@@ -50,7 +50,7 @@ def _minimal_good_data():
     }
 
 
-def test_dashboard_handles_api_error_in_portfolio():
+def test_dashboard_handles_api_error_in_portfolio() -> None:
     """FAIL if portfolio has error but dashboard still renders without error handling."""
     from dashboard.dashboard import render_dashboard
 
@@ -68,7 +68,7 @@ def test_dashboard_handles_api_error_in_portfolio():
         pytest.fail(f"Dashboard crashed on broken portfolio data: {e}")
 
 
-def test_dashboard_handles_all_api_errors():
+def test_dashboard_handles_all_api_errors() -> None:
     """FAIL if dashboard crashes on API endpoint errors."""
     from dashboard.dashboard import render_dashboard
 
@@ -98,7 +98,7 @@ def test_dashboard_handles_all_api_errors():
             pytest.fail(f"Dashboard crashed on broken {field} data: {e}")
 
 
-def test_dashboard_shows_error_panel_when_data_broken():
+def test_dashboard_shows_error_panel_when_data_broken() -> None:
     """FAIL if error panel doesn't display broken data errors."""
     from dashboard.error_boundary import error_summary_panel
 
@@ -113,7 +113,7 @@ def test_dashboard_shows_error_panel_when_data_broken():
     print("OK Error panel generated for broken data")
 
 
-def test_error_panel_handles_bracket_chars_in_error_message():
+def test_error_panel_handles_bracket_chars_in_error_message() -> None:
     """Error messages containing Rich markup chars ([Errno 111]) must not crash panels."""
     from dashboard.error_boundary import (
         error_summary_panel,
@@ -140,7 +140,7 @@ def test_error_panel_handles_bracket_chars_in_error_message():
         pytest.fail(f"Error panel crashed on bracket chars in error message: {e}")
 
 
-def test_errors_view_mode_renders_with_bracket_error_messages():
+def test_errors_view_mode_renders_with_bracket_error_messages() -> None:
     """Pressing D (errors view mode) must not crash when error messages have brackets."""
     from dashboard.dashboard import render_dashboard
 
@@ -156,7 +156,7 @@ def test_errors_view_mode_renders_with_bracket_error_messages():
         pytest.fail(f"errors view mode crashed with bracket error messages: {e}")
 
 
-def test_circuit_breaker_cascade_collapsed_in_error_panel():
+def test_circuit_breaker_cascade_collapsed_in_error_panel() -> None:
     """When many fetchers fail due to open circuit breaker, panel shows ONE entry not many."""
     from dashboard.error_boundary import (
         error_summary_panel,
@@ -178,7 +178,7 @@ def test_circuit_breaker_cascade_collapsed_in_error_panel():
     print("OK circuit breaker cascade collapsed into single panel entry")
 
 
-def test_fetch_perf_analytics_none_fields_fail_fast():
+def test_fetch_perf_analytics_none_fields_fail_fast() -> None:
     """fetch_perf_analytics allows all-None during ramp-up but fails if some fields present."""
     from unittest.mock import patch
 
@@ -219,7 +219,7 @@ def test_fetch_perf_analytics_none_fields_fail_fast():
     print("OK fetch_perf_analytics fails fast on partial None with missing critical metrics")
 
 
-def test_fetch_risk_metrics_rejects_missing_required_fields():
+def test_fetch_risk_metrics_rejects_missing_required_fields() -> None:
     """fetch_risk_metrics must fail fast when critical risk metrics are missing (None)."""
     from unittest.mock import patch
 
@@ -242,7 +242,7 @@ def test_fetch_risk_metrics_rejects_missing_required_fields():
     print("OK fetch_risk_metrics correctly rejects missing required fields")
 
 
-def test_fetch_signal_eval_none_fields_do_not_crash():
+def test_fetch_signal_eval_none_fields_do_not_crash() -> None:
     """fetch_signal_eval must not crash when API returns None for int/float fields."""
     from unittest.mock import patch
 
@@ -266,7 +266,7 @@ def test_fetch_signal_eval_none_fields_do_not_crash():
     print("OK fetch_signal_eval handles None fields gracefully")
 
 
-def test_empty_optional_data_not_treated_as_error():
+def test_empty_optional_data_not_treated_as_error() -> None:
     """Empty notifications/audit/exec_hist/econ_cal should not appear in error panel."""
     from dashboard.error_boundary import error_summary_panel
 
@@ -282,7 +282,7 @@ def test_empty_optional_data_not_treated_as_error():
     print("OK empty optional data does not trigger error panel")
 
 
-def test_error_message_fallback_for_missing_error_details():
+def test_error_message_fallback_for_missing_error_details() -> None:
     """Verify that missing or None _error values are rejected with fail-fast errors."""
     from dashboard.error_boundary import error_summary_panel
 
