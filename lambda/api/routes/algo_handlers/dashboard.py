@@ -102,10 +102,15 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
     sector_risk: dict[str, float] = {}
     total_positions_fetched = len(positions)
     filtered_positions_count = 0
-    logger.debug(f"[POSITIONS] Starting loop with {total_positions_fetched} positions")
+    logger.info(f"[POSITIONS] Starting loop with {total_positions_fetched} positions")
 
     for p in positions:
-        d = safe_json_serialize(safe_dict_convert(p))
+        try:
+            d = safe_json_serialize(safe_dict_convert(p))
+        except Exception as e:
+            logger.error(f"[POSITIONS] Failed to convert position data: {type(e).__name__}: {e}")
+            filtered_positions_count += 1
+            continue
         symbol = d.get("symbol")
 
         if not symbol:
