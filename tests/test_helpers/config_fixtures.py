@@ -33,8 +33,6 @@ BASE_CONFIG: dict[str, Any] = {
     "max_stop_distance_pct": 12.0,
     "max_positions_per_sector": 10,
     "max_positions_per_industry": 8,
-    "min_swing_score": 55.0,
-    "min_swing_grade": "",
     "max_total_invested_pct": 95.0,
     # Market Conditions
     "max_distribution_days": 4,
@@ -218,7 +216,6 @@ def bull_market_config() -> dict[str, Any]:
             "vix_caution_threshold": 22.0,  # Raise caution threshold
             "vix_caution_risk_reduction": 0.9,  # Less reduction when VIX rises
             "require_stage_2_market": False,  # Less strict market requirement
-            "min_swing_score": 50.0,  # Lower quality bar
             "max_distribution_days": 5,  # Tolerate more distribution
             "swing_weight_momentum": 25,  # Weight momentum more in bull
         }
@@ -243,7 +240,6 @@ def correction_config() -> dict[str, Any]:
             "max_total_invested_pct": 70.0,  # Deploy less capital
             "vix_caution_threshold": 25.0,  # Standard caution
             "require_stage_2_market": True,  # Stricter market requirement
-            "min_swing_score": 65.0,  # Higher quality bar
             "max_distribution_days": 3,  # Low distribution tolerance
             "max_consecutive_losses": 2,  # Tighter loss limit
         }
@@ -269,7 +265,6 @@ def crisis_config() -> dict[str, Any]:
             "vix_max_threshold": 45.0,  # Higher halt threshold (allow some activity)
             "vix_caution_threshold": 30.0,  # Low caution threshold
             "require_stage_2_market": True,  # Strict market requirement
-            "min_swing_score": 75.0,  # Very high quality bar
             "max_distribution_days": 2,  # Very low distribution tolerance
             "halt_drawdown_pct": 10.0,  # Aggressive halt level
             "max_daily_loss_pct": 1.0,  # Tight daily loss limit

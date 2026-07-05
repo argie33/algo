@@ -31,7 +31,6 @@ def _create_mock_cursor():
         ("max_positions", "15", "int"),  # 15 max concurrent positions
         ("max_position_size_pct", "6.3", "float"),  # 6.3% per position
         ("max_total_invested_pct", "85", "float"),  # 85% total invested
-        ("min_swing_score", "55", "float"),  # min score 55 (range 0.1-100)
         ("halt_drawdown_pct", "-20", "float"),  # NEGATIVE: -20% halt threshold (range -100 to -5)
         ("max_daily_loss_pct", "2", "float"),  # 2% daily loss cap (range 0.1-50)
         ("vix_max_threshold", "35", "float"),  # VIX max 35 (range 20-100)

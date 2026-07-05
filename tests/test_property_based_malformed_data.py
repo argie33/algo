@@ -118,7 +118,6 @@ class TestConfigValidatorWithMalformedData:
                 result = validate_config_response(
                     {
                         "min_signal_quality_score": value,
-                        "min_swing_score": value,
                         "min_completeness_score": value,
                         "min_volume_ma_50d": 100000,
                         "min_avg_daily_dollar_volume": 500000.0,
@@ -137,7 +136,6 @@ class TestConfigValidatorWithMalformedData:
             result = validate_config_response(
                 {
                     "min_signal_quality_score": 0,
-                    "min_swing_score": 0.0,
                     "min_completeness_score": 0,
                     "min_volume_ma_50d": 0,
                     "min_avg_daily_dollar_volume": 0.0,
@@ -157,7 +155,6 @@ class TestConfigValidatorWithMalformedData:
                 result = validate_config_response(
                     {
                         "min_signal_quality_score": value,
-                        "min_swing_score": value,
                         "min_completeness_score": value,
                         "min_volume_ma_50d": 100000,
                         "min_avg_daily_dollar_volume": 500000.0,
@@ -176,7 +173,6 @@ class TestConfigValidatorWithMalformedData:
             result = validate_config_response(
                 {
                     "min_signal_quality_score": "60",  # String instead of int
-                    "min_swing_score": [55.0],  # List instead of float
                     "min_completeness_score": {"value": 70},  # Dict instead of int
                     "min_volume_ma_50d": 100000,
                     "min_avg_daily_dollar_volume": 500000.0,
