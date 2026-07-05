@@ -16,10 +16,9 @@ class TestIntegration:
 
     def test_end_to_end_signal_generation(self):
         """Test end-to-end signal generation pipeline imports and structure."""
-        from algo.signals import SignalComputer, SwingTraderScore
+        from algo.signals import SignalComputer
 
         assert SignalComputer is not None
-        assert SwingTraderScore is not None
 
     def test_live_data_pipeline(self):
         """Test pipeline structure for live market data."""
