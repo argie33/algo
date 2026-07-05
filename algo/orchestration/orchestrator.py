@@ -131,6 +131,7 @@ class Orchestrator:
         # 1. Validate Alpaca credentials
         try:
             from algo.config.credential_manager import CredentialManager
+
             creds = CredentialManager()
             api_key = creds.get_password("APCA_API_KEY_ID", default=None)
             api_secret = creds.get_password("APCA_API_SECRET_KEY", default=None)

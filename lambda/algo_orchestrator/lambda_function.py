@@ -323,11 +323,13 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
             )
             return {
                 "statusCode": 500,
-                "body": json.dumps({
-                    "status": "error",
-                    "message": f"Missing required config keys: {', '.join(missing_keys)}. Cannot initialize orchestrator.",
-                    "source": source,
-                }),
+                "body": json.dumps(
+                    {
+                        "status": "error",
+                        "message": f"Missing required config keys: {', '.join(missing_keys)}. Cannot initialize orchestrator.",
+                        "source": source,
+                    }
+                ),
             }
         logger.info(f"[LAMBDA STARTUP] Config validation passed — {len(required_config_keys)} required keys present")
 
@@ -394,7 +396,9 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
             # Return response
             response_status_code = 200 if success else 500
             if not success:
-                logger.warning(f"[LAMBDA_RESPONSE] Orchestrator failed — returning statusCode {response_status_code} with error status")
+                logger.warning(
+                    f"[LAMBDA_RESPONSE] Orchestrator failed — returning statusCode {response_status_code} with error status"
+                )
             else:
                 logger.info(f"[LAMBDA_RESPONSE] Orchestrator succeeded — returning statusCode {response_status_code}")
             return {

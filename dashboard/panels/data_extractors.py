@@ -100,7 +100,9 @@ def safe_get_list(data: Any) -> list[Any] | dict[str, Any]:
             return data["items"]
         if "data" in data and isinstance(data["data"], list):
             return data["data"]
-        logger.debug("safe_get_list: dict has no items/data list field (optional field not present), returning unavailability marker")
+        logger.debug(
+            "safe_get_list: dict has no items/data list field (optional field not present), returning unavailability marker"
+        )
         return {
             "data_unavailable": True,
             "reason": "list_field_not_found",

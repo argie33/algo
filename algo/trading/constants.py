@@ -9,6 +9,7 @@ from enum import Enum
 
 class PositionStatus(str, Enum):
     """Valid position statuses. Use these enums instead of string literals."""
+
     OPEN = "open"
     CLOSED = "closed"
     HALTED = "halted"
@@ -32,6 +33,7 @@ class PositionStatus(str, Enum):
 
 class TradeStatus(str, Enum):
     """Valid trade statuses."""
+
     OPEN = "open"
     CLOSED = "closed"
     FILLED = "filled"
@@ -54,6 +56,7 @@ class TradeStatus(str, Enum):
 
 class DataUnavailableReason(str, Enum):
     """Standardized reasons for data being unavailable."""
+
     LOADER_FAILURE = "loader_failure"
     UPSTREAM_ERROR = "upstream_error"
     INSUFFICIENT_HISTORY = "insufficient_history"
@@ -65,6 +68,7 @@ class DataUnavailableReason(str, Enum):
 
 class SignalGrade(str, Enum):
     """Signal quality grades based on score."""
+
     A = "A"  # score >= 80
     B = "B"  # 60 <= score < 80
     C = "C"  # 40 <= score < 60
@@ -85,6 +89,7 @@ class SignalGrade(str, Enum):
 
 class WeinsteinStage(int, Enum):
     """Weinstein trend template stages."""
+
     STAGE_1 = 1  # Base/accumulation
     STAGE_2 = 2  # Trend/advance (early, mid, late)
     STAGE_3 = 3  # Top/distribution

@@ -109,14 +109,17 @@ def main() -> int:
 
             with DatabaseContext("write") as cur:
                 for symbol in symbols:
-                    cur.execute("""
+                    cur.execute(
+                        """
                         INSERT INTO earnings_calendar (symbol, data_unavailable, reason, updated_at)
                         VALUES (%s, TRUE, %s, NOW())
                         ON CONFLICT (symbol) DO UPDATE SET
                           data_unavailable = TRUE,
                           reason = EXCLUDED.reason,
                           updated_at = NOW()
-                    """, (symbol, f"loader_crash:{type(e).__name__}"))
+                    """,
+                        (symbol, f"loader_crash:{type(e).__name__}"),
+                    )
         except Exception as mark_err:
             logger.error(f"Failed to mark earnings_calendar data unavailable: {mark_err}")
         return 1

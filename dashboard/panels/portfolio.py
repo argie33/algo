@@ -823,7 +823,9 @@ def panel_portfolio_perf_expanded(  # noqa: C901
                 else (
                     Y
                     if (maxdd2 is not None and maxdd_abs is not None and maxdd_abs >= 5)
-                    else "dim" if maxdd2 is None else G
+                    else "dim"
+                    if maxdd2 is None
+                    else G
                 )
             )
             anl.add_row(

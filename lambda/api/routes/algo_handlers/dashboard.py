@@ -373,9 +373,7 @@ def _get_algo_status(cur: cursor) -> Any:
 
 @db_route_handler("fetch algo trades")  # type: ignore[untyped-decorator]
 @validate_api_response("trades")  # type: ignore[untyped-decorator]
-def _get_algo_trades(
-    cur: cursor, limit: int = 200, user_id: str | None = None, status: str | None = None
-) -> Any:
+def _get_algo_trades(cur: cursor, limit: int = 200, user_id: str | None = None, status: str | None = None) -> Any:
     """Get recent trades with all fields for frontend.
 
     Scoped to user if user_id provided, filtered by status if provided.

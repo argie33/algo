@@ -216,8 +216,15 @@ def fetch_algo_config(c: None) -> dict[str, Any]:
             record_data_quality_issue("cfg", "validation", "invalid_enable_algo_value", str(en_raw))
             return FetcherValidator.build_error_response(error_msg)
         # Validate all required config fields exist
-        required_fields = ["execution_mode", "max_position_size_pct", "max_positions",
-                          "max_positions_per_sector", "min_swing_score", "base_risk_pct", "t1_target_r_multiple"]
+        required_fields = [
+            "execution_mode",
+            "max_position_size_pct",
+            "max_positions",
+            "max_positions_per_sector",
+            "min_swing_score",
+            "base_risk_pct",
+            "t1_target_r_multiple",
+        ]
         missing_fields = [f for f in required_fields if f not in cfg]
         if missing_fields:
             error_msg = f"Config missing required fields: {missing_fields}"

@@ -203,7 +203,9 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
             logger.debug(f"[POSITIONS_PANEL] Position {symbol}: weinstein_stage unavailable (optional enrichment)")
         swg = p.get("minervini_trend_score")  # Optional: Minervini trend score from API
         if swg is None:
-            logger.debug(f"[POSITIONS_PANEL] Position {symbol}: minervini_trend_score unavailable (optional enrichment)")
+            logger.debug(
+                f"[POSITIONS_PANEL] Position {symbol}: minervini_trend_score unavailable (optional enrichment)"
+            )
         sec_val = p.get("sector")
         if sec_val is None:
             logger.debug(f"[POSITIONS_PANEL] Position {symbol}: sector unavailable (optional enrichment)")
@@ -284,10 +286,7 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
         total_count = coverage.get("total_count")
         filtered_count = coverage.get("filtered_count")
         has_filtering_info = (
-            total_count is not None
-            and total_count > 0
-            and filtered_count is not None
-            and filtered_count > 0
+            total_count is not None and total_count > 0 and filtered_count is not None and filtered_count > 0
         )
     if has_filtering_info and coverage_valid:
         # coverage is guaranteed to be dict at this point

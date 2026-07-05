@@ -100,7 +100,11 @@ class PriceLoader(OptimalLoader):
         from algo.infrastructure import get_config
 
         config = get_config()
-        key = "loader_rate_limit_circuit_break_threshold_eod" if self._is_eod_pipeline else "loader_rate_limit_circuit_break_threshold_morning"
+        key = (
+            "loader_rate_limit_circuit_break_threshold_eod"
+            if self._is_eod_pipeline
+            else "loader_rate_limit_circuit_break_threshold_morning"
+        )
         self._rate_limit_circuit_break_threshold = int(config.get(key))
 
         # Instantiate specialists - each handles a specific concern

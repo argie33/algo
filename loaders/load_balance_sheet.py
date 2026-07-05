@@ -154,9 +154,7 @@ class AnnualBalanceSheetLoader(SecEdgarStatementLoader):
         try:
             return super().fetch_incremental(symbol, since)
         except Exception as e:
-            logger.error(
-                f"[BALANCE_SHEET] Exception fetching for {symbol}: {type(e).__name__}: {e}"
-            )
+            logger.error(f"[BALANCE_SHEET] Exception fetching for {symbol}: {type(e).__name__}: {e}")
             return [
                 {
                     "symbol": symbol,
@@ -176,9 +174,7 @@ class AnnualBalanceSheetLoader(SecEdgarStatementLoader):
         try:
             transformed = super().transform(rows)
         except Exception as e:
-            logger.error(
-                f"[BALANCE_SHEET] Exception transforming data: {type(e).__name__}: {e}"
-            )
+            logger.error(f"[BALANCE_SHEET] Exception transforming data: {type(e).__name__}: {e}")
             # Extract symbol from first row if available
             symbol = rows[0].get("symbol", "unknown") if rows else "unknown"
             return [

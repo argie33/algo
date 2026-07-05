@@ -845,12 +845,15 @@ def validate_api_response(endpoint_name: str) -> Callable[[Callable[P, dict[str,
                     logger.debug(f"[VALIDATION] Response data: {data_to_validate}")
 
                     # Return explicit error (don't silently pass)
-                    return cast(dict[str, Any], error_response(
-                        500,
-                        "response_validation_error",
-                        f"API contract violation for {endpoint_name}: {error_msg}. "
-                        "Check API logs for contract details.",
-                    ))
+                    return cast(
+                        dict[str, Any],
+                        error_response(
+                            500,
+                            "response_validation_error",
+                            f"API contract violation for {endpoint_name}: {error_msg}. "
+                            "Check API logs for contract details.",
+                        ),
+                    )
 
                 return response
 

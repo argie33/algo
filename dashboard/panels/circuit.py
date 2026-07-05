@@ -211,8 +211,7 @@ def panel_circuit(cb: Any) -> Panel:  # noqa: C901
         else:
             unit_str = str(unit_str)
         return (
-            f"[{fc}]{lbl_s}:[/]{cur_fmt}{unit_str}"
-            f"[dim]/{thr_f:.0f}{unit_str}[/]{hbar(cur_f, thr_f, w=4)}{pct_s}{ind}"
+            f"[{fc}]{lbl_s}:[/]{cur_fmt}{unit_str}[dim]/{thr_f:.0f}{unit_str}[/]{hbar(cur_f, thr_f, w=4)}{pct_s}{ind}"
         )
 
     if bs is not None:
@@ -276,7 +275,9 @@ def panel_circuit_expanded(cb: Any) -> Panel:  # noqa: C901
         )
 
     if any_f_raw is None:
-        logger.warning("[CIRCUIT] Missing 'any' field in expanded circuit breaker data — defaulting to no breakers fired")
+        logger.warning(
+            "[CIRCUIT] Missing 'any' field in expanded circuit breaker data — defaulting to no breakers fired"
+        )
         any_f = False
     else:
         any_f = any_f_raw if isinstance(any_f_raw, bool) else bool(any_f_raw)
@@ -338,7 +339,9 @@ def panel_circuit_expanded(cb: Any) -> Panel:  # noqa: C901
                 logger.debug("[CIRCUIT_EXPANDED] Breaker %s missing 'triggered' status", lbl)
                 continue
             if not isinstance(fired_val, bool):
-                logger.debug("[CIRCUIT_EXPANDED] Breaker %s 'triggered' is not bool: got %s", lbl, type(fired_val).__name__)
+                logger.debug(
+                    "[CIRCUIT_EXPANDED] Breaker %s 'triggered' is not bool: got %s", lbl, type(fired_val).__name__
+                )
                 continue
             fired = fired_val
 

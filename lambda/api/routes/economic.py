@@ -369,10 +369,14 @@ def _get_leading_indicators(cur: cursor) -> Any:  # noqa: C901
 
                 # Require at least one valid data point in each period for trend calculation
                 if len(recent_values) == 0:
-                    logger.warning("Insufficient data for recent trend calculation (0 valid values in last 3 periods). Setting trend=None.")
+                    logger.warning(
+                        "Insufficient data for recent trend calculation (0 valid values in last 3 periods). Setting trend=None."
+                    )
                     trend = None
                 elif len(older_values) == 0:
-                    logger.warning("Insufficient data for older trend calculation (0 valid values in first 3 periods). Setting trend=None.")
+                    logger.warning(
+                        "Insufficient data for older trend calculation (0 valid values in first 3 periods). Setting trend=None."
+                    )
                     trend = None
                 else:
                     recent_avg = sum(recent_values) / len(recent_values)
@@ -427,9 +431,7 @@ def _get_leading_indicators(cur: cursor) -> Any:  # noqa: C901
         if not is_valid:
             error_msg_str = error_msg_raw or "Economic indicators validation failed"
             logger.error(f"Economic indicators response validation failed: {error_msg_str}")
-            return error_response(
-                500, "response_validation_error", error_msg_str
-            )
+            return error_response(500, "response_validation_error", error_msg_str)
 
         return json_response(200, result)
 

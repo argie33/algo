@@ -140,8 +140,7 @@ def _best_halt_reason(top_level: str, phase_results: list[Any]) -> list[tuple[st
         elif not isinstance(pdata, dict) and pdata is not None:
             pdata = None
         detail = next(
-            (str(pdata[k]) for k in fields
-             if pdata and k in pdata and pdata[k] is not None and len(str(pdata[k])) > 3),
+            (str(pdata[k]) for k in fields if pdata and k in pdata and pdata[k] is not None and len(str(pdata[k])) > 3),
             "",
         )
         if detail:

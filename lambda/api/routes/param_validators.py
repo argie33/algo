@@ -217,17 +217,23 @@ class ParamValidator:
     @staticmethod
     def limit(value: str | int | None, max_val: int = 5000, default: int | None = None) -> int:
         """Validate pagination limit parameter (alias for common case)."""
-        return ParamValidator.int(value, min_val=1, max_val=max_val, default=default or max_val, required=default is None, clamp=True)  # type: ignore[return-value]
+        return ParamValidator.int(
+            value, min_val=1, max_val=max_val, default=default or max_val, required=default is None, clamp=True
+        )  # type: ignore[return-value]
 
     @staticmethod
     def offset(value: str | int | None, max_val: int = 1000000, default: int | None = None) -> int:
         """Validate pagination offset parameter (alias for common case)."""
-        return ParamValidator.int(value, min_val=0, max_val=max_val, default=default or 0, required=default is None, clamp=True)  # type: ignore[return-value]
+        return ParamValidator.int(
+            value, min_val=0, max_val=max_val, default=default or 0, required=default is None, clamp=True
+        )  # type: ignore[return-value]
 
     @staticmethod
     def days(value: str | int | None, max_val: int = 365, default: int | None = None) -> int:
         """Validate days parameter (alias for common case)."""
-        return ParamValidator.int(value, min_val=1, max_val=max_val, default=default or max_val, required=default is None, clamp=True)  # type: ignore[return-value]
+        return ParamValidator.int(
+            value, min_val=1, max_val=max_val, default=default or max_val, required=default is None, clamp=True
+        )  # type: ignore[return-value]
 
     @staticmethod
     def page(value: str | int | None, default: int | None = None) -> int:

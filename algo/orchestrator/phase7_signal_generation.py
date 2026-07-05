@@ -754,7 +754,9 @@ def run(  # noqa: C901
             raise ValueError(f"Signal {sig.get('symbol')} missing 'composite_score' field")
         cs = sig["composite_score"]
         if cs is None:
-            raise ValueError(f"Signal {sig.get('symbol')} has None composite_score (database join should guarantee non-null)")
+            raise ValueError(
+                f"Signal {sig.get('symbol')} has None composite_score (database join should guarantee non-null)"
+            )
         if not isinstance(cs, (int, float)):
             raise ValueError(f"Signal {sig.get('symbol')} composite_score is {type(cs).__name__}, expected float")
 

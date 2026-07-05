@@ -244,12 +244,14 @@ class MarketConstituentsLoader(OptimalLoader):
                             )
 
                     if r["ETF"].upper() == "Y":
-                        etf_rows.append({
-                            "symbol": sym,
-                            "security_name": name,
-                            "data_unavailable": False,
-                            "data_unavailable_reason": None,
-                        })
+                        etf_rows.append(
+                            {
+                                "symbol": sym,
+                                "security_name": name,
+                                "data_unavailable": False,
+                                "data_unavailable_reason": None,
+                            }
+                        )
                         continue
 
                     if should_exclude(name):
@@ -437,7 +439,10 @@ class MarketConstituentsLoader(OptimalLoader):
                 cur.execute("TRUNCATE TABLE etf_symbols")
                 cur.executemany(
                     "INSERT INTO etf_symbols (symbol, security_name, data_unavailable, data_unavailable_reason) VALUES (%s, %s, %s, %s)",
-                    [(row["symbol"], row["security_name"], row["data_unavailable"], row["data_unavailable_reason"]) for row in etf_rows],
+                    [
+                        (row["symbol"], row["security_name"], row["data_unavailable"], row["data_unavailable_reason"])
+                        for row in etf_rows
+                    ],
                 )
             logger.info(f"Successfully refreshed etf_symbols table with {len(etf_rows)} ETF symbols")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:

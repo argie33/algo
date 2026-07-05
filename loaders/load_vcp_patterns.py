@@ -283,7 +283,9 @@ def main() -> int:
                 logger.warning("[LOADER] VCP Patterns load completed but no rows inserted. Exit code 2 (NO_DATA).")
                 return 2
         else:
-            logger.error(f"[LOADER] VCP Patterns load returned unexpected result type: {type(result).__name__}. Exit code 1 (ERROR).")
+            logger.error(
+                f"[LOADER] VCP Patterns load returned unexpected result type: {type(result).__name__}. Exit code 1 (ERROR)."
+            )
             return 1
     except Exception as e:
         logger.error(f"[LOADER] VCP Patterns load failed: {e}. Exit code 1 (ERROR).", exc_info=True)

@@ -37,7 +37,7 @@ def _setup_aws_auth() -> None:
 
     try:
         auth = get_cognito_auth_instance(require_auth=True)
-        if auth is not None and hasattr(auth, 'is_authenticated') and not isinstance(auth, dict):
+        if auth is not None and hasattr(auth, "is_authenticated") and not isinstance(auth, dict):
             if auth.is_authenticated():
                 set_cognito_auth(auth)
                 save_tokens(auth)

@@ -213,7 +213,9 @@ class SafeDict:
             return value.lower() in ("true", "1", "yes", "on")
         return bool(value)
 
-    def dict_value(self, *keys: str, default: dict[str, Any] | None = None, field_name: str | None = None) -> dict[str, Any] | None:
+    def dict_value(
+        self, *keys: str, default: dict[str, Any] | None = None, field_name: str | None = None
+    ) -> dict[str, Any] | None:
         """Get value as dict with fallback default.
 
         Args:
@@ -237,7 +239,9 @@ class SafeDict:
         )
         return default if default is not None else {}
 
-    def list_value(self, *keys: str, default: list[Any] | None = None, field_name: str | None = None) -> list[Any] | None:
+    def list_value(
+        self, *keys: str, default: list[Any] | None = None, field_name: str | None = None
+    ) -> list[Any] | None:
         """Get value as list with fallback default.
 
         Args:

@@ -117,6 +117,7 @@ def get_data_staleness_warning(data: Any, max_age_hours: float = 24.0) -> str:
 
     try:
         from datetime import datetime, timezone
+
         if isinstance(timestamp_val, str):
             dt = datetime.fromisoformat(timestamp_val.replace("Z", "+00:00"))
         else:
@@ -152,7 +153,9 @@ def get_error_message_plain(data: Any) -> str | dict[str, Any]:
             raise ValueError("[CRITICAL] _error marker present but message is empty/None")
         return str(error_msg)
 
-    logger.warning("[DATA_UNAVAILABLE] Data dict present but has no error marker (GOVERNANCE: explicit markers required)")
+    logger.warning(
+        "[DATA_UNAVAILABLE] Data dict present but has no error marker (GOVERNANCE: explicit markers required)"
+    )
     return create_data_unavailable_marker("no_error_marker")
 
 

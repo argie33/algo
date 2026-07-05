@@ -345,7 +345,9 @@ class BuySignalGenerator:
 
         return int(sum(vols_50) / len(vols_50))
 
-    def _determine_market_stage(self, close: float, sma_50: float | None, sma_200: float | None) -> str | dict[str, Any] | None:
+    def _determine_market_stage(
+        self, close: float, sma_50: float | None, sma_200: float | None
+    ) -> str | dict[str, Any] | None:
         """Determine market stage from moving average positions.
 
         Returns:

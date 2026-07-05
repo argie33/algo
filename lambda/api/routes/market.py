@@ -333,7 +333,9 @@ def _handle_top_movers(cur: cursor) -> Any:
         raise_api_error(503, "no_data", "Top movers data validation failed - no valid price change data")
 
     if invalid_count > 0:
-        logger.warning(f"[TOP_MOVERS] Filtered {invalid_count} items with missing pct_change; showing {len(valid_items)} valid items")
+        logger.warning(
+            f"[TOP_MOVERS] Filtered {invalid_count} items with missing pct_change; showing {len(valid_items)} valid items"
+        )
 
     gainers = sorted(
         [m for m in valid_items if m["pct_change"] >= 0],
@@ -498,14 +500,15 @@ def _handle_seasonality(cur: cursor) -> Any:
                 "best_month": (
                     {
                         "name": (best_month.get("month_name") if best_month else None),
-                        "avg_return_pct": (
-                            float(val) if (val := best_month.get("avg_return")) is not None else None
-                        ),
+                        "avg_return_pct": (float(val) if (val := best_month.get("avg_return")) is not None else None),
                         "win_rate_pct": (
                             round(
                                 (float(wy) / float(yc) * 100),
                                 1,
-                            ) if (wy := best_month.get("winning_years")) is not None and (yc := best_month.get("years_counted")) is not None else None
+                            )
+                            if (wy := best_month.get("winning_years")) is not None
+                            and (yc := best_month.get("years_counted")) is not None
+                            else None
                         ),
                     }
                     if best_month
@@ -514,16 +517,15 @@ def _handle_seasonality(cur: cursor) -> Any:
                 "worst_month": (
                     {
                         "name": (worst_month.get("month_name") if worst_month else None),
-                        "avg_return_pct": (
-                            float(val) if (val := worst_month.get("avg_return")) is not None else None
-                        ),
+                        "avg_return_pct": (float(val) if (val := worst_month.get("avg_return")) is not None else None),
                         "win_rate_pct": (
                             round(
-                                (
-                                    float(wy) / float(yc) * 100
-                                ),
+                                (float(wy) / float(yc) * 100),
                                 1,
-                            ) if (wy := worst_month.get("winning_years")) is not None and (yc := worst_month.get("years_counted")) is not None else None
+                            )
+                            if (wy := worst_month.get("winning_years")) is not None
+                            and (yc := worst_month.get("years_counted")) is not None
+                            else None
                         ),
                     }
                     if worst_month
@@ -532,12 +534,8 @@ def _handle_seasonality(cur: cursor) -> Any:
                 "best_day": (
                     {
                         "name": best_dow.get("day") if best_dow else None,
-                        "avg_return_pct": (
-                            float(val) if (val := best_dow.get("avg_return")) is not None else None
-                        ),
-                        "win_rate_pct": (
-                            float(val) if (val := best_dow.get("win_rate")) is not None else None
-                        ),
+                        "avg_return_pct": (float(val) if (val := best_dow.get("avg_return")) is not None else None),
+                        "win_rate_pct": (float(val) if (val := best_dow.get("win_rate")) is not None else None),
                     }
                     if best_dow
                     else None
@@ -545,12 +543,8 @@ def _handle_seasonality(cur: cursor) -> Any:
                 "worst_day": (
                     {
                         "name": worst_dow.get("day") if worst_dow else None,
-                        "avg_return_pct": (
-                            float(val) if (val := worst_dow.get("avg_return")) is not None else None
-                        ),
-                        "win_rate_pct": (
-                            float(val) if (val := worst_dow.get("win_rate")) is not None else None
-                        ),
+                        "avg_return_pct": (float(val) if (val := worst_dow.get("avg_return")) is not None else None),
+                        "win_rate_pct": (float(val) if (val := worst_dow.get("win_rate")) is not None else None),
                     }
                     if worst_dow
                     else None

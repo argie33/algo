@@ -488,7 +488,9 @@ class CredentialManager:
                     f"[CREDENTIALS] Could not fetch Alpaca credentials from configured secret: {_sanitize_error(e)}"
                 )
         elif algo_secrets_arn and self._is_aws and not is_paper_mode:
-            logger.info("[CREDENTIALS] Live mode: skipping ALGO_SECRETS_ARN (contains paper keys), checking algo/alpaca")
+            logger.info(
+                "[CREDENTIALS] Live mode: skipping ALGO_SECRETS_ARN (contains paper keys), checking algo/alpaca"
+            )
             # Step 2b (Live Mode): Try algo/alpaca secret for live credentials
             try:
                 client = self._get_secrets_client()
@@ -505,7 +507,9 @@ class CredentialManager:
                             logger.info("[CREDENTIALS] Alpaca credentials loaded from algo/alpaca (live mode)")
                             return {"key": key, "secret": secret}
                         else:
-                            logger.warning("[CREDENTIALS] algo/alpaca exists but missing APCA_API_KEY_ID or APCA_API_SECRET_KEY")
+                            logger.warning(
+                                "[CREDENTIALS] algo/alpaca exists but missing APCA_API_KEY_ID or APCA_API_SECRET_KEY"
+                            )
             except (ClientError, BotoCoreError) as e:
                 logger.warning(
                     f"[CREDENTIALS] Could not fetch live credentials from algo/alpaca: {_sanitize_error(e)} "

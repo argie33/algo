@@ -189,10 +189,14 @@ def get_markets_cached() -> dict[str, Any]:
         if cached and "_time" in _market_cache:
             cache_time = _market_cache["_time"]
             if not isinstance(cache_time, (int, float)):
-                logger.warning(f"[MARKET_CACHE] Corrupted cache: _time is {type(cache_time).__name__}, not numeric. Force refresh.")
+                logger.warning(
+                    f"[MARKET_CACHE] Corrupted cache: _time is {type(cache_time).__name__}, not numeric. Force refresh."
+                )
             elif (now - cache_time) < 5:
                 if not isinstance(cached, dict):
-                    logger.warning(f"Market cache corrupted: _data is {type(cached).__name__}, not dict. Force refresh.")
+                    logger.warning(
+                        f"Market cache corrupted: _data is {type(cached).__name__}, not dict. Force refresh."
+                    )
                 else:
                     return cast(dict[str, Any], cached)
 
@@ -217,7 +221,9 @@ def get_data_status_cached() -> dict[str, Any]:
             if isinstance(cache_time, (int, float)) and (now - cache_time) < 10:
                 return cast(dict[str, Any], cached)
             elif not isinstance(cache_time, (int, float)):
-                logger.warning(f"[DATA_STATUS_CACHE] Corrupted cache: _time is {type(cache_time).__name__}, not numeric. Force refresh.")
+                logger.warning(
+                    f"[DATA_STATUS_CACHE] Corrupted cache: _time is {type(cache_time).__name__}, not numeric. Force refresh."
+                )
 
     status = api_call("/api/algo/data-status")
     with _data_status_cache_lock:

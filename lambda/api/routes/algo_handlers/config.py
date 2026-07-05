@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 @validate_api_response("cfg")  # type: ignore[untyped-decorator]
-@db_route_handler("fetch algo config")# type: ignore[untyped-decorator]
+@db_route_handler("fetch algo config")  # type: ignore[untyped-decorator]
 def _get_algo_config(cur: cursor) -> Any:
     """Return all algo configuration rows with defaults and categorization for TIER 3 visibility."""
     try:
@@ -90,7 +90,7 @@ def _get_algo_config_key(cur: cursor, key: str) -> Any:
     return json_response(200, safe_json_serialize(safe_dict_convert(row)))
 
 
-@db_route_handler("reset algo config key")# type: ignore[untyped-decorator]
+@db_route_handler("reset algo config key")  # type: ignore[untyped-decorator]
 def _reset_algo_config_key(cur: cursor, key: str, actor: str) -> Any:
     """Reset a configuration key to its default value (TIER 5: Reset capability)."""
     # Validate the key exists
@@ -139,7 +139,7 @@ def _reset_algo_config_key(cur: cursor, key: str, actor: str) -> Any:
     )
 
 
-@db_route_handler("update algo config key")# type: ignore[untyped-decorator]
+@db_route_handler("update algo config key")  # type: ignore[untyped-decorator]
 def _update_algo_config_key(cur: cursor, key: str, body: dict[str, Any], actor: str) -> Any:
     """Update a configuration key (TIER 4: Configuration Editing)."""
     if not body or "value" not in body:

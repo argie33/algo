@@ -338,27 +338,29 @@ class SignalQualityScoresLoader(OptimalLoader):
             error_records = []
             current = start
             while current <= end:
-                error_records.append({
-                    "symbol": symbol,
-                    "date": current.isoformat(),
-                    "base_quality_score": None,
-                    "volume_confirmation_score": None,
-                    "trend_template_score": None,
-                    "distance_from_high_score": None,
-                    "institutional_ownership_score": None,
-                    "market_stage_score": None,
-                    "vcp_pattern_score": None,
-                    "distribution_days_score": None,
-                    "earnings_proximity_score": None,
-                    "composite_sqs": None,
-                    "data_completeness": 0.0,
-                    "unavailable_components": ["all"],
-                    "buy_sell_daily_age_days": None,
-                    "technical_data_age_days": None,
-                    "trend_template_age_days": None,
-                    "data_unavailable": True,
-                    "reason": error_reason[:500],  # Truncate to 500 chars
-                })
+                error_records.append(
+                    {
+                        "symbol": symbol,
+                        "date": current.isoformat(),
+                        "base_quality_score": None,
+                        "volume_confirmation_score": None,
+                        "trend_template_score": None,
+                        "distance_from_high_score": None,
+                        "institutional_ownership_score": None,
+                        "market_stage_score": None,
+                        "vcp_pattern_score": None,
+                        "distribution_days_score": None,
+                        "earnings_proximity_score": None,
+                        "composite_sqs": None,
+                        "data_completeness": 0.0,
+                        "unavailable_components": ["all"],
+                        "buy_sell_daily_age_days": None,
+                        "technical_data_age_days": None,
+                        "trend_template_age_days": None,
+                        "data_unavailable": True,
+                        "reason": error_reason[:500],  # Truncate to 500 chars
+                    }
+                )
                 current = current + timedelta(days=1)
 
             return error_records if error_records else None
@@ -595,9 +597,13 @@ class SignalQualityScoresLoader(OptimalLoader):
             has_positioning_data = bool(positioning_data)
 
             if not has_vcp_data:
-                logger.warning(f"[QUALITY_SCORES] VCP patterns unavailable for {symbol} - vcp_pattern_score will be None")
+                logger.warning(
+                    f"[QUALITY_SCORES] VCP patterns unavailable for {symbol} - vcp_pattern_score will be None"
+                )
             if not has_positioning_data:
-                logger.debug(f"[QUALITY_SCORES] Positioning unavailable for {symbol} - institutional_ownership_score will be None")
+                logger.debug(
+                    f"[QUALITY_SCORES] Positioning unavailable for {symbol} - institutional_ownership_score will be None"
+                )
 
             bs_df = pd.DataFrame(buy_sell_rows)
             if bs_df.empty:

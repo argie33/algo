@@ -133,7 +133,9 @@ def run(
                 )
             halt_reasons = result["halt_reasons"]
             if not isinstance(halt_reasons, list) or len(halt_reasons) == 0:
-                logger.warning(f"Circuit breaker halt_reasons invalid type or empty: {type(halt_reasons)}, defaulting to ['unknown']")
+                logger.warning(
+                    f"Circuit breaker halt_reasons invalid type or empty: {type(halt_reasons)}, defaulting to ['unknown']"
+                )
                 halt_reasons = ["unknown"]
             alerts.send_position_alert(
                 "PORTFOLIO",

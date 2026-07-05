@@ -156,8 +156,7 @@ class PanelRegistry:
         panel = self._panels.get(name)
         if not panel:
             raise ValueError(
-                f"[PANEL_REGISTRY] Unknown panel '{name}'. "
-                f"Available panels: {sorted(self._panels.keys())}"
+                f"[PANEL_REGISTRY] Unknown panel '{name}'. Available panels: {sorted(self._panels.keys())}"
             )
         return panel.endpoint_deps
 
@@ -166,8 +165,7 @@ class PanelRegistry:
         panel = self._panels.get(name)
         if not panel:
             raise ValueError(
-                f"[PANEL_REGISTRY] Unknown panel '{name}'. "
-                f"Available panels: {sorted(self._panels.keys())}"
+                f"[PANEL_REGISTRY] Unknown panel '{name}'. Available panels: {sorted(self._panels.keys())}"
             )
         return panel.optional
 

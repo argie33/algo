@@ -240,7 +240,9 @@ def render_expanded_view(  # noqa: C901
 ) -> Layout | None:
     """Render expanded detail view for given mode."""
     if view_mode == "normal":
-        logger.debug("[RENDERER] Expanded view mode is 'normal' - using normal dashboard layout (no expanded view needed)")
+        logger.debug(
+            "[RENDERER] Expanded view mode is 'normal' - using normal dashboard layout (no expanded view needed)"
+        )
         return None
 
     _exp_top = (hdr_panel, exp_panel, mascot_panel)

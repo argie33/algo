@@ -113,6 +113,7 @@ def panel_market_full(mkt: Any, sentiment: Any = None) -> Panel:  # noqa: C901
 
     # Check data freshness: warn if market data is stale
     from datetime import datetime, timezone
+
     stale_warning = ""
     market_timestamp = mkt.get("timestamp")
     if market_timestamp:
@@ -181,7 +182,9 @@ def panel_market_full(mkt: Any, sentiment: Any = None) -> Panel:  # noqa: C901
     if exp is None:
         exp_s = "--"
         bar = "[dim]--[/] [yellow](data unavailable)[/]"
-        logger.warning("[MARKET_PANEL] Market exposure unavailable - positioning analysis incomplete - checking data_unavailable flag")
+        logger.warning(
+            "[MARKET_PANEL] Market exposure unavailable - positioning analysis incomplete - checking data_unavailable flag"
+        )
     else:
         exp_s = f"{float(exp):.0f}%"
         bar = exp_bar(exp, w=10)
@@ -309,7 +312,9 @@ def panel_market_expanded(mkt: Any, sentiment: Any = None) -> Panel:
     rows.append(Rule(style="dim"))
 
     spy_raw = safe_float(mkt.get("spy"), field_name="spy", strict=True) if mkt.get("spy") is not None else None
-    spy_chg = safe_float(mkt.get("spy_chg"), field_name="spy_chg", strict=True) if mkt.get("spy_chg") is not None else None
+    spy_chg = (
+        safe_float(mkt.get("spy_chg"), field_name="spy_chg", strict=True) if mkt.get("spy_chg") is not None else None
+    )
     stage_raw = mkt.get("stage")
     stage = str(stage_raw) if stage_raw else "[dim]—[/]"
     trend_raw = mkt.get("trend")
@@ -320,7 +325,9 @@ def panel_market_expanded(mkt: Any, sentiment: Any = None) -> Panel:
     if dist is None:
         logger.warning("[MARKET_EXPANDED] Distribution days data missing - market stage analysis incomplete")
     _fed_raw = mkt.get("fed")
-    fed = "[dim]—[/]" if (_fed_raw is None or str(_fed_raw).lower() in ("unknown", "n/a", "none", "")) else str(_fed_raw)
+    fed = (
+        "[dim]—[/]" if (_fed_raw is None or str(_fed_raw).lower() in ("unknown", "n/a", "none", "")) else str(_fed_raw)
+    )
     if _fed_raw is None or str(_fed_raw).lower() in ("unknown", "n/a", "none", ""):
         logger.debug("[MARKET_EXPANDED] Fed environment data unavailable - optional macro context missing")
     ycs = safe_float(mkt.get("ycs"), field_name="ycs", strict=True) if mkt.get("ycs") is not None else None
@@ -463,7 +470,11 @@ def panel_header_market(  # noqa: C901
         if not trend_raw:
             logger.debug("[MARKET_HEADER] Market trend not available - optional directional display skipped")
         spy_raw = safe_float(mkt.get("spy"), field_name="spy", strict=True) if mkt.get("spy") is not None else None
-        spy_chg = safe_float(mkt.get("spy_chg"), field_name="spy_chg", strict=True) if mkt.get("spy_chg") is not None else None
+        spy_chg = (
+            safe_float(mkt.get("spy_chg"), field_name="spy_chg", strict=True)
+            if mkt.get("spy_chg") is not None
+            else None
+        )
         spy_chg_s = (
             f" [{G if (spy_chg is not None and spy_chg >= 0) else R}]{sign(spy_chg)}{spy_chg:.1f}%[/]"
             if spy_chg is not None

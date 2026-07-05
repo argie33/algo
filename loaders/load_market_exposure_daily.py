@@ -27,6 +27,7 @@ Validation & Error Handling (Fail-Fast):
 
 Time: ~2-5 seconds (vectorized computation, minimal DB load)
 """
+
 from __future__ import annotations
 
 import logging

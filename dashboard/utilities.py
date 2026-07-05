@@ -123,8 +123,7 @@ def normalize_positions_data(data: Any) -> tuple[list[Any], Any, bool]:
     if data is None:
         logger.error("[POSITIONS_DATA_ERROR] Positions data is None - data loading or API call failed")
         raise ValueError(
-            "Positions data is None (data loading failed). "
-            "Check API connectivity and dashboard logs for details."
+            "Positions data is None (data loading failed). Check API connectivity and dashboard logs for details."
         )
     elif isinstance(data, dict):
         if check_has_error(data):
@@ -257,10 +256,7 @@ def extract_items_and_error(data: Any) -> tuple[list[Any], str | None]:
 
     if data is None:
         logger.error("[DATA_EXTRACTION_ERROR] Data is None - data loading or API call failed")
-        raise ValueError(
-            "Data is None (data loading failed). "
-            "Check API connectivity and dashboard logs for details."
-        )
+        raise ValueError("Data is None (data loading failed). Check API connectivity and dashboard logs for details.")
     elif isinstance(data, dict):
         if has_error(data):
             error_msg = get_error_message(data)

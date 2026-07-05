@@ -380,8 +380,7 @@ def load_all() -> dict[str, Any]:
     critical_failures = [k for k, v in critical_out.items() if isinstance(v, dict) and "_error" in v]
     if critical_failures:
         failed_summary = "; ".join(
-            f"{k}: {critical_out[k].get('_error', 'unknown error')[:100]}"
-            for k in critical_failures
+            f"{k}: {critical_out[k].get('_error', 'unknown error')[:100]}" for k in critical_failures
         )
         logger.error(
             f"[FETCHER] Critical fetcher failures detected: {failed_summary}. "

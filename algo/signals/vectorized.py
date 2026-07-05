@@ -113,7 +113,9 @@ class VectorizedSignalGenerator:
 
         for symbol, rows in data_by_symbol.items():
             if len(rows) < self.min_history:
-                logger.warning(f"[VECTORIZED] {symbol}: Insufficient price history for Minervini ({len(rows)} < {self.min_history})")
+                logger.warning(
+                    f"[VECTORIZED] {symbol}: Insufficient price history for Minervini ({len(rows)} < {self.min_history})"
+                )
                 results[symbol] = {
                     "score": 0,
                     "pass": False,
@@ -128,7 +130,9 @@ class VectorizedSignalGenerator:
                 closes = np.array([r["close"] for r in rows if r["close"] is not None])
 
                 if len(closes) < 252:
-                    logger.warning(f"[VECTORIZED] {symbol}: Insufficient valid closes for Minervini ({len(closes)} < 252)")
+                    logger.warning(
+                        f"[VECTORIZED] {symbol}: Insufficient valid closes for Minervini ({len(closes)} < 252)"
+                    )
                     results[symbol] = {
                         "score": 0,
                         "pass": False,
@@ -258,14 +262,18 @@ class VectorizedSignalGenerator:
 
         for symbol, rows in data_by_symbol.items():
             if len(rows) < self.min_history:
-                logger.warning(f"[VECTORIZED] {symbol}: Insufficient history for Weinstein ({len(rows)} < {self.min_history})")
+                logger.warning(
+                    f"[VECTORIZED] {symbol}: Insufficient history for Weinstein ({len(rows)} < {self.min_history})"
+                )
                 results[symbol] = {"stage": 0, "confidence": 0.0, "failed": True}
                 continue
 
             try:
                 closes = np.array([r["close"] for r in rows if r["close"] is not None])
                 if len(closes) < 252:
-                    logger.warning(f"[VECTORIZED] {symbol}: Insufficient clean closes for Weinstein ({len(closes)} < 252)")
+                    logger.warning(
+                        f"[VECTORIZED] {symbol}: Insufficient clean closes for Weinstein ({len(closes)} < 252)"
+                    )
                     results[symbol] = {"stage": 0, "confidence": 0.0, "failed": True}
                     continue
 
@@ -316,7 +324,9 @@ class VectorizedSignalGenerator:
             try:
                 closes = np.array([r["close"] for r in rows if r["close"] is not None])
                 if len(closes) < 21:
-                    logger.warning(f"[VECTORIZED] {symbol}: Insufficient clean closes for power trend ({len(closes)} < 21)")
+                    logger.warning(
+                        f"[VECTORIZED] {symbol}: Insufficient clean closes for power trend ({len(closes)} < 21)"
+                    )
                     results[symbol] = {"power_trend": False, "return_21d": None, "failed": True}
                     continue
 

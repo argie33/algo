@@ -273,7 +273,7 @@ def _calculate_pre_trade_impact(cur: cursor, body: dict[str, Any]) -> Any:
         return error_response(code, error_type, message)
 
 
-@db_route_handler("calculate trade preview")# type: ignore[untyped-decorator]
+@db_route_handler("calculate trade preview")  # type: ignore[untyped-decorator]
 def _calculate_trade_preview(cur: cursor, body: dict[str, Any]) -> Any:
     """Calculate position preview before trade entry.
 

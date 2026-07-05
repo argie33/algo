@@ -380,12 +380,14 @@ class SignalsDailyLoader(OptimalLoader):
             rows = self._fetch_signal_data(symbol, start, end)
             if not rows:
                 logger.error(f"[BUY_SELL_DAILY] {symbol}: _fetch_signal_data returned no rows for {start} to {end}")
-                return [{
-                    "symbol": symbol,
-                    "date": end.isoformat(),
-                    "data_unavailable": True,
-                    "reason": "_fetch_signal_data returned no rows for signal date range"
-                }]
+                return [
+                    {
+                        "symbol": symbol,
+                        "date": end.isoformat(),
+                        "data_unavailable": True,
+                        "reason": "_fetch_signal_data returned no rows for signal date range",
+                    }
+                ]
 
             # Generate signals
             signals = self._generate_signals(symbol, rows)
@@ -414,12 +416,7 @@ class SignalsDailyLoader(OptimalLoader):
             # Truncate reason to 500 chars to fit VARCHAR(500) column
             reason = error_msg[:500] if len(error_msg) > 500 else error_msg
             logger.error(f"[BUY_SELL_DAILY] {symbol}: Signal generation failed: {error_msg}")
-            return [{
-                "symbol": symbol,
-                "date": end.isoformat(),
-                "data_unavailable": True,
-                "reason": reason
-            }]
+            return [{"symbol": symbol, "date": end.isoformat(), "data_unavailable": True, "reason": reason}]
 
     def get_tech_data_age(self) -> float | None:
         """Return current batch tech_data_age for signal generation.
@@ -703,9 +700,7 @@ def main() -> int:  # noqa: C901
                 )
                 return 1
             if cur_row[0] is None:
-                logger.error(
-                    "[DEPENDENCY] technical_data_daily symbol count is NULL. Exit code 1 (ERROR)."
-                )
+                logger.error("[DEPENDENCY] technical_data_daily symbol count is NULL. Exit code 1 (ERROR).")
                 return 1
             tech_symbol_count = int(cur_row[0])
             if tech_symbol_count == 0:
@@ -725,9 +720,7 @@ def main() -> int:  # noqa: C901
                 f"[DEPENDENCY] ✓ technical_data_daily: {tech_symbol_count}/{len(symbols)} symbols ({coverage_pct}%), age {tech_data_age}d"
             )
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as dep_err:
-        logger.error(
-            f"[LOADER] Failed to validate technical_data_daily dependency: {dep_err}. Exit code 1 (ERROR)."
-        )
+        logger.error(f"[LOADER] Failed to validate technical_data_daily dependency: {dep_err}. Exit code 1 (ERROR).")
         return 1
 
     loader = SignalsDailyLoader()

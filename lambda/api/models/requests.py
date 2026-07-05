@@ -1,6 +1,5 @@
 """Pydantic models for API request bodies - single source of truth for request validation."""
 
-
 from __future__ import annotations
 
 import logging

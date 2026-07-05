@@ -1223,6 +1223,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     if event.get("source") == "eventbridge-scheduler":
         try:
             import subprocess
+
             run_id = event.get("run_identifier", "unknown")
             logger.info(f"[ORCHESTRATOR_TRIGGER] EventBridge invoked orchestrator: run_id={run_id}")
 
@@ -1242,21 +1243,17 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
 
             return {
                 "statusCode": 200 if result.returncode == 0 else 500,
-                "body": json.dumps({
-                    "orchestrator_run_id": run_id,
-                    "exit_code": result.returncode,
-                    "success": result.returncode == 0,
-                })
+                "body": json.dumps(
+                    {
+                        "orchestrator_run_id": run_id,
+                        "exit_code": result.returncode,
+                        "success": result.returncode == 0,
+                    }
+                ),
             }
         except Exception as e:
             logger.error(f"[ORCHESTRATOR_FAILED] Exception: {type(e).__name__}: {e}", exc_info=True)
-            return {
-                "statusCode": 500,
-                "body": json.dumps({
-                    "error": "orchestrator_failed",
-                    "message": str(e)
-                })
-            }
+            return {"statusCode": 500, "body": json.dumps({"error": "orchestrator_failed", "message": str(e)})}
 
     # Health checks are handled via api_router (routes/health.py) for consistent response format
     # All health endpoints (basic, detailed, pipeline) now route through normal flow

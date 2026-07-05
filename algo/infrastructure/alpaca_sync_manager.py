@@ -44,7 +44,9 @@ class AlpacaSyncManager:
         self._alpaca_secret = creds["secret"]
 
         # Use execution mode from config to determine correct Alpaca endpoint
-        execution_mode = self.config.get("execution_mode", "paper") if isinstance(self.config, dict) else self.config.execution_mode
+        execution_mode = (
+            self.config.get("execution_mode", "paper") if isinstance(self.config, dict) else self.config.execution_mode
+        )
         strategy = create_execution_mode_strategy(str(execution_mode).lower())
         configured_url = os.getenv("APCA_API_BASE_URL")
         self._alpaca_base_url = strategy.resolve_base_url(configured_url)
@@ -268,9 +270,7 @@ class AlpacaSyncManager:
 
         # Query failed imports from database
         try:
-            cur.execute(
-                "SELECT symbol, retry_count FROM alpaca_import_failures WHERE resolved = FALSE LIMIT 100"
-            )
+            cur.execute("SELECT symbol, retry_count FROM alpaca_import_failures WHERE resolved = FALSE LIMIT 100")
             failed_symbols = {row[0]: row[1] for row in cur.fetchall()}
         except Exception as e:
             logger.warning(f"[ALPACA_SYNC] Could not query failed imports table: {e}. Skipping recovery.")
@@ -295,8 +295,7 @@ class AlpacaSyncManager:
         unretryable = {sym: count for sym, count in failed_symbols.items() if sym not in alpaca_map or count >= 3}
 
         logger.info(
-            f"[ALPACA_SYNC] Import recovery: {len(retryable)} retryable, "
-            f"{len(unretryable)} exhausted/not-in-alpaca"
+            f"[ALPACA_SYNC] Import recovery: {len(retryable)} retryable, {len(unretryable)} exhausted/not-in-alpaca"
         )
 
         # Validate Alpaca data completeness before retry
@@ -379,10 +378,7 @@ class AlpacaSyncManager:
                 logger.error(f"[ALPACA_SYNC] Could not mark unretryable imports as resolved: {e}")
 
         return {
-            "message": (
-                f"Recovery: {recovered_count}/{len(retryable)} retried, "
-                f"{len(unretryable)} marked resolved"
-            ),
+            "message": (f"Recovery: {recovered_count}/{len(retryable)} retried, {len(unretryable)} marked resolved"),
             "recovery_attempted": True,
             "recovered_count": recovered_count,
             "unretryable_count": len(unretryable),

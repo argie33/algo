@@ -48,9 +48,7 @@ def validate_snapshot_freshness(
     try:
         age = datetime.now(timezone.utc) - updated_at
         if age > timedelta(hours=max_age_hours):
-            logger.warning(
-                f"[{table_name}] {symbol} data stale ({age.total_seconds()/3600:.1f}h old)"
-            )
+            logger.warning(f"[{table_name}] {symbol} data stale ({age.total_seconds() / 3600:.1f}h old)")
             return False
         return True
     except Exception as e:

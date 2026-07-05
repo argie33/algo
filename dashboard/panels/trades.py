@@ -276,7 +276,9 @@ def panel_recent_trades(trades: Any) -> Any:
         if exit_date is None:
             exit_date = safe_get_field(tr, "trade_date")
             if exit_date is not None:
-                logger.debug(f"[TRADES_PANEL] Trade {safe_get_field(tr, 'trade_id')}: exit_date missing, using trade_date")
+                logger.debug(
+                    f"[TRADES_PANEL] Trade {safe_get_field(tr, 'trade_id')}: exit_date missing, using trade_date"
+                )
 
         has_pnl = pnl_p is not None
         pnl_for_color = pnl_d if pnl_d is not None else pnl_p
@@ -284,7 +286,7 @@ def panel_recent_trades(trades: Any) -> Any:
         si = f"[{G}]▲[/]" if (pnl_p is not None and pnl_p > 0) else f"[{R}]▼[/]"
         # MEDIUM FIX: Explicit None check instead of or operator for grade (expanded)
         grade_val_exp = safe_get_field(tr, "swing_grade")
-        grade = (grade_val_exp if grade_val_exp is not None else "--")
+        grade = grade_val_exp if grade_val_exp is not None else "--"
         grade_c = (
             G
             if grade in ("A", "A+", "A-")
@@ -361,11 +363,15 @@ def panel_trades_expanded(trades: Any) -> Any:
     truncation_indicator = f" [dim](showing {total} of {total_all})[/]" if total_all > display_limit else ""
 
     # Count wins: only trades with profit_loss_pct data
-    wins = sum(1 for t in displayed_trades if (pnl := safe_get_field(t, "profit_loss_pct")) is not None and float(pnl) > 0)
+    wins = sum(
+        1 for t in displayed_trades if (pnl := safe_get_field(t, "profit_loss_pct")) is not None and float(pnl) > 0
+    )
     losses = total - wins
     wr = wins / total * 100 if total else None
     # Sum P&L only from trades with profit_loss_dollars data
-    total_pnl = sum(float(pnl_d) for t in displayed_trades if (pnl_d := safe_get_field(t, "profit_loss_dollars")) is not None)
+    total_pnl = sum(
+        float(pnl_d) for t in displayed_trades if (pnl_d := safe_get_field(t, "profit_loss_dollars")) is not None
+    )
     avg_r_list = [float(r) for t in displayed_trades if (r := safe_get_field(t, "exit_r_multiple")) is not None]
     avg_r = sum(avg_r_list) / len(avg_r_list) if avg_r_list else None
     wc = G if (wr is not None and wr >= 45) else (Y if (wr is not None and wr >= 40) else R)
@@ -448,7 +454,7 @@ def panel_trades_expanded(trades: Any) -> Any:
         dur = int(dur_raw) if dur_raw is not None else None
         # MEDIUM FIX: Explicit None check instead of or operator for grade display (full expanded)
         grade_val_full = safe_get_field(tr, "swing_grade")
-        grade = (grade_val_full if grade_val_full is not None else "--")
+        grade = grade_val_full if grade_val_full is not None else "--"
         mfe_raw = safe_get_field(tr, "mfe_pct")
         mae_raw = safe_get_field(tr, "mae_pct")
         mfe = float(mfe_raw) if mfe_raw is not None else None
@@ -458,7 +464,9 @@ def panel_trades_expanded(trades: Any) -> Any:
         if trade_date is None:
             trade_date = safe_get_field(tr, "signal_date")
             if trade_date is not None:
-                logger.debug(f"[TRADES_PANEL] Trade {safe_get_field(tr, 'trade_id')}: trade_date missing, using signal_date")
+                logger.debug(
+                    f"[TRADES_PANEL] Trade {safe_get_field(tr, 'trade_id')}: trade_date missing, using signal_date"
+                )
         exit_date = safe_get_field(tr, "exit_date")
         exit_rsn_val = safe_get_field(tr, "exit_reason")
         if exit_rsn_val is None:

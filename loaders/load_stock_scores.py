@@ -148,16 +148,16 @@ class StockScoresLoader(OptimalLoader):
                         )
 
                     try:
-                        cur.execute(f"SELECT COUNT(*) FROM {table_name} WHERE data_unavailable = false OR data_unavailable IS NULL")
+                        cur.execute(
+                            f"SELECT COUNT(*) FROM {table_name} WHERE data_unavailable = false OR data_unavailable IS NULL"
+                        )
                     except psycopg2.ProgrammingError:
                         # Column doesn't exist; assume all rows with values are real data
                         logger.critical(
                             f"[STOCK_SCORES CRITICAL] {table_name} missing data_unavailable column; schema mismatch detected. "
                             f"Migration for {table_name} may not have been applied yet."
                         )
-                        cur.execute(
-                            f"SELECT COUNT(*) FROM {table_name}"
-                        )
+                        cur.execute(f"SELECT COUNT(*) FROM {table_name}")
 
                     row = cur.fetchone()
                     available_count = row[0] if row else 0

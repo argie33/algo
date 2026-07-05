@@ -272,7 +272,9 @@ def handle(  # noqa: C901
 
             # CRITICAL: Verify data is available (not using fallback zeros)
             if not sectors_data:
-                logger.error("[SECTORS_API] No sector performance data available - sector_performance table may be empty")
+                logger.error(
+                    "[SECTORS_API] No sector performance data available - sector_performance table may be empty"
+                )
                 return error_response(
                     503,
                     "sector_data_unavailable",
@@ -293,7 +295,9 @@ def handle(  # noqa: C901
                 # CRITICAL: Check if this sector is using fallback data (missing perf from sector_performance)
                 is_fallback = s.get("_is_fallback")
                 if is_fallback:
-                    logger.error(f"[SECTORS_API] Sector performance data missing for {s.get('sector_name')} - using fallback")
+                    logger.error(
+                        f"[SECTORS_API] Sector performance data missing for {s.get('sector_name')} - using fallback"
+                    )
                     return error_response(
                         503,
                         "sector_perf_fallback",

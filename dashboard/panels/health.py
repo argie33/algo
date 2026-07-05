@@ -1130,7 +1130,8 @@ def _format_audit_log_summary(audit: list[Any]) -> list[Text]:
     notable = [
         a
         for a in valid_audit
-        if isinstance(a, dict) and a.get("action_type")
+        if isinstance(a, dict)
+        and a.get("action_type")
         # CRITICAL: Explicit None check instead of OR fallback with str()
         # Missing action_type should trigger validation, not silent fallback
         and any(
@@ -2060,7 +2061,8 @@ def panel_status(  # noqa: C901
         notable = [
             a
             for a in valid_audit_list
-            if isinstance(a, dict) and a.get("action_type")
+            if isinstance(a, dict)
+            and a.get("action_type")
             # CRITICAL: Explicit None check instead of OR fallback with str()
             # Missing action_type should trigger validation, not silent fallback
             and any(

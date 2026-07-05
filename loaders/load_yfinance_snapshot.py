@@ -153,9 +153,7 @@ class YFinanceSnapshotLoader(OptimalLoader):
                 "analysts_hold": analysts_hold,
                 "data_available": len(missing_critical) == 0,
                 "unavailable_reason": (
-                    f"missing_critical_fields: {','.join(missing_critical)}"
-                    if missing_critical
-                    else None
+                    f"missing_critical_fields: {','.join(missing_critical)}" if missing_critical else None
                 ),
             }
         ]
@@ -176,14 +174,17 @@ def main() -> int:
 
             with DatabaseContext("write") as cur:
                 for symbol in symbols:
-                    cur.execute("""
+                    cur.execute(
+                        """
                         INSERT INTO yfinance_snapshot (symbol, data_unavailable, reason, updated_at)
                         VALUES (%s, TRUE, %s, NOW())
                         ON CONFLICT (symbol) DO UPDATE SET
                           data_unavailable = TRUE,
                           reason = EXCLUDED.reason,
                           updated_at = NOW()
-                    """, (symbol, f"loader_crash:{type(e).__name__}"))
+                    """,
+                        (symbol, f"loader_crash:{type(e).__name__}"),
+                    )
         except Exception as mark_err:
             logger.error(f"Failed to mark yfinance_snapshot data unavailable: {mark_err}")
         return 1

@@ -289,10 +289,7 @@ def run(  # noqa: C901
                     "Run load_market_constituents.py first to populate NASDAQ/NYSE symbols."
                 )
                 log_phase_result_fn(
-                    1,
-                    "symbol_list_missing",
-                    "halt",
-                    "stock_symbols table empty - run market_constituents loader first"
+                    1, "symbol_list_missing", "halt", "stock_symbols table empty - run market_constituents loader first"
                 )
                 return PhaseResult(
                     1,
@@ -300,7 +297,7 @@ def run(  # noqa: C901
                     "halted",
                     {},
                     True,
-                    "stock_symbols table is empty - symbols must be loaded before trading"
+                    "stock_symbols table is empty - symbols must be loaded before trading",
                 )
             symbol_count = symbol_count_row[0]
             logger.info(f"[PHASE 1] Symbol list verified: {symbol_count} active symbols")
@@ -459,7 +456,9 @@ def run(  # noqa: C901
                 cur.execute("SELECT MAX(date) FROM price_daily WHERE symbol = '^VIX'")
                 vix_row = cur.fetchone()
                 if not vix_row:
-                    logger.warning("[PHASE 1] VIX data missing from price_daily — falling back to global max_date for health checks")
+                    logger.warning(
+                        "[PHASE 1] VIX data missing from price_daily — falling back to global max_date for health checks"
+                    )
                     vix_max_date = None
                 else:
                     vix_max_date = vix_row[0]
@@ -467,7 +466,9 @@ def run(  # noqa: C901
                 cur.execute("SELECT MAX(date) FROM market_health_daily")
                 health_row = cur.fetchone()
                 if not health_row:
-                    logger.warning("[PHASE 1] market_health_daily table empty — falling back to global max_date for exposure checks")
+                    logger.warning(
+                        "[PHASE 1] market_health_daily table empty — falling back to global max_date for exposure checks"
+                    )
                     health_max_date = None
                 else:
                     health_max_date = health_row[0]

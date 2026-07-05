@@ -114,17 +114,21 @@ def _compute_scores_vectorized(merged: pd.DataFrame) -> pd.DataFrame:
 
     # Minervini score (0-8)
     # GOVERNANCE: NaN indicators become NaN score (fail-fast), not silent 0 (no fallback to False)
-    minervini_components = pd.DataFrame({
-        "c1": (close > sma200).astype(int),
-        "c2": (close > sma50).astype(int),
-        "c3": (sma50 > sma200).astype(int),
-        "c4": (roc60 > 0).where(pd.notna(roc60), pd.NA).astype("Int64"),
-        "c5": (roc252 > 10).where(pd.notna(roc252), pd.NA).astype("Int64"),
-        "c6": (rsi > 50).where(pd.notna(rsi), pd.NA).astype("Int64"),
-        "c7": (close > sma200 * 1.10).astype(int),
-        "c8": (roc20 > 0).where(pd.notna(roc20), pd.NA).astype("Int64"),
-    })
-    merged["minervini_trend_score"] = minervini_components[["c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8"]].sum(axis=1, skipna=False).astype(float)
+    minervini_components = pd.DataFrame(
+        {
+            "c1": (close > sma200).astype(int),
+            "c2": (close > sma50).astype(int),
+            "c3": (sma50 > sma200).astype(int),
+            "c4": (roc60 > 0).where(pd.notna(roc60), pd.NA).astype("Int64"),
+            "c5": (roc252 > 10).where(pd.notna(roc252), pd.NA).astype("Int64"),
+            "c6": (rsi > 50).where(pd.notna(rsi), pd.NA).astype("Int64"),
+            "c7": (close > sma200 * 1.10).astype(int),
+            "c8": (roc20 > 0).where(pd.notna(roc20), pd.NA).astype("Int64"),
+        }
+    )
+    merged["minervini_trend_score"] = (
+        minervini_components[["c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8"]].sum(axis=1, skipna=False).astype(float)
+    )
 
     # Weinstein stage (1-4)
     above200 = close > sma200
@@ -229,7 +233,16 @@ def run() -> dict:  # type: ignore[type-arg]
 
         rows = list(
             merged[
-                ["symbol", "date", "weinstein_stage", "minervini_trend_score", "trend_direction", "price_above_sma50", "data_unavailable", "reason"]
+                [
+                    "symbol",
+                    "date",
+                    "weinstein_stage",
+                    "minervini_trend_score",
+                    "trend_direction",
+                    "price_above_sma50",
+                    "data_unavailable",
+                    "reason",
+                ]
             ].itertuples(index=False, name=None)
         )
 

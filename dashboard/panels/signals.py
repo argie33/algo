@@ -121,7 +121,7 @@ def _shorten_reason(r: str) -> str:
 
 def _shorten_type(t: str) -> str:
     # MEDIUM FIX: Explicit None check instead of or operator for signal type
-    t_safe = (t if t is not None else "")
+    t_safe = t if t is not None else ""
     t = t_safe.replace("WEEKLY_", "W_").replace("STAGE_2", "S2").replace("STAGE2", "S2")
     t = t.replace("BREAKOUT", "BKT").replace("MOMENTUM", "MOM").replace("REVERSAL", "REV")
     t = t.replace("PULLBACK", "PB").replace("TREND", "TRD").replace("_FOLLOW", "")
@@ -170,13 +170,13 @@ def _build_signal_header(sig_data: dict[str, Any], scores_data: dict[str, Any] |
     grades = safe_get_dict(grades_field) if grades_field else {}
     # MEDIUM FIX: Eliminate redundant safe_get_field calls - call once and check result
     ga_val = safe_get_field(grades, "a")
-    ga = (int(ga_val) if ga_val is not None else None)
+    ga = int(ga_val) if ga_val is not None else None
     gb_val = safe_get_field(grades, "b")
-    gb = (int(gb_val) if gb_val is not None else None)
+    gb = int(gb_val) if gb_val is not None else None
     gc_val = safe_get_field(grades, "c")
-    gc = (int(gc_val) if gc_val is not None else None)
+    gc = int(gc_val) if gc_val is not None else None
     gd_val = safe_get_field(grades, "d")
-    gd = (int(gd_val) if gd_val is not None else None)
+    gd = int(gd_val) if gd_val is not None else None
 
     buy_c = G if raw >= 5 else (Y if raw >= 1 else (DIM if total == 0 else R))
 
@@ -601,9 +601,9 @@ def panel_signals_compact(sig: Any, sig_eval: Any = None, scores: Any = None) ->
 
     # MEDIUM FIX: Eliminate redundant safe_get_field calls - call once and check result
     near_val = safe_get_field(overview, "near")
-    near = (near_val if near_val is not None else [])
+    near = near_val if near_val is not None else []
     top_a_val = safe_get_field(overview, "top_a")
-    top_a = (top_a_val if top_a_val is not None else [])
+    top_a = top_a_val if top_a_val is not None else []
     if near and top_a:
         rows.append(Rule(style="dim"))
         parts = []
@@ -617,11 +617,7 @@ def panel_signals_compact(sig: Any, sig_eval: Any = None, scores: Any = None) ->
 
     # MEDIUM FIX: Eliminate redundant safe_get_field calls for timestamp
     timestamp_val = safe_get_field(overview, "timestamp")
-    age_s = (
-        f"  [dim]{fmt_age(timestamp_val)}[/]"
-        if timestamp_val is not None
-        else ""
-    )
+    age_s = f"  [dim]{fmt_age(timestamp_val)}[/]" if timestamp_val is not None else ""
     title = "[bold magenta]TOP SCORES & SIGNALS[/]"
     return Panel(
         Group(*rows),
@@ -667,15 +663,15 @@ def panel_signals_expanded(sig: Any, sig_eval: Any = None, scores: Any = None) -
 
     # MEDIUM FIX: Eliminate redundant safe_get_field calls - call once and check result
     grades_val = safe_get_field(overview, "grades")
-    grades = (grades_val if grades_val is not None else {})
+    grades = grades_val if grades_val is not None else {}
     ga_val = safe_get_field(grades, "a")
-    ga = (int(ga_val) if ga_val is not None else None)
+    ga = int(ga_val) if ga_val is not None else None
     gb_val = safe_get_field(grades, "b")
-    gb = (int(gb_val) if gb_val is not None else None)
+    gb = int(gb_val) if gb_val is not None else None
     gc_val = safe_get_field(grades, "c")
-    gc = (int(gc_val) if gc_val is not None else None)
+    gc = int(gc_val) if gc_val is not None else None
     gd_val = safe_get_field(grades, "d")
-    gd = (int(gd_val) if gd_val is not None else None)
+    gd = int(gd_val) if gd_val is not None else None
 
     ga_s = f"{ga}" if ga is not None else "--"
     gb_s = f"{gb}" if gb is not None else "--"
@@ -694,7 +690,7 @@ def panel_signals_expanded(sig: Any, sig_eval: Any = None, scores: Any = None) -
 
     # MEDIUM FIX: Eliminate redundant safe_get_field calls for top_a
     top_a_val_exp = safe_get_field(overview, "top_a")
-    top_a = (top_a_val_exp if top_a_val_exp is not None else [])
+    top_a = top_a_val_exp if top_a_val_exp is not None else []
     if top_a:
         parts = []
         for s in top_a:

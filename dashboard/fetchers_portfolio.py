@@ -245,7 +245,9 @@ def fetch_positions(c: None) -> dict[str, Any]:
         for idx, pos in enumerate(items):
             if not isinstance(pos, dict):
                 logger.error(f"Position {idx}: not a dict, got {type(pos).__name__}")
-                record_data_quality_issue("pos", f"position_{idx}", "invalid_type", f"Expected dict, got {type(pos).__name__}")
+                record_data_quality_issue(
+                    "pos", f"position_{idx}", "invalid_type", f"Expected dict, got {type(pos).__name__}"
+                )
                 invalid_count += 1
                 continue
 
@@ -466,7 +468,9 @@ def fetch_perf(c: None) -> dict[str, Any]:
             "profit_factor": "profit_factor",
             "expectancy_r": "expectancy",
         }
-        missing_metrics = [name for field, name in critical_metrics.items() if field not in perf or perf.get(field) is None]
+        missing_metrics = [
+            name for field, name in critical_metrics.items() if field not in perf or perf.get(field) is None
+        ]
         if missing_metrics:
             error_msg = f"Performance data missing critical metrics: {', '.join(missing_metrics)}"
             logger.error(f"[FAIL_FAST] {error_msg}")

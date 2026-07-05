@@ -222,7 +222,9 @@ class PutCallRatioFetcher:
                         f"[PUT_CALL_RATIO] Permanent error on attempt {attempt}/{self.MAX_RETRIES} for {eval_date}: "
                         f"{last_error_reason}. Will not retry."
                     )
-                    logger.info(f"[PUT_CALL_RATIO] Data unavailable after permanent error for {eval_date}: {last_error_reason}")
+                    logger.info(
+                        f"[PUT_CALL_RATIO] Data unavailable after permanent error for {eval_date}: {last_error_reason}"
+                    )
                     return None
 
                 # Transient error - log and retry if attempts remain

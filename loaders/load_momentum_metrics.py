@@ -74,9 +74,7 @@ class MomentumMetricsLoader(OptimalLoader):
                 }
             ]
         except Exception as e:
-            logger.warning(
-                f"[MOMENTUM_METRICS] Unexpected error for {symbol}: {type(e).__name__}: {e}"
-            )
+            logger.warning(f"[MOMENTUM_METRICS] Unexpected error for {symbol}: {type(e).__name__}: {e}")
             return [
                 {
                     "symbol": symbol,

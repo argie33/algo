@@ -153,9 +153,7 @@ def _best_halt_reason(top_level: str, phase_results: list[Any]) -> list[tuple[st
             "Phase execution results unavailable (phase_results is None). "
             "Orchestrator may have halted before returning phase-level data."
         )
-        raise ValueError(
-            "Phase execution results unavailable, orchestrator may have halted"
-        )
+        raise ValueError("Phase execution results unavailable, orchestrator may have halted")
 
     # Validate phase_results is a list or tuple
     if not isinstance(phase_results, (list, tuple)):
@@ -163,9 +161,7 @@ def _best_halt_reason(top_level: str, phase_results: list[Any]) -> list[tuple[st
             f"_best_halt_reason received invalid phase_results type: {type(phase_results).__name__}. "
             f"Expected list or tuple of phase execution results."
         )
-        raise ValueError(
-            f"Phase results must be a list or tuple, got {type(phase_results).__name__}"
-        )
+        raise ValueError(f"Phase results must be a list or tuple, got {type(phase_results).__name__}")
 
     # Now phase_results is guaranteed to be a list/tuple - iterate without fallback
     skipped_non_dict = 0
@@ -212,7 +208,9 @@ def _best_halt_reason(top_level: str, phase_results: list[Any]) -> list[tuple[st
                 used_field = k
                 break
         if used_field and used_field != _FIELDS[0]:
-            logger.info(f"Phase '{label}' halt reason found in field '{used_field}' (primary '{_FIELDS[0]}' not available)")
+            logger.info(
+                f"Phase '{label}' halt reason found in field '{used_field}' (primary '{_FIELDS[0]}' not available)"
+            )
         if detail:
             found.append((label, detail))
         elif pdata is None:
@@ -222,7 +220,7 @@ def _best_halt_reason(top_level: str, phase_results: list[Any]) -> list[tuple[st
         skip_ratio = total_skipped / len(phase_results) if phase_results else 0
         logger.warning(
             f"[PHASE_RESULTS] Skipped {total_skipped} phase results "
-            f"({100*skip_ratio:.1f}% of {len(phase_results)}): "
+            f"({100 * skip_ratio:.1f}% of {len(phase_results)}): "
             f"{skipped_non_dict} non-dict, {skipped_missing_name} missing name"
         )
 

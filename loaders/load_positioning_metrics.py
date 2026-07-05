@@ -87,9 +87,13 @@ class PositioningMetricsLoader(OptimalLoader):
                 snapshot_age = datetime.now(timezone.utc) - row["updated_at"]
                 if snapshot_age > timedelta(hours=24):
                     logger.warning(
-                        f"[POSITIONING_METRICS] {symbol} snapshot data is stale ({snapshot_age.total_seconds()/3600:.1f}h old)"
+                        f"[POSITIONING_METRICS] {symbol} snapshot data is stale ({snapshot_age.total_seconds() / 3600:.1f}h old)"
                     )
-                    return [self._unavailable_record(symbol, f"Stale snapshot data ({snapshot_age.total_seconds()/3600:.0f}h old)")]
+                    return [
+                        self._unavailable_record(
+                            symbol, f"Stale snapshot data ({snapshot_age.total_seconds() / 3600:.0f}h old)"
+                        )
+                    ]
 
             if not row.get("data_available"):
                 # CRITICAL: Validate unavailable_reason field exists (fail-fast if missing)

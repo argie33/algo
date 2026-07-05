@@ -68,7 +68,7 @@ def run(
 
         if not actions:
             logger.info("  No exposure-policy actions")
-            tier_display = constraints['tier_name'] if constraints else "no_entry_constraint"
+            tier_display = constraints["tier_name"] if constraints else "no_entry_constraint"
             if not constraints:
                 logger.info("  [PHASE 5] No entry constraints defined (all tiers open)")
             log_phase_result_fn(

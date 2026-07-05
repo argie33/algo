@@ -78,18 +78,12 @@ class NumericValidator(DataValidator):
 
             # Check range if specified
             if "min" in spec and num_val < spec["min"]:
-                msg = (
-                    f"[VALIDATE_NUMERIC] {context} [{field_name}]: "
-                    f"Value {num_val} below minimum {spec['min']}"
-                )
+                msg = f"[VALIDATE_NUMERIC] {context} [{field_name}]: Value {num_val} below minimum {spec['min']}"
                 self._raise_or_collect(msg)
                 valid = False
 
             if "max" in spec and num_val > spec["max"]:
-                msg = (
-                    f"[VALIDATE_NUMERIC] {context} [{field_name}]: "
-                    f"Value {num_val} above maximum {spec['max']}"
-                )
+                msg = f"[VALIDATE_NUMERIC] {context} [{field_name}]: Value {num_val} above maximum {spec['max']}"
                 self._raise_or_collect(msg)
                 valid = False
 

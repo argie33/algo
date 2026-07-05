@@ -94,9 +94,7 @@ class TestEndToEndTradingWorkflow:
                 cursor.fetchall.return_value = mock_db.trades
             # Handle config query
             elif "algo_config" in query_lower:
-                cursor.fetchall.return_value = [
-                    (k, v) for k, v in mock_db.config.items()
-                ]
+                cursor.fetchall.return_value = [(k, v) for k, v in mock_db.config.items()]
             # Handle portfolio snapshot
             elif "algo_portfolio_snapshots" in query_lower:
                 cursor.fetchone.return_value = Mock(**mock_db.portfolio_snapshot)
@@ -124,22 +122,19 @@ class TestEndToEndTradingWorkflow:
         )
 
         # Test all 4 endpoints return valid data
-        with patch('routes.algo_handlers.dashboard.check_data_freshness',
-                  return_value={'is_stale': False}):
-            with patch('routes.algo_handlers.dashboard.get_open_positions',
-                      return_value=mock_db.positions):
-
+        with patch("routes.algo_handlers.dashboard.check_data_freshness", return_value={"is_stale": False}):
+            with patch("routes.algo_handlers.dashboard.get_open_positions", return_value=mock_db.positions):
                 # Positions endpoint
                 positions = _get_algo_positions(cursor)
-                assert positions['statusCode'] == 200
-                assert len(positions['data']['items']) > 0
-                assert positions['data']['items'][0]['symbol'] == 'AAPL'
+                assert positions["statusCode"] == 200
+                assert len(positions["data"]["items"]) > 0
+                assert positions["data"]["items"][0]["symbol"] == "AAPL"
 
                 # Trades endpoint
                 trades = _get_algo_trades(cursor)
-                assert trades['statusCode'] == 200
-                assert len(trades['data']['items']) > 0
-                assert trades['data']['items'][0]['symbol'] == 'AAPL'
+                assert trades["statusCode"] == 200
+                assert len(trades["data"]["items"]) > 0
+                assert trades["data"]["items"][0]["symbol"] == "AAPL"
 
         print("✓ Dashboard successfully fetches position and trade data")
 
@@ -158,11 +153,11 @@ class TestEndToEndTradingWorkflow:
             # Get phase identifiers (could be id, name, or phase_name)
             phase_names = []
             for p in phases:
-                if hasattr(p, 'id'):
+                if hasattr(p, "id"):
                     phase_names.append(str(p.id))
-                elif hasattr(p, 'name'):
+                elif hasattr(p, "name"):
                     phase_names.append(str(p.name))
-                elif hasattr(p, 'phase_name'):
+                elif hasattr(p, "phase_name"):
                     phase_names.append(str(p.phase_name))
 
             print(f"✓ Orchestrator has all {len(phases)} phases configured")
@@ -194,48 +189,40 @@ class TestEndToEndTradingWorkflow:
         # Step 2: API fetches from database (simulated by cursor)
         from routes.algo_handlers.dashboard import _get_algo_positions
 
-        with patch('routes.algo_handlers.dashboard.check_data_freshness',
-                  return_value={'is_stale': False}):
-            with patch('routes.algo_handlers.dashboard.get_open_positions',
-                      return_value=mock_db.positions):
-
+        with patch("routes.algo_handlers.dashboard.check_data_freshness", return_value={"is_stale": False}):
+            with patch("routes.algo_handlers.dashboard.get_open_positions", return_value=mock_db.positions):
                 # Step 3: API returns data to dashboard
                 response = _get_algo_positions(cursor)
 
                 # Step 4: Dashboard receives and displays data
-                assert response['statusCode'] == 200
-                assert 'items' in response['data']
-                assert len(response['data']['items']) > 0
+                assert response["statusCode"] == 200
+                assert "items" in response["data"]
+                assert len(response["data"]["items"]) > 0
 
                 # Verify data integrity through entire flow
-                dashboard_position = response['data']['items'][0]
-                assert dashboard_position['symbol'] == 'AAPL'
-                assert dashboard_position['position_value'] == 10000
-                assert dashboard_position['current_price'] == 155.0
+                dashboard_position = response["data"]["items"][0]
+                assert dashboard_position["symbol"] == "AAPL"
+                assert dashboard_position["position_value"] == 10000
+                assert dashboard_position["current_price"] == 155.0
 
         print("✓ Data flows correctly: loaders → DB → API → dashboard")
 
     def test_trading_safety_gates_active(self, mock_db):
         """Verify circuit breakers and safety gates are active."""
         # Check that circuit breaker config exists in database mock
-        assert mock_db.config.get('max_daily_loss_pct') == "2", \
-            "Daily loss limit must be configured"
+        assert mock_db.config.get("max_daily_loss_pct") == "2", "Daily loss limit must be configured"
 
         # Verify circuit breaker state tracking exists
-        assert 'is_halted' in mock_db.circuit_breaker_state, \
-            "Circuit breaker halt state must be tracked"
-        assert 'active_breakers' in mock_db.circuit_breaker_state, \
-            "Active breaker list must be tracked"
+        assert "is_halted" in mock_db.circuit_breaker_state, "Circuit breaker halt state must be tracked"
+        assert "active_breakers" in mock_db.circuit_breaker_state, "Active breaker list must be tracked"
 
         print("✓ All trading safety gates configured and active")
 
     def test_paper_trading_mode_enabled(self, mock_db):
         """Verify paper trading mode is enabled by default."""
         # Check config
-        assert mock_db.config.get('alpaca_paper_trading') == 'true', \
-            "Paper trading must be enabled by default"
-        assert mock_db.config.get('execution_mode') == 'paper', \
-            "Execution mode must be paper by default"
+        assert mock_db.config.get("alpaca_paper_trading") == "true", "Paper trading must be enabled by default"
+        assert mock_db.config.get("execution_mode") == "paper", "Execution mode must be paper by default"
 
         print("✓ Paper trading mode enabled and configured correctly")
 
@@ -291,8 +278,8 @@ class TestEndToEndTradingWorkflow:
             from algo.orchestration.orchestrator import Orchestrator
 
             # Verify Orchestrator class exists and has required methods
-            assert hasattr(Orchestrator, 'run'), "Orchestrator must have run() method"
-            assert hasattr(Orchestrator, '__init__'), "Orchestrator must be instantiable"
+            assert hasattr(Orchestrator, "run"), "Orchestrator must have run() method"
+            assert hasattr(Orchestrator, "__init__"), "Orchestrator must be instantiable"
 
             # Verify it can be initialized
             config = Mock()
@@ -319,13 +306,7 @@ class TestEndToEndTradingWorkflow:
         # Test that it can be called with valid endpoints
         # (routes use /api/algo/markets which is public)
         try:
-            algo_handle(
-                mock_cursor,
-                path="/api/algo/markets",
-                method="GET",
-                params={},
-                jwt_claims=None
-            )
+            algo_handle(mock_cursor, path="/api/algo/markets", method="GET", params={}, jwt_claims=None)
             # Result may be an exception or a response - both are valid
             assert True, "API handler accepts calls"
         except Exception:

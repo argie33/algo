@@ -128,7 +128,7 @@ def panel_sector_compact(srank: Any, pos: Any, port: Any, sec_rot: Any = None, i
     if sec_rot and not _error_panel("sec_rot", sec_rot, "SECTORS") and safe_get_field(sec_rot, "signal"):
         # MEDIUM FIX: Explicit None check instead of or operator for signal name
         sig_name_raw = safe_get_field(sec_rot, "signal")
-        sig_name = (sig_name_raw.replace("_", " ").title() if sig_name_raw is not None else "")
+        sig_name = sig_name_raw.replace("_", " ").title() if sig_name_raw is not None else ""
         wks = safe_get_field(sec_rot, "weeks")
         if wks is None:
             logger.warning("Sector rotation missing 'weeks' field — cannot display rotation window")
@@ -319,7 +319,7 @@ def panel_sectors_expanded(srank: Any, pos: Any, port: Any, sec_rot: Any = None,
     if sec_rot and not _error_panel("sec_rot", sec_rot, "SECTORS") and safe_get_field(sec_rot, "signal"):
         # MEDIUM FIX: Explicit None check instead of or operator for signal name (expanded view)
         sig_name_raw = safe_get_field(sec_rot, "signal")
-        sig_name = (sig_name_raw.replace("_", " ").title() if sig_name_raw is not None else "")
+        sig_name = sig_name_raw.replace("_", " ").title() if sig_name_raw is not None else ""
         wks = safe_get_field(sec_rot, "weeks")
         if wks is None:
             wks = 1

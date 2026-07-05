@@ -394,16 +394,24 @@ def lambda_handler(event, context):  # noqa: C901
             logger.info(f"stock_scores data_unavailable columns may already exist: {e}")
 
         try:
-            cursor.execute("ALTER TABLE swing_trader_scores ADD COLUMN IF NOT EXISTS data_unavailable BOOLEAN DEFAULT FALSE")
-            cursor.execute("ALTER TABLE swing_trader_scores ADD COLUMN IF NOT EXISTS unavailability_reason VARCHAR(500)")
+            cursor.execute(
+                "ALTER TABLE swing_trader_scores ADD COLUMN IF NOT EXISTS data_unavailable BOOLEAN DEFAULT FALSE"
+            )
+            cursor.execute(
+                "ALTER TABLE swing_trader_scores ADD COLUMN IF NOT EXISTS unavailability_reason VARCHAR(500)"
+            )
             logger.info("Added data_unavailable columns to swing_trader_scores")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.info(f"swing_trader_scores data_unavailable columns may already exist: {e}")
 
         # Create indexes for faster data_unavailable filtering (idempotent)
         try:
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_stock_scores_data_unavailable ON stock_scores(data_unavailable, symbol)")
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_swing_trader_scores_data_unavailable ON swing_trader_scores(data_unavailable, symbol, date)")
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_stock_scores_data_unavailable ON stock_scores(data_unavailable, symbol)"
+            )
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_swing_trader_scores_data_unavailable ON swing_trader_scores(data_unavailable, symbol, date)"
+            )
             logger.info("Created data_unavailable indexes")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.info(f"data_unavailable indexes may already exist: {e}")
@@ -474,4 +482,3 @@ def lambda_handler(event, context):  # noqa: C901
     except psycopg2.DatabaseError as e:
         logger.error(f"Init failed: {e}", exc_info=True)
         return {"statusCode": 500, "body": json.dumps(f"Init failed: {e}")}
-

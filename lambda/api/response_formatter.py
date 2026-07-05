@@ -87,8 +87,12 @@ class ResponseFormatter:
         """
         if code == 200:
             if data is None:
-                return ResponseFormatter.error("data_unavailable", "Upstream loader returned None - data unavailable", status=503)
-            return ResponseFormatter.success(data, status=code, data_freshness=data_freshness, status_message=status_message)
+                return ResponseFormatter.error(
+                    "data_unavailable", "Upstream loader returned None - data unavailable", status=503
+                )
+            return ResponseFormatter.success(
+                data, status=code, data_freshness=data_freshness, status_message=status_message
+            )
         else:
             error_type = str(data.get("errorType")) if data and data.get("errorType") else "unknown_error"
             error_msg = str(data.get("message")) if data and data.get("message") else "An error occurred"

@@ -481,7 +481,7 @@ def _configure_aws_and_auth(aws_url: str, pool_id: str, client_id: str) -> None:
             logger.error(f"Failed to display error message: {type(display_err).__name__}: {display_err}")
         sys.exit(1)
 
-    if not hasattr(auth, 'is_authenticated') or not auth.is_authenticated():
+    if not hasattr(auth, "is_authenticated") or not auth.is_authenticated():
         logger.error("[AUTH] Cognito authentication failed - user is not authenticated")
         try:
             CONSOLE.print("[bold red]ERROR:[/] Authentication failed - invalid or missing Cognito credentials")
