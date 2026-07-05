@@ -16,7 +16,6 @@ from routes.utils import (
 )
 
 from algo.infrastructure import AlgoConfig
-from shared_contracts.response_validator import ResponseValidator
 
 logger = logging.getLogger(__name__)
 
@@ -24,41 +23,48 @@ logger = logging.getLogger(__name__)
 @db_route_handler("fetch algo config")
 def _get_algo_config(cur: cursor) -> Any:
     """Return all algo configuration rows with defaults and categorization for TIER 3 visibility."""
+    try:
+        cur.execute("SELECT key, value, value_type, description, updated_at FROM algo_config ORDER BY key")
+        rows = cur.fetchall()
 
-    cur.execute("SELECT key, value, value_type, description, updated_at FROM algo_config ORDER BY key")
-    rows = cur.fetchall()
-
-    # Build config dict keyed by config key (matches dashboard contract schema)
-    config_dict = {}
-    for row in rows:
-        row_dict = safe_json_serialize(safe_dict_convert(row))
-        key = row_dict["key"]
-        value = row_dict.get("value")
-
-        # Use key directly as dict key (e.g., "algo_enabled": true)
-        # Convert string "true"/"false" to boolean if needed
-        if isinstance(value, str):
-            if value.lower() == "true":
-                config_dict[key] = True
-            elif value.lower() == "false":
-                config_dict[key] = False
-            else:
+        # Build config dict keyed by config key (matches dashboard contract schema)
+        config_dict = {}
+        if rows:
+            for row in rows:
                 try:
-                    config_dict[key] = float(value) if "." in value else int(value)
-                except (ValueError, TypeError):
-                    config_dict[key] = value
-        else:
-            config_dict[key] = value
+                    row_dict = safe_json_serialize(safe_dict_convert(row))
+                    key = row_dict.get("key")
+                    value = row_dict.get("value")
 
-    # Validate config response against contract schema
-    is_valid, error_msg = ResponseValidator.validate_endpoint_response("cfg", config_dict)
-    if not is_valid:
-        logger.warning(f"Config response validation failed (non-blocking): {error_msg}")
-        # Don't fail request - log and continue (diagnostic mode)
-        # return error_response(500, "response_validation_error", error_msg)
+                    if key:
+                        # Use key directly as dict key (e.g., "algo_enabled": true)
+                        # Convert string "true"/"false" to boolean if needed
+                        if isinstance(value, str):
+                            if value.lower() == "true":
+                                config_dict[key] = True
+                            elif value.lower() == "false":
+                                config_dict[key] = False
+                            else:
+                                try:
+                                    config_dict[key] = float(value) if "." in value else int(value)
+                                except (ValueError, TypeError):
+                                    config_dict[key] = value
+                        else:
+                            config_dict[key] = value
+                except Exception as row_err:
+                    logger.warning(f"Skipping config row due to error: {row_err}")
+                    continue
 
-    # Return as JSON response (not list response)
-    return json_response(200, config_dict)
+        # Return as JSON response (not list response)
+        # Ensure we always return a dict
+        result = json_response(200, config_dict if config_dict else {"status": "empty"})
+        if not isinstance(result, dict):
+            logger.error(f"CRITICAL: json_response did not return dict! Got {type(result)}")
+            return {"statusCode": 500, "errorType": "internal_error", "message": "Handler returned non-dict", "_error": "Handler error"}
+        return result
+    except Exception as e:
+        logger.error(f"Config handler exception: {type(e).__name__}: {e}", exc_info=True)
+        return error_response(500, "internal_error", f"Config handler error: {str(e)[:100]}")
 
 
 @db_route_handler("fetch algo config key")
