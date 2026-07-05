@@ -15,18 +15,13 @@ inline try/except or silent defaults elsewhere in the codebase.
 from .alpaca import AlpacaResponseValidator
 from .api_response import APIResponseValidator
 from .domain import create_default_registry
-from .external_services import (
-    CognitoValidator,
-    DatabaseResultValidator,
-    DynamoDBValidator,
-)
-from .framework import (
+from .external_services import CognitoValidator, DatabaseResultValidator, DynamoDBValidator
+from .framework import (  # Validation classes & exceptions; Functional API - numeric; Functional API - temporal; Functional API - strings & JSON; Functional API - helpers
     EASTERN_TZ,
     EnumValidator,
     PhaseValidator,
     StrictValidationError,
     TypeValidator,
-    # Validation classes & exceptions
     ValidationResult,
     Validator,
     ValidatorRegistry,
@@ -34,23 +29,20 @@ from .framework import (
     get_global_registry,
     log_data_issue,
     safe_bool,
-    # Functional API - numeric
     safe_float,
     safe_int,
     safe_json_loads,
     safe_json_parse,
-    # Functional API - temporal
     safe_parse_date,
     safe_parse_datetime_et,
-    # Functional API - strings & JSON
     safe_str,
     validate_field_types,
-    # Functional API - helpers
     validate_required_fields,
 )
 from .freshness_config import get_freshness_rule
 from .parallelism import ParallelismValidator
 from .rate_limit import RateLimitValidator
+from .response_validation import get_optional_field, get_required_field
 from .schema import validate_table_schema
 
 # Import unified data age validator (consolidates watermark + freshness checking)
@@ -86,6 +78,8 @@ __all__ = [
     # Specialized validators
     "get_freshness_rule",
     "get_global_registry",
+    "get_optional_field",
+    "get_required_field",
     "log_data_issue",
     "safe_bool",
     "safe_float",
