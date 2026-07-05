@@ -101,7 +101,7 @@ def _get_orchestrator_execution_patterns(cur: cursor, days: int = 30) -> Any:
 
 
 @db_route_handler("fetch orchestrator execution recent")  # type: ignore[untyped-decorator]
-@validate_api_response("run")  # type: ignore[untyped-decorator]
+@validate_api_response("exec_hist")  # type: ignore[untyped-decorator]
 def _get_orchestrator_execution_recent(cur: cursor, days: int = 7, limit: int = 50) -> Any:
     """Return recent orchestrator execution runs."""
     try:
