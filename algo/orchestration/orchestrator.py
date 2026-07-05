@@ -120,31 +120,15 @@ class Orchestrator:
         """CRITICAL: Validate all required configuration at startup.
 
         Checks:
-        1. Alpaca credentials available (API key + secret)
-        2. execution_mode is set and valid (paper/live/auto)
+        1. execution_mode is set and valid (paper/live/auto)
+        2. For live trading: Alpaca credentials available (API key + secret)
         3. Required config keys present
 
         Raises RuntimeError if any validation fails.
         """
         logger.info("[STARTUP VALIDATION] Checking required configuration...")
 
-        # 1. Validate Alpaca credentials
-        try:
-            from config.credential_manager import CredentialManager
-
-            creds = CredentialManager()
-            api_key = creds.get_password("APCA_API_KEY_ID", default=None)
-            api_secret = creds.get_password("APCA_API_SECRET_KEY", default=None)
-            if not api_key or not api_secret:
-                raise RuntimeError(
-                    "[STARTUP] CRITICAL: Alpaca credentials missing. "
-                    "Configure APCA_API_KEY_ID and APCA_API_SECRET_KEY via AWS Secrets Manager or environment."
-                )
-            logger.info("[OK] Alpaca credentials validated")
-        except ValueError as e:
-            raise RuntimeError(f"[STARTUP] Credential validation failed: {e}") from e
-
-        # 2. Validate execution_mode
+        # 1. Validate execution_mode FIRST
         execution_mode = self.config.get("execution_mode")
         if not execution_mode or execution_mode not in ("paper", "live", "auto"):
             raise RuntimeError(
@@ -152,6 +136,25 @@ class Orchestrator:
                 f"Current value: {execution_mode!r}. Configure via algo_config table."
             )
         logger.info(f"[OK] execution_mode validated: {execution_mode}")
+
+        # 2. Validate Alpaca credentials only for live trading
+        if execution_mode in ("live", "auto"):
+            try:
+                from config.credential_manager import CredentialManager
+
+                creds = CredentialManager()
+                api_key = creds.get_password("APCA_API_KEY_ID", default=None)
+                api_secret = creds.get_password("APCA_API_SECRET_KEY", default=None)
+                if not api_key or not api_secret:
+                    raise RuntimeError(
+                        "[STARTUP] CRITICAL: Alpaca credentials missing for live trading. "
+                        "Configure APCA_API_KEY_ID and APCA_API_SECRET_KEY via AWS Secrets Manager or environment."
+                    )
+                logger.info("[OK] Alpaca credentials validated for live trading")
+            except ValueError as e:
+                raise RuntimeError(f"[STARTUP] Credential validation failed: {e}") from e
+        else:
+            logger.info("[OK] Paper trading mode - Alpaca credentials not required")
 
         # 3. Validate required config keys exist
         try:
