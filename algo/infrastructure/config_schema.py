@@ -269,4 +269,27 @@ VALIDATION_SCHEMA = {
     "dashboard_fetcher_failure_threshold": ("float", 0.0, 1.0, False, 0.5),
     # Portfolio Variance Threshold
     "portfolio_variance_threshold": ("float", 0.0, 1.0, False, 0.15),
+    # Advanced Filters
+    "enable_advanced_filters": ("bool", None, None, False, None),
+    # Pyramid Trading Configuration
+    "pyramid_enabled": ("bool", None, None, False, None),
+    "pyramid_split_pct": ("float", 0.0, 100.0, False, None),
+    "pyramid_add_1_gain_pct": ("float", 0.0, 100.0, False, None),
+    "pyramid_add_2_gain_pct": ("float", 0.0, 100.0, False, None),
+    # Data Patrol Staleness Thresholds (per-table granularity)
+    "patrol_staleness_price_daily": ("int", 0, 365, False, None),
+    "patrol_staleness_technical_daily": ("int", 0, 365, False, None),
+    "patrol_staleness_buy_sell_daily": ("int", 0, 365, False, None),
+    "patrol_staleness_trend_data": ("int", 0, 365, False, None),
+    "patrol_staleness_signal_quality_scores": ("int", 0, 365, False, None),
+    "patrol_staleness_market_health": ("int", 0, 365, False, None),
+    "patrol_staleness_sector_ranking": ("int", 0, 365, False, None),
+    "patrol_staleness_industry_ranking": ("int", 0, 365, False, None),
+    "patrol_staleness_insider_transactions": ("int", 0, 365, False, None),
+    "patrol_staleness_analyst_upgrades": ("int", 0, 365, False, None),
+    # Stale Order Management
+    "stale_order_alert_minutes": ("int", 0, 1440, False, None),
+    "stale_order_auto_cancel_minutes": ("int", 0, 1440, False, None),
+    # Data Patrol Coverage Error Threshold
+    "patrol_coverage_error_threshold_pct": ("float", 0.0, 100.0, False, None),
 }
