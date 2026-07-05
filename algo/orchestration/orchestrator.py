@@ -203,14 +203,13 @@ class Orchestrator:
                 )
                 row = cur.fetchone()
                 if not row or not row.get("view_exists"):
-                    raise RuntimeError(
-                        "[STARTUP] CRITICAL: algo_positions view not found. "
-                        "Run migrations to create required database objects."
+                    logger.warning(
+                        "[STARTUP] algo_positions view not found. "
+                        "Portfolio monitoring disabled. Run migrations to create required database objects."
                     )
-                logger.info("[OK] Database schema validation passed: algo_positions view exists")
+                else:
+                    logger.info("[OK] Database schema validation passed: algo_positions view exists")
         except Exception as e:
-            if "CRITICAL" in str(e):
-                raise
             logger.warning(f"[STARTUP] Database schema validation skipped (non-critical): {e}")
 
     def _kill_long_running_loaders(self) -> None:  # noqa: C901
