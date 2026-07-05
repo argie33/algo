@@ -282,7 +282,6 @@ locals {
     "stock_prices_daily"    = "load_prices.py"
     "technical_data_daily"  = "load_technical_data_daily.py"
     "trend_template_data"   = "load_trend_criteria_data.py"
-    "swing_trader_scores"   = "load_swing_trader_scores.py"
     "market_exposure_daily" = "load_market_exposure_daily.py"
     "yfinance_snapshot"     = "load_yfinance_snapshot.py"
     "dxy_index"             = "load_dxy_index.py"
@@ -328,10 +327,6 @@ locals {
     "technical_data_daily" = {
       description = "Compute 50/200-day SMA - morning pipeline (depends on prices)"
       schedule    = "cron(55 7 ? * MON-FRI *)" # 2:55 AM ET - 40 min after prices start (allows completion)
-    }
-    "swing_trader_scores" = {
-      description = "Calculate swing scores - morning pipeline (depends on technical data)"
-      schedule    = "cron(15 8 ? * MON-FRI *)" # 3:15 AM ET - 20 min after technical starts (allows completion)
     }
 
     # EOD pipeline: 3:00 PM ET (8:00 PM UTC), Mon-Fri - SEC Edgar financial statements (upstream for quality/growth metrics)
