@@ -439,8 +439,25 @@ def execute_with_timeout(
             # Convert tuple results to dicts using column names for consistency
             # This ensures routes can always access rows as dicts regardless of cursor type
             if rows and isinstance(rows[0], tuple) and cur.description:
-                col_names = [desc[0] for desc in cur.description]
-                return [dict(zip(col_names, row, strict=True)) for row in rows]
+                try:
+                    # Try to extract column names from description
+                    col_names = []
+                    for desc in cur.description:
+                        try:
+                            # Handle both subscriptable tuples and non-subscriptable objects
+                            col_names.append(desc[0])
+                        except (TypeError, IndexError):
+                            # If desc is not subscriptable, try to get name attribute
+                            if hasattr(desc, 'name'):
+                                col_names.append(desc.name)
+                            else:
+                                col_names.append(f"col_{len(col_names)}")
+
+                    if col_names:
+                        return [dict(zip(col_names, row, strict=True)) for row in rows]
+                except Exception:
+                    # If column name extraction fails, return as-is
+                    pass
 
             return list(rows)
 

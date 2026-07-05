@@ -61,7 +61,11 @@ class TriggerLoadersHandler(LambdaHandler):
             return LambdaResponse.error("ECS_CLUSTER_ARN not configured", status_code=500)
 
         critical_loaders = {
-            # Metric loaders (required before stock_scores)
+            # SEC financial statements (MUST RUN FIRST - upstream for quality/growth/value metrics)
+            "income_statement",
+            "balance_sheet",
+            "cash_flow",
+            # Metric loaders (required before stock_scores; depend on SEC financials above)
             "quality_metrics",
             "growth_metrics",
             "value_metrics",

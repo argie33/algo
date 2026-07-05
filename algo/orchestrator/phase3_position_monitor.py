@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import logging
+import os
 import traceback
 from collections.abc import Callable
 from datetime import date as _date
@@ -40,6 +41,13 @@ def run(
     Returns:
         PhaseResult with status 'ok', data containing position recommendations
     """
+    # Skip position monitor for paper trading testing
+    skip_phase3 = os.getenv("SKIP_PHASE3_MONITOR", "").lower() in ("true", "1", "yes")
+    if skip_phase3:
+        logger.info("[PHASE 3] Position monitor skipped (SKIP_PHASE3_MONITOR=true)")
+        log_phase_result_fn(3, "position_monitor", "skipped", "position monitor disabled for testing")
+        return PhaseResult(3, "position_monitor", "ok", {}, False, None)
+
     try:
         from algo.infrastructure import MarketEventHandler
         from algo.monitoring import PositionMonitor
