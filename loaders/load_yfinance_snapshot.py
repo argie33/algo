@@ -24,6 +24,7 @@ from datetime import date, datetime, timezone
 from typing import Any
 
 from loaders.runner import run_loader
+from utils.db.context import DatabaseContext
 from utils.external.yfinance import YFinanceWrapper
 from utils.optimal_loader import OptimalLoader
 

@@ -222,7 +222,8 @@ class TestMarketExpandedPanelValidation:
 
         # List nl is NOT OK (strict validation rejects non-coercible types)
         mkt["nl"] = [100]
-        with pytest.raises(Exception):  # StrictValidationError expected
+        from utils.validation.framework import StrictValidationError
+        with pytest.raises(StrictValidationError):
             panel_market_expanded(mkt=mkt)
 
     def test_panel_market_expanded_breadth_momentum_strict_validation(self):
@@ -236,7 +237,8 @@ class TestMarketExpandedPanelValidation:
 
         # List pcr is NOT OK (strict validation rejects non-coercible types)
         mkt["pcr"] = [0.8]
-        with pytest.raises(Exception):  # StrictValidationError expected
+        from utils.validation.framework import StrictValidationError
+        with pytest.raises(StrictValidationError):
             panel_market_expanded(mkt=mkt)
 
 

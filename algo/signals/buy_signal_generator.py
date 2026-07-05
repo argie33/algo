@@ -114,7 +114,7 @@ class BuySignalGenerator:
                     avg_vol_50d = self._compute_avg_volume_50d(rows, i)
                 except ValueError as e:
                     # Optional enrichment failed; log and continue with None value
-                    logger.debug(f"[SIGNAL_GENERATION] {symbol} [{row.get('date')}]: {str(e)}")
+                    logger.debug(f"[SIGNAL_GENERATION] {symbol} [{row.get('date')}]: {e!s}")
                     avg_vol_50d = None
                 market_stage = self._determine_market_stage(close, sma_50, sma_200)
 

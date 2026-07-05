@@ -451,7 +451,7 @@ class OrderManager:
                     filled_price_raw = data.get("filled_avg_price")
                     # CRITICAL: Fail if status missing instead of defaulting to empty string
                     if "status" not in data:
-                        logger.error(f"[ORDER_MANAGER] Alpaca order response missing 'status' field")
+                        logger.error("[ORDER_MANAGER] Alpaca order response missing 'status' field")
                         raise ValueError("Order status missing from Alpaca response")
                     order_status = data["status"]
                     if not filled_price_raw:
