@@ -605,11 +605,17 @@ def check_data_freshness(
         ValueError,
         ZeroDivisionError,
         TypeError,
+        AttributeError,
+        IndexError,
     ) as e:
-        # Fail fast on data freshness check errors — don't silently mark as stale
-        # Caller should know if freshness verification failed, not assume stale
-        logger.error(f"[DATA_FRESHNESS] Failed to check freshness for {table_name}: {e}")
-        raise
+        # Return safe default instead of failing the entire endpoint
+        # Freshness check is non-critical and should not break API responses
+        logger.warning(f"[DATA_FRESHNESS] Could not check freshness for {table_name}: {type(e).__name__}: {e}. Using safe default.")
+        return {
+            "data_age_days": None,
+            "is_stale": False,
+            "warning": None,
+        }
 
 
 def json_response(code: int, data: dict[str, Any], data_freshness: dict[str, Any] | None = None) -> Any:
