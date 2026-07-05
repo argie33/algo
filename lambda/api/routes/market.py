@@ -796,7 +796,7 @@ def _handle_naaim(cur: cursor) -> Any:
         raise  # unreachable — raise_db_error is NoReturn; satisfies mypy without lambda path config
 
 
-@db_route_handler("get fear greed history")
+@db_route_handler("get fear greed history")  # type: ignore[untyped-decorator]
 def _get_fear_greed_history(cur: cursor, days: int = 30) -> Any:
     """Get fear/greed index history with signals."""
     cur.execute("SET LOCAL statement_timeout = '5000ms'")
@@ -885,7 +885,7 @@ def _get_fear_greed_history(cur: cursor, days: int = 30) -> Any:
         )
 
 
-@db_route_handler("get market latest")
+@db_route_handler("get market latest")  # type: ignore[untyped-decorator]
 def _get_market_latest(cur: cursor) -> Any:
     """Get latest market data including indices, breadth, and sentiment."""
     cur.execute("""
@@ -969,7 +969,7 @@ def _parse_range_param(params: dict[str, Any], default: int = 30) -> int:
     return default
 
 
-@db_route_handler("get correlation matrix")
+@db_route_handler("get correlation matrix")  # type: ignore[untyped-decorator]
 def _get_correlation_matrix(cur: cursor) -> Any:  # noqa: C901
     """Compute and return correlation matrix between key market indices.
 
@@ -1221,7 +1221,7 @@ def _get_correlation_matrix(cur: cursor) -> Any:  # noqa: C901
     )
 
 
-@db_route_handler("get cap distribution")
+@db_route_handler("get cap distribution")  # type: ignore[untyped-decorator]
 def _get_cap_distribution(cur: cursor) -> Any:
     """Get market cap distribution across market cap buckets and sectors."""
     # market_cap is in key_metrics, sector is in company_profile — stock_symbols has neither
@@ -1405,7 +1405,7 @@ def _get_index_names() -> dict[str, str]:
     return MarketSymbolsConfig.get_index_names()
 
 
-@db_route_handler("get market indices")
+@db_route_handler("get market indices")  # type: ignore[untyped-decorator]
 def _get_markets(cur: cursor) -> Any:
     index_symbols = _get_index_symbols()
     cur.execute(
@@ -1543,7 +1543,7 @@ def _get_markets(cur: cursor) -> Any:
     return json_response(200, result)
 
 
-@db_route_handler("get sector overview")
+@db_route_handler("get sector overview")  # type: ignore[untyped-decorator]
 def _get_sector_overview(cur: cursor) -> Any:
     """Get latest sector performance overview from sectors table."""
     cur.execute("""

@@ -66,7 +66,7 @@ def _ensure_portfolio_fields(data: dict[str, Any]) -> Any:
     return data
 
 
-@db_route_handler("get algo metrics")
+@db_route_handler("get algo metrics")  # type: ignore[untyped-decorator]
 def _get_algo_metrics(cur: cursor) -> Any:
     """Get daily algo metrics (total actions, entries, exits). Fail-fast if unavailable."""
     try:
@@ -139,8 +139,8 @@ def _get_algo_metrics(cur: cursor) -> Any:
         return error_response(code, error_type, message)
 
 
-@db_route_handler("calculate performance")
-@validate_api_response("perf")
+@db_route_handler("calculate performance")  # type: ignore[untyped-decorator]
+@validate_api_response("perf")  # type: ignore[untyped-decorator]
 def _get_algo_performance(cur: cursor) -> Any:  # noqa: C901
     """Get comprehensive algo performance metrics from pre-computed daily snapshot.
 
@@ -548,7 +548,7 @@ def _get_algo_performance(cur: cursor) -> Any:  # noqa: C901
         return error_response(code, error_type, message)
 
 
-@db_route_handler("get algo portfolio")
+@db_route_handler("get algo portfolio")  # type: ignore[untyped-decorator]
 @validate_api_response("port")  # type: ignore[untyped-decorator]
 def _get_algo_portfolio(cur: cursor) -> Any:
     """Get latest portfolio snapshot data with structured unrealized PnL breakdown.

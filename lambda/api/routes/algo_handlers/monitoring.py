@@ -34,8 +34,8 @@ from shared_contracts.response_validator import ResponseValidator
 logger = logging.getLogger(__name__)
 
 
-@db_route_handler("get algo audit log")
-@validate_api_response("audit")
+@db_route_handler("get algo audit log")  # type: ignore[untyped-decorator]
+@validate_api_response("audit")  # type: ignore[untyped-decorator]
 def _get_algo_audit_log(cur: cursor, limit: int = 100, offset: int = 0, action_type: str | None = None) -> Any:
     """Return algo audit log entries with pagination."""
     if action_type:
@@ -87,8 +87,8 @@ def _get_algo_audit_log(cur: cursor, limit: int = 100, offset: int = 0, action_t
 # FIXED Issue #6: Orchestrator execution history endpoints
 
 
-@db_route_handler("get last run")
-@validate_api_response("run")
+@db_route_handler("get last run")  # type: ignore[untyped-decorator]
+@validate_api_response("run")  # type: ignore[untyped-decorator]
 def _get_last_run(cur: cursor) -> Any:
     """Get the most recent orchestrator run with halt reason."""
     cur.execute("""
@@ -158,8 +158,8 @@ def _get_last_run(cur: cursor) -> Any:
     return json_response(200, response_data)
 
 
-@db_route_handler("fetch notifications")
-@validate_api_response("notifs")
+@db_route_handler("fetch notifications")  # type: ignore[untyped-decorator]
+@validate_api_response("notifs")  # type: ignore[untyped-decorator]
 def _get_notifications(
     cur: cursor, params: dict[str, Any] | None = None, jwt_claims: dict[str, Any] | None = None
 ) -> Any:
@@ -236,8 +236,8 @@ def _get_notifications(
         return error_response(code, error_type, message)
 
 
-@db_route_handler("get patrol log")
-@validate_api_response("health")
+@db_route_handler("get patrol log")  # type: ignore[untyped-decorator]
+@validate_api_response("health")  # type: ignore[untyped-decorator]
 def _get_patrol_log(cur: cursor, limit: int = 50, offset: int = 0) -> Any:
     """Get data patrol findings with pagination."""
     cur.execute("SELECT COUNT(*) as total FROM data_patrol_log")
@@ -257,7 +257,7 @@ def _get_patrol_log(cur: cursor, limit: int = 50, offset: int = 0) -> Any:
     return list_response([safe_json_serialize(safe_dict_convert(f)) for f in findings], total=total)
 
 
-@db_route_handler("trigger data patrol")
+@db_route_handler("trigger data patrol")  # type: ignore[untyped-decorator]
 def _trigger_data_patrol() -> Any:
     """Trigger async data patrol ECS task."""
     try:
