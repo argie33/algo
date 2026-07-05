@@ -325,7 +325,9 @@ def get_cached_response(endpoint: str, mark_stale: bool = False) -> dict[str, An
     with _response_cache_lock:
         cached = _response_cache.get(endpoint)
         if not cached:
-            logger.debug(f"[API_CACHE] No cached response found for {endpoint} - API response required (cache miss, no data available)")
+            logger.debug(
+                f"[API_CACHE] No cached response found for {endpoint} - API response required (cache miss, no data available)"
+            )
             return None
     # Validate cache structure (fail-fast if corrupted)
     # CRITICAL: Cache must have required fields, data must be dict, timestamp must be datetime

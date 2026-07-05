@@ -66,7 +66,7 @@ class TestBuySignalGeneratorFallbacks:
         # Create data with <95% OHLC completeness
         incomplete_rows = [
             {"date": "2026-01-01", "open": 100, "high": None, "low": 98, "close": 99},  # Missing high
-            {"date": "2026-01-02", "open": 99, "high": 101, "low": 98, "close": 100},   # Complete
+            {"date": "2026-01-02", "open": 99, "high": 101, "low": 98, "close": 100},  # Complete
         ]
 
         with pytest.raises(ValueError) as exc_info:
