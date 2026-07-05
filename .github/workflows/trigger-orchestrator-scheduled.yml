@@ -1,0 +1,71 @@
+name: Trigger Orchestrator (Scheduled)
+
+# Runs the algo orchestrator on the same schedule as EventBridge would:
+# - 9:30 AM ET (13:30 UTC)
+# - 1:00 PM ET (17:00 UTC)
+# - 3:00 PM ET (19:00 UTC)
+# - 5:30 PM ET (21:30 UTC)
+# All on trading days (Mon-Fri)
+
+on:
+  schedule:
+    - cron: '30 13 * * MON-FRI'   # 9:30 AM ET
+    - cron: '0 17 * * MON-FRI'    # 1:00 PM ET
+    - cron: '0 19 * * MON-FRI'    # 3:00 PM ET
+    - cron: '30 21 * * MON-FRI'   # 5:30 PM ET
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  trigger-orchestrator:
+    name: Invoke Orchestrator Lambda
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a  # v4
+        with:
+          role-to-assume: ${{ secrets.GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/{1}', secrets.AWS_ACCOUNT_ID, secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev') }}
+          aws-region: us-east-1
+
+      - name: Invoke Orchestrator Lambda
+        run: |
+          set -e
+
+          # Invoke the orchestrator Lambda function
+          # Use GitHub Actions run ID as unique execution identifier
+          echo "[ORCHESTRATOR_TRIGGER] Starting invocation at $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
+
+          aws lambda invoke \
+            --function-name algo-orchestrator-dev \
+            --region us-east-1 \
+            --invocation-type Event \
+            --payload "{
+              \"source\": \"github-actions-scheduled\",
+              \"run_identifier\": \"gh-${{ github.run_id }}-${{ github.run_number }}\",
+              \"execution_mode\": \"paper\",
+              \"triggered_at\": \"$(date -u +'%Y-%m-%dT%H:%M:%SZ')\"
+            }" \
+            /tmp/response.json
+
+          echo "[ORCHESTRATOR_TRIGGER] Invocation queued successfully"
+
+          # Log the function name for debugging
+          echo "Function: algo-orchestrator-dev"
+          echo "Region: us-east-1"
+          echo "Mode: Asynchronous (Event)"
+
+      - name: Wait for Lambda execution (polling)
+        run: |
+          echo "[ORCHESTRATOR_MONITOR] Waiting for lambda execution to begin..."
+          # Give the lambda 2 seconds to start
+          sleep 2
+          echo "[ORCHESTRATOR_MONITOR] Check CloudWatch logs for execution details:"
+          echo "  aws logs tail /aws/lambda/algo-orchestrator-dev --since 1h --follow"
