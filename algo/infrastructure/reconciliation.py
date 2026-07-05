@@ -259,7 +259,7 @@ class DailyReconciliation:
                         f"   IC (Information Coefficient): {analytics['ic']['ic']:.4f} ({analytics['ic']['trade_count']} trades)"
                     )
                     if analytics["ic"]["alert"]:
-                        logger.info(f"   ⚠ {analytics['ic']['alert']}")
+                        logger.info(f"   [WARN] {analytics['ic']['alert']}")
                 if analytics["expectancy"].get("valid"):
                     logger.info(
                         f"   Expectancy: {analytics['expectancy']['expectancy']:+.4f}% (win rate {analytics['expectancy']['win_rate']:.1f}%)"

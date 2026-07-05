@@ -278,7 +278,7 @@ class MarketExposure:
                 "factors": factors,
                 "_cached": True,
             }
-            logger.info(f"✓ Loaded cached market exposure for {eval_date}: {exposure_pct}% ({regime})")
+            logger.info(f"[OK] Loaded cached market exposure for {eval_date}: {exposure_pct}% ({regime})")
             return result
 
         try:
@@ -1025,8 +1025,8 @@ class MarketExposure:
 
         VIX level captures current implied volatility / fear.
         VIX term structure (VIX3M/VIX ratio) is more forward-looking:
-        - Contango (VIX3M > VIX): market expects volatility to subside → positive signal
-        - Backwardation (VIX3M < VIX): near-term stress worse than medium-term → negative
+        - Contango (VIX3M > VIX): market expects volatility to subside -> positive signal
+        - Backwardation (VIX3M < VIX): near-term stress worse than medium-term -> negative
         VIX3M is pre-loaded to price_daily by load_market_health_daily.
         """
         cur.execute(
@@ -1153,7 +1153,7 @@ class MarketExposure:
 
         # Contrarian scoring: high P/C = fear = bullish for markets
         if pc > 1.2:
-            sf = 1.0  # extreme fear → contrarian buy
+            sf = 1.0  # extreme fear -> contrarian buy
         elif pc > 0.9:
             sf = 0.80  # elevated put buying
         elif pc > 0.7:
@@ -1161,7 +1161,7 @@ class MarketExposure:
         elif pc > 0.5:
             sf = 0.40  # complacent
         else:
-            sf = 0.20  # extreme greed → contrarian caution
+            sf = 0.20  # extreme greed -> contrarian caution
 
         return {"score_factor": sf, "value": round(pc, 3)}
 
@@ -1372,7 +1372,7 @@ class MarketExposure:
 
         # Extremes-only scoring: neutral in the normal range (-15 to +15)
         if spread < -25:
-            sf = 1.0  # extreme fear → strong contrarian buy
+            sf = 1.0  # extreme fear -> strong contrarian buy
         elif spread < -15:
             sf = 0.75  # elevated bearishness
         elif spread < 15:
@@ -1380,7 +1380,7 @@ class MarketExposure:
         elif spread < 25:
             sf = 0.30  # elevated bullishness
         else:
-            sf = 0.15  # extreme greed → contrarian caution
+            sf = 0.15  # extreme greed -> contrarian caution
 
         return {
             "score_factor": sf,
@@ -1394,8 +1394,8 @@ class MarketExposure:
         """NAAIM manager equity exposure - contrarian at extremes.
 
         Active manager exposure scale (0-100%):
-        < 20: heavily underweight → contrarian bullish (managers will be forced to buy)
-        > 80: heavily overweight → contrarian cautious (limited buying power left)
+        < 20: heavily underweight -> contrarian bullish (managers will be forced to buy)
+        > 80: heavily overweight -> contrarian cautious (limited buying power left)
         """
         cur.execute(
             """

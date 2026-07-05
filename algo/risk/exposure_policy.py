@@ -395,7 +395,7 @@ if __name__ == "__main__":
     for a in actions:
         r_multiple = a.get("r_multiple")
         r_display = f"{r_multiple:+.2f}" if r_multiple is not None else "MISSING"
-        logger.info(f"  {a['symbol']:6s} → {a['action'].upper():15s}  R={r_display}  {a['reason']}")
+        logger.info(f"  {a['symbol']:6s} -> {a['action'].upper():15s}  R={r_display}  {a['reason']}")
         new_stop = a.get("new_stop")
         if new_stop is not None:
             logger.info(f"            new_stop=${new_stop:.2f}")

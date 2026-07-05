@@ -74,7 +74,7 @@ class Trend30WkFactor(MarketFactorStrategy):
                 },
             }
         elif pct_above >= 1:
-            score = 75 + (pct_above - 1) / 4 * 25  # Scale 1-5% → 75-100
+            score = 75 + (pct_above - 1) / 4 * 25  # Scale 1-5% -> 75-100
             return {
                 "score": score,
                 "reason": f"Uptrend forming (SPY +{pct_above:.1f}% above 30-week MA)",
@@ -95,7 +95,7 @@ class Trend30WkFactor(MarketFactorStrategy):
                 },
             }
         elif pct_above >= -5:
-            score = 25 - (abs(pct_above) - 1) / 4 * 25  # Scale -5% to -1% → 25-0
+            score = 25 - (abs(pct_above) - 1) / 4 * 25  # Scale -5% to -1% -> 25-0
             return {
                 "score": score,
                 "reason": f"Downtrend forming (SPY {pct_above:.1f}% below 30-week MA)",

@@ -22,7 +22,9 @@ class NumericValidator(DataValidator):
             fail_fast: If True, raise on first error. If False, collect all.
         """
         super().__init__(fail_fast=fail_fast)
-        self.fields = fields or {}
+        # MEDIUM-FIX: Explicit None handling instead of OR fallback
+        # If fields not provided, use empty dict (means all numeric fields valid)
+        self.fields = fields if fields is not None else {}
 
     def check(self, data: dict[str, Any] | Any, context: str = "") -> bool:
         """Check numeric fields are valid (not NaN, not Infinity, in range).

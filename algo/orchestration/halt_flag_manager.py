@@ -49,8 +49,8 @@ class HaltFlagManager:
         Phase 1. Auto-expires only at market open of next trading day (9:30 AM ET).
 
         Timeline example:
-        - 2:30 AM: Loaders detect stale data → Phase 1 sets halt_flag with triggered_at=2:30 AM
-        - 9:30 AM, 1 PM, 3 PM, 5:30 PM: Orchestrator runs check halt_flag → still active (same day)
+        - 2:30 AM: Loaders detect stale data -> Phase 1 sets halt_flag with triggered_at=2:30 AM
+        - 9:30 AM, 1 PM, 3 PM, 5:30 PM: Orchestrator runs check halt_flag -> still active (same day)
         - 9:30 AM NEXT DAY: Auto-clears halt_flag at market open (new trading day)
         """
 

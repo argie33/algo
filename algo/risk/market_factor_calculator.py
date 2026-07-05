@@ -73,7 +73,7 @@ class MarketFactorCalculator:
             row = cur.fetchone()
             if row and row[0] is not None:
                 pct = float(row[0])
-                # Linear: 20% → 0, 50% → 50, 80% → 100
+                # Linear: 20% -> 0, 50% -> 50, 80% -> 100
                 score = (pct - 20) / 0.6
                 score = min(100, max(0, score))
                 return {"value": pct, "score": score}

@@ -13,8 +13,8 @@ class NAAIMFactor(MarketFactorStrategy):
     """Professional manager positioning factor: contrarian at extremes.
 
     NAAIM manager equity exposure (0-100% scale):
-    - < 20: heavily underweight → contrarian bullish (managers forced to buy)
-    - > 80: heavily overweight → contrarian cautious (limited buying power)
+    - < 20: heavily underweight -> contrarian bullish (managers forced to buy)
+    - > 80: heavily overweight -> contrarian cautious (limited buying power)
     Weight: 5 points
     """
 
@@ -30,12 +30,12 @@ class NAAIMFactor(MarketFactorStrategy):
         """Calculate contrarian professional manager positioning from NAAIM.
 
         Scoring (contrarian):
-        - < 20% exposure = 90 (maximum underweight fear → buy signal)
+        - < 20% exposure = 90 (maximum underweight fear -> buy signal)
         - 20-35% exposure = 75 (elevated caution)
         - 35-55% exposure = 55 (neutral)
         - 55-70% exposure = 40 (elevated bullishness)
         - 70-85% exposure = 25 (elevated complacency)
-        - > 85% exposure = 15 (maximum overweight greed → caution)
+        - > 85% exposure = 15 (maximum overweight greed -> caution)
 
         Raises ValueError if NAAIM data unavailable.
         """

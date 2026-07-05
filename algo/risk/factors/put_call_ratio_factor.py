@@ -29,11 +29,11 @@ class PutCallRatioFactor(MarketFactorStrategy):
         """Calculate contrarian options sentiment from put/call ratio.
 
         Scoring (contrarian):
-        - P/C > 1.2 = 100 (extreme fear → buy signal)
+        - P/C > 1.2 = 100 (extreme fear -> buy signal)
         - P/C 0.9-1.2 = 80 (elevated hedging)
         - P/C 0.7-0.9 = 65 (neutral)
         - P/C 0.5-0.7 = 40 (complacent)
-        - P/C < 0.5 = 20 (extreme greed → caution)
+        - P/C < 0.5 = 20 (extreme greed -> caution)
 
         Put/call ratio is HIGH-priority enrichment (8pt factor).
         Raises ValueError if data is missing (fail-fast pattern).

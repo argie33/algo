@@ -128,15 +128,15 @@ class PositionAggregator:
         recommendation = flags_result["recommendation"]
 
         if not flags:
-            return f"✓ No warnings (recommendation: {recommendation})"
+            return f"[OK] No warnings (recommendation: {recommendation})"
 
         flag_lines = []
         for factor, flag_data in flags.items():
             status = flag_data["status"]
             score = flag_data["score"]
-            icon = "🔴" if status == "RED" else "🟡"
+            icon = "[STOP]" if status == "RED" else "🟡"
             flag_lines.append(f"  {icon} {factor}: {score:.0f}/100")
 
-        summary = f"⚠️ Severity: {severity:.1f} flags (recommendation: {recommendation})\n"
+        summary = f"[WARN]️ Severity: {severity:.1f} flags (recommendation: {recommendation})\n"
         summary += "\n".join(flag_lines)
         return summary

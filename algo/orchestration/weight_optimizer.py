@@ -199,7 +199,7 @@ class WeightOptimizer:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def _equal_weights(self) -> dict[str, int]:
-        """Return equal weights (7 components → ~14.3% each)."""
+        """Return equal weights (7 components -> ~14.3% each)."""
         base = 100 // len(self.COMPONENTS)
         remainder = 100 % len(self.COMPONENTS)
         weights = {}
@@ -214,7 +214,7 @@ class WeightOptimizer:
         dry_run: bool = False,
     ) -> dict[str, Any]:
         """
-        Run full optimization cycle: compute → blend → persist.
+        Run full optimization cycle: compute -> blend -> persist.
 
         Algorithm:
           1. Get optimal weights

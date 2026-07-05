@@ -66,7 +66,7 @@ class PreTradeChecks:
         adjusted_shares = int((Decimal(shares) * slippage_factor).quantize(Decimal(1), rounding=ROUND_HALF_UP))
         actual_cost = float(Decimal(str(entry_price)) / slippage_factor)
         logger.debug(
-            f"Slippage adjustment: {shares} → {adjusted_shares} shares, cost ${entry_price:.2f} → ${actual_cost:.2f}"
+            f"Slippage adjustment: {shares} -> {adjusted_shares} shares, cost ${entry_price:.2f} -> ${actual_cost:.2f}"
         )
         return adjusted_shares, actual_cost
 

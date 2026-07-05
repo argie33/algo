@@ -1,11 +1,11 @@
 """Trading system exceptions for precise error handling and recovery.
 
 Enables distinguishing between:
-- Data errors (invalid prices, missing data) → fail-closed
-- Transient errors (API timeouts, rate limits) → retry
-- Configuration errors (missing thresholds) → raise immediately
-- Database errors (connection, query) → retry or fail-closed
-- Non-blocking errors (notifications) → log and continue
+- Data errors (invalid prices, missing data) -> fail-closed
+- Transient errors (API timeouts, rate limits) -> retry
+- Configuration errors (missing thresholds) -> raise immediately
+- Database errors (connection, query) -> retry or fail-closed
+- Non-blocking errors (notifications) -> log and continue
 """
 
 

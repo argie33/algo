@@ -11,9 +11,9 @@ Metrics:
 - Concentration: Top holdings %, sector breakdown, industry breakdown
 
 Alerts:
-- Daily VaR > 2% of portfolio → WARNING
-- Concentration > 30% in top 5 holdings → WARNING
-- Beta exposure > 2.0 (2x market risk) → WARNING
+- Daily VaR > 2% of portfolio -> WARNING
+- Concentration > 30% in top 5 holdings -> WARNING
+- Beta exposure > 2.0 (2x market risk) -> WARNING
 """
 
 import logging

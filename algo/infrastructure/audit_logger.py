@@ -99,7 +99,7 @@ class TradeAuditLogger:
             audit_msg = (
                 f"[POSITION SIZING] {symbol}: "
                 f"${entry_price:.2f}/${stop_loss_price:.2f} (1R={entry_price - stop_loss_price:.2f}) | "
-                f"{base_shares} shares → {final_shares} shares ({cascade_str}) | "
+                f"{base_shares} shares -> {final_shares} shares ({cascade_str}) | "
                 f"Position {position_size_pct:.1f}% of portfolio | "
                 f"Multipliers: {', '.join(multiplier_list)}"
             )
@@ -172,7 +172,7 @@ class TradeAuditLogger:
             candidates_str = " | ".join([f"{k}=${v:.2f}" for k, v in candidates.items() if v is not None])
 
             audit_msg = (
-                f"[STOP LOSS] {symbol}: Entry ${entry_price:.2f} → Stop ${stop_loss_price:.2f} "
+                f"[STOP LOSS] {symbol}: Entry ${entry_price:.2f} -> Stop ${stop_loss_price:.2f} "
                 f"({distance_pct:.2f}% risk) | "
                 f"Method: {stop_method} | "
                 f"Reason: {stop_reasoning} | "
@@ -234,7 +234,7 @@ class TradeAuditLogger:
         try:
             audit_msg = (
                 f"[EXIT] {symbol}: {exit_rule} | "
-                f"${entry_price:.2f} → ${exit_price:.2f} | "
+                f"${entry_price:.2f} -> ${exit_price:.2f} | "
                 f"P&L ${pnl_dollars:+.2f} ({pnl_pct:+.2f}%) ({r_multiple:+.2f}R) | "
                 f"{exit_reason}"
             )

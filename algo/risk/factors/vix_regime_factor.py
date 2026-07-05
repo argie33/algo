@@ -59,10 +59,10 @@ class VixRegimeFactor(MarketFactorStrategy):
         if vix_level < 15:
             base_score = 65.0  # Complacency
         elif vix_level < 25:
-            # Linear interpolation: 15-25 → 75-80
+            # Linear interpolation: 15-25 -> 75-80
             base_score = 75 + (vix_level - 15) / 10 * 5
         elif vix_level < 35:
-            # Linear interpolation: 25-35 → 60-50
+            # Linear interpolation: 25-35 -> 60-50
             base_score = 60 - (vix_level - 25) / 10 * 10
         else:
             base_score = 20 + min(10, (35 - vix_level) / -5)  # Cap at ~20 for extreme VIX

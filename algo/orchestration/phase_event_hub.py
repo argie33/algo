@@ -5,9 +5,9 @@ Decouples phase execution from dashboard/API consumers by implementing event-dri
 architecture. Phases publish events; consumers subscribe independently.
 
 PROBLEM SOLVED:
-- Phase schema changes (15+ file ripple) → single publish point
-- Tight coupling (dashboard reads phase internals) → event subscriptions
-- Shotgun surgery (same change scattered everywhere) → centralized event stream
+- Phase schema changes (15+ file ripple) -> single publish point
+- Tight coupling (dashboard reads phase internals) -> event subscriptions
+- Shotgun surgery (same change scattered everywhere) -> centralized event stream
 
 EVENT TYPES:
 - phase_started(phase_num, name, timestamp)

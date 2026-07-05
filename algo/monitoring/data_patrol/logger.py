@@ -116,7 +116,7 @@ class PatrolLogger:
                 },
             )
             status = "ready" if ready else "completed_with_findings"
-            logger.info(f"[PATROL] ✓ Completed successfully. Updated DynamoDB (status={status})")
+            logger.info(f"[PATROL] [OK] Completed successfully. Updated DynamoDB (status={status})")
         except Exception as e:
             logger.critical(
                 f"[PATROL] FAILED to update DynamoDB completion status: {type(e).__name__}: {e}. "

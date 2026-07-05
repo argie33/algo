@@ -871,7 +871,7 @@ class AdvancedFilters:
         return float(row[0])
 
     def _estimate_days_to_earnings(self, symbol: str, signal_date: Any, cur: Any) -> int:
-        """Estimate days until next earnings. Tries calendar → estimates → quarterly estimate.
+        """Estimate days until next earnings. Tries calendar -> estimates -> quarterly estimate.
 
         Raises:
             ValueError: If no earnings data available through any method

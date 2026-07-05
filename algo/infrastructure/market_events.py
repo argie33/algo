@@ -581,7 +581,7 @@ class MarketEventHandler:
                     if check_name == "early_close":
                         result["checks"][check_name] = True
                         result["alerts"].append(
-                            "⚠ EARLY_CLOSE CHECK FAILED - Assuming market closes early at 13:00 ET (conservative)"
+                            "[WARN] EARLY_CLOSE CHECK FAILED - Assuming market closes early at 13:00 ET (conservative)"
                         )
                     elif check_name == "circuit_breaker":
                         result["checks"][check_name] = {
@@ -591,11 +591,11 @@ class MarketEventHandler:
                             "action": "HALT_ALL_ENTRIES",
                             "timestamp": datetime.now(timezone.utc).isoformat(),
                         }
-                        result["alerts"].append("⚠ CIRCUIT_BREAKER CHECK FAILED - Assuming Level 3 halt (conservative)")
+                        result["alerts"].append("[WARN] CIRCUIT_BREAKER CHECK FAILED - Assuming Level 3 halt (conservative)")
                     elif check_name == "after_hours_window":
                         result["checks"][check_name] = True
                         result["alerts"].append(
-                            "⚠ AFTER_HOURS CHECK FAILED - Assuming trading window restricted (conservative)"
+                            "[WARN] AFTER_HOURS CHECK FAILED - Assuming trading window restricted (conservative)"
                         )
 
         if result["checks"].get("early_close"):

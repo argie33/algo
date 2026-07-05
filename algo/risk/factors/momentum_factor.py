@@ -80,7 +80,7 @@ class MomentumFactor(MarketFactorStrategy):
                 },
             }
         elif return_pct >= 10:
-            # Scale 10-25% → 75-100
+            # Scale 10-25% -> 75-100
             score = 75 + (return_pct - 10) / 15 * 25
             return {
                 "score": score,
@@ -92,7 +92,7 @@ class MomentumFactor(MarketFactorStrategy):
                 },
             }
         elif return_pct >= -5:
-            # Scale -5% to +10% → 40-75
+            # Scale -5% to +10% -> 40-75
             score = 40 + (return_pct + 5) / 15 * 35
             return {
                 "score": score,
@@ -104,7 +104,7 @@ class MomentumFactor(MarketFactorStrategy):
                 },
             }
         elif return_pct >= -10:
-            # Scale -10% to -5% → 20-40
+            # Scale -10% to -5% -> 20-40
             score = 20 + (abs(return_pct) - 10) / 5 * 20
             return {
                 "score": score,
@@ -116,7 +116,7 @@ class MomentumFactor(MarketFactorStrategy):
                 },
             }
         elif return_pct >= -25:
-            # Scale -25% to -10% → 10-20
+            # Scale -25% to -10% -> 10-20
             score = 10 + (abs(return_pct) - 25) / 15 * 10
             return {
                 "score": score,

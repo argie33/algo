@@ -544,7 +544,7 @@ class CircuitBreaker:
             return {"halted": False, "reason": "No portfolio snapshot (first run?)"}
 
         portfolio = _float(row[0], None, context="portfolio_value")
-        # CRITICAL: Portfolio value missing/invalid → risk calculation impossible.
+        # CRITICAL: Portfolio value missing/invalid -> risk calculation impossible.
         # Fail-closed: cannot assess total risk without portfolio value.
         if portfolio is None or portfolio <= 0:
             logger.critical(
@@ -767,7 +767,7 @@ class CircuitBreaker:
 
         # Compute the previous trading day as the freshness reference point.
         # Using trading-day comparison prevents false halts after 3-day weekends
-        # where the calendar gap (e.g. Friday → Tuesday = 4 days) would exceed a
+        # where the calendar gap (e.g. Friday -> Tuesday = 4 days) would exceed a
         # fixed threshold even though the data is from the last trading day.
         from datetime import timedelta
 

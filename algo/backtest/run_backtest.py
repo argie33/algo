@@ -208,7 +208,7 @@ def run_backtest(  # noqa: C901
     logger.info(f"[BACKTEST] {len(trading_dates)} trading days to simulate")
 
     capital = initial_capital
-    positions: dict[str, dict[str, Any]] = {}  # symbol → {entry_price, shares, entry_date, stop, target}
+    positions: dict[str, dict[str, Any]] = {}  # symbol -> {entry_price, shares, entry_date, stop, target}
     completed_trades: list[dict[str, Any]] = []
     equity_curve = []
 

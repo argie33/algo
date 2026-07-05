@@ -115,8 +115,8 @@ class PipelineHealth:
 
     # Define critical tables and their SLA requirements.
     # market_health_daily and price_daily use sla_days=5 so that a 3-day holiday
-    # weekend (e.g. Memorial Day Friday → Tuesday = 4 calendar days) or a 4-day
-    # Thanksgiving break (Wednesday → Monday = 5 days) does not trigger a VERY_STALE
+    # weekend (e.g. Memorial Day Friday -> Tuesday = 4 calendar days) or a 4-day
+    # Thanksgiving break (Wednesday -> Monday = 5 days) does not trigger a VERY_STALE
     # critical halt in Phase 1. Phase 1's explicit staleness check uses trading-day-
     # aware comparison; PipelineHealth is a secondary check and should not over-block.
     CRITICAL_TABLES: dict[str, dict[str, str | int]] = {

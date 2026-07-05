@@ -64,7 +64,7 @@ class Breadth50DMAFactor(MarketFactorStrategy):
                 )
             pct = above / total * 100.0
 
-            # Linear: 20% → 0, 50% → 50, 80% → 100
+            # Linear: 20% -> 0, 50% -> 50, 80% -> 100
             score = max(0.0, min(100.0, (pct - 20) / 60 * 100))
 
             return {

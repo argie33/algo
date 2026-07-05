@@ -268,7 +268,7 @@ def run(
         try:
             qualified_trades = executor.get_phase_data_required(7, "qualified_trades")
             exposure_constraints = executor.get_phase_data_required(5, "constraints")
-            logger.info("[PHASE 8 CONTRACTS] ✓ Retrieved validated data from Phase 7 & 5")
+            logger.info("[PHASE 8 CONTRACTS] [OK] Retrieved validated data from Phase 7 & 5")
         except Exception as e:
             logger.critical(f"[PHASE 8 DEPENDENCY FAILURE] {e}")
             log_phase_result_fn(8, "entry_execution", "halt", str(e))

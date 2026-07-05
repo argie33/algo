@@ -10,7 +10,7 @@ GUARD RAILS (ISSUE #8 FIX):
    - stock_scores must have data
    - market_exposure_daily must have valid exposure_pct
    - buy_sell_daily must have BUY signals within lookback window
-2. Any missing dependency → immediate halt with clear error message
+2. Any missing dependency -> immediate halt with clear error message
 3. Prevents silent degradation where empty signals show on dashboard
 
 Pipeline:

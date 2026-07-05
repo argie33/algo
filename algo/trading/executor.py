@@ -1032,7 +1032,7 @@ class TradeExecutor:
                     severity="warning",
                     title="Position Quantity Corrected",
                     message=(
-                        f"{symbol}: Corrected quantity {db_qty} → {alpaca_qty} to match Alpaca after partial fill."
+                        f"{symbol}: Corrected quantity {db_qty} -> {alpaca_qty} to match Alpaca after partial fill."
                     ),
                     symbol=symbol,
                     details={

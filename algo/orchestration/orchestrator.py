@@ -695,7 +695,7 @@ class Orchestrator:
                 )
                 return False
 
-            logger.info(f"[TABLE-CHECK] All {len(required_tables)} required tables exist ✓")
+            logger.info(f"[TABLE-CHECK] All {len(required_tables)} required tables exist [OK]")
             return True
 
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:

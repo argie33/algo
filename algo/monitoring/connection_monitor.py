@@ -57,7 +57,7 @@ class ConnectionPoolMonitor:
 
         self._lock = threading.Lock()
         self._active_connections = 0
-        self._connection_start_times: dict[int, float] = {}  # Connection ID → start time
+        self._connection_start_times: dict[int, float] = {}  # Connection ID -> start time
         self._high_usage_warned = False
         self._last_report = time.time()
         self._report_interval = 60  # Report stats every 60s
@@ -78,7 +78,7 @@ class ConnectionPoolMonitor:
                     f"({self._active_connections}/{self.max_connections}). "
                     "CLUSTER 6 FIX: Approaching pool limit. Check for stuck connections (>5min), "
                     "excessive loader parallelism, or long-running transactions. "
-                    "See CLAUDE.md → Cluster 6 for mitigation."
+                    "See CLAUDE.md -> Cluster 6 for mitigation."
                 )
                 self._high_usage_warned = True
 

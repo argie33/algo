@@ -427,7 +427,7 @@ def run(  # noqa: C901
                 "market_exposure_daily": "Market exposure limits",
                 "earnings_calendar": "Earnings dates (blackout window gating)",
             }
-            # Warning-only tables: stale → logged, trading continues
+            # Warning-only tables: stale -> logged, trading continues
             warn_tables = {
                 "trend_template_data": "Trend template (Minervini/Weinstein)",
                 "swing_trader_scores": "Swing trader scores (legacy, warning only)",

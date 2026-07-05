@@ -354,15 +354,15 @@ class DailyFinanceReport:
                 lines.append(f"  {comp:20s} r=N/A        {status.upper():10s}")
             else:
                 ic = comp_data["ic"]
-                status_marker = "★" if status == "strong" else "◇" if status == "moderate" else " "
+                status_marker = "*" if status == "strong" else "◇" if status == "moderate" else " "
                 lines.append(f"  {comp:20s} r={ic:+.3f} {status_marker:2s} {status.upper():10s}")
 
         signals = report["signals"]
         lines.extend(
             [
                 "",
-                f"Today: {signals['candidates_today']} BUY signals → "
-                f"{signals['passed_tiers']} tier-passed → "
+                f"Today: {signals['candidates_today']} BUY signals -> "
+                f"{signals['passed_tiers']} tier-passed -> "
                 f"{signals['entries_today']} entries",
                 f"{'=' * 70}",
             ]
@@ -387,13 +387,13 @@ class DailyFinanceReport:
             logger.warning(f"VaR 95% unavailable for {report['date']} - not yet computed by pipeline")
             warnings.append("VaR 95% not yet available - check algo_performance_metrics pipeline")
         elif var_95 > 2.0:
-            warnings.append(f"⚠️  VaR > 2% ({var_95:.1f}%) - High daily risk")
+            warnings.append(f"[WARN]️  VaR > 2% ({var_95:.1f}%) - High daily risk")
 
         if sharpe_ytd is None:
             logger.warning(f"Sharpe YTD unavailable for {report['date']} - cannot assess strategy quality")
-            warnings.append("⚠️  Sharpe YTD missing - strategy quality unavailable")
+            warnings.append("[WARN]️  Sharpe YTD missing - strategy quality unavailable")
         elif sharpe_ytd < 0.5:
-            warnings.append(f"⚠️  Sharpe < 0.5 ({sharpe_ytd:.2f}) - Strategy struggling")
+            warnings.append(f"[WARN]️  Sharpe < 0.5 ({sharpe_ytd:.2f}) - Strategy struggling")
 
         portfolio = report.get("portfolio")
         if portfolio is None:
@@ -404,10 +404,10 @@ class DailyFinanceReport:
         if daily_pnl is None:
             logger.critical(f"Daily P&L unavailable for {report['date']} - cannot assess halt threshold")
             warnings.append(
-                "🔴 CRITICAL: Daily P&L missing - cannot assess halt threshold. Manually verify before trading."
+                "[STOP] CRITICAL: Daily P&L missing - cannot assess halt threshold. Manually verify before trading."
             )
         elif daily_pnl < -2.0:
-            warnings.append(f"⚠️  Daily loss > 2% ({daily_pnl:.1f}%) - Halt entries?")
+            warnings.append(f"[WARN]️  Daily loss > 2% ({daily_pnl:.1f}%) - Halt entries?")
 
         return warnings
 

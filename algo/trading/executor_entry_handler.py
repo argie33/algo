@@ -129,7 +129,7 @@ class EntryHandler:
         return STAGE_PHASE_MAPPING[stage_phase]
 
     def execute_entry(self, context: TradeContext) -> dict[str, Any]:
-        """Execute entry trade through 4 phases: validate → submit → record → notify.
+        """Execute entry trade through 4 phases: validate -> submit -> record -> notify.
 
         Returns: {
             'success': bool,

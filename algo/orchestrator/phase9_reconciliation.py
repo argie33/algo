@@ -510,7 +510,7 @@ def _optimize_weights(config: Any, run_date: _date, log_phase_result_fn: Callabl
         if opt_result.get("changes"):
             logger.info(f"Weight optimization: {len(opt_result['changes'])} changes applied")
             for change in opt_result["changes"]:
-                logger.info(f"  {change['component']}: {change['old_weight']}% → {change['new_weight']}%")
+                logger.info(f"  {change['component']}: {change['old_weight']}% -> {change['new_weight']}%")
         else:
             logger.info("Weight optimization: no changes (insufficient trades or weights stable)")
     except ValueError as e:

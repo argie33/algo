@@ -60,7 +60,7 @@ class ADLineFactor(MarketFactorStrategy):
             if len(rows) < 5:
                 raise ValueError("AD line factor: insufficient historical data for confirmation analysis")
 
-            # Compute A/D cumulative change using ratio → net = (ratio-1)/(ratio+1)
+            # Compute A/D cumulative change using ratio -> net = (ratio-1)/(ratio+1)
             nets = []
             for r in rows:
                 ratio = float(r[1])

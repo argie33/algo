@@ -195,7 +195,7 @@ class DatabaseHealthMonitor:
                 )
 
                 if task_status == "STOPPED":
-                    logger.info(f"[TASK_TERMINATION] ✓ {loader_name} task {task_arn} verified STOPPED")
+                    logger.info(f"[TASK_TERMINATION] [OK] {loader_name} task {task_arn} verified STOPPED")
                     return True
 
                 if desired_status == "STOPPED" and task_status in (
