@@ -761,6 +761,7 @@ def run(
                         stop_loss_price=stop_loss,
                         signal_date=run_date,
                         entry_date=run_date,
+                        composite_score=composite_score,
                         sector=signal.get("sector"),  # Optional enrichment
                         industry=signal.get("industry"),  # Optional enrichment
                         rs_percentile=signal.get("rs_percentile"),  # Already validated as required above

@@ -549,7 +549,16 @@ def check_data_freshness(
             max_date_value = result.get("max_value")
         else:
             # For tuple results, the MAX() query returns a single column at index 0
-            max_date_value = result[0] if result else None
+            # Handle both subscriptable tuples and non-subscriptable objects (e.g., SQLAlchemy Composed)
+            try:
+                max_date_value = result[0] if result else None
+            except (TypeError, KeyError):
+                # If result is not subscriptable, try to get the first attribute or method
+                # This handles SQLAlchemy Composed and other wrapped objects
+                if hasattr(result, '__iter__') and not isinstance(result, (str, bytes)):
+                    max_date_value = next(iter(result), None)
+                else:
+                    max_date_value = None
         if max_date_value is None:
             logger.warning(f"[DATA_FRESHNESS] No rows in {table_name} (max({date_column}) is None)")
             return {

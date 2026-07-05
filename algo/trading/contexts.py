@@ -39,6 +39,7 @@ class TradeContext:
     # SIGNAL METRICS (optional)
     sqs: Any | None = None
     trend_score: float | None = None
+    composite_score: float | None = None
     swing_score: float | None = None
     swing_grade: str | None = None
     base_type: str | None = None
