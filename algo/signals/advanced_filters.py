@@ -664,7 +664,7 @@ class AdvancedFilters:
         cur.execute(
             """
             SELECT revenue_growth_3y, eps_growth_3y,
-                   quarterly_growth_momentum, revenue_growth_yoy
+                   quarterly_growth_momentum, revenue_growth_1y
             FROM growth_metrics
             WHERE symbol = %s
             """,
