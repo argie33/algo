@@ -13,7 +13,6 @@ python-dotenv==1.2.2
 
 # Data processing
 pandas==2.1.3
-numpy==1.26.2
 
 # Alpaca trading API
 alpaca-trade-api==3.2.0
