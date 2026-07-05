@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Dynamic Weight Optimizer — Adapts swing score component weights based on realized IC.
+Dynamic Weight Optimizer — Adapts component weights based on realized Information Coefficient.
 
 Reads Information Coefficient, optimizes weights (constrained), blends smoothly to avoid whip-saw,
-persists to algo_config (live reloading via SwingTraderScore._load_config_weights).
+persists to algo_config for live reloading.
 """
 
 from __future__ import (

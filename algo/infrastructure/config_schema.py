@@ -41,8 +41,6 @@ VALIDATION_SCHEMA = {
     "max_stop_distance_pct": ("float", 0.1, 50.0, False, 12.0),
     "max_positions_per_sector": ("int", 1, 100, False, 10),
     "max_positions_per_industry": ("int", 1, 100, False, 8),
-    "min_swing_score": ("float", 0.1, 100.0, True, 55.0),  # Fail-closed to 55
-    "min_swing_grade": ("string", None, None, False, None),
     "max_total_invested_pct": ("float", 50.0, 100.0, False, 95.0),
     # Market Conditions
     "max_distribution_days": ("int", 0, 30, False, 4),
@@ -165,22 +163,6 @@ VALIDATION_SCHEMA = {
     "phase1_min_coverage_pct": ("int", 0, 100, False, 75),
     "phase1_min_symbol_count": ("int", 100, 100000, False, 5000),
     "phase7_min_composite_score": ("int", 0, 100, False, 50),
-    # Swing Trader Score Weights
-    "swing_weight_setup": ("int", 0, 100, False, 25),
-    "swing_weight_trend": ("int", 0, 100, False, 20),
-    "swing_weight_momentum": ("int", 0, 100, False, 20),
-    "swing_weight_volume": ("int", 0, 100, False, 12),
-    "swing_weight_fundamentals": ("int", 0, 100, False, 10),
-    "swing_weight_sector": ("int", 0, 100, False, 8),
-    "swing_weight_multi_timeframe": ("int", 0, 100, False, 5),
-    "swing_min_trend_score": ("int", 0, 8, False, 5),
-    "swing_min_industry_rank": ("int", 1, 10000, False, 100),
-    "swing_days_to_earnings_block": ("int", 0, 100, False, 5),
-    "swing_grade_threshold_aplus": ("int", 0, 100, False, 85),
-    "swing_grade_threshold_a": ("int", 0, 100, False, 75),
-    "swing_grade_threshold_b": ("int", 0, 100, False, 65),
-    "swing_grade_threshold_c": ("int", 0, 100, False, 55),
-    "swing_grade_threshold_d": ("int", 0, 100, False, 45),
     "advanced_filters_grade_threshold_aplus": ("int", 0, 100, False, 90),
     "advanced_filters_grade_threshold_a": ("int", 0, 100, False, 80),
     "advanced_filters_grade_threshold_b": ("int", 0, 100, False, 70),
@@ -234,8 +216,6 @@ VALIDATION_SCHEMA = {
     "signal_max_data_age_days": ("int", 0, 100, False, None),
     "stale_loader_threshold_minutes": ("int", 0, 1000, False, None),
     # Swing Score Configuration
-    "swing_score_excellent_threshold": ("int", 0, 100, False, None),
-    "swing_score_good_threshold": ("int", 0, 100, False, None),
     # Loader Rate Limiting Configuration
     "loader_rate_limit_circuit_break_threshold_morning": ("int", 0, 3600, False, 480),
     "loader_rate_limit_circuit_break_threshold_eod": ("int", 0, 3600, False, 180),

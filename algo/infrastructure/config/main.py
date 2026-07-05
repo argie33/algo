@@ -187,18 +187,6 @@ class AlgoConfig:
             "Max concurrent positions in one industry",
             "Filter Thresholds",
         ),
-        "min_swing_score": (
-            "55.0",
-            "float",
-            "Min swing trader score to enter (regime manager may raise this)",
-            "Filter Thresholds",
-        ),
-        "min_swing_grade": (
-            "",
-            "string",
-            "Min swing grade override (empty=use exposure tier default; set to F for testing to bypass grade gate)",
-            "Filter Thresholds",
-        ),
         "max_total_invested_pct": (
             "95.0",
             "float",
@@ -640,72 +628,6 @@ class AlgoConfig:
             "Phase 7: Minimum composite score 0-100 for signal filtering",
             "Signal Generation",
         ),
-        # Swing Trader Score Weights (Minervini Research-Weighted Composite)
-        "swing_weight_setup": ("25", "int", "Swing score: Setup quality weight %", "Scoring Weights"),
-        "swing_weight_trend": ("20", "int", "Swing score: Trend quality weight %", "Scoring Weights"),
-        "swing_weight_momentum": ("20", "int", "Swing score: Momentum/RS weight %", "Scoring Weights"),
-        "swing_weight_volume": ("12", "int", "Swing score: Volume weight %", "Scoring Weights"),
-        "swing_weight_fundamentals": (
-            "10",
-            "int",
-            "Swing score: Fundamentals weight %",
-            "Scoring Weights",
-        ),
-        "swing_weight_sector": ("8", "int", "Swing score: Sector/industry weight %", "Scoring Weights"),
-        "swing_weight_multi_timeframe": (
-            "5",
-            "int",
-            "Swing score: Multi-timeframe weight %",
-            "Swing Trader Scoring",
-        ),
-        "swing_min_trend_score": (
-            "5",
-            "int",
-            "Swing score: Minimum Minervini trend score 0-8",
-            "Swing Trader Scoring",
-        ),
-        "swing_min_industry_rank": (
-            "100",
-            "int",
-            "Swing score: Industry rank threshold (<=)",
-            "Swing Trader Scoring",
-        ),
-        "swing_days_to_earnings_block": (
-            "5",
-            "int",
-            "Swing score: Block entries N days to earnings",
-            "Swing Trader Scoring",
-        ),
-        "swing_grade_threshold_aplus": (
-            "85",
-            "int",
-            "Swing score: A+ grade threshold (score >= this value)",
-            "Swing Trader Scoring",
-        ),
-        "swing_grade_threshold_a": (
-            "75",
-            "int",
-            "Swing score: A grade threshold (score >= this value)",
-            "Swing Trader Scoring",
-        ),
-        "swing_grade_threshold_b": (
-            "65",
-            "int",
-            "Swing score: B grade threshold (score >= this value)",
-            "Swing Trader Scoring",
-        ),
-        "swing_grade_threshold_c": (
-            "55",
-            "int",
-            "Swing score: C grade threshold (score >= this value)",
-            "Swing Trader Scoring",
-        ),
-        "swing_grade_threshold_d": (
-            "45",
-            "int",
-            "Swing score: D grade threshold (score >= this value)",
-            "Swing Trader Scoring",
-        ),
         "advanced_filters_grade_threshold_aplus": (
             "90",
             "int",
@@ -1024,9 +946,6 @@ class AlgoConfig:
             "Loader heartbeat age (minutes) before marking stale",
             "Signal Generation",
         ),
-        # Swing Score Grade Thresholds
-        "swing_score_excellent_threshold": ("85", "int", "Swing score >= this = Excellent/A+", "Swing Trader Scoring"),
-        "swing_score_good_threshold": ("75", "int", "Swing score >= this = Good/A", "Swing Trader Scoring"),
         # Advanced Filters Feature Flag
         "enable_advanced_filters": ("false", "bool", "Enable advanced signal filters", "Advanced Filters"),
         # Pyramid Trading Configuration
@@ -1707,7 +1626,6 @@ class AlgoConfig:
                 "max_weekly_loss_pct",
                 "min_completeness_score",
                 "min_signal_quality_score",
-                "min_swing_score",
                 "min_stock_price",
             ]
             missing = [k for k in required_keys if k not in self._config or self._config[k] is None]
@@ -1823,14 +1741,13 @@ class AlgoConfig:
             # Minimum thresholds should be non-negative
             min_completeness = int(self._config["min_completeness_score"])
             min_signal_quality = int(self._config["min_signal_quality_score"])
-            min_swing_score = float(self._config["min_swing_score"])
             min_stock_price = float(self._config["min_stock_price"])
 
-            if min_completeness < 0 or min_signal_quality < 0 or min_swing_score < 0 or min_stock_price < 0:
+            if min_completeness < 0 or min_signal_quality < 0 or min_stock_price < 0:
                 logger.warning(
                     f"Config: Score/price thresholds should be non-negative "
                     f"(completeness={min_completeness}, signal_quality={min_signal_quality}, "
-                    f"swing_score={min_swing_score}, stock_price={min_stock_price})"
+                    f"stock_price={min_stock_price})"
                 )
 
             logger.info("[AlgoConfig] Interdependency validation passed")

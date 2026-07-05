@@ -4,7 +4,7 @@
 Regime Manager — Single authoritative source for market regime and parameter adaptation.
 
 Reads from market_exposure_daily.regime (computed by algo_market_exposure.py).
-Maps regime to config multipliers that flow into PositionSizer, ExposurePolicy, SwingTraderScore.
+Maps regime to config multipliers that flow into PositionSizer and ExposurePolicy.
 """
 
 import logging
@@ -19,10 +19,6 @@ from algo.infrastructure.constants import (
     REGIME_HOLD_DAYS_CONFIRMED_UPTREND,
     REGIME_HOLD_DAYS_CORRECTION,
     REGIME_HOLD_DAYS_UPTREND_UNDER_PRESSURE,
-    REGIME_MIN_SWING_SCORE_CAUTION,
-    REGIME_MIN_SWING_SCORE_CONFIRMED_UPTREND,
-    REGIME_MIN_SWING_SCORE_CORRECTION,
-    REGIME_MIN_SWING_SCORE_UPTREND_UNDER_PRESSURE,
     REGIME_POSITION_SIZE_CAUTION,
     REGIME_POSITION_SIZE_CONFIRMED_UPTREND,
     REGIME_POSITION_SIZE_CORRECTION,
@@ -60,7 +56,6 @@ class RegimeManager:
             "target_1_mult": REGIME_TARGET_CONFIRMED_UPTREND,
             "target_2_mult": REGIME_TARGET_CONFIRMED_UPTREND,
             "target_3_mult": REGIME_TARGET_CONFIRMED_UPTREND,
-            "min_swing_score": REGIME_MIN_SWING_SCORE_CONFIRMED_UPTREND,
             "weight_update_alpha": REGIME_WEIGHT_UPDATE_ALPHA_CONFIRMED_UPTREND,
             "description": "Bull market: full size, longer holds, aggressive targets",
         },
@@ -70,7 +65,6 @@ class RegimeManager:
             "target_1_mult": REGIME_TARGET_UPTREND_UNDER_PRESSURE,
             "target_2_mult": REGIME_TARGET_UPTREND_UNDER_PRESSURE,
             "target_3_mult": REGIME_TARGET_UPTREND_UNDER_PRESSURE,
-            "min_swing_score": REGIME_MIN_SWING_SCORE_UPTREND_UNDER_PRESSURE,
             "weight_update_alpha": REGIME_WEIGHT_UPDATE_ALPHA_UPTREND_UNDER_PRESSURE,
             "description": "Uptrend weakening: reduce size, standard exits",
         },
@@ -80,7 +74,6 @@ class RegimeManager:
             "target_1_mult": REGIME_TARGET_CAUTION,
             "target_2_mult": REGIME_TARGET_CAUTION,
             "target_3_mult": REGIME_TARGET_CAUTION,
-            "min_swing_score": REGIME_MIN_SWING_SCORE_CAUTION,
             "weight_update_alpha": REGIME_WEIGHT_UPDATE_ALPHA_CAUTION,
             "description": "VIX elevated or distribution days: defensive positioning",
         },
@@ -90,7 +83,6 @@ class RegimeManager:
             "target_1_mult": REGIME_TARGET_CORRECTION,
             "target_2_mult": REGIME_TARGET_CORRECTION,
             "target_3_mult": REGIME_TARGET_CORRECTION,
-            "min_swing_score": REGIME_MIN_SWING_SCORE_CORRECTION,
             "weight_update_alpha": REGIME_WEIGHT_UPDATE_ALPHA_CORRECTION,
             "description": "Bear market: halt new entries, tight stops, quick exits",
         },
@@ -211,9 +203,6 @@ class RegimeManager:
         config["t1_target_r_multiple"] = float(base_config["t1_target_r_multiple"]) * params["target_1_mult"]
         config["t2_target_r_multiple"] = float(base_config["t2_target_r_multiple"]) * params["target_2_mult"]
         config["t3_target_r_multiple"] = float(base_config["t3_target_r_multiple"]) * params["target_3_mult"]
-
-        # Override min swing score
-        config["min_swing_score"] = params["min_swing_score"]
 
         # Add metadata
         config["_regime_adjusted"] = True

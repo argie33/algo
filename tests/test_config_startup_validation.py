@@ -25,7 +25,7 @@ class TestConfigCriticalThresholds:
 
         config = AlgoConfig()
         assert config.get("min_signal_quality_score") >= 40
-        assert config.get("min_swing_score") >= 30
+        assert config.get("min_completeness_score") >= 50
         assert config.get("halt_drawdown_pct") != 0
         assert config.get("max_daily_loss_pct") != 0
         assert config.get("vix_max_threshold") != 0
@@ -43,15 +43,15 @@ class TestConfigCriticalThresholds:
                 with pytest.raises(RuntimeError, match="SAFETY GATE FAILURE"):
                     AlgoConfig()
 
-    def test_critical_threshold_validation_catches_zero_swing_score(self):
-        """Should raise RuntimeError if min_swing_score is zero."""
+    def test_critical_threshold_validation_catches_zero_completeness_score(self):
+        """Should raise RuntimeError if min_completeness_score is zero."""
         from algo.infrastructure.config import AlgoConfig
 
-        def mock_load_with_zero_swing(self):
-            self._config["min_swing_score"] = 0.0
-            self._sources["min_swing_score"] = "database"
+        def mock_load_with_zero_completeness(self):
+            self._config["min_completeness_score"] = 0
+            self._sources["min_completeness_score"] = "database"
 
-        with mock.patch.object(AlgoConfig, "_load_from_database", mock_load_with_zero_swing):
+        with mock.patch.object(AlgoConfig, "_load_from_database", mock_load_with_zero_completeness):
             with mock.patch.object(AlgoConfig, "_detect_config_db_failure"):
                 with pytest.raises(RuntimeError, match="SAFETY GATE FAILURE"):
                     AlgoConfig()
@@ -133,7 +133,6 @@ class TestConfigCriticalThresholds:
 
         critical_keys = {
             "min_signal_quality_score",
-            "min_swing_score",
             "min_completeness_score",
             "min_volume_ma_50d",
             "min_avg_daily_dollar_volume",
@@ -214,13 +213,13 @@ class TestConfigValidationSchema:
         with pytest.raises(ValueError, match=r"below minimum\|CRITICAL SAFETY GATE"):
             config._validate_value("min_signal_quality_score", "0", "int")
 
-    def test_validation_rejects_negative_min_swing_score(self):
-        """Should reject negative swing score."""
+    def test_validation_rejects_negative_min_completeness_score(self):
+        """Should reject negative completeness score."""
         from algo.infrastructure.config import AlgoConfig
 
         config = AlgoConfig()
         with pytest.raises(ValueError, match="below minimum"):
-            config._validate_value("min_swing_score", "-5.0", "float")
+            config._validate_value("min_completeness_score", "-5", "int")
 
     def test_validation_rejects_halt_drawdown_positive(self):
         """Should reject positive halt_drawdown_pct (must be negative)."""
@@ -327,7 +326,6 @@ class TestConfigCriticalThresholdsSummary:
 
         expected_critical = {
             "min_signal_quality_score",
-            "min_swing_score",
             "min_completeness_score",
             "min_volume_ma_50d",
             "min_avg_daily_dollar_volume",
