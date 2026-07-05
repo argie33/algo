@@ -626,6 +626,34 @@ def run(  # noqa: C901
                 )
             logger.info(f"  - Check completed in {elapsed:.1f}s")
 
+            # CRITICAL FIX 2026-07-05: Validate that metric loaders are ready before Phase 7 signal generation
+            # These loaders (quality, growth, value, positioning, stability, momentum) feed into stock_scores
+            # which feed into signal generation. If metrics are all-unavailable, stock_scores will fail.
+            logger.info("[PHASE 1] Validating upstream metric loaders ready for stock_scores...")
+            try:
+                from loaders.load_stock_scores import StockScoresLoader
+
+                metric_validator = StockScoresLoader()
+                metric_validator._validate_upstream_metrics_ready()
+                logger.info("[PHASE 1] Metric loaders validation: PASS - All metric loaders ready")
+            except RuntimeError as e:
+                metric_error = str(e)
+                logger.critical(f"[PHASE 1] Metric loaders validation FAILED: {metric_error}")
+                log_phase_result_fn(
+                    1,
+                    "metric_loaders_not_ready",
+                    "halt",
+                    f"Metric loaders not ready: {metric_error[:100]}",
+                )
+                return PhaseResult(
+                    1,
+                    "metric_loaders_not_ready",
+                    "halted",
+                    {},
+                    True,
+                    f"Metric loaders not ready: {metric_error[:100]}",
+                )
+
             log_phase_result_fn(
                 1,
                 "all_tables_fresh",
