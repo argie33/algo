@@ -62,7 +62,12 @@ def _get_algo_config(cur: cursor) -> Any:
         result = json_response(200, config_dict if config_dict else {"status": "empty"})
         if not isinstance(result, dict):
             logger.error(f"CRITICAL: json_response did not return dict! Got {type(result)}")
-            return {"statusCode": 500, "errorType": "internal_error", "message": "Handler returned non-dict", "_error": "Handler error"}
+            return {
+                "statusCode": 500,
+                "errorType": "internal_error",
+                "message": "Handler returned non-dict",
+                "_error": "Handler error",
+            }
         return result
     except Exception as e:
         logger.error(f"Config handler exception: {type(e).__name__}: {e}", exc_info=True)

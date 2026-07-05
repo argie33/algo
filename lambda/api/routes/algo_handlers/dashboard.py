@@ -371,8 +371,13 @@ def _get_algo_status(cur: cursor) -> Any:
 
 @db_route_handler("fetch algo trades")
 @validate_api_response("trades")
-def _get_algo_trades(cur: cursor, limit: int = 200, user_id: str | None = None, status: str | None = None) -> Any:
-    """Get recent trades with all fields for frontend (scoped to user if user_id provided, filtered by status if provided)."""
+def _get_algo_trades(
+    cur: cursor, limit: int = 200, user_id: str | None = None, status: str | None = None
+) -> Any:
+    """Get recent trades with all fields for frontend.
+
+    Scoped to user if user_id provided, filtered by status if provided.
+    """
     where_parts: list[str] = []
     params: list[Any] = []
 
@@ -465,8 +470,14 @@ def _get_circuit_breakers(cur: cursor) -> Any:  # noqa: C901
                         "warning": "Data unavailable",
                     },
                     "errorType": "missing_critical_tables",
-                    "message": f"Circuit breaker configuration incomplete: missing tables {missing_tables}. Trading is disabled until data is available.",
-                    "_error": f"Circuit breaker configuration incomplete: missing tables {missing_tables}. Trading is disabled until data is available.",
+                    "message": (
+                        f"Circuit breaker configuration incomplete: missing tables {missing_tables}. "
+                        "Trading is disabled until data is available."
+                    ),
+                    "_error": (
+                        f"Circuit breaker configuration incomplete: missing tables {missing_tables}. "
+                        "Trading is disabled until data is available."
+                    ),
                 },
             )
 
@@ -475,7 +486,9 @@ def _get_circuit_breakers(cur: cursor) -> Any:  # noqa: C901
         cbm_data = {}
         try:
             cur.execute(
-                "SELECT portfolio_drawdown_pct, daily_loss_pct, weekly_loss_pct, open_risk_pct, consecutive_losses, vix_level, market_stage FROM circuit_breaker_status ORDER BY check_date DESC LIMIT 1"
+                "SELECT portfolio_drawdown_pct, daily_loss_pct, weekly_loss_pct, open_risk_pct, "
+                "consecutive_losses, vix_level, market_stage FROM circuit_breaker_status "
+                "ORDER BY check_date DESC LIMIT 1"
             )
             cbm_row = cur.fetchone()
             if not cbm_row:

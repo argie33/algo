@@ -766,12 +766,17 @@ resource "aws_iam_role_policy_attachment" "rds_rotation_vpc" {
 
 # Lambda Layer for psycopg2 (PostgreSQL driver)
 # CI builds python-psycopg2-layer.zip directly; reference it here without archive_file intermediary
+locals {
+  psycopg2_layer_path = "${path.module}/python-psycopg2-layer.zip"
+  psycopg2_layer_exists = fileexists(local.psycopg2_layer_path)
+}
+
 resource "aws_lambda_layer_version" "psycopg2" {
-  count                    = fileexists("${path.module}/python-psycopg2-layer.zip") ? 1 : 0
-  filename                 = "${path.module}/python-psycopg2-layer.zip"
+  count                    = local.psycopg2_layer_exists ? 1 : 0
+  filename                 = local.psycopg2_layer_path
   layer_name               = "${var.project_name}-psycopg2-layer-${var.environment}"
   compatible_runtimes      = ["python3.11", "python3.12"]
-  source_code_hash         = fileexists("${path.module}/python-psycopg2-layer.zip") ? filebase64sha256("${path.module}/python-psycopg2-layer.zip") : null
+  source_code_hash         = local.psycopg2_layer_exists ? filebase64sha256(local.psycopg2_layer_path) : null
   compatible_architectures = ["x86_64"]
 }
 
