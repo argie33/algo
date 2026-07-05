@@ -36,8 +36,7 @@ class PutCallRatioFactor(MarketFactorStrategy):
         - P/C < 0.5 = 20 (extreme greed → caution)
 
         Put/call ratio is HIGH-priority enrichment (8pt factor).
-        Returns explicit data_unavailable marker if data missing.
-        Market exposure will handle missing data via weight normalization.
+        Raises ValueError if data is missing (fail-fast pattern).
         """
         try:
             cur.execute(
@@ -50,15 +49,10 @@ class PutCallRatioFactor(MarketFactorStrategy):
             )
             row = cur.fetchone()
             if not row or row[0] is None:
-                logger.warning(
-                    f"[PUT_CALL_RATIO] Put/call ratio unavailable for {eval_date}. "
-                    f"Market exposure will normalize weight to remaining factors."
+                raise ValueError(
+                    f"Put/call ratio factor: no data available for {eval_date} - "
+                    f"market_health_daily missing put_call_ratio readings"
                 )
-                return {
-                    "data_unavailable": True,
-                    "reason": "put_call_ratio_missing",
-                    "score": None,
-                }
 
             pcr = float(row[0])
 

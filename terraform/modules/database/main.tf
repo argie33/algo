@@ -233,13 +233,6 @@ resource "aws_db_proxy" "main" {
   # Reduces latency by 10-20ms per query (connection reuse vs TCP handshake)
   require_tls = false
 
-  # Session pooling handled via max_connections_percent and max_db_connections_percent
-  # These control connection multiplexing and reuse efficiency
-  # Removed session_pool_config block — not supported in current AWS provider version
-  max_connections_percent    = 100
-  max_db_connections_percent = 100
-  max_idle_connections       = 20
-
   tags = merge(var.common_tags, {
     Name = "${var.project_name}-rds-proxy"
   })

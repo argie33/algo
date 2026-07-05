@@ -179,9 +179,9 @@ def panel_market_full(mkt: Any, sentiment: Any = None) -> Panel:  # noqa: C901
     fed = mkt.get("fed")
     # Exposure data may not be available in some market regimes (optional)
     if exp is None:
-        exp_s = "N/A"
-        bar = "[dim]N/A[/]"
-        logger.debug("[MARKET_PANEL] Market exposure not available - positioning analysis incomplete")
+        exp_s = "--"
+        bar = "[dim]--[/] [yellow](data unavailable)[/]"
+        logger.warning("[MARKET_PANEL] Market exposure unavailable - positioning analysis incomplete - checking data_unavailable flag")
     else:
         exp_s = f"{float(exp):.0f}%"
         bar = exp_bar(exp, w=10)
