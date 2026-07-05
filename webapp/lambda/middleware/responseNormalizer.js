@@ -289,9 +289,12 @@ function normalizePagination(body) {
 
   // Explicit validation: use defaults only when values are not provided
   // Do NOT mask null/undefined values with || operator
-  const limit = body?.limit !== null && body?.limit !== undefined ? body.limit : 100;
-  const offset = body?.offset !== null && body?.offset !== undefined ? body.offset : 0;
-  const total = body?.total !== null && body?.total !== undefined ? body.total : 0;
+  const limit =
+    body?.limit !== null && body?.limit !== undefined ? body.limit : 100;
+  const offset =
+    body?.offset !== null && body?.offset !== undefined ? body.offset : 0;
+  const total =
+    body?.total !== null && body?.total !== undefined ? body.total : 0;
   const page = body?.page !== null && body?.page !== undefined ? body.page : 1;
 
   return {

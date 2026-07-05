@@ -134,16 +134,24 @@ module.exports = {
   sendPaginated: (res, items, pagination, statusCode = 200) => {
     // Strict validation: pagination fields must be explicitly provided
     if (!pagination) {
-      throw new Error('sendPaginated requires pagination object with limit, offset, total, page fields');
+      throw new Error(
+        "sendPaginated requires pagination object with limit, offset, total, page fields"
+      );
     }
     if (pagination.limit === null || pagination.limit === undefined) {
-      throw new Error('pagination.limit must be explicitly provided (not null/undefined)');
+      throw new Error(
+        "pagination.limit must be explicitly provided (not null/undefined)"
+      );
     }
     if (pagination.offset === null || pagination.offset === undefined) {
-      throw new Error('pagination.offset must be explicitly provided (not null/undefined)');
+      throw new Error(
+        "pagination.offset must be explicitly provided (not null/undefined)"
+      );
     }
     if (pagination.total === null || pagination.total === undefined) {
-      throw new Error('pagination.total must be explicitly provided (not null/undefined)');
+      throw new Error(
+        "pagination.total must be explicitly provided (not null/undefined)"
+      );
     }
 
     const totalPages = Math.ceil(pagination.total / (pagination.limit || 1));

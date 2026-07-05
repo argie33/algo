@@ -131,8 +131,12 @@ function sanitizeValue(value, rule, fieldName = null) {
 
   const validation = validateField(value, rule);
   if (!validation.valid) {
-    const ctx = fieldName ? `field=${fieldName}` : `value=${JSON.stringify(value)}`;
-    console.warn(`[VALIDATION] Invalid ${ctx}: ${validation.errors.join(', ')}`);
+    const ctx = fieldName
+      ? `field=${fieldName}`
+      : `value=${JSON.stringify(value)}`;
+    console.warn(
+      `[VALIDATION] Invalid ${ctx}: ${validation.errors.join(", ")}`
+    );
     return null; // Replace invalid values with null
   }
 
@@ -178,7 +182,9 @@ function sanitizeArray(arr, schema) {
     });
 
   if (filtered > 0) {
-    console.warn(`[VALIDATION] Filtered out ${filtered}/${arr.length} objects where all fields failed validation`);
+    console.warn(
+      `[VALIDATION] Filtered out ${filtered}/${arr.length} objects where all fields failed validation`
+    );
   }
 
   return result;
@@ -193,19 +199,27 @@ function parseLimit(queryLimit, defaultLimit = 500, maxLimit = 50000) {
   try {
     const parsed = parseInt(queryLimit, 10);
     if (isNaN(parsed)) {
-      console.warn(`[PAGINATION] Invalid limit parameter: "${queryLimit}" is not numeric. Defaulting to ${defaultLimit}.`);
+      console.warn(
+        `[PAGINATION] Invalid limit parameter: "${queryLimit}" is not numeric. Defaulting to ${defaultLimit}.`
+      );
       return defaultLimit;
     }
     if (parsed < 1) {
-      console.warn(`[PAGINATION] Invalid limit parameter: ${parsed} is less than 1. Defaulting to ${defaultLimit}.`);
+      console.warn(
+        `[PAGINATION] Invalid limit parameter: ${parsed} is less than 1. Defaulting to ${defaultLimit}.`
+      );
       return defaultLimit;
     }
     if (parsed > maxLimit) {
-      console.warn(`[PAGINATION] Limit ${parsed} exceeds maximum ${maxLimit}. Capping at ${maxLimit}.`);
+      console.warn(
+        `[PAGINATION] Limit ${parsed} exceeds maximum ${maxLimit}. Capping at ${maxLimit}.`
+      );
     }
     return Math.min(parsed, maxLimit);
   } catch (error) {
-    console.warn(`[PAGINATION] Failed to parse limit "${queryLimit}": ${error.message}. Defaulting to ${defaultLimit}.`);
+    console.warn(
+      `[PAGINATION] Failed to parse limit "${queryLimit}": ${error.message}. Defaulting to ${defaultLimit}.`
+    );
     return defaultLimit;
   }
 }
@@ -214,16 +228,22 @@ function parseOffset(queryOffset, maxOffset = 1000000) {
   try {
     const parsed = parseInt(queryOffset, 10);
     if (isNaN(parsed)) {
-      console.warn(`[PAGINATION] Invalid offset parameter: "${queryOffset}" is not numeric. Defaulting to 0.`);
+      console.warn(
+        `[PAGINATION] Invalid offset parameter: "${queryOffset}" is not numeric. Defaulting to 0.`
+      );
       return 0;
     }
     if (parsed < 0) {
-      console.warn(`[PAGINATION] Invalid offset parameter: ${parsed} is negative. Defaulting to 0.`);
+      console.warn(
+        `[PAGINATION] Invalid offset parameter: ${parsed} is negative. Defaulting to 0.`
+      );
       return 0;
     }
     return Math.min(parsed, maxOffset);
   } catch (error) {
-    console.warn(`[PAGINATION] Failed to parse offset "${queryOffset}": ${error.message}. Defaulting to 0.`);
+    console.warn(
+      `[PAGINATION] Failed to parse offset "${queryOffset}": ${error.message}. Defaulting to 0.`
+    );
     return 0;
   }
 }
@@ -232,16 +252,22 @@ function parsePageNum(queryPage, defaultPage = 1) {
   try {
     const parsed = parseInt(queryPage, 10);
     if (isNaN(parsed)) {
-      console.warn(`[PAGINATION] Invalid page parameter: "${queryPage}" is not numeric. Defaulting to ${defaultPage}.`);
+      console.warn(
+        `[PAGINATION] Invalid page parameter: "${queryPage}" is not numeric. Defaulting to ${defaultPage}.`
+      );
       return defaultPage;
     }
     if (parsed < 1) {
-      console.warn(`[PAGINATION] Invalid page parameter: ${parsed} is less than 1. Defaulting to ${defaultPage}.`);
+      console.warn(
+        `[PAGINATION] Invalid page parameter: ${parsed} is less than 1. Defaulting to ${defaultPage}.`
+      );
       return defaultPage;
     }
     return parsed;
   } catch (error) {
-    console.warn(`[PAGINATION] Failed to parse page "${queryPage}": ${error.message}. Defaulting to ${defaultPage}.`);
+    console.warn(
+      `[PAGINATION] Failed to parse page "${queryPage}": ${error.message}. Defaulting to ${defaultPage}.`
+    );
     return defaultPage;
   }
 }

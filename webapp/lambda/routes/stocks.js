@@ -33,7 +33,9 @@ const router = express.Router();
 router.get("/", async (req, res) => {
   try {
     const limitVal = parseInt(req.query.limit, 10);
-    const limit = !isNaN(limitVal) ? Math.min(Math.max(limitVal, 1), 50000) : 500;
+    const limit = !isNaN(limitVal)
+      ? Math.min(Math.max(limitVal, 1), 50000)
+      : 500;
 
     const offsetVal = parseInt(req.query.offset, 10);
     const offset = !isNaN(offsetVal) ? Math.max(offsetVal, 0) : 0;

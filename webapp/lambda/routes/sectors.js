@@ -128,9 +128,13 @@ router.get("/", async (req, res) => {
       const parsedRank12wAgo = parseInt(row.rank_12w_ago);
       return {
         sector_name: row.sector_name,
-        current_rank: !isNaN(parsedCurrentRank) ? parsedCurrentRank : idx + 1 + offset,
+        current_rank: !isNaN(parsedCurrentRank)
+          ? parsedCurrentRank
+          : idx + 1 + offset,
         rank_12w_ago: !isNaN(parsedRank12wAgo) ? parsedRank12wAgo : null,
-        overall_rank: !isNaN(parsedCurrentRank) ? parsedCurrentRank : idx + 1 + offset,
+        overall_rank: !isNaN(parsedCurrentRank)
+          ? parsedCurrentRank
+          : idx + 1 + offset,
         stock_count: row.stock_count != null ? parseInt(row.stock_count) : 0,
         composite_score: composite,
         momentum_score: sf(row.momentum_score),
@@ -211,7 +215,9 @@ router.get("/trends-batch", async (req, res) => {
     );
     validateQueryResult(resultObj, { requireRows: false });
 
-    const result = Array.isArray(resultObj) ? resultObj : resultObj?.rows ?? [];
+    const result = Array.isArray(resultObj)
+      ? resultObj
+      : (resultObj?.rows ?? []);
 
     // Group by sector and compute cumulative index
     const grouped = {};
@@ -230,7 +236,9 @@ router.get("/trends-batch", async (req, res) => {
       let index = 100;
       grouped[sector] = grouped[sector].map((point) => {
         if (point.return_pct == null) {
-          throw new Error(`Missing return_pct for sector ${sector} on date ${point.date}`);
+          throw new Error(
+            `Missing return_pct for sector ${sector} on date ${point.date}`
+          );
         }
         const returnPct = point.return_pct;
         index = index * (1 + returnPct / 100);
@@ -278,7 +286,9 @@ router.get("/:sector/trend", async (req, res) => {
     );
     validateQueryResult(resultObj, { requireRows: false });
 
-    const result = Array.isArray(resultObj) ? resultObj : resultObj?.rows ?? [];
+    const result = Array.isArray(resultObj)
+      ? resultObj
+      : (resultObj?.rows ?? []);
 
     if (result.length === 0) {
       return sendError(res, `No price data for sector: ${sector}`, 404);

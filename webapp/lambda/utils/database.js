@@ -39,7 +39,7 @@ let dbConfig = null;
  * @returns {number} The parsed integer or the default value
  */
 function parseIntSafe(envVar, defaultValue) {
-  if (envVar === null || envVar === undefined || envVar === '') {
+  if (envVar === null || envVar === undefined || envVar === "") {
     return defaultValue;
   }
   const parsed = parseInt(envVar, 10);
@@ -62,7 +62,9 @@ async function getDbConfig() {
 
   try {
     const secretArn = process.env.DB_SECRET_ARN;
-    const isLocalDev = process.env.NODE_ENV === "development" && process.env.DB_HOST === "localhost";
+    const isLocalDev =
+      process.env.NODE_ENV === "development" &&
+      process.env.DB_HOST === "localhost";
 
     // In development with local DB_HOST, skip AWS Secrets Manager
     if (isLocalDev) {
@@ -125,11 +127,26 @@ async function getDbConfig() {
           database: secret.dbname,
           max: parseIntSafe(process.env.DB_POOL_MAX, 10), // Increased for reserved concurrency
           min: parseIntSafe(process.env.DB_POOL_MIN, 2),
-          idleTimeoutMillis: parseIntSafe(process.env.DB_POOL_IDLE_TIMEOUT, 10000),
-          connectionTimeoutMillis: parseIntSafe(process.env.DB_CONNECT_TIMEOUT, 3000),
-          acquireTimeoutMillis: parseIntSafe(process.env.DB_ACQUIRE_TIMEOUT, 3000),
-          createTimeoutMillis: parseIntSafe(process.env.DB_CREATE_TIMEOUT, 3000),
-          statement_timeout: parseIntSafe(process.env.DB_STATEMENT_TIMEOUT, 30000),
+          idleTimeoutMillis: parseIntSafe(
+            process.env.DB_POOL_IDLE_TIMEOUT,
+            10000
+          ),
+          connectionTimeoutMillis: parseIntSafe(
+            process.env.DB_CONNECT_TIMEOUT,
+            3000
+          ),
+          acquireTimeoutMillis: parseIntSafe(
+            process.env.DB_ACQUIRE_TIMEOUT,
+            3000
+          ),
+          createTimeoutMillis: parseIntSafe(
+            process.env.DB_CREATE_TIMEOUT,
+            3000
+          ),
+          statement_timeout: parseIntSafe(
+            process.env.DB_STATEMENT_TIMEOUT,
+            30000
+          ),
           query_timeout: parseIntSafe(process.env.DB_QUERY_TIMEOUT, 25000),
           ssl:
             process.env.DB_SSL === "false"
@@ -177,20 +194,37 @@ async function getDbConfig() {
 
       dbConfig = {
         host,
-        port: process.env.DB_PORT ? parseInt(process.env.DB_PORT, 10) : undefined,
+        port: process.env.DB_PORT
+          ? parseInt(process.env.DB_PORT, 10)
+          : undefined,
         user,
         password,
         database,
         // AWS Lambda optimized connection pool settings
         max: parseIntSafe(process.env.DB_POOL_MAX, 10), // Increased for reserved concurrency
         min: parseIntSafe(process.env.DB_POOL_MIN, 2), // Keep minimal connections
-        idleTimeoutMillis: parseIntSafe(process.env.DB_POOL_IDLE_TIMEOUT, 10000), // Shorter idle timeout
-        connectionTimeoutMillis: parseIntSafe(process.env.DB_CONNECT_TIMEOUT, 3000), // Fast timeout for Lambda
-        acquireTimeoutMillis: parseIntSafe(process.env.DB_ACQUIRE_TIMEOUT, 3000), // Quick acquire
+        idleTimeoutMillis: parseIntSafe(
+          process.env.DB_POOL_IDLE_TIMEOUT,
+          10000
+        ), // Shorter idle timeout
+        connectionTimeoutMillis: parseIntSafe(
+          process.env.DB_CONNECT_TIMEOUT,
+          3000
+        ), // Fast timeout for Lambda
+        acquireTimeoutMillis: parseIntSafe(
+          process.env.DB_ACQUIRE_TIMEOUT,
+          3000
+        ), // Quick acquire
         createTimeoutMillis: parseIntSafe(process.env.DB_CREATE_TIMEOUT, 3000), // Fast creation
         reapIntervalMillis: parseIntSafe(process.env.DB_REAP_INTERVAL, 1000), // Pool maintenance
-        createRetryIntervalMillis: parseIntSafe(process.env.DB_RETRY_INTERVAL, 100), // Fast retries
-        statement_timeout: parseIntSafe(process.env.DB_STATEMENT_TIMEOUT, 30000), // 30s max query time
+        createRetryIntervalMillis: parseIntSafe(
+          process.env.DB_RETRY_INTERVAL,
+          100
+        ), // Fast retries
+        statement_timeout: parseIntSafe(
+          process.env.DB_STATEMENT_TIMEOUT,
+          30000
+        ), // 30s max query time
         query_timeout: parseIntSafe(process.env.DB_QUERY_TIMEOUT, 25000), // 25s max per query
         ssl:
           process.env.DB_SSL === "false"

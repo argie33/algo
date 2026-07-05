@@ -12,10 +12,10 @@
  */
 class DataError {
   constructor(field, reason, details = {}) {
-    this.isDataError = true;  // Discriminator for frontend pattern-matching
-    this.field = field;        // Which field failed (e.g., 'price', 'exposure_pct')
-    this.reason = reason;      // 'missing', 'invalid', 'calculation_failed', 'out_of_range'
-    this.details = details;    // Additional context { value, expected, min, max, why }
+    this.isDataError = true; // Discriminator for frontend pattern-matching
+    this.field = field; // Which field failed (e.g., 'price', 'exposure_pct')
+    this.reason = reason; // 'missing', 'invalid', 'calculation_failed', 'out_of_range'
+    this.details = details; // Additional context { value, expected, min, max, why }
     this.timestamp = new Date().toISOString();
   }
 
@@ -25,7 +25,7 @@ class DataError {
       field: this.field,
       reason: this.reason,
       details: this.details,
-      timestamp: this.timestamp
+      timestamp: this.timestamp,
     };
   }
 }
@@ -40,15 +40,17 @@ class DataError {
  */
 function createErrorResponse(errors, statusCode = 200) {
   const normalizedErrors = errors
-    .filter(Boolean)  // Remove nulls
-    .map(e => e instanceof DataError ? e : new DataError('unknown', 'error', e));
+    .filter(Boolean) // Remove nulls
+    .map((e) =>
+      e instanceof DataError ? e : new DataError("unknown", "error", e)
+    );
 
   return {
-    success: true,     // HTTP 200 - not a server error
+    success: true, // HTTP 200 - not a server error
     statusCode,
-    data: null,        // No valid data to return
+    data: null, // No valid data to return
     errors: normalizedErrors,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   };
 }
 
@@ -62,7 +64,9 @@ function createErrorResponse(errors, statusCode = 200) {
 function createPartialResponse(validData = {}, errors = []) {
   const normalizedErrors = errors
     .filter(Boolean)
-    .map(e => e instanceof DataError ? e : new DataError('unknown', 'error', e));
+    .map((e) =>
+      e instanceof DataError ? e : new DataError("unknown", "error", e)
+    );
 
   return {
     success: true,
@@ -70,7 +74,7 @@ function createPartialResponse(validData = {}, errors = []) {
     data: validData,
     errors: normalizedErrors,
     hasErrors: normalizedErrors.length > 0,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   };
 }
 
@@ -79,7 +83,7 @@ function createPartialResponse(validData = {}, errors = []) {
  * Use in validation: if (isDataError(value)) to check before using
  */
 function isDataError(value) {
-  return value && typeof value === 'object' && value.isDataError === true;
+  return value && typeof value === "object" && value.isDataError === true;
 }
 
 /**
@@ -106,5 +110,5 @@ module.exports = {
   createErrorResponse,
   createPartialResponse,
   isDataError,
-  collectErrors
+  collectErrors,
 };

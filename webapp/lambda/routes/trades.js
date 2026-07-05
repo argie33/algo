@@ -53,7 +53,10 @@ router.get("/", async (req, res) => {
     const parsedPage = parseInt(page, 10);
     const pageNum = Math.max(1, !isNaN(parsedPage) ? parsedPage : 1);
     const parsedLimit = parseInt(limit, 10);
-    const pageSize = Math.min(10000, Math.max(1, !isNaN(parsedLimit) ? parsedLimit : 50));
+    const pageSize = Math.min(
+      10000,
+      Math.max(1, !isNaN(parsedLimit) ? parsedLimit : 50)
+    );
     const offset = (pageNum - 1) * pageSize;
 
     // Parse filter values

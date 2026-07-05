@@ -90,7 +90,8 @@ const config = {
   api: {
     port: parseInt(process.env.PORT || 3001),
     requestTimeout: parseInt(process.env.API_REQUEST_TIMEOUT || 30000),
-    frontendUrl: process.env.FRONTEND_URL || process.env.VITE_API_URL || undefined,
+    frontendUrl:
+      process.env.FRONTEND_URL || process.env.VITE_API_URL || undefined,
   },
 
   logging: {

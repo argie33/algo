@@ -85,15 +85,21 @@ router.get("/data", async (req, res) => {
     const rawTotal = countResult.rows[0]?.total;
     const total = rawTotal != null ? parseInt(rawTotal) : null;
     if (total == null) {
-      return sendPaginated(res, [], {
-        limit: limitNum,
-        offset,
-        total: 0,
-        page: pageNum,
-        totalPages: 0,
-        error: "missing_count_data",
-        message: "Count query returned no data; sentiment total is unavailable",
-      }, 503);
+      return sendPaginated(
+        res,
+        [],
+        {
+          limit: limitNum,
+          offset,
+          total: 0,
+          page: pageNum,
+          totalPages: 0,
+          error: "missing_count_data",
+          message:
+            "Count query returned no data; sentiment total is unavailable",
+        },
+        503
+      );
     }
 
     if (!result.rows || result.rows.length === 0) {
@@ -144,15 +150,15 @@ router.get("/summary", async (req, res) => {
 
     const fearGreed =
       fearGreedRes.status === "fulfilled"
-        ? fearGreedRes.value.rows[0] ?? null
+        ? (fearGreedRes.value.rows[0] ?? null)
         : null;
     const naaim =
-      naaImRes.status === "fulfilled" ? naaImRes.value.rows[0] ?? null : null;
+      naaImRes.status === "fulfilled" ? (naaImRes.value.rows[0] ?? null) : null;
     const aaii =
-      aaiiRes.status === "fulfilled" ? aaiiRes.value.rows[0] ?? null : null;
+      aaiiRes.status === "fulfilled" ? (aaiiRes.value.rows[0] ?? null) : null;
     const analyst =
       analystRes.status === "fulfilled"
-        ? analystRes.value.rows[0] ?? null
+        ? (analystRes.value.rows[0] ?? null)
         : null;
 
     if (fearGreedRes.status === "rejected")
@@ -221,15 +227,21 @@ router.get("/analyst", async (req, res) => {
     const rawTotal2 = countResult.rows[0]?.total;
     const total2 = rawTotal2 != null ? parseInt(rawTotal2) : null;
     if (total2 == null) {
-      return sendPaginated(res, [], {
-        limit: limitNum,
-        offset,
-        total: 0,
-        page: pageNum,
-        totalPages: 0,
-        error: "missing_count_data",
-        message: "Count query returned no data; analyst sentiment total is unavailable",
-      }, 503);
+      return sendPaginated(
+        res,
+        [],
+        {
+          limit: limitNum,
+          offset,
+          total: 0,
+          page: pageNum,
+          totalPages: 0,
+          error: "missing_count_data",
+          message:
+            "Count query returned no data; analyst sentiment total is unavailable",
+        },
+        503
+      );
     }
     const totalPages = Math.ceil(total2 / limitNum);
 
@@ -331,12 +343,12 @@ router.get("/current", async (req, res) => {
 
     const fearGreed =
       fearGreedRes.status === "fulfilled"
-        ? fearGreedRes.value.rows[0] ?? null
+        ? (fearGreedRes.value.rows[0] ?? null)
         : null;
     const naaim =
-      naaImRes.status === "fulfilled" ? naaImRes.value.rows[0] ?? null : null;
+      naaImRes.status === "fulfilled" ? (naaImRes.value.rows[0] ?? null) : null;
     const aaii =
-      aaiiRes.status === "fulfilled" ? aaiiRes.value.rows[0] ?? null : null;
+      aaiiRes.status === "fulfilled" ? (aaiiRes.value.rows[0] ?? null) : null;
 
     if (fearGreedRes.status === "rejected")
       console.warn(
@@ -490,31 +502,61 @@ router.get("/analyst/insights/:symbol", async (req, res) => {
     validateQueryResult(momentumResult, { requireRows: false });
 
     const row = sentimentResult.rows[0] ?? null;
-    const total = row ? (row.analyst_count !== null && row.analyst_count !== undefined ? parseInt(row.analyst_count) : null) : null;
-    const bullish = row ? (row.bullish_count !== null && row.bullish_count !== undefined ? parseInt(row.bullish_count) : null) : null;
-    const bearish = row ? (row.bearish_count !== null && row.bearish_count !== undefined ? parseInt(row.bearish_count) : null) : null;
-    const neutral = row ? (row.neutral_count !== null && row.neutral_count !== undefined ? parseInt(row.neutral_count) : null) : null;
-    const pct = (n) => (total !== null && total > 0 ? Math.round((n / total) * 100) : null);
+    const total = row
+      ? row.analyst_count !== null && row.analyst_count !== undefined
+        ? parseInt(row.analyst_count)
+        : null
+      : null;
+    const bullish = row
+      ? row.bullish_count !== null && row.bullish_count !== undefined
+        ? parseInt(row.bullish_count)
+        : null
+      : null;
+    const bearish = row
+      ? row.bearish_count !== null && row.bearish_count !== undefined
+        ? parseInt(row.bearish_count)
+        : null
+      : null;
+    const neutral = row
+      ? row.neutral_count !== null && row.neutral_count !== undefined
+        ? parseInt(row.neutral_count)
+        : null
+      : null;
+    const pct = (n) =>
+      total !== null && total > 0 ? Math.round((n / total) * 100) : null;
 
     const momentumRow = momentumResult.rows[0] ?? {};
 
     return sendSuccess(res, {
-      metrics: row && total !== null && bullish !== null && bearish !== null && neutral !== null
-        ? {
-            bullish,
-            neutral,
-            bearish,
-            bullishPercent: pct(bullish),
-            neutralPercent: pct(neutral),
-            bearishPercent: pct(bearish),
-            totalAnalysts: total,
-            avgPriceTarget: null,
-            priceTargetVsCurrent: null,
-          }
-        : null,
+      metrics:
+        row &&
+        total !== null &&
+        bullish !== null &&
+        bearish !== null &&
+        neutral !== null
+          ? {
+              bullish,
+              neutral,
+              bearish,
+              bullishPercent: pct(bullish),
+              neutralPercent: pct(neutral),
+              bearishPercent: pct(bearish),
+              totalAnalysts: total,
+              avgPriceTarget: null,
+              priceTargetVsCurrent: null,
+            }
+          : null,
       momentum: {
-        upgrades30d: momentumRow.upgrades30d !== null && momentumRow.upgrades30d !== undefined ? parseInt(momentumRow.upgrades30d) : null,
-        downgrades30d: momentumRow.downgrades30d !== null && momentumRow.downgrades30d !== undefined ? parseInt(momentumRow.downgrades30d) : null,
+        upgrades30d:
+          momentumRow.upgrades30d !== null &&
+          momentumRow.upgrades30d !== undefined
+            ? parseInt(momentumRow.upgrades30d)
+            : null,
+        downgrades30d:
+          momentumRow.downgrades30d !== null &&
+          momentumRow.downgrades30d !== undefined
+            ? parseInt(momentumRow.downgrades30d)
+            : null,
       },
       priceTargets: [],
       coverage: null,

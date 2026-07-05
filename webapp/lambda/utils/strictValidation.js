@@ -7,7 +7,7 @@
  * Usage: const price = requirePrice(symbol, value); if (isDataError(price)) check error flag
  */
 
-const { DataError, isDataError } = require('./errorEnvelopes');
+const { DataError, isDataError } = require("./errorEnvelopes");
 
 /**
  * Require a numeric field to be present and valid
@@ -23,44 +23,44 @@ function requireNumericField(value, fieldName, opts = {}) {
 
   // Check for missing value
   if (value === null || value === undefined) {
-    return new DataError(fieldName, 'missing', {
-      expected: 'number',
-      why: 'Field is required'
+    return new DataError(fieldName, "missing", {
+      expected: "number",
+      why: "Field is required",
     });
   }
 
   // Parse to number
   const parsed = parseFloat(value);
   if (isNaN(parsed)) {
-    return new DataError(fieldName, 'invalid', {
+    return new DataError(fieldName, "invalid", {
       value,
-      expected: 'number',
-      why: 'Value cannot be converted to a number'
+      expected: "number",
+      why: "Value cannot be converted to a number",
     });
   }
 
   // Check zero constraint
   if (!allowZero && parsed === 0) {
-    return new DataError(fieldName, 'invalid', {
+    return new DataError(fieldName, "invalid", {
       value: parsed,
-      why: 'Field cannot be zero'
+      why: "Field cannot be zero",
     });
   }
 
   // Check min/max bounds
   if (min !== undefined && parsed < min) {
-    return new DataError(fieldName, 'out_of_range', {
+    return new DataError(fieldName, "out_of_range", {
       value: parsed,
       min,
-      why: `Must be >= ${min}`
+      why: `Must be >= ${min}`,
     });
   }
 
   if (max !== undefined && parsed > max) {
-    return new DataError(fieldName, 'out_of_range', {
+    return new DataError(fieldName, "out_of_range", {
       value: parsed,
       max,
-      why: `Must be <= ${max}`
+      why: `Must be <= ${max}`,
     });
   }
 
@@ -76,14 +76,14 @@ function requireNumericField(value, fieldName, opts = {}) {
  * @param {string} context - Where this price is used (e.g., 'order_cost_estimation')
  * @returns {number|DataError} Valid price or DataError
  */
-function requirePrice(symbol, price, context = '') {
+function requirePrice(symbol, price, context = "") {
   if (!price || isNaN(price) || price <= 0) {
-    return new DataError('price', 'invalid', {
+    return new DataError("price", "invalid", {
       symbol,
       value: price,
       context,
       min: 0.01,
-      why: 'Price data missing or invalid - cannot use estimated fallback in finance context'
+      why: "Price data missing or invalid - cannot use estimated fallback in finance context",
     });
   }
 
@@ -99,17 +99,17 @@ function requirePrice(symbol, price, context = '') {
  */
 function requirePortfolioValue(value) {
   if (value === null || value === undefined) {
-    return new DataError('portfolio_value', 'missing', {
-      why: 'Cannot calculate metrics without portfolio value'
+    return new DataError("portfolio_value", "missing", {
+      why: "Cannot calculate metrics without portfolio value",
     });
   }
 
   const parsed = parseFloat(value);
   if (isNaN(parsed) || parsed <= 0) {
-    return new DataError('portfolio_value', 'invalid', {
+    return new DataError("portfolio_value", "invalid", {
       value,
       min: 0.01,
-      why: 'Portfolio value must be positive'
+      why: "Portfolio value must be positive",
     });
   }
 
@@ -125,26 +125,26 @@ function requirePortfolioValue(value) {
  */
 function requireSignalQuality(value) {
   if (value === null || value === undefined) {
-    return new DataError('raw_score', 'missing', {
-      why: 'Signal quality score not calculated'
+    return new DataError("raw_score", "missing", {
+      why: "Signal quality score not calculated",
     });
   }
 
   const parsed = parseFloat(value);
   if (isNaN(parsed)) {
-    return new DataError('raw_score', 'invalid', {
+    return new DataError("raw_score", "invalid", {
       value,
-      why: 'Signal quality must be numeric'
+      why: "Signal quality must be numeric",
     });
   }
 
   // Quality scores are typically -100 to 100 or 0 to 100
   if (parsed < -100 || parsed > 100) {
-    return new DataError('raw_score', 'out_of_range', {
+    return new DataError("raw_score", "out_of_range", {
       value: parsed,
       min: -100,
       max: 100,
-      why: 'Signal quality score out of expected range'
+      why: "Signal quality score out of expected range",
     });
   }
 
@@ -160,16 +160,16 @@ function requireSignalQuality(value) {
  */
 function requireExposure(value) {
   if (value === null || value === undefined) {
-    return new DataError('exposure_pct', 'missing', {
-      why: 'Market exposure percentage not available'
+    return new DataError("exposure_pct", "missing", {
+      why: "Market exposure percentage not available",
     });
   }
 
   const parsed = parseFloat(value);
   if (isNaN(parsed)) {
-    return new DataError('exposure_pct', 'invalid', {
+    return new DataError("exposure_pct", "invalid", {
       value,
-      why: 'Exposure must be numeric'
+      why: "Exposure must be numeric",
     });
   }
 
@@ -177,10 +177,10 @@ function requireExposure(value) {
   if (parsed < 0 || parsed > 100) {
     if (parsed < 0 || parsed > 1) {
       // If it's not in either range, it's invalid
-      return new DataError('exposure_pct', 'out_of_range', {
+      return new DataError("exposure_pct", "out_of_range", {
         value: parsed,
-        expected_range: '0-100% or 0-1.0',
-        why: 'Exposure percentage out of valid range'
+        expected_range: "0-100% or 0-1.0",
+        why: "Exposure percentage out of valid range",
       });
     }
   }
@@ -197,17 +197,17 @@ function requireExposure(value) {
  */
 function requirePositionCount(value) {
   if (value === null || value === undefined) {
-    return new DataError('position_count', 'missing', {
-      why: 'Position count not available'
+    return new DataError("position_count", "missing", {
+      why: "Position count not available",
     });
   }
 
   const parsed = parseInt(value, 10);
   if (isNaN(parsed) || parsed < 0) {
-    return new DataError('position_count', 'invalid', {
+    return new DataError("position_count", "invalid", {
       value,
       min: 0,
-      why: 'Position count must be non-negative integer'
+      why: "Position count must be non-negative integer",
     });
   }
 
@@ -223,24 +223,24 @@ function requirePositionCount(value) {
  */
 function requireUnrealizedPnl(value) {
   if (value === null || value === undefined) {
-    return new DataError('unrealized_pnl_pct', 'missing', {
-      why: 'Unrealized P&L not available'
+    return new DataError("unrealized_pnl_pct", "missing", {
+      why: "Unrealized P&L not available",
     });
   }
 
   const parsed = parseFloat(value);
   if (isNaN(parsed)) {
-    return new DataError('unrealized_pnl_pct', 'invalid', {
+    return new DataError("unrealized_pnl_pct", "invalid", {
       value,
-      why: 'Unrealized P&L must be numeric'
+      why: "Unrealized P&L must be numeric",
     });
   }
 
   // P&L can be very large (200%+) or very negative (-100%)
   if (parsed < -1000 || parsed > 10000) {
-    return new DataError('unrealized_pnl_pct', 'out_of_range', {
+    return new DataError("unrealized_pnl_pct", "out_of_range", {
       value: parsed,
-      why: 'Unrealized P&L out of expected range'
+      why: "Unrealized P&L out of expected range",
     });
   }
 
@@ -257,17 +257,17 @@ function requireUnrealizedPnl(value) {
  */
 function requireBooleanField(value, fieldName) {
   if (value === null || value === undefined) {
-    return new DataError(fieldName, 'missing', {
-      expected: 'boolean',
-      why: 'Boolean field is required'
+    return new DataError(fieldName, "missing", {
+      expected: "boolean",
+      why: "Boolean field is required",
     });
   }
 
-  if (typeof value !== 'boolean' && value !== 0 && value !== 1) {
-    return new DataError(fieldName, 'invalid', {
+  if (typeof value !== "boolean" && value !== 0 && value !== 1) {
+    return new DataError(fieldName, "invalid", {
       value,
-      expected: 'boolean',
-      why: 'Must be true/false or 0/1'
+      expected: "boolean",
+      why: "Must be true/false or 0/1",
     });
   }
 
@@ -284,31 +284,31 @@ function requireBooleanField(value, fieldName) {
  */
 function requireTimestamp(value, fieldName) {
   if (value === null || value === undefined) {
-    return new DataError(fieldName, 'missing', {
-      expected: 'timestamp',
-      why: 'Timestamp is required'
+    return new DataError(fieldName, "missing", {
+      expected: "timestamp",
+      why: "Timestamp is required",
     });
   }
 
   let timestamp;
-  if (typeof value === 'number') {
+  if (typeof value === "number") {
     timestamp = value;
-  } else if (typeof value === 'string') {
+  } else if (typeof value === "string") {
     timestamp = new Date(value).getTime();
   } else if (value instanceof Date) {
     timestamp = value.getTime();
   } else {
-    return new DataError(fieldName, 'invalid', {
+    return new DataError(fieldName, "invalid", {
       value,
-      expected: 'ISO string, Unix ms, or Date object',
-      why: 'Timestamp format not recognized'
+      expected: "ISO string, Unix ms, or Date object",
+      why: "Timestamp format not recognized",
     });
   }
 
   if (isNaN(timestamp) || timestamp === 0) {
-    return new DataError(fieldName, 'invalid', {
+    return new DataError(fieldName, "invalid", {
       value,
-      why: 'Timestamp is zero or invalid'
+      why: "Timestamp is zero or invalid",
     });
   }
 
@@ -325,15 +325,15 @@ function requireTimestamp(value, fieldName) {
  */
 function requireNonEmptyArray(value, fieldName) {
   if (!Array.isArray(value)) {
-    return new DataError(fieldName, 'invalid', {
-      expected: 'array',
-      why: 'Value must be an array'
+    return new DataError(fieldName, "invalid", {
+      expected: "array",
+      why: "Value must be an array",
     });
   }
 
   if (value.length === 0) {
-    return new DataError(fieldName, 'missing', {
-      why: 'Array is empty'
+    return new DataError(fieldName, "missing", {
+      why: "Array is empty",
     });
   }
 
@@ -351,5 +351,5 @@ module.exports = {
   requireBooleanField,
   requireTimestamp,
   requireNonEmptyArray,
-  isDataError
+  isDataError,
 };

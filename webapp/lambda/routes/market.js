@@ -12,7 +12,10 @@ const {
 const { validateQueryResult } = require("../utils/responseValidation");
 const logger = require("../utils/logger");
 const paginationConfig = require("../config/pagination");
-const { requireNumericField, isDataError } = require("../utils/strictValidation");
+const {
+  requireNumericField,
+  isDataError,
+} = require("../utils/strictValidation");
 
 let query;
 try {
@@ -143,7 +146,9 @@ async function getFullSeasonalityData() {
     if (cycleReturnsResult.rows.length > 0) {
       cycleReturnsResult.rows.forEach((row) => {
         const cyclePos = row.cycle_position;
-        const historicalItem = historicalAverages.find((d) => d.year === cyclePos);
+        const historicalItem = historicalAverages.find(
+          (d) => d.year === cyclePos
+        );
         if (historicalItem && row.avg_return !== null) {
           presidentialCycleData.push({
             year: historicalItem.year,
@@ -157,10 +162,14 @@ async function getFullSeasonalityData() {
     // If no real data, fall back to historical averages with explicit marker
     if (presidentialCycleData.length === 0) {
       presidentialCycleData = historicalAverages;
-      dataSourceNote = "using historical averages (no recent market data available)";
+      dataSourceNote =
+        "using historical averages (no recent market data available)";
     }
   } catch (e) {
-    logger.warn("Presidential cycle data query failed, using historical averages:", e.message);
+    logger.warn(
+      "Presidential cycle data query failed, using historical averages:",
+      e.message
+    );
     presidentialCycleData = historicalAverages;
     dataSourceNote = "using historical averages (database error)";
   }
@@ -1018,7 +1027,7 @@ router.get("/indicators", async (req, res) => {
     const breadth = breadthResult?.rows?.[0] ?? {};
     const sentiment =
       results[2].status === "fulfilled"
-        ? results[2].value.rows[0] ?? null
+        ? (results[2].value.rows[0] ?? null)
         : null;
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
@@ -2407,9 +2416,18 @@ router.get("/aaii", async (req, res) => {
     );
 
     const data = (result?.rows ?? []).map((row) => {
-      const bullishValidation = requireNumericField(row.bullish, 'bullish', { min: 0, max: 100 });
-      const neutralValidation = requireNumericField(row.neutral, 'neutral', { min: 0, max: 100 });
-      const bearishValidation = requireNumericField(row.bearish, 'bearish', { min: 0, max: 100 });
+      const bullishValidation = requireNumericField(row.bullish, "bullish", {
+        min: 0,
+        max: 100,
+      });
+      const neutralValidation = requireNumericField(row.neutral, "neutral", {
+        min: 0,
+        max: 100,
+      });
+      const bearishValidation = requireNumericField(row.bearish, "bearish", {
+        min: 0,
+        max: 100,
+      });
 
       return {
         date: row.date,
@@ -2586,7 +2604,9 @@ async function getMarketDataHandler(req, res) {
         );
         // FAIL-FAST: Market breadth is CRITICAL for circuit breaker evaluation
         if (!result.rows || result.rows.length === 0) {
-          throw new Error(`[MARKET_BREADTH] No price data available for date ${latestDate}`);
+          throw new Error(
+            `[MARKET_BREADTH] No price data available for date ${latestDate}`
+          );
         }
         return result.rows[0];
       })(),
@@ -2630,7 +2650,9 @@ async function getMarketDataHandler(req, res) {
           ORDER BY symbol, date DESC
         `);
         if (!result.rows || result.rows.length === 0) {
-          throw new Error("CRITICAL: Index price data not available in database");
+          throw new Error(
+            "CRITICAL: Index price data not available in database"
+          );
         }
         return result.rows;
       })(),
@@ -3297,7 +3319,9 @@ router.get("/technicals-fresh", async (req, res) => {
           [latestDate]
         );
         if (!result.rows || result.rows.length === 0) {
-          throw new Error("CRITICAL: Breadth data unavailable for market date " + latestDate);
+          throw new Error(
+            "CRITICAL: Breadth data unavailable for market date " + latestDate
+          );
         }
         return result.rows[0];
       })(),
@@ -3455,40 +3479,50 @@ router.get("/technicals-fresh", async (req, res) => {
     ]);
 
     // Extract results from allSettled promises - validate critical data availability
-    if (breadthData.status === 'rejected') {
-      throw new Error(`CRITICAL: Breadth data fetch failed: ${breadthData.reason.message}`);
+    if (breadthData.status === "rejected") {
+      throw new Error(
+        `CRITICAL: Breadth data fetch failed: ${breadthData.reason.message}`
+      );
     }
     if (!breadthData.value) {
       throw new Error("CRITICAL: Breadth data unavailable");
     }
     const breadth = breadthData.value;
 
-    if (mcclellanData.status === 'rejected') {
-      throw new Error(`CRITICAL: McClellan oscillator data fetch failed: ${mcclellanData.reason.message}`);
+    if (mcclellanData.status === "rejected") {
+      throw new Error(
+        `CRITICAL: McClellan oscillator data fetch failed: ${mcclellanData.reason.message}`
+      );
     }
     if (!mcclellanData.value) {
       throw new Error("CRITICAL: McClellan oscillator data unavailable");
     }
     const mcclellan = mcclellanData.value;
 
-    if (distributionDaysData.status === 'rejected') {
-      throw new Error(`CRITICAL: Distribution days data fetch failed: ${distributionDaysData.reason.message}`);
+    if (distributionDaysData.status === "rejected") {
+      throw new Error(
+        `CRITICAL: Distribution days data fetch failed: ${distributionDaysData.reason.message}`
+      );
     }
     if (!distributionDaysData.value) {
       throw new Error("CRITICAL: Distribution days data unavailable");
     }
     const distributionDays = distributionDaysData.value;
 
-    if (volatilityData.status === 'rejected') {
-      throw new Error(`CRITICAL: Volatility data fetch failed: ${volatilityData.reason.message}`);
+    if (volatilityData.status === "rejected") {
+      throw new Error(
+        `CRITICAL: Volatility data fetch failed: ${volatilityData.reason.message}`
+      );
     }
     if (!volatilityData.value) {
       throw new Error("CRITICAL: Volatility data unavailable");
     }
     const volatility = volatilityData.value;
 
-    if (internalsData.status === 'rejected') {
-      throw new Error(`CRITICAL: Market internals data fetch failed: ${internalsData.reason.message}`);
+    if (internalsData.status === "rejected") {
+      throw new Error(
+        `CRITICAL: Market internals data fetch failed: ${internalsData.reason.message}`
+      );
     }
     if (!internalsData.value) {
       throw new Error("CRITICAL: Market internals data unavailable");
@@ -3503,27 +3537,77 @@ router.get("/technicals-fresh", async (req, res) => {
 
     // Validate critical market data - all required for market assessment
     const breadthValidations = {
-      total_stocks: requireNumericField(breadth?.total_stocks, 'total_stocks', { min: 0 }),
-      advancing: requireNumericField(breadth?.advancing, 'advancing', { min: 0 }),
-      declining: requireNumericField(breadth?.declining, 'declining', { min: 0 }),
-      unchanged: requireNumericField(breadth?.unchanged, 'unchanged', { min: 0 }),
-      avg_change: requireNumericField(breadth?.avg_abs_change, 'average_change_percent', { min: 0 }),
+      total_stocks: requireNumericField(breadth?.total_stocks, "total_stocks", {
+        min: 0,
+      }),
+      advancing: requireNumericField(breadth?.advancing, "advancing", {
+        min: 0,
+      }),
+      declining: requireNumericField(breadth?.declining, "declining", {
+        min: 0,
+      }),
+      unchanged: requireNumericField(breadth?.unchanged, "unchanged", {
+        min: 0,
+      }),
+      avg_change: requireNumericField(
+        breadth?.avg_abs_change,
+        "average_change_percent",
+        { min: 0 }
+      ),
     };
 
     const internalsValidations = {
-      total_stocks: requireNumericField(internals?.total_stocks, 'internals_total_stocks', { min: 0 }),
-      above_20_ma: requireNumericField(internals?.above_20_ma, 'above_20_ma', { min: 0 }),
-      above_50_ma: requireNumericField(internals?.above_50_ma, 'above_50_ma', { min: 0 }),
-      above_200_ma: requireNumericField(internals?.above_200_ma, 'above_200_ma', { min: 0 }),
-      pct_20_ma: requireNumericField(internals?.pct_above_20_ma, 'pct_above_20_ma', { min: 0, max: 100 }),
-      pct_50_ma: requireNumericField(internals?.pct_above_50_ma, 'pct_above_50_ma', { min: 0, max: 100 }),
-      pct_200_ma: requireNumericField(internals?.pct_above_200_ma, 'pct_above_200_ma', { min: 0, max: 100 }),
+      total_stocks: requireNumericField(
+        internals?.total_stocks,
+        "internals_total_stocks",
+        { min: 0 }
+      ),
+      above_20_ma: requireNumericField(internals?.above_20_ma, "above_20_ma", {
+        min: 0,
+      }),
+      above_50_ma: requireNumericField(internals?.above_50_ma, "above_50_ma", {
+        min: 0,
+      }),
+      above_200_ma: requireNumericField(
+        internals?.above_200_ma,
+        "above_200_ma",
+        { min: 0 }
+      ),
+      pct_20_ma: requireNumericField(
+        internals?.pct_above_20_ma,
+        "pct_above_20_ma",
+        { min: 0, max: 100 }
+      ),
+      pct_50_ma: requireNumericField(
+        internals?.pct_above_50_ma,
+        "pct_above_50_ma",
+        { min: 0, max: 100 }
+      ),
+      pct_200_ma: requireNumericField(
+        internals?.pct_above_200_ma,
+        "pct_above_200_ma",
+        { min: 0, max: 100 }
+      ),
     };
 
     const volatilityValidations = {
-      market_vol: volatility?.market_volatility ? requireNumericField(volatility.market_volatility, 'market_volatility', { min: 0 }) : null,
-      daily_move: volatility?.avg_daily_move ? requireNumericField(volatility.avg_daily_move, 'avg_daily_move', { min: 0 }) : null,
-      max_move: volatility?.max_daily_move ? requireNumericField(volatility.max_daily_move, 'max_daily_move', { min: 0 }) : null,
+      market_vol: volatility?.market_volatility
+        ? requireNumericField(
+            volatility.market_volatility,
+            "market_volatility",
+            { min: 0 }
+          )
+        : null,
+      daily_move: volatility?.avg_daily_move
+        ? requireNumericField(volatility.avg_daily_move, "avg_daily_move", {
+            min: 0,
+          })
+        : null,
+      max_move: volatility?.max_daily_move
+        ? requireNumericField(volatility.max_daily_move, "max_daily_move", {
+            min: 0,
+          })
+        : null,
     };
 
     // Return comprehensive market technicals with validated data
@@ -3534,27 +3618,57 @@ router.get("/technicals-fresh", async (req, res) => {
           advance_decline_line: m.advance_decline_line,
         })) || [],
       breadth: {
-        total_stocks: !isDataError(breadthValidations.total_stocks) ? breadthValidations.total_stocks : null,
-        advancing: !isDataError(breadthValidations.advancing) ? breadthValidations.advancing : null,
-        declining: !isDataError(breadthValidations.declining) ? breadthValidations.declining : null,
-        unchanged: !isDataError(breadthValidations.unchanged) ? breadthValidations.unchanged : null,
+        total_stocks: !isDataError(breadthValidations.total_stocks)
+          ? breadthValidations.total_stocks
+          : null,
+        advancing: !isDataError(breadthValidations.advancing)
+          ? breadthValidations.advancing
+          : null,
+        declining: !isDataError(breadthValidations.declining)
+          ? breadthValidations.declining
+          : null,
+        unchanged: !isDataError(breadthValidations.unchanged)
+          ? breadthValidations.unchanged
+          : null,
         advance_decline_ratio: advance_decline_ratio,
-        average_change_percent: !isDataError(breadthValidations.avg_change) ? breadthValidations.avg_change : null,
+        average_change_percent: !isDataError(breadthValidations.avg_change)
+          ? breadthValidations.avg_change
+          : null,
       },
       distribution_days: distributionDays,
       volatility: {
-        market_volatility: !isDataError(volatilityValidations.market_vol) ? volatilityValidations.market_vol : null,
-        avg_daily_move: !isDataError(volatilityValidations.daily_move) ? volatilityValidations.daily_move : null,
-        max_daily_move: !isDataError(volatilityValidations.max_move) ? volatilityValidations.max_move : null,
+        market_volatility: !isDataError(volatilityValidations.market_vol)
+          ? volatilityValidations.market_vol
+          : null,
+        avg_daily_move: !isDataError(volatilityValidations.daily_move)
+          ? volatilityValidations.daily_move
+          : null,
+        max_daily_move: !isDataError(volatilityValidations.max_move)
+          ? volatilityValidations.max_move
+          : null,
       },
       internals: {
-        total_stocks: !isDataError(internalsValidations.total_stocks) ? internalsValidations.total_stocks : null,
-        above_20_ma: !isDataError(internalsValidations.above_20_ma) ? internalsValidations.above_20_ma : null,
-        above_50_ma: !isDataError(internalsValidations.above_50_ma) ? internalsValidations.above_50_ma : null,
-        above_200_ma: !isDataError(internalsValidations.above_200_ma) ? internalsValidations.above_200_ma : null,
-        pct_above_20_ma: !isDataError(internalsValidations.pct_20_ma) ? internalsValidations.pct_20_ma : null,
-        pct_above_50_ma: !isDataError(internalsValidations.pct_50_ma) ? internalsValidations.pct_50_ma : null,
-        pct_above_200_ma: !isDataError(internalsValidations.pct_200_ma) ? internalsValidations.pct_200_ma : null,
+        total_stocks: !isDataError(internalsValidations.total_stocks)
+          ? internalsValidations.total_stocks
+          : null,
+        above_20_ma: !isDataError(internalsValidations.above_20_ma)
+          ? internalsValidations.above_20_ma
+          : null,
+        above_50_ma: !isDataError(internalsValidations.above_50_ma)
+          ? internalsValidations.above_50_ma
+          : null,
+        above_200_ma: !isDataError(internalsValidations.above_200_ma)
+          ? internalsValidations.above_200_ma
+          : null,
+        pct_above_20_ma: !isDataError(internalsValidations.pct_20_ma)
+          ? internalsValidations.pct_20_ma
+          : null,
+        pct_above_50_ma: !isDataError(internalsValidations.pct_50_ma)
+          ? internalsValidations.pct_50_ma
+          : null,
+        pct_above_200_ma: !isDataError(internalsValidations.pct_200_ma)
+          ? internalsValidations.pct_200_ma
+          : null,
       },
       timestamp: new Date().toISOString(),
       source: "database-fresh",

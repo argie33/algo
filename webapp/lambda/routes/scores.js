@@ -7,7 +7,10 @@ const {
   sendPaginated,
 } = require("../utils/apiResponse");
 const { validateQueryResult } = require("../utils/responseValidation");
-const { requireNumericField, isDataError } = require("../utils/strictValidation");
+const {
+  requireNumericField,
+  isDataError,
+} = require("../utils/strictValidation");
 const router = express.Router();
 
 // GET / - Get stock scores with optional filters
@@ -81,22 +84,26 @@ router.get("/", async (req, res) => {
     const total = scores.length > 0 ? parseInt(scores[0].total_count) : 0;
     const totalPages = Math.ceil(total / limitNum);
 
-    return sendPaginated(res, scores.map(row => ({
-      symbol: row.symbol,
-      composite_score: row.composite_score,
-      momentum_score: row.momentum_score,
-      value_score: row.value_score,
-      quality_score: row.quality_score,
-      growth_score: row.growth_score,
-      stability_score: row.stability_score
-    })), {
-      page: pageNum,
-      limit: limitNum,
-      total,
-      totalPages,
-      hasNext: pageNum < totalPages,
-      hasPrev: pageNum > 1,
-    });
+    return sendPaginated(
+      res,
+      scores.map((row) => ({
+        symbol: row.symbol,
+        composite_score: row.composite_score,
+        momentum_score: row.momentum_score,
+        value_score: row.value_score,
+        quality_score: row.quality_score,
+        growth_score: row.growth_score,
+        stability_score: row.stability_score,
+      })),
+      {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages,
+        hasNext: pageNum < totalPages,
+        hasPrev: pageNum > 1,
+      }
+    );
   } catch (error) {
     console.error("Error fetching scores:", error.message);
     return sendError(
@@ -169,7 +176,7 @@ router.get("/stockscores", async (req, res) => {
     // Count fallback affects pagination - must be actual count or error
     const totalValidation = requireNumericField(
       countResult?.rows[0]?.total,
-      'total_count',
+      "total_count",
       { min: 0, allowZero: true }
     );
     const total = isDataError(totalValidation) ? 0 : totalValidation;
@@ -215,7 +222,7 @@ router.get("/stockscores", async (req, res) => {
       // Validate composite score - used for grading and sorting, cannot default to 0
       const compositeValidation = requireNumericField(
         row.composite_score,
-        'composite_score',
+        "composite_score",
         { min: 0, max: 100, allowZero: true }
       );
 
@@ -232,25 +239,53 @@ router.get("/stockscores", async (req, res) => {
       }
 
       // Validate all component scores - these drive investment decisions
-      const momentumValidation = requireNumericField(row.momentum_score, 'momentum_score');
-      const qualityValidation = requireNumericField(row.quality_score, 'quality_score');
-      const valueValidation = requireNumericField(row.value_score, 'value_score');
-      const growthValidation = requireNumericField(row.growth_score, 'growth_score');
-      const positioningValidation = requireNumericField(row.positioning_score, 'positioning_score');
-      const stabilityValidation = requireNumericField(row.stability_score, 'stability_score');
+      const momentumValidation = requireNumericField(
+        row.momentum_score,
+        "momentum_score"
+      );
+      const qualityValidation = requireNumericField(
+        row.quality_score,
+        "quality_score"
+      );
+      const valueValidation = requireNumericField(
+        row.value_score,
+        "value_score"
+      );
+      const growthValidation = requireNumericField(
+        row.growth_score,
+        "growth_score"
+      );
+      const positioningValidation = requireNumericField(
+        row.positioning_score,
+        "positioning_score"
+      );
+      const stabilityValidation = requireNumericField(
+        row.stability_score,
+        "stability_score"
+      );
 
       return {
         symbol: row.symbol,
         company_name: row.company_name,
         sector: row.sector,
         industry: row.industry,
-        composite_score: !isDataError(compositeValidation) ? compositeValidation : null,
-        momentum_score: !isDataError(momentumValidation) ? momentumValidation : null,
-        quality_score: !isDataError(qualityValidation) ? qualityValidation : null,
+        composite_score: !isDataError(compositeValidation)
+          ? compositeValidation
+          : null,
+        momentum_score: !isDataError(momentumValidation)
+          ? momentumValidation
+          : null,
+        quality_score: !isDataError(qualityValidation)
+          ? qualityValidation
+          : null,
         value_score: !isDataError(valueValidation) ? valueValidation : null,
         growth_score: !isDataError(growthValidation) ? growthValidation : null,
-        positioning_score: !isDataError(positioningValidation) ? positioningValidation : null,
-        stability_score: !isDataError(stabilityValidation) ? stabilityValidation : null,
+        positioning_score: !isDataError(positioningValidation)
+          ? positioningValidation
+          : null,
+        stability_score: !isDataError(stabilityValidation)
+          ? stabilityValidation
+          : null,
         grade: grade,
         price: row.price,
         change_pct: row.change_pct,

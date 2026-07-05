@@ -42,7 +42,9 @@ async function getActiveTiers() {
     `);
 
     if (!result || !result.rows) {
-      const error = new Error("Invalid tier query result structure - database may be unavailable");
+      const error = new Error(
+        "Invalid tier query result structure - database may be unavailable"
+      );
       logger.error("Critical error in getActiveTiers", {
         error: error.message,
         hasResult: !!result,
@@ -81,7 +83,9 @@ async function getActiveTiers() {
 
     return tiers;
   } catch (error) {
-    const tiersError = new Error(`Failed to load market exposure tiers (tier policy decisions will be unsafe): ${error.message}`);
+    const tiersError = new Error(
+      `Failed to load market exposure tiers (tier policy decisions will be unsafe): ${error.message}`
+    );
     tiersError.originalError = error;
     logger.error("CRITICAL: Market exposure tiers unavailable", {
       error: tiersError.message,
@@ -105,13 +109,17 @@ function getActiveTier(exposurePct, tiers) {
 
   // CRITICAL: Exposure pct is required for tier decisions. 0 is a valid value, but missing is an error.
   if (exposurePct === null || exposurePct === undefined) {
-    console.error("CRITICAL: Exposure percentage missing. Cannot determine active tier.");
+    console.error(
+      "CRITICAL: Exposure percentage missing. Cannot determine active tier."
+    );
     return null;
   }
 
   const exposure = parseFloat(exposurePct);
   if (isNaN(exposure)) {
-    console.error(`CRITICAL: Exposure percentage invalid (NaN). Value: ${exposurePct}`);
+    console.error(
+      `CRITICAL: Exposure percentage invalid (NaN). Value: ${exposurePct}`
+    );
     return null;
   }
 
@@ -125,13 +133,16 @@ function getActiveTier(exposurePct, tiers) {
 
   if (!activeTier) {
     const tierRanges = tiers
-      .map(t => `${t.name || t.tier}=[${t.min_pct || t.min}-${t.max_pct || t.max}%]`)
+      .map(
+        (t) =>
+          `${t.name || t.tier}=[${t.min_pct || t.min}-${t.max_pct || t.max}%]`
+      )
       .join(", ");
     throw new Error(
       `CRITICAL: Exposure ${exposure}% falls outside all defined tier ranges. ` +
-      `Valid ranges: ${tierRanges}. ` +
-      `Cannot determine trading tier with out-of-bounds exposure value. ` +
-      `Verify market_exposure_daily data and signal_filter_tiers definitions.`
+        `Valid ranges: ${tierRanges}. ` +
+        `Cannot determine trading tier with out-of-bounds exposure value. ` +
+        `Verify market_exposure_daily data and signal_filter_tiers definitions.`
     );
   }
 

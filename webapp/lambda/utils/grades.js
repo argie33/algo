@@ -35,7 +35,9 @@ async function getSwingGrades() {
     `);
 
     if (!result || !result.rows) {
-      const error = new Error("Invalid swing grades query result structure - database may be unavailable");
+      const error = new Error(
+        "Invalid swing grades query result structure - database may be unavailable"
+      );
       logger.error("Critical error in getSwingGrades", {
         error: error.message,
         hasResult: !!result,
@@ -60,7 +62,9 @@ async function getSwingGrades() {
 
     return grades;
   } catch (error) {
-    const gradesError = new Error(`Failed to load swing score grades (grading will be unsafe): ${error.message}`);
+    const gradesError = new Error(
+      `Failed to load swing score grades (grading will be unsafe): ${error.message}`
+    );
     gradesError.originalError = error;
     logger.error("CRITICAL: Swing score grades unavailable", {
       error: gradesError.message,
@@ -81,8 +85,8 @@ function getGradeForScore(score, grades) {
   if (!grades || grades.length === 0) {
     throw new Error(
       "CRITICAL: Grade configuration unavailable. " +
-      "Cannot determine signal grades without grade tier definitions. " +
-      "Verify signal_grade_tiers table is loaded and contains active grade definitions."
+        "Cannot determine signal grades without grade tier definitions. " +
+        "Verify signal_grade_tiers table is loaded and contains active grade definitions."
     );
   }
 
@@ -113,13 +117,13 @@ function getGradeForScore(score, grades) {
 
   if (!gradeInfo) {
     const gradeRanges = grades
-      .map(g => `${g.letter}=[${g.min_score},${g.max_score})`)
+      .map((g) => `${g.letter}=[${g.min_score},${g.max_score})`)
       .join(", ");
     throw new Error(
       `CRITICAL: Score ${scoreVal} falls outside all defined grade ranges. ` +
-      `Valid ranges: ${gradeRanges}. ` +
-      `Score is out of bounds and cannot be safely graded. ` +
-      `Verify signal_quality_scores data integrity and grade tier definitions.`
+        `Valid ranges: ${gradeRanges}. ` +
+        `Score is out of bounds and cannot be safely graded. ` +
+        `Verify signal_quality_scores data integrity and grade tier definitions.`
     );
   }
 

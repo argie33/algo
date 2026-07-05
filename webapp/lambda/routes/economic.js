@@ -12,8 +12,10 @@ const router = express.Router();
 
 // Validate economic score calculations don't produce NaN/Infinity
 function validateStrengthScore(value, indicatorName) {
-  if (typeof value !== 'number' || !isFinite(value)) {
-    throw new Error(`Invalid strength score for ${indicatorName}: ${value} (NaN or Infinity detected)`);
+  if (typeof value !== "number" || !isFinite(value)) {
+    throw new Error(
+      `Invalid strength score for ${indicatorName}: ${value} (NaN or Infinity detected)`
+    );
   }
   return value;
 }
@@ -113,7 +115,10 @@ router.get("/leading-indicators", async (req, res) => {
         );
       }
     } catch (e) {
-      console.error("[ECONOMIC_QUERY_FAILURE] Critical error fetching economic data:", e.message);
+      console.error(
+        "[ECONOMIC_QUERY_FAILURE] Critical error fetching economic data:",
+        e.message
+      );
       return sendError(
         res,
         `[ECONOMIC_DATA_FAILURE] Failed to fetch economic data: ${e.message}`,
@@ -209,11 +214,20 @@ router.get("/leading-indicators", async (req, res) => {
     if (historicalData["CPIAUCSL"] && historicalData["CPIAUCSL"].length >= 13) {
       const currentCPI = historicalData["CPIAUCSL"][0].value;
       const yearAgoCPI = historicalData["CPIAUCSL"][12].value; // 12 months ago
-      if (typeof currentCPI !== 'number' || typeof yearAgoCPI !== 'number' || !isFinite(currentCPI) || !isFinite(yearAgoCPI)) {
-        throw new Error('Invalid CPI historical data: non-numeric or infinite values detected');
+      if (
+        typeof currentCPI !== "number" ||
+        typeof yearAgoCPI !== "number" ||
+        !isFinite(currentCPI) ||
+        !isFinite(yearAgoCPI)
+      ) {
+        throw new Error(
+          "Invalid CPI historical data: non-numeric or infinite values detected"
+        );
       }
       if (yearAgoCPI === 0) {
-        throw new Error('Invalid CPI data: year-ago value is zero, cannot calculate YoY change');
+        throw new Error(
+          "Invalid CPI data: year-ago value is zero, cannot calculate YoY change"
+        );
       }
       cpiYoY = ((currentCPI - yearAgoCPI) / yearAgoCPI) * 100;
       if (!isFinite(cpiYoY)) {
@@ -350,7 +364,10 @@ router.get("/leading-indicators", async (req, res) => {
         description: "Federal Reserve target interest rate",
         strength: indicators["FEDFUNDS"]
           ? validateStrengthScore(
-              Math.min(100, Math.max(0, 100 - indicators["FEDFUNDS"].value * 15)),
+              Math.min(
+                100,
+                Math.max(0, 100 - indicators["FEDFUNDS"].value * 15)
+              ),
               "FEDFUNDS"
             )
           : null,

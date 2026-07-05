@@ -19,7 +19,7 @@ class PortfolioAutoInit {
         [userId]
       );
       if (!holdingsRes?.rows?.[0]?.count && holdingsRes.rows[0].count !== 0) {
-        throw new Error('Failed to fetch portfolio holdings count');
+        throw new Error("Failed to fetch portfolio holdings count");
       }
       const holdings = holdingsRes.rows[0].count;
 
@@ -28,7 +28,7 @@ class PortfolioAutoInit {
         [userId]
       );
       if (!perfRes?.rows?.[0] && perfRes.rows[0].count === null) {
-        throw new Error('Failed to fetch portfolio performance count');
+        throw new Error("Failed to fetch portfolio performance count");
       }
       const perfRecords = perfRes.rows[0].count;
 
@@ -37,7 +37,7 @@ class PortfolioAutoInit {
         [userId]
       );
       if (!withSectorsRes?.rows?.[0] || withSectorsRes.rows[0].count === null) {
-        throw new Error('Failed to fetch portfolio sectors count');
+        throw new Error("Failed to fetch portfolio sectors count");
       }
       const withSectors = withSectorsRes.rows[0].count;
 
@@ -79,7 +79,7 @@ class PortfolioAutoInit {
       );
 
       if (!result?.rows?.[0] || result.rows[0].count === null) {
-        throw new Error('Failed to fetch portfolio performance count');
+        throw new Error("Failed to fetch portfolio performance count");
       }
       const recordCount = parseInt(result.rows[0].count);
 

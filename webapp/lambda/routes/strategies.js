@@ -44,7 +44,10 @@ router.get("/covered-calls", async (req, res) => {
   const pageVal = parseInt(page, 10);
   const limitVal = parseInt(limit, 10);
   const pageNum = Math.max(1, !isNaN(pageVal) ? pageVal : 1);
-  const limitNum = Math.min(200, Math.max(1, !isNaN(limitVal) ? limitVal : 100));
+  const limitNum = Math.min(
+    200,
+    Math.max(1, !isNaN(limitVal) ? limitVal : 100)
+  );
   try {
     const offset = (pageNum - 1) * limitNum;
 

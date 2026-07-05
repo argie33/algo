@@ -58,7 +58,7 @@ router.get("/", async (req, res) => {
     validateQueryResult(countResultObj, { requireRows: false });
     const countRows = Array.isArray(countResultObj)
       ? countResultObj
-      : countResultObj?.rows ?? [];
+      : (countResultObj?.rows ?? []);
     const total = countRows && countRows[0] ? parseInt(countRows[0].total) : 0;
 
     // Get paginated results with technical enrichment
@@ -92,7 +92,9 @@ router.get("/", async (req, res) => {
     );
     validateQueryResult(resultObj, { requireRows: false });
 
-    const result = Array.isArray(resultObj) ? resultObj : resultObj?.rows ?? [];
+    const result = Array.isArray(resultObj)
+      ? resultObj
+      : (resultObj?.rows ?? []);
 
     const page = Math.floor(offset / limit) + 1;
 
@@ -218,7 +220,9 @@ router.get("/stocks", async (req, res) => {
     );
     validateQueryResult(resultObj, { requireRows: false });
 
-    const result = Array.isArray(resultObj) ? resultObj : resultObj?.rows ?? [];
+    const result = Array.isArray(resultObj)
+      ? resultObj
+      : (resultObj?.rows ?? []);
     return sendSuccess(res, { items: result }, 200);
   } catch (error) {
     console.error("Error fetching stock signals:", error);
@@ -284,7 +288,9 @@ router.get("/etf", async (req, res) => {
     );
     validateQueryResult(resultObj, { requireRows: false });
 
-    const result = Array.isArray(resultObj) ? resultObj : resultObj?.rows ?? [];
+    const result = Array.isArray(resultObj)
+      ? resultObj
+      : (resultObj?.rows ?? []);
     return sendSuccess(res, { items: result }, 200);
   } catch (error) {
     console.error("Error fetching ETF signals:", error);

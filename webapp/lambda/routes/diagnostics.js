@@ -44,7 +44,7 @@ router.get("/", async (req, res) => {
     validateQueryResult(dbTest, { requireRows: false });
     diagnostics.database_status = "connected";
     if (dbTest.rows?.[0]?.count == null) {
-      throw new Error('Failed to fetch stock_symbols count');
+      throw new Error("Failed to fetch stock_symbols count");
     }
     diagnostics.database_tables = {
       stock_symbols: parseInt(dbTest.rows[0].count),
@@ -168,8 +168,11 @@ router.get("/", async (req, res) => {
       SELECT COUNT(*) as index_count FROM pg_indexes WHERE schemaname = 'public'
     `);
     validateQueryResult(indexResult, { requireRows: false });
-    if (!indexResult.rows?.[0]?.index_count && indexResult.rows[0].index_count !== 0) {
-      throw new Error('Failed to fetch index count');
+    if (
+      !indexResult.rows?.[0]?.index_count &&
+      indexResult.rows[0].index_count !== 0
+    ) {
+      throw new Error("Failed to fetch index count");
     }
     const indexCount = parseInt(indexResult.rows[0].index_count);
     diagnostics.database_indexes = {

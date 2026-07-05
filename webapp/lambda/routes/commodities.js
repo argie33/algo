@@ -429,20 +429,20 @@ router.get("/market-summary", async (req, res) => {
 
     // Get top gainers and losers
     const gainers = prices
-      .filter(p => p.change_percent !== null && p.change_percent !== undefined)
+      .filter(
+        (p) => p.change_percent !== null && p.change_percent !== undefined
+      )
       .sort(
-        (a, b) =>
-          parseFloat(b.change_percent) -
-          parseFloat(a.change_percent)
+        (a, b) => parseFloat(b.change_percent) - parseFloat(a.change_percent)
       )
       .slice(0, 5);
 
     const losers = prices
-      .filter(p => p.change_percent !== null && p.change_percent !== undefined)
+      .filter(
+        (p) => p.change_percent !== null && p.change_percent !== undefined
+      )
       .sort(
-        (a, b) =>
-          parseFloat(a.change_percent) -
-          parseFloat(b.change_percent)
+        (a, b) => parseFloat(a.change_percent) - parseFloat(b.change_percent)
       )
       .slice(0, 5);
 
@@ -450,7 +450,12 @@ router.get("/market-summary", async (req, res) => {
       name: row.category.charAt(0).toUpperCase() + row.category.slice(1),
       category: row.category,
       change1d: safeFixed(row.avg_change_1d, 2),
-      trend: row.avg_change_1d !== null && row.avg_change_1d !== undefined ? (parseFloat(row.avg_change_1d) >= 0 ? "up" : "down") : null,
+      trend:
+        row.avg_change_1d !== null && row.avg_change_1d !== undefined
+          ? parseFloat(row.avg_change_1d) >= 0
+            ? "up"
+            : "down"
+          : null,
     }));
 
     return sendSuccess(res, {
@@ -538,16 +543,33 @@ router.get("/cot/:symbol", async (req, res) => {
 
     // Calculate sentiment based on latest report
     const latest = result.rows[0];
-    const commercialNet = latest.commercial_net !== null && latest.commercial_net !== undefined ? parseFloat(latest.commercial_net) : null;
-    const nonCommercialNet = latest.non_commercial_net !== null && latest.non_commercial_net !== undefined ? parseFloat(latest.non_commercial_net) : null;
+    const commercialNet =
+      latest.commercial_net !== null && latest.commercial_net !== undefined
+        ? parseFloat(latest.commercial_net)
+        : null;
+    const nonCommercialNet =
+      latest.non_commercial_net !== null &&
+      latest.non_commercial_net !== undefined
+        ? parseFloat(latest.non_commercial_net)
+        : null;
 
     // Sentiment: positive net = bullish, negative = bearish
-    const commercialSentiment = commercialNet !== null
-      ? (commercialNet > 0 ? "bullish" : commercialNet < 0 ? "bearish" : "neutral")
-      : null;
-    const speculatorSentiment = nonCommercialNet !== null
-      ? (nonCommercialNet > 0 ? "bullish" : nonCommercialNet < 0 ? "bearish" : "neutral")
-      : null;
+    const commercialSentiment =
+      commercialNet !== null
+        ? commercialNet > 0
+          ? "bullish"
+          : commercialNet < 0
+            ? "bearish"
+            : "neutral"
+        : null;
+    const speculatorSentiment =
+      nonCommercialNet !== null
+        ? nonCommercialNet > 0
+          ? "bullish"
+          : nonCommercialNet < 0
+            ? "bearish"
+            : "neutral"
+        : null;
 
     // Divergence: when commercial and speculator sentiments differ
     const divergence =
@@ -701,7 +723,10 @@ router.get("/correlations", async (req, res) => {
     validateQueryResult(result, { requireRows: false });
 
     const correlations = result.rows.map((row) => {
-      const coeff = row.coefficient !== null && row.coefficient !== undefined ? parseFloat(row.coefficient) : null;
+      const coeff =
+        row.coefficient !== null && row.coefficient !== undefined
+          ? parseFloat(row.coefficient)
+          : null;
       let strength = coeff === null ? "unavailable" : "weak";
       if (coeff !== null) {
         if (Math.abs(coeff) > 0.7) strength = "strong";

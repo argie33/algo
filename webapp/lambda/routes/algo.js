@@ -36,11 +36,11 @@ const {
   requireExposure,
   requirePositionCount,
   requireUnrealizedPnl,
-  isDataError
+  isDataError,
 } = require("../utils/strictValidation");
 const {
   createErrorResponse,
-  createPartialResponse
+  createPartialResponse,
 } = require("../utils/errorEnvelopes");
 
 const router = express.Router();
@@ -57,20 +57,17 @@ function computeStageLabel(stage, score, stageConfig = {}) {
   } else if (stage === 2) {
     if (score != null) {
       if (stageConfig.stage_2_late_min_score == null) {
-        throw new Error('Missing required config: stage_2_late_min_score');
+        throw new Error("Missing required config: stage_2_late_min_score");
       }
       if (stageConfig.stage_2_mid_min_score == null) {
-        throw new Error('Missing required config: stage_2_mid_min_score');
+        throw new Error("Missing required config: stage_2_mid_min_score");
       }
       if (stageConfig.stage_2_early_min_score == null) {
-        throw new Error('Missing required config: stage_2_early_min_score');
+        throw new Error("Missing required config: stage_2_early_min_score");
       }
-      if (score >= stageConfig.stage_2_late_min_score)
-        return "Late Stage-2";
-      if (score >= stageConfig.stage_2_mid_min_score)
-        return "Mid Stage-2";
-      if (score >= stageConfig.stage_2_early_min_score)
-        return "Early Stage-2";
+      if (score >= stageConfig.stage_2_late_min_score) return "Late Stage-2";
+      if (score >= stageConfig.stage_2_mid_min_score) return "Mid Stage-2";
+      if (score >= stageConfig.stage_2_early_min_score) return "Early Stage-2";
       return "Early Stage-2";
     }
     return "Stage 2";
@@ -189,11 +186,20 @@ router.get("/status", async (req, res) => {
     });
 
     // Validate critical portfolio metrics - cannot use defaults
-    const totalValueValidation = requirePortfolioValue(snapshot?.total_portfolio_value);
-    const unrealizedPnlValidation = requireUnrealizedPnl(snapshot?.unrealized_pnl_pct);
+    const totalValueValidation = requirePortfolioValue(
+      snapshot?.total_portfolio_value
+    );
+    const unrealizedPnlValidation = requireUnrealizedPnl(
+      snapshot?.unrealized_pnl_pct
+    );
 
-    if (isDataError(totalValueValidation) || isDataError(unrealizedPnlValidation)) {
-      const errors = [totalValueValidation, unrealizedPnlValidation].filter(isDataError);
+    if (
+      isDataError(totalValueValidation) ||
+      isDataError(unrealizedPnlValidation)
+    ) {
+      const errors = [totalValueValidation, unrealizedPnlValidation].filter(
+        isDataError
+      );
       return sendSuccess(res, createErrorResponse(errors));
     }
 
@@ -202,22 +208,37 @@ router.get("/status", async (req, res) => {
     const unrealizedPnlDollars = (totalValue * unrealizedPnlPct) / 100;
 
     const positionCountValidation = requirePositionCount(positions?.open_count);
-    const positionValueValidation = requireNumericField(positions?.total_value, 'total_position_value');
+    const positionValueValidation = requireNumericField(
+      positions?.total_value,
+      "total_position_value"
+    );
 
-    const errors = [positionCountValidation, positionValueValidation].filter(isDataError);
+    const errors = [positionCountValidation, positionValueValidation].filter(
+      isDataError
+    );
     if (errors.length > 0) {
-      return sendSuccess(res, createPartialResponse({
-        algo_enabled,
-        execution_mode,
-        status: "operational",
-        portfolio: {
-          total_value: totalValue,
-          position_count: isDataError(positionCountValidation) ? null : positionCountValidation,
-          total_position_value: isDataError(positionValueValidation) ? null : positionValueValidation,
-          unrealized_pnl_pct: unrealizedPnlPct,
-          unrealized_pnl_dollars: Number(unrealizedPnlDollars.toFixed(2)),
-        }
-      }, errors));
+      return sendSuccess(
+        res,
+        createPartialResponse(
+          {
+            algo_enabled,
+            execution_mode,
+            status: "operational",
+            portfolio: {
+              total_value: totalValue,
+              position_count: isDataError(positionCountValidation)
+                ? null
+                : positionCountValidation,
+              total_position_value: isDataError(positionValueValidation)
+                ? null
+                : positionValueValidation,
+              unrealized_pnl_pct: unrealizedPnlPct,
+              unrealized_pnl_dollars: Number(unrealizedPnlDollars.toFixed(2)),
+            },
+          },
+          errors
+        )
+      );
     }
 
     const positionCount = positionCountValidation;
@@ -337,12 +358,18 @@ router.get("/evaluate", async (req, res) => {
     const cfg = filterConfigResult.rows[0];
     // Validate all required fields exist with non-null values
     if (
-      cfg.completeness_pct_min === null || cfg.completeness_pct_min === undefined ||
-      cfg.trend_score_min === null || cfg.trend_score_min === undefined ||
-      cfg.sqs_min === null || cfg.sqs_min === undefined ||
-      cfg.max_qualified_signals === null || cfg.max_qualified_signals === undefined ||
-      cfg.sort_by === null || cfg.sort_by === undefined ||
-      cfg.sort_order === null || cfg.sort_order === undefined
+      cfg.completeness_pct_min === null ||
+      cfg.completeness_pct_min === undefined ||
+      cfg.trend_score_min === null ||
+      cfg.trend_score_min === undefined ||
+      cfg.sqs_min === null ||
+      cfg.sqs_min === undefined ||
+      cfg.max_qualified_signals === null ||
+      cfg.max_qualified_signals === undefined ||
+      cfg.sort_by === null ||
+      cfg.sort_by === undefined ||
+      cfg.sort_order === null ||
+      cfg.sort_order === undefined
     ) {
       return sendError(
         res,
@@ -359,7 +386,12 @@ router.get("/evaluate", async (req, res) => {
     const sqsVal = parseInt(cfg.sqs_min, 10);
     const maxSignalsVal = parseInt(cfg.max_qualified_signals, 10);
 
-    if (isNaN(completenessVal) || isNaN(trendVal) || isNaN(sqsVal) || isNaN(maxSignalsVal)) {
+    if (
+      isNaN(completenessVal) ||
+      isNaN(trendVal) ||
+      isNaN(sqsVal) ||
+      isNaN(maxSignalsVal)
+    ) {
       return sendError(
         res,
         503,
@@ -389,9 +421,18 @@ router.get("/evaluate", async (req, res) => {
       completeness_pct: { type: "float", required: false },
       sqs: { type: "int", required: false },
     }).map((row) => {
-      const tier1 = row.completeness_pct !== null && row.completeness_pct !== undefined ? row.completeness_pct >= filterConfig.completeness_pct_min : false;
-      const tier3 = row.trend_score !== null && row.trend_score !== undefined ? row.trend_score >= filterConfig.trend_score_min : false;
-      const tier4 = row.sqs !== null && row.sqs !== undefined ? row.sqs >= filterConfig.sqs_min : false;
+      const tier1 =
+        row.completeness_pct !== null && row.completeness_pct !== undefined
+          ? row.completeness_pct >= filterConfig.completeness_pct_min
+          : false;
+      const tier3 =
+        row.trend_score !== null && row.trend_score !== undefined
+          ? row.trend_score >= filterConfig.trend_score_min
+          : false;
+      const tier4 =
+        row.sqs !== null && row.sqs !== undefined
+          ? row.sqs >= filterConfig.sqs_min
+          : false;
 
       const all_tiers_pass = filterConfig.require_all_tiers
         ? tier1 && tier3 && tier4
@@ -414,18 +455,24 @@ router.get("/evaluate", async (req, res) => {
     // Filter to qualified and sort by configured field/direction
     // CRITICAL: Fail-fast on null/undefined sort metrics — defaulting to 0 masks missing data quality issues
     const sortComparator = (a, b) => {
-      if (a[filterConfig.sort_by] === null || a[filterConfig.sort_by] === undefined) {
+      if (
+        a[filterConfig.sort_by] === null ||
+        a[filterConfig.sort_by] === undefined
+      ) {
         throw new Error(
           `CRITICAL: Symbol ${a.symbol} missing sort field '${filterConfig.sort_by}'. ` +
-          `Cannot rank signals without complete data. ` +
-          `Check signal completeness_pct and signal_quality_scores data.`
+            `Cannot rank signals without complete data. ` +
+            `Check signal completeness_pct and signal_quality_scores data.`
         );
       }
-      if (b[filterConfig.sort_by] === null || b[filterConfig.sort_by] === undefined) {
+      if (
+        b[filterConfig.sort_by] === null ||
+        b[filterConfig.sort_by] === undefined
+      ) {
         throw new Error(
           `CRITICAL: Symbol ${b.symbol} missing sort field '${filterConfig.sort_by}'. ` +
-          `Cannot rank signals without complete data. ` +
-          `Check signal completeness_pct and signal_quality_scores data.`
+            `Cannot rank signals without complete data. ` +
+            `Check signal completeness_pct and signal_quality_scores data.`
         );
       }
       const aVal = parseFloat(a[filterConfig.sort_by]);
@@ -433,8 +480,8 @@ router.get("/evaluate", async (req, res) => {
       if (isNaN(aVal) || isNaN(bVal)) {
         throw new Error(
           `CRITICAL: Invalid numeric value in sort field '${filterConfig.sort_by}'. ` +
-          `Symbol ${isNaN(aVal) ? a.symbol : b.symbol} has non-numeric value. ` +
-          `Check data quality in signal_quality_scores table.`
+            `Symbol ${isNaN(aVal) ? a.symbol : b.symbol} has non-numeric value. ` +
+            `Check data quality in signal_quality_scores table.`
         );
       }
       const diff = bVal - aVal;
@@ -501,8 +548,10 @@ router.get("/last-run", async (req, res) => {
 
     const run = result.rows[0];
     // Determine success/halted from error_message presence and phase actions
-    const halted = run.error_message && run.error_message.toLowerCase().includes('halt');
-    const success = !halted && run.phase_actions && run.phase_actions.length > 0;
+    const halted =
+      run.error_message && run.error_message.toLowerCase().includes("halt");
+    const success =
+      !halted && run.phase_actions && run.phase_actions.length > 0;
 
     return sendSuccess(res, {
       run_id: run.run_id,
@@ -510,7 +559,12 @@ router.get("/last-run", async (req, res) => {
       success: success,
       halted: halted,
       error_message: run.error_message,
-      phases: run.phase_actions ? run.phase_actions.map(pt => ({ action_type: pt, status: 'complete' })) : [],
+      phases: run.phase_actions
+        ? run.phase_actions.map((pt) => ({
+            action_type: pt,
+            status: "complete",
+          }))
+        : [],
     });
   } catch (error) {
     logger.error("Error in /algo/last-run:", {
@@ -707,9 +761,11 @@ router.get("/positions", async (req, res) => {
         return sendError(
           res,
           503,
-          "CRITICAL: Position value missing for symbol " + p.symbol + ". " +
-          "Cannot compute portfolio allocation without complete position data. " +
-          "Check algo_positions table for complete position records and price data availability."
+          "CRITICAL: Position value missing for symbol " +
+            p.symbol +
+            ". " +
+            "Cannot compute portfolio allocation without complete position data. " +
+            "Check algo_positions table for complete position records and price data availability."
         );
       }
       if (posValue != null) {
@@ -721,8 +777,8 @@ router.get("/positions", async (req, res) => {
         res,
         503,
         "CRITICAL: Total position value is zero or negative. " +
-        "Cannot compute allocation with zero portfolio value. " +
-        "Verify position data and current prices in database."
+          "Cannot compute allocation with zero portfolio value. " +
+          "Verify position data and current prices in database."
       );
     }
     for (const p of items) {
@@ -797,12 +853,17 @@ router.get("/portfolio", async (req, res) => {
 
     // CRITICAL: Fail-fast if no portfolio data. Do not return zeros (masks data quality issue).
     if (result.rows.length === 0) {
-      return sendSuccess(res, {
-        data: null,
-        error: "no_data",
-        message: "Portfolio snapshot data not yet available. Run data loaders to populate initial snapshot.",
-        data_age_seconds: null,
-      }, 503);
+      return sendSuccess(
+        res,
+        {
+          data: null,
+          error: "no_data",
+          message:
+            "Portfolio snapshot data not yet available. Run data loaders to populate initial snapshot.",
+          data_age_seconds: null,
+        },
+        503
+      );
     }
 
     const snapshot = validateAndCoerceRow(result.rows[0], {
@@ -842,16 +903,20 @@ router.get("/portfolio", async (req, res) => {
     });
 
     const data_age_seconds = snapshot.snapshot_date
-      ? Math.floor((Date.now() - new Date(snapshot.snapshot_date).getTime()) / 1000)
+      ? Math.floor(
+          (Date.now() - new Date(snapshot.snapshot_date).getTime()) / 1000
+        )
       : null;
 
     // CRITICAL: Return data quality flags so dashboard can alert on stale data
     const is_stale = data_age_seconds && data_age_seconds > 86400; // > 1 day
-    const data_freshness = data_age_seconds ? {
-      age_seconds: data_age_seconds,
-      is_stale: is_stale,
-      last_update: snapshot.snapshot_date,
-    } : null;
+    const data_freshness = data_age_seconds
+      ? {
+          age_seconds: data_age_seconds,
+          is_stale: is_stale,
+          last_update: snapshot.snapshot_date,
+        }
+      : null;
 
     return sendSuccess(res, {
       snapshot_date: snapshot.snapshot_date,
@@ -1444,10 +1509,14 @@ router.get("/markets", async (req, res) => {
 
     // Get SPY price (latest 2 rows for change calculation)
     const spyPrices = spyResult.rows || [];
-    const spyClose = spyPrices.length > 0 ? parseFloat(spyPrices[0].close) : null;
-    const spyChangePct = spyPrices.length >= 2
-      ? ((parseFloat(spyPrices[0].close) - parseFloat(spyPrices[1].close)) / parseFloat(spyPrices[1].close)) * 100
-      : null;
+    const spyClose =
+      spyPrices.length > 0 ? parseFloat(spyPrices[0].close) : null;
+    const spyChangePct =
+      spyPrices.length >= 2
+        ? ((parseFloat(spyPrices[0].close) - parseFloat(spyPrices[1].close)) /
+            parseFloat(spyPrices[1].close)) *
+          100
+        : null;
 
     // Determine active tier policy from database - exposure is critical for tier decisions
     let policy = null;
@@ -1491,10 +1560,13 @@ router.get("/markets", async (req, res) => {
         try {
           parsedHaltReasons = JSON.parse(latest.halt_reasons);
         } catch (e) {
-          logger.error("CRITICAL: Halt reasons JSON parse error - data corruption or misconfiguration detected", {
-            raw_value: latest.halt_reasons.substring(0, 200),
-            error: e.message,
-          });
+          logger.error(
+            "CRITICAL: Halt reasons JSON parse error - data corruption or misconfiguration detected",
+            {
+              raw_value: latest.halt_reasons.substring(0, 200),
+              error: e.message,
+            }
+          );
           return sendError(
             res,
             503,
@@ -1514,7 +1586,9 @@ router.get("/markets", async (req, res) => {
       const scoreValidation = requireSignalQuality(latest.raw_score);
 
       if (isDataError(exposureValidation) || isDataError(scoreValidation)) {
-        currentErrors = [exposureValidation, scoreValidation].filter(isDataError);
+        currentErrors = [exposureValidation, scoreValidation].filter(
+          isDataError
+        );
         if (exposureError) {
           currentErrors.push(exposureError);
         }
@@ -1525,75 +1599,86 @@ router.get("/markets", async (req, res) => {
           raw_score: scoreValidation,
           regime: latest.regime,
           distribution_days: latest.distribution_days,
-          factors: latest.factors !== null && latest.factors !== undefined ? latest.factors : null,
+          factors:
+            latest.factors !== null && latest.factors !== undefined
+              ? latest.factors
+              : null,
           halt_reasons: parsedHaltReasons,
         };
       }
     }
 
     // Validate history rows - exposure is critical for risk tracking
-    const validatedHistory = historyRows
-      .map((r) => {
-        const exposureValidation = requireExposure(r.exposure_pct);
-        if (isDataError(exposureValidation)) {
-          return { error: exposureValidation, original: r };
-        }
-        return {
-          date: r.date,
-          exposure_pct: exposureValidation,
-          regime: r.regime,
-          distribution_days: r.distribution_days,
-        };
-      });
+    const validatedHistory = historyRows.map((r) => {
+      const exposureValidation = requireExposure(r.exposure_pct);
+      if (isDataError(exposureValidation)) {
+        return { error: exposureValidation, original: r };
+      }
+      return {
+        date: r.date,
+        exposure_pct: exposureValidation,
+        regime: r.regime,
+        distribution_days: r.distribution_days,
+      };
+    });
 
     const historyErrors = validatedHistory
-      .filter(h => h.error)
-      .map(h => h.error);
+      .filter((h) => h.error)
+      .map((h) => h.error);
 
-    const validHistory = validatedHistory
-      .filter(h => !h.error);
+    const validHistory = validatedHistory.filter((h) => !h.error);
 
     // Collect all errors from all sections
     const allErrors = [...currentErrors, ...historyErrors];
 
     // CRITICAL: Fail-fast if essential market health data is completely unavailable
     if (!health || health === null) {
-      return sendSuccess(res, {
-        current: currentSnapshot,
-        active_tier: policy,
-        history: validHistory,
-        market_health: null,
-        data_error: "market_health_unavailable",
-        message: "Market health data not yet available. Run data loaders to populate market_health_daily.",
-      }, 503);
+      return sendSuccess(
+        res,
+        {
+          current: currentSnapshot,
+          active_tier: policy,
+          history: validHistory,
+          market_health: null,
+          data_error: "market_health_unavailable",
+          message:
+            "Market health data not yet available. Run data loaders to populate market_health_daily.",
+        },
+        503
+      );
     }
 
     // If critical current snapshot failed, return error response with available data
     if (currentErrors.length > 0 && !currentSnapshot) {
-      return sendSuccess(res, {
-        current: null,
-        active_tier: null,
-        history: validHistory,
-        market_health: {
-          date: health.date,
-          market_trend: health.market_trend,
-          market_stage: health.market_stage,
-          distribution_days_4w: health.distribution_days_4w,
-          vix_level: health.vix_level,
-          advance_decline_ratio: health.advance_decline_ratio,
-          new_highs_count: health.new_highs_count,
-          new_lows_count: health.new_lows_count,
-          put_call_ratio: health.put_call_ratio,
-          breadth_momentum_10d: health.breadth_momentum_10d,
-          yield_curve_slope: health.yield_curve_slope,
-          fed_rate_environment: health.fed_rate_environment,
-          up_volume_percent: health.up_volume_percent,
-          spy_close: spyClose,
-          spy_change_pct: spyChangePct,
+      return sendSuccess(
+        res,
+        {
+          current: null,
+          active_tier: null,
+          history: validHistory,
+          market_health: {
+            date: health.date,
+            market_trend: health.market_trend,
+            market_stage: health.market_stage,
+            distribution_days_4w: health.distribution_days_4w,
+            vix_level: health.vix_level,
+            advance_decline_ratio: health.advance_decline_ratio,
+            new_highs_count: health.new_highs_count,
+            new_lows_count: health.new_lows_count,
+            put_call_ratio: health.put_call_ratio,
+            breadth_momentum_10d: health.breadth_momentum_10d,
+            yield_curve_slope: health.yield_curve_slope,
+            fed_rate_environment: health.fed_rate_environment,
+            up_volume_percent: health.up_volume_percent,
+            spy_close: spyClose,
+            spy_change_pct: spyChangePct,
+          },
+          data_errors: allErrors,
+          message:
+            "Market exposure data unavailable, but market health data available",
         },
-        data_errors: allErrors,
-        message: "Market exposure data unavailable, but market health data available",
-      }, 503);
+        503
+      );
     }
 
     return sendSuccess(res, {
@@ -1690,10 +1775,13 @@ router.get("/swing-scores", async (req, res) => {
       if (!components) return null; // Explicitly indicate missing data
       if (typeof components === "object") return components;
       if (typeof components !== "string") {
-        logger.warn("swing_trader_scores components field is non-string, non-object type", {
-          actualType: typeof components,
-          value: String(components).substring(0, 100),
-        });
+        logger.warn(
+          "swing_trader_scores components field is non-string, non-object type",
+          {
+            actualType: typeof components,
+            value: String(components).substring(0, 100),
+          }
+        );
         return null;
       }
       try {
@@ -1703,11 +1791,14 @@ router.get("/swing-scores", async (req, res) => {
           `Cannot parse swing_trader_scores components (data corruption): ${components.substring(0, 100)}`
         );
         parseError.originalError = e;
-        logger.error("CRITICAL: swing_trader_scores components JSON parse failed", {
-          error: parseError.message,
-          originalError: e.message,
-          componentsSample: components.substring(0, 200),
-        });
+        logger.error(
+          "CRITICAL: swing_trader_scores components JSON parse failed",
+          {
+            error: parseError.message,
+            originalError: e.message,
+            componentsSample: components.substring(0, 200),
+          }
+        );
         throw parseError;
       }
     };
@@ -1794,13 +1885,34 @@ router.get("/swing-scores-history", async (req, res) => {
         eval_date: r.eval_date,
         date: r.eval_date,
         total: r.total !== null && r.total !== undefined ? r.total : null,
-        grade_aplus: r.score_high !== null && r.score_high !== undefined ? r.score_high : null,
-        grade_a: r.score_medium !== null && r.score_medium !== undefined ? r.score_medium : null,
-        pass_count: r.pass_count !== null && r.pass_count !== undefined ? r.pass_count : null,
-        low_scores: r.score_low !== null && r.score_low !== undefined ? r.score_low : null,
-        high_scores: r.score_high !== null && r.score_high !== undefined ? r.score_high : null,
-        medium_scores: r.score_medium !== null && r.score_medium !== undefined ? r.score_medium : null,
-        avg_score: r.avg_score !== null && r.avg_score !== undefined ? r.avg_score : null,
+        grade_aplus:
+          r.score_high !== null && r.score_high !== undefined
+            ? r.score_high
+            : null,
+        grade_a:
+          r.score_medium !== null && r.score_medium !== undefined
+            ? r.score_medium
+            : null,
+        pass_count:
+          r.pass_count !== null && r.pass_count !== undefined
+            ? r.pass_count
+            : null,
+        low_scores:
+          r.score_low !== null && r.score_low !== undefined
+            ? r.score_low
+            : null,
+        high_scores:
+          r.score_high !== null && r.score_high !== undefined
+            ? r.score_high
+            : null,
+        medium_scores:
+          r.score_medium !== null && r.score_medium !== undefined
+            ? r.score_medium
+            : null,
+        avg_score:
+          r.avg_score !== null && r.avg_score !== undefined
+            ? r.avg_score
+            : null,
       })),
     });
   } catch (error) {
@@ -1886,10 +1998,14 @@ router.get("/data-status", async (req, res) => {
     const counts = { ok: 0, stale: 0, empty: 0, error: 0 };
     validated.forEach((r) => {
       if (!r.status) {
-        throw new Error(`Missing status for table ${r.table_name} - data quality issue`);
+        throw new Error(
+          `Missing status for table ${r.table_name} - data quality issue`
+        );
       }
       if (!Object.prototype.hasOwnProperty.call(counts, r.status)) {
-        throw new Error(`Unknown status "${r.status}" for table ${r.table_name}`);
+        throw new Error(
+          `Unknown status "${r.status}" for table ${r.table_name}`
+        );
       }
       counts[r.status]++;
     });
@@ -1920,7 +2036,7 @@ router.get("/data-status", async (req, res) => {
       critical_stale: criticalStale.map((r) => r.table_name),
       ready_to_trade,
       sources: sources_data,
-      expected_date: new Date().toISOString().split('T')[0],
+      expected_date: new Date().toISOString().split("T")[0],
       as_of: new Date().toISOString(),
       pagination: {
         limit: sources_data.length,
@@ -2382,7 +2498,11 @@ router.get("/performance", async (req, res) => {
         avg_hold_days: 0,
         portfolio_snapshots: 0,
         open_positions: openStats.open_count,
-        unrealized_pnl: openStats.total_unrealized_pnl !== null && openStats.total_unrealized_pnl !== undefined ? openStats.total_unrealized_pnl : null,
+        unrealized_pnl:
+          openStats.total_unrealized_pnl !== null &&
+          openStats.total_unrealized_pnl !== undefined
+            ? openStats.total_unrealized_pnl
+            : null,
       });
     }
 
@@ -2417,18 +2537,39 @@ router.get("/performance", async (req, res) => {
 
     // E10 FIX: Recalculate win_rate to include open positions
     // FAIL-FAST: Require explicit trade counts; don't default to 0
-    const closedWins = perf.winning_trades !== null && perf.winning_trades !== undefined ? perf.winning_trades : null;
-    const closedLosses = perf.losing_trades !== null && perf.losing_trades !== undefined ? perf.losing_trades : null;
-    const openWins = openStats.open_wins !== null && openStats.open_wins !== undefined ? openStats.open_wins : null;
-    const openLosses = openStats.open_losses !== null && openStats.open_losses !== undefined ? openStats.open_losses : null;
+    const closedWins =
+      perf.winning_trades !== null && perf.winning_trades !== undefined
+        ? perf.winning_trades
+        : null;
+    const closedLosses =
+      perf.losing_trades !== null && perf.losing_trades !== undefined
+        ? perf.losing_trades
+        : null;
+    const openWins =
+      openStats.open_wins !== null && openStats.open_wins !== undefined
+        ? openStats.open_wins
+        : null;
+    const openLosses =
+      openStats.open_losses !== null && openStats.open_losses !== undefined
+        ? openStats.open_losses
+        : null;
 
     // FAIL-FAST: Require all trade counts to calculate win rate; don't default to 0
-    const hasCompleteTradeData = closedWins != null && closedLosses != null && openWins != null && openLosses != null;
-    const totalTrades = hasCompleteTradeData ? closedWins + closedLosses + openWins + openLosses : null;
+    const hasCompleteTradeData =
+      closedWins != null &&
+      closedLosses != null &&
+      openWins != null &&
+      openLosses != null;
+    const totalTrades = hasCompleteTradeData
+      ? closedWins + closedLosses + openWins + openLosses
+      : null;
     const totalWins = hasCompleteTradeData ? closedWins + openWins : null;
-    const winRateIncludingOpen = hasCompleteTradeData && totalTrades > 0
+    const winRateIncludingOpen =
+      hasCompleteTradeData && totalTrades > 0
         ? parseFloat(((totalWins / totalTrades) * 100).toFixed(2))
-        : (hasCompleteTradeData ? 0 : null);
+        : hasCompleteTradeData
+          ? 0
+          : null;
 
     // CRITICAL: Validate essential risk metrics are present
     const criticalPerfMetrics = [
@@ -2440,7 +2581,9 @@ router.get("/performance", async (req, res) => {
       (m) => perf[m] === null || perf[m] === undefined
     );
     if (missingPerfCritical.length > 0) {
-      logger.error(`CRITICAL: Performance metrics incomplete. Missing: ${missingPerfCritical.join(", ")}`);
+      logger.error(
+        `CRITICAL: Performance metrics incomplete. Missing: ${missingPerfCritical.join(", ")}`
+      );
       // Still return response with available data but mark critical fields as null
     }
 
@@ -2449,42 +2592,116 @@ router.get("/performance", async (req, res) => {
       total_trades: totalTrades,
       winning_trades: totalWins,
       losing_trades: hasCompleteTradeData ? closedLosses + openLosses : null,
-      closed_trades: perf.total_trades !== null && perf.total_trades !== undefined ? perf.total_trades : null,
-      open_positions: openStats.open_count !== null && openStats.open_count !== undefined ? openStats.open_count : null,
+      closed_trades:
+        perf.total_trades !== null && perf.total_trades !== undefined
+          ? perf.total_trades
+          : null,
+      open_positions:
+        openStats.open_count !== null && openStats.open_count !== undefined
+          ? openStats.open_count
+          : null,
 
       // Win/loss profile (including open positions)
       win_rate_pct: winRateIncludingOpen,
-      closed_win_rate_pct: perf.win_rate_pct !== null && perf.win_rate_pct !== undefined ? parseFloat(perf.win_rate_pct) : null,
-      avg_win_pct: perf.avg_win_pct !== null && perf.avg_win_pct !== undefined ? parseFloat(perf.avg_win_pct) : null,
-      avg_loss_pct: perf.avg_loss_pct !== null && perf.avg_loss_pct !== undefined ? parseFloat(perf.avg_loss_pct) : null,
-      avg_win_r: perf.avg_win_r !== null && perf.avg_win_r !== undefined ? parseFloat(perf.avg_win_r) : null,
-      avg_loss_r: perf.avg_loss_r !== null && perf.avg_loss_r !== undefined ? parseFloat(perf.avg_loss_r) : null,
+      closed_win_rate_pct:
+        perf.win_rate_pct !== null && perf.win_rate_pct !== undefined
+          ? parseFloat(perf.win_rate_pct)
+          : null,
+      avg_win_pct:
+        perf.avg_win_pct !== null && perf.avg_win_pct !== undefined
+          ? parseFloat(perf.avg_win_pct)
+          : null,
+      avg_loss_pct:
+        perf.avg_loss_pct !== null && perf.avg_loss_pct !== undefined
+          ? parseFloat(perf.avg_loss_pct)
+          : null,
+      avg_win_r:
+        perf.avg_win_r !== null && perf.avg_win_r !== undefined
+          ? parseFloat(perf.avg_win_r)
+          : null,
+      avg_loss_r:
+        perf.avg_loss_r !== null && perf.avg_loss_r !== undefined
+          ? parseFloat(perf.avg_loss_r)
+          : null,
 
       // Expectancy
-      expectancy_r: perf.expectancy_r !== null && perf.expectancy_r !== undefined ? parseFloat(perf.expectancy_r) : null,
-      profit_factor: perf.profit_factor !== null && perf.profit_factor !== undefined ? parseFloat(perf.profit_factor) : null,
+      expectancy_r:
+        perf.expectancy_r !== null && perf.expectancy_r !== undefined
+          ? parseFloat(perf.expectancy_r)
+          : null,
+      profit_factor:
+        perf.profit_factor !== null && perf.profit_factor !== undefined
+          ? parseFloat(perf.profit_factor)
+          : null,
 
       // Total (CRITICAL: total_pnl must not default to 0)
-      total_pnl_dollars: perf.total_pnl_dollars !== null && perf.total_pnl_dollars !== undefined ? parseFloat(perf.total_pnl_dollars) : null,
-      unrealized_pnl: openStats.total_unrealized_pnl !== null && openStats.total_unrealized_pnl !== undefined ? openStats.total_unrealized_pnl : null,
-      gross_win_dollars: perf.gross_win_dollars !== null && perf.gross_win_dollars !== undefined ? parseFloat(perf.gross_win_dollars) : null,
-      gross_loss_dollars: perf.gross_loss_dollars !== null && perf.gross_loss_dollars !== undefined ? parseFloat(perf.gross_loss_dollars) : null,
-      total_return_pct: perf.total_return_pct !== null && perf.total_return_pct !== undefined ? parseFloat(perf.total_return_pct) : null,
+      total_pnl_dollars:
+        perf.total_pnl_dollars !== null && perf.total_pnl_dollars !== undefined
+          ? parseFloat(perf.total_pnl_dollars)
+          : null,
+      unrealized_pnl:
+        openStats.total_unrealized_pnl !== null &&
+        openStats.total_unrealized_pnl !== undefined
+          ? openStats.total_unrealized_pnl
+          : null,
+      gross_win_dollars:
+        perf.gross_win_dollars !== null && perf.gross_win_dollars !== undefined
+          ? parseFloat(perf.gross_win_dollars)
+          : null,
+      gross_loss_dollars:
+        perf.gross_loss_dollars !== null &&
+        perf.gross_loss_dollars !== undefined
+          ? parseFloat(perf.gross_loss_dollars)
+          : null,
+      total_return_pct:
+        perf.total_return_pct !== null && perf.total_return_pct !== undefined
+          ? parseFloat(perf.total_return_pct)
+          : null,
 
       // Risk-adjusted (CRITICAL: Use raw values to expose missing data)
-      sharpe_annualized: perf.sharpe_annualized !== null && perf.sharpe_annualized !== undefined ? parseFloat(perf.sharpe_annualized) : null,
-      sortino_annualized: perf.sortino_annualized !== null && perf.sortino_annualized !== undefined ? parseFloat(perf.sortino_annualized) : null,
-      calmar_ratio: perf.calmar_ratio !== null && perf.calmar_ratio !== undefined ? parseFloat(perf.calmar_ratio) : null,
-      max_drawdown_pct: perf.max_drawdown_pct !== null && perf.max_drawdown_pct !== undefined ? parseFloat(perf.max_drawdown_pct) : null,
+      sharpe_annualized:
+        perf.sharpe_annualized !== null && perf.sharpe_annualized !== undefined
+          ? parseFloat(perf.sharpe_annualized)
+          : null,
+      sortino_annualized:
+        perf.sortino_annualized !== null &&
+        perf.sortino_annualized !== undefined
+          ? parseFloat(perf.sortino_annualized)
+          : null,
+      calmar_ratio:
+        perf.calmar_ratio !== null && perf.calmar_ratio !== undefined
+          ? parseFloat(perf.calmar_ratio)
+          : null,
+      max_drawdown_pct:
+        perf.max_drawdown_pct !== null && perf.max_drawdown_pct !== undefined
+          ? parseFloat(perf.max_drawdown_pct)
+          : null,
 
       // Streaks + duration
-      current_streak: perf.current_win_streak !== null && perf.current_win_streak !== undefined ? perf.current_win_streak : null,
-      best_win_streak: perf.best_win_streak !== null && perf.best_win_streak !== undefined ? perf.best_win_streak : null,
-      worst_loss_streak: perf.worst_loss_streak !== null && perf.worst_loss_streak !== undefined ? perf.worst_loss_streak : null,
-      avg_hold_days: perf.avg_hold_days !== null && perf.avg_hold_days !== undefined ? parseFloat(perf.avg_hold_days) : null,
+      current_streak:
+        perf.current_win_streak !== null &&
+        perf.current_win_streak !== undefined
+          ? perf.current_win_streak
+          : null,
+      best_win_streak:
+        perf.best_win_streak !== null && perf.best_win_streak !== undefined
+          ? perf.best_win_streak
+          : null,
+      worst_loss_streak:
+        perf.worst_loss_streak !== null && perf.worst_loss_streak !== undefined
+          ? perf.worst_loss_streak
+          : null,
+      avg_hold_days:
+        perf.avg_hold_days !== null && perf.avg_hold_days !== undefined
+          ? parseFloat(perf.avg_hold_days)
+          : null,
 
       // Sample sizes
-      portfolio_snapshots: perf.portfolio_snapshots_count !== null && perf.portfolio_snapshots_count !== undefined ? perf.portfolio_snapshots_count : null,
+      portfolio_snapshots:
+        perf.portfolio_snapshots_count !== null &&
+        perf.portfolio_snapshots_count !== undefined
+          ? perf.portfolio_snapshots_count
+          : null,
     });
   } catch (error) {
     logger.error("Error in /api/algo/performance:", {
@@ -2718,13 +2935,18 @@ router.get("/circuit-breakers", async (req, res) => {
     // CRITICAL: Do NOT default to 0 for circuit breaker metrics - it masks missing data
     // Zero drawdown looks like "safe portfolio" when data might just be unavailable
     if (cbResult.rows.length === 0) {
-      return sendSuccess(res, {
-        metrics: null,
-        circuit_breakers: null,
-        config: null,
-        data_error: "circuit_breaker_data_unavailable",
-        message: "Circuit breaker metrics not yet available. Run data loaders to compute portfolio metrics.",
-      }, 503);
+      return sendSuccess(
+        res,
+        {
+          metrics: null,
+          circuit_breakers: null,
+          config: null,
+          data_error: "circuit_breaker_data_unavailable",
+          message:
+            "Circuit breaker metrics not yet available. Run data loaders to compute portfolio metrics.",
+        },
+        503
+      );
     }
 
     const cbRow = validateAndCoerceRow(cbResult.rows[0], {
@@ -2933,11 +3155,26 @@ router.get("/sector-breadth", async (req, res) => {
         pct_above_200d: { type: "float", required: false },
       }).map((r) => ({
         sector: r.sector,
-        total_stocks: r.total_stocks !== null && r.total_stocks !== undefined ? r.total_stocks : null,
-        above_50d: r.above_50d !== null && r.above_50d !== undefined ? r.above_50d : null,
-        above_200d: r.above_200d !== null && r.above_200d !== undefined ? r.above_200d : null,
-        pct_above_50d: r.pct_above_50d !== null && r.pct_above_50d !== undefined ? r.pct_above_50d : null,
-        pct_above_200d: r.pct_above_200d !== null && r.pct_above_200d !== undefined ? r.pct_above_200d : null,
+        total_stocks:
+          r.total_stocks !== null && r.total_stocks !== undefined
+            ? r.total_stocks
+            : null,
+        above_50d:
+          r.above_50d !== null && r.above_50d !== undefined
+            ? r.above_50d
+            : null,
+        above_200d:
+          r.above_200d !== null && r.above_200d !== undefined
+            ? r.above_200d
+            : null,
+        pct_above_50d:
+          r.pct_above_50d !== null && r.pct_above_50d !== undefined
+            ? r.pct_above_50d
+            : null,
+        pct_above_200d:
+          r.pct_above_200d !== null && r.pct_above_200d !== undefined
+            ? r.pct_above_200d
+            : null,
       })),
     });
   } catch (error) {
@@ -2998,12 +3235,22 @@ router.get("/sector-stage2", async (req, res) => {
         pct_stage_2: { type: "float", required: false },
       }).map((r) => ({
         sector: r.sector,
-        total: r.total_stocks !== null && r.total_stocks !== undefined ? r.total_stocks : null,
-        stage_1: r.stage_1 !== null && r.stage_1 !== undefined ? r.stage_1 : null,
-        stage_2: r.stage_2 !== null && r.stage_2 !== undefined ? r.stage_2 : null,
-        stage_3: r.stage_3 !== null && r.stage_3 !== undefined ? r.stage_3 : null,
-        stage_4: r.stage_4 !== null && r.stage_4 !== undefined ? r.stage_4 : null,
-        pct_stage_2: r.pct_stage_2 !== null && r.pct_stage_2 !== undefined ? r.pct_stage_2 : null,
+        total:
+          r.total_stocks !== null && r.total_stocks !== undefined
+            ? r.total_stocks
+            : null,
+        stage_1:
+          r.stage_1 !== null && r.stage_1 !== undefined ? r.stage_1 : null,
+        stage_2:
+          r.stage_2 !== null && r.stage_2 !== undefined ? r.stage_2 : null,
+        stage_3:
+          r.stage_3 !== null && r.stage_3 !== undefined ? r.stage_3 : null,
+        stage_4:
+          r.stage_4 !== null && r.stage_4 !== undefined ? r.stage_4 : null,
+        pct_stage_2:
+          r.pct_stage_2 !== null && r.pct_stage_2 !== undefined
+            ? r.pct_stage_2
+            : null,
         avg_trend_score: r.avg_trend_score,
       })),
     });
@@ -3047,7 +3294,9 @@ router.get("/sector-rotation", async (req, res) => {
       if (!details) return null;
       if (typeof details === "object") return details;
       if (typeof details !== "string") {
-        throw new Error(`Invalid details type: expected string or object, got ${typeof details}`);
+        throw new Error(
+          `Invalid details type: expected string or object, got ${typeof details}`
+        );
       }
       try {
         return JSON.parse(details);
@@ -3070,7 +3319,8 @@ router.get("/sector-rotation", async (req, res) => {
         date: r.date,
         sector: r.sector,
         signal: r.signal,
-        strength: r.strength !== null && r.strength !== undefined ? r.strength : null,
+        strength:
+          r.strength !== null && r.strength !== undefined ? r.strength : null,
         rank: r.rank,
         ...parseDetailsJSON(r.details),
       })),
@@ -3129,7 +3379,10 @@ router.get("/sector-position-warnings", async (req, res) => {
 
     for (const row of sector_counts) {
       const sector = row.sector || "Unknown";
-      const count = row.position_count !== null && row.position_count !== undefined ? row.position_count : 0;
+      const count =
+        row.position_count !== null && row.position_count !== undefined
+          ? row.position_count
+          : 0;
 
       if (count >= max_per_sector) {
         at_cap.push({
@@ -3207,7 +3460,8 @@ router.get("/data-quality", async (req, res) => {
       loader: r.loader_name,
       table: r.table_name,
       latest_date: r.latest_data_date,
-      age_hours: r.age_hours !== null && r.age_hours !== undefined ? r.age_hours : null,
+      age_hours:
+        r.age_hours !== null && r.age_hours !== undefined ? r.age_hours : null,
       max_age_hours: r.max_age_hours,
       row_count: r.row_count_today,
       status: r.status,
@@ -3312,37 +3566,68 @@ router.get("/rejection-funnel", async (req, res) => {
 
     return sendSuccess(res, {
       date: eval_date,
-      total_signals: row.total !== null && row.total !== undefined ? row.total : null,
+      total_signals:
+        row.total !== null && row.total !== undefined ? row.total : null,
       tiers: [
         {
           tier: 1,
           name: "Data Quality",
-          pass: row.t1_pass !== null && row.t1_pass !== undefined ? row.t1_pass : null,
-          reject: row.t1_reject !== null && row.t1_reject !== undefined ? row.t1_reject : null,
+          pass:
+            row.t1_pass !== null && row.t1_pass !== undefined
+              ? row.t1_pass
+              : null,
+          reject:
+            row.t1_reject !== null && row.t1_reject !== undefined
+              ? row.t1_reject
+              : null,
         },
         {
           tier: 2,
           name: "Market Health",
-          pass: row.t2_pass !== null && row.t2_pass !== undefined ? row.t2_pass : null,
-          reject: row.t2_reject !== null && row.t2_reject !== undefined ? row.t2_reject : null,
+          pass:
+            row.t2_pass !== null && row.t2_pass !== undefined
+              ? row.t2_pass
+              : null,
+          reject:
+            row.t2_reject !== null && row.t2_reject !== undefined
+              ? row.t2_reject
+              : null,
         },
         {
           tier: 3,
           name: "Trend Confirmation",
-          pass: row.t3_pass !== null && row.t3_pass !== undefined ? row.t3_pass : null,
-          reject: row.t3_reject !== null && row.t3_reject !== undefined ? row.t3_reject : null,
+          pass:
+            row.t3_pass !== null && row.t3_pass !== undefined
+              ? row.t3_pass
+              : null,
+          reject:
+            row.t3_reject !== null && row.t3_reject !== undefined
+              ? row.t3_reject
+              : null,
         },
         {
           tier: 4,
           name: "Signal Quality",
-          pass: row.t4_pass !== null && row.t4_pass !== undefined ? row.t4_pass : null,
-          reject: row.t4_reject !== null && row.t4_reject !== undefined ? row.t4_reject : null,
+          pass:
+            row.t4_pass !== null && row.t4_pass !== undefined
+              ? row.t4_pass
+              : null,
+          reject:
+            row.t4_reject !== null && row.t4_reject !== undefined
+              ? row.t4_reject
+              : null,
         },
         {
           tier: 5,
           name: "Portfolio Health",
-          pass: row.t5_pass !== null && row.t5_pass !== undefined ? row.t5_pass : null,
-          reject: row.t5_reject !== null && row.t5_reject !== undefined ? row.t5_reject : null,
+          pass:
+            row.t5_pass !== null && row.t5_pass !== undefined
+              ? row.t5_pass
+              : null,
+          reject:
+            row.t5_reject !== null && row.t5_reject !== undefined
+              ? row.t5_reject
+              : null,
         },
       ],
     });
@@ -3406,7 +3691,10 @@ router.get("/orders/pending", authenticateToken, async (req, res) => {
       order_type: r.order_type,
       side: r.side,
       requested_shares: r.requested_shares,
-      requested_price: r.requested_price !== null && r.requested_price !== undefined ? r.requested_price : null,
+      requested_price:
+        r.requested_price !== null && r.requested_price !== undefined
+          ? r.requested_price
+          : null,
       order_timestamp: r.order_timestamp,
     }));
 
@@ -3417,7 +3705,10 @@ router.get("/orders/pending", authenticateToken, async (req, res) => {
 
     return sendSuccess(res, {
       pending_orders,
-      total_pending_value: totals.total_buy_value !== null && totals.total_buy_value !== undefined ? totals.total_buy_value : null,
+      total_pending_value:
+        totals.total_buy_value !== null && totals.total_buy_value !== undefined
+          ? totals.total_buy_value
+          : null,
       approval_required: totals.order_count > 0,
     });
   } catch (error) {
@@ -3442,7 +3733,10 @@ router.get("/execution-quality", authenticateToken, async (req, res) => {
     ensureConnection();
     const pool = getPool();
     const parsedDays = parseInt(req.query.days);
-    const days = Math.min(Math.max(!isNaN(parsedDays) ? parsedDays : 30, 1), 365); // Clamp to [1, 365]
+    const days = Math.min(
+      Math.max(!isNaN(parsedDays) ? parsedDays : 30, 1),
+      365
+    ); // Clamp to [1, 365]
 
     const result = await pool.query(
       `
@@ -3477,14 +3771,34 @@ router.get("/execution-quality", authenticateToken, async (req, res) => {
 
     const metrics = {
       period: `last ${days} days`,
-      total_orders: row.total_orders !== null && row.total_orders !== undefined ? row.total_orders : null,
-      filled: row.filled !== null && row.filled !== undefined ? row.filled : null,
-      rejected: row.rejected !== null && row.rejected !== undefined ? row.rejected : null,
-      partial: row.partial !== null && row.partial !== undefined ? row.partial : null,
-      fill_rate_pct: row.avg_fill_rate !== null && row.avg_fill_rate !== undefined ? row.avg_fill_rate : null,
-      avg_slippage_bps: row.avg_slippage_bps !== null && row.avg_slippage_bps !== undefined ? row.avg_slippage_bps : null,
-      max_slippage_bps: row.max_slippage_bps !== null && row.max_slippage_bps !== undefined ? row.max_slippage_bps : null,
-      slippage_alert: row.slippage_alert !== null && row.slippage_alert !== undefined ? row.slippage_alert : false,
+      total_orders:
+        row.total_orders !== null && row.total_orders !== undefined
+          ? row.total_orders
+          : null,
+      filled:
+        row.filled !== null && row.filled !== undefined ? row.filled : null,
+      rejected:
+        row.rejected !== null && row.rejected !== undefined
+          ? row.rejected
+          : null,
+      partial:
+        row.partial !== null && row.partial !== undefined ? row.partial : null,
+      fill_rate_pct:
+        row.avg_fill_rate !== null && row.avg_fill_rate !== undefined
+          ? row.avg_fill_rate
+          : null,
+      avg_slippage_bps:
+        row.avg_slippage_bps !== null && row.avg_slippage_bps !== undefined
+          ? row.avg_slippage_bps
+          : null,
+      max_slippage_bps:
+        row.max_slippage_bps !== null && row.max_slippage_bps !== undefined
+          ? row.max_slippage_bps
+          : null,
+      slippage_alert:
+        row.slippage_alert !== null && row.slippage_alert !== undefined
+          ? row.slippage_alert
+          : false,
     };
 
     return sendSuccess(res, { metrics });
@@ -3540,13 +3854,32 @@ router.get("/signal-performance-by-pattern", async (req, res) => {
       win_rate_pct: { type: "float", required: false },
     }).map((r) => ({
       pattern: r.pattern,
-      total_trades: r.total_trades !== null && r.total_trades !== undefined ? r.total_trades : null,
-      winning_trades: r.winning_trades !== null && r.winning_trades !== undefined ? r.winning_trades : null,
-      losing_trades: r.losing_trades !== null && r.losing_trades !== undefined ? r.losing_trades : null,
-      closed_trades: r.closed_trades !== null && r.closed_trades !== undefined ? r.closed_trades : null,
-      avg_return_pct: r.avg_return_pct !== null && r.avg_return_pct !== undefined ? r.avg_return_pct : null,
-      total_pnl: r.total_pnl !== null && r.total_pnl !== undefined ? r.total_pnl : null,
-      win_rate_pct: r.win_rate_pct !== null && r.win_rate_pct !== undefined ? r.win_rate_pct : null,
+      total_trades:
+        r.total_trades !== null && r.total_trades !== undefined
+          ? r.total_trades
+          : null,
+      winning_trades:
+        r.winning_trades !== null && r.winning_trades !== undefined
+          ? r.winning_trades
+          : null,
+      losing_trades:
+        r.losing_trades !== null && r.losing_trades !== undefined
+          ? r.losing_trades
+          : null,
+      closed_trades:
+        r.closed_trades !== null && r.closed_trades !== undefined
+          ? r.closed_trades
+          : null,
+      avg_return_pct:
+        r.avg_return_pct !== null && r.avg_return_pct !== undefined
+          ? r.avg_return_pct
+          : null,
+      total_pnl:
+        r.total_pnl !== null && r.total_pnl !== undefined ? r.total_pnl : null,
+      win_rate_pct:
+        r.win_rate_pct !== null && r.win_rate_pct !== undefined
+          ? r.win_rate_pct
+          : null,
     }));
 
     return sendSuccess(res, { patterns, timestamp: new Date() }, 200);
@@ -3584,7 +3917,11 @@ router.get("/daily-return-histogram", authenticateToken, async (req, res) => {
       .filter((v) => !isNaN(v));
     // FAIL-FAST: No valid return data means we can't compute performance histogram
     if (returns.length === 0) {
-      return sendError(res, "[RETURN_DATA_UNAVAILABLE] No valid daily return data available to compute histogram", 503);
+      return sendError(
+        res,
+        "[RETURN_DATA_UNAVAILABLE] No valid daily return data available to compute histogram",
+        503
+      );
     }
 
     const BW = 0.5;
@@ -3623,7 +3960,11 @@ router.get("/daily-return-histogram", authenticateToken, async (req, res) => {
       error: error.message,
     });
     // FAIL-FAST: Return error response, not success with error marker
-    return sendError(res, `[HISTOGRAM_COMPUTATION_FAILED] ${error.message}`, 500);
+    return sendError(
+      res,
+      `[HISTOGRAM_COMPUTATION_FAILED] ${error.message}`,
+      500
+    );
   }
 });
 
@@ -3647,7 +3988,11 @@ router.get("/trade-distribution", authenticateToken, async (req, res) => {
       .filter((v) => !isNaN(v));
     // FAIL-FAST: No trade data means we can't compute R-multiple histogram
     if (rValues.length === 0) {
-      return sendError(res, "[TRADE_DATA_UNAVAILABLE] No valid trade R-multiple data available", 503);
+      return sendError(
+        res,
+        "[TRADE_DATA_UNAVAILABLE] No valid trade R-multiple data available",
+        503
+      );
     }
 
     const buckets = [
@@ -3708,7 +4053,11 @@ router.get(
         .filter((v) => !isNaN(v));
       // FAIL-FAST: No trade duration data means we can't compute histogram
       if (durations.length === 0) {
-        return sendError(res, "[TRADE_DURATION_UNAVAILABLE] No valid trade duration data available", 503);
+        return sendError(
+          res,
+          "[TRADE_DURATION_UNAVAILABLE] No valid trade duration data available",
+          503
+        );
       }
 
       const buckets = [
@@ -3812,7 +4161,7 @@ router.get("/stage-distribution", authenticateToken, async (req, res) => {
     ];
 
     // Initialize counts with explicit 0 values to avoid || 0 antipattern
-    const counts = Object.fromEntries(order.map(label => [label, 0]));
+    const counts = Object.fromEntries(order.map((label) => [label, 0]));
 
     for (const row of posResult.rows) {
       const stage = row.weinstein_stage;
@@ -3882,8 +4231,14 @@ router.get("/metrics", async (req, res) => {
     ]);
 
     return sendSuccess(res, {
-      circuit_breakers: circuitResult.rows[0] !== null && circuitResult.rows[0] !== undefined ? circuitResult.rows[0] : null,
-      performance: perfResult.rows[0] !== null && perfResult.rows[0] !== undefined ? perfResult.rows[0] : null,
+      circuit_breakers:
+        circuitResult.rows[0] !== null && circuitResult.rows[0] !== undefined
+          ? circuitResult.rows[0]
+          : null,
+      performance:
+        perfResult.rows[0] !== null && perfResult.rows[0] !== undefined
+          ? perfResult.rows[0]
+          : null,
     });
   } catch (error) {
     logger.error("Error in /algo/metrics:", { error: error.message });
@@ -4074,8 +4429,12 @@ router.get("/execution/recent", authenticateToken, async (req, res) => {
     );
 
     return sendSuccess(res, {
-      items: result.rows !== null && result.rows !== undefined ? result.rows : [],
-      total: result.rows !== null && result.rows !== undefined ? result.rows.length : 0,
+      items:
+        result.rows !== null && result.rows !== undefined ? result.rows : [],
+      total:
+        result.rows !== null && result.rows !== undefined
+          ? result.rows.length
+          : 0,
     });
   } catch (error) {
     logger.error("Error in /algo/execution/recent:", { error: error.message });

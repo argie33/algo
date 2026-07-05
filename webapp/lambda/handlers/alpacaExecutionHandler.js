@@ -223,13 +223,17 @@ async function executeOptimizationTrades(
         }
 
         // Check if we have enough buying power
-        const priceValidation = requirePrice(trade.symbol, trade.current_price, 'order_cost_estimation');
+        const priceValidation = requirePrice(
+          trade.symbol,
+          trade.current_price,
+          "order_cost_estimation"
+        );
         if (isDataError(priceValidation)) {
           failedTrades.push({
             ...trade,
-            status: 'price_validation_failed',
+            status: "price_validation_failed",
             error: `Price data missing/invalid for ${trade.symbol}: ${priceValidation.reason}`,
-            data_error: priceValidation
+            data_error: priceValidation,
           });
           continue;
         }

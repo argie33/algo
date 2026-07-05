@@ -63,14 +63,28 @@ class AlpacaService {
       const account = await this.client.getAccount();
 
       const requiredFields = [
-        'id', 'status', 'currency', 'buying_power', 'cash', 'portfolio_value',
-        'equity', 'last_equity', 'daytrade_count', 'daytrading_buying_power',
-        'regt_buying_power', 'initial_margin', 'maintenance_margin',
-        'long_market_value', 'short_market_value', 'multiplier'
+        "id",
+        "status",
+        "currency",
+        "buying_power",
+        "cash",
+        "portfolio_value",
+        "equity",
+        "last_equity",
+        "daytrade_count",
+        "daytrading_buying_power",
+        "regt_buying_power",
+        "initial_margin",
+        "maintenance_margin",
+        "long_market_value",
+        "short_market_value",
+        "multiplier",
       ];
       for (const field of requiredFields) {
         if (account[field] === undefined || account[field] === null) {
-          throw new Error(`Alpaca account data missing required field: ${field}`);
+          throw new Error(
+            `Alpaca account data missing required field: ${field}`
+          );
         }
       }
 
@@ -89,11 +103,23 @@ class AlpacaService {
       const multiplier = parseFloat(account.multiplier);
 
       const numericFields = [
-        buyingPower, cash, portfolioValue, equity, lastEquity, dayTradingBuyingPower,
-        regtBuyingPower, initialMargin, maintenanceMargin, longMarketValue, shortMarketValue, multiplier
+        buyingPower,
+        cash,
+        portfolioValue,
+        equity,
+        lastEquity,
+        dayTradingBuyingPower,
+        regtBuyingPower,
+        initialMargin,
+        maintenanceMargin,
+        longMarketValue,
+        shortMarketValue,
+        multiplier,
       ];
-      if (numericFields.some(v => isNaN(v))) {
-        throw new Error("Alpaca account numeric fields contain NaN values - data quality issue");
+      if (numericFields.some((v) => isNaN(v))) {
+        throw new Error(
+          "Alpaca account numeric fields contain NaN values - data quality issue"
+        );
       }
       if (isNaN(dayTradeCount)) {
         throw new Error("Alpaca account daytrade_count is not a valid integer");
@@ -224,12 +250,17 @@ class AlpacaService {
       });
 
       if (!portfolio.timestamp || !portfolio.equity) {
-        const error = new Error(`Alpaca portfolio history response missing required fields (timestamp: ${!!portfolio.timestamp}, equity: ${!!portfolio.equity})`);
-        console.error("Critical: Alpaca returned incomplete portfolio history", {
-          error: error.message,
-          period,
-          timeframe,
-        });
+        const error = new Error(
+          `Alpaca portfolio history response missing required fields (timestamp: ${!!portfolio.timestamp}, equity: ${!!portfolio.equity})`
+        );
+        console.error(
+          "Critical: Alpaca returned incomplete portfolio history",
+          {
+            error: error.message,
+            period,
+            timeframe,
+          }
+        );
         throw error;
       }
 
@@ -653,12 +684,16 @@ class AlpacaService {
       });
 
       if (!bars || !bars.bars) {
-        const error = new Error(`Alpaca API returned invalid response structure for ${symbol} bars data`);
+        const error = new Error(
+          `Alpaca API returned invalid response structure for ${symbol} bars data`
+        );
         console.error(error.message);
         throw error;
       }
       if (bars.bars.length === 0) {
-        const error = new Error(`No bars data available for ${symbol} in requested timeframe (may indicate market-closed period or invalid symbol)`);
+        const error = new Error(
+          `No bars data available for ${symbol} in requested timeframe (may indicate market-closed period or invalid symbol)`
+        );
         console.warn(error.message);
         throw error;
       }
@@ -672,16 +707,21 @@ class AlpacaService {
         close: parseFloat(bar.ClosePrice),
         volume: parseInt(bar.Volume),
         tradeCount: bar.TradeCount != null ? parseInt(bar.TradeCount) : null,
-        vwap: bar.VWAP != null ? (() => {
-          const parsed = parseFloat(bar.VWAP);
-          if (!isFinite(parsed)) {
-            throw new Error(`Invalid VWAP value: ${bar.VWAP}`);
-          }
-          return parsed;
-        })() : null,
+        vwap:
+          bar.VWAP != null
+            ? (() => {
+                const parsed = parseFloat(bar.VWAP);
+                if (!isFinite(parsed)) {
+                  throw new Error(`Invalid VWAP value: ${bar.VWAP}`);
+                }
+                return parsed;
+              })()
+            : null,
       }));
     } catch (error) {
-      const barsError = new Error(`Failed to fetch bars for ${symbol}: ${error.message}`);
+      const barsError = new Error(
+        `Failed to fetch bars for ${symbol}: ${error.message}`
+      );
       barsError.originalError = error;
       barsError.statusCode = error.status;
       barsError.symbol = symbol;
