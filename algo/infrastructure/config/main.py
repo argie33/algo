@@ -1027,6 +1027,29 @@ class AlgoConfig:
         # Swing Score Grade Thresholds
         "swing_score_excellent_threshold": ("85", "int", "Swing score >= this = Excellent/A+", "Swing Trader Scoring"),
         "swing_score_good_threshold": ("75", "int", "Swing score >= this = Good/A", "Swing Trader Scoring"),
+        # Advanced Filters Feature Flag
+        "enable_advanced_filters": ("false", "bool", "Enable advanced signal filters", "Advanced Filters"),
+        # Pyramid Trading Configuration
+        "pyramid_enabled": ("false", "bool", "Enable pyramid position sizing", "Position Sizing"),
+        "pyramid_split_pct": ("50", "float", "Initial position size %", "Position Sizing"),
+        "pyramid_add_1_gain_pct": ("3", "float", "Gain % to trigger add 1", "Position Sizing"),
+        "pyramid_add_2_gain_pct": ("6", "float", "Gain % to trigger add 2", "Position Sizing"),
+        # Data Patrol Staleness Thresholds (per-table granularity)
+        "patrol_staleness_price_daily": ("2", "int", "Max staleness days for price_daily", "Data Patrol Configuration"),
+        "patrol_staleness_technical_daily": ("2", "int", "Max staleness days for technical_daily", "Data Patrol Configuration"),
+        "patrol_staleness_buy_sell_daily": ("3", "int", "Max staleness days for buy_sell_daily", "Data Patrol Configuration"),
+        "patrol_staleness_trend_data": ("3", "int", "Max staleness days for trend_data", "Data Patrol Configuration"),
+        "patrol_staleness_signal_quality_scores": ("3", "int", "Max staleness days for signal_quality_scores", "Data Patrol Configuration"),
+        "patrol_staleness_market_health": ("1", "int", "Max staleness days for market_health", "Data Patrol Configuration"),
+        "patrol_staleness_sector_ranking": ("3", "int", "Max staleness days for sector_ranking", "Data Patrol Configuration"),
+        "patrol_staleness_industry_ranking": ("3", "int", "Max staleness days for industry_ranking", "Data Patrol Configuration"),
+        "patrol_staleness_insider_transactions": ("7", "int", "Max staleness days for insider_transactions", "Data Patrol Configuration"),
+        "patrol_staleness_analyst_upgrades": ("7", "int", "Max staleness days for analyst_upgrades", "Data Patrol Configuration"),
+        # Stale Order Management
+        "stale_order_alert_minutes": ("30", "int", "Alert if order stale for N minutes", "Order Management"),
+        "stale_order_auto_cancel_minutes": ("60", "int", "Auto-cancel order if stale for N minutes", "Order Management"),
+        # Data Patrol Coverage Error Threshold
+        "patrol_coverage_error_threshold_pct": ("5.0", "float", "Max coverage error % before alert", "Data Patrol Configuration"),
     }
 
     @classmethod

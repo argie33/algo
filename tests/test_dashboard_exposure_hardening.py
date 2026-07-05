@@ -285,11 +285,11 @@ class TestExposureExpandedMalformedFactorData:
             },
         }
 
-        with caplog.at_level(logging.DEBUG):
+        with caplog.at_level(logging.ERROR):
             result = panel_exposure_expanded(exp_data)
 
-        # Should log about missing pts and reason
-        assert any("missing pts" in record.message for record in caplog.records if record.levelno == logging.DEBUG)
+        # Should log about data_unavailable when pts is missing
+        assert any("data_unavailable" in record.message for record in caplog.records if record.levelno == logging.ERROR)
         # Should return a Panel
         assert isinstance(result, Panel)
 
@@ -307,11 +307,11 @@ class TestExposureExpandedMalformedFactorData:
             },
         }
 
-        with caplog.at_level(logging.DEBUG):
+        with caplog.at_level(logging.ERROR):
             result = panel_exposure_expanded(exp_data)
 
-        # Should log about stale marker
-        assert any("marked stale" in record.message for record in caplog.records if record.levelno == logging.DEBUG)
+        # Should log about stale marker (reason will be "stale" when marker present without explicit reason)
+        assert any("reason=stale" in record.message for record in caplog.records if record.levelno == logging.ERROR)
         # Should return a Panel
         assert isinstance(result, Panel)
 
