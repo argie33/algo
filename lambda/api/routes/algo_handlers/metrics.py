@@ -67,7 +67,6 @@ def _ensure_portfolio_fields(data: dict[str, Any]) -> Any:
 
 
 @db_route_handler("get algo metrics")  # type: ignore[untyped-decorator]
-@validate_api_response("perf")  # type: ignore[untyped-decorator]
 def _get_algo_metrics(cur: cursor) -> Any:
     """Get daily algo metrics (total actions, entries, exits). Fail-fast if unavailable."""
     try:
