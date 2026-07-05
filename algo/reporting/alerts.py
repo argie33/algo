@@ -23,7 +23,11 @@ logger = logging.getLogger(__name__)
 
 
 class AlertManager:
-    """Send alerts via email and SNS."""
+    """Send alerts via email and SNS.
+
+    If no alert channels are configured, runs in no-op mode (logs only, no sending).
+    This allows paper trading and testing without external alert infrastructure.
+    """
 
     def __init__(self) -> None:
         self.email_from = os.getenv("ALERT_SMTP_FROM", os.getenv("ALERT_EMAIL_FROM", "noreply@algo.local"))
@@ -43,10 +47,12 @@ class AlertManager:
         self.sns_topic = os.getenv("ALERTS_SNS_TOPIC", "")
         self._sns_client = None
 
-        if not (self.email_to or self.sns_topic):
-            raise RuntimeError(
-                "[ALERT CONFIG] No alert channels configured. "
-                "Set ALERT_EMAIL_TO + ALERT_SMTP_* (email) or ALERTS_SNS_TOPIC (SNS)."
+        # Allow no-op mode if no alert channels configured (for paper trading / testing)
+        self.noop_mode = not (self.email_to or self.sns_topic)
+        if self.noop_mode:
+            logger.warning(
+                "[ALERT CONFIG] No alert channels configured. Running in no-op mode. "
+                "Configure ALERT_EMAIL_TO + ALERT_SMTP_* (email) or ALERTS_SNS_TOPIC (SNS) for production alerts."
             )
 
     def _get_sns_client(self) -> Any:
@@ -81,6 +87,10 @@ class AlertManager:
         Raises:
             RuntimeError: If alert sending fails for any configured channel
         """
+        if self.noop_mode:
+            logger.debug(f"[ALERTS NOOP] send_patrol_alert: {patrol_run_id}")
+            return
+
         required_count_keys = ["critical", "error", "warn"]
         for key in required_count_keys:
             if key not in counts:
@@ -156,6 +166,10 @@ class AlertManager:
             message: human-readable message
             details: optional dict with extra context
         """
+        if self.noop_mode:
+            logger.debug(f"[ALERTS NOOP] send_position_alert: {symbol} {alert_type}")
+            return
+
         subject = f"[ALGO ALERT] {alert_type}: {symbol}"
         body_lines = [
             f"Position Alert — {datetime.now(timezone.utc).isoformat()}",
@@ -189,6 +203,10 @@ class AlertManager:
         Args:
             findings: list of (severity, check, message) tuples from LoaderMonitor
         """
+        if self.noop_mode:
+            logger.debug(f"[ALERTS NOOP] send_loader_alert: {len(findings)} findings")
+            return
+
         critical = [f for f in findings if f[0] == "CRITICAL"]
         errors = [f for f in findings if f[0] == "ERROR"]
 
@@ -248,6 +266,9 @@ class AlertManager:
         Args:
             message: Alert message
         """
+        if self.noop_mode:
+            logger.debug(f"[ALERTS NOOP] critical: {message}")
+            return
         subject = "[ALGO ALERT] CRITICAL"
         body_text = f"Critical Alert — {datetime.now(timezone.utc).isoformat()}\n\n{message}"
 
