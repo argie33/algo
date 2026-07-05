@@ -211,6 +211,27 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
             f"ALGO_LIVE_TRADING={'SET' if os.getenv('ALGO_LIVE_TRADING') else 'NOT SET'}"
         )
 
+        # Ensure database tables exist (idempotent - safe on every startup)
+        try:
+            from utils.db.context import DatabaseContext as DBContext_Init
+
+            with DBContext_Init("write") as init_cur:
+                # Create algo_config table if missing
+                init_cur.execute(
+                    "CREATE TABLE IF NOT EXISTS algo_config "
+                    "(key VARCHAR(255) PRIMARY KEY, value TEXT, type VARCHAR(50), description TEXT)"
+                )
+                # Create orchestrator_execution_log if missing
+                init_cur.execute(
+                    "CREATE TABLE IF NOT EXISTS orchestrator_execution_log "
+                    "(run_id VARCHAR(255) PRIMARY KEY, run_date DATE, started_at TIMESTAMP, "
+                    "completed_at TIMESTAMP, overall_status VARCHAR(50), summary TEXT, halt_reason TEXT, phase_results JSONB)"
+                )
+                init_cur.connection.commit()
+            logger.info("[STARTUP] Database tables initialized")
+        except Exception as db_init_err:
+            logger.warning(f"[STARTUP] Database init check failed (non-fatal): {type(db_init_err).__name__}")
+
         # FIXED Issue #18: Default Lambda timeout to 600s instead of 240s (close to Lambda max)
         lambda_timeout = context.get_remaining_time_in_millis() // 1000 if context else 600
 
