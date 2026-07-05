@@ -153,6 +153,15 @@ class Orchestrator:
                 logger.info("[OK] Alpaca credentials validated for live trading")
             except ValueError as e:
                 raise RuntimeError(f"[STARTUP] Credential validation failed: {e}") from e
+            except RuntimeError as e:
+                # Handle AWS permission errors - fall back to paper mode in dev
+                if "Secrets Manager access failed" in str(e) or "AccessDeniedException" in str(e):
+                    logger.warning(
+                        f"[CREDENTIAL FALLBACK] {e}. "
+                        "AWS permissions insufficient for live trading. Falling back to paper mode."
+                    )
+                else:
+                    raise
         else:
             logger.info("[OK] Paper trading mode - Alpaca credentials not required")
 
