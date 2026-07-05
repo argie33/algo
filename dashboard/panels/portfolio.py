@@ -61,21 +61,8 @@ from rich.text import Text
 
 from dashboard.data_validation import safe_float, safe_int
 
-from ..formatters import (
-    fmt_age,
-    fmt_money,
-    fmt_money_short,
-    mini_bar,
-    sign,
-    sparkline,
-)
-from ..utilities import (
-    DIM,
-    G,
-    R,
-    Y,
-    normalize_positions_data,
-)
+from ..formatters import fmt_age, fmt_money, fmt_money_short, mini_bar, sign, sparkline
+from ..utilities import DIM, G, R, Y, normalize_positions_data
 from ._helpers import _error_panel
 
 
@@ -272,7 +259,9 @@ def panel_portfolio(
             var_c = R if var_v >= 4 else (Y if var_v >= 2 else "white")
             # CRITICAL: When beta = 0 (no positions), show "--" instead of "0.00" in green
             beta_display = "--" if (beta_v is not None and beta_v <= 0) else f"{beta_v:.2f}"
-            beta_c = "dim" if (beta_v is not None and beta_v <= 0) else (R if beta_v >= 1.2 else (Y if beta_v >= 0.8 else G))
+            beta_c = (
+                "dim" if (beta_v is not None and beta_v <= 0) else (R if beta_v >= 1.2 else (Y if beta_v >= 0.8 else G))
+            )
             tbl.add_row(
                 cell("Value at Risk (95%):", f"[{var_c}]{var_v:.2f}%[/]"),
                 cell("Cond. VaR (95%):", f"[{var_c}]{cvar_v:.2f}%[/]"),
@@ -330,7 +319,9 @@ def panel_performance_spark(  # noqa: C901
     pnl_c = G if pnl_val is not None and pnl_val >= 0 else R
     pf = safe_float(perf.get("profit_factor"), default=None)
     pf_s = f"{pf:.2f}" if pf is not None else "--"
-    pf_c = G if pf is not None and pf >= 1.5 else (Y if pf is not None and pf >= 1.0 else (R if pf is not None else DIM))
+    pf_c = (
+        G if pf is not None and pf >= 1.5 else (Y if pf is not None and pf >= 1.0 else (R if pf is not None else DIM))
+    )
     exp = safe_float(perf.get("expectancy"), default=None)
     exp_c = G if exp is not None and exp >= 0 else (R if exp is not None else DIM)
     exp_s = f"{exp:.2f}R" if exp is not None else "--"
@@ -358,7 +349,11 @@ def panel_performance_spark(  # noqa: C901
     avg_loss_v = perf.get("avg_loss")
     avg_win_s = f"{avg_win_v:.1f}%" if avg_win_v is not None else "--"
     avg_loss_s = f"{avg_loss_v:.1f}%" if avg_loss_v is not None else "--"
-    wrc = G if wr_v is not None and wr_v >= 45 else (Y if wr_v is not None and wr_v >= 40 else (R if wr_v is not None else DIM))
+    wrc = (
+        G
+        if wr_v is not None and wr_v >= 45
+        else (Y if wr_v is not None and wr_v >= 40 else (R if wr_v is not None else DIM))
+    )
     open_l_s = f" [dim](+{losing_open} open L)[/]" if (losing_open is not None and losing_open > 0) else ""
 
     # Header line: trade summary
@@ -651,7 +646,11 @@ def panel_portfolio_perf_expanded(  # noqa: C901
             raise
         wr_label = "Win Rate (adj.):" if losing_open > 0 else "Win Rate:"
 
-        wrc = G if wr_v is not None and wr_v >= 45 else (Y if wr_v is not None and wr_v >= 40 else (R if wr_v is not None else DIM))
+        wrc = (
+            G
+            if wr_v is not None and wr_v >= 45
+            else (Y if wr_v is not None and wr_v >= 40 else (R if wr_v is not None else DIM))
+        )
         pf_c = G if pf is not None and pf >= 1.5 else (Y if pf is not None and pf >= 1.0 else R)
         exp_c = G if (exp is None or exp >= 0) else R
         str_c = G if streak >= 0 else R
@@ -821,9 +820,7 @@ def panel_portfolio_perf_expanded(  # noqa: C901
                 else (
                     Y
                     if (maxdd2 is not None and maxdd_abs is not None and maxdd_abs >= 5)
-                    else "dim"
-                    if maxdd2 is None
-                    else G
+                    else "dim" if maxdd2 is None else G
                 )
             )
             anl.add_row(
@@ -862,6 +859,8 @@ def panel_portfolio_perf_expanded(  # noqa: C901
 
                 var_c = R if var95_f >= 4 else (Y if var95_f >= 2 else "white")
 
+                if cvar95 is None:
+                    logger.warning("[PORTFOLIO] Risk metric missing: CVaR95 unavailable in risk response")
                 cvar_display = f"{cvar95:.2f}%" if cvar95 is not None else "N/A"
                 cvar_style = var_c if cvar95 is not None else "dim"
                 rtbl.add_row(
@@ -872,13 +871,20 @@ def panel_portfolio_perf_expanded(  # noqa: C901
                 )
 
                 # CRITICAL: When beta = 0 (no open positions), show "N/A" instead of "0.00"
+                if beta is None:
+                    logger.warning("[PORTFOLIO] Risk metric missing: Beta unavailable in risk response")
                 beta_display = "N/A" if (beta is None or beta <= 0) else f"{beta:.2f}"
                 beta_c = (
                     "dim"
                     if (beta is not None and beta <= 0)
-                    else (R if (beta is not None and beta >= 1.2)
-                    else (Y if (beta is not None and beta >= 0.8) else (G if beta is not None else "dim")))
+                    else (
+                        R
+                        if (beta is not None and beta >= 1.2)
+                        else (Y if (beta is not None and beta >= 0.8) else (G if beta is not None else "dim"))
+                    )
                 )
+                if conc5 is None:
+                    logger.warning("[PORTFOLIO] Risk metric missing: Concentration5 unavailable in risk response")
                 conc_display = f"{conc5:.0f}%" if conc5 is not None else "N/A"
                 conc_c = (
                     R

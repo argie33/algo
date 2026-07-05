@@ -2,8 +2,19 @@
 """
 Fix AWS RDS database by populating algo_config with required values.
 
-This script connects to AWS RDS (not local) and populates the algo_config table
+⚠️ DEPRECATED: Emergency workaround script — bypasses RDS Proxy connection pooling
+This script connects directly to AWS RDS (not local) and populates the algo_config table
 with values required by the dashboard API.
+
+CRITICAL NOTE: This script exists because the primary database connection layer
+(RDS Proxy) was failing. The root cause should be fixed in the connection layer
+(algo/infrastructure/db/pool.py) instead of using this workaround.
+
+DO NOT use this script except as a last resort during infrastructure failures.
+Connection issues should be investigated via:
+1. Check RDS Proxy health: aws rds describe-db-proxies
+2. Check Lambda IAM role has RDS Proxy permissions
+3. Review algo_config table schema vs expected keys
 
 Usage:
   python scripts/fix_aws_rds_config.py --fetch-from-secrets

@@ -127,7 +127,7 @@ class AutoExecutionMode(ExecutionModeStrategy):
         self, alpaca_key: str | None, alpaca_secret: str | None, resolved_url: str
     ) -> None:
         live_ack = os.getenv("ALGO_LIVE_TRADING", "").strip()
-        paper_flag = os.getenv("ALPACA_PAPER_TRADING", "false").strip().lower()
+        paper_flag = os.getenv("ALPACA_PAPER_TRADING", "true").strip().lower()
         url_says_paper = "paper" in (resolved_url or "").lower()
         live_intent = live_ack == "I_UNDERSTAND_REAL_MONEY" and paper_flag != "true" and not url_says_paper
 
@@ -154,7 +154,7 @@ class AutoExecutionMode(ExecutionModeStrategy):
     def _check_live_intent(self, configured_url: str | None) -> bool:
         """Check if all guards pass for live trading intent."""
         live_ack = os.getenv("ALGO_LIVE_TRADING", "").strip()
-        paper_flag = os.getenv("ALPACA_PAPER_TRADING", "false").strip().lower()
+        paper_flag = os.getenv("ALPACA_PAPER_TRADING", "true").strip().lower()
         url_says_paper = "paper" in (configured_url or "").lower()
         return live_ack == "I_UNDERSTAND_REAL_MONEY" and paper_flag != "true" and not url_says_paper
 

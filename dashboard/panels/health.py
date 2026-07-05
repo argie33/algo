@@ -92,7 +92,9 @@ def _pc(v: list[Any] | int | None) -> int:
         # Returning 0 here indicates "no phases recorded yet", not "data unavailable"
         # This is appropriate for initialization, not for stale/corrupted data
         return 0
-    raise TypeError(f"[HEALTH] Phase count has invalid type {type(v).__name__} (expected list or int). Data corruption detected.")
+    raise TypeError(
+        f"[HEALTH] Phase count has invalid type {type(v).__name__} (expected list or int). Data corruption detected."
+    )
 
 
 if TYPE_CHECKING:
@@ -130,23 +132,9 @@ from rich.text import Text
 from dashboard.data_validation import safe_float, safe_int
 
 from ..error_boundary import has_error
-from ..formatters import (
-    fmt_age,
-    next_run_str,
-)
-from ..utilities import (
-    CY,
-    DIM,
-    PHASE_NAMES,
-    G,
-    R,
-    Y,
-)
-from ._helpers import (
-    _best_halt_reason,
-    _error_panel,
-    _fmt_phases_halted,
-)
+from ..formatters import fmt_age, next_run_str
+from ..utilities import CY, DIM, PHASE_NAMES, G, R, Y
+from ._helpers import _best_halt_reason, _error_panel, _fmt_phases_halted
 from .data_extractors import (
     extract_config_params,
     extract_health_items,
@@ -300,7 +288,9 @@ def _build_freshness_panel(hlth_items: list[Any], ready_to_trade: bool | None) -
             # Fallback to NORM for display, but log as warning (not silent)
             role = "NORM"
         elif not isinstance(role, str):
-            logger.warning(f"[HEALTH] Health item role invalid type {type(role).__name__} (expected str). Data corrupted.")
+            logger.warning(
+                f"[HEALTH] Health item role invalid type {type(role).__name__} (expected str). Data corrupted."
+            )
             role = "NORM"
         tbl = r.get("tbl")
         # CRITICAL: Explicit None check — missing table name indicates incomplete data
@@ -339,11 +329,15 @@ def _build_freshness_panel(hlth_items: list[Any], ready_to_trade: bool | None) -
         # CRITICAL: Explicit None check — missing status indicates data quality issue
         st_raw = r.get("st")
         if st_raw is None:
-            logger.warning(f"[HEALTH] Health item missing 'st' (status) field — data corrupted. Table: {tbl_val}, Keys: {list(r.keys())}")
+            logger.warning(
+                f"[HEALTH] Health item missing 'st' (status) field — data corrupted. Table: {tbl_val}, Keys: {list(r.keys())}"
+            )
             # Log as warning but use default for display (don't silently assume "ok")
             st = "unknown"
         elif not isinstance(st_raw, str):
-            logger.warning(f"[HEALTH] Status field has invalid type {type(st_raw).__name__} (expected str). Table: {tbl_val}.")
+            logger.warning(
+                f"[HEALTH] Status field has invalid type {type(st_raw).__name__} (expected str). Table: {tbl_val}."
+            )
             st = "error"
         else:
             st = st_raw
@@ -408,12 +402,15 @@ def _extract_orch_risk_metrics_string(risk: dict[str, Any] | None) -> str:
     from ..utilities import R
 
     if not risk or has_error(risk):
+        logger.error("[HEALTH] Risk data unavailable: risk_metrics not found or error marked")
         return f"\n[{R}][error] Risk data unavailable[/]"
     risk_dict = safe_get_dict(risk)
     if not risk_dict:
+        logger.error("[HEALTH] Risk metrics parsing failed: dict conversion returned None")
         return f"\n[{R}][N/A] Risk metrics not available[/]"
     var95_check = risk_dict.get("var95")
     if var95_check is None:
+        logger.error("[HEALTH] Risk metric missing: VaR95 not in response. Risk calculation incomplete.")
         return f"\n[{R}]⚠ Risk data missing VaR95 metric[/]"
     try:
         var95_check_f = float(var95_check)
@@ -465,7 +462,9 @@ def _extract_orch_risk_metrics_string(risk: dict[str, Any] | None) -> str:
         return f"\n[{R}][error] Risk calculation failed[/]"
 
 
-def panel_orch(run: dict[str, Any] | None, cfg: dict[str, Any], risk: dict[str, Any] | None = None) -> Panel:  # noqa: C901 - risk metrics validation requires multi-layer safety checks
+def panel_orch(  # noqa: C901
+    run: dict[str, Any] | None, cfg: dict[str, Any], risk: dict[str, Any] | None = None
+) -> Panel:
     error_pnl = _error_panel("config", cfg, "ORCHESTRATION")
     if error_pnl is not None:
         return error_pnl
@@ -566,9 +565,7 @@ def panel_orch(run: dict[str, Any] | None, cfg: dict[str, Any], risk: dict[str, 
             summary = run.get("summary")
             # Log if summary missing but don't fail - can use phase results as fallback
             if summary is None:
-                logger.debug(
-                    "[HEALTH] Execution summary missing. Will use phase results for halt explanation."
-                )
+                logger.debug("[HEALTH] Execution summary missing. Will use phase results for halt explanation.")
             # CRITICAL: Explicit None check before accessing .get() result
             # Checking run.get("halted") can return None instead of boolean
             halted_val = run.get("halted")
@@ -608,7 +605,9 @@ def panel_orch(run: dict[str, Any] | None, cfg: dict[str, Any], risk: dict[str, 
                 at_raw = p.get("action_type")
                 # Missing action_type in audit log means cannot identify phase - skip this entry
                 if at_raw is None:
-                    logger.warning(f"[HEALTH] Audit log entry missing 'action_type'. Keys: {list(p.keys())}. Skipping entry.")
+                    logger.warning(
+                        f"[HEALTH] Audit log entry missing 'action_type'. Keys: {list(p.keys())}. Skipping entry."
+                    )
                     continue  # Skip entry - cannot process without action type
                 at = at_raw
                 if not at.startswith("phase_"):
@@ -631,7 +630,9 @@ def panel_orch(run: dict[str, Any] | None, cfg: dict[str, Any], risk: dict[str, 
                 ps_raw = p.get("status")
                 # Missing status in audit log means cannot determine phase result
                 if ps_raw is None:
-                    logger.warning(f"[HEALTH] Audit log phase {phase_key} missing 'status'. Keys: {list(p.keys())}. Using 'unknown'.")
+                    logger.warning(
+                        f"[HEALTH] Audit log phase {phase_key} missing 'status'. Keys: {list(p.keys())}. Using 'unknown'."
+                    )
                     ps = "unknown"  # Will render as red X
                 else:
                     ps = ps_raw
@@ -797,7 +798,9 @@ def _format_recent_trade_events(act: dict[str, Any] | None) -> list[Text]:
         at_raw = a.get("action_type")
         # CRITICAL: Missing action_type means cannot classify trade event
         if at_raw is None:
-            logger.error(f"[HEALTH] Trade event missing 'action_type'. Keys: {list(a.keys())}. Cannot classify trade event.")
+            logger.error(
+                f"[HEALTH] Trade event missing 'action_type'. Keys: {list(a.keys())}. Cannot classify trade event."
+            )
             continue  # Skip this event entirely - cannot render without type
         at = at_raw
         det = a.get("details")
@@ -812,7 +815,9 @@ def _format_recent_trade_events(act: dict[str, Any] | None) -> list[Text]:
         sym_raw = det.get("symbol") if det else None
         # CRITICAL: Missing symbol is critical for identifying which position was affected
         if sym_raw is None:
-            logger.warning(f"[HEALTH] Trade event missing symbol in details. Action: {at}. Cannot identify affected position.")
+            logger.warning(
+                f"[HEALTH] Trade event missing symbol in details. Action: {at}. Cannot identify affected position."
+            )
             sym = "—"  # Explicit marker for unavailable data
         else:
             sym = sym_raw
@@ -2110,7 +2115,7 @@ def panel_algo_health(  # noqa: C901
             sts = "[dim]UNKNOWN[/]"
         # MEDIUM FIX: Explicit None check instead of or operator for run_id display
         run_id_val = run_fields["run_id"]
-        rid = (run_id_val[:28] if run_id_val is not None else "")
+        rid = run_id_val[:28] if run_id_val is not None else ""
         rows.append(Text.from_markup(f"{sts}{age_s}  [dim]{rid}[/]"))
         halt_r = run_fields["halt_reason"]
         if halt_r is None:
@@ -2486,8 +2491,8 @@ def _build_results_panel(  # noqa: C901
     # Handle None entries_exec and exits_exec - show "?" when data unavailable instead of 0
     entries_display = entries_exec if entries_exec is not None else "?"
     exits_display = exits_exec if exits_exec is not None else "?"
-    entries_color = (G if (entries_exec is not None and entries_exec > 0) else DIM)
-    exits_color = (Y if (exits_exec is not None and exits_exec > 0) else DIM)
+    entries_color = G if (entries_exec is not None and entries_exec > 0) else DIM
+    exits_color = Y if (exits_exec is not None and exits_exec > 0) else DIM
     action_parts_e.append(f"[dim]Entries:[/][{entries_color}]{entries_display}[/]")
     action_parts_e.append(f"[dim]Exits:[/][{exits_color}]{exits_display}[/]")
     avg_sig_score_e = today_m_e.get("avg_signal_score")
@@ -2597,7 +2602,9 @@ def _build_results_panel(  # noqa: C901
                 severity_val = "info"
             sc = SEV_COLORS.get(severity_val, DIM)
             if severity_val not in SEV_COLORS:
-                logger.debug(f"[RESULTS_PANEL] Notification severity '{severity_val}' not in SEV_COLORS — using DIM default")
+                logger.debug(
+                    f"[RESULTS_PANEL] Notification severity '{severity_val}' not in SEV_COLORS — using DIM default"
+                )
             title_val = n.get("title")
             if title_val is None:
                 logger.warning("[RESULTS_PANEL] Notification missing title — defaulting to empty string")

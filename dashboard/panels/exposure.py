@@ -66,12 +66,7 @@ from dashboard.data_validation import StrictValidationError, safe_float
 
 from ..formatter_strategies import TierFormatter
 from ..formatters import mini_bar
-from ..utilities import (
-    TIER_COLOR,
-    G,
-    R,
-    Y,
-)
+from ..utilities import TIER_COLOR, G, R, Y
 from ._helpers import _error_panel
 
 _tier_formatter = TierFormatter()
@@ -139,6 +134,9 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
             return f" {v:.0f}%" if v is not None else "[yellow]⚠[/]"
         if key == "spy_momentum":
             v = safe_float(f.get("value"), default=None)
+            if v is None:
+                reason = f.get("reason", "missing_value")
+                logger.warning("[EXPOSURE] Risk factor missing: spy_momentum unavailable. reason=%s", reason)
             return f" {v:+.1f}%" if v is not None else "[yellow]⚠[/]"
         if key == "put_call_ratio":
             v = safe_float(f.get("value"), default=None)
@@ -155,11 +153,15 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
             reason = f.get("reason")
             if not reason and isinstance(f.get("put_call_ratio"), dict):
                 reason = f["put_call_ratio"].get("reason")
-            if reason:
-                logger.info(f"[EXPOSURE] put_call_ratio unavailable: {reason}")
+            logger.error(
+                "[EXPOSURE] Risk factor missing: put_call_ratio unavailable. reason=%s. Position sizing will be degraded.",
+                reason,
+            )
             return " [yellow]⚠[/]"  # Mark unavailable, don't use derived metric
         if key == "vix_regime":
             v = safe_float(f.get("value"), default=None)
+            if v is None:
+                logger.warning("[EXPOSURE] Risk factor missing: vix_regime unavailable")
             return f" {v:.1f}" if v is not None else "[yellow]⚠[/]"
         if key == "new_highs_lows":
             nh = safe_float(f.get("new_highs"), default=None)
@@ -167,15 +169,19 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
             if nh is not None and nl is not None:
                 net = nh - nl
                 return f" {'+' if net >= 0 else ''}{int(net)}"
+            logger.warning("[EXPOSURE] Risk factor missing: new_highs_lows unavailable (nh=%s, nl=%s)", nh, nl)
             return "[yellow]⚠[/]"  # Missing metric data
         if key == "credit_spread":
             v = safe_float(f.get("value"), default=None)
+            if v is None:
+                logger.warning("[EXPOSURE] Risk factor missing: credit_spread unavailable")
             return f" {v:.2f}" if v is not None else "[yellow]⚠[/]"
         if key == "ad_line":
             rel = f.get("relation")
             if rel and isinstance(rel, str):
                 rel_display = rel.replace("_", " ")[:8]
                 return f" {rel_display}"
+            logger.warning("[EXPOSURE] Risk factor missing: ad_line missing relation field")
             return "[yellow]⚠[/]"  # Missing relation field
         if key == "aaii_sentiment":
             bull = safe_float(f.get("bullish_pct"), default=None)
@@ -185,9 +191,12 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
                 b_pct = bull * 100 if bull <= 1.0 else bull
                 be_pct = bear * 100 if bear <= 1.0 else bear
                 return f" B:{b_pct:.0f}%/Be:{be_pct:.0f}%"
+            logger.warning("[EXPOSURE] Risk factor missing: aaii_sentiment unavailable (bull=%s, bear=%s)", bull, bear)
             return "[yellow]⚠[/]"  # Missing sentiment data
         if key == "naaim":
             v = safe_float(f.get("value"), default=None)
+            if v is None:
+                logger.warning("[EXPOSURE] Risk factor missing: naaim unavailable")
             return f" {v:.0f}" if v is not None else "[yellow]⚠[/]"
         if key == "distribution_days":
             cnt = safe_float(f.get("count"), default=None)
@@ -195,6 +204,7 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
             if cnt is not None:
                 regime_display = regime[:5] if regime else "?"
                 return f" {int(cnt)}d/{regime_display}"
+            logger.warning("[EXPOSURE] Risk factor missing: distribution_days unavailable (cnt=%s)", cnt)
             return "[yellow]⚠[/]"  # Missing count data
         return "[yellow]⚠[/]"  # Unknown factor key
 
@@ -474,12 +484,17 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
             if reason_val is None:
                 # Check for explicit stale marker
                 if f.get("stale"):
-                    logger.debug("[EXPOSURE_EXPANDED] factor %s marked stale", key)
                     reason_val = "stale"
                 else:
-                    logger.debug("[EXPOSURE_EXPANDED] factor %s missing pts and reason", key)
                     reason_val = "no data"
             reason = reason_val[:18]
+            logger.error(
+                "[EXPOSURE_EXPANDED] data_unavailable: factor=%s, key=%s, reason=%s. "
+                "Risk factor missing affects position sizing. Check upstream data source.",
+                label,
+                key,
+                reason_val,
+            )
             bar_s = Text.from_markup(f"[yellow]⚠ N/A{'':>10}[/]  [dim]--/{max_pts}[/]")
             tbl.add_row(
                 Text(label, style="yellow"),

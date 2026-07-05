@@ -3,6 +3,21 @@
 Cleanup script to identify and remove extra databases from RDS.
 This should only run if explicitly authorized to delete databases.
 
+⚠️ DEPRECATED: Emergency workaround script — bypasses RDS Proxy connection pooling
+This script connects directly to AWS RDS and performs database cleanup operations.
+
+CRITICAL NOTE: This script exists because the primary database connection layer
+(RDS Proxy) was failing. The root cause should be fixed in the connection layer
+instead of using this workaround.
+
+DO NOT use this script except as a last resort during infrastructure failures.
+Database cleanup should normally be done through:
+1. Lambda handlers (which use RDS Proxy)
+2. AWS RDS console (for admin operations)
+3. Terraform automation (for infrastructure changes)
+
+This script bypasses audit trails and IAM permission checks.
+
 Usage:
     python3 scripts/cleanup_rds_databases.py --list        # List all databases
     python3 scripts/cleanup_rds_databases.py --drop=DB     # Drop specific database

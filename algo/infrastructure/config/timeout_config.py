@@ -79,33 +79,39 @@ class TimeoutConfig:
         CRITICAL: Must be explicitly configured or provided via environment variable.
 
         Checks (in order):
-        1. API_TIMEOUT environment variable
-        2. algo_config DB table (api_request_timeout_seconds)
+        1. algo_config DB table (api_request_timeout_seconds) — PRIMARY
+        2. API_TIMEOUT environment variable — OVERRIDE ONLY
 
         Returns:
             Timeout in seconds
 
         Raises:
-            RuntimeError: If neither env var nor config key is set (fail-fast)
+            RuntimeError: If neither database nor env var is set (fail-fast)
         """
+        timeout = self.get("api_request_timeout_seconds")
+        if timeout is not None:
+            timeout_int = int(timeout)
+            if timeout_int <= 0:
+                raise RuntimeError(
+                    f"[TIMEOUT_CONFIG] CRITICAL: api_request_timeout_seconds must be positive (got {timeout_int}). "
+                    f"Update algo_config: UPDATE algo_config SET value = '5' WHERE key = 'api_request_timeout_seconds';"
+                )
+            return timeout_int
         env_val = os.getenv("API_TIMEOUT")
         if env_val:
-            return int(env_val)
-        timeout = self.get("api_request_timeout_seconds")
-        if timeout is None:
-            raise RuntimeError(
-                "[TIMEOUT_CONFIG] CRITICAL: api_request_timeout_seconds config key missing. "
-                "API timeout must be explicitly configured via environment variable (API_TIMEOUT) "
-                "or algo_config table (api_request_timeout_seconds). "
-                "Set one of: export API_TIMEOUT=5 OR UPDATE algo_config SET value = '5' WHERE key = 'api_request_timeout_seconds';"
-            )
-        timeout_int = int(timeout)
-        if timeout_int <= 0:
-            raise RuntimeError(
-                f"[TIMEOUT_CONFIG] CRITICAL: api_request_timeout_seconds must be positive (got {timeout_int}). "
-                f"Update algo_config: UPDATE algo_config SET value = '5' WHERE key = 'api_request_timeout_seconds';"
-            )
-        return timeout_int
+            env_int = int(env_val)
+            if env_int <= 0:
+                raise RuntimeError(
+                    f"[TIMEOUT_CONFIG] CRITICAL: API_TIMEOUT must be positive (got {env_int}). "
+                    f"Set: export API_TIMEOUT=5"
+                )
+            logger.info("[TIMEOUT_CONFIG] Using API_TIMEOUT from environment variable (database value empty)")
+            return env_int
+        raise RuntimeError(
+            "[TIMEOUT_CONFIG] CRITICAL: api_request_timeout_seconds config key missing. "
+            "API timeout must be explicitly configured via algo_config table (api_request_timeout_seconds). "
+            "Set: UPDATE algo_config SET value = '5' WHERE key = 'api_request_timeout_seconds';"
+        )
 
     def get_db_timeout(self) -> int:
         """Get database connection timeout in seconds.
@@ -115,81 +121,115 @@ class TimeoutConfig:
         Note: RDS Proxy adds additional latency (connection pooling).
 
         Checks (in order):
-        1. DB_TIMEOUT_SECONDS environment variable
-        2. algo_config DB table (db_connection_timeout_seconds)
+        1. algo_config DB table (db_connection_timeout_seconds) — PRIMARY
+        2. DB_TIMEOUT_SECONDS environment variable — OVERRIDE ONLY
 
         Returns:
             Timeout in seconds
 
         Raises:
-            RuntimeError: If neither env var nor config key is set (fail-fast)
+            RuntimeError: If neither database nor env var is set (fail-fast)
         """
+        timeout = self.get("db_connection_timeout_seconds")
+        if timeout is not None:
+            timeout_int = int(timeout)
+            if timeout_int <= 0:
+                raise RuntimeError(
+                    f"[TIMEOUT_CONFIG] CRITICAL: db_connection_timeout_seconds must be positive (got {timeout_int}). "
+                    f"Update algo_config: UPDATE algo_config SET value = '15' WHERE key = 'db_connection_timeout_seconds';"
+                )
+            return timeout_int
         env_val = os.getenv("DB_TIMEOUT_SECONDS")
         if env_val:
-            return int(env_val)
-        timeout = self.get("db_connection_timeout_seconds")
-        if timeout is None:
-            raise RuntimeError(
-                "[TIMEOUT_CONFIG] CRITICAL: db_connection_timeout_seconds config key missing. "
-                "Database timeout must be explicitly configured via environment variable (DB_TIMEOUT_SECONDS) "
-                "or algo_config table (db_connection_timeout_seconds). "
-                "Set one of: export DB_TIMEOUT_SECONDS=15 OR UPDATE algo_config SET value = '15' WHERE key = 'db_connection_timeout_seconds';"
-            )
-        timeout_int = int(timeout)
-        if timeout_int <= 0:
-            raise RuntimeError(
-                f"[TIMEOUT_CONFIG] CRITICAL: db_connection_timeout_seconds must be positive (got {timeout_int}). "
-                f"Update algo_config: UPDATE algo_config SET value = '15' WHERE key = 'db_connection_timeout_seconds';"
-            )
-        return timeout_int
+            env_int = int(env_val)
+            if env_int <= 0:
+                raise RuntimeError(
+                    f"[TIMEOUT_CONFIG] CRITICAL: DB_TIMEOUT_SECONDS must be positive (got {env_int}). "
+                    f"Set: export DB_TIMEOUT_SECONDS=15"
+                )
+            logger.info("[TIMEOUT_CONFIG] Using DB_TIMEOUT_SECONDS from environment variable (database value empty)")
+            return env_int
+        raise RuntimeError(
+            "[TIMEOUT_CONFIG] CRITICAL: db_connection_timeout_seconds config key missing. "
+            "Database timeout must be explicitly configured via algo_config table (db_connection_timeout_seconds). "
+            "Set: UPDATE algo_config SET value = '15' WHERE key = 'db_connection_timeout_seconds';"
+        )
 
     def get_market_data_timeout(self) -> int:
         """Get market data API timeout in seconds.
 
         Checks (in order):
-        1. MARKET_DATA_TIMEOUT environment variable
-        2. Default: 10 seconds
+        1. algo_config DB table (market_data_timeout_seconds)
+        2. MARKET_DATA_TIMEOUT environment variable
+        3. Default: 10 seconds
 
         Returns:
             Timeout in seconds
         """
-        return int(os.getenv("MARKET_DATA_TIMEOUT", "10"))
+        timeout = self.get("market_data_timeout_seconds")
+        if timeout is not None:
+            return int(timeout)
+        env_val = os.getenv("MARKET_DATA_TIMEOUT")
+        if env_val:
+            return int(env_val)
+        return 10
 
     def get_alpaca_timeout(self) -> int:
         """Get Alpaca API timeout in seconds.
 
         Checks (in order):
-        1. ALPACA_TIMEOUT environment variable
-        2. Default: 5 seconds
+        1. algo_config DB table (alpaca_timeout_seconds)
+        2. ALPACA_TIMEOUT environment variable
+        3. Default: 5 seconds
 
         Returns:
             Timeout in seconds
         """
-        return int(os.getenv("ALPACA_TIMEOUT", "5"))
+        timeout = self.get("alpaca_timeout_seconds")
+        if timeout is not None:
+            return int(timeout)
+        env_val = os.getenv("ALPACA_TIMEOUT")
+        if env_val:
+            return int(env_val)
+        return 5
 
     def get_webhook_timeout(self) -> int:
         """Get webhook handler timeout in seconds.
 
         Checks (in order):
-        1. WEBHOOK_TIMEOUT environment variable
-        2. Default: 5 seconds
+        1. algo_config DB table (webhook_timeout_seconds)
+        2. WEBHOOK_TIMEOUT environment variable
+        3. Default: 5 seconds
 
         Returns:
             Timeout in seconds
         """
-        return int(os.getenv("WEBHOOK_TIMEOUT", "5"))
+        timeout = self.get("webhook_timeout_seconds")
+        if timeout is not None:
+            return int(timeout)
+        env_val = os.getenv("WEBHOOK_TIMEOUT")
+        if env_val:
+            return int(env_val)
+        return 5
 
     def get_subprocess_timeout(self) -> int:
         """Get subprocess operation timeout in seconds.
 
         Checks (in order):
-        1. SUBPROCESS_TIMEOUT environment variable
-        2. Default: 60 seconds
+        1. algo_config DB table (subprocess_timeout_seconds)
+        2. SUBPROCESS_TIMEOUT environment variable
+        3. Default: 60 seconds
 
         Returns:
             Timeout in seconds
         """
-        return int(os.getenv("SUBPROCESS_TIMEOUT", "60"))
+        timeout = self.get("subprocess_timeout_seconds")
+        if timeout is not None:
+            return int(timeout)
+        env_val = os.getenv("SUBPROCESS_TIMEOUT")
+        if env_val:
+            return int(env_val)
+        return 60
 
     def get_loader_timeout(self) -> int:
         """Get loader operation timeout in seconds.
@@ -199,33 +239,39 @@ class TimeoutConfig:
         Used for data loading operations that may take longer than typical API calls.
 
         Checks (in order):
-        1. LOADER_TIMEOUT environment variable
-        2. algo_config DB table (loader_timeout_seconds)
+        1. algo_config DB table (loader_timeout_seconds) — PRIMARY
+        2. LOADER_TIMEOUT environment variable — OVERRIDE ONLY
 
         Returns:
             Timeout in seconds
 
         Raises:
-            RuntimeError: If neither env var nor config key is set (fail-fast)
+            RuntimeError: If neither database nor env var is set (fail-fast)
         """
+        timeout = self.get("loader_timeout_seconds")
+        if timeout is not None:
+            timeout_int = int(timeout)
+            if timeout_int <= 0:
+                raise RuntimeError(
+                    f"[TIMEOUT_CONFIG] CRITICAL: loader_timeout_seconds must be positive (got {timeout_int}). "
+                    f"Update algo_config: UPDATE algo_config SET value = '300' WHERE key = 'loader_timeout_seconds';"
+                )
+            return timeout_int
         env_val = os.getenv("LOADER_TIMEOUT")
         if env_val:
-            return int(env_val)
-        timeout = self.get("loader_timeout_seconds")
-        if timeout is None:
-            raise RuntimeError(
-                "[TIMEOUT_CONFIG] CRITICAL: loader_timeout_seconds config key missing. "
-                "Loader timeout must be explicitly configured via environment variable (LOADER_TIMEOUT) "
-                "or algo_config table (loader_timeout_seconds). "
-                "Set one of: export LOADER_TIMEOUT=300 OR UPDATE algo_config SET value = '300' WHERE key = 'loader_timeout_seconds';"
-            )
-        timeout_int = int(timeout)
-        if timeout_int <= 0:
-            raise RuntimeError(
-                f"[TIMEOUT_CONFIG] CRITICAL: loader_timeout_seconds must be positive (got {timeout_int}). "
-                f"Update algo_config: UPDATE algo_config SET value = '300' WHERE key = 'loader_timeout_seconds';"
-            )
-        return timeout_int
+            env_int = int(env_val)
+            if env_int <= 0:
+                raise RuntimeError(
+                    f"[TIMEOUT_CONFIG] CRITICAL: LOADER_TIMEOUT must be positive (got {env_int}). "
+                    f"Set: export LOADER_TIMEOUT=300"
+                )
+            logger.info("[TIMEOUT_CONFIG] Using LOADER_TIMEOUT from environment variable (database value empty)")
+            return env_int
+        raise RuntimeError(
+            "[TIMEOUT_CONFIG] CRITICAL: loader_timeout_seconds config key missing. "
+            "Loader timeout must be explicitly configured via algo_config table (loader_timeout_seconds). "
+            "Set: UPDATE algo_config SET value = '300' WHERE key = 'loader_timeout_seconds';"
+        )
 
     def get_all_timeouts(self) -> dict[str, int]:
         """Get all timeout values for debugging/logging.

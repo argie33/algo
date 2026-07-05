@@ -54,11 +54,11 @@ class BuySignalGenerator:
                 complete_rows += 1
 
         data_completeness = (complete_rows / len(rows) * 100) if rows else 0
-        if data_completeness < 80:
+        if data_completeness < 95:
             raise ValueError(
                 f"[SIGNAL_GENERATION_POOR_DATA_QUALITY] {symbol}: "
                 f"Data completeness is {data_completeness:.0f}% ({complete_rows}/{len(rows)} rows have all OHLC fields). "
-                f"Fail-fast: pivot detection requires >=80% complete OHLCV data for reliability. "
+                f"Fail-fast: pivot detection requires >=95% complete OHLCV data for reliability (Minervini standard). "
                 f"Incomplete data indicates upstream loader or data quality issue. "
                 f"Verify: (1) price loader running successfully, (2) sufficient trading history, (3) database data integrity."
             )
