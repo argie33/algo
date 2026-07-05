@@ -183,7 +183,7 @@ def _build_signal_header(sig_data: dict[str, Any], scores_data: dict[str, Any] |
     spark_s: str = ""
     trend_field = safe_get_field(overview, "trend", [])
     trend_result = safe_get_list(trend_field) if trend_field else None
-    trend: list[Any] = trend_result if trend_result is not None else []
+    trend: list[Any] = trend_result if isinstance(trend_result, list) else []
     if trend and len(trend) >= 2:
         # GOVERNANCE: Fail-fast on incomplete historical data. Do NOT synthesize missing points as zeros.
         # Missing data in historical trends indicates data quality issue, must be visible to user.
@@ -209,7 +209,7 @@ def _build_signal_header(sig_data: dict[str, Any], scores_data: dict[str, Any] |
 
     near_field = safe_get_field(overview, "near", [])
     near_result = safe_get_list(near_field) if near_field else None
-    near: list[Any] = near_result if near_result is not None else []
+    near: list[Any] = near_result if isinstance(near_result, list) else []
     n_near: int = len(near)
     near_hint: str = f"  [{CY}]{n_near} near[/]" if n_near > 0 else ""
 
@@ -251,8 +251,10 @@ def _build_grade_radar(sig_data: dict[str, Any]) -> list[Text]:
             f"_build_grade_radar: overview extraction produced error - {overview.get('_error', 'unknown error')}"
         )
         return rows
-    top_a = safe_get_list(safe_get_field(overview, "top_a", []))
-    near = safe_get_list(safe_get_field(overview, "near", []))
+    top_a_result = safe_get_list(safe_get_field(overview, "top_a", []))
+    top_a: list[Any] = top_a_result if isinstance(top_a_result, list) else []
+    near_result = safe_get_list(safe_get_field(overview, "near", []))
+    near: list[Any] = near_result if isinstance(near_result, list) else []
 
     if top_a:
         parts = []

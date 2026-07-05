@@ -279,17 +279,19 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
     # Display filtering status with clear explanation of what was filtered
     # Fail-fast: Check that coverage data is valid before using. Do not silently default to 0.
     coverage_valid = coverage is not None and isinstance(coverage, dict)
-    has_filtering_info = (
-        coverage_valid
-        and coverage.get("total_count") is not None
-        and coverage.get("total_count") > 0
-        and coverage.get("filtered_count") is not None
-        and coverage.get("filtered_count") > 0
-    )
+    has_filtering_info = False
+    if coverage_valid:
+        has_filtering_info = (
+            coverage.get("total_count") is not None
+            and coverage.get("total_count") > 0
+            and coverage.get("filtered_count") is not None
+            and coverage.get("filtered_count") > 0
+        )
     if has_filtering_info and coverage_valid:
-        total = coverage["total_count"]
-        valid = coverage["valid_count"]
-        filt = coverage["filtered_count"]
+        # coverage is guaranteed to be dict at this point
+        total = coverage.get("total_count", 0)  # type: ignore[union-attr]
+        valid = coverage.get("valid_count", 0)  # type: ignore[union-attr]
+        filt = coverage.get("filtered_count", 0)  # type: ignore[union-attr]
         border = "yellow"
         # Show: "POSITIONS (2/15 valid, 13 filtered)"
         title_str = f"[bold yellow]POSITIONS ({valid}/{total} valid, {filt} filtered)[/]"

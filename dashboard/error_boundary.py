@@ -169,8 +169,11 @@ def get_error_message(data: Any) -> str | None:
         ValueError: if error/stale markers present but message is empty/None (invalid state)
     """
     plain_msg = get_error_message_plain(data)
-    if isinstance(plain_msg, dict) and plain_msg.get("data_unavailable"):
-        logger.debug(f"No error message found (marker dict): {plain_msg.get('reason')}")
+    if isinstance(plain_msg, dict):
+        if plain_msg.get("data_unavailable"):
+            logger.debug(f"No error message found (marker dict): {plain_msg.get('reason')}")
+            return None
+        # If dict without data_unavailable marker, treat as no error
         return None
 
     if is_data_stale(data):

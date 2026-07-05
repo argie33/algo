@@ -224,7 +224,7 @@ def _build_calendar_rows(econ_cal: Any) -> list[Text | Rule]:
     optional=True,
     description="Economic Pulse",
 )
-def panel_economic_pulse(eco: Any, econ_cal: Any = None) -> Panel:  # noqa: C901
+def panel_economic_pulse(eco: Any, econ_cal: Any = None) -> Panel | None:  # noqa: C901
     """Economic factors the algo uses to calculate market exposure score."""
     err_panel = _error_panel("economic pulse", eco, "ECONOMIC INPUTS", border="bright_magenta")
     if err_panel:
