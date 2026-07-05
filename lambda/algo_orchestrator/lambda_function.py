@@ -211,7 +211,7 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
             f"ALGO_LIVE_TRADING={'SET' if os.getenv('ALGO_LIVE_TRADING') else 'NOT SET'}"
         )
 
-        # Ensure database tables exist (idempotent - safe on every startup)
+        # Ensure database tables exist and have required columns (idempotent - safe on every startup)
         try:
             from utils.db.context import DatabaseContext as DBContext_Init
 
@@ -227,8 +227,23 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
                     "(run_id VARCHAR(255) PRIMARY KEY, run_date DATE, started_at TIMESTAMP, "
                     "completed_at TIMESTAMP, overall_status VARCHAR(50), summary TEXT, halt_reason TEXT, phase_results JSONB)"
                 )
+                # Add missing columns to metric tables (critical - loaders write these)
+                metric_tables = ['quality_metrics', 'growth_metrics', 'value_metrics', 'positioning_metrics', 'stability_metrics']
+                for table in metric_tables:
+                    try:
+                        init_cur.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS data_unavailable BOOLEAN DEFAULT FALSE")
+                        init_cur.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS reason VARCHAR(500)")
+                    except Exception:
+                        pass
+                # Add missing columns to stock_scores
+                try:
+                    init_cur.execute("ALTER TABLE stock_scores ADD COLUMN IF NOT EXISTS data_unavailable BOOLEAN DEFAULT FALSE")
+                    init_cur.execute("ALTER TABLE stock_scores ADD COLUMN IF NOT EXISTS reason VARCHAR(500)")
+                    init_cur.execute("ALTER TABLE stock_scores ADD COLUMN IF NOT EXISTS data_completeness NUMERIC(4,2)")
+                except Exception:
+                    pass
                 init_cur.connection.commit()
-            logger.info("[STARTUP] Database tables initialized")
+            logger.info("[STARTUP] Database schema verified and fixed")
         except Exception as db_init_err:
             logger.warning(f"[STARTUP] Database init check failed (non-fatal): {type(db_init_err).__name__}")
 

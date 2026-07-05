@@ -336,7 +336,7 @@ def _get_candidates_from_buysell(
                       AND bsd.strength IS NOT NULL
                 )
                 SELECT * FROM ranked
-                ORDER BY swing_score DESC, composite_score DESC
+                ORDER BY composite_score DESC
                 LIMIT %s
                 """,
                 (
@@ -379,15 +379,6 @@ def _get_candidates_from_buysell(
                 )
             raw_strength = float(r[15])
 
-            # Swing score guaranteed by INNER JOIN with IS NOT NULL check
-            if r[19] is None:
-                raise ValueError(
-                    f"[PHASE 7] {symbol}: swing_score is NULL — INNER JOIN with IS NOT NULL guarantee violated"
-                )
-            swing_score = float(r[19])
-
-            swing_components = r[20]  # Part of swing_trader_scores join
-
             # Validate signal has complete scoring
             quality_score = float(r[2]) if r[2] is not None else None
             growth_score = float(r[3]) if r[3] is not None else None
@@ -416,8 +407,6 @@ def _get_candidates_from_buysell(
                     "growth_score": growth_score,
                     "momentum_score": momentum_score,
                     "rs_percentile": rs_percentile,
-                    "swing_score": swing_score,
-                    "swing_components": swing_components,
                     "close": close,
                     "high": float(r[7]) if r[7] is not None else None,
                     "low": float(r[8]) if r[8] is not None else None,
@@ -435,11 +424,9 @@ def _get_candidates_from_buysell(
                 }
             )
 
-        # Count swing_scores that are valid and positive (None indicates failed gate)
-        swing_score_positive = sum(1 for c in candidates if c.get("swing_score") is not None and c["swing_score"] > 0)
         logger.info(
-            f"[PHASE 7] {len(candidates)} candidates from buy_sell_daily + stock_scores + swing_trader_scores "
-            f"(swing_scores: {swing_score_positive} valid+positive, lookback: {lookback_date} to {run_date}, "
+            f"[PHASE 7] {len(candidates)} candidates from buy_sell_daily + stock_scores "
+            f"(lookback: {lookback_date} to {run_date}, "
             f"SQL filters: trend & close_quality applied at query level)"
         )
 
