@@ -96,6 +96,40 @@ def is_data_stale(data: Any) -> bool:
     return isinstance(data, dict) and data.get("_stale_cache") is True
 
 
+def get_data_staleness_warning(data: Any, max_age_hours: float = 24.0) -> str:
+    """Get staleness warning text if data is older than threshold.
+
+    Safe to call on any type; returns empty string if data is fresh or timestamp unavailable.
+
+    Args:
+        data: Data dict that may have 'timestamp' field
+        max_age_hours: Maximum age in hours before warning (default 24h)
+
+    Returns:
+        Empty string if fresh, or " ⚠ STALE (Xh old)" if too old
+    """
+    if not isinstance(data, dict):
+        return ""
+
+    timestamp_val = data.get("timestamp")
+    if not timestamp_val:
+        return ""
+
+    try:
+        from datetime import datetime, timezone
+        if isinstance(timestamp_val, str):
+            dt = datetime.fromisoformat(timestamp_val.replace("Z", "+00:00"))
+        else:
+            dt = timestamp_val
+        age_hours = (datetime.now(timezone.utc) - dt).total_seconds() / 3600
+        if age_hours > max_age_hours:
+            return f" ⚠ STALE ({age_hours:.0f}h old)"
+    except Exception:
+        pass
+
+    return ""
+
+
 def get_error_message_plain(data: Any) -> str | dict[str, Any]:
     """Extract error message from data without Rich formatting.
 

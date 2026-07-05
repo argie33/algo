@@ -79,9 +79,15 @@ from ._helpers import _error_panel
     description="Circuit breaker status",
 )
 def panel_circuit(cb: Any) -> Panel:  # noqa: C901
+    from ..error_boundary import get_data_staleness_warning
+
     err_panel = _error_panel("circuit breakers", cb, "CIRCUIT BREAKERS", border="blue")
     if err_panel:
         return err_panel
+
+    # Check data freshness: warn if circuit breaker status is stale
+    cb_stale_warning = get_data_staleness_warning(cb, max_age_hours=1.0) if isinstance(cb, dict) else ""
+
     if not isinstance(cb, dict):
         logger.error("[CIRCUIT] Circuit breaker data is not a dict: got %s", type(cb).__name__)
         return Panel(
@@ -210,9 +216,10 @@ def panel_circuit(cb: Any) -> Panel:  # noqa: C901
         for a, b in zip(bs[::2], [*bs[1::2], None], strict=False):
             tbl.add_row(Text.from_markup(fmt_b(a)), Text.from_markup(fmt_b(b)))
     parts = [Text.from_markup(f"[{hc}][bold]{hs}[/bold][/]"), tbl]
+    title = f"[bold blue]CIRCUIT BREAKERS[/]{cb_stale_warning}  [dim][b] expand[/]"
     return Panel(
         Group(*cast(list[ConsoleRenderable | RichCast | str], parts)),
-        title="[bold blue]CIRCUIT BREAKERS[/]  [dim][b] expand[/]",
+        title=title,
         border_style="blue",
         padding=(0, 1),
     )

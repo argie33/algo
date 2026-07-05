@@ -111,6 +111,22 @@ def panel_market_full(mkt: Any, sentiment: Any = None) -> Panel:  # noqa: C901
     if err_panel:
         return err_panel
 
+    # Check data freshness: warn if market data is stale
+    from datetime import datetime, timezone
+    stale_warning = ""
+    market_timestamp = mkt.get("timestamp")
+    if market_timestamp:
+        try:
+            if isinstance(market_timestamp, str):
+                market_dt = datetime.fromisoformat(market_timestamp.replace("Z", "+00:00"))
+            else:
+                market_dt = market_timestamp
+            age_hours = (datetime.now(timezone.utc) - market_dt).total_seconds() / 3600
+            if age_hours > 24:
+                stale_warning = f" ⚠ STALE ({age_hours:.0f}h old)"
+        except Exception as e:
+            logger.debug(f"[MARKET_PANEL] Could not parse timestamp: {e}")
+
     tier = mkt.get("tier", "unknown")
     tc = TIER_COLOR.get(tier, "dim")
     lbl = TIER_SHORT.get(tier, "LOADING")
@@ -256,7 +272,8 @@ def panel_market_full(mkt: Any, sentiment: Any = None) -> Panel:  # noqa: C901
             lines.append(f"[dim]Fear & Greed:[/][{fg_c}]{fg_v:.0f}%  {fg_lbl}[/] {fg_bar_s}")
 
     txt = Text.from_markup("\n".join(lines))
-    return Panel(txt, title="[bold blue]MARKET[/]", border_style="blue", padding=(0, 1))
+    title = f"[bold blue]MARKET[/]{stale_warning}"
+    return Panel(txt, title=title, border_style="blue", padding=(0, 1))
 
 
 @register_panel(
