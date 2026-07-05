@@ -421,26 +421,27 @@ class SignalsDailyLoader(OptimalLoader):
                 "reason": reason
             }]
 
-    def get_tech_data_age(self) -> float | dict[str, Any]:
+    def get_tech_data_age(self) -> float | None:
         """Return current batch tech_data_age for signal generation.
 
         Facade elimination: public getter for _batch_context['tech_data_age']
         used by SignalsDailyLoaderFacade to eliminate private member access.
 
         Returns:
-            Age in days (float), or data_unavailable marker dict if unavailable.
+            Age in days (float), or None if batch context unavailable.
             Explicitly logs when batch context is missing (data unavailable).
         """
         if not self._batch_context:
-            reason = "batch_context_not_initialized"
-            logger.debug(f"[TECH_DATA_AGE] {reason} - tech data age unavailable")
-            return {"data_unavailable": True, "reason": reason}
+            logger.debug(
+                "[TECH_DATA_AGE] Batch context not initialized - tech data age unavailable. Signal generation may have incomplete optional data."
+            )
+            return None
 
         tech_data_age = self._batch_context.get("tech_data_age")
         if tech_data_age is None:
-            reason = "tech_data_age_missing_from_context"
-            logger.debug(f"[TECH_DATA_AGE] {reason} - technical data freshness unavailable")
-            return {"data_unavailable": True, "reason": reason}
+            logger.debug(
+                "[TECH_DATA_AGE] 'tech_data_age' not in batch context - technical data freshness unavailable (optional enrichment)"
+            )
         return tech_data_age
 
     def _fetch_signal_data(self, symbol: str, start: date, end: date) -> list[dict[str, Any]]:

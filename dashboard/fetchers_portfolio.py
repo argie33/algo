@@ -269,21 +269,12 @@ def fetch_positions(c: None) -> dict[str, Any]:
                 f"Coverage: {items_coverage_pct:.1f}% ({len(valid_items)}/{total_items})"
             )
 
-        # Preserve coverage dict structure from API response for panel compatibility
-        coverage_data = result.get("coverage") if isinstance(result, dict) else None
-        if coverage_data is None:
-            # If API didn't provide coverage, compute locally (fallback for older API versions)
-            coverage_data = {
-                "valid_count": len(valid_items),
-                "total_count": total_items,
-                "filtered_count": invalid_count,
-                "coverage_pct": round(items_coverage_pct, 1),
-            }
-
         return {
             "items": valid_items,
             "timestamp": datetime.now(ET),
-            "coverage": coverage_data,
+            "items_coverage_pct": items_coverage_pct,
+            "items_valid_count": len(valid_items),
+            "items_total_count": total_items,
         }
     except Exception as e:
         error_msg = format_fetcher_error("pos", e)
