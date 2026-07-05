@@ -405,7 +405,6 @@ locals {
     "stock_prices_daily"    = { cpu = 1024, memory = 2048, timeout = 5400, parallelism = 1 }
     "technical_data_daily"  = { cpu = 2048, memory = 4096, timeout = 2400, parallelism = 1 }
     "trend_template_data"   = { cpu = 1024, memory = 2048, timeout = 5400, parallelism = 1 }
-    "swing_trader_scores"   = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 1 }
     "market_exposure_daily" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
     "yfinance_snapshot"     = { cpu = 1024, memory = 2048, timeout = 7200, parallelism = 1 }
     "dxy_index"             = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
