@@ -279,6 +279,32 @@ def run(  # noqa: C901
                 log_phase_result_fn(1, "price_data", "halt", "price_daily table is empty")
                 return PhaseResult(1, "price_data", "halted", {}, True, "price_daily table is empty")
 
+            # CRITICAL: Verify stock_symbols table is pre-loaded (required for ALL loaders)
+            cur.execute("SELECT COUNT(*) FROM stock_symbols WHERE active = true")
+            symbol_count_row = cur.fetchone()
+            if symbol_count_row is None or symbol_count_row[0] is None or symbol_count_row[0] == 0:
+                logger.critical(
+                    "[PHASE 1] CRITICAL: stock_symbols table is empty or has no active symbols. "
+                    "All loaders depend on symbol list being pre-loaded. "
+                    "Run load_market_constituents.py first to populate NASDAQ/NYSE symbols."
+                )
+                log_phase_result_fn(
+                    1,
+                    "symbol_list_missing",
+                    "halt",
+                    "stock_symbols table empty - run market_constituents loader first"
+                )
+                return PhaseResult(
+                    1,
+                    "symbol_list_missing",
+                    "halted",
+                    {},
+                    True,
+                    "stock_symbols table is empty - symbols must be loaded before trading"
+                )
+            symbol_count = symbol_count_row[0]
+            logger.info(f"[PHASE 1] Symbol list verified: {symbol_count} active symbols")
+
             from algo.infrastructure import MarketCalendar
 
             # Market hours: 9:30 AM - 4:00 PM ET.
