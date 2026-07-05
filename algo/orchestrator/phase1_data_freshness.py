@@ -436,13 +436,6 @@ def run(  # noqa: C901
                 "market_health_daily": "Market health (breadth/regime)",
                 "market_exposure_daily": "Market exposure limits",
                 "earnings_calendar": "Earnings dates (blackout window gating)",
-                # CRITICAL FIX 2026-07-05: Added metric loaders to freshness checks
-                # These are now critical per phase1_failsafe_retry.py changes
-                "growth_metrics": "Growth metrics (essential for stock scoring)",
-                "quality_metrics": "Quality metrics (essential for stock scoring)",
-                "value_metrics": "Value metrics (essential for stock scoring)",
-                "positioning_metrics": "Positioning metrics (essential for stock scoring)",
-                "stability_metrics": "Stability metrics (essential for stock scoring)",
             }
             # Warning-only tables: stale -> logged, trading continues
             warn_tables = {
@@ -450,17 +443,18 @@ def run(  # noqa: C901
                 "swing_trader_scores": "Swing trader scores (legacy, warning only)",
                 "sector_ranking": "Sector rankings",
             }
-            critical_tables = {**halt_tables, **warn_tables}
 
             halt_stale = []  # pipeline-loaded tables — stale = HALT
             warn_stale = []  # auxiliary tables — stale = WARNING only
 
             # Tables checked by MAX(date) vs price_daily latest date
             # Note: earnings_calendar uses earnings_date instead of date
+            # Note: growth_metrics, quality_metrics, etc. are indexed by symbol, not date
             date_column_overrides = {
                 "earnings_calendar": "earnings_date",
             }
-            date_checked_tables = critical_tables
+            # Only check tables that have a date column for freshness
+            date_checked_tables = {**halt_tables, **warn_tables}
 
             # Per-table reference dates: some tables have upstream dependencies that limit how
             # current they can be. Compare against the appropriate upstream date, not global max.
