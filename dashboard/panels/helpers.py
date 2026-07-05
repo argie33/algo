@@ -89,8 +89,6 @@ def _build_buy_sig_map(buy_sigs: Any) -> dict[str, float]:
         sym_norm = str(sym).upper().strip()
 
         score = bs.get("signal_quality_score")
-        if score is None:
-            score = bs.get("swing_score")
 
         if score is not None:
             try:
@@ -98,24 +96,12 @@ def _build_buy_sig_map(buy_sigs: Any) -> dict[str, float]:
             except (ValueError, TypeError) as e:
                 logger.warning(f"Failed to convert score for {sym}: {e}")
         else:
-            logger.warning(f"Buy signal {sym}: missing signal_quality_score and swing_score")
+            logger.warning(f"Buy signal {sym}: missing signal_quality_score")
 
     if skipped_count > 0:
         logger.warning(f"[BUY_SIGNALS] Skipped {skipped_count} invalid items out of {len(buy_sigs)} total")
 
     return out
-
-
-def _swing_cell(swing_v: Any) -> Text:
-    """Swing-signal cell: ▲score colored by strength, or dim -- when absent."""
-    if swing_v is None:
-        return Text("--", style=DIM)
-    try:
-        sv_f = float(swing_v)
-    except (TypeError, ValueError):
-        return Text("--", style=DIM)
-    c = G if sv_f >= 80 else (CY if sv_f >= 70 else Y)
-    return Text(f"▲{sv_f:.0f}", style=c)
 
 
 def _composite_score_color(v: float) -> str:

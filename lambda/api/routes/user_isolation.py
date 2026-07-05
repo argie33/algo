@@ -18,7 +18,7 @@ import psycopg2.sql
 from psycopg2.extensions import cursor
 from routes.utils import error_response
 
-from utils.db.sql_safety import assert_safe_column, assert_safe_table
+from utils.validation import assert_safe_column, assert_safe_table
 
 T = TypeVar("T")
 

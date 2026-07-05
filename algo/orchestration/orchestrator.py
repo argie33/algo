@@ -160,10 +160,8 @@ class Orchestrator:
                 "max_industry_positions",
                 "max_positions",
                 "min_signal_quality_score",
-                "min_swing_score",
                 "data_completeness_threshold",
                 "signal_score_threshold",
-                "swing_score_threshold",
                 "entry_volume_threshold",
                 "entry_dollar_volume",
                 "orchestrator_halt_enabled",
@@ -214,7 +212,7 @@ class Orchestrator:
         Analytics loaders (company_profile, analyst_sentiment, stability_metrics, value_metrics)
         iterate 5000+ symbols with yfinance rate limits and can run 6+ hours.
 
-        Critical-path loaders (swing_trader_scores_vectorized, trend_template_data, sector_ranking,
+        Critical-path loaders (trend_template_data, sector_ranking,
         market_health_daily, market_exposure_daily, algo_metrics_daily) should complete within
         30-90 minutes. If still running 15 min before next orchestrator run, they're hung and
         consuming RDS connections.
@@ -242,7 +240,6 @@ class Orchestrator:
                 "value_metrics",
             }
             critical_path_loaders = {
-                "swing_trader_scores_vectorized",
                 "trend_template_data",
                 "sector_ranking",
                 "market_health_daily",

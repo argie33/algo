@@ -187,8 +187,8 @@ def format_decimal_string(value: Any, precision: int = 2, allow_none: bool = Tru
     if isinstance(value, str):
         try:
             value = float(value)
-        except ValueError:
-            raise ValueError(f"Cannot convert string to float: {value}")
+        except ValueError as e:
+            raise ValueError(f"Cannot convert string to float: {value}") from e
 
     try:
         return f"{float(value):.{precision}f}"
@@ -253,3 +253,25 @@ def assert_safe_table(table_name: str) -> str:
         raise ValueError(f"Table name contains unsafe characters: {table_name}")
 
     return table_name
+
+
+def assert_safe_column(column_name: str) -> str:
+    """Verify column name is safe for SQL queries (alphanumeric + underscore only).
+
+    Args:
+        column_name: Column name to validate
+
+    Returns:
+        The column name if safe
+
+    Raises:
+        ValueError: If column name contains unsafe characters
+    """
+    if not isinstance(column_name, str):
+        raise ValueError(f"Column name must be string, got {type(column_name).__name__}")
+
+    # Only allow alphanumeric and underscore
+    if not all(c.isalnum() or c == "_" for c in column_name):
+        raise ValueError(f"Column name contains unsafe characters: {column_name}")
+
+    return column_name

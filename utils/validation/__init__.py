@@ -12,6 +12,15 @@ PRINCIPLE: All data validation must go through this module. Never use
 inline try/except or silent defaults elsewhere in the codebase.
 """
 
+# SQL safety functions (prevent SQL injection)
+from utils.db.sql_safety import (
+    assert_safe_column,
+    assert_safe_table,
+    safe_execute,
+    safe_select_count,
+    validate_identifier,
+)
+
 from .alpaca import AlpacaResponseValidator
 from .api_response import APIResponseValidator
 from .domain import create_default_registry
@@ -52,47 +61,43 @@ except ImportError:
     DataAgeValidator = None  # type: ignore # Graceful fallback if not available
 
 __all__ = [
-    # Constants
-    "EASTERN_TZ",
     "APIResponseValidator",
     "AlpacaResponseValidator",
     "CognitoValidator",
-    # Data freshness (unified)
     "DataAgeValidator",
     "DatabaseResultValidator",
     "DynamoDBValidator",
+    "EASTERN_TZ",
     "EnumValidator",
     "ParallelismValidator",
     "PhaseValidator",
     "RateLimitValidator",
     "StrictValidationError",
     "TypeValidator",
-    # Core validation classes & exceptions
     "ValidationResult",
     "Validator",
     "ValidatorRegistry",
-    # Registry factories
+    "assert_safe_column",
+    "assert_safe_table",
     "create_default_registry",
-    # Numeric conversions
     "format_decimal_string",
-    # Specialized validators
     "get_freshness_rule",
     "get_global_registry",
     "get_optional_field",
     "get_required_field",
     "log_data_issue",
     "safe_bool",
+    "safe_execute",
     "safe_float",
     "safe_int",
     "safe_json_loads",
     "safe_json_parse",
-    # Temporal conversions
     "safe_parse_date",
     "safe_parse_datetime_et",
-    # String & JSON conversions
+    "safe_select_count",
     "safe_str",
     "validate_field_types",
-    # Helper functions
+    "validate_identifier",
     "validate_required_fields",
     "validate_table_schema",
 ]
