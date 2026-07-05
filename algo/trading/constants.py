@@ -114,7 +114,7 @@ class WeinsteinStage(int, Enum):
 # These are the DEFAULTS; actual values should come from algo_config at runtime.
 # Use AlgoConfig class to read these, not hardcode them.
 DEFAULT_SIGNAL_SCORE_THRESHOLD = 60
-DEFAULT_SWING_SCORE_THRESHOLD = 55
+DEFAULT_COMPOSITE_SCORE_THRESHOLD = 50
 DEFAULT_DATA_COMPLETENESS_THRESHOLD = 0.70
 DEFAULT_ENTRY_VOLUME_THRESHOLD = 300000
 DEFAULT_ENTRY_DOLLAR_VOLUME = 500000

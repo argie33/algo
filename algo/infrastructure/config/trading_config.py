@@ -282,34 +282,19 @@ class TradingConfig:
             "swing_weight_multi_timeframe": self.get("swing_weight_multi_timeframe"),
         }
 
-    def get_swing_score_thresholds(self) -> dict[str, Any]:
-        """Get swing trader score grading thresholds and gates.
+    def get_composite_score_thresholds(self) -> dict[str, Any]:
+        """Get composite score quality thresholds (Phase 7 signal filtering).
+
+        Composite score = weighted combination of quality, growth, value, momentum, sector, market factors.
+        Used by Phase 7 signal generation to filter and rank signals by quality.
 
         Returns:
             {
-                "swing_min_trend_score": 5,
-                "swing_min_industry_rank": 100,
-                "swing_days_to_earnings_block": 5,
-                "swing_grade_threshold_aplus": 85,
-                "swing_grade_threshold_a": 75,
-                "swing_grade_threshold_b": 65,
-                "swing_grade_threshold_c": 55,
-                "swing_grade_threshold_d": 45,
-                "min_swing_score": 55.0,
-                "min_swing_grade": "",
+                "phase7_min_composite_score": 50,
             }
         """
         return {
-            "swing_min_trend_score": self.get("swing_min_trend_score"),
-            "swing_min_industry_rank": self.get("swing_min_industry_rank"),
-            "swing_days_to_earnings_block": self.get("swing_days_to_earnings_block"),
-            "swing_grade_threshold_aplus": self.get("swing_grade_threshold_aplus"),
-            "swing_grade_threshold_a": self.get("swing_grade_threshold_a"),
-            "swing_grade_threshold_b": self.get("swing_grade_threshold_b"),
-            "swing_grade_threshold_c": self.get("swing_grade_threshold_c"),
-            "swing_grade_threshold_d": self.get("swing_grade_threshold_d"),
-            "min_swing_score": self.get("min_swing_score"),
-            "min_swing_grade": self.get("min_swing_grade"),
+            "phase7_min_composite_score": self.get("phase7_min_composite_score"),
         }
 
     def get_advanced_filters_grades(self) -> dict[str, int]:
