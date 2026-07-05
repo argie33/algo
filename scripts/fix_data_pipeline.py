@@ -14,6 +14,7 @@ Usage:
     python scripts/fix_data_pipeline.py
 """
 
+import logging
 import os
 import subprocess
 import sys
@@ -24,6 +25,8 @@ from dataclasses import dataclass
 os.environ.setdefault('DATABASE_URL', 'postgresql://algo_admin@localhost/algo_trading')
 
 from utils.db.context import DatabaseContext
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -46,7 +49,7 @@ def log_step(step_num: int, title: str):
     print()
 
 
-def log_action(action: str, success: bool = None):
+def log_action(action: str, success: bool | None = None) -> None:
     """Log an action"""
     if success is True:
         print(f"  [OK]   {action}")
@@ -201,7 +204,7 @@ def restart_critical_loaders():
     results = []
     for loader_name, parallelism, timeout in critical_loaders:
         print()
-        success, output = run_loader(loader_name, parallelism, timeout)
+        success, _ = run_loader(loader_name, parallelism, timeout)
         results.append((loader_name, success))
         time.sleep(2)  # Brief pause between loaders
 
@@ -279,33 +282,67 @@ def check_circuit_breaker():
         log_action(f"Could not check circuit breaker: {e}", False)
 
 
-def re_enable_suspended_loaders():
-    """Re-enable suspended loaders after investigation"""
-    log_step(5, "RE-ENABLE SUSPENDED LOADERS")
+def re_enable_suspended_loaders() -> None:
+    """Re-enable suspended loaders: auto-recovery for non-critical, alert for critical."""
+    log_step(5, "RE-ENABLE SUSPENDED LOADERS (AUTO-RECOVERY)")
+
+    critical_loaders = {
+        "load_prices",
+        "load_market_health",
+        "load_market_constituents",
+        "price_daily",
+        "market_health_daily",
+    }
 
     # Get list of suspended loaders
-    with DatabaseContext('read') as cur:
+    with DatabaseContext('write') as cur:
         cur.execute("""
-            SELECT DISTINCT table_name
+            SELECT DISTINCT loader_name, MAX(execution_date) as last_date, COUNT(*) as fail_count
             FROM data_loader_status
-            WHERE status = 'SUSPENDED'
-            ORDER BY table_name
+            WHERE status IN ('SUSPENDED', 'FAILED')
+                AND execution_date >= CURRENT_DATE - INTERVAL '7 days'
+            GROUP BY loader_name
+            ORDER BY fail_count DESC, last_date DESC
         """)
 
-        suspended = [row[0] for row in cur.fetchall()]
+        suspended = cur.fetchall()
 
         if not suspended:
             log_action("No suspended loaders found", True)
             return
 
-        log_action(f"Found {len(suspended)} suspended loaders:", None)
-        for loader in suspended:
-            log_action(f"  {loader}", None)
+        log_action(f"Found {len(suspended)} suspended loaders, attempting recovery:", None)
+
+        for row in suspended:
+            loader_name = row.get("loader_name") or row[0]
+            fail_count = row.get("fail_count") or row[2]
+
+            if loader_name in critical_loaders:
+                # Critical loaders: alert ops, require manual investigation
+                log_action(f"  [CRITICAL] {loader_name}: {fail_count} failures - REQUIRES MANUAL REVIEW", False)
+                logger.critical(
+                    f"[LOADER_RECOVERY] CRITICAL LOADER SUSPENDED: {loader_name} "
+                    f"(failed {fail_count} times). Manual investigation required."
+                )
+            else:
+                # Non-critical loaders: auto-recovery
+                try:
+                    # Re-enable by clearing suspension status
+                    cur.execute("""
+                        UPDATE data_loader_status
+                        SET status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+                        WHERE loader_name = %s AND status IN ('SUSPENDED', 'FAILED')
+                    """, (loader_name,))
+
+                    log_action(f"  [AUTO-RECOVERY] {loader_name}: re-enabled ({fail_count} previous failures)", True)
+                    logger.info(f"[LOADER_RECOVERY] Auto-enabled non-critical loader: {loader_name}")
+
+                except Exception as e:
+                    log_action(f"  [ERROR] {loader_name}: could not re-enable - {e}", False)
+                    logger.error(f"Failed to re-enable {loader_name}: {e}")
 
     print()
-    log_action("Suspended loaders require manual investigation", None)
-    log_action("Check why they got stuck originally (connection pool? timeout?)", None)
-    log_action("For Monday: Either fix root cause or add safeguards before re-enabling", None)
+    log_action("Loader recovery complete", True)
 
 
 def main():

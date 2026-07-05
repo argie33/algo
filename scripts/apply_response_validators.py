@@ -86,7 +86,7 @@ def apply_decorators_to_file(filepath: Path) -> tuple[int, int]:
 
     Returns: (total_handlers, updated_handlers)
     """
-    with open(filepath, "r") as f:
+    with open(filepath) as f:
         content = f.read()
 
     original_content = content
@@ -167,7 +167,7 @@ def main():
             total_files += 1
             total_handlers += handler_count
             total_updated += updated_count
-            status = "✅" if updated_count > 0 else "⏭️ "
+            status = "[OK]" if updated_count > 0 else "[--]"
             print(f"{status} {filepath.name}: {updated_count}/{handler_count} updated")
 
     print(f"\n{'='*60}")
@@ -176,13 +176,13 @@ def main():
     print(f"{'='*60}")
 
     if total_updated > 0:
-        print("\n✅ Decorators applied successfully!")
+        print("\n[SUCCESS] Decorators applied successfully!")
         print("\nNext steps:")
         print("  1. Review changes: git diff")
         print("  2. Run tests: python -m pytest tests/test_api_response_consistency.py -v")
         print("  3. If tests pass, commit: git commit -m 'fix: Apply response validation to all API endpoints'")
     else:
-        print("\n⚠️  No decorators were added. They may already be applied.")
+        print("\n[WARNING] No decorators were added. They may already be applied.")
 
 
 if __name__ == "__main__":

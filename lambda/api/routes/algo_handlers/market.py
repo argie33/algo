@@ -22,6 +22,7 @@ from routes.utils import (
     normalize_to_utc_datetime,
     safe_dict_convert,
     safe_json_serialize,
+    validate_api_response,
 )
 
 from shared_contracts.response_validator import ResponseValidator
@@ -34,6 +35,7 @@ logger = logging.getLogger(__name__)
 
 
 @db_route_handler("get data quality")
+@validate_api_response("health")
 def _get_data_quality(cur: cursor) -> Any:
     """Get detailed data quality summary by table from latest data_patrol_log run."""
     try:
@@ -148,6 +150,7 @@ def _get_data_quality(cur: cursor) -> Any:
 
 
 @db_route_handler("fetch data status")
+@validate_api_response("health")
 def _get_data_status(cur: cursor) -> Any:  # noqa: C901
     """Get data freshness status with summary for ServiceHealth/AlgoTradingDashboard.
 
@@ -469,6 +472,7 @@ def _normalize_exposure(exp: dict) -> Any:
 
 
 @db_route_handler("get market")
+@validate_api_response("mkt")
 def _get_market(cur: cursor) -> Any:
     """Get simplified market data for dashboard. Returns market_health_daily + exposure data."""
     try:
@@ -578,6 +582,7 @@ def _get_market(cur: cursor) -> Any:
 
 
 @db_route_handler("get market factors")
+@validate_api_response("mkt")
 def _get_market_factors(cur: cursor) -> Any:
     """Get market exposure factors for dashboard display."""
     try:
@@ -631,6 +636,7 @@ def _get_market_factors(cur: cursor) -> Any:
 
 
 @db_route_handler("get market sentiment")
+@validate_api_response("mkt")
 def _get_market_sentiment(cur: cursor) -> Any:
     """Return latest market sentiment score and trend."""
     # market_sentiment view provides: date, fear_greed_index, label, put_call_ratio, vix, sentiment_score
@@ -679,6 +685,7 @@ def _get_market_sentiment(cur: cursor) -> Any:
 
 
 @db_route_handler("get markets")
+@validate_api_response("mkt")
 def _get_markets(cur: cursor) -> Any:  # noqa: C901
     """Get market regime, exposure, and 12-factor data for the Markets Health dashboard."""
     try:
@@ -954,6 +961,7 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
 
 
 @db_route_handler("get trend criteria")
+@validate_api_response("mkt")
 def _get_trend_criteria(cur: cursor) -> Any:
     """Return trend criteria analysis with passing count from actual data."""
     cur.execute("""

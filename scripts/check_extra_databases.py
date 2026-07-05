@@ -62,7 +62,7 @@ def check_extra_databases():
         total_waste_cost = 0.23 * total_waste_gb
 
         print(f"[TOTAL WASTE] {total_waste_gb:.2f} GB (~${total_waste_cost:.2f}/month)")
-        print(f"[ACTION] Delete via: psql -h <rds-host> -U stocks -d stocks -c 'DROP DATABASE ..;'")
+        print("[ACTION] Delete via: psql -h <rds-host> -U stocks -d stocks -c 'DROP DATABASE ..;'")
 
         return len(extra_dbs)
 

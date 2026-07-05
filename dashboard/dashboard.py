@@ -301,7 +301,6 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
 def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
     """Watch mode with auto-refresh."""
     state = WatchState()
-    state_lock = threading.Lock()
     active_threads: list[Any] = []
     active_threads_lock = threading.Lock()
     recovery = RenderRecovery()
@@ -315,20 +314,17 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
 
     def reload() -> None:
         try:
-            with state_lock:
-                state.loading = True
-                state.error = None
+            state.loading = True
+            state.error = None
             t0 = time.monotonic()
             state.result = load_all()
             state.elapsed = time.monotonic() - t0
-            with state_lock:
-                state.last_load = time.monotonic()
-                state.loading = False
+            state.last_load = time.monotonic()
+            state.loading = False
         except Exception as e:
             logger.error(f"Reload thread error: {type(e).__name__}: {e}")
-            with state_lock:
-                state.loading = False
-                state.error = f"{type(e).__name__}: {e}"
+            state.loading = False
+            state.error = f"{type(e).__name__}: {e}"
 
     try:
         reload_thread = threading.Thread(target=reload, daemon=False)
@@ -344,14 +340,13 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
                         break
                     controller.handle_keypress(key)
 
-                    with state_lock:
-                        state.frame = (state.frame + 1) % 1_000_001
-                        current_frame = state.frame
-                        current_result = state.result
-                        current_error = state.error
-                        is_loading = state.loading
-                        current_last_load = state.last_load
-                        current_elapsed = state.elapsed
+                    state.frame = (state.frame + 1) % 1_000_001
+                    current_frame = state.frame
+                    current_result = state.result
+                    current_error = state.error
+                    is_loading = state.loading
+                    current_last_load = state.last_load
+                    current_elapsed = state.elapsed
 
                     if current_result is None:
                         if current_error:

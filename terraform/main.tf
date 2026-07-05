@@ -463,9 +463,9 @@ module "monitoring" {
   cloudwatch_log_retention_days = var.cloudwatch_log_retention_days
 
   # Cost optimization: alarm and monitor gating
-  enable_performance_alarms       = var.enable_performance_alarms
-  enable_resource_alarms          = var.enable_resource_alarms
-  enable_data_quality_monitors    = var.enable_data_quality_monitors
+  enable_performance_alarms    = var.enable_performance_alarms
+  enable_resource_alarms       = var.enable_resource_alarms
+  enable_data_quality_monitors = var.enable_data_quality_monitors
 }
 
 module "orchestration" {

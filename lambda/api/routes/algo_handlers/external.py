@@ -19,12 +19,14 @@ from routes.utils import (
     safe_dict_convert,
     safe_json_serialize,
     success_response,
+    validate_api_response,
 )
 
 logger = logging.getLogger(__name__)
 
 
 @db_route_handler("get economic calendar")
+@validate_api_response("econ_cal")
 def _get_economic_calendar(cur: cursor) -> Any:
     """Get economic calendar data with freshness validation.
 
@@ -64,6 +66,7 @@ def _get_economic_calendar(cur: cursor) -> Any:
 
 
 @db_route_handler("get sentiment")
+@validate_api_response("sentiment")
 def _get_sentiment(cur: cursor) -> Any:
     """Get market sentiment data.
 

@@ -21,6 +21,7 @@ from routes.utils import (
     list_response,
     safe_dict_convert,
     safe_json_serialize,
+    validate_api_response,
 )
 
 from shared_contracts.response_validator import ResponseValidator
@@ -29,6 +30,90 @@ from utils.validation import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _validate_portfolio_snapshot(cur: cursor) -> tuple[dict[str, Any], Any] | Any:
+    """Fetch and validate portfolio snapshot. Returns (portfolio_dict, error_response) or (portfolio_dict, None)."""
+    cur.execute("""
+        SELECT total_portfolio_value, position_count FROM algo_portfolio_snapshots
+        ORDER BY snapshot_date DESC LIMIT 1
+    """)
+    port_row = cur.fetchone()
+    if port_row is None:
+        return None, error_response(503, "service_unavailable", "Portfolio snapshot unavailable")
+
+    portfolio_value = float(port_row["total_portfolio_value"])
+    open_positions = int(port_row["position_count"])
+
+    if not portfolio_value or portfolio_value <= 0:
+        return None, error_response(503, "service_unavailable", "Portfolio value unavailable")
+
+    return (port_row, portfolio_value, open_positions), None
+
+
+def _get_symbol_sector(cur: cursor, symbol: str) -> str | Any:
+    """Get sector for symbol or return error_response."""
+    cur.execute(
+        """
+        SELECT sector FROM company_profile WHERE ticker = %s LIMIT 1
+    """,
+        (symbol,),
+    )
+    profile_row = cur.fetchone()
+    sector = profile_row["sector"] if profile_row else None
+
+    if sector is None:
+        return error_response(
+            400, "sector_unknown", f"Cannot size position for {symbol}: sector not found in company_profile"
+        )
+    return sector
+
+
+def _fetch_sector_exposure(cur: cursor) -> dict[str, Any] | Any:
+    """Fetch sector exposure data. Returns dict or error_response."""
+    sector_exposure = {}
+    try:
+        cur.execute("""
+            SELECT COALESCE(cp.sector, 'Unknown') AS sector,
+                   SUM(ap.position_value) AS sector_value
+            FROM algo_positions ap
+            LEFT JOIN company_profile cp ON cp.ticker = ap.symbol
+            WHERE ap.status = 'open'
+            GROUP BY cp.sector
+        """)
+        for sr in cur.fetchall():
+            if sr["sector"]:
+                sector_val_raw = sr["sector_value"]
+                if sector_val_raw is None:
+                    error_msg = (
+                        f"Sector {sr['sector']} has NULL position_value sum — "
+                        "cannot proceed without complete sector exposure"
+                    )
+                    logger.error(error_msg)
+                    return error_response(503, "sector_exposure_incomplete", error_msg)
+                # Validate type before conversion — non-numeric values cause silent failures downstream
+                if not isinstance(sector_val_raw, (int, float)):
+                    error_msg = (
+                        f"Sector {sr['sector']} has non-numeric position_value: {type(sector_val_raw).__name__} "
+                        f"(value={sector_val_raw}). Cannot compute signal without valid numeric exposure."
+                    )
+                    logger.error(error_msg)
+                    return error_response(503, "invalid_sector_value_type", error_msg)
+                try:
+                    sector_val = float(sector_val_raw)
+                    if sector_val < 0:
+                        error_msg = (
+                            f"Sector {sr['sector']} has negative exposure ({sector_val}) — data corruption detected"
+                        )
+                        logger.error(error_msg)
+                        return error_response(503, "data_corruption", error_msg)
+                except (ValueError, TypeError) as e:
+                    return error_response(503, "data_format_error", f"Sector exposure not numeric: {e}")
+                sector_exposure[sr["sector"]] = sector_val
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+        raise RuntimeError(f"Unexpected error: {e}") from e
+
+    return sector_exposure
 
 
 def _calculate_pre_trade_impact(cur: cursor, body: dict[str, Any]) -> Any:
@@ -51,18 +136,10 @@ def _calculate_pre_trade_impact(cur: cursor, body: dict[str, Any]) -> Any:
         symbol = req.symbol
 
         # Portfolio snapshot
-        cur.execute("""
-            SELECT total_portfolio_value, position_count FROM algo_portfolio_snapshots
-            ORDER BY snapshot_date DESC LIMIT 1
-        """)
-        port_row = cur.fetchone()
-        if port_row is None:
-            return error_response(503, "service_unavailable", "Portfolio snapshot unavailable")
-        portfolio_value = float(port_row["total_portfolio_value"])
-        open_positions = int(port_row["position_count"])
-
-        if not portfolio_value or portfolio_value <= 0:
-            return error_response(503, "service_unavailable", "Portfolio value unavailable")
+        port_data, port_error = _validate_portfolio_snapshot(cur)
+        if port_error:
+            return port_error
+        _, portfolio_value, open_positions = port_data
 
         # Determine position size - CRITICAL: both position_dollars and position_pct are optional,
         # but at least one must be provided. Do NOT default to implicit 0.75% — caller must specify intent.
@@ -89,54 +166,14 @@ def _calculate_pre_trade_impact(cur: cursor, body: dict[str, Any]) -> Any:
         pct_of_portfolio = actual_dollars / portfolio_value * 100
 
         # Symbol sector
-        cur.execute(
-            """
-            SELECT sector FROM company_profile WHERE ticker = %s LIMIT 1
-        """,
-            (symbol,),
-        )
-        profile_row = cur.fetchone()
-        sector = profile_row["sector"] if profile_row else None
+        sector = _get_symbol_sector(cur, symbol)
+        if isinstance(sector, dict) and "error" in str(sector):  # Check if it's an error response
+            return sector
 
         # Current sector exposure
-        sector_exposure = {}
-        try:
-            cur.execute("""
-                SELECT COALESCE(cp.sector, 'Unknown') AS sector,
-                       SUM(ap.position_value) AS sector_value
-                FROM algo_positions ap
-                LEFT JOIN company_profile cp ON cp.ticker = ap.symbol
-                WHERE ap.status = 'open'
-                GROUP BY cp.sector
-            """)
-            for sr in cur.fetchall():
-                if sr["sector"]:
-                    sector_val_raw = sr["sector_value"]
-                    if sector_val_raw is None:
-                        error_msg = f"Sector {sr['sector']} has NULL position_value sum — cannot proceed without complete sector exposure"
-                        logger.error(error_msg)
-                        return error_response(503, "sector_exposure_incomplete", error_msg)
-                    # Validate type before conversion — non-numeric values cause silent failures downstream
-                    if not isinstance(sector_val_raw, (int, float)):
-                        error_msg = (
-                            f"Sector {sr['sector']} has non-numeric position_value: {type(sector_val_raw).__name__} "
-                            f"(value={sector_val_raw}). Cannot compute signal without valid numeric exposure."
-                        )
-                        logger.error(error_msg)
-                        return error_response(503, "invalid_sector_value_type", error_msg)
-                    try:
-                        sector_val = float(sector_val_raw)
-                        if sector_val < 0:
-                            error_msg = (
-                                f"Sector {sr['sector']} has negative exposure ({sector_val}) — data corruption detected"
-                            )
-                            logger.error(error_msg)
-                            return error_response(503, "data_corruption", error_msg)
-                    except (ValueError, TypeError) as e:
-                        return error_response(503, "data_format_error", f"Sector exposure not numeric: {e}")
-                    sector_exposure[sr["sector"]] = sector_val
-        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            raise RuntimeError(f"Unexpected error: {e}") from e
+        sector_exposure = _fetch_sector_exposure(cur)
+        if isinstance(sector_exposure, dict) and "_error" in sector_exposure:
+            return sector_exposure
 
         if portfolio_value <= 0:
             return error_response(400, "invalid_portfolio", f"Portfolio value invalid ({portfolio_value})")
@@ -349,6 +386,7 @@ def _calculate_trade_preview(cur: cursor, body: dict[str, Any]) -> Any:
 
 
 @db_route_handler("fetch rejection funnel")
+@validate_api_response("sig")
 def _get_rejection_funnel(cur: cursor) -> Any:  # noqa: C901
     """Get signal rejection funnel with detailed breakdown by filter."""
     try:
@@ -521,7 +559,9 @@ def _get_rejection_funnel(cur: cursor) -> Any:  # noqa: C901
         return json_response(200, result)
     except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
         logger.error(
-            f"Failed to fetch rejection funnel: {type(e).__name__}: {e}\n  Operation: Query candidate_signals_reject table\n  Endpoint: GET /api/algo/rejection-funnel"
+            f"Failed to fetch rejection funnel: {type(e).__name__}: {e}\n"
+            f"  Operation: Query candidate_signals_reject table\n"
+            f"  Endpoint: GET /api/algo/rejection-funnel"
         )
         raise
     except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
@@ -616,6 +656,7 @@ def _get_rejection_reason_description(reason: str) -> str:
 
 
 @db_route_handler("fetch swing scores")
+@validate_api_response("scores")
 def _get_swing_scores(cur: cursor, limit: int = 100, min_score: float | None = None, symbol: str | None = None) -> Any:
     """Get swing trade candidates with scoring."""
     try:
@@ -662,6 +703,7 @@ def _get_swing_scores(cur: cursor, limit: int = 100, min_score: float | None = N
 
 
 @db_route_handler("fetch swing scores history")
+@validate_api_response("scores")
 def _get_swing_scores_history(cur: cursor, days: int = 30) -> Any:
     """Get swing scores historical data."""
     try:

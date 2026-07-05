@@ -22,6 +22,7 @@ from routes.utils import (
     list_response,
     safe_dict_convert,
     safe_json_serialize,
+    validate_api_response,
 )
 
 from utils.data_queries import (
@@ -37,6 +38,7 @@ logger = logging.getLogger(__name__)
 
 
 @db_route_handler("fetch algo positions")
+@validate_api_response("pos")
 def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa: C901
     """Get current open positions with computed fields.
 
@@ -284,6 +286,7 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
 
 
 @db_route_handler("fetch algo status")
+@validate_api_response("run")
 def _get_algo_status(cur: cursor) -> Any:
     """Get latest algo execution status plus latest portfolio snapshot."""
     cur.execute("""
@@ -367,6 +370,7 @@ def _get_algo_status(cur: cursor) -> Any:
 
 
 @db_route_handler("fetch algo trades")
+@validate_api_response("trades")
 def _get_algo_trades(cur: cursor, limit: int = 200, user_id: str | None = None, status: str | None = None) -> Any:
     """Get recent trades with all fields for frontend (scoped to user if user_id provided, filtered by status if provided)."""
     where_parts: list[str] = []
@@ -420,6 +424,7 @@ def _get_algo_trades(cur: cursor, limit: int = 200, user_id: str | None = None, 
 
 
 @db_route_handler("fetch circuit breakers")
+@validate_api_response("cb")
 def _get_circuit_breakers(cur: cursor) -> Any:  # noqa: C901
     """Get real-time circuit breaker state with current values vs thresholds."""
     try:
@@ -965,6 +970,7 @@ def _get_circuit_breakers(cur: cursor) -> Any:  # noqa: C901
 
 
 @db_route_handler("fetch dashboard signals")
+@validate_api_response("sig")
 def _get_dashboard_signals(cur: cursor) -> Any:
     """Get dashboard-specific signal data with aggregations for the Ops Terminal.
 
@@ -1090,6 +1096,7 @@ def _get_dashboard_signals(cur: cursor) -> Any:
 
 
 @db_route_handler("fetch equity curve")
+@validate_api_response("perf")
 def _get_equity_curve(cur: cursor, days: int = 180) -> Any:
     """Get equity curve for last N days."""
     try:

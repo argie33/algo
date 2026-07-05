@@ -70,6 +70,7 @@ def _get_algo_config(cur: cursor) -> Any:
 
 
 @db_route_handler("fetch algo config key")
+@validate_api_response("cfg")
 def _get_algo_config_key(cur: cursor, key: str) -> Any:
     """Return a single algo config key."""
     cur.execute(

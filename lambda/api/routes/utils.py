@@ -554,7 +554,7 @@ def execute_with_timeout(
             # This ensures routes can always access rows as dicts regardless of cursor type
             if rows and isinstance(rows[0], tuple) and cur.description:
                 col_names = [desc[0] for desc in cur.description]
-                return [dict(zip(col_names, row)) for row in rows]
+                return [dict(zip(col_names, row, strict=True)) for row in rows]
 
             return list(rows)
 

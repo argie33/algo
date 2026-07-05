@@ -33,7 +33,7 @@ data "aws_lambda_layer_version" "api_deps" {
 # path.root = terraform/ (root module dir), so the zip is at path.root/lambda/shared-deps-layer.zip.
 
 locals {
-  shared_deps_layer_path = "${path.root}/lambda/shared-deps-layer.zip"
+  shared_deps_layer_path   = "${path.root}/lambda/shared-deps-layer.zip"
   shared_deps_layer_exists = fileexists(local.shared_deps_layer_path)
 }
 
@@ -79,7 +79,9 @@ resource "aws_cloudwatch_log_group" "api_lambda" {
 
 # Conditional: use S3 if bucket provided, else local file
 locals {
-  api_lambda_use_s3 = var.api_lambda_s3_bucket != ""
+  api_lambda_use_s3            = var.api_lambda_s3_bucket != ""
+  api_lambda_local_file_path   = "${path.root}/${var.api_lambda_code_file}"
+  api_lambda_local_file_exists = !local.api_lambda_use_s3 ? fileexists(local.api_lambda_local_file_path) : true
 }
 
 # API Lambda code: pre-built ZIP by GitHub Actions workflow, or reference local file for Terraform-only runs
@@ -108,8 +110,8 @@ resource "aws_lambda_function" "api" {
   s3_bucket         = local.api_lambda_use_s3 ? var.api_lambda_s3_bucket : null
   s3_key            = local.api_lambda_use_s3 ? var.api_lambda_s3_key : null
   s3_object_version = local.api_lambda_use_s3 && var.api_lambda_s3_object_version != "" ? var.api_lambda_s3_object_version : null
-  filename          = !local.api_lambda_use_s3 ? "${path.root}/${var.api_lambda_code_file}" : null
-  source_code_hash  = !local.api_lambda_use_s3 ? filebase64sha256("${path.root}/${var.api_lambda_code_file}") : null
+  filename          = !local.api_lambda_use_s3 ? local.api_lambda_local_file_path : null
+  source_code_hash  = local.api_lambda_local_file_exists ? filebase64sha256(local.api_lambda_local_file_path) : null
 
   ephemeral_storage {
     size = var.api_lambda_ephemeral_storage
@@ -163,8 +165,8 @@ resource "aws_lambda_function" "api" {
 
   lifecycle {
     precondition {
-      condition     = local.api_lambda_use_s3 || (var.api_lambda_code_file == "" || fileexists("${path.root}/${var.api_lambda_code_file}"))
-      error_message = "Lambda code must be available either via S3 (api_lambda_s3_bucket configured) or as local file (${path.root}/${var.api_lambda_code_file}). If file is empty string, S3 must be configured."
+      condition     = local.api_lambda_use_s3 || local.api_lambda_local_file_exists
+      error_message = "Lambda code must be available either via S3 (api_lambda_s3_bucket configured) or as local file (${local.api_lambda_local_file_path}). Ensure the file exists or configure S3."
     }
     ignore_changes = [filename, source_code_hash]
   }
