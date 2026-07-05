@@ -124,7 +124,6 @@ def _validate_trades_structure(trades: Any) -> tuple[list[Any], float | None]:
     """
     # Check for explicit error marker
     if error_boundary.has_error(trades):
-        error_msg = error_boundary.get_error_message(trades)
         return [], None
 
     trades_timestamp = None
