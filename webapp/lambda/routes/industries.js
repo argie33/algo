@@ -17,7 +17,10 @@ const router = express.Router();
 // Helper function to get industries ranked by composite score with performance metrics
 async function fetchIndustries(req, res) {
   try {
-    const { limit = 500, page = 1 } = req.query;
+    // Ensure limit and page parameters have explicit defaults
+    const limit = req.query.limit !== undefined ? req.query.limit : 500;
+    const page = req.query.page !== undefined ? req.query.page : 1;
+
     // Explicit NaN checks for pagination parameters
     const limitVal = parseInt(limit, 10);
     const pageVal = parseInt(page, 10);
@@ -27,6 +30,11 @@ async function fetchIndustries(req, res) {
     );
     const pageNum = Math.max(!isNaN(pageVal) ? pageVal : 1, 1);
     const offset = (pageNum - 1) * limitNum;
+
+    // Validate offset is a valid number
+    if (!Number.isInteger(offset) || offset < 0) {
+      return sendError(res, "Invalid pagination offset calculated", 400);
+    }
 
     // Parallelize data and count queries
     const [result, countResult] = await Promise.all([
@@ -181,7 +189,12 @@ async function fetchIndustries(req, res) {
       hasPrev: pageNum > 1,
     });
   } catch (error) {
-    console.error("Error fetching industries:", error.message);
+    console.error("Error fetching industries:", {
+      message: error.message,
+      code: error.code,
+      stack: error.stack?.split('\n')[0],
+      type: error.constructor.name,
+    });
     return sendError(
       res,
       `Failed to fetch industries: ${error.message.substring(0, 100)}`,
