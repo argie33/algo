@@ -160,6 +160,12 @@ class Orchestrator:
                 "max_positions",
                 "min_signal_quality_score",
                 "min_swing_score",
+                "data_completeness_threshold",
+                "signal_score_threshold",
+                "swing_score_threshold",
+                "entry_volume_threshold",
+                "entry_dollar_volume",
+                "orchestrator_halt_enabled",
             ]
             missing = []
             for key in required_keys:

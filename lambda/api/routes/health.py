@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
-from typing import Any, cast
+from typing import Any
 
 from api_utils.config import get_config
 from psycopg2.extensions import cursor

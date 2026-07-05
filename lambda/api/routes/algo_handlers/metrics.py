@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 # mypy: disable-error-code=no-any-return
-
 import logging
 import math
 from datetime import datetime, timedelta, timezone

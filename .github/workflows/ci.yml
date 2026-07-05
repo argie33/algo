@@ -68,9 +68,7 @@ jobs:
           python .pre-commit-scripts/check-strict-validation-tests.py
           python .pre-commit-scripts/check-strict-safe-conversion.py
           python .pre-commit-scripts/check-credential-defaults.py
-          # TODO: Re-enable after fixing 36 pre-existing fail-fast governance violations
-          # python .pre-commit-scripts/check-silent-fallbacks.py
-          echo "[SKIP] Fail-fast governance check temporarily disabled for factor scores deployment"
+          python .pre-commit-scripts/check-silent-fallbacks.py
 
       - name: Run unit tests
         run: |

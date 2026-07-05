@@ -467,7 +467,7 @@ def _get_data_quality(cur: cursor) -> Any:
     return json_response(200, quality)
 
 
-def _verify_user_email(body: "dict[str, Any] | None" = None) -> Any:
+def _verify_user_email(body: dict[str, Any] | None = None) -> Any:
     """Verify a user's email in Cognito (dev/testing only)."""
     if not body:
         return error_response(400, "bad_request", "Request body is required")

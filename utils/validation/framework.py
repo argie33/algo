@@ -394,12 +394,12 @@ def safe_int(
     if value is None:
         if strict:
             raise StrictValidationError(f"Cannot convert None to int {error_ctx}")
-        return default  # type: ignore[return-value]
+        return default
 
     if isinstance(value, bool):
         if strict:
             raise StrictValidationError(f"Cannot convert bool to int (ambiguous: {value!r}) {error_ctx}")
-        return default  # type: ignore[return-value]
+        return default
 
     try:
         return int(value)
@@ -407,7 +407,7 @@ def safe_int(
         if strict:
             raise StrictValidationError(f"Cannot convert {value!r} to int {error_ctx}: {e}") from e
         logger.warning(f"Cannot convert {value!r} to int {error_ctx}: {e}")
-        return default  # type: ignore[return-value]
+        return default
 
 
 def safe_parse_date(value: Any, context: str = "", strict: bool = True) -> date | None:
@@ -687,3 +687,78 @@ def log_data_issue(fetcher_name: str, field_name: str, issue: str, value: Any = 
         logger.warning(f"{fetcher_name}.{field_name}: {issue} (value: {value!r})")
     else:
         logger.warning(f"{fetcher_name}.{field_name}: {issue}")
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# UNIFIED DATA UNAVAILABILITY MARKER
+# ──────────────────────────────────────────────────────────────────────────────
+# Standard format for all "data not available" responses across the platform.
+# Prevents inconsistent formats: _data_unavailable vs data_unavailable, with/without reason.
+
+
+def data_unavailable(
+    reason: str,
+    message: str | None = None,
+    log_level: str = "debug",
+    log_context: str | None = None,
+) -> dict[str, Any]:
+    """Create standardized data unavailability marker.
+
+    REQUIRED: All code returning optional/unavailable data must use this format.
+    Ensures dashboard and downstream consumers have consistent schema.
+
+    Args:
+        reason: Error code (e.g., "symbol_not_found", "data_loading", "insufficient_history")
+        message: Human-readable message (optional, for logging context)
+        log_level: Logging level if log_context provided ("debug", "info", "warning", "error")
+        log_context: Context string to log (e.g., "fetcher=market_data")
+
+    Returns:
+        Dict with standardized shape: {"data_unavailable": True, "reason": "code", "message": "..."}
+
+    Example:
+        # Instead of: {"data_unavailable": True}
+        # Or:         {"_data_unavailable": True, "reason": "..."}
+        # Use:        data_unavailable("data_loading", "Market data not yet available")
+
+        return data_unavailable(
+            "insufficient_history",
+            message="Need at least 90 trading days",
+            log_context="symbol=AAPL"
+        )
+    """
+    result: dict[str, Any] = {"data_unavailable": True, "reason": reason}
+    if message:
+        result["message"] = message
+
+    if log_context:
+        msg = f"[DATA_UNAVAILABLE] {reason}"
+        if message:
+            msg += f": {message}"
+        if log_context:
+            msg += f" ({log_context})"
+
+        if log_level == "error":
+            logger.error(msg)
+        elif log_level == "warning":
+            logger.warning(msg)
+        elif log_level == "info":
+            logger.info(msg)
+        else:  # default to debug
+            logger.debug(msg)
+
+    return result
+
+
+def is_data_unavailable(value: Any) -> bool:
+    """Check if value is a data_unavailable marker (new standard format or legacy underscore format).
+
+    Returns True for:
+    - {"data_unavailable": True, ...}
+    - {"_data_unavailable": True, ...} (legacy, for backward compatibility)
+
+    Allows optional consumer code to handle both formats during transition period.
+    """
+    if not isinstance(value, dict):
+        return False
+    return bool(value.get("data_unavailable")) or bool(value.get("_data_unavailable"))
