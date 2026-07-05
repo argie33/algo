@@ -827,9 +827,6 @@ def _get_performance_analytics(cur: cursor) -> Any:
                 "expectancy": 0.0,
                 "max_drawdown_pct": 0.0,
             }
-            response_dict["sharpe252"] = 0.0
-            response_dict["sortino"] = 0.0
-            response_dict["calmar"] = 0.0
 
             sanitized = APIResponseValidator.sanitize_response(response_dict)
             return success_response(sanitized)
@@ -854,10 +851,6 @@ def _get_performance_analytics(cur: cursor) -> Any:
             "expectancy": float(expectancy_val) if expectancy_val is not None else 0.0,
             "max_drawdown_pct": float(max_dd) if max_dd is not None else 0.0,
         }
-        response_dict_final["sharpe252"] = response_dict_final["rolling_sharpe_252d"]
-        response_dict_final["sortino"] = response_dict_final["rolling_sortino_252d"]
-        response_dict_final["calmar"] = response_dict_final["calmar_ratio"]
-
         # Validate perf_anl response matches contract schema
         sanitized = APIResponseValidator.sanitize_response(response_dict_final)
         ensure_valid_response("perf_anl", sanitized)
@@ -895,10 +888,6 @@ def _get_performance_analytics(cur: cursor) -> Any:
                     "expectancy": 0.0,
                     "max_drawdown_pct": 0.0,
                 }
-
-                response_dict["sharpe252"] = response_dict["rolling_sharpe_252d"]
-                response_dict["sortino"] = response_dict["rolling_sortino_252d"]
-                response_dict["calmar"] = response_dict["calmar_ratio"]
 
                 sanitized = APIResponseValidator.sanitize_response(response_dict)
                 return success_response(sanitized)

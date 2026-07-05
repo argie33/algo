@@ -202,7 +202,10 @@ class PutCallRatioFetcher:
 
         Returns:
             float: Put/call ratio if successful
-            None: If all retries exhausted
+            None: If all retries exhausted (MUST be converted to explicit marker by caller)
+
+        CRITICAL: All None returns must be handled by fetch() which converts to data_unavailable markers.
+        Internal method returns None for backoff retry logic; public API must be explicit.
         """
         last_error_reason = "unknown error"
 
@@ -219,7 +222,7 @@ class PutCallRatioFetcher:
                         f"[PUT_CALL_RATIO] Permanent error on attempt {attempt}/{self.MAX_RETRIES} for {eval_date}: "
                         f"{last_error_reason}. Will not retry."
                     )
-                    logger.warning(f"[PUT_CALL_RATIO] Returning None after permanent error for {eval_date}")
+                    logger.info(f"[PUT_CALL_RATIO] Data unavailable after permanent error for {eval_date}: {last_error_reason}")
                     return None
 
                 # Transient error - log and retry if attempts remain
@@ -238,11 +241,11 @@ class PutCallRatioFetcher:
                         f"{type(e).__name__}: {str(e)[:100]}. No retries remaining."
                     )
 
-        # All retries exhausted
+        # All retries exhausted - data unavailable
         logger.error(
             f"[PUT_CALL_RATIO] All {self.MAX_RETRIES} retries failed for {eval_date}. Reason: {last_error_reason}"
         )
-        logger.warning("[PUT_CALL_RATIO] Returning None after all retries exhausted")
+        logger.info(f"[PUT_CALL_RATIO] Data unavailable for {eval_date}: {last_error_reason}")
         return None
 
     def _fetch_put_call_ratio(self, eval_date: date) -> float | None:

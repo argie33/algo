@@ -105,7 +105,13 @@ class StabilityMetricsLoader(OptimalLoader):
     def _unpack_volatility_result(self, result: float | dict[str, Any], field_name: str, symbol: str) -> float | None:
         """Unpack volatility result: float or marker dict with data_unavailable.
 
+        When result is a data_unavailable marker dict, logs explicitly that the field
+        is unavailable and returns None. The caller aggregates all unavailability reasons.
+
         Raises RuntimeError if result is invalid type.
+
+        Per CLAUDE.md governance: All data_unavailable markers must be logged explicitly,
+        not silently converted to None.
         """
         if isinstance(result, dict):
             if not result.get("data_unavailable"):
@@ -113,6 +119,8 @@ class StabilityMetricsLoader(OptimalLoader):
                     f"[STABILITY_METRICS] {symbol}: {field_name} marker dict invalid - "
                     f"expected data_unavailable=True if dict returned, got {result}"
                 )
+            reason = result.get("reason", "unknown")
+            logger.debug(f"[STABILITY_METRICS] {symbol}: {field_name} unavailable - {reason}")
             return None
         elif isinstance(result, float):
             return result

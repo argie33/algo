@@ -141,8 +141,9 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
         if key == "put_call_ratio":
             v = safe_float(f.get("value"), default=None)
             # Handle nested structure: put_call_ratio might be {put_call_ratio, pts, max, score}
-            if v is None and isinstance(f.get("put_call_ratio"), dict):
-                v = safe_float(f["put_call_ratio"].get("put_call_ratio"), default=None)
+            put_call_data = f.get("put_call_ratio")
+            if v is None and isinstance(put_call_data, dict):
+                v = safe_float(put_call_data.get("put_call_ratio"), default=None)
 
             if v is not None:
                 return f" {v:.2f}"
@@ -151,8 +152,8 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
             # Pts is derived metric, different from actual put_call_ratio.
             # Per GOVERNANCE.md: "Never use secondary fallback when primary unavailable"
             reason = f.get("reason")
-            if not reason and isinstance(f.get("put_call_ratio"), dict):
-                reason = f["put_call_ratio"].get("reason")
+            if not reason and isinstance(put_call_data, dict):
+                reason = put_call_data.get("reason")
             logger.error(
                 "[EXPOSURE] Risk factor missing: put_call_ratio unavailable. reason=%s. Position sizing will be degraded.",
                 reason,

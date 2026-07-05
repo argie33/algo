@@ -114,7 +114,17 @@ def fetch_portfolio(c: None) -> dict[str, Any]:
             )
             record_data_quality_issue("portfolio", "freshness", "stale_warning_24h")
 
-        # Data is already validated at boundary; direct conversion
+        # Validate required fields are present and non-None
+        if port.get("total_portfolio_value") is None:
+            record_data_quality_issue("portfolio", "total_portfolio_value", "none_value")
+            return FetcherValidator.build_error_response("Portfolio total_portfolio_value is None")
+        if port.get("total_cash") is None:
+            record_data_quality_issue("portfolio", "total_cash", "none_value")
+            return FetcherValidator.build_error_response("Portfolio total_cash is None")
+        if port.get("position_count") is None:
+            record_data_quality_issue("portfolio", "position_count", "none_value")
+            return FetcherValidator.build_error_response("Portfolio position_count is None")
+
         tpv = float(port["total_portfolio_value"])
         tc = float(port["total_cash"])
         pc = int(port["position_count"])
@@ -371,7 +381,17 @@ def fetch_perf(c: None) -> dict[str, Any]:
                     record_data_quality_issue("perf", field, "missing_required_field")
             return FetcherValidator.build_error_response(validation_error)
 
-        # Data is already validated at boundary; direct conversion
+        # Validate required fields are present and non-None
+        if perf.get("total_trades") is None:
+            record_data_quality_issue("perf", "total_trades", "none_value")
+            return FetcherValidator.build_error_response("Performance total_trades is None")
+        if perf.get("winning_trades") is None:
+            record_data_quality_issue("perf", "winning_trades", "none_value")
+            return FetcherValidator.build_error_response("Performance winning_trades is None")
+        if perf.get("losing_trades") is None:
+            record_data_quality_issue("perf", "losing_trades", "none_value")
+            return FetcherValidator.build_error_response("Performance losing_trades is None")
+
         n = int(perf["total_trades"])
         w = int(perf["winning_trades"])
         losing = int(perf["losing_trades"])

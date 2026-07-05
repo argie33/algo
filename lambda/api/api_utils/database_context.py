@@ -28,17 +28,23 @@ from __future__ import annotations
 
 # Import the unified implementation from utils
 import sys
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from psycopg2.extras import DictCursor
 
 sys.path.insert(0, "/".join(__file__.split("/")[:-4]))  # Navigate to root
 from utils.db.context import DatabaseContext as _DatabaseContext
 
+if TYPE_CHECKING:
+    from utils.db.context import DatabaseContext as _DatabaseContextType
+    # Suppress type error for class definition
+else:
+    _DatabaseContextType = Any  # type: ignore[misc,assignment]
+
 __all__ = ["DatabaseContext"]
 
 
-class DatabaseContext(_DatabaseContext):
+class DatabaseContext(_DatabaseContext):  # type: ignore[misc]
     """REST API database context with disabled correlation tracking.
 
     Re-exports utils.DatabaseContext but:
