@@ -72,7 +72,7 @@ def generate_openapi_spec() -> dict[str, Any]:
     return spec
 
 
-def _build_path_health() -> dict:
+def _build_path_health() -> dict[str, Any]:
     """Build health check endpoints."""
     return {
         "/api/health": {
@@ -129,7 +129,7 @@ def _build_path_health() -> dict:
     }
 
 
-def _build_path_stocks() -> dict:
+def _build_path_stocks() -> dict[str, Any]:
     """Build stock data endpoints."""
     return {
         "/api/stocks/{symbol}": {
@@ -184,7 +184,7 @@ def _build_path_stocks() -> dict:
     }
 
 
-def _build_path_signals() -> dict:
+def _build_path_signals() -> dict[str, Any]:
     """Build signal endpoints."""
     return {
         "/api/signals": {
@@ -245,7 +245,7 @@ def _build_path_signals() -> dict:
     }
 
 
-def _build_path_financials() -> dict:
+def _build_path_financials() -> dict[str, Any]:
     """Build financial statement endpoints."""
     return {
         "/api/financials/{symbol}/key-metrics": {
@@ -351,7 +351,7 @@ def _build_path_financials() -> dict:
     }
 
 
-def _build_path_sectors_industries() -> dict:
+def _build_path_sectors_industries() -> dict[str, Any]:
     """Build sector and industry endpoints."""
     return {
         "/api/sectors": {
@@ -373,7 +373,7 @@ def _build_path_sectors_industries() -> dict:
     }
 
 
-def _build_path_prices() -> dict:
+def _build_path_prices() -> dict[str, Any]:
     """Build price data endpoints."""
     return {
         "/api/prices/{symbol}": {
@@ -401,7 +401,7 @@ def _build_path_prices() -> dict:
     }
 
 
-def _build_path_market() -> dict:
+def _build_path_market() -> dict[str, Any]:
     """Build market data endpoints."""
     return {
         "/api/market": {
@@ -415,7 +415,7 @@ def _build_path_market() -> dict:
     }
 
 
-def _build_path_earnings() -> dict:
+def _build_path_earnings() -> dict[str, Any]:
     """Build earnings endpoints."""
     return {
         "/api/earnings": {
@@ -429,7 +429,7 @@ def _build_path_earnings() -> dict:
     }
 
 
-def _build_path_economic() -> dict:
+def _build_path_economic() -> dict[str, Any]:
     """Build economic data endpoints."""
     return {
         "/api/economic": {
@@ -443,7 +443,7 @@ def _build_path_economic() -> dict:
     }
 
 
-def _build_path_scores() -> dict:
+def _build_path_scores() -> dict[str, Any]:
     """Build stock scoring endpoints."""
     return {
         "/api/scores": {
@@ -465,7 +465,7 @@ def _build_path_scores() -> dict:
     }
 
 
-def _build_path_trades() -> dict:
+def _build_path_trades() -> dict[str, Any]:
     """Build trade endpoints."""
     return {
         "/api/trades": {
@@ -538,7 +538,7 @@ def _build_path_trades() -> dict:
     }
 
 
-def _build_path_algo() -> dict:
+def _build_path_algo() -> dict[str, Any]:
     """Build algo trading endpoints."""
     return {
         "/api/algo/preview": {
@@ -587,7 +587,7 @@ def _build_path_algo() -> dict:
     }
 
 
-def _build_path_admin() -> dict:
+def _build_path_admin() -> dict[str, Any]:
     """Build admin endpoints."""
     return {
         "/api/admin/verify-user-email": {
@@ -628,7 +628,7 @@ def _build_path_admin() -> dict:
     }
 
 
-def _build_path_contact() -> dict:
+def _build_path_contact() -> dict[str, Any]:
     """Build contact form endpoints."""
     return {
         "/api/contact": {
@@ -689,7 +689,7 @@ def _build_path_contact() -> dict:
     }
 
 
-def _build_path_settings() -> dict:
+def _build_path_settings() -> dict[str, Any]:
     """Build settings endpoints."""
     return {
         "/api/settings": {
@@ -724,7 +724,7 @@ def _build_path_settings() -> dict:
     }
 
 
-def _build_path_data_coverage() -> dict:
+def _build_path_data_coverage() -> dict[str, Any]:
     """Build data coverage endpoints."""
     return {
         "/api/data-coverage": {
@@ -738,7 +738,7 @@ def _build_path_data_coverage() -> dict:
     }
 
 
-def _build_path_api_docs() -> dict:
+def _build_path_api_docs() -> dict[str, Any]:
     """Build API documentation endpoints."""
     return {
         "/api/openapi.json": {

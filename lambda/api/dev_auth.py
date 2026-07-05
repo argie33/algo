@@ -10,6 +10,7 @@ In production, this code path is unreachable because COGNITO_USER_POOL_ID is alw
 
 import logging
 import os
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +37,7 @@ def is_local_dev_mode() -> bool:
     return is_dev
 
 
-def get_dev_claims(token: str | None) -> dict | None:
+def get_dev_claims(token: str | None) -> dict[str, Any] | None:
     """
     Generate development claims for testing without Cognito.
 
@@ -76,7 +77,7 @@ def get_dev_claims(token: str | None) -> dict | None:
 
 def validate_dev_token(
     token: str | None,
-) -> tuple[bool, dict | None, str | None]:
+) -> tuple[bool, dict[str, Any] | None, str | None]:
     """
     Validate a development token (only works in local dev mode).
 

@@ -5,7 +5,7 @@ import time
 from collections.abc import Callable
 from datetime import date, datetime, timezone
 from functools import wraps
-from typing import Any, NoReturn, cast
+from typing import Any, NoReturn, ParamSpec, TypeVar, cast
 
 import psycopg2
 import psycopg2.errors
@@ -25,6 +25,10 @@ from psycopg2.extensions import cursor
 from utils.validation import APIResponseValidator
 
 logger = logging.getLogger(__name__)
+
+# Type variables for decorators to preserve function signatures
+P = ParamSpec("P")
+R = TypeVar("R")
 
 # Centralized query timeout configuration (milliseconds)
 # Values chosen based on expected query complexity and business impact
@@ -914,7 +918,7 @@ def handle_db_error(
     return status_code, error_type, message
 
 
-def validate_api_response(endpoint_name: str) -> Callable[[Callable[..., dict[str, Any]]], Callable[..., dict[str, Any]]]:
+def validate_api_response(endpoint_name: str) -> Callable[[Callable[P, dict[str, Any]]], Callable[P, dict[str, Any]]]:
     """Decorator: Validate API response matches contract schema before returning.
 
     Ensures all responses conform to the published dashboard API contract.
@@ -934,9 +938,9 @@ def validate_api_response(endpoint_name: str) -> Callable[[Callable[..., dict[st
     - Logs the contract violation for debugging
     """
 
-    def decorator(func: Callable[..., dict[str, Any]]) -> Callable[..., dict[str, Any]]:
+    def decorator(func: Callable[P, dict[str, Any]]) -> Callable[P, dict[str, Any]]:
         @wraps(func)
-        def wrapper(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        def wrapper(*args: P.args, **kwargs: P.kwargs) -> dict[str, Any]:
             response = func(*args, **kwargs)
 
             # Skip validation for error responses (400, 401, 403, 404, 500, 503)
@@ -993,7 +997,7 @@ def validate_api_response(endpoint_name: str) -> Callable[[Callable[..., dict[st
 
 def db_route_handler(
     operation_name: str, default_error_response: Any = None
-) -> Callable[[Callable[..., dict[str, Any]]], Callable[..., dict[str, Any]]]:
+) -> Callable[[Callable[P, dict[str, Any]]], Callable[P, dict[str, Any]]]:
     """Decorator for route handlers to standardize database error handling.
 
     Eliminates redundant try-except blocks by wrapping function with:
@@ -1015,9 +1019,9 @@ def db_route_handler(
         def _get_users(cur): ...
     """
 
-    def decorator(func: Callable[..., dict[str, Any]]) -> Callable[..., dict[str, Any]]:
+    def decorator(func: Callable[P, dict[str, Any]]) -> Callable[P, dict[str, Any]]:
         @wraps(func)
-        def wrapper(*args: Any, **kwargs: Any) -> Any:
+        def wrapper(*args: P.args, **kwargs: P.kwargs) -> dict[str, Any]:
             try:
                 return func(*args, **kwargs)
             except (

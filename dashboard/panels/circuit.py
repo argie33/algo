@@ -182,10 +182,13 @@ def panel_circuit(cb: Any) -> Panel:  # noqa: C901
         except StrictValidationError as e:
             logger.error("[CIRCUIT] Breaker %s failed validation: %s", lbl_s, e)
             return f"[{R}]{lbl_s}:[/] [red]✗ BAD DATA[/]"
-        if thr_f > 0:
-            util = cur_f / thr_f
-        elif thr_f < 0 and cur_f < 0:
-            util = min(cur_f / thr_f, 1.0)
+        if thr_f is not None and cur_f is not None:
+            if thr_f > 0:
+                util = cur_f / thr_f
+            elif thr_f < 0 and cur_f < 0:
+                util = min(cur_f / thr_f, 1.0)
+            else:
+                util = 0
         else:
             util = 0
         fc = R if fired else (Y if util >= 0.75 else G)
@@ -356,10 +359,13 @@ def panel_circuit_expanded(cb: Any) -> Panel:  # noqa: C901
                     cur_s = f"{cur}{u}"
                     thr_s = f"{thr}{u}"
                 else:
-                    if thr_f > 0:
-                        util = cur_f / thr_f
-                    elif thr_f < 0 and cur_f < 0:
-                        util = min(cur_f / thr_f, 1.0)
+                    if thr_f is not None and cur_f is not None:
+                        if thr_f > 0:
+                            util = cur_f / thr_f
+                        elif thr_f < 0 and cur_f < 0:
+                            util = min(cur_f / thr_f, 1.0)
+                        else:
+                            util = 0
                     else:
                         util = 0
                     util_high = util >= 0.75

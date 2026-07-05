@@ -424,7 +424,7 @@ def _extract_orch_risk_metrics_string(risk: dict[str, Any] | None) -> str:
         conc5_val = risk_metrics.get("conc5")
         svar_val = risk_metrics.get("svar")
 
-        if None in (var95_val, beta_val, cvar95_val, conc5_val):
+        if var95_val is None or beta_val is None or cvar95_val is None or conc5_val is None:
             missing_fields = [
                 name
                 for name, val in [
@@ -438,10 +438,15 @@ def _extract_orch_risk_metrics_string(risk: dict[str, Any] | None) -> str:
             return f"\n[{R}]⚠ Risk metrics incomplete[/] - missing: {', '.join(missing_fields)}"
 
         # Cast to float for calculations - API guarantees valid types
-        var95_val = float(var95_val)
-        beta_val = float(beta_val)
-        cvar95_val = float(cvar95_val)
-        conc5_val = float(conc5_val)
+        # Type narrowing: all values are guaranteed non-None after the check above
+        var95_val_f = float(var95_val)
+        beta_val_f = float(beta_val)
+        cvar95_val_f = float(cvar95_val)
+        conc5_val_f = float(conc5_val)
+        var95_val = var95_val_f
+        beta_val = beta_val_f
+        cvar95_val = cvar95_val_f
+        conc5_val = conc5_val_f
         # CRITICAL: When beta = 0 (no open positions), show "--" instead of "0.00"
         beta_display = "--" if beta_val <= 0 else f"{beta_val:.2f}"
         beta_c = "dim" if beta_val <= 0 else (R if beta_val >= 1.2 else (Y if beta_val >= 0.8 else G))
@@ -504,8 +509,10 @@ def panel_orch(  # noqa: C901
         pbadges: list[str] = []
         # exec_log source: structured per-phase objects with names + statuses
         if run.get("_source") == "exec_log":
-            phase_results = safe_get_list(run.get("phase_results"))
-            if not phase_results:
+            phase_results_raw = safe_get_list(run.get("phase_results"))
+            if not isinstance(phase_results_raw, list):
+                phase_results_raw = []
+            if not phase_results_raw:
                 logger.error(
                     f"[HEALTH] CRITICAL: exec_log source missing 'phase_results'. "
                     f"Cannot display phase execution status. Available keys: {list(run.keys())}"
@@ -513,8 +520,10 @@ def panel_orch(  # noqa: C901
                 pbadges.append(
                     "[red bold]ERROR: Phase status data unavailable[/] (check orchestration logs for execution details)"
                 )
-                phase_results = []
-            for p in phase_results:
+                phase_results_raw = []
+            for p in phase_results_raw:
+                if not isinstance(p, dict):
+                    continue
                 name_val = p.get("name")
                 phase_val = p.get("phase")
                 # CRITICAL: Missing phase is data quality issue - log and use placeholder
@@ -575,7 +584,8 @@ def panel_orch(  # noqa: C901
                 phase_results_temp = run.get("phase_results")
                 if phase_results_temp is None:
                     phase_results_temp = []
-                _details = _best_halt_reason(halt_r, phase_results_temp)
+                halt_r_str = halt_r if halt_r is not None else ""
+                _details = _best_halt_reason(halt_r_str, phase_results_temp)
                 _lines = [f"{lb + ': ' if lb else ''}{dt[:60]}" for lb, dt in _details]
                 # CRITICAL: Explicit length check instead of falsy fallback
                 # Empty halt reason list should be logged, not silently hidden
@@ -594,14 +604,18 @@ def panel_orch(  # noqa: C901
             phase_results_val = run.get("phase_results")
             if phase_results_val is None:
                 phase_results_val = run.get("phases")
-            phases_list = safe_get_list(phase_results_val)
-            if not phases_list:
+            phases_list_raw = safe_get_list(phase_results_val)
+            if not isinstance(phases_list_raw, list):
+                phases_list_raw = []
+            if not phases_list_raw:
                 logger.warning(
                     f"[HEALTH] audit_log missing both 'phase_results' and 'phases'. Available keys: {list(run.keys())}. "
                     "Phase status will not be displayed."
                 )
-                phases_list = []
-            for p in phases_list:
+                phases_list_raw = []
+            for p in phases_list_raw:
+                if not isinstance(p, dict):
+                    continue
                 at_raw = p.get("action_type")
                 # Missing action_type in audit log means cannot identify phase - skip this entry
                 if at_raw is None:
@@ -668,21 +682,23 @@ def _get_status_safe(run: dict[str, Any]) -> str:
 def _format_exec_history_summary(exec_hist: list[Any] | None) -> list[Text]:
     """Format last N runs summary (used in panel_status and panel_algo_health)."""
     rows: list[Text] = []
-    valid_hist = safe_get_list(exec_hist)
+    valid_hist_raw = safe_get_list(exec_hist)
     # Check if marker dict (data_unavailable) was returned instead of list
-    if isinstance(valid_hist, dict) and valid_hist.get("data_unavailable"):
+    if isinstance(valid_hist_raw, dict) and valid_hist_raw.get("data_unavailable"):
         logger.warning(
             "[HEALTH_FORMAT] Execution history unavailable for summary display. "
             "Data may be empty or API returned None. Cannot show run health metrics."
         )
         return rows
-    if not valid_hist or not isinstance(valid_hist, list):
+    if not valid_hist_raw or not isinstance(valid_hist_raw, list):
         logger.warning(
             "[HEALTH_FORMAT] Execution history unavailable for summary display. "
             "Data may be empty or API returned None. Cannot show run health metrics."
         )
         return rows
 
+    # Type guard: valid_hist_raw is now guaranteed to be a list
+    valid_hist: list[Any] = valid_hist_raw
     n_ok = sum(1 for r in valid_hist if _get_status_safe(r) in PHASE_SUCCESS_STATES)
     n_hlt = sum(1 for r in valid_hist if _get_status_safe(r) == "halted")
     n_err = sum(1 for r in valid_hist if _get_status_safe(r) in ("error", "failed"))
@@ -897,7 +913,7 @@ def _format_loader_status(loader: list[Any]) -> list[Text]:
     """Format data loader status section."""
     rows: list[Text] = []
     try:
-        valid_loader = safe_get_list(loader)
+        valid_loader_raw = safe_get_list(loader)
     except (ValueError, TypeError) as e:
         logger.error(
             f"[LOADER_FORMAT] Loader data parsing failed: {str(e)[:100]}. "
@@ -905,6 +921,14 @@ def _format_loader_status(loader: list[Any]) -> list[Text]:
         )
         rows.append(Text.from_markup(f"[red]Loader data error: {str(e)[:60]}[/]"))
         return rows
+    if not isinstance(valid_loader_raw, list):
+        logger.error(
+            f"[LOADER_FORMAT] Loader status data is not a list: {type(valid_loader_raw).__name__}. "
+            "Cannot display loader health — API returned invalid data structure."
+        )
+        rows.append(Text.from_markup("[red]Loader data unavailable (invalid format)[/]"))
+        return rows
+    valid_loader: list[Any] = valid_loader_raw
     if valid_loader is None:
         logger.error(
             "[LOADER_FORMAT] Loader status data is None. "
@@ -986,15 +1010,19 @@ def _format_loader_status(loader: list[Any]) -> list[Text]:
 def _format_notifications_summary(notifs: list[Any]) -> list[Text]:
     """Format notifications section."""
     rows: list[Text] = []
-    valid_notifs = safe_get_list(notifs)
-    if not valid_notifs:
+    valid_notifs_raw = safe_get_list(notifs)
+    if not isinstance(valid_notifs_raw, list):
+        valid_notifs_raw = []
+    if not valid_notifs_raw:
         logger.debug(
             "[HEALTH_FORMAT] Notifications unavailable for display. "
             "No alerts to show — system is operating normally with no active notifications."
         )
         return rows
 
-    for n in valid_notifs[:4]:
+    for n in valid_notifs_raw[:4]:
+        if not isinstance(n, dict):
+            continue
         severity_val = n.get("severity")
         # CRITICAL: Explicit None check instead of implicit fallback
         # Missing severity indicates incomplete notification record
@@ -1028,16 +1056,21 @@ def _format_notifications_summary(notifs: list[Any]) -> list[Text]:
 def _format_daily_metrics_summary(algo_metrics: list[Any]) -> list[Text]:
     """Format daily trade activity summary."""
     rows: list[Text] = []
-    valid_metrics = safe_get_list(algo_metrics)
-    if not valid_metrics:
+    valid_metrics_raw = safe_get_list(algo_metrics)
+    if not isinstance(valid_metrics_raw, list):
+        valid_metrics_raw = []
+    if not valid_metrics_raw:
         logger.warning(
             "[METRICS_FORMAT] Daily algo metrics unavailable for display. "
             "No trade activity records found — metrics table may be empty or API returned null."
         )
         return rows
 
+    valid_metrics: list[Any] = valid_metrics_raw
     rows.append(Text.from_markup("[dim]Daily trade activity:[/]"))
     for m in valid_metrics[:5]:
+        if not isinstance(m, dict):
+            continue
         d = m.get("date")
         # CRITICAL: Explicit None check instead of OR fallback
         # Missing date in metrics indicates incomplete data, should not default to "--"
@@ -1083,18 +1116,21 @@ def _format_daily_metrics_summary(algo_metrics: list[Any]) -> list[Text]:
 def _format_audit_log_summary(audit: list[Any]) -> list[Text]:
     """Format audit log section (notable actions only)."""
     rows: list[Text] = []
-    valid_audit = safe_get_list(audit)
-    if not valid_audit:
+    valid_audit_raw = safe_get_list(audit)
+    if not isinstance(valid_audit_raw, list):
+        valid_audit_raw = []
+    if not valid_audit_raw:
         logger.debug(
             "[AUDIT_FORMAT] Audit log unavailable for display. "
             "No audit records found — API may have returned null or audit table is empty."
         )
         return rows
 
+    valid_audit: list[Any] = valid_audit_raw
     notable = [
         a
         for a in valid_audit
-        if a.get("action_type")
+        if isinstance(a, dict) and a.get("action_type")
         # CRITICAL: Explicit None check instead of OR fallback with str()
         # Missing action_type should trigger validation, not silent fallback
         and any(
@@ -1427,13 +1463,15 @@ def _format_run_history_summary(valid_hist: list[Any] | None) -> list[Text]:
         )
         return rows
 
-    n_ok = sum(1 for r in valid_hist if _get_status_safe(r) in PHASE_SUCCESS_STATES)
-    n_hlt = sum(1 for r in valid_hist if _get_status_safe(r) == "halted")
-    n_err = sum(1 for r in valid_hist if _get_status_safe(r) in ("error", "failed"))
-    total_h = len(valid_hist)
+    # Type guard: valid_hist is guaranteed non-empty and not None after the check above
+    hist_items: list[Any] = valid_hist
+    n_ok = sum(1 for r in hist_items if _get_status_safe(r) in PHASE_SUCCESS_STATES)
+    n_hlt = sum(1 for r in hist_items if _get_status_safe(r) == "halted")
+    n_err = sum(1 for r in hist_items if _get_status_safe(r) in ("error", "failed"))
+    total_h = len(hist_items)
 
     badges = []
-    for r in valid_hist[:7]:
+    for r in hist_items[:7]:
         s = _get_status_safe(r)
         badges.append(f"[{G}]OK[/]" if s in PHASE_SUCCESS_STATES else (f"[{Y}]~[/]" if s == "halted" else f"[{R}]X[/]"))
 
@@ -1507,9 +1545,9 @@ def _format_risk_snapshot(risk_dict: dict[str, Any]) -> list[Text | Rule]:
     )
     var_c = _var_color(var95_val)
 
-    if None in (var95_val, beta_val, cvar95_val, conc5_val):
+    if var95_val is None or beta_val is None or cvar95_val is None or conc5_val is None:
         # CRITICAL: When beta = 0, show "--" instead of "0.00"
-        beta_display_na = "—" if (beta_val is None or beta_val <= 0) else f"{beta_val:.2f}"
+        beta_display_na = "—" if (beta_val is None or (beta_val is not None and beta_val <= 0)) else f"{beta_val:.2f}"
         rows.append(
             Text.from_markup(
                 f"[dim]VaR 95%:[/][{var_c}]{'—' if var95_val is None else f'{var95_val:.2f}%'}[/]  "
@@ -1519,6 +1557,7 @@ def _format_risk_snapshot(risk_dict: dict[str, Any]) -> list[Text | Rule]:
             )
         )
     else:
+        # At this point all values are guaranteed non-None
         # CRITICAL: When beta = 0, show "--" instead of "0.00"
         beta_display_else = "--" if beta_val <= 0 else f"{beta_val:.2f}"
         risk_parts = [
@@ -1594,7 +1633,9 @@ def panel_status(  # noqa: C901
     rows: list[Text | Rule] = []
 
     # Extract items from data dicts using safe helpers
-    hlth_items = safe_get_list(hlth)
+    hlth_items_raw = safe_get_list(hlth)
+    # Type guard: ensure hlth_items is a list
+    hlth_items: list[Any] = hlth_items_raw if isinstance(hlth_items_raw, list) else []
 
     # ── Run status + schedule + mode + trading config ────────────────────────────
     run_valid = run and isinstance(run, dict) and not has_error(run)
@@ -1865,10 +1906,13 @@ def panel_status(  # noqa: C901
         rows.extend(health_rows)
 
     # Notifications (up to 4)
-    valid_notifs = safe_get_list(notifs)
-    if valid_notifs:
+    valid_notifs_raw = safe_get_list(notifs)
+    if isinstance(valid_notifs_raw, list) and valid_notifs_raw:
+        valid_notifs_list: list[Any] = valid_notifs_raw
         rows.append(Rule(style="dim"))
-        for n in valid_notifs[:4]:
+        for n in valid_notifs_list[:4]:
+            if not isinstance(n, dict):
+                continue
             # CRITICAL: Explicit None check instead of OR fallback
             severity_val = n.get("severity")
             if severity_val is None:
@@ -1889,11 +1933,13 @@ def panel_status(  # noqa: C901
             rows.append(Text.from_markup(f"[{sc}]{unread}[/] [{sc}]{title}[/] [dim]{age}[/]"))
 
     # Algo metrics daily (action counts)
-    valid_metrics = safe_get_list(algo_metrics)
-    if valid_metrics:
+    valid_metrics_raw = safe_get_list(algo_metrics)
+    if isinstance(valid_metrics_raw, list) and valid_metrics_raw:
         rows.append(Rule(style="dim"))
         rows.append(Text.from_markup("[dim]Daily trade activity:[/]"))
-        for m in valid_metrics[:5]:
+        for m in valid_metrics_raw[:5]:
+            if not isinstance(m, dict):
+                continue
             d = m.get("date")
             if d is None or not hasattr(d, "strftime"):
                 logger.warning("[HEALTH] Daily metrics missing date field")
@@ -1942,7 +1988,12 @@ def panel_status(  # noqa: C901
         rows.append(Text.from_markup("[red]Loader status unavailable (data is None)[/]"))
     else:
         try:
-            valid_loader = safe_get_list(loader)
+            valid_loader_raw = safe_get_list(loader)
+            # Type guard: convert dict (error marker) to None for consistency
+            if isinstance(valid_loader_raw, dict):
+                valid_loader = None
+            else:
+                valid_loader = valid_loader_raw
         except (ValueError, TypeError) as e:
             rows.append(Rule(style="dim"))
             rows.append(Text.from_markup(f"[red]Loader data error: {str(e)[:60]}[/]"))
@@ -2003,12 +2054,13 @@ def panel_status(  # noqa: C901
             rows.append(Text.from_markup(f"[{G}]OK Loaders[/]  [dim]{ok_count} feeds healthy[/]"))
 
     # Audit log — most recent notable actions
-    valid_audit = safe_get_list(audit)
-    if valid_audit:
+    valid_audit_raw = safe_get_list(audit)
+    if isinstance(valid_audit_raw, list) and valid_audit_raw:
+        valid_audit_list: list[Any] = valid_audit_raw
         notable = [
             a
-            for a in valid_audit
-            if a.get("action_type")
+            for a in valid_audit_list
+            if isinstance(a, dict) and a.get("action_type")
             # CRITICAL: Explicit None check instead of OR fallback with str()
             # Missing action_type should trigger validation, not silent fallback
             and any(
@@ -2178,7 +2230,12 @@ def panel_algo_health(  # noqa: C901
         logger.warning("[ALGO_METRICS] Metrics data is None")
     else:
         try:
-            valid_metrics = safe_get_list(algo_metrics)
+            valid_metrics_raw = safe_get_list(algo_metrics)
+            # Type guard: convert dict (error marker) to None for consistency
+            if isinstance(valid_metrics_raw, dict):
+                valid_metrics = None
+            else:
+                valid_metrics = valid_metrics_raw
         except (ValueError, TypeError) as e:
             logger.warning(f"Algo metrics data error: {e}")
         if valid_metrics is None:
@@ -2209,19 +2266,25 @@ def panel_algo_health(  # noqa: C901
     rows.append(Rule(style="dim"))
 
     # ── C: Run history (last 7 runs as badges) ───────────────────────────────
-    valid_hist = safe_get_list(exec_hist)
-    if valid_hist is None:
+    valid_hist_raw = safe_get_list(exec_hist)
+    valid_hist_list: list[Any] | None = None
+    if isinstance(valid_hist_raw, list):
+        valid_hist_list = valid_hist_raw
+    if valid_hist_list is None:
         logger.warning("[EXEC_HIST] Execution history is None")
         history_rows = []
     else:
-        history_rows = _format_run_history_summary(valid_hist)
+        history_rows = _format_run_history_summary(valid_hist_list)
     rows.extend(history_rows)
 
     rows.append(Rule(style="dim"))
 
     # ── D: Data health (compact) ──────────────────────────────────────────────
     if hlth:
-        hlth_list = safe_get_list(hlth)
+        hlth_list_raw = safe_get_list(hlth)
+        hlth_list: list[Any] | None = None
+        if isinstance(hlth_list_raw, list):
+            hlth_list = hlth_list_raw
         ready_to_trade = hlth.get("ready_to_trade") if isinstance(hlth, dict) else None
         # CRITICAL: Explicit unavailability marker when hlth_list is empty
         # Cannot distinguish "no data" from "all fresh" with empty list
@@ -2232,8 +2295,10 @@ def panel_algo_health(  # noqa: C901
             logger.warning("[HEALTH] Data health list is None, cannot assess table freshness")
         elif not stale and hlth_list:
             # All tables fresh
-            crit = [r for r in hlth_list if r.get("role") == "CRIT"]
-            ages = [_age_h(r) for r in hlth_list if _age_h(r) is not None]
+            crit = [r for r in hlth_list if isinstance(r, dict) and r.get("role") == "CRIT"]
+            ages_raw = [_age_h(r) for r in hlth_list if isinstance(r, dict)]
+            # Convert dict markers (unavailability) to None for type compatibility
+            ages: list[float | None] = [a if isinstance(a, float) else None for a in ages_raw]
             health_text = _format_health_data_fresh_section(hlth_list, crit, ready_to_trade, ages)
             rows.append(Text.from_markup(health_text))
         elif stale is not None and stale:
@@ -2285,11 +2350,13 @@ def panel_algo_health(  # noqa: C901
                 rows.append(Text.from_markup("  ".join(risk_parts)))
 
     # ── F: Notifications (compact) ────────────────────────────────────────────
-    valid_notifs = safe_get_list(notifs)
-    if valid_notifs:
+    valid_notifs_raw = safe_get_list(notifs)
+    if isinstance(valid_notifs_raw, list) and valid_notifs_raw:
         rows.append(Rule(style="dim"))
         notif_parts = []
-        for n in valid_notifs[:5]:
+        for n in valid_notifs_raw[:5]:
+            if not isinstance(n, dict):
+                continue
             severity = n.get("severity")
             if severity is None:
                 logger.warning("[HEALTH] Notification missing severity field")
@@ -2398,9 +2465,11 @@ def _build_results_panel(  # noqa: C901
                 logger.warning("[PHASE_RESULTS_BADGES] Phase results data is None")
             else:
                 try:
-                    phase_results_list = safe_get_list(phase_data)
-                    if phase_results_list is not None:
-                        for p in phase_results_list:
+                    phase_results_list_raw = safe_get_list(phase_data)
+                    if isinstance(phase_results_list_raw, list) and phase_results_list_raw:
+                        for p in phase_results_list_raw:
+                            if not isinstance(p, dict):
+                                continue
                             name_val = p.get("name")
                             phase_val = p.get("phase")
                             if phase_val is None:
@@ -2420,7 +2489,9 @@ def _build_results_panel(  # noqa: C901
     if phase_badges_e:
         right_rows.append(Text.from_markup("  ".join(phase_badges_e)))
 
-    signals_gen = entries_exec = exits_exec = 0
+    signals_gen: int | None = 0
+    entries_exec: int | None = 0
+    exits_exec: int | None = 0
     if run_valid and isinstance(run, dict) and run.get("_source") == "exec_log":
         if "phase_results" in run:
             phase_data = run.get("phase_results")
@@ -2428,9 +2499,11 @@ def _build_results_panel(  # noqa: C901
                 logger.warning("[PHASE_RESULTS_COUNTS] Phase results data is None")
             else:
                 try:
-                    phase_results_list = safe_get_list(phase_data)
-                    if phase_results_list is not None:
-                        for p in phase_results_list:
+                    phase_results_list_raw = safe_get_list(phase_data)
+                    if isinstance(phase_results_list_raw, list):
+                        for p in phase_results_list_raw:
+                            if not isinstance(p, dict):
+                                continue
                             pdata = p.get("data")
                             if isinstance(pdata, str):
                                 try:
@@ -2445,11 +2518,11 @@ def _build_results_panel(  # noqa: C901
                                 if ee is None:
                                     ee = pdata.get("trades_executed")
                                 xe = pdata.get("exits_executed")
-                                if sg:
+                                if sg and signals_gen is not None:
                                     signals_gen = max(signals_gen, int(sg))
-                                if ee:
+                                if ee and entries_exec is not None:
                                     entries_exec = max(entries_exec, int(ee))
-                                if xe:
+                                if xe and exits_exec is not None:
                                     exits_exec = max(exits_exec, int(xe))
                 except (ValueError, TypeError) as e:
                     logger.warning(f"Phase results data error: {e}")
@@ -2486,7 +2559,7 @@ def _build_results_panel(  # noqa: C901
                 exits_exec = None
 
     action_parts_e = []
-    if signals_gen > 0:
+    if signals_gen is not None and signals_gen > 0:
         action_parts_e.append(f"[dim]Signals:[/][white]{signals_gen}[/]")
     # Handle None entries_exec and exits_exec - show "?" when data unavailable instead of 0
     entries_display = entries_exec if entries_exec is not None else "?"
@@ -2591,11 +2664,13 @@ def _build_results_panel(  # noqa: C901
             risk_parts_e.append(f"[dim]StressVaR:[/][{R}]{svar_val_e:.2f}%[/]")
         right_rows.append(Text.from_markup("  ".join(risk_parts_e)))
 
-    valid_notifs = safe_get_list(notifs)
-    if valid_notifs:
+    valid_notifs_raw = safe_get_list(notifs)
+    if isinstance(valid_notifs_raw, list) and valid_notifs_raw:
         right_rows.append(Rule(style="dim"))
         right_rows.append(Text.from_markup("[dim]Notifications:[/]"))
-        for n in valid_notifs:
+        for n in valid_notifs_raw:
+            if not isinstance(n, dict):
+                continue
             severity_val = n.get("severity")
             if severity_val is None:
                 logger.warning("[RESULTS_PANEL] Notification missing severity — defaulting to 'info' for color")
@@ -2617,11 +2692,13 @@ def _build_results_panel(  # noqa: C901
             unread = "-" if not seen_val else "."
             right_rows.append(Text.from_markup(f"  [{sc}]{unread} {title}[/] [dim]{age}[/]"))
 
-    valid_audit_exp = safe_get_list(audit)
-    if valid_audit_exp:
+    valid_audit_exp_raw = safe_get_list(audit)
+    if isinstance(valid_audit_exp_raw, list) and valid_audit_exp_raw:
         right_rows.append(Rule(style="dim"))
         right_rows.append(Text.from_markup("[dim]Audit log:[/]"))
-        for a in valid_audit_exp[:20]:
+        for a in valid_audit_exp_raw[:20]:
+            if not isinstance(a, dict):
+                continue
             action_type_val = a.get("action_type")
             if action_type_val is None:
                 logger.debug("[RESULTS_AUDIT] Audit entry missing action_type — defaulting to empty string")

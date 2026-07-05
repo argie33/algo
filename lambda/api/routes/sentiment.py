@@ -258,10 +258,10 @@ def handle(  # noqa: C901
                 }
 
             try:
-                total = int(total_val)
-                bull = int(bull_val)
-                bear = int(bear_val)
-                neut = int(neut_val)
+                total = int(total_val)  # type: ignore[arg-type]
+                bull = int(bull_val)  # type: ignore[arg-type]
+                bear = int(bear_val)  # type: ignore[arg-type]
+                neut = int(neut_val)  # type: ignore[arg-type]
             except (ValueError, TypeError) as e:
                 logger.error(f"[SENTIMENT] Invalid analyst count data: {e}")
                 return {
@@ -392,10 +392,10 @@ def handle(  # noqa: C901
                 }
 
             try:
-                total = int(total_val)
-                bull = int(bull_val)
-                bear = int(bear_val)
-                neut = int(neut_val)
+                total = int(total_val)  # type: ignore[arg-type]
+                bull = int(bull_val)  # type: ignore[arg-type]
+                bear = int(bear_val)  # type: ignore[arg-type]
+                neut = int(neut_val)  # type: ignore[arg-type]
             except (ValueError, TypeError) as e:
                 logger.error(f"[SENTIMENT] Invalid analyst count data: {e}")
                 return {

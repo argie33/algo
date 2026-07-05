@@ -241,7 +241,7 @@ class DatabaseResultValidator:
     """Validates database query results for type safety."""
 
     @staticmethod
-    def safe_get_float(row: dict[str, Any] | None, key: str, default: float = 0.0, strict: bool = False) -> float:
+    def safe_get_float(row: dict[str, Any] | None, key: str, default: float | None = 0.0, strict: bool = False) -> float | None:
         """Safely extract and convert float from database row.
 
         Args:
@@ -310,7 +310,7 @@ class DatabaseResultValidator:
             return default
 
     @staticmethod
-    def safe_get_str(row: dict[str, Any] | None, key: str, default: str = "", strict: bool = False) -> str:
+    def safe_get_str(row: dict[str, Any] | None, key: str, default: str | None = "", strict: bool = False) -> str | None:
         """Safely extract and convert string from database row.
 
         Note: Uses default value when missing/invalid. Log when fallback is used.

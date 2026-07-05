@@ -27,8 +27,8 @@ logger = logging.getLogger(__name__)
 def handle(
     cur: cursor,
     path: str,
-    method,
-    params,
+    method: str,
+    params: dict[str, str] | None,
     body: dict[str, Any] | None = None,
     jwt_claims: dict[str, Any] | None = None,
 ) -> Any:

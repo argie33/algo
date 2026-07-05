@@ -118,7 +118,7 @@ def render_header_components(
             border_style="red",
         )
     else:
-        hdr_panel = panel_header_market(  # type: ignore[no-any-return]
+        hdr_panel = panel_header_market(
             ctx.mkt,
             ctx.sentiment,
             ts,
@@ -142,7 +142,10 @@ def render_dashboard_body(outer: Layout, ctx: DashboardContext, compact: bool) -
 
     def safe_render(panel_fn: Any, *args: Any, **kwargs: Any) -> Panel:
         try:
-            return panel_fn(*args, **kwargs)  # type: ignore[no-any-return]
+            result = panel_fn(*args, **kwargs)
+            if isinstance(result, Panel):
+                return result
+            return Panel(str(result))
         except Exception as e:
             return Panel(
                 Text.from_markup(f"[red]Panel rendering failed[/]: {type(e).__name__}\n[dim]{str(e)[:80]}[/]"),

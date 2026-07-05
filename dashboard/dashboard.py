@@ -37,8 +37,8 @@ try:
 
 except ImportError:
     import select
-    import termios  # type: ignore[import-not-found]
-    import tty  # type: ignore[import-not-found]
+    import termios
+    import tty
 
     def _keypress() -> str:
         if select.select([sys.stdin], [], [], 0)[0]:
@@ -470,7 +470,7 @@ def _configure_aws_and_auth(aws_url: str, pool_id: str, client_id: str) -> None:
     logger.info("Dashboard credentials configured from environment variables")
 
     auth = get_cognito_auth_instance(require_auth=True)
-    if auth is None:
+    if auth is None or isinstance(auth, dict):
         logger.error("[AUTH] Failed to initialize Cognito authentication instance")
         try:
             CONSOLE.print("[bold red]ERROR:[/] Cognito authentication initialization failed")
@@ -481,8 +481,7 @@ def _configure_aws_and_auth(aws_url: str, pool_id: str, client_id: str) -> None:
             logger.error(f"Failed to display error message: {type(display_err).__name__}: {display_err}")
         sys.exit(1)
 
-    auth = cast(Any, auth)
-    if not auth.is_authenticated():
+    if not hasattr(auth, 'is_authenticated') or not auth.is_authenticated():
         logger.error("[AUTH] Cognito authentication failed - user is not authenticated")
         try:
             CONSOLE.print("[bold red]ERROR:[/] Authentication failed - invalid or missing Cognito credentials")
@@ -493,6 +492,7 @@ def _configure_aws_and_auth(aws_url: str, pool_id: str, client_id: str) -> None:
             logger.error(f"Failed to display error message: {type(display_err).__name__}: {display_err}")
         sys.exit(1)
 
+    # Type guard: auth is now guaranteed to be non-dict and non-None after the checks above
     set_cognito_auth(auth)
     save_tokens(auth)
     logger.info("[AUTH] Dashboard authentication successful")

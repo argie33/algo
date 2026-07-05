@@ -37,13 +37,14 @@ def _setup_aws_auth() -> None:
 
     try:
         auth = get_cognito_auth_instance(require_auth=True)
-        if auth and auth.is_authenticated():
-            set_cognito_auth(auth)
-            save_tokens(auth)
-            print("Authenticated with Cognito")
-        elif auth:
-            print("WARNING: Cognito auth partial - some endpoints may return 401")
-            set_cognito_auth(auth)
+        if auth is not None and hasattr(auth, 'is_authenticated') and not isinstance(auth, dict):
+            if auth.is_authenticated():
+                set_cognito_auth(auth)
+                save_tokens(auth)
+                print("Authenticated with Cognito")
+            else:
+                print("WARNING: Cognito auth partial - some endpoints may return 401")
+                set_cognito_auth(auth)
     except RuntimeError as e:
         print(f"WARNING: Cognito auth failed: {e}")
 

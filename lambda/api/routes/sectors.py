@@ -285,7 +285,7 @@ def handle(  # noqa: C901
             if total is None or total <= 0:
                 return error_response(503, "no_sectors_available", "No sector data available in database")
 
-            sectors = []
+            sectors_list: list[dict[str, Any]] = []
             for row in sectors_data:
                 s = safe_json_serialize(dict(row))
                 # CRITICAL: Check if this sector is using fallback data (missing perf from sector_performance)
@@ -341,7 +341,7 @@ def handle(  # noqa: C901
                 pe_percentile = DatabaseResultValidator.safe_get_float(s, "pe_percentile", default=None)
                 sector_name = DatabaseResultValidator.safe_get_str(s, "sector_name", default=None)
 
-                sectors.append(
+                sectors_list.append(
                     {
                         "sector_name": sector_name,
                         "current_rank": rank,
@@ -370,7 +370,7 @@ def handle(  # noqa: C901
 
             freshness = check_data_freshness(cur, "sector_ranking", "date", warning_days=1)
             sector_result = {
-                "items": sectors,
+                "items": sectors_list,
                 "total": total,
                 "page": page,
                 "limit": limit,
