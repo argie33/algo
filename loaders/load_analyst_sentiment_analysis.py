@@ -17,6 +17,34 @@ from utils.optimal_loader import OptimalLoader
 logger = logging.getLogger(__name__)
 
 
+def main() -> int:
+    """Wrapped main with exception handling for data_unavailable markers."""
+    try:
+        return run_loader(AnalystSentimentAnalysisLoader)
+    except Exception as e:
+        logger.error(f"[ANALYST_SENTIMENT_ANALYSIS FATAL] Loader crashed: {type(e).__name__}: {str(e)[:500]}", exc_info=True)
+        # Mark data unavailable for all symbols
+        try:
+            symbols = set()
+            with DatabaseContext("read") as cur:
+                cur.execute("SELECT DISTINCT symbol FROM stock_symbols WHERE active = TRUE")
+                symbols = {row[0] for row in cur.fetchall()}
+
+            with DatabaseContext("write") as cur:
+                for symbol in symbols:
+                    cur.execute("""
+                        INSERT INTO analyst_sentiment_analysis (symbol, data_unavailable, reason, updated_at)
+                        VALUES (%s, TRUE, %s, NOW())
+                        ON CONFLICT (symbol) DO UPDATE SET
+                          data_unavailable = TRUE,
+                          reason = EXCLUDED.reason,
+                          updated_at = NOW()
+                    """, (symbol, f"loader_crash:{type(e).__name__}"))
+        except Exception as mark_err:
+            logger.error(f"Failed to mark analyst_sentiment_analysis data unavailable: {mark_err}")
+        return 1
+
+
 class AnalystSentimentAnalysisLoader(OptimalLoader):
     """Read analyst sentiment from yfinance_snapshot table."""
 
@@ -94,4 +122,4 @@ class AnalystSentimentAnalysisLoader(OptimalLoader):
 
 
 if __name__ == "__main__":
-    sys.exit(run_loader(AnalystSentimentAnalysisLoader))
+    sys.exit(main())

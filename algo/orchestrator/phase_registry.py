@@ -90,7 +90,7 @@ class PhaseRegistry:
         PhaseRegistryEntry(
             phase_num=6,
             phase_name="EXIT EXECUTION",
-            dependencies=[3, 5],
+            dependencies=[3],  # Only depends on position monitor (Phase 3), not exposure policy (Phase 5)
             execute_fn=None,
             skip_if_halted=False,
             always_run=True,

@@ -262,42 +262,10 @@ def run(  # noqa: C901
         with DatabaseContext("read") as cur:
             cur.execute("SET statement_timeout = 15000")  # 15s timeout for multi-table checks
 
-            # CRITICAL: Validate that stock_scores table has data (Phase 5 dependency)
-            # stock_scores must be populated by its loader before Phase 5 can generate signals
-            cur.execute("SELECT COUNT(*) FROM stock_scores")
-            stock_scores_count_row = cur.fetchone()
-            if stock_scores_count_row is None:
-                raise RuntimeError(
-                    "[PHASE 1] stock_scores COUNT query returned NULL. Database connection or query malformed."
-                )
-            stock_scores_count = stock_scores_count_row[0]
-            if not isinstance(stock_scores_count, int):
-                raise RuntimeError(
-                    f"[PHASE 1] stock_scores COUNT returned non-integer: {type(stock_scores_count)}. "
-                    "Data corruption or query error."
-                )
-
-            if stock_scores_count == 0:
-                logger.critical(
-                    "[PHASE 1] stock_scores table is empty — signal generation cannot proceed. "
-                    "Check that stock_scores loader completed successfully."
-                )
-                log_phase_result_fn(
-                    1,
-                    "stock_scores_empty",
-                    "halt",
-                    "stock_scores table empty (loader incomplete?)",
-                )
-                return PhaseResult(
-                    1,
-                    "stock_scores_empty",
-                    "halted",
-                    {},
-                    True,
-                    "stock_scores table is empty — loader may not have completed",
-                )
-
             # Find reference date from price_daily (most reliable source)
+            # NOTE: stock_scores is NOT validated here; it's an orchestrator OUTPUT (Phase 5),
+            # not a pipeline loader INPUT. Validating orchestrator outputs in Phase 1 breaks first-run.
+            # Phase 7 (Signal Generation) will handle missing stock_scores when it runs.
             cur.execute("SELECT MAX(date) FROM price_daily")
             row = cur.fetchone()
             if row is None:

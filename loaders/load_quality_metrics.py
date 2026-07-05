@@ -26,6 +26,35 @@ from loaders.sec_financials_loader import SecFinancialsLoader
 logger = logging.getLogger(__name__)
 
 
+def main() -> int:
+    """Wrapped main with exception handling for data_unavailable markers."""
+    try:
+        return run_loader(QualityMetricsLoader)
+    except Exception as e:
+        logger.error(f"[QUALITY_METRICS FATAL] Loader crashed: {type(e).__name__}: {str(e)[:500]}", exc_info=True)
+        # Mark data unavailable for all symbols
+        try:
+            from utils.db.context import DatabaseContext
+            symbols = set()
+            with DatabaseContext("read") as cur:
+                cur.execute("SELECT DISTINCT symbol FROM stock_symbols WHERE active = TRUE")
+                symbols = {row[0] for row in cur.fetchall()}
+
+            with DatabaseContext("write") as cur:
+                for symbol in symbols:
+                    cur.execute("""
+                        INSERT INTO quality_metrics (symbol, data_unavailable, reason, updated_at)
+                        VALUES (%s, TRUE, %s, NOW())
+                        ON CONFLICT (symbol) DO UPDATE SET
+                          data_unavailable = TRUE,
+                          reason = EXCLUDED.reason,
+                          updated_at = NOW()
+                    """, (symbol, f"loader_crash:{type(e).__name__}"))
+        except Exception as mark_err:
+            logger.error(f"Failed to mark quality_metrics data unavailable: {mark_err}")
+        return 1
+
+
 class QualityMetricsLoader(SecFinancialsLoader):
     """Quality metrics loader for real stocks only (not ETFs/bonds).
 
@@ -48,6 +77,7 @@ class QualityMetricsLoader(SecFinancialsLoader):
     # Required columns with data types (auto-created if missing)
     REQUIRED_COLUMNS = {
         "quality_score": "DECIMAL(5, 2)",
+        "quality_score_unavailable_reason": "VARCHAR(255)",
         "debt_to_assets": "DECIMAL(8, 4)",
         "operating_margin_unavailable_reason": "VARCHAR(255)",
         "net_margin_unavailable_reason": "VARCHAR(255)",
@@ -225,6 +255,7 @@ class QualityMetricsLoader(SecFinancialsLoader):
         # Fail-fast: only compute quality_score if we have real data. Governance principle: no silent defaults.
         if not has_real_data:
             metrics["quality_score"] = None
+            metrics["quality_score_unavailable_reason"] = "insufficient_metric_data"
             metrics["data_unavailable"] = True
             metrics["reason"] = "Metrics computation failed (insufficient or invalid financial data)"
         else:
@@ -252,4 +283,4 @@ class QualityMetricsLoader(SecFinancialsLoader):
 
 
 if __name__ == "__main__":
-    sys.exit(run_loader(QualityMetricsLoader))
+    sys.exit(main())

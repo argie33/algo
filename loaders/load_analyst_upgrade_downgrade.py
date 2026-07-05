@@ -97,5 +97,33 @@ class AnalystUpgradeDowngradeLoader(OptimalLoader):
         ]
 
 
+def main() -> int:
+    """Wrapped main with exception handling for data_unavailable markers."""
+    try:
+        return run_loader(AnalystUpgradeDowngradeLoader)
+    except Exception as e:
+        logger.error(f"[ANALYST_UPGRADE_DOWNGRADE FATAL] Loader crashed: {type(e).__name__}: {str(e)[:500]}", exc_info=True)
+        # Mark data unavailable for all symbols
+        try:
+            symbols = set()
+            with DatabaseContext("read") as cur:
+                cur.execute("SELECT DISTINCT symbol FROM stock_symbols WHERE active = TRUE")
+                symbols = {row[0] for row in cur.fetchall()}
+
+            with DatabaseContext("write") as cur:
+                for symbol in symbols:
+                    cur.execute("""
+                        INSERT INTO analyst_upgrade_downgrade (symbol, data_unavailable, reason, updated_at)
+                        VALUES (%s, TRUE, %s, NOW())
+                        ON CONFLICT (symbol) DO UPDATE SET
+                          data_unavailable = TRUE,
+                          reason = EXCLUDED.reason,
+                          updated_at = NOW()
+                    """, (symbol, f"loader_crash:{type(e).__name__}"))
+        except Exception as mark_err:
+            logger.error(f"Failed to mark analyst_upgrade_downgrade data unavailable: {mark_err}")
+        return 1
+
+
 if __name__ == "__main__":
-    sys.exit(run_loader(AnalystUpgradeDowngradeLoader))
+    sys.exit(main())
