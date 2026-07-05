@@ -58,6 +58,7 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
 
     # Get open positions from centralized data query (single source of truth)
     positions = get_open_positions(cur, limit=1000)
+    logger.debug(f"[POSITIONS] get_open_positions() returned {len(positions)} positions")
 
     if not positions:
         logger.error(
@@ -70,10 +71,38 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
         )
         stale_alerts.append("Position data unavailable: algo_positions sync incomplete")
 
+    # FIX: Load sector data from company_profile for positions missing sector
+    # (algo_trades currently has NULL sectors, so view defaults to "Unknown")
+    sector_map: dict[str, str] = {}
+    try:
+        # Get list of open position symbols from the positions we fetched
+        if positions:
+            open_symbols = [p.get("symbol") for p in positions if p.get("symbol")]
+            if open_symbols:
+                # Build placeholders for SQL query
+                placeholders = ",".join(["%s"] * len(open_symbols))
+                cur.execute(
+                    f"""
+                    SELECT ticker, sector FROM company_profile
+                    WHERE ticker IN ({placeholders})
+                    """,
+                    tuple(open_symbols)
+                )
+                for row in cur.fetchall():
+                    # Handle both dict-like and tuple returns
+                    ticker = row[0] if isinstance(row, (tuple, list)) else row.get("ticker")
+                    sector = row[1] if isinstance(row, (tuple, list)) else row.get("sector")
+                    if ticker and sector:
+                        sector_map[ticker] = sector
+                logger.debug(f"[POSITIONS] Loaded sector data for {len(sector_map)} symbols from company_profile")
+    except Exception as e:
+        logger.warning(f"[POSITIONS] Could not load company_profile sectors: {type(e).__name__}: {e}")
+
     items = []
     sector_risk: dict[str, float] = {}
     total_positions_fetched = len(positions)
     filtered_positions_count = 0
+    logger.debug(f"[POSITIONS] Starting loop with {total_positions_fetched} positions")
 
     for p in positions:
         d = safe_json_serialize(safe_dict_convert(p))
@@ -212,7 +241,14 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
         if "percent_from_52w_high" in d:
             d["pct_from_52w_high"] = d.pop("percent_from_52w_high")
 
+        # FIX: Override "Unknown" sector with real data from company_profile if available
+        current_sector = d.get("sector")
+        if current_sector == "Unknown" and symbol in sector_map:
+            d["sector"] = sector_map[symbol]
+            logger.debug(f"[POSITIONS] {symbol}: enriched sector from company_profile: {sector_map[symbol]}")
+
         items.append(d)
+        logger.debug(f"[POSITIONS] Added {symbol} to items list (total now: {len(items)})")
 
         # Accumulate sector allocation - all added items have valid position_value
         sector = d.get("sector")
@@ -279,7 +315,9 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
         "stale_alerts": stale_alerts,
         "data_freshness": freshness,
     }
+    logger.debug(f"[POSITIONS] Before sanitization: {len(response_data.get('items', []))} items")
     sanitized = APIResponseValidator.sanitize_response(response_data)
+    logger.debug(f"[POSITIONS] After sanitization: {len(sanitized.get('items', []))} items")
 
     # Validate positions response matches contract schema
     ensure_valid_response("pos", sanitized)
