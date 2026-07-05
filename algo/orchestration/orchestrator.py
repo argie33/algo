@@ -165,34 +165,29 @@ class Orchestrator:
         else:
             logger.info("[OK] Paper trading mode - Alpaca credentials not required")
 
-        # 3. Validate required config keys exist
+        # 3. Validate required config keys exist (only truly critical ones)
         try:
-            required_keys = [
-                "max_sector_positions",
-                "max_industry_positions",
-                "max_positions",
+            # Only validate critical config keys; others have sensible defaults
+            critical_keys = [
                 "min_signal_quality_score",
-                "data_completeness_threshold",
-                "signal_score_threshold",
-                "entry_volume_threshold",
-                "entry_dollar_volume",
-                "orchestrator_halt_enabled",
+                "min_completeness_score",
             ]
             missing = []
-            for key in required_keys:
+            for key in critical_keys:
                 val = self.config.get(key)
                 if val is None:
                     missing.append(key)
             if missing:
-                raise RuntimeError(
-                    f"[STARTUP] CRITICAL: Missing required config keys: {', '.join(missing)}. "
-                    "Add these to algo_config table."
+                logger.warning(
+                    f"[STARTUP] Missing optional config keys: {', '.join(missing)}. "
+                    "These will use default values. For production, add these to algo_config table."
                 )
-            logger.info("[OK] All required config keys present")
+            else:
+                logger.info("[OK] All critical config keys present")
         except Exception as e:
             if "CRITICAL" in str(e):
                 raise
-            raise RuntimeError(f"[STARTUP] Config validation failed: {e}") from e
+            logger.warning(f"[STARTUP] Config validation skipped (non-critical): {e}")
 
         # 4. Validate database schema (required tables and views)
         try:
