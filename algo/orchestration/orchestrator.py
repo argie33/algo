@@ -1518,9 +1518,6 @@ class Orchestrator:
             # ALSO write to algo_orchestrator_runs for backward compatibility and dashboard visibility
             try:
                 execution_time = time.time() - self.run_start
-                phases_completed = sum(1 for r in self.phase_results.values() if r["status"] == "success")
-                phases_halted = sum(1 for r in self.phase_results.values() if r["status"] == "halt")
-                phases_errored = sum(1 for r in self.phase_results.values() if r["status"] == "error")
 
                 with DatabaseContext("write") as cur:
                     cur.execute(

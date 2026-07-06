@@ -69,8 +69,8 @@ class PortfolioManager:
             elif resp.status_code == 401:
                 if is_paper_mode:
                     logger.warning(
-                        f"[PORTFOLIO PAPER MODE] Alpaca 401 Unauthorized (credentials invalid/missing), "
-                        f"but in paper mode - using default portfolio value $100,000"
+                        "[PORTFOLIO PAPER MODE] Alpaca 401 Unauthorized (credentials invalid/missing), "
+                        "but in paper mode - using default portfolio value $100,000"
                     )
                     return 100000.0  # Default paper trading starting balance
                 raise RuntimeError(
@@ -79,8 +79,8 @@ class PortfolioManager:
             elif resp.status_code == 403:
                 if is_paper_mode:
                     logger.warning(
-                        f"[PORTFOLIO PAPER MODE] Alpaca 403 Forbidden (key misconfiguration), "
-                        f"but in paper mode - using default portfolio value $100,000"
+                        "[PORTFOLIO PAPER MODE] Alpaca 403 Forbidden (key misconfiguration), "
+                        "but in paper mode - using default portfolio value $100,000"
                     )
                     return 100000.0
                 raise RuntimeError(

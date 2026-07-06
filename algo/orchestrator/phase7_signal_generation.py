@@ -645,7 +645,6 @@ def _check_critical_dependencies(run_date: _date, log_phase_result_fn: Callable[
                 logger.critical(msg)
                 log_phase_result_fn(7, "signal_generation", "halt", msg)
                 return False, msg
-            buysell_count = buysell_row[0]
             # NOTE: If buysell_count==0, Phase 7 will use fallback (stock_scores-only ranking)
             # This allows orchestrator to run in morning/afternoon before EOD pipeline completes
 
@@ -830,7 +829,7 @@ def run(  # noqa: C901
 
     if not raw_candidates:
         msg = (
-            f"[PHASE 7] No candidates found (buy_sell_daily empty AND stock_scores fallback returned 0 rows). "
+            "[PHASE 7] No candidates found (buy_sell_daily empty AND stock_scores fallback returned 0 rows). "
             "Check: (1) stock_scores table has data, (2) market regime allows entries, "
             "(3) price_daily has recent data for trending symbols."
         )

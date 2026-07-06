@@ -10,18 +10,23 @@ class DatabaseResultValidator:
     """Utility class for safely extracting typed values from database results."""
 
     @staticmethod
-    def safe_get_str(data: dict[str, Any], key: str, default: str | None = None) -> str | None:
+    def safe_get_str(
+        data: dict[str, Any], key: str, default: str | None = None, strict: bool = False
+    ) -> str | None:
         """Safely extract a string value from a database result.
 
         Args:
             data: Dictionary of database result
             key: Key to extract
             default: Default value if key missing or value is None
+            strict: If True, raise exception on invalid data; if False, return default
 
         Returns:
             String value or default
         """
         if not isinstance(data, dict):
+            if strict:
+                raise ValueError(f"Expected dict, got {type(data).__name__}")
             return default
         value = data.get(key)
         if value is None:
@@ -51,18 +56,23 @@ class DatabaseResultValidator:
             return default
 
     @staticmethod
-    def safe_get_float(data: dict[str, Any], key: str, default: float | None = None) -> float | None:
+    def safe_get_float(
+        data: dict[str, Any], key: str, default: float | None = None, strict: bool = False
+    ) -> float | None:
         """Safely extract a float value from a database result.
 
         Args:
             data: Dictionary of database result
             key: Key to extract
             default: Default value if key missing or value is None
+            strict: If True, raise exception on invalid data; if False, return default
 
         Returns:
             Float value or default
         """
         if not isinstance(data, dict):
+            if strict:
+                raise ValueError(f"Expected dict, got {type(data).__name__}")
             return default
         value = data.get(key)
         if value is None:
@@ -70,6 +80,8 @@ class DatabaseResultValidator:
         try:
             return float(value)
         except (ValueError, TypeError):
+            if strict:
+                raise ValueError(f"Cannot convert {key}={value} to float")
             return default
 
     @staticmethod

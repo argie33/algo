@@ -57,10 +57,10 @@ def _insert_unavailable_marker(cur: PsycopgCursor[Any], eval_date: date, reason:
     cur.execute(
         """
         INSERT INTO market_exposure_daily
-        (eval_date, regime, exposure_pct, raw_score, halt_reasons, distribution_days, factors,
+        (date, regime, exposure_pct, raw_score, halt_reasons, distribution_days, factors,
          data_unavailable, reason)
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-        ON CONFLICT (eval_date) DO UPDATE SET
+        ON CONFLICT (date) DO UPDATE SET
           regime = EXCLUDED.regime,
           exposure_pct = EXCLUDED.exposure_pct,
           raw_score = EXCLUDED.raw_score,

@@ -784,12 +784,12 @@ def run(
                         log_phase_result_fn(9, "portfolio_snapshot", "warn", f"snapshot creation failed: {str(snapshot_err)[:60]}")
 
                     # Create snapshot from database state BEFORE returning
-                    logger.info(f"[PHASE 9] Paper mode: Creating snapshot from database state")
+                    logger.info("[PHASE 9] Paper mode: Creating snapshot from database state")
                     try:
                         from decimal import Decimal
-                        logger.info(f"[PHASE 9] Paper mode: Starting snapshot creation in DatabaseContext")
+                        logger.info("[PHASE 9] Paper mode: Starting snapshot creation in DatabaseContext")
                         with DatabaseContext("write") as cur:
-                            logger.info(f"[PHASE 9] Paper mode: DatabaseContext opened, role=write")
+                            logger.info("[PHASE 9] Paper mode: DatabaseContext opened, role=write")
                             # Get previous value
                             cur.execute("SELECT total_portfolio_value FROM algo_portfolio_snapshots WHERE snapshot_date < %s ORDER BY snapshot_date DESC LIMIT 1", (run_date,))
                             prev_row = cur.fetchone()
@@ -812,7 +812,7 @@ def run(
                             daily_return = ((current_value - prev_value) / prev_value * 100) if prev_value > 0 else Decimal(0)
                             logger.info(f"[PHASE 9] Paper mode: Current value={current_value}, Daily return={daily_return}%")
 
-                            logger.info(f"[PHASE 9] Paper mode: Executing INSERT statement")
+                            logger.info("[PHASE 9] Paper mode: Executing INSERT statement")
                             cur.execute("""
                                 INSERT INTO algo_portfolio_snapshots (snapshot_date, total_portfolio_value, total_cash, position_count, daily_return_pct, created_at)
                                 VALUES (%s, %s, %s, %s, %s, NOW())
@@ -823,7 +823,7 @@ def run(
                                     daily_return_pct = EXCLUDED.daily_return_pct,
                                     updated_at = NOW()
                             """, (run_date, current_value, current_value - total_invested, pos_count, daily_return))
-                            logger.info(f"[PHASE 9] Paper mode: INSERT complete, exiting DatabaseContext to commit")
+                            logger.info("[PHASE 9] Paper mode: INSERT complete, exiting DatabaseContext to commit")
 
                             logger.info(f"[PHASE 9] Paper mode snapshot created: positions={pos_count}, value=${current_value:.2f}")
                     except Exception as snap_err:
@@ -859,7 +859,7 @@ def run(
         try:
             from decimal import Decimal
             with DatabaseContext("write") as cur:
-                logger.info(f"[PHASE 9] Snapshot: Database connection established")
+                logger.info("[PHASE 9] Snapshot: Database connection established")
                 # Get previous portfolio value for daily return calculation
                 cur.execute("""
                     SELECT total_portfolio_value
@@ -899,7 +899,7 @@ def run(
                     pos_count,
                     daily_return_pct,
                 ))
-                logger.info(f"[PHASE 9] Snapshot: INSERT executed, exiting DatabaseContext to trigger commit")
+                logger.info("[PHASE 9] Snapshot: INSERT executed, exiting DatabaseContext to trigger commit")
 
                 logger.info(f"[PHASE 9 SNAPSHOT] Created: portfolio=${current_value:.2f}, positions={result.get('positions', 0)}")
                 log_phase_result_fn(9, "portfolio_snapshot", "success",

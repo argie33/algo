@@ -113,7 +113,7 @@ class DailyReconciliation:
             try:
                 logger.info(f"[RECONCILIATION] Paper mode: About to write snapshot for {reconcile_date} with {open_position_count} positions")
                 with DatabaseContext("write") as cur:
-                    logger.info(f"[RECONCILIATION] Paper mode: DatabaseContext opened, role=write")
+                    logger.info("[RECONCILIATION] Paper mode: DatabaseContext opened, role=write")
                     snapshot_params = (
                         reconcile_date,
                         portfolio_value,
@@ -163,7 +163,7 @@ class DailyReconciliation:
                         """,
                         snapshot_params,
                     )
-                    logger.info(f"[RECONCILIATION] Paper mode: INSERT executed successfully")
+                    logger.info("[RECONCILIATION] Paper mode: INSERT executed successfully")
 
                     # VERIFY the insert worked BEFORE exiting the transaction
                     try:
@@ -173,7 +173,7 @@ class DailyReconciliation:
                             actual_count = verify_result['position_count']
                             logger.info(f"[RECONCILIATION] VERIFICATION: position_count={actual_count} (expected={open_position_count}) - MATCH={actual_count == open_position_count}")
                         else:
-                            logger.error(f"[RECONCILIATION] VERIFICATION: No snapshot row found!")
+                            logger.error("[RECONCILIATION] VERIFICATION: No snapshot row found!")
                     except Exception as verify_err:
                         logger.error(f"[RECONCILIATION] VERIFICATION QUERY FAILED: {verify_err}")
 
