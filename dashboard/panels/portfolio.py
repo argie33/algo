@@ -66,6 +66,25 @@ from ..utilities import DIM, G, R, Y, normalize_positions_data
 from ._helpers import _error_panel
 
 
+def _get_actual_position_count(
+    snapshot_count: int, pos: dict[str, Any] | None
+) -> int:
+    """Get actual position count from positions endpoint, fall back to snapshot count.
+
+    Ensures position count is always in sync with positions panel.
+    """
+    if pos and not has_error(pos):
+        pos_items, _, _ = normalize_positions_data(pos)
+        actual_count = len(pos_items)
+        if actual_count != snapshot_count:
+            logger.debug(
+                f"Position count discrepancy: snapshot={snapshot_count}, actual={actual_count}. "
+                f"Using actual count from positions endpoint."
+            )
+        return actual_count
+    return snapshot_count
+
+
 def _calculate_adjusted_win_rate(
     perf: dict[str, Any] | None, pos: dict[str, Any] | None
 ) -> tuple[float | None, int, int]:
@@ -114,7 +133,7 @@ def _calculate_adjusted_win_rate(
 
 @register_panel(
     "portfolio",
-    endpoint_deps=["port", "cfg", "risk", "perf"],
+    endpoint_deps=["port", "cfg", "risk", "perf", "pos"],
     optional=False,
     description="Portfolio",
 )
@@ -123,6 +142,7 @@ def panel_portfolio(
     cfg: dict[str, Any] | None,
     risk: dict[str, Any] | None = None,
     perf: dict[str, Any] | None = None,
+    pos: dict[str, Any] | None = None,
 ) -> Panel:
     err_panel = _error_panel("portfolio", port, "PORTFOLIO", border="green")
     if err_panel:
@@ -148,13 +168,16 @@ def panel_portfolio(
     try:
         pv = float(pv_raw)
         cash = float(cash_raw)
-        npos = int(npos_raw)
+        npos_snapshot = int(npos_raw)
     except (ValueError, TypeError) as e:
         logger.error(
             f"Portfolio data corruption: failed to convert validated fields. "
             f"pv_raw={pv_raw}, cash_raw={cash_raw}, npos_raw={npos_raw}. Error: {e}"
         )
         raise RuntimeError("Portfolio data format error — API validation failed") from e
+
+    # Use actual position count from positions endpoint when available
+    npos = _get_actual_position_count(npos_snapshot, pos)
 
     # STRICT: Optional enrichment metrics—explicitly handle missing data
     # These are computed daily; missing values should not silently default to None
