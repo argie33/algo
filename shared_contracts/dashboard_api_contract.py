@@ -323,8 +323,12 @@ DASHBOARD_ENDPOINTS = {
         "description": "Recent trades",
         "response_schema": ResponseSchema(
             required_fields=["items"],
-            optional_fields=["timestamp"],
-            field_types={"items": list},
+            optional_fields=["timestamp", "data_freshness", "pagination"],
+            field_types={
+                "items": list,
+                "data_freshness": (dict, type(None)),
+                "pagination": (dict, type(None)),
+            },
             description="List of recent trades",
         ),
         "freshness_max_age_seconds": 300,
