@@ -76,7 +76,11 @@ def handle(  # noqa: C901
             is_valid, error_msg = ResponseValidator.validate_endpoint_response("srank", result)
             if not is_valid:
                 logger.error(f"Endpoint response validation failed: {error_msg}")
-                return error_response(500, "response_validation_error", error_msg or "Sector ranking validation failed")
+                if error_msg:
+                    return error_response(500, "response_validation_error", error_msg)
+                else:
+                    logger.error("[CRITICAL] Sector ranking validation failed but error_msg is None. Bug.")
+                    return error_response(500, "response_validation_error", "Sector ranking validation failed (internal error: no message)")
             return json_response(200, result)
 
         # Extract sector name if provided: /api/sectors/Technology

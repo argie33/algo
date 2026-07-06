@@ -151,8 +151,13 @@ def handle(
                 )
                 is_valid, error_msg = ResponseValidator.validate_endpoint_response("trades", trades_result)
                 if not is_valid:
-                    logger.error(f"Endpoint response validation failed: {error_msg}")
-                    return error_response(500, "response_validation_error", error_msg or "Trades validation failed")
+                    # HIGH FIX: Return actual validation error, never fallback per GOVERNANCE.md
+                    if error_msg:
+                        logger.error(f"Endpoint response validation failed: {error_msg}")
+                        return error_response(500, "response_validation_error", error_msg)
+                    else:
+                        logger.error("[CRITICAL] Response validation failed but error_msg is None. This is a bug.")
+                        return error_response(500, "response_validation_error", "Response validation failed (internal error: no error message)")
                 return trades_result
             except ValueError as e:
                 return error_response(400, "bad_request", str(e))
@@ -175,7 +180,11 @@ def handle(
             is_valid, error_msg = ResponseValidator.validate_endpoint_response("trades", summary_result)
             if not is_valid:
                 logger.error(f"Endpoint response validation failed: {error_msg}")
-                return error_response(500, "response_validation_error", error_msg or "Trades summary validation failed")
+                if error_msg:
+                    return error_response(500, "response_validation_error", error_msg)
+                else:
+                    logger.error("[CRITICAL] Trades summary validation failed but error_msg is None. Bug.")
+                    return error_response(500, "response_validation_error", "Trades summary validation failed (internal error: no message)")
             return json_response(200, summary_result)
         raise_api_error(404, "not_found", f"Unknown trade endpoint: {path}")
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
@@ -272,7 +281,11 @@ def _create_manual_trade(cur: cursor, body: dict[str, Any], idempotency_key: str
         is_valid, error_msg = ResponseValidator.validate_endpoint_response("trades", manual_trade_response)
         if not is_valid:
             logger.error(f"Endpoint response validation failed: {error_msg}")
-            return error_response(500, "response_validation_error", error_msg or "Trades stats validation failed")
+            if error_msg:
+                return error_response(500, "response_validation_error", error_msg)
+            else:
+                logger.error("[CRITICAL] Trades stats validation failed but error_msg is None. Bug.")
+                return error_response(500, "response_validation_error", "Trades stats validation failed (internal error: no message)")
 
         if signature:
             _store_idempotent_response(cur, signature, response)

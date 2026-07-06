@@ -101,7 +101,11 @@ def handle(  # noqa: C901
             is_valid, error_msg = ResponseValidator.validate_endpoint_response("financials/key-metrics", result)
             if not is_valid:
                 logger.error(f"Endpoint response validation failed: {error_msg}")
-                return error_response(500, "response_validation_error", error_msg or "Key metrics validation failed")
+                if error_msg:
+                    return error_response(500, "response_validation_error", error_msg)
+                else:
+                    logger.error("[CRITICAL] Key metrics validation failed but error_msg is None. Bug.")
+                    return error_response(500, "response_validation_error", "Key metrics validation failed (internal error: no message)")
             return result
 
         if endpoint == "income-statement":
@@ -132,9 +136,11 @@ def handle(  # noqa: C901
             is_valid, error_msg = ResponseValidator.validate_endpoint_response("financials/income-statement", result)
             if not is_valid:
                 logger.error(f"Endpoint response validation failed: {error_msg}")
-                return error_response(
-                    500, "response_validation_error", error_msg or "Income statement validation failed"
-                )
+                if error_msg:
+                    return error_response(500, "response_validation_error", error_msg)
+                else:
+                    logger.error("[CRITICAL] Income statement validation failed but error_msg is None. Bug.")
+                    return error_response(500, "response_validation_error", "Income statement validation failed (internal error: no message)")
             return result
 
         if endpoint == "balance-sheet":
@@ -165,7 +171,11 @@ def handle(  # noqa: C901
             is_valid, error_msg = ResponseValidator.validate_endpoint_response("financials/balance-sheet", result)
             if not is_valid:
                 logger.error(f"Endpoint response validation failed: {error_msg}")
-                return error_response(500, "response_validation_error", error_msg or "Balance sheet validation failed")
+                if error_msg:
+                    return error_response(500, "response_validation_error", error_msg)
+                else:
+                    logger.error("[CRITICAL] Balance sheet validation failed but error_msg is None. Bug.")
+                    return error_response(500, "response_validation_error", "Balance sheet validation failed (internal error: no message)")
             return result
 
         if endpoint == "cash-flow":
@@ -205,7 +215,11 @@ def handle(  # noqa: C901
             is_valid, error_msg = ResponseValidator.validate_endpoint_response("financials/cash-flow", result)
             if not is_valid:
                 logger.error(f"Endpoint response validation failed: {error_msg}")
-                return error_response(500, "response_validation_error", error_msg or "Cash flow validation failed")
+                if error_msg:
+                    return error_response(500, "response_validation_error", error_msg)
+                else:
+                    logger.error("[CRITICAL] Cash flow validation failed but error_msg is None. Bug.")
+                    return error_response(500, "response_validation_error", "Cash flow validation failed (internal error: no message)")
             return result
 
         return error_response(404, "not_found", f"No financials handler for {path}")

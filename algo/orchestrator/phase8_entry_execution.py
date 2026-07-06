@@ -68,12 +68,19 @@ def _batch_fetch_technical_data(
 
     if not symbols_with_precomputed:
         # Phase 5 didn't run or produced no candidates (e.g., circuit breaker halted entry)
-        # This is not an error—it means no entries are allowed. Return empty dict to signal no trades.
+        # This is not an error—it means no entries are allowed. Return explicit marker per GOVERNANCE.md.
         logger.warning(
             "[PHASE8] No precomputed technical data available for entry execution. "
             "Phase 5 likely halted or produced no candidates. No entries will be executed this run."
         )
-        return {}
+        # CRITICAL FIX: Return explicit marker instead of empty dict per GOVERNANCE.md
+        # Caller can now distinguish "no entries allowed (normal)" from "critical error"
+        return {
+            "data_unavailable": True,
+            "reason": "phase_5_halted_or_no_candidates",
+            "entries_executed": 0,
+            "symbols_processed": 0
+        }
 
     # Separate symbols that have precomputed values from those that don't
 

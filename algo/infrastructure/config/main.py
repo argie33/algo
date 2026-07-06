@@ -1750,6 +1750,24 @@ class AlgoConfig:
                     f"stock_price={min_stock_price})"
                 )
 
+            # Loader rate limit thresholds: EOD < Morning (due to 85-min vs 450-min budget)
+            eod_threshold = int(self._config.get("loader_rate_limit_circuit_break_threshold_eod", 180))
+            morning_threshold = int(self._config.get("loader_rate_limit_circuit_break_threshold_morning", 480))
+
+            if eod_threshold >= morning_threshold:
+                logger.warning(
+                    f"Config: loader_rate_limit_circuit_break_threshold_eod ({eod_threshold}s) >= "
+                    f"loader_rate_limit_circuit_break_threshold_morning ({morning_threshold}s). "
+                    f"EOD has tighter deadline (85 min vs 450 min). Consider: eod < morning."
+                )
+
+            if eod_threshold > 600:
+                logger.critical(
+                    f"Config: loader_rate_limit_circuit_break_threshold_eod ({eod_threshold}s = "
+                    f"{eod_threshold/60:.0f} min) exceeds safe limit (600s = 10 min). "
+                    f"EOD window is only 85 min total. Reduce to <= 600s to ensure completion."
+                )
+
             logger.info("[AlgoConfig] Interdependency validation passed")
 
         except ValueError as e:

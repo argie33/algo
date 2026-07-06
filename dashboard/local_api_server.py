@@ -1,23 +1,23 @@
 #!/usr/bin/env python3
 """Local API server for development - serves corrected positions data."""
 
+import json
 import os
 import sys
-import json
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
+from urllib.parse import urlparse
 
-# Setup paths
+import psycopg2.extras
+
+# Setup paths and environment
 repo_root = Path(__file__).parent.parent
 sys.path.insert(0, str(repo_root))
 sys.path.insert(0, str(repo_root / "lambda" / "api"))
-
 os.environ['ENVIRONMENT'] = 'dev'
 
-from http.server import HTTPServer, BaseHTTPRequestHandler
-from urllib.parse import urlparse, parse_qs
-import psycopg2.extras
-from utils.db import get_db_connection
-from utils.data_queries import get_open_positions
+from utils.data_queries import get_open_positions  # noqa: E402, I001
+from utils.db import get_db_connection  # noqa: E402
 
 class APIHandler(BaseHTTPRequestHandler):
     """Handle HTTP requests and return position data."""
@@ -44,8 +44,24 @@ class APIHandler(BaseHTTPRequestHandler):
             # Build sector allocation
             sector_allocation = {}
             for p in positions:
-                sector = p.get('sector') or 'Unknown'
-                val = float(p.get('position_value') or 0)
+                sector = p.get('sector')
+                if sector is None:
+                    # CRITICAL FIX: Fail-fast on missing sector data per GOVERNANCE.md
+                    # Do not default to 'Unknown'—hide data quality issues
+                    raise RuntimeError(
+                        f"[CRITICAL] Position missing sector classification: symbol={p.get('symbol')}, "
+                        f"position_id={p.get('id')}. Data integrity error."
+                    )
+
+                position_value = p.get('position_value')
+                if position_value is None:
+                    # CRITICAL FIX: Never default to 0 per GOVERNANCE.md—finance data requires explicit availability
+                    raise RuntimeError(
+                        f"[CRITICAL] Position missing value: symbol={p.get('symbol')}, "
+                        f"position_id={p.get('id')}, sector={sector}. Cannot calculate portfolio metrics."
+                    )
+
+                val = float(position_value)
                 if sector not in sector_allocation:
                     sector_allocation[sector] = 0
                 sector_allocation[sector] += val
@@ -99,9 +115,8 @@ class APIHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(json.dumps(data).encode())
 
-    def log_message(self, format, *args):
+    def log_message(self, fmt, *args):
         """Suppress default logging."""
-        pass
 
 def run_server(port=8000):
     """Start the local API server."""

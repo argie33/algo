@@ -826,13 +826,16 @@ resource "aws_secretsmanager_secret_rotation" "rds_credentials" {
 }
 
 # Lambda permission for Secrets Manager to invoke rotation
-#tfsec:ignore:aws-lambda-restrict-source-arn
+# SECURITY FIX: Scoped to specific RDS credentials secret ARN instead of wildcard pattern.
+# Restricts invocation to only the rds_credentials secret, preventing unrelated secrets
+# (e.g., algo/fred, algo/alpaca) from triggering the RDS rotation Lambda.
+# Addresses: tfsec:aws-lambda-restrict-source-arn (now properly restricted)
 resource "aws_lambda_permission" "rds_rotation_secrets_manager" {
   statement_id  = "AllowSecretsManagerInvoke"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.rds_rotation.function_name
   principal     = "secretsmanager.amazonaws.com"
-  source_arn    = "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:algo/*"
+  source_arn    = aws_secretsmanager_secret.rds_credentials.arn
 }
 
 # ============================================================

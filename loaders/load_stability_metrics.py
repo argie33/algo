@@ -304,10 +304,13 @@ class StabilityMetricsLoader(OptimalLoader):
                 "data_unavailable"
             )
             if volatility_30d_unavailable:
-                if not isinstance(volatility_30d_result, dict) or "reason" not in volatility_30d_result:
-                    reason_30d = "missing_reason_field"
+                # MEDIUM FIX: Explicit type check eliminates ambiguous boolean logic per GOVERNANCE.md
+                # Once we know it's an unavailable marker dict, safely extract reason
+                if not isinstance(volatility_30d_result, dict):
+                    logger.error("[STABILITY_METRICS] BUG: volatility_30d_unavailable=True but result is not dict")
+                    reason_30d = "corrupted_marker"
                 else:
-                    reason_30d = volatility_30d_result["reason"]
+                    reason_30d = volatility_30d_result.get("reason", "missing_reason_field")
                 unavailability_reasons.append(f"vol_30d: {reason_30d}")
 
             # Check 60d volatility availability
@@ -315,24 +318,30 @@ class StabilityMetricsLoader(OptimalLoader):
                 "data_unavailable"
             )
             if volatility_60d_unavailable:
-                if not isinstance(volatility_60d_result, dict) or "reason" not in volatility_60d_result:
-                    reason_60d = "missing_reason_field"
+                # MEDIUM FIX: Explicit type check eliminates ambiguous boolean logic
+                if not isinstance(volatility_60d_result, dict):
+                    logger.error("[STABILITY_METRICS] BUG: volatility_60d_unavailable=True but result is not dict")
+                    reason_60d = "corrupted_marker"
                 else:
-                    reason_60d = volatility_60d_result["reason"]
+                    reason_60d = volatility_60d_result.get("reason", "missing_reason_field")
                 unavailability_reasons.append(f"vol_60d: {reason_60d}")
 
             if volatility_252d_unavailable:
-                if not isinstance(volatility_252d_result, dict) or "reason" not in volatility_252d_result:
-                    reason_252d = "missing_reason_field"
+                # MEDIUM FIX: Explicit type check eliminates ambiguous boolean logic
+                if not isinstance(volatility_252d_result, dict):
+                    logger.error("[STABILITY_METRICS] BUG: volatility_252d_unavailable=True but result is not dict")
+                    reason_252d = "corrupted_marker"
                 else:
-                    reason_252d = volatility_252d_result["reason"]
+                    reason_252d = volatility_252d_result.get("reason", "missing_reason_field")
                 unavailability_reasons.append(f"vol_252d: {reason_252d}")
 
             if beta_unavailable:
-                if not isinstance(beta_result, dict) or "reason" not in beta_result:
-                    reason_beta = "missing_reason_field"
+                # MEDIUM FIX: Explicit type check eliminates ambiguous boolean logic
+                if not isinstance(beta_result, dict):
+                    logger.error("[STABILITY_METRICS] BUG: beta_unavailable=True but result is not dict")
+                    reason_beta = "corrupted_marker"
                 else:
-                    reason_beta = beta_result["reason"]
+                    reason_beta = beta_result.get("reason", "missing_reason_field")
                 unavailability_reasons.append(f"beta: {reason_beta}")
 
             # FAIL-FAST: Missing ANY component makes all stability metrics unavailable
@@ -387,15 +396,23 @@ class StabilityMetricsLoader(OptimalLoader):
         Raises:
             ValueError: If full year (252d) volatility cannot be calculated
         """
+        if symbol is None:
+            # CRITICAL FIX: Fail-fast on missing symbol per GOVERNANCE.md
+            # Never default to 'unknown'—this masks data quality issues
+            raise RuntimeError(
+                f"[STABILITY_METRICS] Symbol is None. Cannot calculate volatility without symbol identifier. "
+                f"Available returns data: {len(returns) if returns else 0} data points."
+            )
+
         if not returns or len(returns) < 2:
             # Return explicit unavailability marker when insufficient data
             actual_returns = len(returns) if returns else 0
             logger.debug(
-                f"[STABILITY_METRICS] {symbol or 'unknown'}: insufficient returns ({actual_returns}) "
+                f"[STABILITY_METRICS] {symbol}: insufficient returns ({actual_returns}) "
                 f"for volatility calculation (minimum 2 required)"
             )
             return {
-                "symbol": symbol or "unknown",
+                "symbol": symbol,
                 "data_unavailable": True,
                 "reason": f"insufficient_returns: {actual_returns}/2 minimum required",
             }

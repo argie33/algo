@@ -175,7 +175,11 @@ def _industry_list(cur: cursor, params: dict[str, Any]) -> Any:
     is_valid, error_msg = ResponseValidator.validate_endpoint_response("industries/list", result)
     if not is_valid:
         logger.error(f"Industries list response validation failed: {error_msg}")
-        return error_response(500, "response_validation_error", error_msg or "Industries list validation failed")
+        if error_msg:
+            return error_response(500, "response_validation_error", error_msg)
+        else:
+            logger.error("[CRITICAL] Industries list validation failed but error_msg is None. Bug.")
+            return error_response(500, "response_validation_error", "Industries list validation failed (internal error: no message)")
 
     return json_response(200, result)
 
@@ -225,7 +229,11 @@ def _industry_detail(cur: cursor, industry_name: str) -> Any:
     is_valid, error_msg = ResponseValidator.validate_endpoint_response("industries/detail", result)
     if not is_valid:
         logger.error(f"Industries detail response validation failed: {error_msg}")
-        return error_response(500, "response_validation_error", error_msg or "Industries detail validation failed")
+        if error_msg:
+            return error_response(500, "response_validation_error", error_msg)
+        else:
+            logger.error("[CRITICAL] Industries detail validation failed but error_msg is None. Bug.")
+            return error_response(500, "response_validation_error", "Industries detail validation failed (internal error: no message)")
 
     return json_response(200, result)
 
@@ -288,6 +296,10 @@ def _industry_trend(cur: cursor, industry_name: str, params: dict[str, Any]) -> 
     is_valid, error_msg = ResponseValidator.validate_endpoint_response("industries/trend", result)
     if not is_valid:
         logger.error(f"Industries trend response validation failed: {error_msg}")
-        return error_response(500, "response_validation_error", error_msg or "Industries trend validation failed")
+        if error_msg:
+            return error_response(500, "response_validation_error", error_msg)
+        else:
+            logger.error("[CRITICAL] Industries trend validation failed but error_msg is None. Bug.")
+            return error_response(500, "response_validation_error", "Industries trend validation failed (internal error: no message)")
 
     return json_response(200, result)

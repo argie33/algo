@@ -79,14 +79,19 @@ from ._helpers import _error_panel
     description="Circuit breaker status",
 )
 def panel_circuit(cb: Any) -> Panel:  # noqa: C901
-    from ..error_boundary import get_data_staleness_warning
-
     err_panel = _error_panel("circuit breakers", cb, "CIRCUIT BREAKERS", border="blue")
     if err_panel:
         return err_panel
 
     # Check data freshness: warn if circuit breaker status is stale
-    cb_stale_warning = get_data_staleness_warning(cb, max_age_hours=1.0) if isinstance(cb, dict) else ""
+    # GOVERNANCE FIX: Check nested data_freshness dict (API response structure)
+    # instead of looking for top-level timestamp field
+    cb_stale_warning = ""
+    if isinstance(cb, dict):
+        data_freshness = cb.get("data_freshness")
+        if isinstance(data_freshness, dict) and data_freshness.get("is_stale"):
+            age_days = data_freshness.get("data_age_days", "?")
+            cb_stale_warning = f" ⚠ STALE (data {age_days}d old)"
 
     if not isinstance(cb, dict):
         logger.error("[CIRCUIT] Circuit breaker data is not a dict: got %s", type(cb).__name__)

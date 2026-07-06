@@ -693,13 +693,20 @@ class PriceLoader(OptimalLoader):
             from algo.reporting import MetricsPublisher
 
             metrics = MetricsPublisher()
+            # HIGH FIX: Never fallback error_type to 'unknown' per GOVERNANCE.md
+            # Operators must see actual error type for debugging
+            if last_error_type is None:
+                logger.error(
+                    f"[{self._correlation_id}] Market close timeout occurred but last_error_type is None. "
+                    f"Error tracking failure. Available: last_error_msg={last_error_msg}"
+                )
             metrics.add_metric(
                 "MarketCloseDataAvailable",
                 0,
                 unit="Count",
                 dimensions={
                     "Status": "timeout",
-                    "LastError": last_error_type or "unknown",
+                    "LastError": last_error_type if last_error_type is not None else "(error type not captured)",
                     "ConsecutiveCount": str(self._market_close_timeout_count),
                 },
             )
@@ -721,9 +728,12 @@ class PriceLoader(OptimalLoader):
             )
             root_cause = "unknown error (no message provided)"
 
+        # HIGH FIX: Never fallback error_msg to 'no message' per GOVERNANCE.md
+        # Preserve actual error context for debugging
+        error_msg_display = last_error_msg if last_error_msg is not None else "(error message not captured)"
         error_msg = (
             f"Market close data NOT available after {elapsed:.0f}s ({elapsed / 60:.1f} min, {attempt} attempts). "
-            f"Root cause: {root_cause} | Last error: {last_error_type} - {last_error_msg or 'no message'}. "
+            f"Root cause: {root_cause} | Last error: {last_error_type} - {error_msg_display}. "
             "Cannot load prices without market close data. Aborting to avoid stale price data. "
             "Phase 1 will trigger failsafe when data becomes available. "
             "Check yfinance API status and RDS connection pool health. "

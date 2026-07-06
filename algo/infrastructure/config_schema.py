@@ -217,8 +217,9 @@ VALIDATION_SCHEMA = {
     "stale_loader_threshold_minutes": ("int", 0, 1000, False, None),
     # Swing Score Configuration
     # Loader Rate Limiting Configuration
-    "loader_rate_limit_circuit_break_threshold_morning": ("int", 0, 3600, False, 480),
-    "loader_rate_limit_circuit_break_threshold_eod": ("int", 0, 3600, False, 180),
+    # Morning: 1-15 min window (conservative for 450-min budget); EOD: 1-10 min window (aggressive for 85-min budget)
+    "loader_rate_limit_circuit_break_threshold_morning": ("int", 60, 900, False, 480),
+    "loader_rate_limit_circuit_break_threshold_eod": ("int", 60, 600, False, 180),
     "loader_rate_limit_requests_per_min": ("int", 0, 10000, False, 120),
     "loader_timeout_seconds": ("int", 0, 36000, False, 300),
     "loader_emergency_mode_threshold_multiplier": ("float", 0.01, 100.0, False, 0.5),

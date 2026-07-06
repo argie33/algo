@@ -1123,7 +1123,12 @@ def require_auth(event: dict[str, Any], path: str) -> tuple[bool, bool, str | No
 
     is_valid, claims, error = validate_bearer_token(token)
     if not is_valid:
-        return (True, False, error or "Invalid token", None)
+        # CRITICAL FIX: Always return actual validation error per GOVERNANCE.md
+        # Never mask with generic fallback—operators must see why auth failed
+        if error is None:
+            logger.error("[CRITICAL] validate_bearer_token returned is_valid=False but error=None. This is a bug.")
+            return (True, False, "Token validation failed (internal error: no error message)", None)
+        return (True, False, error, None)
 
     # Token is valid - return claims for routing
     return (True, True, None, claims)

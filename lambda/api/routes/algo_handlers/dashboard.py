@@ -1016,6 +1016,7 @@ def _get_circuit_breakers(cur: cursor) -> Any:  # noqa: C901
             "any_triggered": any_halted,
             "triggered_count": triggered_count,
             "data_freshness": freshness,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
         # Validate circuit breaker response matches contract schema

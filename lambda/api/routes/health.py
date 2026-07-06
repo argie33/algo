@@ -202,9 +202,12 @@ def _handle_basic(cur: cursor) -> Any:
         # Validate response matches contract before returning
         is_valid, error_msg_raw = ResponseValidator.validate_endpoint_response("health", health)
         if not is_valid:
-            error_msg_str: str = error_msg_raw or "Health response validation failed"
-            logger.error(f"Health response validation failed: {error_msg_str}")
-            return error_response(500, "response_validation_error", error_msg_str)
+            logger.error(f"Health response validation failed: {error_msg_raw}")
+            if error_msg_raw:
+                return error_response(500, "response_validation_error", error_msg_raw)
+            else:
+                logger.error("[CRITICAL] Health response validation failed but error_msg_raw is None. Bug.")
+                return error_response(500, "response_validation_error", "Health response validation failed (internal error: no message)")
 
         return success_response(health)
 

@@ -429,9 +429,12 @@ def _get_leading_indicators(cur: cursor) -> Any:  # noqa: C901
 
         is_valid, error_msg_raw = ResponseValidator.validate_endpoint_response("economic/indicators", result)
         if not is_valid:
-            error_msg_str = error_msg_raw or "Economic indicators validation failed"
-            logger.error(f"Economic indicators response validation failed: {error_msg_str}")
-            return error_response(500, "response_validation_error", error_msg_str)
+            logger.error(f"Economic indicators response validation failed: {error_msg_raw}")
+            if error_msg_raw:
+                return error_response(500, "response_validation_error", error_msg_raw)
+            else:
+                logger.error("[CRITICAL] Economic indicators validation failed but error_msg_raw is None. Bug.")
+                return error_response(500, "response_validation_error", "Economic indicators validation failed (internal error: no message)")
 
         return json_response(200, result)
 
@@ -642,7 +645,11 @@ def _get_yield_curve_full(cur: cursor) -> Any:  # noqa: C901
         is_valid, error_msg = ResponseValidator.validate_endpoint_response("economic/yield-curve", result)
         if not is_valid:
             logger.error(f"Economic yield curve response validation failed: {error_msg}")
-            return error_response(500, "response_validation_error", error_msg or "Yield curve validation failed")
+            if error_msg:
+                return error_response(500, "response_validation_error", error_msg)
+            else:
+                logger.error("[CRITICAL] Yield curve validation failed but error_msg is None. Bug.")
+                return error_response(500, "response_validation_error", "Yield curve validation failed (internal error: no message)")
 
         return json_response(200, result)
 
