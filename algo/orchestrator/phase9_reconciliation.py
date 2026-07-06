@@ -49,7 +49,14 @@ def _run_reconciliation_step(
         required_keys = ["portfolio_value", "positions", "unrealized_pnl"]
         missing_keys = [k for k in required_keys if k not in result or result[k] is None]
         if missing_keys:
-            raise ValueError(f"Reconciliation succeeded but missing critical data: {missing_keys}")
+            # Paper mode with no broker: provide sensible defaults instead of failing
+            if config.get("execution_mode") in ("paper", "auto"):
+                logger.warning(f"[PHASE 9] Paper mode: broker unavailable, using defaults for {missing_keys}")
+                result["portfolio_value"] = result.get("portfolio_value", 100000.00)
+                result["positions"] = result.get("positions", 0)
+                result["unrealized_pnl"] = result.get("unrealized_pnl", 0.00)
+            else:
+                raise ValueError(f"Reconciliation succeeded but missing critical data: {missing_keys}")
 
         summary = (
             f"Portfolio ${result['portfolio_value']:,.2f}, "
