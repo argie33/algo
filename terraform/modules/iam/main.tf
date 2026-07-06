@@ -912,6 +912,22 @@ data "aws_iam_policy_document" "lambda_api" {
       "arn:aws:iam::${var.aws_account_id}:role/${var.project_name}-ecs-task-*"
     ]
   }
+
+  # Async fire-and-forget refresh of stale loaders from _get_dashboard_scores
+  # (dashboard.py) — reuses the same trigger-loaders Lambda the orchestrator
+  # and regular schedule use, scoped to just that one function.
+  statement {
+    sid    = "InvokeTriggerLoaders"
+    effect = "Allow"
+
+    actions = [
+      "lambda:InvokeFunction"
+    ]
+
+    resources = [
+      "arn:aws:lambda:${var.aws_region}:${var.aws_account_id}:function:${var.project_name}-trigger-loaders"
+    ]
+  }
 }
 
 # ============================================================
