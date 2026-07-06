@@ -14,6 +14,7 @@ Verify pipeline-loaded tables are fresh before trading:
 9. stability_metrics: Volatility and beta metrics — HALT if stale (ADDED 2026-07-05)
 10. trend_template_data: Minervini/Weinstein criteria — WARNING if stale
 11. sector_ranking: Sector data for last trading day — WARNING if stale
+(swing_trader_scores: removed in Session 14, no longer checked)
 
 CRITICAL FIX 2026-07-05: Metric loaders (growth, quality, value, positioning, stability)
 are now required for stock scoring. Per phase1_failsafe_retry.py, these are CRITICAL loaders
@@ -437,9 +438,9 @@ def run(  # noqa: C901
                 "earnings_calendar": "Earnings dates (blackout window gating)",
             }
             # Warning-only tables: stale -> logged, trading continues
+            # FIXED 2026-07-06: Removed swing_trader_scores (deprecated table, removed in Session 14)
             warn_tables = {
                 "trend_template_data": "Trend template (Minervini/Weinstein)",
-                "swing_trader_scores": "Swing trader scores (legacy, warning only)",
                 "sector_ranking": "Sector rankings",
             }
 
