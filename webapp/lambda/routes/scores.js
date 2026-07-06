@@ -98,6 +98,7 @@ router.get("/", async (req, res) => {
       {
         page: pageNum,
         limit: limitNum,
+        offset,
         total,
         totalPages,
         hasNext: pageNum < totalPages,
