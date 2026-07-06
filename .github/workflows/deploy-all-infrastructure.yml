@@ -48,10 +48,37 @@ env:
 
 
 jobs:
+  # GOVERNANCE FIX: Validate CI pipeline passed before deploying
+  validate-ci:
+    name: "CI Validation - Ensure Tests Passed"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      statuses: read
+    steps:
+      - name: Check CI Workflow Status
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            # workflow_run trigger: CI already completed
+            CONCLUSION="${{ github.event.workflow_run.conclusion }}"
+            if [ "$CONCLUSION" != "success" ]; then
+              echo "❌ FAILED: CI pipeline did not pass (conclusion: $CONCLUSION)"
+              echo "Cannot proceed with deployment until CI passes."
+              exit 1
+            fi
+            echo "✅ CI pipeline passed successfully"
+          else
+            # Manual workflow_dispatch: allow (requires explicit approval from GitHub user)
+            echo "⚠️  Manual deployment triggered (CI check bypassed for workflow_dispatch)"
+          fi
+
   #
   # STEP 0 -- Bootstrap Terraform Backend (S3 + DynamoDB)
   #
   bootstrap-backend:
+    needs: validate-ci
     name: "0. Bootstrap Terraform Backend / Create S3 State Bucket & DynamoDB Lock Table"
     runs-on: ubuntu-latest
     permissions:
