@@ -1,7 +1,8 @@
 name: Run Performance Metrics Loader
 
-# Manually invoke the orchestrator Lambda to run Phase 7 (performance metrics loader)
+# Manually trigger ECS task to run performance metrics loader
 # This populates the R-metrics data needed by perf_anl API endpoint
+# Note: This runs as ECS task, not Lambda. Computes volatility, momentum, technical indicators.
 
 on:
   workflow_dispatch:
