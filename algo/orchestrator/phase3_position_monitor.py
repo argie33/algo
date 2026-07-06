@@ -78,6 +78,7 @@ def run(
                 log_phase_error(3, error, log_phase_result_fn)
                 raise
             halts_found = []
+            halt_check_errors = []
             for pos in open_positions:
                 if "symbol" not in pos and "name" not in pos:
                     raise RuntimeError(
@@ -93,11 +94,34 @@ def run(
                         f"[PHASE 3] Position symbol and name are both empty or missing. "
                         f"Position data: {pos}. Cannot proceed without valid symbol identifier."
                     )
-                halt_check = meh.check_single_stock_halt(symbol)
-                if halt_check and halt_check.get("halted"):
-                    halts_found.append(symbol)
-                    if verbose:
-                        logger.warning(f"  [WARN] {symbol} halted — pending orders cancelled")
+                try:
+                    halt_check = meh.check_single_stock_halt(symbol)
+                    if halt_check is None:
+                        logger.debug(f"[PHASE 3] {symbol}: halt check returned None (unexpected but continuing)")
+                        continue
+
+                    # Check for error response from halt check
+                    if "error" in halt_check:
+                        error_reason = halt_check.get("reason", "unknown")
+                        logger.warning(f"[PHASE 3] {symbol}: halt check failed ({error_reason}) — continuing with caution")
+                        halt_check_errors.append((symbol, error_reason))
+                        continue
+
+                    # Check if symbol is halted
+                    if halt_check.get("halted"):
+                        halts_found.append(symbol)
+                        if verbose:
+                            logger.warning(f"  [WARN] {symbol} halted — pending orders cancelled")
+                except Exception as halt_exc:
+                    logger.warning(f"[PHASE 3] Unexpected error checking halt status for {symbol}: {type(halt_exc).__name__}: {halt_exc}")
+                    halt_check_errors.append((symbol, f"exception: {type(halt_exc).__name__}"))
+                    continue
+
+            if halt_check_errors:
+                errors_str = "; ".join(f"{sym}({err})" for sym, err in halt_check_errors[:5])
+                if len(halt_check_errors) > 5:
+                    errors_str += f"... and {len(halt_check_errors) - 5} more"
+                logger.warning(f"[PHASE 3] {len(halt_check_errors)} halt checks failed: {errors_str}")
             if halts_found:
                 log_phase_result_fn(
                     3,

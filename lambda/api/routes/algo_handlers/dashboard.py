@@ -1293,20 +1293,20 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
         if data_age_days and data_age_days > 2:
             logger.warning(f"[SCORES] Stock scores data is {data_age_days} days stale, triggering async refresh...")
             try:
-                import json
                 import os
 
                 import boto3
 
-                lambda_client = boto3.client("lambda", region_name=os.getenv("AWS_REGION", "us-east-1"))
-                lambda_client.invoke(
-                    FunctionName="algo-trigger-loaders-prod",
-                    InvocationType="Event",
-                    Payload=json.dumps({"loader_name": "stock_scores"}),
+                # Directly invoke ECS task to load fresh stock_scores
+                ecs_client = boto3.client("ecs", region_name=os.getenv("AWS_REGION", "us-east-1"))
+                ecs_client.run_task(
+                    cluster="algo-cluster",
+                    taskDefinition="algo-stock_scores-loader:latest",
+                    launchType="EC2",
                 )
-                logger.info("[SCORES] Async stock_scores refresh triggered via ECS")
+                logger.info("[SCORES] Started ECS stock_scores loader task")
             except Exception as refresh_err:
-                logger.error(f"[SCORES] Could not trigger async refresh: {refresh_err}")
+                logger.error(f"[SCORES] Could not start loader task: {refresh_err}")
                 # Continue with stale data rather than failing the request over it
 
         cur.execute(
