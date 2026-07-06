@@ -443,10 +443,11 @@ DASHBOARD_ENDPOINTS = {
         "description": "Circuit breaker status",
         "response_schema": ResponseSchema(
             required_fields=[],
-            optional_fields=["breakers", "any_triggered", "triggered_count"],
+            optional_fields=["breakers", "any_triggered", "triggered_count", "data_freshness"],
             field_types={
                 "breakers": list,
                 "any_triggered": bool,
+                "data_freshness": (dict, type(None)),
             },
             description="Circuit breaker states",
         ),
@@ -490,9 +491,16 @@ DASHBOARD_ENDPOINTS = {
                 "phases",
                 "recent_actions",
                 "total",
+                "limit",
+                "offset",
+                "data_freshness",
             ],
             field_types={
                 "items": list,
+                "total": int,
+                "limit": int,
+                "offset": int,
+                "data_freshness": (dict, type(None)),
             },
             description="Recent activity and audit trail",
         ),
@@ -558,7 +566,7 @@ DASHBOARD_ENDPOINTS = {
         "description": "Market sentiment (fear/greed index and breadth)",
         "response_schema": ResponseSchema(
             required_fields=[],
-            optional_fields=["fear_greed_index", "sentiment_score", "bullish_pct", "bearish_pct", "neutral_pct", "date", "data_freshness"],
+            optional_fields=["fear_greed_index", "sentiment_score", "bullish_pct", "bearish_pct", "neutral_pct", "date", "label", "data_freshness"],
             field_types={
                 "fear_greed_index": (float, int),
                 "sentiment_score": (float, int, type(None)),
@@ -668,10 +676,12 @@ DASHBOARD_ENDPOINTS = {
                 "avg_score",
                 "signal_date",
                 "rejected",
+                "data_freshness",
             ],
             field_types={
                 "total": int,
                 "t1": int,
+                "data_freshness": (dict, type(None)),
             },
             description="Signal funnel statistics",
         ),
@@ -685,12 +695,13 @@ DASHBOARD_ENDPOINTS = {
         "description": "Sector rotation signal",
         "response_schema": ResponseSchema(
             required_fields=[],
-            optional_fields=["date", "signal", "strength", "details", "items", "total"],
+            optional_fields=["date", "signal", "strength", "details", "items", "total", "data_freshness"],
             field_types={
                 "signal": str,
                 "strength": (float, int),
                 "items": list,
                 "total": int,
+                "data_freshness": (dict, type(None)),
             },
             description="Sector rotation signal and strength",
         ),
@@ -839,8 +850,8 @@ DASHBOARD_ENDPOINTS = {
         "description": "Audit log",
         "response_schema": ResponseSchema(
             required_fields=[],
-            optional_fields=["items", "total", "limit", "offset"],
-            field_types={"items": list, "total": int, "limit": int, "offset": int},
+            optional_fields=["items", "total", "limit", "offset", "data_freshness"],
+            field_types={"items": list, "total": int, "limit": int, "offset": int, "data_freshness": (dict, type(None))},
             description="Audit log entries",
         ),
         "freshness_max_age_seconds": 300,
@@ -854,8 +865,8 @@ DASHBOARD_ENDPOINTS = {
         "description": "Execution history",
         "response_schema": ResponseSchema(
             required_fields=[],
-            optional_fields=["items", "total", "limit"],
-            field_types={"items": list, "total": int, "limit": int},
+            optional_fields=["items", "total", "limit", "data_freshness"],
+            field_types={"items": list, "total": int, "limit": int, "data_freshness": (dict, type(None))},
             description="Recent execution records",
         ),
         "freshness_max_age_seconds": 300,
