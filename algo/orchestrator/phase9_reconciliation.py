@@ -735,7 +735,7 @@ def run(
                             # Count actual open positions from database
                             cur.execute("SELECT COUNT(*) as open_count FROM algo_positions WHERE status = 'open'")
                             position_row = cur.fetchone()
-                            open_position_count = position_row['open_count'] if position_row else 0
+                            open_position_count = position_row[0] if position_row else 0
 
                             # Calculate portfolio value from positions
                             cur.execute("""
@@ -744,7 +744,7 @@ def run(
                                 WHERE status = 'open'
                             """)
                             invested_row = cur.fetchone()
-                            total_invested = Decimal(str(invested_row['total_invested'])) if invested_row else Decimal(0)
+                            total_invested = Decimal(str(invested_row[0])) if invested_row else Decimal(0)
                             total_value = Decimal("100000.00")  # Base paper trading capital
                             total_cash = total_value - total_invested
 
@@ -799,13 +799,13 @@ def run(
                             # Count actual positions and calculate portfolio value
                             cur.execute("SELECT COUNT(*) as open_count FROM algo_positions WHERE status = %s", ('open',))
                             pos_row = cur.fetchone()
-                            pos_count = pos_row['open_count'] if pos_row else 0
+                            pos_count = pos_row[0] if pos_row else 0
                             logger.info(f"[PHASE 9] Paper mode: Position count={pos_count}")
 
                             cur.execute("SELECT COALESCE(SUM(position_value), 0) as total, COALESCE(SUM(unrealized_pnl), 0) as pnl FROM algo_positions WHERE status = %s", ('open',))
                             pos_data = cur.fetchone()
-                            total_invested = Decimal(str(pos_data['total'])) if pos_data else Decimal(0)
-                            unrealized_pnl = Decimal(str(pos_data['pnl'])) if pos_data else Decimal(0)
+                            total_invested = Decimal(str(pos_data[0])) if pos_data else Decimal(0)
+                            unrealized_pnl = Decimal(str(pos_data[1])) if pos_data else Decimal(0)
                             logger.info(f"[PHASE 9] Paper mode: Invested={total_invested}, Unrealized={unrealized_pnl}")
 
                             current_value = Decimal("100000.00") + unrealized_pnl
