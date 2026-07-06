@@ -62,15 +62,16 @@ def execution_timeout(max_seconds: int = 5400, label: str = "loader") -> Any:
         if platform in ("linux", "linux2", "darwin"):
             logger.info(f"[TIMEOUT] Using signal-based timeout for {label}: {max_seconds}s")
 
-            # Set SIGALRM handler
-            old_handler = signal.signal(signal.SIGALRM, _timeout_handler_unix)
-            signal.alarm(max_seconds)
+            # Set SIGALRM handler (Unix only - signal.SIGALRM doesn't exist on Windows)
+            # noinspection PyUnresolvedReference
+            old_handler = signal.signal(signal.SIGALRM, _timeout_handler_unix)  # type: ignore[attr-defined]
+            signal.alarm(max_seconds)  # type: ignore[attr-defined]
             try:
                 yield
             finally:
                 # Cancel alarm and restore old handler
-                signal.alarm(0)
-                signal.signal(signal.SIGALRM, old_handler)
+                signal.alarm(0)  # type: ignore[attr-defined]
+                signal.signal(signal.SIGALRM, old_handler)  # type: ignore[attr-defined]
         # Windows / Other: Use threading-based timeout
         else:
             logger.info(f"[TIMEOUT] Using threading-based timeout for {label}: {max_seconds}s (non-signal platform)")
