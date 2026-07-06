@@ -150,6 +150,7 @@ def _execute_fetcher_batch(
     }
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
         items = {k: v for k, v in FETCHERS.items() if k in fetcher_set}
+        logger.info(f"[FETCHERS] Starting {batch_name} batch: {list(items.keys())}")
         futures: dict[Future[tuple[str, Any]], str] = {
             pool.submit(one_func, k, v, fetcher_timeout_dict.get(k, 8.0)): k for k, v in items.items()
         }
@@ -160,11 +161,12 @@ def _execute_fetcher_batch(
                 try:
                     n, d = f.result()
                     out[n] = d
+                    logger.info(f"[FETCHERS] Completed: {n}")
                     pending_futures.discard(f)
                 except Exception as e:
                     k = futures[f]
                     error_msg = format_fetcher_error(k, e)
-                    logger.error("Thread exception: %s", error_msg)
+                    logger.error("[FETCHERS] Thread exception in %s: %s", k, error_msg)
                     if k in critical_fetchers:
                         raise RuntimeError(
                             f"[DASHBOARD CRITICAL] Critical fetcher '{k}' failed: {error_msg}. "
@@ -173,7 +175,9 @@ def _execute_fetcher_batch(
                     out[k] = {"_error": error_msg}
                     pending_futures.discard(f)
         except TimeoutError:
-            logger.error(f"load_all {batch_name} timeout after {timeout_sec}s")
+            logger.error(f"[FETCHERS] {batch_name} batch timeout after {timeout_sec}s")
+            pending_fetchers = [futures.get(f) for f in pending_futures if futures.get(f) and not f.done()]
+            logger.error(f"[FETCHERS] HANGING FETCHERS: {pending_fetchers}")
             critical_missing = []
             for f in pending_futures:
                 k_opt = futures.get(f)
