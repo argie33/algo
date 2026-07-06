@@ -2425,8 +2425,8 @@ resource "aws_cloudwatch_event_target" "computed_metrics_target" {
   })
 
   retry_policy {
-    maximum_event_age    = 3600
-    maximum_retry_attempt = 2
+    maximum_event_age_in_seconds = 3600
+    maximum_retry_attempts       = 2
   }
 }
 
@@ -2465,9 +2465,7 @@ resource "aws_iam_role_policy" "eventbridge_trigger" {
         aws_sfn_state_machine.eod_pipeline.arn,
         aws_sfn_state_machine.financial_data_pipeline.arn,
         aws_sfn_state_machine.reference_data_pipeline.arn,
-        aws_sfn_state_machine.morning_prep_pipeline.arn,
-        aws_sfn_state_machine.intraday_afternoon_update.arn,
-        aws_sfn_state_machine.intraday_preclose_update.arn
+        aws_sfn_state_machine.morning_prep_pipeline.arn
       ]
     }]
   })
