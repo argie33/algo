@@ -6,10 +6,11 @@
  * Production builds REQUIRE explicit API URL
  */
 
-const isDev = process.env.NODE_ENV === 'development';
 const apiUrl = process.env.VITE_API_URL;
+const environment = process.env.VITE_ENVIRONMENT || 'production';
 
-if (!isDev && !apiUrl) {
+// Only enforce API_URL for explicit production builds
+if (environment === 'production' && !apiUrl) {
   console.error('\n❌ ERROR: VITE_API_URL environment variable is required for production builds\n');
   console.error('Set it before building:');
   console.error('  export VITE_API_URL=https://your-api-gateway-endpoint.com');
@@ -21,4 +22,6 @@ if (!isDev && !apiUrl) {
 
 if (apiUrl) {
   console.log(`✓ Building with API URL: ${apiUrl}`);
+} else {
+  console.log(`ℹ  Building without explicit API URL (using relative paths for development)`);
 }
