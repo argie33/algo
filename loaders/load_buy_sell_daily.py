@@ -760,6 +760,22 @@ def main() -> int:  # noqa: C901
 
             return 1
 
+        # CRITICAL FIX: Update loader status to COMPLETED with today's date so Phase 1 doesn't falsely halt
+        # This was missing, causing Phase 1 to think buy_sell_daily is stale
+        try:
+            with DatabaseContext("write") as cur:
+                cur.execute("SET statement_timeout = 0")
+                cur.execute(
+                    """UPDATE data_loader_status
+                       SET status = %s, latest_date = %s, last_updated = NOW(), completion_pct = 100.0
+                       WHERE table_name = %s""",
+                    ("COMPLETED", today_et.date(), "buy_sell_daily"),
+                )
+                logger.info(f"[STATUS] Updated buy_sell_daily status to COMPLETED with latest_date={today_et.date()}")
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as status_err:
+            logger.error(f"[STATUS] Could not update loader status to COMPLETED: {status_err}")
+            return 1
+
         return 0
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.error(f"[LOADER] Daily signals load failed: {e}. Exit code 1 (ERROR).")
