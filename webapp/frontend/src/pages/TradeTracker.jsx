@@ -453,10 +453,10 @@ function TradeReasoning({ row, isOpen }) {
         <Detail label="Base type" value={row.base_type} />
         <Detail label="Stage phase" value={row.stage_phase} />
         <Detail
-          label="Swing score"
+          label="Composite score"
           value={
-            row.swing_score != null
-              ? `${row.swing_score} (${row.swing_grade || "?"})`
+            row.composite_score != null
+              ? `${row.composite_score} (${row.grade || "?"})`
               : "—"
           }
         />

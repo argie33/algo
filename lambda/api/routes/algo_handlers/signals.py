@@ -505,7 +505,7 @@ def _get_swing_scores(cur: cursor, limit: int = 100, min_score: float | None = N
         query_params.append(limit)
         query = psycopg2.sql.SQL("""
                 SELECT
-                    s.symbol, s.date, s.composite_score AS swing_score,
+                    s.symbol, s.date, s.composite_score,
                     CASE
                         WHEN s.composite_score >= 85 THEN 'A+'
                         WHEN s.composite_score >= 75 THEN 'A'

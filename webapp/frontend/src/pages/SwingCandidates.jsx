@@ -152,7 +152,7 @@ export default function SwingCandidates() {
     const top10Score =
       top10.length === 0
         ? 0
-        : top10.reduce((s, i) => s + (i.swing_score || 0), 0) / top10.length;
+        : top10.reduce((s, i) => s + (i.composite_score || 0), 0) / top10.length;
     return { total: itemsList.length, passing, gradeA, top10Score };
   }, [itemsList]);
 
@@ -780,7 +780,7 @@ function TopCard({ c, onClick }) {
       </div>
       <div className="flex items-center justify-between">
         <span className="mono tnum t-xs strong">
-          {num(c.swing_score, 1)}/100
+          {num(c.composite_score, 1)}/100
         </span>
         <span className={`mono tnum t-xs ${change >= 0 ? "up" : "down"}`}>
           {change >= 0 ? "+" : ""}
@@ -1026,9 +1026,9 @@ function GradeFunnel({ items: itemsProp }) {
     const total = items.length;
     const buckets = {
       Universe: total,
-      "Has data": items.filter((i) => i.swing_score != null).length,
-      "Score ≥ 40": items.filter((i) => Number(i.swing_score) >= 40).length,
-      "Score ≥ 60": items.filter((i) => Number(i.swing_score) >= 60).length,
+      "Has data": items.filter((i) => i.composite_score != null).length,
+      "Score ≥ 40": items.filter((i) => Number(i.composite_score) >= 40).length,
+      "Score ≥ 60": items.filter((i) => Number(i.composite_score) >= 60).length,
       "Grade B+": items.filter((i) => ["B", "A", "A+"].includes(i.grade))
         .length,
       "Pass gates": items.filter((i) => i.pass_gates).length,
@@ -1317,16 +1317,16 @@ function Row({ c, rank, active, onClick, _onNavigate }) {
       <td className="num mono tnum" style={{ fontWeight: "var(--w-semibold)" }}>
         <span
           className={
-            Number(c.swing_score) >= 80
+            Number(c.composite_score) >= 80
               ? "up"
-              : Number(c.swing_score) >= 60
+              : Number(c.composite_score) >= 60
                 ? "brand"
-                : Number(c.swing_score) >= 40
+                : Number(c.composite_score) >= 40
                   ? "amber"
                   : "down"
           }
         >
-          {num(c.swing_score, 1)}
+          {num(c.composite_score, 1)}
         </span>
       </td>
       <td className="num mono tnum t-xs">{num(cmp.setup, 1)}</td>

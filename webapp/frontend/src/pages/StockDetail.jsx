@@ -1182,19 +1182,19 @@ function AlgoTab({ swing, scoreRow, error }) {
         <div className="card-head">
           <div>
             <div className="card-title">
-              Swing Score Â·{" "}
+              Composite Score Â·{" "}
               <span
                 className={
-                  Number(swing.swing_score) >= 80
+                  Number(swing.composite_score) >= 80
                     ? "up"
-                    : Number(swing.swing_score) >= 60
+                    : Number(swing.composite_score) >= 60
                       ? "brand"
-                      : Number(swing.swing_score) >= 40
+                      : Number(swing.composite_score) >= 40
                         ? "amber"
                         : "down"
                 }
               >
-                {num(swing.swing_score, 1)}
+                {num(swing.composite_score, 1)}
               </span>{" "}
               / 100
             </div>

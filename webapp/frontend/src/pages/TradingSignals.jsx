@@ -192,7 +192,7 @@ export default function TradingSignals() {
         const g = gateMap.get(r.symbol);
         // SQS: try signal data first, then gates data, then null
         const sqs = sqsOf(r);
-        const gateSqs = g?.swing_score;
+        const gateSqs = g?.composite_score;
         const finalSqs =
           sqs != null ? Number(sqs) : gateSqs != null ? Number(gateSqs) : null;
         // Age: compute days since signal, null if no date

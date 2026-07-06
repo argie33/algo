@@ -1222,8 +1222,6 @@ const CONFIG_CATEGORIES = {
   swing_min_trend_score: "Swing Trader Scoring",
   swing_min_industry_rank: "Swing Trader Scoring",
   swing_days_to_earnings_block: "Swing Trader Scoring",
-  swing_score_good_threshold: "Swing Trader Scoring",
-  swing_score_excellent_threshold: "Swing Trader Scoring",
   swing_weight_setup: "Swing Trader Scoring",
   swing_weight_trend: "Swing Trader Scoring",
   swing_weight_momentum: "Swing Trader Scoring",
@@ -1784,7 +1782,7 @@ router.get("/swing-scores", async (req, res) => {
         return {
           symbol: r.symbol,
           date: r.updated_at || new Date().toISOString().split('T')[0],
-          swing_score: score,
+          composite_score: score,
           score: score,
           grade: score >= 85 ? "A+" : score >= 75 ? "A" : score >= 60 ? "B" : score >= 45 ? "C" : score >= 30 ? "D" : "F",
           pass_gates: score >= 60,
