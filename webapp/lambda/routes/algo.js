@@ -28,7 +28,6 @@ const {
   extractCount,
 } = require("../utils/responseValidation");
 const { getActiveTiers, getActiveTier } = require("../utils/tiers");
-const { getSwingGrades, getGradeForScore } = require("../utils/grades");
 const {
   requireNumericField,
   requirePortfolioValue,
@@ -1737,12 +1736,11 @@ router.get("/swing-scores", async (req, res) => {
     const pool = getPool();
     const { limit } = paginationConfig.sanitize(req.query.limit, 0, "signals");
     const minScoreRaw = parseFloat(req.query.min_score);
-    const minScore = !isNaN(minScoreRaw) ? minScoreRaw : 0; // Query param default to 0 is acceptable
+    const minScore = !isNaN(minScoreRaw) ? minScoreRaw : 0;
     const symbol = req.query.symbol ? req.query.symbol.toUpperCase() : null;
 
     let whereClauses = [
-      `s.date = (SELECT MAX(date) FROM swing_trader_scores)`,
-      `s.score >= $1`,
+      `s.composite_score >= $1`,
     ];
     const params = [minScore];
 
@@ -1755,76 +1753,53 @@ router.get("/swing-scores", async (req, res) => {
     const limitParamNum = params.length;
 
     const result = await pool.query(
-      `SELECT s.symbol, s.date, s.score, s.components,
+      `SELECT s.symbol,
+              s.composite_score, s.momentum_score, s.quality_score,
+              s.growth_score, s.value_score, s.positioning_score, s.stability_score,
+              s.updated_at,
               cp.short_name, cp.sector, cp.industry
-       FROM swing_trader_scores s
+       FROM stock_scores s
        LEFT JOIN company_profile cp ON cp.ticker = s.symbol
        WHERE ${whereClauses.join(" AND ")}
-       ORDER BY s.score DESC
+       ORDER BY s.composite_score DESC NULLS LAST
        LIMIT $${limitParamNum}`,
       params
     );
 
-    // Validate result structure
     validateQueryResult(result, { requireRows: false });
-
-    // Fetch grade configuration from database
-    const grades = await getSwingGrades();
-
-    const parseComponentsJSON = (components) => {
-      if (!components) return null; // Explicitly indicate missing data
-      if (typeof components === "object") return components;
-      if (typeof components !== "string") {
-        logger.warn(
-          "swing_trader_scores components field is non-string, non-object type",
-          {
-            actualType: typeof components,
-            value: String(components).substring(0, 100),
-          }
-        );
-        return null;
-      }
-      try {
-        return JSON.parse(components);
-      } catch (e) {
-        const parseError = new Error(
-          `Cannot parse swing_trader_scores components (data corruption): ${components.substring(0, 100)}`
-        );
-        parseError.originalError = e;
-        logger.error(
-          "CRITICAL: swing_trader_scores components JSON parse failed",
-          {
-            error: parseError.message,
-            originalError: e.message,
-            componentsSample: components.substring(0, 200),
-          }
-        );
-        throw parseError;
-      }
-    };
 
     return sendSuccess(res, {
       items: validateAndCoerceRows(result, {
         symbol: { type: "string", required: true },
-        date: { type: "date", required: true },
-        score: { type: "float", required: true },
-        components: { type: "string", required: false },
+        composite_score: { type: "float", required: false },
+        momentum_score: { type: "float", required: false },
+        quality_score: { type: "float", required: false },
+        growth_score: { type: "float", required: false },
+        value_score: { type: "float", required: false },
+        positioning_score: { type: "float", required: false },
+        stability_score: { type: "float", required: false },
         short_name: { type: "string", required: false },
         sector: { type: "string", required: false },
         industry: { type: "string", required: false },
       }).map((r) => {
-        const score = r.score;
-        const gradeInfo = getGradeForScore(score, grades);
-
+        const score = r.composite_score || 0;
         return {
           symbol: r.symbol,
-          date: r.date,
+          date: r.updated_at || new Date().toISOString().split('T')[0],
           swing_score: score,
-          score: score, // alias for compatibility
-          grade: gradeInfo.letter,
-          pass_gates: gradeInfo.pass_gates,
-          fail_reason: gradeInfo.fail_reason,
-          components: parseComponentsJSON(r.components),
+          score: score,
+          grade: score >= 85 ? "A+" : score >= 75 ? "A" : score >= 60 ? "B" : score >= 45 ? "C" : score >= 30 ? "D" : "F",
+          pass_gates: score >= 60,
+          fail_reason: score < 60 ? "composite_score < 60" : null,
+          components: {
+            setup: Math.round(r.positioning_score || 0),
+            trend: Math.round(r.momentum_score || 0),
+            momentum: Math.round(r.momentum_score || 0),
+            volume: Math.round(r.growth_score || 0),
+            fundamentals: Math.round(r.quality_score || 0),
+            sector: Math.round(r.value_score || 0),
+            multi_tf: Math.round(r.stability_score || 0),
+          },
           company_name: r.short_name,
           sector: r.sector,
           industry: r.industry,
@@ -1839,7 +1814,7 @@ router.get("/swing-scores", async (req, res) => {
     return sendDatabaseError(
       res,
       error,
-      "An error occurred while fetching swing scores"
+      "An error occurred while fetching composite scores"
     );
   }
 });
@@ -1855,21 +1830,20 @@ router.get("/swing-scores-history", async (req, res) => {
     const days = Math.min(!isNaN(parsedDays) ? parsedDays : 30, 180);
 
     const result = await pool.query(
-      `SELECT DATE(date) as eval_date,
+      `SELECT DATE(updated_at) as eval_date,
               COUNT(*) AS total,
-              COUNT(*) FILTER (WHERE score >= 80) AS score_high,
-              COUNT(*) FILTER (WHERE score >= 60 AND score < 80) AS score_medium,
-              COUNT(*) FILTER (WHERE score < 60) AS score_low,
-              ROUND(AVG(score)::numeric, 2) AS avg_score,
-              (COUNT(*) FILTER (WHERE score >= 80) + COUNT(*) FILTER (WHERE score >= 60 AND score < 80)) AS pass_count
-       FROM swing_trader_scores
-       WHERE date >= CURRENT_DATE - MAKE_INTERVAL(days => $1)
-       GROUP BY DATE(date)
+              COUNT(*) FILTER (WHERE composite_score >= 80) AS score_high,
+              COUNT(*) FILTER (WHERE composite_score >= 60 AND composite_score < 80) AS score_medium,
+              COUNT(*) FILTER (WHERE composite_score < 60) AS score_low,
+              ROUND(AVG(composite_score)::numeric, 2) AS avg_score,
+              (COUNT(*) FILTER (WHERE composite_score >= 80) + COUNT(*) FILTER (WHERE composite_score >= 60 AND composite_score < 80)) AS pass_count
+       FROM stock_scores
+       WHERE updated_at >= CURRENT_DATE - MAKE_INTERVAL(days => $1)
+       GROUP BY DATE(updated_at)
        ORDER BY eval_date ASC`,
       [days]
     );
 
-    // Validate result structure
     validateQueryResult(result, { requireRows: false });
 
     return sendSuccess(res, {
