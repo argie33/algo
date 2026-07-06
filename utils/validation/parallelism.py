@@ -149,29 +149,6 @@ class ParallelismValidator:
                 "issues_found": [f"Loader initialization failed: {e}"],
             }
 
-    def validate_swing_scores_loader(self) -> dict[str, Any]:
-        """DEPRECATED: Swing Trader Scores loader no longer used.
-
-        SWING SCORE MIGRATION: This loader is deprecated and not used by the trading system.
-        The system now uses stock_scores.composite_score for all signal ranking.
-
-        Returns:
-            {
-                'test_passed': True (deprecated, always passes),
-                'status': 'deprecated'
-            }
-        """
-        logger.info(
-            "[VALIDATION] Swing trader scores loader is deprecated. "
-            "The trading system uses stock_scores.composite_score instead. "
-            "This loader is no longer needed."
-        )
-        return {
-            "test_passed": True,
-            "status": "deprecated",
-            "message": "Swing trader scores loader deprecated - using stock_scores.composite_score",
-        }
-
     def validate_all_loaders(self) -> dict[str, Any]:
         """Run all validation tests.
 
@@ -181,7 +158,6 @@ class ParallelismValidator:
                 'results': {
                     'stock_prices': {...},
                     'technical_data': {...},
-                    'swing_scores': {...},
                 },
                 'summary': 'X/Y loaders validated successfully'
             }
@@ -189,7 +165,6 @@ class ParallelismValidator:
         results = {
             "stock_prices": self.validate_stock_prices_loader(),
             "technical_data": self.validate_technical_data_loader(),
-            "swing_scores": self.validate_swing_scores_loader(),
         }
 
         # Validate result structure — test_passed must be present and bool

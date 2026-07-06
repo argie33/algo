@@ -11,7 +11,6 @@ Categories:
 - Exit Rules (profit targets, stop loss, hold time)
 - Position Monitoring & Re-entry
 - Advanced Filters (sector/industry concentration, extensions)
-- Swing Trader Scoring (signal scoring weights and thresholds)
 
 Delegates all DB access to parent AlgoConfig._config dict.
 Provides logical grouping methods for trading team convenience.
@@ -256,30 +255,6 @@ class TradingConfig:
             "min_order_size_dollars": self.get("min_order_size_dollars"),
             "max_positions_per_sector": self.get("max_positions_per_sector"),
             "max_positions_per_industry": self.get("max_positions_per_industry"),
-        }
-
-    def get_swing_score_weights(self) -> dict[str, int]:
-        """Get swing trader score component weights (must sum to 100).
-
-        Returns:
-            {
-                "swing_weight_setup": 25,
-                "swing_weight_trend": 20,
-                "swing_weight_momentum": 20,
-                "swing_weight_volume": 12,
-                "swing_weight_fundamentals": 10,
-                "swing_weight_sector": 8,
-                "swing_weight_multi_timeframe": 5,
-            }
-        """
-        return {
-            "swing_weight_setup": self.get("swing_weight_setup"),
-            "swing_weight_trend": self.get("swing_weight_trend"),
-            "swing_weight_momentum": self.get("swing_weight_momentum"),
-            "swing_weight_volume": self.get("swing_weight_volume"),
-            "swing_weight_fundamentals": self.get("swing_weight_fundamentals"),
-            "swing_weight_sector": self.get("swing_weight_sector"),
-            "swing_weight_multi_timeframe": self.get("swing_weight_multi_timeframe"),
         }
 
     def get_composite_score_thresholds(self) -> dict[str, Any]:

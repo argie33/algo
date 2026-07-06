@@ -58,7 +58,6 @@ CRITICAL_INCOMPLETE_LOADERS = {
     "value_metrics",  # Required for value_score calculation
     "positioning_metrics",  # Required for positioning_score calculation
     "stability_metrics",  # Required for stability_score calculation
-    # NOTE: swing_trader_scores is optional enrichment (legacy), not critical
 }
 
 # Loaders that are auxiliary (warn if incomplete after retry, but allow proceeding)

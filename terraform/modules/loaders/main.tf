@@ -292,7 +292,6 @@ locals {
     "stability_metrics"     = "load_stability_metrics.py"
     "momentum_metrics"      = "load_momentum_metrics.py"
     "stock_scores"          = "load_stock_scores.py"
-    "swing_trader_scores"   = "load_swing_trader_scores.py"
 
     "market_constituents"         = "load_market_constituents.py"
     "market_health_daily"         = "load_market_health_daily.py"

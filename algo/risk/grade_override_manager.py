@@ -84,7 +84,7 @@ def log_override_activation(reason: str = "config_change") -> None:
             _override_enabled_at = datetime.now(timezone.utc)
 
         logger.warning(
-            "[GRADE_OVERRIDE] ACTIVATED: min_swing_grade override enabled. "
+            "[GRADE_OVERRIDE] ACTIVATED: grade override enabled. "
             f"Reason: {reason}. "
             f"Auto-resets at market close. "
             f"Enabled at: {_override_enabled_at.isoformat()}"

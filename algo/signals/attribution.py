@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Signal Attribution Engine — Measures which swing score components predict realized P&L (IC).
+Signal Attribution Engine (DEPRECATED).
 
-Information Coefficient = Pearson r(component_score, realized_exit_r_multiple)
-Identifies alpha drivers, detects signal degradation, enables dynamic weight optimization.
+Previously measured which swing score components predict realized P&L (IC).
+Swing scores have been removed; this module is deprecated and returns unavailable data.
 """
 
 import json
@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 
 class SignalAttributionEngine:
-    """Computes and persists Information Coefficient per swing score component."""
+    """DEPRECATED: Computed Information Coefficient per swing score component (no longer used)."""
 
     COMPONENTS = [
         "setup_quality",
@@ -74,147 +74,21 @@ class SignalAttributionEngine:
                 }
             }
         """
-        try:
-            with DatabaseContext("read") as cur:
-                # Fetch last N closed trades with component scores
-                cur.execute(
-                    """
-                    SELECT
-                        t.trade_id, t.swing_score, t.swing_components,
-                        t.exit_r_multiple, t.exit_date,
-                        t.symbol, t.signal_date
-                    FROM algo_trades t
-                    WHERE t.status = 'closed' AND t.exit_date <= %s
-                    ORDER BY t.exit_date DESC
-                    LIMIT %s
-                    """,
-                    (report_date, lookback_trades),
-                )
-                trades = cur.fetchall()
-
-                if not trades or len(trades) < 10:
-                    logger.warning(
-                        f"[ATTRIBUTION] Insufficient closed trades ({len(trades) if trades else 0}/10 required) for IC calculation. "
-                        f"Cannot compute Information Coefficient without sufficient trade sample."
-                    )
-                    return {
-                        comp: {
-                            "ic_value": None,
-                            "ic_pvalue": None,
-                            "sample_size": len(trades) if trades else 0,
-                            "data_unavailable": True,
-                            "reason": f"insufficient_trades ({len(trades) if trades else 0}/10 minimum)",
-                        }
-                        for comp in self.COMPONENTS
-                    }
-
-                # Extract component scores and P&Ls
-                ic_results = {}
-
-                for component in self.COMPONENTS:
-                    try:
-                        comp_scores = []
-                        r_multiples = []
-
-                        for trade in trades:
-                            (
-                                trade_id,
-                                _swing_score,
-                                swing_components_json,
-                                r_multiple,
-                                _exit_date,
-                                _symbol,
-                                _signal_date,
-                            ) = trade
-
-                            try:
-                                if not swing_components_json:
-                                    raise ValueError(f"No swing components data for trade {trade_id}")
-                                swing_components = json.loads(swing_components_json)
-                                comp_data = swing_components.get(component)
-                                if not comp_data:
-                                    raise ValueError(f"Component {component} not found in trade {trade_id}")
-                                comp_score = comp_data.get("pts")
-                                if comp_score is None:
-                                    raise ValueError(f"Component {component} missing 'pts' field in trade {trade_id}")
-                                if r_multiple is None:
-                                    raise ValueError(f"R-multiple missing for trade {trade_id}")
-                                r_mult = float(r_multiple)
-
-                                comp_scores.append(float(comp_score))
-                                r_multiples.append(r_mult)
-                            except (json.JSONDecodeError, ValueError) as e:
-                                raise ValueError(f"Cannot extract {component} data from trade {trade_id}: {e}") from e
-
-                        # Calculate IC
-                        if len(comp_scores) >= 10:
-                            comp_scores_arr = np.array(comp_scores)
-                            r_mult_arr = np.array(r_multiples)
-
-                            # Pearson correlation
-                            if comp_scores_arr.std() > 0 and r_mult_arr.std() > 0:
-                                ic_value, ic_pvalue = stats.pearsonr(comp_scores_arr, r_mult_arr)
-                            else:
-                                ic_value, ic_pvalue = 0.0, 1.0
-
-                            # Interpretation
-                            interpretation = "noise"
-                            if ic_value >= self.IC_THRESHOLDS["strong"]:
-                                interpretation = "strong"
-                            elif ic_value >= self.IC_THRESHOLDS["moderate"]:
-                                interpretation = "moderate"
-                            elif ic_value >= self.IC_THRESHOLDS["weak"]:
-                                interpretation = "weak"
-
-                            ic_results[component] = {
-                                "ic_value": round(float(ic_value), 4),
-                                "ic_pvalue": round(float(ic_pvalue), 4),
-                                "sample_size": len(comp_scores),
-                                "avg_component_score": round(float(comp_scores_arr.mean()), 2),
-                                "avg_realized_pnl": round(float(r_mult_arr.mean()), 2),
-                                "interpretation": interpretation,
-                            }
-                        else:
-                            # CRITICAL: Don't silently default IC to 0.0 — insufficient sample is not "no relationship"
-                            # Mark as unavailable instead of fake 0.0 metric
-                            logger.warning(
-                                f"[ATTRIBUTION] Insufficient samples for {component} IC calculation: "
-                                f"{len(comp_scores)} trades (need ≥10). Cannot compute IC without adequate data."
-                            )
-                            ic_results[component] = {
-                                "ic_value": None,
-                                "ic_pvalue": None,
-                                "sample_size": len(comp_scores),
-                                "avg_component_score": None,
-                                "avg_realized_pnl": None,
-                                "interpretation": "insufficient_data",
-                                "data_unavailable": True,
-                                "reason": f"insufficient_trades ({len(comp_scores)}<10)",
-                            }
-                    except (ValueError, json.JSONDecodeError, TypeError) as e:
-                        logger.error(f"[ATTRIBUTION] {component} IC computation failed: {e}")
-                        ic_results[component] = {
-                            "ic_value": None,
-                            "ic_pvalue": None,
-                            "sample_size": len(comp_scores) if comp_scores else 0,
-                            "data_unavailable": True,
-                            "reason": f"{component}_calculation_failed",
-                        }
-
-                logger.info(f"IC computation complete for {report_date}. Samples: {len(trades)}")
-                return ic_results
-        except (ValueError, ZeroDivisionError, TypeError) as e:
-            logger.error(f"[ATTRIBUTION] IC computation failed: {e}")
-            return {
-                comp: {
-                    "ic_value": None,
-                    "ic_pvalue": None,
-                    "sample_size": 0,
-                    "data_unavailable": True,
-                    "reason": f"computation_failed: {type(e).__name__}",
-                }
-                for comp in self.COMPONENTS
+        # Swing components deprecated - return unavailable data
+        logger.warning(
+            "[ATTRIBUTION] Swing score components are deprecated. "
+            "Signal attribution analysis is no longer available."
+        )
+        return {
+            comp: {
+                "ic_value": None,
+                "ic_pvalue": None,
+                "sample_size": 0,
+                "data_unavailable": True,
+                "reason": "swing_components_deprecated",
             }
+            for comp in self.COMPONENTS
+        }
 
     def compute_ic_by_regime(self, report_date: _date, lookback_trades: int = 40) -> dict[str, dict[str, Any]]:  # noqa: C901
         """

@@ -403,7 +403,7 @@ if __name__ == "__main__":
         logger.info(f"  {tier['description']}")
         logger.info(
             f"  risk_mult={tier['risk_multiplier']}, max_new/day={tier['max_new_positions_today']}, "
-            f"min_grade={tier['min_swing_grade']}"
+            f"min_composite={tier['min_composite_score']}"
         )
         tighten_r = tier.get("tighten_winners_at_r")
         if tighten_r is not None:

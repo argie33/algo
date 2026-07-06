@@ -86,7 +86,7 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
     - Error handling via "_error" field (hard errors)
     - Optional data unavailability via "_data_unavailable" flag (graceful degradation)
     - Each position dict requires: symbol, current_price, avg_entry_price, position_value
-    - Optional fields: weinstein_stage, swing_score, sector, company_name/name
+    - Optional fields: weinstein_stage, sector, company_name/name
     - Coverage metrics: valid_count, total_count, filtered_count for data quality visibility
     """
     # Issue 3.1 FIX: Use unified normalization function

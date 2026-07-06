@@ -41,8 +41,7 @@ class SignalTradePerformancePopulator:
                     """
                     SELECT t.id, t.symbol, t.signal_date, t.exit_date,
                            t.entry_price, t.exit_price, t.entry_quantity,
-                           t.exit_r_multiple, t.profit_loss_dollars, t.swing_score,
-                           t.swing_components, t.trend_template_score,
+                           t.exit_r_multiple, t.profit_loss_dollars, t.trend_template_score,
                            COALESCE((t.exit_date::date - t.trade_date::date), 0) AS holding_days
                     FROM algo_trades t
                     WHERE t.status = 'closed'
@@ -89,8 +88,6 @@ class SignalTradePerformancePopulator:
                         entry_qty,
                         exit_r_multiple,
                         pnl_dollars,
-                        swing_score,
-                        swing_components_json,
                         trend_score,
                         holding_days,
                     ) = row
@@ -109,40 +106,6 @@ class SignalTradePerformancePopulator:
                         )
                         continue
 
-                    # Parse swing_components JSONB
-                    try:
-                        swing_comp = json.loads(swing_components_json) if swing_components_json else {}
-                    except (json.JSONDecodeError, TypeError):
-                        swing_comp = {}
-
-                    # Extract component scores (normalize to 0-1 scale: pts/max)
-                    component_scores = {}
-                    for comp_name, comp_data in swing_comp.items():
-                        if isinstance(comp_data, dict):
-                            pts = comp_data.get("pts")
-                            max_pts = comp_data.get("max")
-                            if pts is None or max_pts is None:
-                                logger.warning(f"Component {comp_name} missing pts or max for trade_id {trade_id_int}")
-                                continue
-                            try:
-                                pts = float(pts)
-                                max_pts = float(max_pts)
-                            except (ValueError, TypeError) as e:
-                                logger.warning(
-                                    f"Component {comp_name} type conversion failed for trade_id {trade_id_int}: {e}"
-                                )
-                                continue
-                            normalized_score = (pts / max_pts) if max_pts > 0 else None
-                            component_scores[comp_name] = normalized_score
-
-                            # Track for IC calculation
-                            if (
-                                comp_name in component_returns
-                                and exit_r_multiple is not None
-                                and normalized_score is not None
-                            ):
-                                component_returns[comp_name].append((normalized_score, float(exit_r_multiple)))
-
                     # Insert into signal_trade_performance (only columns that exist in schema)
                     try:
                         cur.execute(
@@ -151,14 +114,14 @@ class SignalTradePerformancePopulator:
                                 trade_id, symbol, signal_date, exit_date,
                                 entry_price, exit_price,
                                 realized_pnl, realized_pnl_pct,
-                                hold_days, swing_score, trend_score,
+                                hold_days, trend_score,
                                 r_multiple, win,
                                 created_at
                             ) VALUES (
                                 %s, %s, %s, %s,
                                 %s, %s,
                                 %s, %s,
-                                %s, %s, %s,
+                                %s, %s,
                                 %s, %s,
                                 CURRENT_TIMESTAMP
                             )
@@ -174,7 +137,6 @@ class SignalTradePerformancePopulator:
                                 float(pnl_dollars),
                                 float(pnl_dollars) / float(entry_price * entry_qty),
                                 int(holding_days),
-                                float(swing_score) if swing_score is not None else None,
                                 float(trend_score) if trend_score is not None else None,
                                 float(exit_r_multiple) if exit_r_multiple is not None else None,
                                 (bool(exit_r_multiple is not None and exit_r_multiple > 0)),
