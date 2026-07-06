@@ -1,13 +1,24 @@
--- Migration: Add audit log columns for operation tracking
--- Issue: audit_logger.py expects operation_type, entity_type, entity_id, operation_details
--- but schema.sql only had action_type, symbol, details
--- This adds the expected columns to enable portfolio snapshot and position reconciliation auditing
+-- Migration 095: Verify audit log columns exist (created in migration 094a)
+-- This migration is now a verification-only migration since migration 094a
+-- creates the complete table with all columns.
+--
+-- The columns operation_type, entity_type, entity_id, operation_details are
+-- now created directly in the CREATE TABLE statement in 094a to avoid
+-- ALTER TABLE failures on a non-existent table.
+--
+-- This migration serves as documentation and verification.
 
-ALTER TABLE algo_audit_log ADD COLUMN IF NOT EXISTS operation_type VARCHAR(50);
-ALTER TABLE algo_audit_log ADD COLUMN IF NOT EXISTS entity_type VARCHAR(50);
-ALTER TABLE algo_audit_log ADD COLUMN IF NOT EXISTS entity_id VARCHAR(100);
-ALTER TABLE algo_audit_log ADD COLUMN IF NOT EXISTS operation_details TEXT;
+-- Verify the table exists
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_name = 'algo_audit_log'
+    ) THEN
+        RAISE EXCEPTION 'algo_audit_log table not found - migration 094a should have created it';
+    END IF;
+END $$;
 
--- Create index for operation_type queries
+-- Verify indexes exist (created in 094a, but redundant creation is safe)
 CREATE INDEX IF NOT EXISTS idx_algo_audit_log_operation_type ON algo_audit_log(operation_type);
 CREATE INDEX IF NOT EXISTS idx_algo_audit_log_entity_type ON algo_audit_log(entity_type);

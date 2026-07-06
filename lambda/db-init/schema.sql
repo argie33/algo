@@ -281,6 +281,34 @@ CREATE TABLE IF NOT EXISTS orchestrator_execution_log (
 CREATE INDEX IF NOT EXISTS idx_orchestrator_execution_log_created_at ON orchestrator_execution_log(created_at DESC);
 
 -- ============================================================================
+-- AUDIT LOG (Critical for dashboard activity/audit endpoints)
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS algo_audit_log (
+    id SERIAL PRIMARY KEY,
+    action_type VARCHAR(100) NOT NULL,
+    symbol VARCHAR(20),
+    action_date TIMESTAMP WITH TIME ZONE,
+    details JSONB,
+    actor VARCHAR(100),
+    status VARCHAR(50),
+    error_message TEXT,
+    severity VARCHAR(50),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    operation_type VARCHAR(50),
+    entity_type VARCHAR(50),
+    entity_id VARCHAR(100),
+    operation_details TEXT,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_algo_audit_log_created_at ON algo_audit_log(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_algo_audit_log_action_type ON algo_audit_log(action_type);
+CREATE INDEX IF NOT EXISTS idx_algo_audit_log_symbol ON algo_audit_log(symbol);
+CREATE INDEX IF NOT EXISTS idx_algo_audit_log_actor ON algo_audit_log(actor);
+CREATE INDEX IF NOT EXISTS idx_algo_audit_log_operation_type ON algo_audit_log(operation_type);
+CREATE INDEX IF NOT EXISTS idx_algo_audit_log_entity_type ON algo_audit_log(entity_type);
+
+-- ============================================================================
 -- SIGNAL STORAGE (Critical for dashboard and API)
 -- ============================================================================
 
