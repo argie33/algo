@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 def fetch_signals(c: None) -> dict[str, Any]:
-    """Fetch dashboard signals from API. Fail-fast: error only on failure."""
+    """Fetch dashboard signals from API. Gracefully degrade on transient 503 errors."""
     from dashboard.fetcher_validator import FetcherValidator
 
     try:
@@ -24,6 +24,32 @@ def fetch_signals(c: None) -> dict[str, Any]:
         # Check for API error (fail-fast pattern: check error first)
         is_error, error_msg = FetcherValidator.check_api_error(data)
         if is_error:
+            # IMPORTANT: Distinguish between temporary service issues and real errors
+            # Signals are critical but should degrade gracefully on transient 503/504
+            # This allows dashboard to render without signals during brief API issues
+            is_transient_503 = data.get("_is_transient_503") is True
+            is_transient_504 = data.get("_is_transient_504") is True
+            is_transient = is_transient_503 or is_transient_504
+            if is_transient:
+                logger.warning(
+                    f"Signals API temporarily unavailable: {error_msg} - "
+                    f"Dashboard will render without signals. Service will recover."
+                )
+                record_data_quality_issue("sig", "api_call", "api_unavailable_transient")
+                return {
+                    "n": 0,
+                    "total": 0,
+                    "buy_sigs": [],
+                    "near": [],
+                    "top_a": [],
+                    "trend": [],
+                    "grades": {},
+                    "data_unavailable": True,
+                    "reason": "Signals service temporarily unavailable - dashboard will render without signals",
+                    "unavailability_type": "transient_service_error",
+                }
+
+            # Other errors (database, validation, auth, etc): fail-fast
             record_data_quality_issue("sig", "api_call", "api_error", cast(str, error_msg))
             return FetcherValidator.build_error_response(cast(str, error_msg))
 
