@@ -1300,11 +1300,11 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
 
                 lambda_client = boto3.client("lambda", region_name=os.getenv("AWS_REGION", "us-east-1"))
                 lambda_client.invoke(
-                    FunctionName=os.getenv("TRIGGER_LOADERS_FUNCTION_NAME", "algo-trigger-loaders"),
+                    FunctionName="algo-trigger-loaders-prod",
                     InvocationType="Event",
-                    Payload=json.dumps({"loader_name": "stock_scores"}).encode("utf-8"),
+                    Payload=json.dumps({"loader_name": "stock_scores"}),
                 )
-                logger.info("[SCORES] Async stock_scores refresh triggered via algo-trigger-loaders")
+                logger.info("[SCORES] Async stock_scores refresh triggered via ECS")
             except Exception as refresh_err:
                 logger.error(f"[SCORES] Could not trigger async refresh: {refresh_err}")
                 # Continue with stale data rather than failing the request over it
