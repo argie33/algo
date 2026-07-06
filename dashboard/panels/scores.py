@@ -53,7 +53,7 @@ def render_scores(data: dict[str, Any]) -> Panel | None:
         if not scores_data:
             return _error_panel("scores", scores_data, "TOP GROWTH SCORES", border="cyan")
 
-        top_scores_raw = safe_get_list(scores_data.get("top", []))
+        top_scores_raw = safe_get_list(scores_data.get("items", []))
         top_scores: list[Any] = top_scores_raw if isinstance(top_scores_raw, list) else []
         if not top_scores:
             return _error_panel("scores", {"_error": "No top scores available"}, "TOP GROWTH SCORES", border="cyan")
