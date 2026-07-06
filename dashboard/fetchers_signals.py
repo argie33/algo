@@ -210,7 +210,7 @@ def fetch_signal_eval(c: None) -> dict[str, Any]:
 
 
 def fetch_scores(c: None) -> dict[str, Any]:
-    """Fetch top stock scores from /api/scores. Used by signals panel for composite score display.
+    """Fetch top stock scores from /api/algo/scores. Used by signals panel for composite score display.
 
     HANDLES 503 GRACEFULLY: Scores enhance signal quality ranking but are not critical for trading.
     On 503 errors (service unavailable), return empty scores list with explicit marker instead of
@@ -222,7 +222,7 @@ def fetch_scores(c: None) -> dict[str, Any]:
     from dashboard.fetcher_validator import FetcherValidator
 
     try:
-        top_data = api_call("/api/scores", params={"limit": 50, "sortOrder": "desc", "offset": 0})
+        top_data = api_call("/api/algo/scores", params={"limit": 50, "sortOrder": "desc", "offset": 0})
 
         # Check for API error
         is_error, error_msg = FetcherValidator.check_api_error(top_data)
@@ -241,7 +241,7 @@ def fetch_scores(c: None) -> dict[str, Any]:
                 )
                 record_data_quality_issue("scores", "api_call", "api_unavailable_transient")
                 return {
-                    "items": [],
+                    "top": [],
                     "data_unavailable": True,
                     "reason": "Scores service temporarily unavailable - signals display without score rankings",
                     "unavailability_type": "transient_service_error",
@@ -256,27 +256,27 @@ def fetch_scores(c: None) -> dict[str, Any]:
             record_data_quality_issue("scores", "api_call", "api_error", cast(str, error_msg))
             return FetcherValidator.build_error_response(cast(str, error_msg))
 
-        # Validate response structure - fail-fast if missing items field
+        # Validate response structure - fail-fast if missing top field
         if not isinstance(top_data, dict):
             error_msg = f"Scores API response: expected dict, got {type(top_data).__name__}"
             logger.error(error_msg)
             record_data_quality_issue("scores", "validation", "invalid_response_type")
             return FetcherValidator.build_error_response(error_msg)
 
-        if "items" not in top_data:
-            error_msg = "Scores API response: missing required 'items' field"
+        if "top" not in top_data:
+            error_msg = "Scores API response: missing required 'top' field"
             logger.error(error_msg)
-            record_data_quality_issue("scores", "validation", "missing_items_field")
+            record_data_quality_issue("scores", "validation", "missing_top_field")
             return FetcherValidator.build_error_response(error_msg)
 
-        items = top_data["items"]
-        if not isinstance(items, list):
-            error_msg = "Scores API response: 'items' field is not a list"
+        top = top_data["top"]
+        if not isinstance(top, list):
+            error_msg = "Scores API response: 'top' field is not a list"
             logger.error(error_msg)
-            record_data_quality_issue("scores", "validation", "items_not_list")
+            record_data_quality_issue("scores", "validation", "top_not_list")
             return FetcherValidator.build_error_response(error_msg)
 
-        return {"items": items}
+        return {"top": top}
     except Exception as e:
         error_msg = format_fetcher_error("scores", e)
         logger.error(error_msg)

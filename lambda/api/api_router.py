@@ -130,6 +130,7 @@ else:
 _HANDLER_CONFIG = [
     ("/api/algo/risk-dashboard", "risk_dashboard"),
     ("/api/algo", "algo"),
+    ("/api/algo/scores", "scores"),  # /api/algo/scores endpoint (main namespace)
     ("/api/positions", "algo"),  # Alias for /api/algo/positions
     ("/api/portfolio", "algo"),  # Alias for /api/algo/portfolio
     ("/api/financials", "financials"),
@@ -142,7 +143,7 @@ _HANDLER_CONFIG = [
     ("/api/market", "market"),
     ("/api/economic", "economic"),
     ("/api/sentiment", "sentiment"),
-    ("/api/scores", "scores"),
+    ("/api/scores", "scores"),  # Legacy /api/scores endpoint (for backwards compatibility)
     ("/api/research", "research"),
     ("/api/audit", "audit"),
     ("/api/trades", "trades"),

@@ -34,10 +34,10 @@ def handle(
     body: dict[str, Any] | None = None,
     jwt_claims: dict[str, Any] | None = None,
 ) -> Any:
-    """Handle /api/scores/* endpoints."""
+    """Handle /api/scores/* and /api/algo/scores/* endpoints."""
     try:
-        if path in ["/api/scores", "/api/scores/stockscores"] or path.startswith(
-            ("/api/scores?", "/api/scores/stockscores?")
+        if path in ["/api/scores", "/api/scores/stockscores", "/api/algo/scores", "/api/algo/scores/stockscores"] or path.startswith(
+            ("/api/scores?", "/api/scores/stockscores?", "/api/algo/scores?", "/api/algo/scores/stockscores?")
         ):
             limit = safe_limit(extract_param(params, "limit"), max_val=1000, default=1000)
             offset = safe_offset(extract_param(params, "offset") or "0")

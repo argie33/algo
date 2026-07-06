@@ -63,7 +63,7 @@ FETCHER_METADATA = {
         "desc": "Market exposure factors (12-factor breakdown)",
     },
     "scores": {
-        "endpoint": "/api/scores",
+        "endpoint": "/api/algo/scores",
         "desc": "Top stock scores for signals panel display",
     },
 }
