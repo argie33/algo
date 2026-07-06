@@ -359,7 +359,13 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
     # Validate positions response matches contract schema
     ensure_valid_response("pos", sanitized)
 
-    return json_response(200, sanitized)
+    # Cache the response for 60 seconds to reduce database load
+    cached_response = json_response(200, sanitized)
+    _positions_cache["data"] = cached_response
+    _positions_cache["timestamp"] = time.time()
+    logger.info("[POSITIONS] Response cached for 60 seconds")
+
+    return cached_response
 
 
 @db_route_handler("fetch algo status")  # type: ignore[untyped-decorator]
