@@ -9,6 +9,9 @@ const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 /**
  * Fetch active market exposure tiers from database
  * Includes caching to reduce database queries
+ *
+ * SWING SCORE MIGRATION: min_swing_score and min_swing_grade columns have been removed.
+ * Signal quality filtering now uses composite_score from stock_scores table (Phase 7).
  */
 async function getActiveTiers() {
   const now = Date.now();
@@ -28,8 +31,6 @@ async function getActiveTiers() {
         max_exposure_pct as max_pct,
         risk_multiplier,
         max_new_positions,
-        min_swing_score,
-        min_swing_grade,
         tighten_winners_at_r,
         force_partial_at_r,
         halt_new_entries,
@@ -65,9 +66,6 @@ async function getActiveTiers() {
       risk_multiplier: parseFloat(tier.risk_multiplier),
       max_new: tier.max_new_positions, // Legacy field name
       max_new_positions: tier.max_new_positions,
-      min_grade: tier.min_swing_grade, // Legacy field name
-      min_swing_grade: tier.min_swing_grade,
-      min_swing_score: tier.min_swing_score,
       tighten_winners_at_r: tier.tighten_winners_at_r,
       force_partial_at_r: tier.force_partial_at_r,
       halt: tier.halt_new_entries, // Legacy field name
