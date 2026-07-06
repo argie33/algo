@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Test just the scores fetcher and panel."""
 
-import json
 
 print("=" * 80)
 print("TEST: Scores Fetcher and Panel")
@@ -21,7 +20,7 @@ if "_error" in scores_result:
     exit(1)
 
 if "top" not in scores_result:
-    print(f"   ERROR: 'top' field missing!")
+    print("   ERROR: 'top' field missing!")
     exit(1)
 
 top = scores_result["top"]
@@ -30,14 +29,14 @@ print(f"   Top scores count: {len(top)}")
 # Step 2: Check first score
 if top:
     first = top[0]
-    print(f"\n2. Checking first score...")
+    print("\n2. Checking first score...")
     print(f"   Keys: {list(first.keys())}")
 
     if "growth_score" in first:
         gs = first["growth_score"]
         print(f"   growth_score: {gs} (type: {type(gs).__name__})")
     else:
-        print(f"   ERROR: growth_score missing from first score!")
+        print("   ERROR: growth_score missing from first score!")
 
 # Step 3: Render panel with mock data
 print("\n3. Rendering panel with mock data...")
@@ -50,7 +49,7 @@ from dashboard.panels.scores import render_scores
 try:
     panel = render_scores(mock_data)
     if panel:
-        print(f"   SUCCESS: Panel rendered!")
+        print("   SUCCESS: Panel rendered!")
         print(f"   Panel type: {type(panel).__name__}")
 
         # Try to get string representation
@@ -61,7 +60,7 @@ try:
         except Exception as e:
             print(f"   (Could not render to console: {e})")
     else:
-        print(f"   ERROR: Panel returned None")
+        print("   ERROR: Panel returned None")
 except Exception as e:
     print(f"   ERROR: {type(e).__name__}: {e}")
     import traceback

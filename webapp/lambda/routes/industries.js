@@ -47,10 +47,18 @@ async function fetchIndustries(req, res) {
 
     // Ensure parameters are explicit numbers before query
     if (!Number.isInteger(limitNum) || limitNum < 1) {
-      return sendError(res, "Invalid limit parameter: must be positive integer", 400);
+      return sendError(
+        res,
+        "Invalid limit parameter: must be positive integer",
+        400
+      );
     }
     if (!Number.isInteger(offset) || offset < 0) {
-      return sendError(res, "Invalid offset parameter: must be non-negative integer", 400);
+      return sendError(
+        res,
+        "Invalid offset parameter: must be non-negative integer",
+        400
+      );
     }
 
     // Parallelize data and count queries
@@ -168,9 +176,7 @@ async function fetchIndustries(req, res) {
         })(),
         stock_count: (() => {
           if (row.stock_count == null) {
-            throw new Error(
-              `Missing stock_count for industry ${row.industry}`
-            );
+            throw new Error(`Missing stock_count for industry ${row.industry}`);
           }
           const v = parseInt(row.stock_count, 10);
           if (isNaN(v)) {
@@ -213,7 +219,7 @@ async function fetchIndustries(req, res) {
     console.error("Error fetching industries:", {
       message: error.message,
       code: error.code,
-      stack: error.stack?.split('\n')[0],
+      stack: error.stack?.split("\n")[0],
       type: error.constructor.name,
     });
     return sendError(

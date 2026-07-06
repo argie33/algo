@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Test remaining failing endpoints directly."""
 
-import requests
 import json
+
+import requests
 
 api_url = "https://2iqq1qhltj.execute-api.us-east-1.amazonaws.com"
 headers = {"Authorization": "Bearer dev-admin"}
@@ -24,7 +25,7 @@ for path, name in endpoints:
         try:
             data = resp.json()
             print(json.dumps(data, indent=2)[:800])
-        except:
+        except ValueError:
             print(f"Response: {resp.text[:200]}")
 
     except Exception as e:

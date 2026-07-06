@@ -2,7 +2,8 @@
 """Test scores endpoint to diagnose the issue."""
 
 import json
-from dashboard.api_data_layer import api_call, _unwrap_api_response
+
+from dashboard.api_data_layer import api_call
 from dashboard.response_validators import validate_response
 
 print("=" * 80)
@@ -17,7 +18,7 @@ print(f"statusCode: {result.get('statusCode')}")
 print(f"Has 'data' field: {'data' in result}")
 print(f"Has 'top' field: {'top' in result}")
 print(f"Has 'items' field: {'items' in result}")
-print(f"\nFirst 200 chars of JSON:")
+print("\nFirst 200 chars of JSON:")
 print(json.dumps(result, indent=2, default=str)[:200])
 
 print("\n" + "=" * 80)
@@ -46,7 +47,7 @@ print("\nFetcher Result from fetch_scores():")
 print(f"Type: {type(fetcher_result)}")
 print(f"Keys: {list(fetcher_result.keys())}")
 print(f"Has 'top' field: {'top' in fetcher_result}")
-if 'top' in fetcher_result and fetcher_result['top']:
+if fetcher_result.get('top'):
     print(f"Number of scores: {len(fetcher_result['top'])}")
     if fetcher_result['top']:
         print(f"First score keys: {list(fetcher_result['top'][0].keys())}")

@@ -1735,9 +1735,7 @@ router.get("/swing-scores", async (req, res) => {
     const minScore = !isNaN(minScoreRaw) ? minScoreRaw : 0;
     const symbol = req.query.symbol ? req.query.symbol.toUpperCase() : null;
 
-    let whereClauses = [
-      `s.composite_score >= $1`,
-    ];
+    let whereClauses = [`s.composite_score >= $1`];
     const params = [minScore];
 
     if (symbol) {
@@ -1781,10 +1779,21 @@ router.get("/swing-scores", async (req, res) => {
         const score = r.composite_score || 0;
         return {
           symbol: r.symbol,
-          date: r.updated_at || new Date().toISOString().split('T')[0],
+          date: r.updated_at || new Date().toISOString().split("T")[0],
           composite_score: score,
           score: score,
-          grade: score >= 85 ? "A+" : score >= 75 ? "A" : score >= 60 ? "B" : score >= 45 ? "C" : score >= 30 ? "D" : "F",
+          grade:
+            score >= 85
+              ? "A+"
+              : score >= 75
+                ? "A"
+                : score >= 60
+                  ? "B"
+                  : score >= 45
+                    ? "C"
+                    : score >= 30
+                      ? "D"
+                      : "F",
           pass_gates: score >= 60,
           fail_reason: score < 60 ? "composite_score < 60" : null,
           components: {

@@ -11,9 +11,8 @@ print("\n=== TESTING API HANDLERS LOCALLY ===\n")
 try:
     # Test 1: Can we import the API modules?
     print("[1] Importing API handler modules...")
-    import psycopg2.extras
-    from utils.db.context import DatabaseContext
     from utils.data_queries import get_open_positions
+    from utils.db.context import DatabaseContext
     print("    [OK] All imports successful\n")
 
     # Test 2: Can we fetch positions like the API does?

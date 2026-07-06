@@ -35,7 +35,9 @@ function getGradeForScore(_score, _grades) {
  * DEPRECATED: Grade cache clearing no longer applicable.
  */
 function clearGradeCache() {
-  logger.warn("clearGradeCache called but swing_score_grades table has been removed");
+  logger.warn(
+    "clearGradeCache called but swing_score_grades table has been removed"
+  );
 }
 
 module.exports = {

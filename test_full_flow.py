@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Test the complete flow from API to dashboard display."""
 
-import json
 
 print("=" * 80)
 print("TEST: Full Dashboard Flow for Scores")
@@ -46,18 +45,18 @@ print(f"   Count: {len(top) if isinstance(top, list) else 'N/A'}")
 
 if isinstance(top, list) and top:
     first = top[0]
-    print(f"\n4. Checking first score item...")
+    print("\n4. Checking first score item...")
     print(f"   Type: {type(first)}")
     print(f"   Keys: {list(first.keys())}")
 
     if "growth_score" in first:
         gs = first["growth_score"]
-        print(f"   growth_score exists: True")
+        print("   growth_score exists: True")
         print(f"   growth_score value: {gs}")
         print(f"   growth_score type: {type(gs)}")
         print(f"   growth_score is None: {gs is None}")
     else:
-        print(f"   ERROR: growth_score not in first score!")
+        print("   ERROR: growth_score not in first score!")
         exit(1)
 
     # Step 5: Try rendering
@@ -67,11 +66,11 @@ if isinstance(top, list) and top:
     try:
         panel = render_scores(all_data)
         if panel:
-            print(f"   Panel rendered successfully!")
+            print("   Panel rendered successfully!")
             print(f"   Panel type: {type(panel).__name__}")
             print(f"   Panel title: {panel.title if hasattr(panel, 'title') else 'N/A'}")
         else:
-            print(f"   Panel returned None (no rendering)")
+            print("   Panel returned None (no rendering)")
     except Exception as e:
         print(f"   ERROR rendering panel: {type(e).__name__}: {e}")
         import traceback

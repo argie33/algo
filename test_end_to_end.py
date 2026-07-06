@@ -1,5 +1,4 @@
 import os
-import sys
 from datetime import date
 
 print("="*70)
@@ -11,9 +10,9 @@ os.environ['APCA_API_KEY_ID'] = 'PK_test7aba5efad8a43f8aafdf3e4cf40c1a2f'
 os.environ['APCA_API_SECRET_KEY'] = 'test_secret_key_for_paper_trading'
 os.environ['SKIP_ORCHESTRATOR_LOCK'] = 'true'  # Skip lock for testing
 
-from utils.db import DatabaseContext
-from algo.orchestration.orchestrator import Orchestrator
 from algo.infrastructure import get_config
+from algo.orchestration.orchestrator import Orchestrator
+from utils.db import DatabaseContext
 
 # TEST 1: Dashboard rendering
 print("\n[TEST 1] Dashboard Growth Scores Rendering")
@@ -21,15 +20,15 @@ print("-" * 70)
 try:
     from dashboard.fetchers import load_all
     data = load_all()
-    
+
     # Check if scores panel has growth_score
-    if 'scores' in data and data['scores']:
+    if data.get('scores'):
         first_score = data['scores'][0] if isinstance(data['scores'], list) else None
         if first_score and 'growth_score' in first_score:
-            print(f"PASS: Growth scores in dashboard data")
+            print("PASS: Growth scores in dashboard data")
             print(f"  Example: {first_score.get('symbol')} growth_score={first_score.get('growth_score')}")
         else:
-            print(f"FAIL: growth_score field missing from scores data")
+            print("FAIL: growth_score field missing from scores data")
             print(f"  Available fields: {list(first_score.keys())[:5] if first_score else 'None'}")
     else:
         print("FAIL: No scores data loaded")
@@ -44,12 +43,12 @@ try:
     config = get_config()
     orch = Orchestrator(config, run_date=date.today(), dry_run=False)
     result = orch.run()
-    
+
     if result.get('success'):
         print("PASS: Orchestrator completed successfully")
     else:
         print(f"FAIL: Orchestrator error: {result.get('error', 'unknown')}")
-    
+
 except Exception as e:
     print(f"ERROR: {str(e)[:100]}")
 
@@ -67,15 +66,15 @@ with DatabaseContext('read') as cur:
     """)
     row = cur.fetchone()
     total, open_pos, recent = row[0], row[1], row[2]
-    
-    print(f"RESULT:")
+
+    print("RESULT:")
     print(f"  Total trades all time: {total}")
     print(f"  Open positions: {open_pos}")
     print(f"  Recent trades (last 2 days): {recent}")
-    
+
     if open_pos > 0:
         print("\nPASS: Open positions exist - trading is working!")
-        
+
         # Show the trades
         cur.execute("""
             SELECT symbol, entry_price, quantity, entry_date
@@ -96,12 +95,12 @@ print("-" * 70)
 
 with DatabaseContext('read') as cur:
     cur.execute("""
-        SELECT sql FROM sqlite_master 
+        SELECT sql FROM sqlite_master
         WHERE type='view' AND name='algo_positions'
         LIMIT 1
     """)
     view_def = cur.fetchone()
-    
+
     if view_def:
         sql = view_def[0] if view_def else ""
         if "ORDER BY" in sql and "position_value" in sql:
