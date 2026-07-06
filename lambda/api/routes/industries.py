@@ -13,7 +13,6 @@ from psycopg2.extensions import cursor
 from routes.utils import (
     check_data_freshness,
     error_response,
-    execute_with_timeout,
     extract_param,
     handle_db_error,
     json_response,
@@ -86,14 +85,10 @@ def handle(
 
 
 def _industry_list(cur: cursor, params: dict[str, Any]) -> Any:
-    """Return all industries ranked by composite score with price-based performance.
+    """Return all industries ranked by composite score from industry_ranking table.
 
-    Refactored to use 4 staged queries instead of 7-CTE monolith:
-    1. Base scores + ranking by composite score
-    2. Price performance (1d, 5d, 20d)
-    3. PE/PB ratios + percentile
-    4. Historical ranks
-    Then combine in Python with explicit error handling.
+    Uses precomputed industry_ranking table populated by EOD loader (depends on stock_scores).
+    Table contains rankings, momentum scores, and historical rank changes.
     """
     limit = safe_limit(extract_param(params, "limit"), max_val=50000, default=500)
     page = safe_page(extract_param(params, "page"), default=1)
@@ -101,288 +96,79 @@ def _industry_list(cur: cursor, params: dict[str, Any]) -> Any:
 
     from utils.validation import DatabaseResultValidator
 
-    def _extract_float(result: float | dict[str, Any]) -> float | None:
-        return result if isinstance(result, float) else None
-
-    # Try to fetch from industry_ranking table first (simpler fallback)
-    try:
-        cur.execute("""
-            SELECT
-                industry,
-                current_rank,
-                momentum_score,
-                rank_1w_ago,
-                rank_4w_ago,
-                rank_12w_ago
-            FROM industry_ranking
-            WHERE date_recorded = (SELECT MAX(date_recorded) FROM industry_ranking)
-            ORDER BY current_rank
-            LIMIT %s OFFSET %s
-        """, (limit, offset))
-
-        industry_ranking_data = cur.fetchall()
-        if industry_ranking_data:
-            logger.info(f"[INDUSTRIES] Using simplified industry_ranking table data ({len(industry_ranking_data)} records)")
-
-            industries = []
-            for row in industry_ranking_data:
-                industries.append({
-                    "industry": row.get("industry", ""),
-                    "sector": "",  # Not available in industry_ranking table
-                    "current_rank": row.get("current_rank"),
-                    "overall_rank": row.get("current_rank"),
-                    "rank_1w_ago": row.get("rank_1w_ago"),
-                    "rank_4w_ago": row.get("rank_4w_ago"),
-                    "rank_12w_ago": row.get("rank_12w_ago"),
-                    "stock_count": None,
-                    "composite_score": row.get("momentum_score"),
-                    "momentum_score": row.get("momentum_score"),
-                    "value_score": None,
-                    "quality_score": None,
-                    "growth_score": None,
-                    "stability_score": None,
-                    "performance_1d": None,
-                    "performance_5d": None,
-                    "performance_20d": None,
-                    "current_momentum": "Moderate",
-                    "current_trend": "Sideways",
-                    "pe": {"trailing": None, "percentile": None},
-                })
-
-            # Get total count
-            cur.execute("SELECT COUNT(DISTINCT industry) FROM industry_ranking WHERE date_recorded = (SELECT MAX(date_recorded) FROM industry_ranking)")
-            total_row = cur.fetchone()
-            total = total_row["count"] if total_row else len(industries)
-
-            freshness = check_data_freshness(cur, "industry_ranking", "date_recorded", warning_days=1)
-
-            result = {
-                "items": industries,
-                "total": int(total),
-                "page": page,
-                "limit": limit,
-                "data_freshness": freshness,
-            }
-            return json_response(200, result)
-    except Exception as e:
-        logger.warning(f"[INDUSTRIES] Fallback to industry_ranking table failed: {e}. Trying complex query.")
-
-    # Stage 1: Get industry base scores + ranking (complex query for detailed data)
-    base_scores = execute_with_timeout(
-        cur,
-        """
-        WITH industry_scores AS (
-            SELECT
-                cp.industry,
-                cp.sector,
-                COUNT(DISTINCT cp.ticker)           AS stock_count,
-                AVG(ss.composite_score)             AS composite_score,
-                AVG(ss.momentum_score)              AS momentum_score,
-                AVG(ss.value_score)                 AS value_score,
-                AVG(ss.quality_score)               AS quality_score,
-                AVG(ss.growth_score)                AS growth_score,
-                AVG(ss.stability_score)             AS stability_score
-            FROM company_profile cp
-            LEFT JOIN stock_scores ss ON cp.ticker = ss.symbol
-            WHERE cp.industry IS NOT NULL AND TRIM(cp.industry) != ''
-            GROUP BY cp.industry, cp.sector
-        )
-        SELECT *,
-            RANK() OVER (ORDER BY composite_score DESC NULLS LAST) AS current_rank
-        FROM industry_scores
-        ORDER BY composite_score DESC NULLS LAST, stock_count DESC
-    """,
-        timeout_sec=15,
-    )
-
-    # Stage 2: Get price performance by industry
-    perf_data = execute_with_timeout(
-        cur,
-        """
-        WITH latest_d AS (
-            SELECT date AS d FROM price_daily ORDER BY date DESC LIMIT 1
-        )
-        SELECT
-            cp.industry,
-            ROUND(
-                (AVG(CASE WHEN pd.date = (SELECT d FROM latest_d) THEN pd.close END) /
-                 NULLIF(AVG(CASE WHEN pd.date BETWEEN (SELECT d FROM latest_d) - INTERVAL '3 days'
-                                              AND (SELECT d FROM latest_d) - INTERVAL '1 day'
-                                    THEN pd.close END), 0) - 1) * 100, 2
-            ) AS perf_1d,
-            ROUND(
-                (AVG(CASE WHEN pd.date = (SELECT d FROM latest_d) THEN pd.close END) /
-                 NULLIF(AVG(CASE WHEN pd.date BETWEEN (SELECT d FROM latest_d) - INTERVAL '8 days'
-                                              AND (SELECT d FROM latest_d) - INTERVAL '5 days'
-                                    THEN pd.close END), 0) - 1) * 100, 2
-            ) AS perf_5d,
-            ROUND(
-                (AVG(CASE WHEN pd.date = (SELECT d FROM latest_d) THEN pd.close END) /
-                 NULLIF(AVG(CASE WHEN pd.date BETWEEN (SELECT d FROM latest_d) - INTERVAL '25 days'
-                                              AND (SELECT d FROM latest_d) - INTERVAL '18 days'
-                                    THEN pd.close END), 0) - 1) * 100, 2
-            ) AS perf_20d
-        FROM price_daily pd
-        JOIN company_profile cp ON pd.symbol = cp.ticker
-        WHERE pd.date >= (SELECT d FROM latest_d) - INTERVAL '30 days'
-          AND cp.industry IS NOT NULL
-          AND pd.symbol NOT LIKE '^%'
-        GROUP BY cp.industry
-    """,
-        timeout_sec=15,
-    )
-
-    # Stage 3: Get PE/PB ratios + percentile
-    pe_data = execute_with_timeout(
-        cur,
-        """
-        WITH industry_pe AS (
-            SELECT
-                cp.industry,
-                AVG(vm.pe_ratio) FILTER (WHERE vm.pe_ratio > 0 AND vm.pe_ratio < 200)  AS avg_trailing_pe,
-                AVG(vm.pb_ratio) FILTER (WHERE vm.pb_ratio > 0 AND vm.pb_ratio < 50)   AS avg_pb_ratio
-            FROM value_metrics vm
-            JOIN company_profile cp ON vm.symbol = cp.ticker
-            WHERE cp.industry IS NOT NULL
-            GROUP BY cp.industry
-        )
+    cur.execute("""
         SELECT
             industry,
-            avg_trailing_pe,
-            avg_pb_ratio,
-            PERCENT_RANK() OVER (ORDER BY avg_trailing_pe ASC NULLS LAST) * 100 AS pe_percentile
-        FROM industry_pe
-    """,
-        timeout_sec=15,
-    )
-
-    # Stage 4: Get historical ranks
-    rank_data = execute_with_timeout(
-        cur,
-        """
-        SELECT industry, rank_1w_ago, rank_4w_ago, rank_12w_ago
+            current_rank,
+            momentum_score,
+            rank_1w_ago,
+            rank_4w_ago,
+            rank_12w_ago
         FROM industry_ranking
-        WHERE date_recorded = (SELECT date_recorded FROM industry_ranking ORDER BY date_recorded DESC LIMIT 1)
-    """,
-        timeout_sec=10,
-    )
+        WHERE date_recorded = (SELECT MAX(date_recorded) FROM industry_ranking)
+        ORDER BY current_rank
+        LIMIT %s OFFSET %s
+    """, (limit, offset))
 
-    # Build lookup dictionaries for fast access
-    perf_by_industry: dict[str, Any] = {}
-    if perf_data:
-        for row in perf_data:
-            ind_name = row.get("industry")
-            if ind_name:
-                perf_by_industry[ind_name] = safe_json_serialize(row)
+    industry_ranking_data = cur.fetchall()
+    if not industry_ranking_data:
+        return error_response(
+            503,
+            "data_unavailable",
+            "No industry ranking data available. Loader may not have run yet.",
+        )
 
-    pe_by_industry: dict[str, Any] = {}
-    if pe_data:
-        for row in pe_data:
-            ind_name = row.get("industry")
-            if ind_name:
-                pe_by_industry[ind_name] = safe_json_serialize(row)
+    logger.info(f"[INDUSTRIES] Loaded {len(industry_ranking_data)} industries from industry_ranking table")
 
-    rank_by_industry: dict[str, Any] = {}
-    if rank_data:
-        for row in rank_data:
-            ind_name = row.get("industry")
-            if ind_name:
-                rank_by_industry[ind_name] = safe_json_serialize(row)
-
-    # Count total unique industries
-    total = len(base_scores) if base_scores else 0
-
-    # Apply pagination + combine data in Python
     industries = []
-    for idx, row in enumerate(base_scores):
-        if idx < offset:
-            continue
-        if idx >= offset + limit:
-            break
-
-        ind = safe_json_serialize(row)
-        industry_name = ind.get("industry")
-        if not industry_name:
-            continue
-
-        composite_result = _sf(ind.get("composite_score"))
-        composite = composite_result if isinstance(composite_result, float) else None
-
-        # Fetch performance data for this industry
-        perf_row = perf_by_industry.get(industry_name, {})
-        perf_20d_result = _sf(perf_row.get("perf_20d"))
-        perf_20d = perf_20d_result if isinstance(perf_20d_result, float) else None
+    for row in industry_ranking_data:
+        industry = DatabaseResultValidator.safe_get_str(row, "industry", default="")
+        current_rank = DatabaseResultValidator.safe_get_int(row, "current_rank", default=0)
+        momentum = DatabaseResultValidator.safe_get_float(row, "momentum_score", default=0.0)
+        rank_1w = DatabaseResultValidator.safe_get_int(row, "rank_1w_ago", default=0)
+        rank_4w = DatabaseResultValidator.safe_get_int(row, "rank_4w_ago", default=0)
+        rank_12w = DatabaseResultValidator.safe_get_int(row, "rank_12w_ago", default=0)
 
         momentum_label = (
-            "Strong"
-            if composite is not None and composite >= 60
-            else "Moderate"
-            if composite is not None and composite >= 45
+            "Strong" if momentum is not None and momentum >= 60
+            else "Moderate" if momentum is not None and momentum >= 45
             else "Weak"
         )
-        trend_label = (
-            "Uptrend"
-            if perf_20d is not None and perf_20d > 2
-            else "Downtrend"
-            if perf_20d is not None and perf_20d < -2
-            else "Sideways"
-        )
 
-        current_rank = ind.get("current_rank")
-        if current_rank is None:
-            return error_response(
-                503,
-                "data_incomplete",
-                f"Industry {industry_name} missing current_rank",
-            )
+        industries.append({
+            "industry": industry,
+            "sector": "",
+            "current_rank": current_rank,
+            "overall_rank": current_rank,
+            "rank_1w_ago": rank_1w if rank_1w else None,
+            "rank_4w_ago": rank_4w if rank_4w else None,
+            "rank_12w_ago": rank_12w if rank_12w else None,
+            "stock_count": None,
+            "composite_score": momentum,
+            "momentum_score": momentum,
+            "value_score": None,
+            "quality_score": None,
+            "growth_score": None,
+            "stability_score": None,
+            "performance_1d": None,
+            "performance_5d": None,
+            "performance_20d": None,
+            "current_momentum": momentum_label,
+            "current_trend": "Sideways",
+            "pe": {"trailing": None, "percentile": None},
+        })
 
-        # Extract PE data
-        pe_row = pe_by_industry.get(industry_name, {})
-        # Extract rank data
-        rank_row = rank_by_industry.get(industry_name, {})
-
-        industry = DatabaseResultValidator.safe_get_str(ind, "industry", default="")
-        sector = DatabaseResultValidator.safe_get_str(ind, "sector", default="")
-        rank_1w = DatabaseResultValidator.safe_get_int(rank_row, "rank_1w_ago", default=0)
-        rank_4w = DatabaseResultValidator.safe_get_int(rank_row, "rank_4w_ago", default=0)
-        rank_12w = DatabaseResultValidator.safe_get_int(rank_row, "rank_12w_ago", default=0)
-        stock_count = DatabaseResultValidator.safe_get_int(ind, "stock_count", default=0)
-
-        industries.append(
-            {
-                "industry": industry,
-                "sector": sector,
-                "current_rank": int(current_rank),
-                "overall_rank": int(current_rank),
-                "rank_1w_ago": rank_1w if rank_1w else None,
-                "rank_4w_ago": rank_4w if rank_4w else None,
-                "rank_12w_ago": rank_12w if rank_12w else None,
-                "stock_count": stock_count if stock_count else None,
-                "composite_score": composite,
-                "momentum_score": _extract_float(_sf(ind.get("momentum_score"))),
-                "value_score": _extract_float(_sf(ind.get("value_score"))),
-                "quality_score": _extract_float(_sf(ind.get("quality_score"))),
-                "growth_score": _extract_float(_sf(ind.get("growth_score"))),
-                "stability_score": _extract_float(_sf(ind.get("stability_score"))),
-                "performance_1d": _extract_float(_sf(perf_row.get("perf_1d"))),
-                "performance_5d": _extract_float(_sf(perf_row.get("perf_5d"))),
-                "performance_20d": perf_20d,
-                "current_momentum": momentum_label,
-                "current_trend": trend_label,
-                "pe": {
-                    "trailing": _extract_float(_sf(pe_row.get("avg_trailing_pe"))),
-                    "percentile": _extract_float(_sf(pe_row.get("pe_percentile"))),
-                },
-            }
-        )
+    cur.execute("SELECT COUNT(DISTINCT industry) FROM industry_ranking WHERE date_recorded = (SELECT MAX(date_recorded) FROM industry_ranking)")
+    total_row = cur.fetchone()
+    total = total_row["count"] if total_row else len(industries)
 
     freshness = check_data_freshness(cur, "industry_ranking", "date_recorded", warning_days=1)
 
     result = {
         "items": industries,
-        "total": int(total) if total is not None else 0,
+        "total": int(total),
         "page": page,
-        "limit": int(limit) if limit is not None else 500,
+        "limit": limit,
         "data_freshness": freshness,
     }
 
