@@ -146,7 +146,7 @@ def _get_stock_scores(
                     pl.close AS price,
                     (pl.close IS NULL) AS _is_fallback,
                     (qm.symbol IS NULL OR qm.data_unavailable = TRUE OR (qm.roe IS NULL AND qm.operating_margin IS NULL AND qm.net_margin IS NULL)) AS _financial_data_unavailable,
-                    (gm.symbol IS NULL OR gm.data_unavailable = TRUE) AS _growth_data_unavailable,
+                    (sc.growth_score IS NULL) AS _growth_data_unavailable,
                     (pm.symbol IS NULL OR pm.data_unavailable = TRUE) AS _positioning_data_unavailable,
                     (sm.symbol IS NULL OR sm.data_unavailable = TRUE) AS _stability_data_unavailable,
                     ROUND(CASE
