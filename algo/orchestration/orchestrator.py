@@ -1270,7 +1270,6 @@ class Orchestrator:
         logger.info(f"#   START TIME: {datetime.now(timezone.utc).isoformat()}")
         logger.info(f"{'#' * 70}")
 
-        is_trading_day = MarketCalendar.is_trading_day(self.run_date)
         # CRITICAL FIX: Don't skip trading phases on non-trading days.
         # The circuit breaker (Phase 2) will halt if market is closed.
         # Skipping phases 4-8 prevents signal generation and entry execution entirely.
