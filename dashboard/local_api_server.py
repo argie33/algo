@@ -232,13 +232,56 @@ class APIHandler(BaseHTTPRequestHandler):
 
     def _handle_dashboard_signals(self):
         """Return dashboard signals."""
-        response = {
-            'statusCode': 200,
-            'data': {
-                'items': [],
-                'total_count': 0
+        try:
+            conn = get_db_connection()
+            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+            cur.execute("""
+                SELECT symbol, raw_signal, entry_price, signal_quality_score, risk_score
+                FROM algo_signals
+                WHERE signal_active = true
+                ORDER BY created_at DESC
+                LIMIT 50
+            """)
+            signals = cur.fetchall()
+            conn.close()
+
+            buy_sigs = []
+            for s in signals:
+                if s.get('raw_signal') in ('breakout', 'continuation'):
+                    buy_sigs.append({
+                        'symbol': s.get('symbol'),
+                        'signal': s.get('raw_signal'),
+                        'entry_price': float(s.get('entry_price', 0)) if s.get('entry_price') else 0,
+                        'quality_score': int(s.get('signal_quality_score', 0)) if s.get('signal_quality_score') else 0,
+                        'risk_score': float(s.get('risk_score', 0)) if s.get('risk_score') else 0
+                    })
+
+            response = {
+                'statusCode': 200,
+                'data': {
+                    'buy_sigs': buy_sigs,
+                    'n': len(signals),
+                    'total': len(signals),
+                    'grades': {},
+                    'near': [],
+                    'top_a': [],
+                    'trend': []
+                }
             }
-        }
+        except Exception as e:
+            response = {
+                'statusCode': 200,
+                'data': {
+                    'buy_sigs': [],
+                    'n': 0,
+                    'total': 0,
+                    'grades': {},
+                    'near': [],
+                    'top_a': [],
+                    'trend': []
+                }
+            }
         self._send_json(200, response)
 
     def _handle_data_status(self):
@@ -355,11 +398,20 @@ class APIHandler(BaseHTTPRequestHandler):
 
     def _send_json(self, status_code, data):
         """Send JSON response."""
+        import decimal
         self.send_response(status_code)
         self.send_header('Content-type', 'application/json')
         self.send_header('Access-Control-Allow-Origin', '*')
         self.end_headers()
-        self.wfile.write(json.dumps(data).encode())
+
+        def json_encoder(obj):
+            if isinstance(obj, (decimal.Decimal, type(None))):
+                if isinstance(obj, decimal.Decimal):
+                    return float(obj)
+                return None
+            raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
+
+        self.wfile.write(json.dumps(data, default=json_encoder).encode())
 
     def log_message(self, fmt, *args):
         """Suppress default logging."""

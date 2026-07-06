@@ -9,7 +9,6 @@ computes per-trade attribution, persists to signal_trade_performance.
 Enables Information Coefficient (IC) calculation per component.
 """
 
-import json
 import logging
 from datetime import date as _date
 from datetime import timedelta

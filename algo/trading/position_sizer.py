@@ -153,8 +153,8 @@ class PositionSizer:
     def _fetch_live_alpaca_equity(self) -> Decimal:
         """Fetch live portfolio equity from Alpaca with retries. Raises on credential/API failure."""
         import logging
-        import time
         import requests
+        import time
 
         logger = logging.getLogger(__name__)
         execution_mode = self.config.get("execution_mode", "paper")
