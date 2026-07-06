@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 import time
 from collections.abc import Callable
 from datetime import date, datetime, timezone
@@ -29,7 +30,6 @@ from utils.validation import APIResponseValidator
 logger = logging.getLogger(__name__)
 
 # Thread-local storage for current cursor (used by safe_dict_convert to convert tuples)
-import threading
 _thread_local = threading.local()
 
 # Type variables for decorators to preserve function signatures
@@ -771,7 +771,7 @@ def safe_dict_convert(row: Any) -> Any:
                 f"Cursor: {cursor}, Description: {cursor.description if cursor else 'None'}"
             )
         column_names = [desc[0] for desc in cursor.description]
-        return dict(zip(column_names, row))
+        return dict(zip(column_names, row, strict=True))
 
     # Try to convert dict-like objects
     try:
