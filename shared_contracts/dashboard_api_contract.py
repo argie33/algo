@@ -724,7 +724,7 @@ DASHBOARD_ENDPOINTS = {
         "critical": False,
     },
     "scores": {
-        "path": "/api/scores",
+        "path": "/api/algo/scores",
         "method": "GET",
         "description": "Stock composite scores with multi-factor ranking",
         "response_schema": ResponseSchema(
