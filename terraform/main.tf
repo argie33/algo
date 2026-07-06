@@ -327,31 +327,8 @@ module "services" {
   common_tags                            = local.common_tags
 }
 
-# Store CloudFront domain in Secrets Manager for dynamic CORS configuration
-# Lambda fetches this at startup instead of requiring hardcoded terraform.tfvars
-resource "aws_secretsmanager_secret" "cloudfront_domain" {
-  count       = var.cloudfront_enabled ? 1 : 0
-  name        = "algo/cloudfront-domain"
-  description = "CloudFront domain name for dynamic CORS and frontend origin configuration"
-
-  tags = merge(
-    local.common_tags,
-    {
-      Name = "${var.project_name}-cloudfront-domain"
-    }
-  )
-}
-
-resource "aws_secretsmanager_secret_version" "cloudfront_domain" {
-  count         = var.cloudfront_enabled ? 1 : 0
-  secret_id     = aws_secretsmanager_secret.cloudfront_domain[0].id
-  secret_string = module.services.cloudfront_domain_name
-
-  # Re-create version when CloudFront domain changes
-  lifecycle {
-    create_before_destroy = true
-  }
-}
+# CloudFront domain secret removed - was causing deletion state conflicts
+# CloudFront domain is now retrieved directly from Terraform outputs instead
 
 # Grant Lambda execution role permission to read CloudFront domain secret
 resource "aws_iam_role_policy" "api_lambda_cloudfront_secret" {
