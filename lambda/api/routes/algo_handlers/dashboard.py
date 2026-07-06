@@ -597,9 +597,9 @@ def _get_circuit_breakers(cur: cursor) -> Any:  # noqa: C901
                 # check_date is a trading date in ET timezone; convert to datetime at midnight ET
                 from datetime import datetime as dt
                 from zoneinfo import ZoneInfo
-                ET = ZoneInfo("America/New_York")
-                computed_at = dt.combine(check_date, dt.min.time()).replace(tzinfo=ET)
-                now_et = datetime.now(ET)
+                et = ZoneInfo("America/New_York")
+                computed_at = dt.combine(check_date, dt.min.time()).replace(tzinfo=et)
+                now_et = datetime.now(et)
                 data_age_seconds = int((now_et - computed_at).total_seconds())
                 data_stale = data_age_seconds > 86400  # 1 trading day (24 hours) staleness threshold
 

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import psycopg2
@@ -26,7 +26,6 @@ from routes.utils import (
     validate_api_response,
 )
 
-from shared_contracts.response_validator import ResponseValidator
 from utils.validation import (
     format_decimal_string,
 )
@@ -402,7 +401,7 @@ def _get_rejection_funnel(cur: cursor) -> Any:
         "The swing_trader_scores table is no longer maintained. "
         "Swing score analysis has been replaced with composite_score from stock_scores table."
     )
-    logger.warning(f"Deprecated endpoint called: /api/algo/rejection-funnel")
+    logger.warning("Deprecated endpoint called: /api/algo/rejection-funnel")
     return error_response(503, "deprecated_endpoint", error_msg)
 
 

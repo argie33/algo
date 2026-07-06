@@ -17,7 +17,6 @@ from routes.utils import (
     db_route_handler,
     error_response,
     handle_db_error,
-    json_response,
     list_response,
     raise_api_error,
     safe_dict_convert,
@@ -27,7 +26,6 @@ from routes.utils import (
 )
 
 from shared_contracts.response_validator import ResponseValidator
-from utils.validation import format_decimal_string
 
 logger = logging.getLogger(__name__)
 
