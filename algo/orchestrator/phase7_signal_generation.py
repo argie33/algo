@@ -324,7 +324,7 @@ def _get_candidates_from_buysell(
                     ) atr_calc ON TRUE
                     LEFT JOIN company_profile cp ON cp.ticker = bsd.symbol
                     WHERE COALESCE(ss.composite_score, bsd.strength * 20) >= %s
-                      AND (ss.data_completeness >= 70 OR ss.symbol IS NULL)
+                      AND (ss.data_completeness >= 70 OR ss.composite_score IS NULL)
                       AND p.close > sma.avg_close
                       AND p.high > p.low
                       AND ((p.close - p.low) / (p.high - p.low)) > %s

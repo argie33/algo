@@ -366,7 +366,6 @@ def _handle_detailed(cur: cursor, jwt_claims: dict[str, Any] | None) -> Any:
     try:
         health_tables = (
             "price_daily",
-            "swing_trader_scores",
             "stock_scores",
             "market_health_daily",
             "market_exposure_daily",
@@ -406,12 +405,6 @@ def _handle_pipeline(cur: cursor, jwt_claims: dict[str, Any] | None) -> Any:
                 COUNT(*) as row_count,
                 EXTRACT(EPOCH FROM (NOW() - MAX(created_at))) / 86400.0 as age_days
             FROM price_daily
-            UNION ALL
-            SELECT
-                'swing_trader_scores',
-                COUNT(*),
-                EXTRACT(EPOCH FROM (NOW() - MAX(created_at))) / 86400.0
-            FROM swing_trader_scores
             UNION ALL
             SELECT
                 'market_health_daily',

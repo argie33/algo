@@ -93,7 +93,7 @@ def run(
         elif "unavailable" in error_msg.lower() or "401" in error_msg or "unauthorized" in error_msg.lower():
             # Alpaca 401 on weekends/outside market hours is expected — treat as skip, not alert
             log_phase_result_fn(
-                "3a",
+                4,
                 "reconciliation",
                 "success",
                 f"Skipped: broker unavailable ({error_msg[:80]})",
@@ -106,7 +106,7 @@ def run(
             else:
                 reason = error_msg
             log_phase_result_fn(
-                "3a",
+                4,
                 "reconciliation",
                 "alert",
                 reason,
