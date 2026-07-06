@@ -832,10 +832,10 @@ class EntryHandler:
                 severity="info",
                 symbol=symbol,
                 details={
-                    "entry_price": executed_price,
+                    "entry_price": float(executed_price),
                     "shares": float(shares),
-                    "stop_loss": stop_loss_price,
-                    "target_1": target_1_price,
+                    "stop_loss": float(stop_loss_price),
+                    "target_1": float(target_1_price) if target_1_price else None,
                     "base_type": base_type,
                     "trade_id": trade_id,
                 },
