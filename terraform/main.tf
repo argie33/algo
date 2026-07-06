@@ -17,6 +17,18 @@ module "iam" {
   common_tags                 = local.common_tags
 }
 
+# SECURITY REMEDIATION (step 1 of 2): see comment on
+# aws_security_group_rule.rds_public_drift_step1 in modules/vpc/main.tf for full context --
+# imports a rogue out-of-band 0.0.0.0/0:5432 RDS ingress rule so this apply's elevated
+# (CI/OIDC) credentials bring it under Terraform management. `import` blocks are only
+# valid in the root module, hence this lives here rather than alongside the resource
+# block itself. Step 2 will remove the resource block once this apply succeeds, which
+# will make Terraform destroy (revoke) it on the following apply.
+import {
+  to = module.vpc.aws_security_group_rule.rds_public_drift_step1
+  id = "sg-0efd52dc5e807f2e0_ingress_tcp_5432_5432_0.0.0.0/0"
+}
+
 module "vpc" {
   source = "./modules/vpc"
 
