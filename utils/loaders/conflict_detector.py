@@ -152,11 +152,11 @@ class LoaderConflictDetector:
         """
         try:
             with DatabaseContext("read") as cur:
-                # Check morning pipeline status
+                # Check morning pipeline status (use price_daily as proxy for morning completion)
                 cur.execute("""
                     SELECT status, last_updated
                     FROM data_loader_status
-                    WHERE table_name = 'swing_trader_scores'
+                    WHERE table_name = 'price_daily'
                     ORDER BY last_updated DESC
                     LIMIT 1
                 """)
@@ -182,7 +182,7 @@ class LoaderConflictDetector:
                 cur.execute("""
                     SELECT COUNT(*) FROM data_loader_status
                     WHERE status = 'RUNNING'
-                    AND table_name NOT IN ('swing_trader_scores', 'technical_data_daily')
+                    AND table_name NOT IN ('technical_data_daily')
                 """)
 
                 row = cur.fetchone()

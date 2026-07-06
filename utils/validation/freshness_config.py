@@ -107,13 +107,6 @@ FRESHNESS_RULES = {
         "purpose": "Signal filtering, universe ranking, position selection",
         "applies_to": ["orchestrator_phase1", "orchestrator_phase5", "dashboard"],
     },
-    "swing_trader_scores": {
-        "critical": True,
-        "max_age_days": 1,
-        "description": "Pre-computed swing scores for all symbols",
-        "purpose": "Signal ranking, portfolio construction",
-        "applies_to": ["orchestrator_phase5", "dashboard"],
-    },
     "market_health_daily": {
         "critical": True,
         "max_age_days": 1,

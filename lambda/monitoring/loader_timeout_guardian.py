@@ -30,7 +30,6 @@ MAX_RUNTIME_SECONDS = {
     "stock_prices_daily": 4 * 3600,  # 4 hours max
     "etf_price_daily": 4 * 3600,
     "technical_data_daily": 2 * 3600,  # 2 hours max
-    "swing_trader_scores": 2 * 3600,
     "signal_quality_scores": 2 * 3600,
     "buy_sell_daily": 2 * 3600,
     # Default for all others

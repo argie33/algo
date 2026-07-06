@@ -1492,12 +1492,28 @@ class Orchestrator:
 
         any_error = any(p["status"] in ("error", "fail") for p in self.phase_results.values())
         any_halt = any(p["status"] == "halt" for p in self.phase_results.values())
+
+        # Determine reason for halt/skip if applicable
+        skip_reason = None
+        if any_error:
+            skip_reason = next(
+                (p["summary"] for p in self.phase_results.values() if p["status"] in ("error", "fail")),
+                "orchestrator_error",
+            )
+        elif any_halt:
+            skip_reason = next(
+                (p["summary"] for p in self.phase_results.values() if p["status"] == "halt"),
+                "circuit_breaker_halted",
+            )
+
         result = {
             "run_id": self.run_id,
             "run_date": self.run_date.isoformat(),
             "phases": self.phase_results,
             "success": not any_error,
             "halted": any_halt,
+            "skipped": any_halt,  # Required by Lambda handler
+            "reason": skip_reason or "none",  # Required by Lambda handler
         }
 
         # FIXED Issue #6: Save execution log for audit trail
@@ -1560,11 +1576,13 @@ class Orchestrator:
                     # Signal count from phase 7 (signal generation)
                     phase7_result = self.executor.get_result(7)
                     if phase7_result and hasattr(phase7_result, "data"):
-                        signals = phase7_result.data.get("liquidity_passed")
+                        signals = phase7_result.data.get("liquidity_passed", 0)
                         if isinstance(signals, int):
                             m.put_signal_count(signals)
                         else:
-                            logger.warning(f"Phase 7 returned non-int liquidity_passed: {type(signals)}")
+                            logger.warning(f"Phase 7 returned non-int liquidity_passed: {type(signals)}, defaulting to 0")
+                            signals = 0
+                            m.put_signal_count(signals)
                     else:
                         logger.debug("Phase 7 result not found in executor")
 

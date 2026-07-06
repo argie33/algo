@@ -76,7 +76,6 @@ SAFE_TABLES = {
     "trend_template_data",
     "signal_quality_scores",
     "signal_themes",
-    "swing_trader_scores",
     # Analyst data
     "analyst_upgrade_downgrade",
     "analyst_upgrades_downgrades",

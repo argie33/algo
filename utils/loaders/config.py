@@ -44,7 +44,6 @@ class LoaderConfigManager:
         "technical_data_daily": (1, 4),  # Can scale up if RDS available
         "buy_sell_daily": (1, 3),  # Critical path, yfinance-dependent; conservative
         "signal_quality_scores": (1, 3),  # Critical path
-        "swing_trader_scores": (1, 3),  # Critical path
         # yfinance-dependent metrics: auxiliary loaders that feed stock_scores
         # CRITICAL FIX 2026-07-02: Reduce parallelism to 1 to avoid rate limiting
         # parallelism=3-4 causes yfinance to rate limit shared NAT IP across all ECS tasks

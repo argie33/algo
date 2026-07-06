@@ -76,7 +76,7 @@ def _get_db_connection():
 
 
 # Tables that trigger a halt flag when stale — must match Phase 1 HALT tables exactly.
-# swing_trader_scores, trend_template_data, sector_ranking are WARN-only in Phase 1
+# trend_template_data, sector_ranking are WARN-only in Phase 1
 # and must NOT be here; setting the halt flag for them would block all trading whenever
 # these auxiliary tables are more than a few days old (e.g. after a 3-day weekend).
 _HALT_TABLES = {
@@ -87,7 +87,6 @@ _HALT_TABLES = {
 
 # Warn-only tables — logged for visibility but never trigger a halt flag.
 _WARN_TABLES = {
-    "swing_trader_scores": ("swing scores", 5),
     "trend_template_data": ("trend template", 5),
     "sector_ranking": ("sector data", 5),
 }

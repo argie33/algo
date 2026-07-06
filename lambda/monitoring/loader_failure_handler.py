@@ -29,7 +29,8 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
 
     CRITICAL LOADERS (FAIL-CLOSED):
     - stock_prices_daily: All downstream loaders depend on prices
-    - swing_trader_scores: Needed for trading signal generation
+    - stock_symbols: Reference data required for price loading
+    - technical_data_daily: Blocks buy_sell_daily signal generation (Phase 5)
 
     NON-CRITICAL LOADERS (FAIL-OPEN):
     - sector_ranking, algo_metrics_daily, etc.: Graceful degradation OK
