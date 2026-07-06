@@ -1514,7 +1514,10 @@ class Orchestrator:
         result = {
             "run_id": self.run_id,
             "run_date": self.run_date.isoformat(),
-            "phases": self.phase_results,
+            "phases": [
+                {"phase": n, **info}
+                for n, info in sorted(self.phase_results.items(), key=lambda x: str(x[0]))
+            ],
             "success": not any_error,
             "halted": any_halt,
             "skipped": any_halt,  # Required by Lambda handler

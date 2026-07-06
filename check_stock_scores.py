@@ -46,9 +46,9 @@ def check_stock_scores_status():
         )
         running_row = cursor.fetchone()
         if running_row:
-            print(f"⚠️  STUCK IN RUNNING STATE: {running_row[0]} at {running_row[1]}%")
+            print(f"WARNING: STUCK IN RUNNING STATE: {running_row[0]} at {running_row[1]}%")
         else:
-            print("✓ Not stuck in RUNNING state")
+            print("OK: Not stuck in RUNNING state")
 
         # Query 3: Total stocks and growth_score coverage
         print("\n=== STOCK SCORES COVERAGE ===")
@@ -77,19 +77,19 @@ def check_stock_scores_status():
         cursor.execute(
             """
             SELECT
-                ticker,
+                symbol,
                 COUNT(*) as occurrences,
                 MAX(growth_score) as max_growth_score
             FROM stock_scores
             WHERE growth_score IS NULL
-            GROUP BY ticker
+            GROUP BY symbol
             ORDER BY occurrences DESC
             LIMIT 10
             """
         )
         print("Top 10 stocks WITHOUT growth_score:")
-        for ticker, count, max_score in cursor.fetchall():
-            print(f"  {ticker}: {count} entries, max_growth_score={max_score}")
+        for symbol, count, max_score in cursor.fetchall():
+            print(f"  {symbol}: {count} entries, max_growth_score={max_score}")
 
         # Query 5: Check for recent data
         print("\n=== RECENCY CHECK ===")
@@ -109,21 +109,24 @@ def check_stock_scores_status():
 
         # Query 6: Check error logs
         print("\n=== ERROR LOGS (last 5) ===")
-        cursor.execute(
-            """
-            SELECT timestamp, level, message
-            FROM data_loader_logs
-            WHERE table_name = 'stock_scores'
-            ORDER BY timestamp DESC
-            LIMIT 5
-            """
-        )
-        error_logs = cursor.fetchall()
-        if error_logs:
-            for ts, level, msg in error_logs:
-                print(f"[{ts}] {level}: {msg}")
-        else:
-            print("No error logs found")
+        try:
+            cursor.execute(
+                """
+                SELECT timestamp, level, message
+                FROM data_loader_logs
+                WHERE table_name = 'stock_scores'
+                ORDER BY timestamp DESC
+                LIMIT 5
+                """
+            )
+            error_logs = cursor.fetchall()
+            if error_logs:
+                for ts, level, msg in error_logs:
+                    print(f"[{ts}] {level}: {msg}")
+            else:
+                print("No error logs found")
+        except Exception as e:
+            print(f"Error log table not available: {type(e).__name__}")
 
 if __name__ == "__main__":
     try:

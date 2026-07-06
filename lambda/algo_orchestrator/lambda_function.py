@@ -268,6 +268,22 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
                     "(run_id VARCHAR(255) PRIMARY KEY, run_date DATE, started_at TIMESTAMP, "
                     "completed_at TIMESTAMP, overall_status VARCHAR(50), summary TEXT, halt_reason TEXT, phase_results JSONB)"
                 )
+                # Create algo_orchestrator_runs if missing (actual table orchestrator.py writes run history to —
+                # distinct from orchestrator_execution_log above, confirmed via live UndefinedTable error)
+                init_cur.execute(
+                    "CREATE TABLE IF NOT EXISTS algo_orchestrator_runs "
+                    "(run_id VARCHAR(255) PRIMARY KEY, run_date DATE, overall_status VARCHAR(50), "
+                    "started_at TIMESTAMP, completed_at TIMESTAMP, execution_time_seconds NUMERIC, halt_reason TEXT)"
+                )
+                # Add missing updated_at column to algo_portfolio_snapshots (Phase 9's
+                # ON CONFLICT ... DO UPDATE SET updated_at = NOW() references it; confirmed
+                # UndefinedColumn error live — table predates this column being added)
+                try:
+                    init_cur.execute(
+                        "ALTER TABLE algo_portfolio_snapshots ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()"
+                    )
+                except Exception:
+                    pass
                 # Add missing columns to metric tables (critical - loaders write these)
                 metric_tables = ['quality_metrics', 'growth_metrics', 'value_metrics', 'positioning_metrics', 'stability_metrics']
                 for table in metric_tables:

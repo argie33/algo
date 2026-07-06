@@ -17,19 +17,19 @@ Strategy:
    - If retry fails, log alert and halt if critical, warn if auxiliary
 """
 
-import concurrent.futures
-import importlib
+import json
 import logging
-import sys
+import os
 import time
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+import boto3
 import psycopg2
+from botocore.exceptions import BotoCoreError, ClientError
 
 from utils.data_tiers import is_critical
 from utils.db.context import DatabaseContext
-from utils.loaders.helpers import get_active_symbols
 
 logger = logging.getLogger(__name__)
 
@@ -352,138 +352,66 @@ def retry_loader(loader_name: str, symbols_missing: int, is_critical: bool) -> d
 
 
 def invoke_loader_retry(loader_name: str, is_critical: bool) -> bool:
-    """Invoke loader retry via Lambda or direct call.
+    """Invoke loader retry by triggering its ECS Fargate task, asynchronously.
+
+    The orchestrator Lambda package deliberately excludes loaders/ heavy
+    dependencies (pandas/numpy — see lambda/algo_orchestrator/requirements.txt)
+    so loaders cannot run in-process here. Instead this reuses the same
+    "algo-trigger-loaders" Lambda (lambda/trigger-loaders/lambda_function.py)
+    that EventBridge uses for the regular schedule: it does ecs:RunTask for
+    the named loader and returns immediately — the loader itself runs on its
+    own ECS task, independent of this Lambda's lifetime/timeout.
 
     Args:
-        loader_name: Name of loader to retry
-        is_critical: True if critical loader
+        loader_name: Name of loader to retry (matches data_loader_status.table_name,
+            which is also the loader_name the trigger-loaders Lambda expects)
+        is_critical: True if critical loader (for logging only)
 
     Returns:
-        True if retry was successfully triggered
+        True if the ECS task was successfully started
+
+    Raises:
+        RuntimeError: If the trigger invocation fails or the ECS task didn't start
     """
+    logger.info(
+        f"[PHASE 1 FAILSAFE] Invoking retry for {loader_name} "
+        f"(priority={'critical' if is_critical else 'auxiliary'}) via algo-trigger-loaders"
+    )
+
+    trigger_function_name = os.getenv("TRIGGER_LOADERS_FUNCTION_NAME", "algo-trigger-loaders")
+
     try:
-        logger.info(
-            f"[PHASE 1 FAILSAFE] Invoking retry for {loader_name} "
-            f"(priority={'critical' if is_critical else 'auxiliary'})"
+        lambda_client = boto3.client("lambda", region_name=os.getenv("AWS_REGION", "us-east-1"))
+        response = lambda_client.invoke(
+            FunctionName=trigger_function_name,
+            InvocationType="RequestResponse",
+            Payload=json.dumps({"loader_name": loader_name}).encode("utf-8"),
         )
 
-        # Map data_loader_status.table_name to their module paths
-        # NOTE: PriceLoader generates multiple table_name entries (price_daily, price_weekly, price_monthly, etc.)
-        # but they all come from the single "loaders.load_prices" module
-        loader_modules = {
-            # Stock prices (PriceLoader handles all intervals and asset classes)
-            "price_daily": "loaders.load_prices",
-            "price_weekly": "loaders.load_prices",
-            "price_monthly": "loaders.load_prices",
-            "etf_price_daily": "loaders.load_prices",
-            "etf_price_weekly": "loaders.load_prices",
-            "etf_price_monthly": "loaders.load_prices",
-            # Other single-table loaders
-            "stock_scores": "loaders.load_stock_scores",
-            "technical_data_daily": "loaders.load_technical_data_daily",
-            "growth_metrics": "loaders.load_growth_metrics",
-            "value_metrics": "loaders.load_value_metrics",
-            "positioning_metrics": "loaders.load_positioning_metrics",
-            "trend_template_data": "loaders.load_trend_criteria_data",
-            "market_health_daily": "loaders.load_market_health_daily",
-            "market_exposure_daily": "loaders.load_market_exposure_daily",
-            "sector_ranking": "loaders.load_sector_ranking",
-        }
-
-        if loader_name not in loader_modules:
-            raise ValueError(
-                f"[PHASE 1 FAILSAFE] Unknown loader: {loader_name} — cannot retry without valid loader mapping. "
-                "Loader must be defined in loader_modules dictionary."
+        status_code = response.get("StatusCode")
+        if response.get("FunctionError"):
+            payload = response["Payload"].read().decode("utf-8")
+            raise RuntimeError(
+                f"[PHASE 1 FAILSAFE] {trigger_function_name} returned FunctionError invoking {loader_name}: {payload}"
             )
 
-        # Dynamically import and run the loader
-        module_name = loader_modules[loader_name]
+        payload_raw = response["Payload"].read().decode("utf-8")
+        payload_body = json.loads(payload_raw) if payload_raw else {}
+        body = payload_body.get("body")
+        body_obj = json.loads(body) if isinstance(body, str) else (body or {})
 
-        try:
-            module = importlib.import_module(module_name)
+        if status_code != 200 or payload_body.get("statusCode", status_code) != 200:
+            raise RuntimeError(
+                f"[PHASE 1 FAILSAFE] {trigger_function_name} failed to start ECS task for {loader_name}: {body_obj}"
+            )
 
-            # Most loaders have a main() function or a Loader class with run()
-            if hasattr(module, "main"):
-                logger.info(f"[PHASE 1 FAILSAFE] Running {loader_name} via main() function")
+        logger.info(f"[PHASE 1 FAILSAFE] ECS task(s) started for {loader_name}: {body_obj.get('tasks')}")
+        return True
 
-                # Call main() with sys.argv cleared to avoid argparse conflicts
-                def run_main() -> Any:
-                    old_argv = sys.argv[:]
-                    try:
-                        sys.argv = [sys.argv[0]]  # Keep program name only
-                        return module.main()
-                    finally:
-                        sys.argv = old_argv
-
-                return _run_loader_with_timeout(run_main, loader_name)
-            else:
-                # Try to find the loader class and instantiate
-                loader_class_name = (
-                    "".join(word.capitalize() for word in loader_name.replace("_", " ").split()) + "Loader"
-                )
-
-                if hasattr(module, loader_class_name):
-                    loader_class = getattr(module, loader_class_name)
-                    loader_instance = loader_class()
-
-                    logger.info(f"[PHASE 1 FAILSAFE] Running {loader_name} via {loader_class_name}.run()")
-
-                    # Run with timeout
-                    return _run_loader_with_timeout(
-                        lambda: loader_instance.run(get_active_symbols(), parallelism=4),
-                        loader_name,
-                    )
-                else:
-                    raise ValueError(
-                        f"[PHASE 1 FAILSAFE] Could not find loader class {loader_class_name} or main() function in {module_name}. "
-                        "Loader module must have either a main() function or a Loader class with run() method."
-                    )
-
-        except ImportError as e:
-            raise ValueError(
-                f"[PHASE 1 FAILSAFE] Failed to import loader module {module_name}: {e}. "
-                "Cannot invoke retry without valid loader module."
-            ) from e
-
-    except (RuntimeError, ValueError, ModuleNotFoundError) as e:
+    except (RuntimeError, ValueError, TypeError, json.JSONDecodeError, ClientError, BotoCoreError) as e:
         raise RuntimeError(
             f"[PHASE 1 FAILSAFE] Failed to invoke retry for {loader_name}: {e}. "
             "Explicit error to prevent silent failure."
-        ) from e
-
-
-def _run_loader_with_timeout(loader_func: Any, loader_name: str, timeout_seconds: int = 600) -> bool:
-    """Run a loader function with timeout protection.
-
-    Args:
-        loader_func: Callable that runs the loader
-        loader_name: Name of loader (for logging)
-        timeout_seconds: Max time to wait (default 10 min)
-
-    Returns:
-        True if loader completed successfully
-
-    Raises:
-        TimeoutError: If loader exceeds timeout limit
-        RuntimeError: If loader execution fails
-    """
-    try:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-            future = executor.submit(loader_func)
-            result = future.result(timeout=timeout_seconds)
-            logger.info(f"[PHASE 1 FAILSAFE] Loader {loader_name} completed successfully: {result}")
-            return True
-
-    except concurrent.futures.TimeoutError as e:
-        raise TimeoutError(
-            f"[PHASE 1 FAILSAFE] Loader {loader_name} timeout after {timeout_seconds}s. "
-            "Loader did not complete within allocated time."
-        ) from e
-
-    except (RuntimeError, ValueError, TypeError) as e:
-        raise RuntimeError(
-            f"[PHASE 1 FAILSAFE] Loader {loader_name} execution failed: {e}. "
-            "Cannot retry loader with errors in execution."
         ) from e
 
 
