@@ -31,49 +31,43 @@ def test_morning_pipeline_timing():
 
 
 def test_afternoon_update_pipeline():
-    """Verify afternoon update pipeline triggers before 1 PM and completes by 1:05 PM"""
-    print("\n=== TEST: Afternoon Update Pipeline (1 PM) ===")
+    """Verify afternoon update pipeline triggers before 1 PM and completes by 1:05 PM
 
-    print("Scheduled: 12:50 PM ET")
-    print("Expected completion: 1:05 PM ET")
-    print("Buffer before 1 PM orchestrator: 5 minutes")
-    print("Duration: 5-15 min (fast intraday mode)")
-    print("\nVerification steps:")
-    print("1. Check CloudWatch: /ecs/algo-swing_trader_scores_vectorized-loader")
-    print("2. Look for INTRADAY_MODE=true in logs at 12:50 PM")
-    print("3. Confirm 'computed_at' timestamp in swing_trader_scores is ~1 PM")
+    NOTE: swing_trader_scores intraday updates have been deprecated.
+    Current signal generation uses composite_score from stock_scores table.
+    """
+    print("\n=== TEST: Afternoon Update Pipeline (1 PM) [DEPRECATED] ===")
+
+    print("NOTE: Intraday swing_trader_scores updates have been retired.")
+    print("Current architecture: composite_score from stock_scores (daily updates)")
+    print("Signal generation: Phase 7 uses buy_sell_daily + stock_scores (no intraday updates)")
 
 
 def test_preclose_update_pipeline():
-    """Verify pre-close update pipeline completes before 3:15 PM SLA"""
-    print("\n=== TEST: Pre-Close Update Pipeline (SLA CRITICAL) ===")
+    """Pre-close update pipeline has been deprecated
 
-    print("Scheduled: 2:50 PM ET")
-    print("Expected completion: 3:05 PM ET")
-    print("SLA deadline: 3:15 PM ET")
-    print("Buffer: 10 minutes")
-    print("Duration: 5-15 min (fast intraday mode)")
-    print("\n[WARNING]  CRITICAL: If pre-close pipeline > 3:15 PM, SLA fails")
-    print("\nVerification steps:")
-    print("1. Check CloudWatch: /ecs/algo-swing_trader_scores_vectorized-loader")
-    print("2. Look for INTRADAY_MODE=true in logs at 2:50 PM")
-    print("3. Confirm completion BEFORE 3:15 PM")
-    print("4. Verify 'computed_at' timestamp in swing_trader_scores is ~3 PM")
+    NOTE: swing_trader_scores intraday updates have been retired.
+    Current signal generation uses daily stock_scores updates.
+    """
+    print("\n=== TEST: Pre-Close Update Pipeline (DEPRECATED) ===")
+
+    print("NOTE: Pre-close swing_trader_scores updates have been retired.")
+    print("Current architecture: composite_score from stock_scores (daily, EOD at 4:05 PM ET)")
+    print("Orchestrators: No longer depend on intraday score updates")
 
 
 def test_fresh_scores_used_by_orchestrator():
-    """Verify orchestrators use fresh scores from intraday updates"""
-    print("\n=== TEST: Orchestrator Uses Fresh Scores ===")
+    """Verify orchestrators use latest scores for signal generation
 
-    print("1 PM Orchestrator Test:")
-    print("  - Should query swing_trader_scores with computed_at ~ 12:50 PM")
-    print("  - NOT morning's 2:00 AM scores")
-    print("  - Check orchestrator Phase 5 logs for score lookup timestamp")
+    NOTE: No longer using intraday swing_trader_scores.
+    Current behavior: Phase 7 uses daily stock_scores (updated EOD).
+    """
+    print("\n=== TEST: Orchestrator Uses Latest Scores ===")
 
-    print("\n3 PM Orchestrator Test:")
-    print("  - Should query swing_trader_scores with computed_at ~ 2:50 PM")
-    print("  - NOT morning's 2:00 AM scores")
-    print("  - Check orchestrator Phase 5 logs for score lookup timestamp")
+    print("Current behavior:")
+    print("  - Phase 7 (signal generation) uses stock_scores.composite_score")
+    print("  - Scores updated daily via EOD loader pipeline")
+    print("  - No intraday updates (removed with swing_trader_scores table)")
 
 
 def test_no_database_conflicts():
@@ -111,26 +105,15 @@ def test_failure_scenarios():
 
 
 def validate_intraday_mode_support():
-    """Check that loaders support INTRADAY_MODE environment variable"""
-    print("\n=== TEST: INTRADAY_MODE Environment Variable Support ===")
+    """DEPRECATED: Intraday mode no longer used
 
-    loader_files = [
-        "loaders/load_swing_trader_scores.py",
-        "loaders/load_technical_data_daily.py",
-    ]
+    NOTE: swing_trader_scores and its INTRADAY_MODE updates have been removed.
+    """
+    print("\n=== TEST: INTRADAY_MODE (DEPRECATED) ===")
 
-    for loader_file in loader_files:
-        try:
-            with open(loader_file) as f:
-                content = f.read()
-                if "INTRADAY_MODE" in content:
-                    print(f"[OK] {loader_file}: INTRADAY_MODE support found")
-                else:
-                    print(f"[FAIL] {loader_file}: INTRADAY_MODE support NOT found")
-                    return False
-        except FileNotFoundError:
-            print(f"[FAIL] {loader_file}: File not found")
-            return False
+    print("NOTE: INTRADAY_MODE environment variable no longer used.")
+    print("Reason: swing_trader_scores table and its intraday loader have been removed.")
+    print("Current: Daily EOD updates for all metrics via loaders in main pipeline.")
 
     return True
 

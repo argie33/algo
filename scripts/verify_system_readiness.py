@@ -18,7 +18,6 @@ def check_schema():
     content = schema_file.read_text()
     required_tables = [
         "stock_scores",
-        "swing_trader_scores",
         "signals_daily",
         "growth_metrics",
         "quality_metrics",

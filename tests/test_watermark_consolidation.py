@@ -25,12 +25,12 @@ class TestWatermarkConsolidation:
     def test_freshness_rules_defined(self):
         """Ensure all critical tables have freshness rules."""
         # buy_sell_daily removed from EOD pipeline — Phase 5 computes signals on-the-fly.
+        # swing_trader_scores removed in favor of composite_score from stock_scores.
         critical_tables = [
             "price_daily",
             "algo_portfolio_snapshots",
             "algo_performance_daily",
             "algo_risk_daily",
-            "swing_trader_scores",
             "market_health_daily",
             "market_exposure_daily",
         ]
