@@ -102,6 +102,75 @@ def _apply_critical_migrations() -> tuple[bool, str]:
         )
         cur = conn.cursor()
 
+        # Apply migrations for critical missing tables and data_unavailable columns
+        # Table creation migrations (CREATE TABLE IF NOT EXISTS)
+        table_migrations = [
+            ("algo_signals", """
+                CREATE TABLE IF NOT EXISTS algo_signals (
+                    id SERIAL PRIMARY KEY,
+                    signal_date DATE NOT NULL,
+                    symbol VARCHAR(20) NOT NULL,
+                    source_table VARCHAR(50),
+                    source_timeframe VARCHAR(20),
+                    raw_signal VARCHAR(20),
+                    entry_price DECIMAL(12, 4),
+                    entry_stage VARCHAR(20),
+                    signal_active BOOLEAN DEFAULT TRUE,
+                    signal_quality_score INTEGER,
+                    risk_score DECIMAL(8, 2),
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(signal_date, symbol, source_timeframe)
+                );
+                CREATE INDEX IF NOT EXISTS idx_algo_signals_symbol_date ON algo_signals(symbol, signal_date DESC);
+                CREATE INDEX IF NOT EXISTS idx_algo_signals_active ON algo_signals(signal_active);
+            """),
+            ("market_sentiment", """
+                DROP TABLE IF EXISTS market_sentiment CASCADE;
+                CREATE TABLE market_sentiment (
+                    id SERIAL PRIMARY KEY,
+                    date DATE NOT NULL UNIQUE,
+                    fear_greed_index DECIMAL(8, 4),
+                    put_call_ratio DECIMAL(8, 4),
+                    vix DECIMAL(8, 4),
+                    sentiment_score DECIMAL(8, 4),
+                    bullish_pct DECIMAL(8, 2),
+                    bearish_pct DECIMAL(8, 2),
+                    neutral_pct DECIMAL(8, 2),
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                );
+                CREATE INDEX IF NOT EXISTS idx_market_sentiment_date ON market_sentiment(date DESC);
+            """),
+            ("orchestrator_execution_log", """
+                CREATE TABLE IF NOT EXISTS orchestrator_execution_log (
+                    id SERIAL PRIMARY KEY,
+                    run_id VARCHAR(50) NOT NULL UNIQUE,
+                    run_date DATE NOT NULL,
+                    started_at TIMESTAMP NOT NULL,
+                    completed_at TIMESTAMP,
+                    overall_status VARCHAR(20) NOT NULL,
+                    phase_results JSONB,
+                    summary TEXT,
+                    halt_reason TEXT,
+                    phases_completed INTEGER,
+                    phases_halted INTEGER,
+                    phases_errored INTEGER,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                );
+                CREATE INDEX IF NOT EXISTS idx_orchestrator_execution_run_date ON orchestrator_execution_log(run_date DESC);
+                CREATE INDEX IF NOT EXISTS idx_orchestrator_execution_status ON orchestrator_execution_log(overall_status);
+            """),
+        ]
+
+        for table_name, create_sql in table_migrations:
+            try:
+                cur.execute(create_sql)
+                conn.commit()
+                logger.info(f"[STARTUP] Created table {table_name}")
+            except Exception as e:
+                logger.warning(f"[STARTUP] Could not create table {table_name}: {e}")
+                conn.rollback()
+
         # Apply migrations for data_unavailable and reason columns
         # Schema migration definitions: (table, column, type, description)
         migrations_to_apply = [
@@ -118,6 +187,31 @@ def _apply_critical_migrations() -> tuple[bool, str]:
             ("aaii_sentiment", "data_unavailable", "BOOLEAN DEFAULT FALSE", "AAII sentiment unavailable flag"),
             ("fear_greed_index", "data_unavailable", "BOOLEAN DEFAULT FALSE", "Fear/greed index unavailable flag"),
             ("naaim", "data_unavailable", "BOOLEAN DEFAULT FALSE", "NAAIM sentiment unavailable flag"),
+            # market_health_daily columns
+            ("market_health_daily", "put_call_ratio_data_unavailable", "BOOLEAN DEFAULT FALSE", "Put/call ratio unavailable flag"),
+            ("market_health_daily", "put_call_ratio_unavailable_reason", "VARCHAR(255)", "Put/call ratio unavailable reason"),
+            ("market_health_daily", "yield_curve_data_unavailable", "BOOLEAN DEFAULT FALSE", "Yield curve unavailable flag"),
+            ("market_health_daily", "yield_curve_unavailable_reason", "VARCHAR(255)", "Yield curve unavailable reason"),
+            ("market_health_daily", "fed_rate_data_unavailable", "BOOLEAN DEFAULT FALSE", "Fed rate unavailable flag"),
+            ("market_health_daily", "fed_rate_unavailable_reason", "VARCHAR(255)", "Fed rate unavailable reason"),
+            # algo_positions computed column
+            ("algo_positions", "is_open", "BOOLEAN GENERATED ALWAYS AS (status IN ('open', 'partially_closed')) STORED", "Open position computed flag"),
+            # value_metrics detailed reason columns
+            ("value_metrics", "market_cap_unavailable_reason", "VARCHAR(255)", "Market cap unavailable reason"),
+            ("value_metrics", "pe_ratio_unavailable_reason", "VARCHAR(255)", "P/E ratio unavailable reason"),
+            ("value_metrics", "pb_ratio_unavailable_reason", "VARCHAR(255)", "P/B ratio unavailable reason"),
+            ("value_metrics", "ps_ratio_unavailable_reason", "VARCHAR(255)", "P/S ratio unavailable reason"),
+            ("value_metrics", "peg_ratio_unavailable_reason", "VARCHAR(255)", "PEG ratio unavailable reason"),
+            ("value_metrics", "dividend_yield_unavailable_reason", "VARCHAR(255)", "Dividend yield unavailable reason"),
+            ("value_metrics", "fcf_yield_unavailable_reason", "VARCHAR(255)", "FCF yield unavailable reason"),
+            ("value_metrics", "held_percent_insiders_unavailable_reason", "VARCHAR(255)", "Insider ownership unavailable reason"),
+            ("value_metrics", "held_percent_institutions_unavailable_reason", "VARCHAR(255)", "Institutional ownership unavailable reason"),
+            # technical_data_daily columns
+            ("technical_data_daily", "atr_50", "DECIMAL(12, 4)", "50-day ATR"),
+            # performance metrics columns
+            ("algo_performance_metrics", "avg_win_r", "NUMERIC(8, 4)", "Average win R-multiple"),
+            ("algo_performance_metrics", "avg_loss_r", "NUMERIC(8, 4)", "Average loss R-multiple"),
+            ("algo_performance_metrics", "expectancy", "NUMERIC(8, 4)", "Expectancy metric"),
         ]
 
         for table, column, type_def, description in migrations_to_apply:

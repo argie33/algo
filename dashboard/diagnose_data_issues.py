@@ -48,12 +48,12 @@ def diagnose() -> int:
         if has_error(fetcher_data):
             error_msg = get_error_message(fetcher_data)
             failures.append((fetcher_name, error_msg))
-            status = "❌ FAILED"
+            status = "[FAIL]"
         else:
             successes.append(fetcher_name)
-            status = "✅ SUCCESS"
+            status = "[OK]"
 
-        print(f"[{status}] {fetcher_name:12} - ", end="")
+        print(f"{status} {fetcher_name:12} - ", end="")
 
         if has_error(fetcher_data):
             print(f"ERROR: {error_msg}")
@@ -74,7 +74,7 @@ def diagnose() -> int:
                 missing = [f for f in fields_to_check if f not in fetcher_data or fetcher_data[f] is None]
                 if missing:
                     critical_missing.append((fetcher_name, missing))
-                    print(f"⚠ Missing critical: {missing}")
+                    print(f"[WARN] Missing critical: {missing}")
                 else:
                     print("All critical fields present")
             else:
@@ -86,7 +86,7 @@ def diagnose() -> int:
     print("SUMMARY")
     print("=" * 80)
     print()
-    print(f"✅ Successes: {len(successes)}/{len(data)}")
+    print(f"[SUCCESS] {len(successes)}/{len(data)} fetchers succeeded")
     if successes:
         for name in successes[:5]:
             print(f"   - {name}")
@@ -94,7 +94,7 @@ def diagnose() -> int:
             print(f"   ... and {len(successes) - 5} more")
 
     print()
-    print(f"❌ Failures: {len(failures)}/{len(data)}")
+    print(f"[FAIL] {len(failures)}/{len(data)} fetchers failed")
     if failures:
         for name, msg in failures[:5]:
             print(f"   - {name}: {(msg or '')[:60]}")
@@ -102,7 +102,7 @@ def diagnose() -> int:
             print(f"   ... and {len(failures) - 5} more")
 
     print()
-    print(f"⚠ Critical Missing: {len(critical_missing)}")
+    print(f"[WARN] {len(critical_missing)} critical fields missing")
     if critical_missing:
         for name, missing in critical_missing:
             print(f"   - {name}: {missing}")
@@ -114,7 +114,7 @@ def diagnose() -> int:
     print()
 
     if len(failures) > 0:
-        print("🔴 Data Loading Issues Detected:")
+        print("[ERROR] Data Loading Issues Detected:")
         print("   - Check API connectivity to AWS endpoints")
         print("   - Verify DASHBOARD_API_URL, COGNITO_USER_POOL_ID environment variables")
         print("   - Check AWS CloudWatch logs for API errors")
@@ -122,14 +122,14 @@ def diagnose() -> int:
         print()
 
     if len(critical_missing) > 0:
-        print("🟡 Critical Field Missing:")
+        print("[WARN] Critical Field Missing:")
         print("   - Check that API is returning all required fields")
         print("   - Verify data loading pipeline hasn't crashed")
         print("   - Look for NULL values in database that should have data")
         print()
 
     if len(failures) == 0 and len(critical_missing) == 0:
-        print("✅ All data sources healthy!")
+        print("[OK] All data sources healthy!")
         print("   - If dashboard shows issues, they're display/rendering bugs")
         print("   - Otherwise, all real data is available")
         print()
