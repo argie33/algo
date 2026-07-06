@@ -105,17 +105,6 @@ class ThresholdConfig:
     # ═══════════════════════════════════════════════════════════════════════════
 
     @staticmethod
-    def swing_grade_thresholds() -> dict[str, int]:
-        """Get swing trader score grade thresholds. CRITICAL: all must be configured."""
-        return {
-            "aplus": int(ThresholdConfig._get_config_value("swing_grade_threshold_aplus")),
-            "a": int(ThresholdConfig._get_config_value("swing_grade_threshold_a")),
-            "b": int(ThresholdConfig._get_config_value("swing_grade_threshold_b")),
-            "c": int(ThresholdConfig._get_config_value("swing_grade_threshold_c")),
-            "d": int(ThresholdConfig._get_config_value("swing_grade_threshold_d")),
-        }
-
-    @staticmethod
     def advanced_filters_grade_thresholds() -> dict[str, int]:
         """Get advanced filters (IBD composite) grade thresholds. CRITICAL: all must be configured."""
         return {
@@ -282,7 +271,6 @@ class ThresholdConfig:
             "signal_medium": ThresholdConfig.signal_medium_threshold(),
             "signal_strong": ThresholdConfig.signal_strong_threshold(),
             # Grade thresholds
-            "swing_grades": ThresholdConfig.swing_grade_thresholds(),
             "advanced_filters_grades": ThresholdConfig.advanced_filters_grade_thresholds(),
             "dashboard_grades": ThresholdConfig.dashboard_grade_thresholds(),
             # Data quality

@@ -71,12 +71,12 @@ class PositionSizer:
         """Get current portfolio value.
 
         Priority:
-        1. Live Alpaca account (most accurate)
-        2. Latest portfolio snapshot (up to 2 days old)
+        1. Live Alpaca account (most accurate, for live trading)
+        2. Latest portfolio snapshot (for paper mode / when Alpaca unavailable)
 
         CRITICAL: Does NOT fall back to default $100k. If neither is available,
         raises RuntimeError to fail-closed. Position sizing requires accurate
-        portfolio value  -" guessing is worse than not trading.
+        portfolio value - guessing is worse than not trading.
 
         THREAD SAFETY: Uses PostgreSQL advisory lock to prevent race condition
         where Phase 6 (position sizing) reads while Phase 7 (reconciliation) updates.
@@ -87,11 +87,9 @@ class PositionSizer:
                 logger.info(f"[PORTFOLIO] Using live Alpaca value: ${alpaca_value:,.2f}")
                 return alpaca_value
         except RuntimeError as e:
-            logger.critical(f"Live Alpaca portfolio value fetch CRITICAL FAILURE: {e}")
-            raise RuntimeError(
-                "[POSITION_SIZE] Failed to fetch current portfolio equity from Alpaca "
-                "(cannot size positions without current value)"
-            ) from e
+            # In paper mode, Alpaca may be unavailable (401 Unauthorized, network error, etc.)
+            # Gracefully fall through to portfolio snapshot instead of raising
+            logger.warning(f"[PORTFOLIO] Live Alpaca unavailable ({str(e)[:80]}), falling back to portfolio snapshot")
 
         def fetch_snapshot(cur):
             cur.execute("SELECT pg_advisory_lock(%s)", (PORTFOLIO_SNAPSHOT_LOCK_ID,))

@@ -85,7 +85,7 @@ def run(
                     "Cannot log success without position verification count."
                 )
             log_phase_result_fn(
-                "3a",
+                4,
                 "reconciliation",
                 "success",
                 f"{positions_count} positions verified",
@@ -112,7 +112,7 @@ def run(
                 reason,
             )
 
-        return PhaseResult("3a", "reconciliation", "ok", result, False, None)
+        return PhaseResult(4, "reconciliation", "ok", result, False, None)
 
     except ValueError as e:
         # Alpaca broker unavailable (401, network error, etc.) - graceful degradation
