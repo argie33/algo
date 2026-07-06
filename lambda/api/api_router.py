@@ -129,8 +129,14 @@ else:
 # Also includes aliases: /api/positions → /api/algo/positions, /api/portfolio → /api/algo/portfolio
 _HANDLER_CONFIG = [
     ("/api/algo/risk-dashboard", "risk_dashboard"),
+    # NOTE: /api/algo/scores is NOT routed to the "scores" module here — /api/algo below
+    # matches it first (matches_route() is a prefix match), so it always dispatches to
+    # routes/algo.py's _get_dashboard_scores instead. That's the live, working handler;
+    # routes/scores.py's _get_stock_scores is a separate, considerably richer query
+    # (sortBy, valuation fields) that was never actually reachable through this route.
+    # Wiring it up would need its own verification pass against the dashboard/API
+    # contract, not a routing reorder — left as-is to avoid an unverified regression.
     ("/api/algo", "algo"),
-    ("/api/algo/scores", "scores"),  # /api/algo/scores endpoint (main namespace)
     ("/api/positions", "algo"),  # Alias for /api/algo/positions
     ("/api/portfolio", "algo"),  # Alias for /api/algo/portfolio
     ("/api/financials", "financials"),

@@ -1267,8 +1267,39 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
     """Get top stock scores with composite and component scores for dashboard.
 
     Returns growth-aware composite scores from stock_scores table.
+    If data is stale (>2 days), triggers automatic refresh.
     """
     try:
+        # CRITICAL FIX: Check data age and trigger refresh if stale
+        cur.execute("SELECT MAX(updated_at) FROM stock_scores")
+        max_date_row = cur.fetchone()
+        max_date = max_date_row[0] if max_date_row and max_date_row[0] else None
+
+        data_age_days = None
+        if max_date:
+            data_age_days = (datetime.now(timezone.utc).replace(tzinfo=None) - max_date).days
+
+        # If data is >2 days stale, trigger automatic refresh
+        if data_age_days and data_age_days > 2:
+            logger.warning(f"[SCORES] Stock scores data is {data_age_days} days stale, triggering refresh...")
+            try:
+                # Trigger stock_scores loader to refresh data
+                import subprocess
+                import sys
+                result = subprocess.run(
+                    [sys.executable, "-m", "loaders.load_stock_scores"],
+                    capture_output=True,
+                    text=True,
+                    timeout=300
+                )
+                if result.returncode == 0:
+                    logger.info("[SCORES] Stock scores refresh completed successfully")
+                else:
+                    logger.error(f"[SCORES] Stock scores refresh failed: {result.stderr[:200]}")
+            except Exception as refresh_err:
+                logger.error(f"[SCORES] Could not trigger refresh: {refresh_err}")
+                # Continue with stale data rather than failing
+
         cur.execute(
             """
             SELECT
