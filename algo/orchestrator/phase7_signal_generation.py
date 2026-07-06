@@ -145,17 +145,17 @@ def _check_market_regime(run_date: _date) -> dict[str, Any]:
 
 
 def _detect_upstream_data_quality_drift(run_date: _date, signal_source: str) -> dict[str, Any]:
-    """Detect upstream data quality issues by comparing expected vs. actual swing_trader_scores coverage.
+    """Detect upstream data quality issues for stock_scores (composite) coverage.
 
-    CRITICAL FIX #2: Now RAISES exception on DB error instead of silently returning empty dict.
-    Silent degradation was hiding failures that cascade downstream.
+    SWING SCORE MIGRATION: Removed swing_trader_scores check (table deprecated).
+    Now only validates stock_scores availability for signal generation.
 
-    Returns dict with: {"swing_scores_missing": count_by_symbol, "has_drift": bool, "drift_symbols": list}
+    Returns dict with: {"has_drift": bool, "drift_message": str}
     Raises: RuntimeError if database query fails (cannot silently degrade)
     """
     from algo.orchestrator.phase_error_handling import ErrorCategory, PhaseError
 
-    drift = {"swing_scores_missing": 0, "has_drift": False, "drift_symbols": []}
+    drift = {"has_drift": False, "drift_message": ""}
 
     try:
         with DatabaseContext("read") as cur:
@@ -163,6 +163,7 @@ def _detect_upstream_data_quality_drift(run_date: _date, signal_source: str) -> 
                 run_date - timedelta(days=_BUYSELL_LOOKBACK_DAYS) if signal_source == "buysell_breakout" else None
             )
 
+            # Check stock_scores coverage (not swing_trader_scores)
             if signal_source == "buysell_breakout":
                 cur.execute(
                     """
@@ -173,32 +174,30 @@ def _detect_upstream_data_quality_drift(run_date: _date, signal_source: str) -> 
                         WHERE signal_type = 'BUY' AND date >= %s AND date <= %s
                         ORDER BY symbol, date DESC
                     ) bsd
-                    LEFT JOIN swing_trader_scores sts ON sts.symbol = bsd.symbol
-                        AND sts.date <= %s AND sts.score IS NOT NULL
-                    WHERE sts.symbol IS NULL
+                    LEFT JOIN stock_scores ss ON ss.symbol = bsd.symbol
+                        AND ss.composite_score IS NOT NULL
+                    WHERE ss.symbol IS NULL
                     """,
-                    (lookback_date, run_date, run_date),
+                    (lookback_date, run_date),
                 )
             else:
                 cur.execute(
                     """
-                    SELECT COUNT(DISTINCT ss.symbol)
-                    FROM stock_scores ss
-                    LEFT JOIN swing_trader_scores sts ON sts.symbol = ss.symbol
-                        AND sts.date <= %s AND sts.score IS NOT NULL
-                    WHERE sts.symbol IS NULL LIMIT 1
+                    SELECT COUNT(DISTINCT symbol)
+                    FROM stock_scores
+                    WHERE composite_score IS NOT NULL AND date <= %s LIMIT 1
                     """,
                     (run_date,),
                 )
 
             row = cur.fetchone()
             if row and row[0] and row[0] > 0:
-                drift["swing_scores_missing"] = int(row[0])
                 drift["has_drift"] = True
-                logger.warning(
-                    f"[PHASE 7] DATA QUALITY ALERT: {row[0]} symbols missing swing_trader_scores "
-                    f"(source={signal_source}, date={run_date}). Check swing_trader_scores loader."
+                drift["drift_message"] = (
+                    f"{row[0]} symbols missing composite_score coverage (source={signal_source}, date={run_date}). "
+                    f"Check stock_scores loader."
                 )
+                logger.warning(f"[PHASE 7] DATA QUALITY ALERT: {drift['drift_message']}")
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         # CRITICAL FIX: RAISE exception instead of silently returning empty dict
         # Silent degradation means operators don't know data quality checks failed
@@ -211,7 +210,7 @@ def _detect_upstream_data_quality_drift(run_date: _date, signal_source: str) -> 
         )
         from algo.orchestrator.phase_error_handling import log_phase_error
 
-        log_phase_error(5, error)
+        log_phase_error(7, error)
         raise RuntimeError(f"[PHASE 7] Cannot proceed without data quality verification: {e!s}") from e
 
     return drift
@@ -246,17 +245,17 @@ def _check_liquidity_parallel(
 def _get_candidates_from_buysell(
     run_date: _date, min_score: float, limit: int = 100, min_close_quality: float = 0.3
 ) -> list[dict[str, Any]]:
-    """Primary signal source: buy_sell_daily pivot-breakout BUY signals + stock_scores ranking + swing_trader_scores.
+    """Primary signal source: buy_sell_daily pivot-breakout BUY signals + stock_scores (composite) ranking.
 
     Returns candidates that have BOTH a recent BUY signal (pivot breakout above swing high
     that was above SMA_50) AND a high composite_score. The breakout confirms the entry timing;
-    composite_score ranks quality; swing_trader_scores provides multi-component validation.
+    composite_score ranks quality.
 
     Lookback: last _BUYSELL_LOOKBACK_DAYS calendar days — covers the prior EOD pipeline's
     signals for morning/afternoon orchestrator runs, plus today's signals for the 5:30 PM run.
 
-    ISSUE #3 FIX: All validation filters (swing_score, trend, close quality) moved to SQL WHERE clauses
-    for efficiency and to detect upstream data quality drift immediately.
+    SWING SCORE MIGRATION: Removed swing_trader_scores LEFT JOIN (was fetched but never used).
+    All signal ranking now uses composite_score only.
     """
     lookback_date = run_date - timedelta(days=_BUYSELL_LOOKBACK_DAYS)
     try:
@@ -284,9 +283,7 @@ def _get_candidates_from_buysell(
                         bsd.strength AS signal_strength,
                         bsd.volume_surge_pct,
                         bsd.market_stage,
-                        bsd.date AS signal_date,
-                        sts.score AS swing_score,
-                        sts.components AS swing_components
+                        bsd.date AS signal_date
                     FROM (
                         SELECT DISTINCT ON (symbol) *
                         FROM buy_sell_daily
@@ -296,8 +293,6 @@ def _get_candidates_from_buysell(
                         ORDER BY symbol, date DESC
                     ) bsd
                     JOIN stock_scores ss ON ss.symbol = bsd.symbol
-                    LEFT JOIN swing_trader_scores sts ON sts.symbol = bsd.symbol
-                        AND sts.date <= %s
                     JOIN LATERAL (
                         SELECT close, high, low
                         FROM price_daily

@@ -40,8 +40,6 @@ class TradeContext:
     sqs: Any | None = None
     trend_score: float | None = None
     composite_score: float | None = None
-    swing_score: float | None = None
-    swing_grade: str | None = None
     base_type: str | None = None
     base_quality: str | None = None
     stage_phase: str | None = None
@@ -58,7 +56,6 @@ class TradeContext:
     stop_reasoning: str | None = None
 
     # COMPONENT DATA (optional)
-    swing_components: dict[str, Any] | None = None
     advanced_components: dict[str, Any] | None = None
 
     def __post_init__(self) -> None:

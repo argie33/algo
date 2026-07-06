@@ -54,8 +54,6 @@ class TradeInsertionRequest:
     position_size_pct: Decimal | None
     sqs: Any
     trend_score: float | None
-    swing_score: float | None
-    swing_grade: str | None
     base_type: str | None
     base_quality: str | None
     stage_phase: str | None
@@ -65,7 +63,6 @@ class TradeInsertionRequest:
     market_exposure_at_entry: float | None
     exposure_tier_at_entry: str | None
     stop_reasoning: str | None
-    swing_components: dict[str, Any] | None
     advanced_components: dict[str, Any] | None
     rejection_reason: str | None
 
@@ -321,7 +318,6 @@ class EntryHandler:
                 executed_price,
                 stop_loss_price,
                 tgt_1_price,
-                context.signals.swing_score,
                 context.signals.base_type,
                 trade_id,
             )
@@ -405,15 +401,12 @@ class EntryHandler:
 
     def _build_entry_reason(
         self,
-        swing_grade: str | None,
         base_type: str | None,
         stage_phase: str | None,
         exposure_tier: str | None,
     ) -> str:
         """Build comprehensive entry reason string."""
         parts = ["Algo signal - all tiers passed"]
-        if swing_grade:
-            parts.append(f"swing_grade={swing_grade}")
         if base_type:
             parts.append(f"base={base_type}")
         if stage_phase:
@@ -439,12 +432,11 @@ class EntryHandler:
                 target_3_price, target_3_r_multiple,
                 status, execution_mode, alpaca_order_id,
                 position_size_pct, signal_quality_score, trend_template_score,
-                swing_score, swing_grade,
                 base_type, base_quality, stage_phase, entry_stage,
                 sector, industry, rs_percentile,
                 market_exposure_at_entry, exposure_tier_at_entry,
                 stop_method, stop_reasoning,
-                swing_components, advanced_components, bracket_order,
+                advanced_components, bracket_order,
                 reentry_count, prior_trade_id, rejection_reason,
                 created_at
             ) VALUES (
@@ -452,12 +444,11 @@ class EntryHandler:
                 %s, %s,
                 %s, %s, %s, %s, %s, %s,
                 %s, %s, %s, %s, %s, %s,
-                %s, %s,
                 %s, %s, %s, %s,
                 %s, %s, %s,
                 %s, %s,
                 %s, %s,
-                %s, %s, %s,
+                %s, %s,
                 %s, %s, %s,
                 CURRENT_TIMESTAMP
             )
@@ -485,8 +476,6 @@ class EntryHandler:
                 request.position_size_pct,
                 float(request.sqs) if request.sqs is not None else None,
                 float(request.trend_score) if request.trend_score is not None else None,
-                request.swing_score,
-                request.swing_grade,
                 request.base_type,
                 request.base_quality,
                 self._validate_stage_phase(request.stage_phase),
@@ -498,7 +487,6 @@ class EntryHandler:
                 request.exposure_tier_at_entry,
                 request.stop_method,
                 request.stop_reasoning,
-                json.dumps(request.swing_components) if request.swing_components else None,
                 json.dumps(request.advanced_components) if request.advanced_components else None,
                 request.execution_mode == "auto",
                 0,
@@ -705,7 +693,6 @@ class EntryHandler:
         position_size_pct = self._calculate_position_size_pct(shares, executed_price, pv_for_pct)
 
         entry_reason = self._build_entry_reason(
-            context.signals.swing_grade,
             context.signals.base_type,
             context.signals.stage_phase,
             context.market.exposure_tier_at_entry,
@@ -731,8 +718,6 @@ class EntryHandler:
             position_size_pct=position_size_pct,
             sqs=context.sqs,
             trend_score=context.signals.trend_score,
-            swing_score=context.signals.swing_score,
-            swing_grade=context.signals.swing_grade,
             base_type=context.signals.base_type,
             base_quality=context.signals.base_quality,
             stage_phase=context.signals.stage_phase,
@@ -742,7 +727,6 @@ class EntryHandler:
             market_exposure_at_entry=context.market.market_exposure_at_entry,
             exposure_tier_at_entry=context.market.exposure_tier_at_entry,
             stop_reasoning=context.execution.stop_reasoning,
-            swing_components=context.signals.swing_components,
             advanced_components=context.signals.advanced_components,
             rejection_reason=rejection_reason,
         )
@@ -815,13 +799,12 @@ class EntryHandler:
         executed_price: Decimal | float,
         stop_loss_price: Decimal | float,
         target_1_price: Decimal | None,
-        swing_score: float | None,
         base_type: str | None,
         trade_id: str,
     ) -> None:
         """PHASE 4: Send entry notification."""
         self._send_entry_notification(
-            symbol, shares, executed_price, stop_loss_price, target_1_price, swing_score, base_type, trade_id
+            symbol, shares, executed_price, stop_loss_price, target_1_price, base_type, trade_id
         )
 
     def _send_entry_notification(
@@ -831,7 +814,6 @@ class EntryHandler:
         executed_price: Decimal | float,
         stop_loss_price: Decimal | float,
         target_1_price: Decimal | None,
-        swing_score: float | None,
         base_type: str | None,
         trade_id: str,
     ) -> None:
@@ -853,7 +835,6 @@ class EntryHandler:
                     "shares": float(shares),
                     "stop_loss": stop_loss_price,
                     "target_1": target_1_price,
-                    "swing_score": swing_score,
                     "base_type": base_type,
                     "trade_id": trade_id,
                 },

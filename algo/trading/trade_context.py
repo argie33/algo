@@ -29,13 +29,10 @@ class SignalContext:
     """All signal components and quality metrics."""
 
     trend_score: float | None = None
-    swing_score: float | None = None
-    swing_grade: str | None = None
     base_type: str | None = None
     base_quality: str | None = None
     stage_phase: str | None = None
     rs_percentile: float | None = None
-    swing_components: dict[str, Any] | None = None
     advanced_components: dict[str, Any] | None = None
 
 
@@ -116,8 +113,6 @@ class TradeContext:
         entry_date: Any = None,
         sqs: Any | None = None,
         trend_score: float | None = None,
-        swing_score: float | None = None,
-        swing_grade: str | None = None,
         base_type: str | None = None,
         base_quality: str | None = None,
         stage_phase: str | None = None,
@@ -128,11 +123,18 @@ class TradeContext:
         exposure_tier_at_entry: str | None = None,
         stop_method: str | None = None,
         stop_reasoning: str | None = None,
-        swing_components: dict[str, Any] | None = None,
         advanced_components: dict[str, Any] | None = None,
         execution_mode: str = "auto",
+        # DEPRECATED params (kept for backward compatibility, ignored)
+        swing_score: float | None = None,
+        swing_grade: str | None = None,
+        swing_components: dict[str, Any] | None = None,
     ) -> TradeContext:
-        """Factory method: construct from flat parameter list (for backward compatibility)."""
+        """Factory method: construct from flat parameter list (for backward compatibility).
+
+        SWING SCORE MIGRATION: swing_score, swing_grade, swing_components params deprecated.
+        Kept for backward compatibility with old code but are no longer used.
+        """
         prices = PriceContext(
             entry_price=Decimal(str(entry_price)),
             stop_loss_price=Decimal(str(stop_loss_price)),
@@ -143,13 +145,10 @@ class TradeContext:
 
         signals = SignalContext(
             trend_score=trend_score,
-            swing_score=swing_score,
-            swing_grade=swing_grade,
             base_type=base_type,
             base_quality=base_quality,
             stage_phase=stage_phase,
             rs_percentile=rs_percentile,
-            swing_components=swing_components,
             advanced_components=advanced_components,
         )
 

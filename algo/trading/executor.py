@@ -628,8 +628,6 @@ class TradeExecutor:
         sqs: Any | None = None,
         trend_score: float | None = None,
         composite_score: float | None = None,
-        swing_score: float | None = None,
-        swing_grade: str | None = None,
         base_type: str | None = None,
         base_quality: str | None = None,
         stage_phase: str | None = None,
@@ -640,10 +638,15 @@ class TradeExecutor:
         exposure_tier_at_entry: str | None = None,
         stop_method: str | None = None,
         stop_reasoning: str | None = None,
-        swing_components: dict[str, Any] | None = None,
         advanced_components: dict[str, Any] | None = None,
+        # DEPRECATED (kept for backward compatibility, ignored)
+        swing_score: float | None = None,
+        swing_grade: str | None = None,
+        swing_components: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Execute a new entry trade by delegating to EntryHandler.
+
+        SWING SCORE MIGRATION: swing_score, swing_grade, swing_components params deprecated.
 
         Returns: {
             'success': bool,
