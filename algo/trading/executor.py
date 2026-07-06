@@ -328,7 +328,7 @@ class TradeExecutor:
                 raise RuntimeError(msg) from tca_e
 
         try:
-            notif_service = TradeNotificationService()
+            notif_service = TradeNotificationService(config={"enabled": True})
             # CRITICAL: Don't silently fall back to entry_price if execution price unknown
             if executed_price is None:
                 logger.error(f"[EXECUTOR] Executed price missing for {symbol} - using entry price")

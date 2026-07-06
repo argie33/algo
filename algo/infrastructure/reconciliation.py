@@ -181,6 +181,19 @@ class DailyReconciliation:
             except Exception as e:
                 logger.error(f"[RECONCILIATION] Failed to write portfolio snapshot: {e}", exc_info=True)
 
+            # FINAL VERIFICATION: Query immediately after context exit (after commit) to verify data persisted
+            try:
+                with DatabaseContext("read") as verify_ctx:
+                    verify_ctx.execute("SELECT position_count FROM algo_portfolio_snapshots WHERE snapshot_date = %s ORDER BY created_at DESC LIMIT 1", (reconcile_date,))
+                    verify_final = verify_ctx.fetchone()
+                    if verify_final and verify_final['position_count'] == open_position_count:
+                        logger.info(f"[RECONCILIATION] FINAL VERIFICATION SUCCESS: Snapshot persisted with position_count={verify_final['position_count']}")
+                    else:
+                        actual = verify_final['position_count'] if verify_final else "NULL"
+                        logger.error(f"[RECONCILIATION] FINAL VERIFICATION FAILED: Expected position_count={open_position_count}, got {actual}")
+            except Exception as final_verify_err:
+                logger.error(f"[RECONCILIATION] FINAL VERIFICATION ERROR: {final_verify_err}")
+
             return {
                 "success": True,
                 "positions": open_position_count,

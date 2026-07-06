@@ -588,7 +588,7 @@ class ExitHandler:
 
         # Send notification (non-blocking failure)
         try:
-            notif_service = TradeNotificationService()
+            notif_service = TradeNotificationService(config={"enabled": True})
             if is_estimated_price:
                 message = f"{shares_to_exit:.2f}sh @ ${final_exit_price:.2f} (ESTIMATED) - {exit_reason} [P&L pending fill reconciliation]"
                 severity = "info"
