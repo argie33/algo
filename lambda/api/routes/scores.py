@@ -16,7 +16,6 @@ from routes.utils import (
     execute_with_timeout,
     extract_param,
     handle_db_error,
-    list_response,
     safe_limit,
     safe_offset,
 )
