@@ -261,41 +261,6 @@ def count_trades_by_status(cur: cursor, status: str | None = None) -> int:
     return int(row[0]) if row and row[0] is not None else 0
 
 
-def get_signals_by_score(cur: cursor, min_score: float, max_records: int = 30) -> list[dict[str, Any]]:
-    """Get swing trader signals above minimum score threshold.
-
-    Single source of truth for signal score filtering.
-    All dashboard/API queries for "qualifying" signals use this function.
-
-    Args:
-        cur: Database cursor
-        min_score: Minimum signal score (e.g., 70 for "qualifying" signals)
-        max_records: Maximum records to return
-
-    Returns: List of signal records sorted by score descending
-    """
-    cur.execute(
-        """
-        SELECT s.symbol, s.score, s.components, s.date,
-               cp.sector, cp.industry,
-               t.weinstein_stage,
-               p.close
-        FROM swing_trader_scores s
-        LEFT JOIN company_profile cp ON cp.ticker = s.symbol
-        LEFT JOIN trend_template_data t ON t.symbol = s.symbol AND t.date = s.date
-        LEFT JOIN LATERAL (
-            SELECT close FROM price_daily WHERE symbol = s.symbol ORDER BY date DESC LIMIT 1
-        ) p ON true
-        WHERE s.date = (SELECT MAX(date) FROM swing_trader_scores)
-          AND s.score >= %s
-        ORDER BY s.score DESC
-        LIMIT %s
-    """,
-        (min_score, max_records),
-    )
-    return cur.fetchall()  # type: ignore
-
-
 def get_recent_trades(cur: cursor, days_back: int = 30, limit: int = 100) -> list[dict[str, Any]]:
     """Get closed trades from the last N days."""
     cur.execute(
