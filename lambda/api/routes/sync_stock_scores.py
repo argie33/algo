@@ -10,7 +10,6 @@ import subprocess
 import sys
 from typing import Any
 
-import psycopg2
 from psycopg2.extensions import cursor
 
 from routes.utils import error_response

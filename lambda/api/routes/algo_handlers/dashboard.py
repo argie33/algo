@@ -1279,26 +1279,35 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
         if max_date:
             data_age_days = (datetime.now(timezone.utc).replace(tzinfo=None) - max_date).days
 
-        # If data is >2 days stale, trigger automatic refresh
+        # If data is >2 days stale, kick off an async refresh — do NOT run the loader
+        # in-process here. This is an API request handler behind API Gateway (~29s hard
+        # timeout); load_stock_scores takes minutes over thousands of symbols. A previous
+        # version of this used subprocess.run(["-m", "loaders.load_stock_scores"], ...)
+        # synchronously, which would have (a) hung every stale-data request well past the
+        # gateway timeout and (b) almost certainly failed outright anyway, since the API
+        # Lambda package doesn't bundle loaders/'s heavy deps (pandas/yfinance) — the same
+        # ModuleNotFoundError class of bug already found and fixed in the orchestrator
+        # Lambda's Phase 1 failsafe retry. Fire-and-forget the existing ECS trigger Lambda
+        # instead (same mechanism the orchestrator and the regular schedule both use) and
+        # return the current (flagged-stale) data immediately.
         if data_age_days and data_age_days > 2:
-            logger.warning(f"[SCORES] Stock scores data is {data_age_days} days stale, triggering refresh...")
+            logger.warning(f"[SCORES] Stock scores data is {data_age_days} days stale, triggering async refresh...")
             try:
-                # Trigger stock_scores loader to refresh data
-                import subprocess
-                import sys
-                result = subprocess.run(
-                    [sys.executable, "-m", "loaders.load_stock_scores"],
-                    capture_output=True,
-                    text=True,
-                    timeout=300
+                import json
+                import os
+
+                import boto3
+
+                lambda_client = boto3.client("lambda", region_name=os.getenv("AWS_REGION", "us-east-1"))
+                lambda_client.invoke(
+                    FunctionName=os.getenv("TRIGGER_LOADERS_FUNCTION_NAME", "algo-trigger-loaders"),
+                    InvocationType="Event",
+                    Payload=json.dumps({"loader_name": "stock_scores"}).encode("utf-8"),
                 )
-                if result.returncode == 0:
-                    logger.info("[SCORES] Stock scores refresh completed successfully")
-                else:
-                    logger.error(f"[SCORES] Stock scores refresh failed: {result.stderr[:200]}")
+                logger.info("[SCORES] Async stock_scores refresh triggered via algo-trigger-loaders")
             except Exception as refresh_err:
-                logger.error(f"[SCORES] Could not trigger refresh: {refresh_err}")
-                # Continue with stale data rather than failing
+                logger.error(f"[SCORES] Could not trigger async refresh: {refresh_err}")
+                # Continue with stale data rather than failing the request over it
 
         cur.execute(
             """

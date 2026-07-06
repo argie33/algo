@@ -9,7 +9,6 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-import psycopg2
 from psycopg2.extensions import cursor
 
 from routes.utils import error_response

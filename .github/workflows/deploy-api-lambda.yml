@@ -75,8 +75,17 @@ jobs:
           cp -r config/ api-pkg/config/
           # Copy algo package (algo/infrastructure etc. imported by routes/algo.py and routes/admin.py)
           cp -r algo/ api-pkg/algo/
-          # Copy shared_contracts (response_validator etc. imported by routes/health.py and others)
-          cp -r shared_contracts/ api-pkg/shared_contracts/
+          # Copy shared_contracts (response_validator etc. imported by routes/health.py and others).
+          # NOTE: lambda/api/shared_contracts/ already exists (copied in the `cp -r lambda/api/.`
+          # step above), so api-pkg/shared_contracts/ already exists by this point. Without the
+          # trailing /. (like the `utils` copy above), `cp -r shared_contracts/ api-pkg/shared_contracts/`
+          # nests the source INTO the existing destination as api-pkg/shared_contracts/shared_contracts/
+          # instead of overwriting its contents -- so the canonical, up-to-date root
+          # shared_contracts/dashboard_api_contract.py never actually reached the deployed Lambda;
+          # it kept running whatever stale copy existed under lambda/api/shared_contracts/ at the
+          # time that directory was last hand-edited. Root cause of schema drift between
+          # shared_contracts/, lambda/api/shared_contracts/, and the previously-nested api-pkg copy.
+          cp -r shared_contracts/. api-pkg/shared_contracts/
           # Install pip dependencies into package (pydantic, boto3, etc.)
           pip install -r lambda/api/requirements.txt \
             -t api-pkg/ --platform manylinux2014_x86_64 --only-binary=:all: --quiet
