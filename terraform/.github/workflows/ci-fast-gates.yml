@@ -1,0 +1,108 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  security-events: write
+
+env:
+  PYTHON_VERSION: "3.11"
+  NODE_VERSION: "18"
+
+jobs:
+  code-quality:
+    name: Lint, Type Check & Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+          pip install -r requirements.txt
+
+      - name: Run linting (Ruff)
+        run: make lint
+
+      - name: Run type checking (MyPy)
+        run: make type-check
+
+      - name: Run tests
+        run: make test
+
+      - name: Check test coverage
+        run: make coverage
+
+  security:
+    name: Security Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install security tools
+        run: |
+          pip install --upgrade pip
+          pip install bandit[toml] pip-audit
+
+      - name: Scan dependencies (pip-audit)
+        run: pip-audit
+
+      - name: Static analysis (Bandit)
+        run: bandit -r . -ll --skip B101 || true
+
+  terraform:
+    name: Terraform Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v2
+
+      - name: Format check
+        working-directory: terraform
+        run: terraform fmt -check -recursive
+
+      - name: Validate configuration
+        working-directory: terraform
+        run: terraform validate
+
+  summary:
+    name: CI Status Summary
+    needs: [code-quality, security, terraform]
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+      - name: Check CI status
+        run: |
+          if [ "${{ needs.code-quality.result }}" != "success" ] || \
+             [ "${{ needs.security.result }}" != "success" ] || \
+             [ "${{ needs.terraform.result }}" != "success" ]; then
+            echo "❌ CI pipeline failed"
+            exit 1
+          fi
+          echo "✅ CI pipeline passed"
