@@ -13,8 +13,7 @@ Verify pipeline-loaded tables are fresh before trading:
 8. positioning_metrics: Ownership and short interest — HALT if stale (ADDED 2026-07-05)
 9. stability_metrics: Volatility and beta metrics — HALT if stale (ADDED 2026-07-05)
 10. trend_template_data: Minervini/Weinstein criteria — WARNING if stale
-11. swing_trader_scores: Legacy scoring — WARNING if stale
-12. sector_ranking: Sector data for last trading day — WARNING if stale
+11. sector_ranking: Sector data for last trading day — WARNING if stale
 
 CRITICAL FIX 2026-07-05: Metric loaders (growth, quality, value, positioning, stability)
 are now required for stock scoring. Per phase1_failsafe_retry.py, these are CRITICAL loaders
@@ -71,7 +70,7 @@ def run(  # noqa: C901
 
     Halts if price_daily, market_health_daily, or market_exposure_daily are stale —
     these are required for Phase 5 signal generation and regime gating.
-    Issues warnings for trend_template_data, swing_trader_scores, and sector_ranking —
+    Issues warnings for trend_template_data and sector_ranking —
     stale but trading can continue.
     Excludes stock_scores (orchestrator-generated output, not pipeline input).
     """
