@@ -475,9 +475,12 @@ class MarketHealthDailyLoader(OptimalLoader):
                         m["put_call_ratio_available"] = True
                         m["put_call_ratio_data_unavailable"] = False
                         matched_count += 1
-                    # Note: Do NOT set put_call_ratio for historical dates
-                    # Historical dates keep their existing put_call_ratio values (if any)
-                logger.info(f"Put/call ratio: {today_pc:.3f} (matched {matched_count} rows)")
+                    else:
+                        m["put_call_ratio"] = None
+                        m["put_call_ratio_available"] = False
+                        m["put_call_ratio_data_unavailable"] = True
+                        m["put_call_ratio_unavailable_reason"] = "historical_date_enrichment_only_for_latest"
+                logger.info(f"Put/call ratio: {today_pc:.3f} (matched {matched_count} latest date, marked {len(health_metrics) - matched_count} historical)")
             else:
                 # Data available but invalid/zero, mark unavailable
                 if "reason" not in result:
@@ -493,14 +496,14 @@ class MarketHealthDailyLoader(OptimalLoader):
                         "Reason must be a non-empty string describing why data is unavailable."
                     )
                 for m in health_metrics:
+                    m["put_call_ratio"] = None
+                    m["put_call_ratio_available"] = False
+                    m["put_call_ratio_data_unavailable"] = True
+                    m["put_call_ratio_unavailable_reason"] = reason
                     if m["date"] == end_str:
-                        m["put_call_ratio"] = None
-                        m["put_call_ratio_available"] = False
-                        m["put_call_ratio_data_unavailable"] = True
-                        m["put_call_ratio_unavailable_reason"] = reason
                         matched_count += 1
                 logger.warning(
-                    f"[MARKET_HEALTH] Put/call ratio invalid/unavailable for {end} — marked explicitly as data_unavailable. "
+                    f"[MARKET_HEALTH] Put/call ratio invalid/unavailable for {end} — marked all {len(health_metrics)} dates as data_unavailable. "
                     f"Options sentiment is optional enrichment."
                 )
         else:
@@ -518,15 +521,15 @@ class MarketHealthDailyLoader(OptimalLoader):
                     "Reason must be a non-empty string describing why data is unavailable."
                 )
             for m in health_metrics:
+                m["put_call_ratio"] = None
+                m["put_call_ratio_available"] = False
+                m["put_call_ratio_data_unavailable"] = True
+                m["put_call_ratio_unavailable_reason"] = error_reason
                 if m["date"] == end_str:
-                    m["put_call_ratio"] = None
-                    m["put_call_ratio_available"] = False
-                    m["put_call_ratio_data_unavailable"] = True
-                    m["put_call_ratio_unavailable_reason"] = error_reason
                     matched_count += 1
             reason_str = f" ({error_reason})" if error_reason else ""
             logger.warning(
-                f"[MARKET_HEALTH] Put/call ratio unavailable for {end}{reason_str} — marked explicitly as data_unavailable. "
+                f"[MARKET_HEALTH] Put/call ratio unavailable for {end}{reason_str} — marked all {len(health_metrics)} dates as data_unavailable. "
                 f"Options sentiment is optional enrichment."
             )
 
