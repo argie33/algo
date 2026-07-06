@@ -48,11 +48,12 @@ class SignalAttributionEngine:
 
     def compute_ic(self, report_date: _date, lookback_trades: int = 40) -> dict[str, dict[str, Any]]:
         """
-        Compute Information Coefficient for each component.
+        Compute Information Coefficient for each component (DEPRECATED).
 
-        For each component:
+        This method is deprecated because swing_trader_scores has been removed.
+        Historical algorithm:
           1. Fetch last N closed trades
-          2. Get component score from swing_trader_scores.components JSONB at entry
+          2. Get component score from swing_trader_scores.components JSONB at entry (no longer available)
           3. Get realized exit_r_multiple from algo_trades
           4. Compute Pearson r(component_score, exit_r_multiple)
           5. Compute p-value and sample size

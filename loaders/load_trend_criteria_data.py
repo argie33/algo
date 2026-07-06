@@ -3,8 +3,8 @@
 
 Computes Minervini trend scores and Weinstein market stages for each symbol.
 Results populate trend_template_data, which is used by:
-  - swing_trader_scores (hard gate: minervini >= 5 AND weinstein_stage == 2)
   - market_health_daily (advance/decline breadth from price_above_sma50)
+  - Phase 7 signal generation (market regime and signal filtering)
 
 Minervini score (0-8, integer) — one point per criterion:
   1. close > sma_200

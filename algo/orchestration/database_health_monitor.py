@@ -240,7 +240,7 @@ class DatabaseHealthMonitor:
         Analytics loaders (company_profile, analyst_sentiment, stability_metrics, value_metrics)
         iterate 5000+ symbols with yfinance rate limits and can run 6+ hours.
 
-        Critical-path loaders (swing_trader_scores_vectorized, trend_template_data, sector_ranking,
+        Critical-path loaders (trend_template_data, sector_ranking,
         market_health_daily, market_exposure_daily, algo_metrics_daily) should complete within
         30-90 minutes. If still running 15 min before next orchestrator run, they're hung and
         consuming RDS connections.

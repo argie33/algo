@@ -270,7 +270,7 @@ class EntryHandler:
                     # Use entry price as executed price since Alpaca didn't fill the order
                     executed_price = entry_price
                     order_status = "paper_pending"
-                    alpaca_order_id = None
+                    alpaca_order_id = ""
                     rejection_reason = f"Paper mode - Alpaca unavailable: {order_error[:200]}"
                     # Continue to Phase 3 to record the trade
                 else:
