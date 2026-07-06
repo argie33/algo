@@ -1219,8 +1219,6 @@ const CONFIG_CATEGORIES = {
   min_days_before_reentry_same_symbol: "Position Monitoring",
   max_positions_per_sector: "Position Monitoring",
   max_positions_per_industry: "Position Monitoring",
-  min_swing_score: "Swing Trader Scoring",
-  min_swing_grade: "Swing Trader Scoring",
   swing_min_trend_score: "Swing Trader Scoring",
   swing_min_industry_rank: "Swing Trader Scoring",
   swing_days_to_earnings_block: "Swing Trader Scoring",

@@ -118,14 +118,8 @@ DASHBOARD_ENDPOINTS = {
         "description": "Algo configuration",
         "response_schema": ResponseSchema(
             required_fields=[],
-            optional_fields=[
-                "min_swing_grade",
-                "min_swing_score",
-            ],
-            field_types={
-                "min_swing_grade": (str, type(None)),
-                "min_swing_score": (float, int, type(None)),
-            },
+            optional_fields=[],
+            field_types={},
             nested_schema={"*": dict},
             description="Algo configuration and settings",
         ),

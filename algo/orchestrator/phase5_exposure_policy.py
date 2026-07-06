@@ -185,7 +185,6 @@ def run(
             "description": "Exposure policy unavailable due to system error — no entries allowed",
             "risk_multiplier": 0.0,
             "max_new_positions_today": 0,
-            "min_swing_grade": "A+",
             "halt_new_entries": True,
             "max_concentration_pct": 0.0,
             "halt_reason": f"Exposure policy error: {str(e)[:100]}. No entries allowed until resolved.",
