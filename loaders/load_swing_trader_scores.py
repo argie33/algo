@@ -145,17 +145,18 @@ class SwingTraderScoresLoader(OptimalLoader):
             # Setup Quality: RSI oversold/overbought + MACD strength
             # RSI < 30 or > 70 = potential reversal setup (higher quality)
             rsi_score = 0.0
-            if rsi < 30:
-                rsi_score = min(100, (30 - rsi) * 2)  # 0 RSI = 60 score
-            elif rsi > 70:
-                rsi_score = min(100, (rsi - 70) * 2)  # 100 RSI = 60 score
+            if rsi is not None:
+                if rsi < 30:
+                    rsi_score = min(100, (30 - rsi) * 2)  # 0 RSI = 60 score
+                elif rsi > 70:
+                    rsi_score = min(100, (rsi - 70) * 2)  # 100 RSI = 60 score
             # MACD magnitude (normalized to -10 to +10 range)
-            macd_score = min(100, abs(float(macd or 0)) * 5) if macd else 50
+            macd_score = min(100, abs(float(macd)) * 5) if macd is not None else 50
             setup_quality = (rsi_score * 0.6 + macd_score * 0.4)  # Weight RSI more
 
             # Trend Score: Price position relative to SMAs
             trend_score = 0.0
-            if sma50 and sma200:
+            if sma50 is not None and sma200 is not None and close is not None:
                 if sma50 > sma200:  # Uptrend
                     if close > sma50:
                         trend_score = 80.0  # Strong uptrend
@@ -232,17 +233,4 @@ class SwingTraderScoresLoader(OptimalLoader):
 
 
 if __name__ == "__main__":
-    import argparse
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--symbols", help="Comma-separated symbols to load", default=None)
-    parser.add_argument("--limit", type=int, default=0, help="Max symbols to load (0=all)")
-    parser.add_argument("--parallelism", type=int, default=0, help="Parallel workers (0=auto)")
-    args = parser.parse_args()
-
-    run_loader(
-        SwingTraderScoresLoader(),
-        symbols=args.symbols.split(",") if args.symbols else None,
-        limit=args.limit or None,
-        parallelism=args.parallelism or None,
-    )
+    run_loader(SwingTraderScoresLoader)

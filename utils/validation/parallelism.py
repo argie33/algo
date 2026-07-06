@@ -164,21 +164,21 @@ class ParallelismValidator:
             }
         """
         try:
-            from loaders.load_swing_trader_scores import (
-                VectorizedSwingScoresLoader,
-            )
+            from loaders.load_swing_trader_scores import SwingTraderScoresLoader
 
-            loader = VectorizedSwingScoresLoader()
+            loader = SwingTraderScoresLoader()
 
             issues = []
 
-            # Check 1: Vectorization
-            if not hasattr(loader, "_compute_all_scores_vectorized"):
-                issues.append("Vectorization method not found")
+            # Check 1: Required methods
+            if not hasattr(loader, "fetch_incremental"):
+                issues.append("fetch_incremental method not found")
+            if not hasattr(loader, "_compute_swing_scores"):
+                issues.append("_compute_swing_scores method not found")
 
-            # Check 2: Memory efficiency for large datasets
-            # 5000 symbols x 300 days = 1.5M rows
-            # Need to estimate memory usage
+            # Check 2: Required attributes
+            if not hasattr(loader, "table_name") or loader.table_name != "swing_trader_scores":
+                issues.append("Invalid table_name attribute")
 
             return {
                 "test_passed": len(issues) == 0,
