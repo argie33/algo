@@ -109,10 +109,9 @@ def _handle_basic(cur: cursor) -> Any:
         if not result:
             return error_response(503, "connection_error", "Database connection failed")
 
-        # Signal freshness check using swing_trader_scores (primary signal source).
-        # signal_quality_scores was removed from the pipeline; swing_trader_scores replaced it.
-        # MAX(date) uses the btree index on date; ORDER BY created_at had no index and scanned
-        # the full table, timing out on every health request.
+        # Signal freshness check using buy_sell_daily (primary signal source for Phase 7).
+        # This table is regenerated daily by the EOD pipeline and contains the breakout signals
+        # used for entry decisions. MAX(date) uses the btree index on date for performance.
         try:
             from algo.infrastructure import MarketCalendar
 
@@ -121,7 +120,7 @@ def _handle_basic(cur: cursor) -> Any:
 
             signal_check = execute_with_timeout(
                 cur,
-                "SELECT MAX(date)::timestamp AS latest_signal FROM swing_trader_scores",
+                "SELECT MAX(date)::timestamp AS latest_signal FROM buy_sell_daily",
                 timeout_sec=2,
             )
 

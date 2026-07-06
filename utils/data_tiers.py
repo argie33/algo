@@ -27,8 +27,6 @@ CRITICAL_DATA: set[str] = {
     "etf_price_monthly",
     # Technical indicators: Required for Minervini/Weinstein signal generation (Phase 5, Phase 7)
     "technical_data_daily",
-    # Volatility & scoring: Required for signal ranking and position sizing
-    "swing_trader_scores",
     # Market regime: Required for position sizing constraints (Phase 3b, Phase 5)
     "market_health_daily",
     "market_exposure_daily",

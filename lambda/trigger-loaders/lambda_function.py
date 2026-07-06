@@ -87,7 +87,6 @@ class TriggerLoadersHandler(LambdaHandler):
             # Signals and scoring (position sizing)
             "signals_daily",
             "stock_scores",
-            "swing_trader_scores",
             "technical_data_daily",
             # Portfolio and risk metrics
             "algo_metrics_daily",

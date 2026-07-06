@@ -32,7 +32,6 @@ LOADER_PRIORITY_MAP: dict[str, LoaderPriority] = {
     "etf_price_weekly": LoaderPriority.PHASE_1_CRITICAL,
     "etf_price_monthly": LoaderPriority.PHASE_1_CRITICAL,
     "technical_data_daily": LoaderPriority.PHASE_1_CRITICAL,  # Minervini/Weinstein
-    "swing_trader_scores": LoaderPriority.PHASE_1_CRITICAL,  # Signal ranking
     "market_health_daily": LoaderPriority.PHASE_1_CRITICAL,  # Market regime gating
     "market_exposure_daily": LoaderPriority.PHASE_1_CRITICAL,  # Position sizing
     "earnings_calendar": LoaderPriority.PHASE_1_CRITICAL,  # Blackout window gating
