@@ -380,8 +380,14 @@ def load_all() -> dict[str, Any]:
         critical_fetchers, 10, batch_timeout, one, fetcher_timeout_seconds, "critical"
     )
 
-    # FAIL-FAST: Validate all critical fetchers succeeded before merging
-    # Critical data must not produce error dicts in the response
+    # Log critical fetcher failures loudly, but degrade per-panel rather than
+    # blanking the whole dashboard. Every panel renderer already has its own
+    # "_error" handling (dashboard/panels/*.py: economic, health, portfolio,
+    # positions, scores, signals, trades) built exactly for this — a single
+    # failed fetcher (auth hiccup, transient 503, timeout) used to discard
+    # the entire merged result here, which meant every OTHER panel that had
+    # already fetched fine also showed nothing. Merge the error dicts through
+    # instead so only the actually-failed panel shows an error state.
     critical_failures = [k for k, v in critical_out.items() if isinstance(v, dict) and "_error" in v]
     if critical_failures:
         failed_summary = "; ".join(
@@ -389,16 +395,12 @@ def load_all() -> dict[str, Any]:
         )
         logger.error(
             f"[FETCHER] Critical fetcher failures detected: {failed_summary}. "
-            f"Dashboard cannot proceed with missing critical data."
+            f"Affected panels will show their own error state; other panels proceed normally."
         )
-        # Return explicit error response instead of merging error dicts
-        return {
-            "_error": f"Critical dashboard data unavailable: {', '.join(critical_failures)}",
-            "_critical_fetcher_failures": critical_failures,
-            "_detailed_errors": {k: critical_out[k] for k in critical_failures},
-        }
 
     out.update(critical_out)
+    if critical_failures:
+        out["_critical_fetcher_failures"] = critical_failures
 
     critical_elapsed = time.monotonic() - critical_start_time
     remaining_time = max(60, batch_timeout - critical_elapsed)

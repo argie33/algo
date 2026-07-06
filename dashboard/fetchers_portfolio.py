@@ -161,8 +161,16 @@ def fetch_portfolio(c: None) -> dict[str, Any]:
         largest_pos = port.get("largest_position_pct")
         data_age = port.get("data_age_seconds")
 
-        # FAIL-FAST: Validate critical optional fields. Return error dict if any are missing.
-        # These metrics are used for position sizing and risk monitoring — silent None values mask data failures.
+        # These are derived analytics (daily/cumulative return, drawdown, largest position)
+        # that are legitimately None on the first trading day, when Phase 9 hasn't computed
+        # them yet, or with zero open positions — not a sign of a data failure. Log for
+        # visibility but pass None through: dashboard/panels/portfolio.py already handles
+        # each of these being None explicitly (renders the rest of the portfolio panel,
+        # only warns if it's a trading day). Previously this hard-failed the ENTIRE
+        # portfolio fetch over any one of these being unset, which — combined with "port"
+        # being a critical fetcher in fetchers.py's load_all() — blanked the whole
+        # dashboard, not just this panel, whenever one derived metric was momentarily
+        # unavailable (e.g. right after an orchestrator halt).
         missing_metrics = []
         if daily_return is None:
             missing_metrics.append("daily_return_pct")
@@ -174,10 +182,10 @@ def fetch_portfolio(c: None) -> dict[str, Any]:
             missing_metrics.append("largest_position_pct")
 
         if missing_metrics:
-            error_msg = f"Portfolio missing critical optional metrics: {', '.join(missing_metrics)}"
-            logger.error(f"[FAIL_FAST] {error_msg}")
-            record_data_quality_issue("portfolio", "missing_metrics", "validation", error_msg)
-            return FetcherValidator.build_error_response(error_msg)
+            logger.warning(f"[DATA_QUALITY] Portfolio missing derived metrics: {', '.join(missing_metrics)}")
+            record_data_quality_issue(
+                "portfolio", "missing_metrics", "validation", f"Missing: {', '.join(missing_metrics)}"
+            )
 
         return {
             "snapshot_date": snapshot_date,
