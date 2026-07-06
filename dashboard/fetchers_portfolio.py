@@ -302,7 +302,7 @@ def fetch_recent_trades(c: None) -> dict[str, Any]:
         # Check for API error - fail-fast: return error for all API failures
         is_error, error_msg = FetcherValidator.check_api_error(data)
         if is_error:
-            record_data_quality_issue("trades", "api_call", "api_error", error_msg)
+            record_data_quality_issue("trades", "api_call", "api_error", error_msg or "unknown_error")
             return FetcherValidator.build_error_response(error_msg)
 
         result = data
@@ -356,7 +356,7 @@ def fetch_perf(c: None) -> dict[str, Any]:
         # Check for API error - 503 means no performance data yet (fail-fast: return error)
         is_error, error_msg = FetcherValidator.check_api_error(perf)
         if is_error:
-            record_data_quality_issue("per", "api_call", "api_error", error_msg)
+            record_data_quality_issue("per", "api_call", "api_error", error_msg or "unknown_error")
             return FetcherValidator.build_error_response(error_msg)
 
         # Comprehensive validation using FetcherValidator
@@ -517,7 +517,7 @@ def fetch_perf_analytics(c: None) -> dict[str, Any]:
         # Check for API error
         is_error, error_msg = FetcherValidator.check_api_error(data)
         if is_error:
-            record_data_quality_issue("perf_anl", "api_call", "api_error", error_msg)
+            record_data_quality_issue("perf_anl", "api_call", "api_error", error_msg or "unknown_error")
             return FetcherValidator.build_error_response(error_msg)
 
         d = data
