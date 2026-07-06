@@ -105,7 +105,9 @@ def _apply_critical_migrations() -> tuple[bool, str]:
         # Apply migrations for critical missing tables and data_unavailable columns
         # Table creation migrations (CREATE TABLE IF NOT EXISTS)
         table_migrations = [
-            ("algo_signals", """
+            (
+                "algo_signals",
+                """
                 CREATE TABLE IF NOT EXISTS algo_signals (
                     id SERIAL PRIMARY KEY,
                     signal_date DATE NOT NULL,
@@ -124,8 +126,11 @@ def _apply_critical_migrations() -> tuple[bool, str]:
                 );
                 CREATE INDEX IF NOT EXISTS idx_algo_signals_symbol_date ON algo_signals(symbol, signal_date DESC);
                 CREATE INDEX IF NOT EXISTS idx_algo_signals_active ON algo_signals(signal_active);
-            """),
-            ("market_sentiment", """
+            """,
+            ),
+            (
+                "market_sentiment",
+                """
                 DROP TABLE IF EXISTS market_sentiment CASCADE;
                 CREATE TABLE market_sentiment (
                     id SERIAL PRIMARY KEY,
@@ -140,8 +145,11 @@ def _apply_critical_migrations() -> tuple[bool, str]:
                     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
                 );
                 CREATE INDEX IF NOT EXISTS idx_market_sentiment_date ON market_sentiment(date DESC);
-            """),
-            ("orchestrator_execution_log", """
+            """,
+            ),
+            (
+                "orchestrator_execution_log",
+                """
                 CREATE TABLE IF NOT EXISTS orchestrator_execution_log (
                     id SERIAL PRIMARY KEY,
                     run_id VARCHAR(50) NOT NULL UNIQUE,
@@ -159,7 +167,8 @@ def _apply_critical_migrations() -> tuple[bool, str]:
                 );
                 CREATE INDEX IF NOT EXISTS idx_orchestrator_execution_run_date ON orchestrator_execution_log(run_date DESC);
                 CREATE INDEX IF NOT EXISTS idx_orchestrator_execution_status ON orchestrator_execution_log(overall_status);
-            """),
+            """,
+            ),
         ]
 
         for table_name, create_sql in table_migrations:
@@ -180,7 +189,12 @@ def _apply_critical_migrations() -> tuple[bool, str]:
             ("growth_metrics", "reason", "VARCHAR(500)", "Growth metrics unavailable reason"),
             ("value_metrics", "data_unavailable", "BOOLEAN DEFAULT FALSE", "Value metrics unavailable flag"),
             ("value_metrics", "reason", "VARCHAR(500)", "Value metrics unavailable reason"),
-            ("positioning_metrics", "data_unavailable", "BOOLEAN DEFAULT FALSE", "Positioning metrics unavailable flag"),
+            (
+                "positioning_metrics",
+                "data_unavailable",
+                "BOOLEAN DEFAULT FALSE",
+                "Positioning metrics unavailable flag",
+            ),
             ("positioning_metrics", "reason", "VARCHAR(500)", "Positioning metrics unavailable reason"),
             ("stability_metrics", "data_unavailable", "BOOLEAN DEFAULT FALSE", "Stability metrics unavailable flag"),
             ("stability_metrics", "reason", "VARCHAR(500)", "Stability metrics unavailable reason"),
@@ -188,14 +202,34 @@ def _apply_critical_migrations() -> tuple[bool, str]:
             ("fear_greed_index", "data_unavailable", "BOOLEAN DEFAULT FALSE", "Fear/greed index unavailable flag"),
             ("naaim", "data_unavailable", "BOOLEAN DEFAULT FALSE", "NAAIM sentiment unavailable flag"),
             # market_health_daily columns
-            ("market_health_daily", "put_call_ratio_data_unavailable", "BOOLEAN DEFAULT FALSE", "Put/call ratio unavailable flag"),
-            ("market_health_daily", "put_call_ratio_unavailable_reason", "VARCHAR(255)", "Put/call ratio unavailable reason"),
-            ("market_health_daily", "yield_curve_data_unavailable", "BOOLEAN DEFAULT FALSE", "Yield curve unavailable flag"),
+            (
+                "market_health_daily",
+                "put_call_ratio_data_unavailable",
+                "BOOLEAN DEFAULT FALSE",
+                "Put/call ratio unavailable flag",
+            ),
+            (
+                "market_health_daily",
+                "put_call_ratio_unavailable_reason",
+                "VARCHAR(255)",
+                "Put/call ratio unavailable reason",
+            ),
+            (
+                "market_health_daily",
+                "yield_curve_data_unavailable",
+                "BOOLEAN DEFAULT FALSE",
+                "Yield curve unavailable flag",
+            ),
             ("market_health_daily", "yield_curve_unavailable_reason", "VARCHAR(255)", "Yield curve unavailable reason"),
             ("market_health_daily", "fed_rate_data_unavailable", "BOOLEAN DEFAULT FALSE", "Fed rate unavailable flag"),
             ("market_health_daily", "fed_rate_unavailable_reason", "VARCHAR(255)", "Fed rate unavailable reason"),
             # algo_positions computed column
-            ("algo_positions", "is_open", "BOOLEAN GENERATED ALWAYS AS (status IN ('open', 'partially_closed')) STORED", "Open position computed flag"),
+            (
+                "algo_positions",
+                "is_open",
+                "BOOLEAN GENERATED ALWAYS AS (status IN ('open', 'partially_closed')) STORED",
+                "Open position computed flag",
+            ),
             # value_metrics detailed reason columns
             ("value_metrics", "market_cap_unavailable_reason", "VARCHAR(255)", "Market cap unavailable reason"),
             ("value_metrics", "pe_ratio_unavailable_reason", "VARCHAR(255)", "P/E ratio unavailable reason"),
@@ -204,8 +238,18 @@ def _apply_critical_migrations() -> tuple[bool, str]:
             ("value_metrics", "peg_ratio_unavailable_reason", "VARCHAR(255)", "PEG ratio unavailable reason"),
             ("value_metrics", "dividend_yield_unavailable_reason", "VARCHAR(255)", "Dividend yield unavailable reason"),
             ("value_metrics", "fcf_yield_unavailable_reason", "VARCHAR(255)", "FCF yield unavailable reason"),
-            ("value_metrics", "held_percent_insiders_unavailable_reason", "VARCHAR(255)", "Insider ownership unavailable reason"),
-            ("value_metrics", "held_percent_institutions_unavailable_reason", "VARCHAR(255)", "Institutional ownership unavailable reason"),
+            (
+                "value_metrics",
+                "held_percent_insiders_unavailable_reason",
+                "VARCHAR(255)",
+                "Insider ownership unavailable reason",
+            ),
+            (
+                "value_metrics",
+                "held_percent_institutions_unavailable_reason",
+                "VARCHAR(255)",
+                "Institutional ownership unavailable reason",
+            ),
             # technical_data_daily columns
             ("technical_data_daily", "atr_50", "DECIMAL(12, 4)", "50-day ATR"),
             # performance metrics columns

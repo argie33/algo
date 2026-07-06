@@ -360,7 +360,9 @@ class DatabaseContext:
                     if not self._externally_managed:
                         # Only close connections we acquired
                         if exc_type is None and self.role == "write":
-                            logger.info(f"[DB_CONTEXT] __exit__: COMMITTING write (managed={self._externally_managed}, role={self.role}, exc_type={exc_type})")
+                            logger.info(
+                                f"[DB_CONTEXT] __exit__: COMMITTING write (managed={self._externally_managed}, role={self.role}, exc_type={exc_type})"
+                            )
                             self.conn.commit()
                             logger.info("[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE")
                         else:

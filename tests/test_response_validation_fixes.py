@@ -73,16 +73,19 @@ class TestResponseValidatorLeniency:
 class TestEndpointSchemasComplete:
     """Test that endpoint schemas include all fields they return."""
 
-    @pytest.mark.parametrize("endpoint_name", [
-        "audit",
-        "activity",
-        "exec_hist",
-        "sentiment",
-        "sig_eval",
-        "sec_rot",
-        "cb",
-        "srank",
-    ])
+    @pytest.mark.parametrize(
+        "endpoint_name",
+        [
+            "audit",
+            "activity",
+            "exec_hist",
+            "sentiment",
+            "sig_eval",
+            "sec_rot",
+            "cb",
+            "srank",
+        ],
+    )
     def test_list_endpoints_have_data_freshness(self, endpoint_name):
         """List endpoints should include data_freshness in optional_fields."""
         endpoint = DASHBOARD_ENDPOINTS.get(endpoint_name)
@@ -92,8 +95,9 @@ class TestEndpointSchemasComplete:
         assert response_schema is not None
 
         # data_freshness should be in optional_fields
-        assert "data_freshness" in response_schema.optional_fields, \
+        assert "data_freshness" in response_schema.optional_fields, (
             f"Endpoint {endpoint_name} missing data_freshness in optional_fields"
+        )
 
     def test_sentiment_includes_label(self):
         """Sentiment endpoint should include label field."""
@@ -101,14 +105,12 @@ class TestEndpointSchemasComplete:
         response_schema = endpoint.get("response_schema")
 
         # label should be in optional_fields
-        assert "label" in response_schema.optional_fields, \
-            "Sentiment endpoint missing label in optional_fields"
+        assert "label" in response_schema.optional_fields, "Sentiment endpoint missing label in optional_fields"
 
     def test_all_critical_endpoints_have_critical_flag(self):
         """All endpoints must have explicit critical flag."""
         for endpoint_name, endpoint_def in DASHBOARD_ENDPOINTS.items():
-            assert "critical" in endpoint_def, \
-                f"Endpoint {endpoint_name} missing required 'critical' field"
+            assert "critical" in endpoint_def, f"Endpoint {endpoint_name} missing required 'critical' field"
 
 
 class TestValidationResponseFormat:

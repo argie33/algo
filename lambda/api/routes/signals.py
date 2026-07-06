@@ -224,7 +224,9 @@ def _get_signals_stocks(
                 return error_response(500, "response_validation_error", error_msg)
             else:
                 logger.error("[CRITICAL] Signals validation failed but error_msg is None. Bug.")
-                return error_response(500, "response_validation_error", "Signals validation failed (internal error: no message)")
+                return error_response(
+                    500, "response_validation_error", "Signals validation failed (internal error: no message)"
+                )
         return signals_result
     except (
         psycopg2.errors.UndefinedTable,

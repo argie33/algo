@@ -83,7 +83,9 @@ def handle(
                     return error_response(500, "response_validation_error", error_msg)
                 else:
                     logger.error("[CRITICAL] Earnings validation failed but error_msg is None. Bug.")
-                    return error_response(500, "response_validation_error", "Earnings validation failed (internal error: no message)")
+                    return error_response(
+                        500, "response_validation_error", "Earnings validation failed (internal error: no message)"
+                    )
             return result
 
         limit = safe_limit(
@@ -127,7 +129,9 @@ def handle(
                 return error_response(500, "response_validation_error", error_msg)
             else:
                 logger.error("[CRITICAL] Earnings validation failed but error_msg is None. Bug.")
-                return error_response(500, "response_validation_error", "Earnings validation failed (internal error: no message)")
+                return error_response(
+                    500, "response_validation_error", "Earnings validation failed (internal error: no message)"
+                )
         return result
     except (
         psycopg2.errors.UndefinedTable,

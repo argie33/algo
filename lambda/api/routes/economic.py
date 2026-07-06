@@ -434,7 +434,11 @@ def _get_leading_indicators(cur: cursor) -> Any:  # noqa: C901
                 return error_response(500, "response_validation_error", error_msg_raw)
             else:
                 logger.error("[CRITICAL] Economic indicators validation failed but error_msg_raw is None. Bug.")
-                return error_response(500, "response_validation_error", "Economic indicators validation failed (internal error: no message)")
+                return error_response(
+                    500,
+                    "response_validation_error",
+                    "Economic indicators validation failed (internal error: no message)",
+                )
 
         return json_response(200, result)
 
@@ -649,7 +653,9 @@ def _get_yield_curve_full(cur: cursor) -> Any:  # noqa: C901
                 return error_response(500, "response_validation_error", error_msg)
             else:
                 logger.error("[CRITICAL] Yield curve validation failed but error_msg is None. Bug.")
-                return error_response(500, "response_validation_error", "Yield curve validation failed (internal error: no message)")
+                return error_response(
+                    500, "response_validation_error", "Yield curve validation failed (internal error: no message)"
+                )
 
         return json_response(200, result)
 

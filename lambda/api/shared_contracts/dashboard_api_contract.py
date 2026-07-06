@@ -340,7 +340,14 @@ DASHBOARD_ENDPOINTS = {
         "description": "Open positions",
         "response_schema": ResponseSchema(
             required_fields=["items"],
-            optional_fields=["timestamp", "coverage", "data_freshness", "pagination", "sector_allocation", "stale_alerts"],
+            optional_fields=[
+                "timestamp",
+                "coverage",
+                "data_freshness",
+                "pagination",
+                "sector_allocation",
+                "stale_alerts",
+            ],
             field_types={
                 "items": list,
                 "coverage": (dict, type(None)),
@@ -566,7 +573,15 @@ DASHBOARD_ENDPOINTS = {
         "description": "Market sentiment (fear/greed index and breadth)",
         "response_schema": ResponseSchema(
             required_fields=[],
-            optional_fields=["fear_greed_index", "sentiment_score", "bullish_pct", "bearish_pct", "neutral_pct", "date", "data_freshness"],
+            optional_fields=[
+                "fear_greed_index",
+                "sentiment_score",
+                "bullish_pct",
+                "bearish_pct",
+                "neutral_pct",
+                "date",
+                "data_freshness",
+            ],
             field_types={
                 "fear_greed_index": (float, int),
                 "sentiment_score": (float, int, type(None)),
@@ -891,7 +906,15 @@ DASHBOARD_ENDPOINTS = {
         "description": "Market status and health indicators",
         "response_schema": ResponseSchema(
             required_fields=["date"],
-            optional_fields=["market_trend", "market_stage", "advance_decline_ratio", "new_highs_count", "new_lows_count", "vix_level", "put_call_ratio"],
+            optional_fields=[
+                "market_trend",
+                "market_stage",
+                "advance_decline_ratio",
+                "new_highs_count",
+                "new_lows_count",
+                "vix_level",
+                "put_call_ratio",
+            ],
             field_types={"date": str, "vix_level": (int, float)},
             description="Current market status",
         ),

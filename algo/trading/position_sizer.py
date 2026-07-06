@@ -162,6 +162,7 @@ class PositionSizer:
         if execution_mode in ("paper", "auto"):
             try:
                 from utils.db.context import DatabaseContext
+
                 with DatabaseContext("read") as cur:
                     cur.execute(
                         "SELECT total_portfolio_value FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1"

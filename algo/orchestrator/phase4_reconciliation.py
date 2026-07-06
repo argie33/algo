@@ -120,7 +120,9 @@ def run(
             logger.warning(f"[PHASE 4] Broker unavailable: {str(e)[:100]} - returning empty reconciliation")
             log_phase_result_fn(4, "reconciliation", "success", "broker unavailable - skipping reconciliation")
             # Return success with empty data so downstream phases can proceed
-            return PhaseResult(4, "reconciliation", "ok", {"success": False, "reason": "broker unavailable"}, False, None)
+            return PhaseResult(
+                4, "reconciliation", "ok", {"success": False, "reason": "broker unavailable"}, False, None
+            )
         raise
 
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
@@ -141,5 +143,7 @@ def run(
         if "401" in str(e) or "unauthorized" in error_str or "alpaca" in error_str or "broker" in error_str:
             logger.warning(f"[PHASE 4] Broker error (non-ValueError): {str(e)[:100]} - returning empty reconciliation")
             log_phase_result_fn(4, "reconciliation", "success", "broker unavailable - skipping reconciliation")
-            return PhaseResult(4, "reconciliation", "ok", {"success": False, "reason": "broker unavailable"}, False, None)
+            return PhaseResult(
+                4, "reconciliation", "ok", {"success": False, "reason": "broker unavailable"}, False, None
+            )
         raise

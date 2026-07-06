@@ -36,7 +36,8 @@ def compute_market_sentiment() -> None:
         fear_greed = max(10, min(90, 100 - (vix * 2)))
 
         # Upsert into market_sentiment
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO market_sentiment (
                 date, fear_greed_index, sentiment_score, bullish_pct, bearish_pct, neutral_pct
             ) VALUES (%s, %s, %s, %s, %s, %s)
@@ -46,14 +47,16 @@ def compute_market_sentiment() -> None:
                 bullish_pct = EXCLUDED.bullish_pct,
                 bearish_pct = EXCLUDED.bearish_pct,
                 neutral_pct = EXCLUDED.neutral_pct
-        """, (
-            today,
-            Decimal(str(round(fear_greed, 4))),
-            Decimal("50.0000"),  # Neutral sentiment
-            Decimal("33.33"),
-            Decimal("33.33"),
-            Decimal("33.34"),
-        ))
+        """,
+            (
+                today,
+                Decimal(str(round(fear_greed, 4))),
+                Decimal("50.0000"),  # Neutral sentiment
+                Decimal("33.33"),
+                Decimal("33.33"),
+                Decimal("33.34"),
+            ),
+        )
 
         logger.info(f"Market sentiment loader completed for {today}: fear_greed={fear_greed}")
 

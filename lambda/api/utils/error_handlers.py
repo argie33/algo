@@ -49,6 +49,7 @@ def log_sanitizer(prefix: str):  # type: ignore[no-untyped-def]
     Yields:
         A logger instance that sanitizes output
     """
+
     class SanitizedLogger:
         def __init__(self, prefix: str) -> None:
             self.prefix = prefix
@@ -83,16 +84,18 @@ def sanitize_error_message(message: str) -> str:
         return str(message)
 
     # Remove SQL query details (anything between common SQL keywords)
-    sanitized = re.sub(r'(SELECT|INSERT|UPDATE|DELETE|FROM|WHERE|JOIN|ON).*?(;|$)', '[SQL]', message, flags=re.IGNORECASE)
+    sanitized = re.sub(
+        r"(SELECT|INSERT|UPDATE|DELETE|FROM|WHERE|JOIN|ON).*?(;|$)", "[SQL]", message, flags=re.IGNORECASE
+    )
 
     # Remove file paths and credentials
-    sanitized = re.sub(r'(/[a-zA-Z0-9/_.-]*)', '[path]', sanitized)
-    sanitized = re.sub(r'(password|token|secret|key)[\s=:]*[^,\s]+', r'\1=[redacted]', sanitized, flags=re.IGNORECASE)
+    sanitized = re.sub(r"(/[a-zA-Z0-9/_.-]*)", "[path]", sanitized)
+    sanitized = re.sub(r"(password|token|secret|key)[\s=:]*[^,\s]+", r"\1=[redacted]", sanitized, flags=re.IGNORECASE)
 
     # Remove email addresses
-    sanitized = re.sub(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', '[email]', sanitized)
+    sanitized = re.sub(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}", "[email]", sanitized)
 
     # Remove IP addresses
-    sanitized = re.sub(r'\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b', '[ip]', sanitized)
+    sanitized = re.sub(r"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b", "[ip]", sanitized)
 
     return sanitized

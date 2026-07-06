@@ -72,7 +72,9 @@ def handle(  # noqa: C901
                         return error_response(500, "response_validation_error", error_msg)
                     else:
                         logger.error("[CRITICAL] Stock validation failed but error_msg is None. Bug.")
-                        return error_response(500, "response_validation_error", "Stock validation failed (internal error: no message)")
+                        return error_response(
+                            500, "response_validation_error", "Stock validation failed (internal error: no message)"
+                        )
                 return json_response(200, stock_result)
             return error_response(404, "not_found", f"Stock {symbol} not found")
 
@@ -300,7 +302,11 @@ def handle(  # noqa: C901
                             return error_response(500, "response_validation_error", error_msg)
                         else:
                             logger.error("[CRITICAL] Deep value validation failed but error_msg is None. Bug.")
-                            return error_response(500, "response_validation_error", "Deep value validation failed (internal error: no message)")
+                            return error_response(
+                                500,
+                                "response_validation_error",
+                                "Deep value validation failed (internal error: no message)",
+                            )
                     return deep_value_result
                 return error_response(
                     503,
@@ -398,7 +404,9 @@ def handle(  # noqa: C901
                 return error_response(500, "response_validation_error", error_msg)
             else:
                 logger.error("[CRITICAL] Stocks list validation failed but error_msg is None. Bug.")
-                return error_response(500, "response_validation_error", "Stocks list validation failed (internal error: no message)")
+                return error_response(
+                    500, "response_validation_error", "Stocks list validation failed (internal error: no message)"
+                )
         return json_response(200, stocks_list_result)
     except (
         psycopg2.errors.UndefinedTable,

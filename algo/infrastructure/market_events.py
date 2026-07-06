@@ -591,7 +591,9 @@ class MarketEventHandler:
                             "action": "HALT_ALL_ENTRIES",
                             "timestamp": datetime.now(timezone.utc).isoformat(),
                         }
-                        result["alerts"].append("[WARN] CIRCUIT_BREAKER CHECK FAILED - Assuming Level 3 halt (conservative)")
+                        result["alerts"].append(
+                            "[WARN] CIRCUIT_BREAKER CHECK FAILED - Assuming Level 3 halt (conservative)"
+                        )
                     elif check_name == "after_hours_window":
                         result["checks"][check_name] = True
                         result["alerts"].append(

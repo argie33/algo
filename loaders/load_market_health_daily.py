@@ -480,7 +480,9 @@ class MarketHealthDailyLoader(OptimalLoader):
                         m["put_call_ratio_available"] = False
                         m["put_call_ratio_data_unavailable"] = True
                         m["put_call_ratio_unavailable_reason"] = "historical_date_enrichment_only_for_latest"
-                logger.info(f"Put/call ratio: {today_pc:.3f} (matched {matched_count} latest date, marked {len(health_metrics) - matched_count} historical)")
+                logger.info(
+                    f"Put/call ratio: {today_pc:.3f} (matched {matched_count} latest date, marked {len(health_metrics) - matched_count} historical)"
+                )
             else:
                 # Data available but invalid/zero, mark unavailable
                 if "reason" not in result:

@@ -150,7 +150,9 @@ def handle(  # noqa: C901
                     return error_response(500, "response_validation_error", error_msg)
                 else:
                     logger.error("[CRITICAL] Sentiment validation failed but error_msg is None. Bug.")
-                    return error_response(500, "response_validation_error", "Sentiment validation failed (internal error: no message)")
+                    return error_response(
+                        500, "response_validation_error", "Sentiment validation failed (internal error: no message)"
+                    )
             return json_response(200, sentiment_result)
         elif path == "/api/sentiment/data" or path.startswith("/api/sentiment/data?"):
             limit = safe_limit(extract_param(params, "limit"), max_val=50000, default=50000)
@@ -180,7 +182,11 @@ def handle(  # noqa: C901
                     return error_response(500, "response_validation_error", error_msg)
                 else:
                     logger.error("[CRITICAL] Sentiment data validation failed but error_msg is None. Bug.")
-                    return error_response(500, "response_validation_error", "Sentiment data validation failed (internal error: no message)")
+                    return error_response(
+                        500,
+                        "response_validation_error",
+                        "Sentiment data validation failed (internal error: no message)",
+                    )
             return sentiment_data_result
         elif path == "/api/sentiment/divergence":
             rows = execute_with_timeout(
@@ -212,7 +218,11 @@ def handle(  # noqa: C901
                     return error_response(500, "response_validation_error", error_msg)
                 else:
                     logger.error("[CRITICAL] Sentiment divergence validation failed but error_msg is None. Bug.")
-                    return error_response(500, "response_validation_error", "Sentiment divergence validation failed (internal error: no message)")
+                    return error_response(
+                        500,
+                        "response_validation_error",
+                        "Sentiment divergence validation failed (internal error: no message)",
+                    )
             return divergence_result
         elif path.startswith("/api/sentiment/analyst/insights/"):
             symbol = path.split("/api/sentiment/analyst/insights/")[-1].upper()
@@ -345,7 +355,11 @@ def handle(  # noqa: C901
                     return error_response(500, "response_validation_error", error_msg)
                 else:
                     logger.error("[CRITICAL] Analyst sentiment validation failed but error_msg is None. Bug.")
-                    return error_response(500, "response_validation_error", "Analyst sentiment validation failed (internal error: no message)")
+                    return error_response(
+                        500,
+                        "response_validation_error",
+                        "Analyst sentiment validation failed (internal error: no message)",
+                    )
             return json_response(200, analyst_result)
         elif path.startswith("/api/sentiment/social/insights/"):
             symbol = path.split("/api/sentiment/social/insights/")[-1].upper()
@@ -478,7 +492,11 @@ def handle(  # noqa: C901
                     return error_response(500, "response_validation_error", error_msg)
                 else:
                     logger.error("[CRITICAL] Social sentiment validation failed but error_msg is None. Bug.")
-                    return error_response(500, "response_validation_error", "Social sentiment validation failed (internal error: no message)")
+                    return error_response(
+                        500,
+                        "response_validation_error",
+                        "Social sentiment validation failed (internal error: no message)",
+                    )
             return json_response(200, social_result)
         elif path == "/api/sentiment/vix":
             return _get_vix_data(cur)
@@ -525,7 +543,11 @@ def handle(  # noqa: C901
                     return error_response(500, "response_validation_error", error_msg)
                 else:
                     logger.error("[CRITICAL] Default sentiment validation failed but error_msg is None. Bug.")
-                    return error_response(500, "response_validation_error", "Default sentiment validation failed (internal error: no message)")
+                    return error_response(
+                        500,
+                        "response_validation_error",
+                        "Default sentiment validation failed (internal error: no message)",
+                    )
             return json_response(200, default_result)
         return error_response(404, "not_found", f"No sentiment handler for {path}")
     except (
@@ -587,7 +609,9 @@ def _get_vix_data(cur: cursor) -> Any:
                 return error_response(500, "response_validation_error", error_msg)
             else:
                 logger.error("[CRITICAL] VIX sentiment validation failed but error_msg is None. Bug.")
-                return error_response(500, "response_validation_error", "VIX sentiment validation failed (internal error: no message)")
+                return error_response(
+                    500, "response_validation_error", "VIX sentiment validation failed (internal error: no message)"
+                )
         return json_response(200, vix_result)
     except (
         psycopg2.errors.UndefinedTable,

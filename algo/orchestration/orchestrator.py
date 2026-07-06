@@ -267,7 +267,9 @@ class Orchestrator:
                 # Refresh the view
                 cur.execute("REFRESH MATERIALIZED VIEW algo_positions_with_risk")
 
-                logger.info("[OK] Migration 083 applied: algo_positions_with_risk view recreated with sector enrichment")
+                logger.info(
+                    "[OK] Migration 083 applied: algo_positions_with_risk view recreated with sector enrichment"
+                )
         except Exception as e:
             logger.warning(f"[MIGRATION 083] Could not apply (non-blocking): {e}")
             # Non-blocking: migration failure doesn't prevent trading
@@ -1514,10 +1516,7 @@ class Orchestrator:
         result = {
             "run_id": self.run_id,
             "run_date": self.run_date.isoformat(),
-            "phases": [
-                {"phase": n, **info}
-                for n, info in sorted(self.phase_results.items(), key=lambda x: str(x[0]))
-            ],
+            "phases": [{"phase": n, **info} for n, info in sorted(self.phase_results.items(), key=lambda x: str(x[0]))],
             "success": not any_error,
             "halted": any_halt,
             "skipped": any_halt,  # Required by Lambda handler
@@ -1588,7 +1587,9 @@ class Orchestrator:
                         if isinstance(signals, int):
                             m.put_signal_count(signals)
                         else:
-                            logger.warning(f"Phase 7 returned non-int liquidity_passed: {type(signals)}, defaulting to 0")
+                            logger.warning(
+                                f"Phase 7 returned non-int liquidity_passed: {type(signals)}, defaulting to 0"
+                            )
                             signals = 0
                             m.put_signal_count(signals)
                     else:

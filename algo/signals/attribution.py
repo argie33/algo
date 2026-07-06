@@ -76,8 +76,7 @@ class SignalAttributionEngine:
         """
         # Swing components deprecated - return unavailable data
         logger.warning(
-            "[ATTRIBUTION] Swing score components are deprecated. "
-            "Signal attribution analysis is no longer available."
+            "[ATTRIBUTION] Swing score components are deprecated. Signal attribution analysis is no longer available."
         )
         return {
             comp: {
@@ -110,6 +109,7 @@ class SignalAttributionEngine:
             "Regime-specific signal attribution analysis is no longer available."
         )
         from algo.orchestration import RegimeManager
+
         regime_results: dict[str, dict[str, dict[str, Any]]] = {}
         for regime in RegimeManager.REGIMES:
             regime_results[regime] = {

@@ -54,7 +54,7 @@ def _run_reconciliation_step(
                 "portfolio_value": 100000.00,
                 "positions": 0,
                 "unrealized_pnl": 0.00,
-                "note": "Paper mode - database state only"
+                "note": "Paper mode - database state only",
             }
         else:
             raise
@@ -731,6 +731,7 @@ def run(  # noqa: C901
                     # Create basic snapshot without broker reconciliation
                     try:
                         from decimal import Decimal
+
                         with DatabaseContext("write") as cur:
                             # Count actual open positions from database
                             cur.execute("SELECT COUNT(*) as open_count FROM algo_positions WHERE status = 'open'")
@@ -749,18 +750,24 @@ def run(  # noqa: C901
                             total_cash = total_value - total_invested
 
                             # Calculate daily return vs previous day
-                            cur.execute("""
+                            cur.execute(
+                                """
                                 SELECT total_portfolio_value
                                 FROM algo_portfolio_snapshots
                                 WHERE snapshot_date < %s
                                 ORDER BY snapshot_date DESC LIMIT 1
-                            """, (run_date,))
+                            """,
+                                (run_date,),
+                            )
                             prev_row = cur.fetchone()
                             prev_value = Decimal(prev_row[0]) if prev_row and prev_row[0] else Decimal("100000.00")
-                            daily_return_pct = ((total_value - prev_value) / prev_value * 100) if prev_value > 0 else Decimal(0)
+                            daily_return_pct = (
+                                ((total_value - prev_value) / prev_value * 100) if prev_value > 0 else Decimal(0)
+                            )
 
                             # Create snapshot with actual position count and portfolio value
-                            cur.execute("""
+                            cur.execute(
+                                """
                                 INSERT INTO algo_portfolio_snapshots (
                                     snapshot_date, total_portfolio_value, total_cash,
                                     position_count, daily_return_pct, created_at
@@ -771,49 +778,67 @@ def run(  # noqa: C901
                                     position_count = EXCLUDED.position_count,
                                     daily_return_pct = EXCLUDED.daily_return_pct,
                                     updated_at = NOW()
-                            """, (
-                                run_date,
-                                total_value,
-                                total_cash,
-                                open_position_count,
-                                daily_return_pct,
-                            ))
+                            """,
+                                (
+                                    run_date,
+                                    total_value,
+                                    total_cash,
+                                    open_position_count,
+                                    daily_return_pct,
+                                ),
+                            )
                         log_phase_result_fn(9, "portfolio_snapshot", "success", "snapshot created from DB state")
                     except Exception as snapshot_err:
                         logger.warning(f"[PHASE 9] Could not create portfolio snapshot: {snapshot_err}")
-                        log_phase_result_fn(9, "portfolio_snapshot", "warn", f"snapshot creation failed: {str(snapshot_err)[:60]}")
+                        log_phase_result_fn(
+                            9, "portfolio_snapshot", "warn", f"snapshot creation failed: {str(snapshot_err)[:60]}"
+                        )
 
                     # Create snapshot from database state BEFORE returning
                     logger.info("[PHASE 9] Paper mode: Creating snapshot from database state")
                     try:
                         from decimal import Decimal
+
                         logger.info("[PHASE 9] Paper mode: Starting snapshot creation in DatabaseContext")
                         with DatabaseContext("write") as cur:
                             logger.info("[PHASE 9] Paper mode: DatabaseContext opened, role=write")
                             # Get previous value
-                            cur.execute("SELECT total_portfolio_value FROM algo_portfolio_snapshots WHERE snapshot_date < %s ORDER BY snapshot_date DESC LIMIT 1", (run_date,))
+                            cur.execute(
+                                "SELECT total_portfolio_value FROM algo_portfolio_snapshots WHERE snapshot_date < %s ORDER BY snapshot_date DESC LIMIT 1",
+                                (run_date,),
+                            )
                             prev_row = cur.fetchone()
                             prev_value = Decimal(prev_row[0]) if prev_row and prev_row[0] else Decimal("100000.00")
                             logger.info(f"[PHASE 9] Paper mode: Previous value={prev_value}")
 
                             # Count actual positions and calculate portfolio value
-                            cur.execute("SELECT COUNT(*) as open_count FROM algo_positions WHERE status = %s", ('open',))
+                            cur.execute(
+                                "SELECT COUNT(*) as open_count FROM algo_positions WHERE status = %s", ("open",)
+                            )
                             pos_row = cur.fetchone()
                             pos_count = pos_row[0] if pos_row else 0
                             logger.info(f"[PHASE 9] Paper mode: Position count={pos_count}")
 
-                            cur.execute("SELECT COALESCE(SUM(position_value), 0) as total, COALESCE(SUM(unrealized_pnl), 0) as pnl FROM algo_positions WHERE status = %s", ('open',))
+                            cur.execute(
+                                "SELECT COALESCE(SUM(position_value), 0) as total, COALESCE(SUM(unrealized_pnl), 0) as pnl FROM algo_positions WHERE status = %s",
+                                ("open",),
+                            )
                             pos_data = cur.fetchone()
                             total_invested = Decimal(str(pos_data[0])) if pos_data else Decimal(0)
                             unrealized_pnl = Decimal(str(pos_data[1])) if pos_data else Decimal(0)
                             logger.info(f"[PHASE 9] Paper mode: Invested={total_invested}, Unrealized={unrealized_pnl}")
 
                             current_value = Decimal("100000.00") + unrealized_pnl
-                            daily_return = ((current_value - prev_value) / prev_value * 100) if prev_value > 0 else Decimal(0)
-                            logger.info(f"[PHASE 9] Paper mode: Current value={current_value}, Daily return={daily_return}%")
+                            daily_return = (
+                                ((current_value - prev_value) / prev_value * 100) if prev_value > 0 else Decimal(0)
+                            )
+                            logger.info(
+                                f"[PHASE 9] Paper mode: Current value={current_value}, Daily return={daily_return}%"
+                            )
 
                             logger.info("[PHASE 9] Paper mode: Executing INSERT statement")
-                            cur.execute("""
+                            cur.execute(
+                                """
                                 INSERT INTO algo_portfolio_snapshots (snapshot_date, total_portfolio_value, total_cash, position_count, daily_return_pct, created_at)
                                 VALUES (%s, %s, %s, %s, %s, NOW())
                                 ON CONFLICT (snapshot_date) DO UPDATE
@@ -822,10 +847,14 @@ def run(  # noqa: C901
                                     position_count = EXCLUDED.position_count,
                                     daily_return_pct = EXCLUDED.daily_return_pct,
                                     updated_at = NOW()
-                            """, (run_date, current_value, current_value - total_invested, pos_count, daily_return))
+                            """,
+                                (run_date, current_value, current_value - total_invested, pos_count, daily_return),
+                            )
                             logger.info("[PHASE 9] Paper mode: INSERT complete, exiting DatabaseContext to commit")
 
-                            logger.info(f"[PHASE 9] Paper mode snapshot created: positions={pos_count}, value=${current_value:.2f}")
+                            logger.info(
+                                f"[PHASE 9] Paper mode snapshot created: positions={pos_count}, value=${current_value:.2f}"
+                            )
                     except Exception as snap_err:
                         logger.warning(f"[PHASE 9] Paper mode snapshot creation failed: {snap_err}", exc_info=True)
 
@@ -865,18 +894,24 @@ def run(  # noqa: C901
 
         # CREATE PORTFOLIO SNAPSHOT from reconciliation result
         # This MUST happen after reconciliation to capture accurate state
-        logger.info(f"[PHASE 9] Creating snapshot: reconciliation_succeeded={reconciliation_succeeded}, result={result}")
+        logger.info(
+            f"[PHASE 9] Creating snapshot: reconciliation_succeeded={reconciliation_succeeded}, result={result}"
+        )
         try:
             from decimal import Decimal
+
             with DatabaseContext("write") as cur:
                 logger.info("[PHASE 9] Snapshot: Database connection established")
                 # Get previous portfolio value for daily return calculation
-                cur.execute("""
+                cur.execute(
+                    """
                     SELECT total_portfolio_value
                     FROM algo_portfolio_snapshots
                     WHERE snapshot_date < %s
                     ORDER BY snapshot_date DESC LIMIT 1
-                """, (run_date,))
+                """,
+                    (run_date,),
+                )
                 prev_row = cur.fetchone()
                 prev_value = Decimal(prev_row[0]) if prev_row and prev_row[0] else Decimal("100000.00")
                 logger.info(f"[PHASE 9] Snapshot: Previous value={prev_value}")
@@ -891,7 +926,8 @@ def run(  # noqa: C901
                 cash = current_value - unrealized
 
                 logger.info(f"[PHASE 9] Snapshot: Executing INSERT with position_count={pos_count}, cash={cash}")
-                cur.execute("""
+                cur.execute(
+                    """
                     INSERT INTO algo_portfolio_snapshots (
                         snapshot_date, total_portfolio_value, total_cash,
                         position_count, daily_return_pct, created_at
@@ -902,18 +938,26 @@ def run(  # noqa: C901
                         position_count = EXCLUDED.position_count,
                         daily_return_pct = EXCLUDED.daily_return_pct,
                         updated_at = NOW()
-                """, (
-                    run_date,
-                    current_value,
-                    cash,
-                    pos_count,
-                    daily_return_pct,
-                ))
+                """,
+                    (
+                        run_date,
+                        current_value,
+                        cash,
+                        pos_count,
+                        daily_return_pct,
+                    ),
+                )
                 logger.info("[PHASE 9] Snapshot: INSERT executed, exiting DatabaseContext to trigger commit")
 
-                logger.info(f"[PHASE 9 SNAPSHOT] Created: portfolio=${current_value:.2f}, positions={result.get('positions', 0)}")
-                log_phase_result_fn(9, "portfolio_snapshot", "success",
-                    f"snapshot created: ${current_value:.2f}, {result.get('positions', 0)} positions")
+                logger.info(
+                    f"[PHASE 9 SNAPSHOT] Created: portfolio=${current_value:.2f}, positions={result.get('positions', 0)}"
+                )
+                log_phase_result_fn(
+                    9,
+                    "portfolio_snapshot",
+                    "success",
+                    f"snapshot created: ${current_value:.2f}, {result.get('positions', 0)} positions",
+                )
         except Exception as snapshot_err:
             logger.warning(f"[PHASE 9 SNAPSHOT] Failed to create snapshot: {snapshot_err}", exc_info=True)
             log_phase_result_fn(9, "portfolio_snapshot", "warn", f"snapshot failed: {str(snapshot_err)[:60]}")
@@ -1048,14 +1092,14 @@ def run(  # noqa: C901
                         "portfolio_value": 100000.0,
                         "positions": 0,
                         "unrealized_pnl": 0.0,
-                        "note": "Paper mode - broker auth failed, using database state"
+                        "note": "Paper mode - broker auth failed, using database state",
                     }
                 else:
                     logger.critical(
                         "[PHASE 9] CRITICAL: Broker authentication failed (401). "
                         "Reconciliation cannot proceed - cannot verify position alignment. "
-                    "This is NOT EXPECTED in production. Check Alpaca credentials."
-                )
+                        "This is NOT EXPECTED in production. Check Alpaca credentials."
+                    )
                 phase_status = "error"  # Fail explicitly - don't mask auth errors as "ok"
             else:
                 logger.error(f"[PHASE 9] CRITICAL: Reconciliation failed: {error_msg}")
@@ -1076,7 +1120,7 @@ def run(  # noqa: C901
             f"[PHASE 9 CRITICAL] Unexpected error ({error_type}): {error_msg}. "
             "Full traceback above. Cannot proceed with trading when portfolio state is unknown. "
             "Setting halt flag to prevent further trading until broker is accessible.",
-            exc_info=True
+            exc_info=True,
         )
         # CRITICAL: Include full traceback in summary so it persists to execution log
         error_summary = f"{error_type}: {error_msg[:100]}\n{full_traceback[:500]}"

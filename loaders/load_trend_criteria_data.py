@@ -247,10 +247,7 @@ def run() -> dict:  # type: ignore[type-arg]
         )
 
         # Convert pandas NA/NaN values to None for psycopg2 compatibility
-        rows = [
-            tuple(None if pd.isna(val) else val for val in row)
-            for row in rows
-        ]
+        rows = [tuple(None if pd.isna(val) else val for val in row) for row in rows]
 
         with DatabaseContext("write") as write_cur:
             inserted = _upsert_batch(write_cur, rows)

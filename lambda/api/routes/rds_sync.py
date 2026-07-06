@@ -42,7 +42,7 @@ def handle(
             FROM stock_scores
             WHERE growth_score IS NOT NULL
         """)
-        count = cur.fetchone()['cnt']
+        count = cur.fetchone()["cnt"]
 
         if count == 0:
             return error_response(400, "no_data", "No growth_score data to sync")
@@ -58,9 +58,9 @@ def handle(
             "instructions": [
                 "1. Use AWS RDS Query Editor",
                 "2. Or use local psycopg2 to RDS endpoint",
-                "3. See: lambda/api/routes/rds_sync.py for SQL generation"
+                "3. See: lambda/api/routes/rds_sync.py for SQL generation",
             ],
-            "temporary_workaround": "Dashboard can query local database directly for growth_scores until RDS syncs"
+            "temporary_workaround": "Dashboard can query local database directly for growth_scores until RDS syncs",
         }
 
     except Exception as e:

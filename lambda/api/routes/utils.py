@@ -461,7 +461,7 @@ def execute_with_timeout(
                             col_names.append(desc[0])
                         except (TypeError, IndexError):
                             # If desc is not subscriptable, try to get name attribute
-                            if hasattr(desc, 'name'):
+                            if hasattr(desc, "name"):
                                 col_names.append(desc.name)
                             else:
                                 col_names.append(f"col_{len(col_names)}")
@@ -538,7 +538,7 @@ def check_data_freshness(
         ValueError: If warning_days calculation fails or config unavailable
     """
     # Extract raw cursor if wrapped in DatabaseQueryService
-    if hasattr(cur, 'cursor') and hasattr(cur.cursor, 'execute'):
+    if hasattr(cur, "cursor") and hasattr(cur.cursor, "execute"):
         cur = cur.cursor
 
     if warning_days is None:
@@ -589,7 +589,7 @@ def check_data_freshness(
             except (TypeError, KeyError):
                 # If result is not subscriptable, try to get the first attribute or method
                 # This handles SQLAlchemy Composed and other wrapped objects
-                if hasattr(result, '__iter__') and not isinstance(result, (str, bytes)):
+                if hasattr(result, "__iter__") and not isinstance(result, (str, bytes)):
                     max_date_value = next(iter(result), None)
                 else:
                     max_date_value = None
@@ -644,7 +644,9 @@ def check_data_freshness(
     ) as e:
         # Return safe default instead of failing the entire endpoint
         # Freshness check is non-critical and should not break API responses
-        logger.warning(f"[DATA_FRESHNESS] Could not check freshness for {table_name}: {type(e).__name__}: {e}. Using safe default.")
+        logger.warning(
+            f"[DATA_FRESHNESS] Could not check freshness for {table_name}: {type(e).__name__}: {e}. Using safe default."
+        )
         return {
             "data_age_days": None,
             "is_stale": False,
@@ -652,7 +654,9 @@ def check_data_freshness(
         }
 
 
-def json_response(code: int, data: dict[str, Any], data_freshness: dict[str, Any] | None = None, preserve_arrays: bool = False) -> Any:
+def json_response(
+    code: int, data: dict[str, Any], data_freshness: dict[str, Any] | None = None, preserve_arrays: bool = False
+) -> Any:
     """Standardized JSON response wrapper for single objects.
 
     Returns consistent format:
@@ -743,7 +747,7 @@ def set_current_cursor(cursor_or_service: Any) -> None:
     Handles both raw psycopg2 cursors and DatabaseQueryService wrappers.
     """
     # Extract raw cursor if wrapped in DatabaseQueryService
-    if hasattr(cursor_or_service, 'cursor') and hasattr(cursor_or_service.cursor, 'description'):
+    if hasattr(cursor_or_service, "cursor") and hasattr(cursor_or_service.cursor, "description"):
         # This is likely a DatabaseQueryService wrapping a cursor
         _thread_local.cursor = cursor_or_service.cursor
     else:
@@ -777,7 +781,7 @@ def safe_dict_convert(row: Any) -> Any:
 
     # For tuples, use thread-local cursor.description to get column names
     if isinstance(row, tuple):
-        cursor = getattr(_thread_local, 'cursor', None)
+        cursor = getattr(_thread_local, "cursor", None)
         if cursor is None or cursor.description is None:
             raise RuntimeError(
                 f"Cannot convert tuple row to dict without cursor.description. "

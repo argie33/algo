@@ -1764,7 +1764,7 @@ class AlgoConfig:
             if eod_threshold > 600:
                 logger.critical(
                     f"Config: loader_rate_limit_circuit_break_threshold_eod ({eod_threshold}s = "
-                    f"{eod_threshold/60:.0f} min) exceeds safe limit (600s = 10 min). "
+                    f"{eod_threshold / 60:.0f} min) exceeds safe limit (600s = 10 min). "
                     f"EOD window is only 85 min total. Reduce to <= 600s to ensure completion."
                 )
 

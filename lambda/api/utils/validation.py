@@ -10,9 +10,7 @@ class DatabaseResultValidator:
     """Utility class for safely extracting typed values from database results."""
 
     @staticmethod
-    def safe_get_str(
-        data: dict[str, Any], key: str, default: str | None = None, strict: bool = False
-    ) -> str | None:
+    def safe_get_str(data: dict[str, Any], key: str, default: str | None = None, strict: bool = False) -> str | None:
         """Safely extract a string value from a database result.
 
         Args:

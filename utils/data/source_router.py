@@ -281,7 +281,7 @@ class DataSourceRouter:
             return {
                 "data_unavailable": True,
                 "reason": "yfinance_not_installed",
-                "details": "yfinance library required for price history download"
+                "details": "yfinance library required for price history download",
             }
         logger.debug(f"[yfinance] Fetching {symbol} from {start} to {end} interval={interval}")
         yf_symbol = symbol.replace(".", "-") if "." in symbol else symbol
@@ -541,7 +541,7 @@ class DataSourceRouter:
                         "data_unavailable": True,
                         "reason": "ticker_fetch_failed",
                         "symbol": symbol,
-                        "details": "Could not fetch ticker (API error, rate limit, or invalid symbol)"
+                        "details": "Could not fetch ticker (API error, rate limit, or invalid symbol)",
                     }
                 return ticker.balance_sheet if period == "annual" else ticker.quarterly_balance_sheet
 
@@ -569,7 +569,7 @@ class DataSourceRouter:
                         "data_unavailable": True,
                         "reason": "ticker_fetch_failed",
                         "symbol": symbol,
-                        "details": "Could not fetch ticker (API error, rate limit, or invalid symbol)"
+                        "details": "Could not fetch ticker (API error, rate limit, or invalid symbol)",
                     }
                 return ticker.income_stmt if period == "annual" else ticker.quarterly_income_stmt
 
@@ -597,7 +597,7 @@ class DataSourceRouter:
                         "data_unavailable": True,
                         "reason": "ticker_fetch_failed",
                         "symbol": symbol,
-                        "details": "Could not fetch ticker (API error, rate limit, or invalid symbol)"
+                        "details": "Could not fetch ticker (API error, rate limit, or invalid symbol)",
                     }
                 return ticker.cashflow if period == "annual" else ticker.quarterly_cashflow
 
@@ -633,7 +633,7 @@ class DataSourceRouter:
                         "data_unavailable": True,
                         "reason": "ticker_fetch_failed",
                         "symbol": symbol,
-                        "details": "Could not fetch ticker (API error, rate limit, or invalid symbol)"
+                        "details": "Could not fetch ticker (API error, rate limit, or invalid symbol)",
                     }
 
                 df: Any = None
@@ -709,7 +709,7 @@ class DataSourceRouter:
                         "data_unavailable": True,
                         "reason": "ticker_fetch_failed",
                         "symbol": symbol,
-                        "details": "Could not fetch ticker (API error, rate limit, or invalid symbol)"
+                        "details": "Could not fetch ticker (API error, rate limit, or invalid symbol)",
                     }
                 return ticker.eps_revisions
 
@@ -744,7 +744,7 @@ class DataSourceRouter:
                         "data_unavailable": True,
                         "reason": "ticker_fetch_failed",
                         "symbol": symbol,
-                        "details": "Could not fetch ticker (API error, rate limit, or invalid symbol)"
+                        "details": "Could not fetch ticker (API error, rate limit, or invalid symbol)",
                     }
                 return ticker.eps_trend
 

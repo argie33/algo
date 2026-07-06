@@ -60,7 +60,9 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
         _positions_cache["data"] is not None
         and (current_time - _positions_cache["timestamp"]) < _positions_cache["cache_ttl_seconds"]
     ):
-        logger.info(f"[POSITIONS] Returning cached response (age: {int(current_time - _positions_cache['timestamp'])}s)")
+        logger.info(
+            f"[POSITIONS] Returning cached response (age: {int(current_time - _positions_cache['timestamp'])}s)"
+        )
         return _positions_cache["data"]
 
     cur.execute("SET LOCAL statement_timeout = '10000ms'")
@@ -390,11 +392,11 @@ def _get_algo_status(cur: cursor) -> Any:
     # If no audit log, use sensible defaults
     if row is None:
         row = {
-            'run_id': 'not_started',
-            'action_type': 'INIT',
-            'action_date': None,
-            'message': 'No trading activity yet',
-            'status': 'ready',
+            "run_id": "not_started",
+            "action_type": "INIT",
+            "action_date": None,
+            "message": "No trading activity yet",
+            "status": "ready",
         }
 
     # Try to get portfolio snapshot; use defaults if missing
@@ -409,11 +411,11 @@ def _get_algo_status(cur: cursor) -> Any:
         if snap is None:
             # No portfolio snapshots yet - use defaults
             snap = {
-                'total_portfolio_value': 0.0,
-                'total_cash': 0.0,
-                'daily_return_pct': 0.0,
-                'unrealized_pnl_total': 0.0,
-                'position_count': 0,
+                "total_portfolio_value": 0.0,
+                "total_cash": 0.0,
+                "daily_return_pct": 0.0,
+                "unrealized_pnl_total": 0.0,
+                "position_count": 0,
             }
 
         pv = float(snap.get("total_portfolio_value") or 0.0)
@@ -428,7 +430,9 @@ def _get_algo_status(cur: cursor) -> Any:
             "total_portfolio_value": format_decimal_string(pv, precision=2, allow_none=True),
             "total_cash": format_decimal_string(tc_float, precision=2),
             "position_count": int(snap.get("position_count") or 0),
-            "daily_return_pct": format_decimal_string(float(snap.get("daily_return_pct") or 0.0), precision=2, allow_none=True),
+            "daily_return_pct": format_decimal_string(
+                float(snap.get("daily_return_pct") or 0.0), precision=2, allow_none=True
+            ),
             "unrealized_pnl_pct": format_decimal_string(
                 unrealized_pnl_pct,
                 precision=2,
@@ -615,6 +619,7 @@ def _get_circuit_breakers(cur: cursor) -> Any:  # noqa: C901
                 # check_date is a trading date in ET timezone; convert to datetime at midnight ET
                 from datetime import datetime as dt
                 from zoneinfo import ZoneInfo
+
                 et = ZoneInfo("America/New_York")
                 computed_at = dt.combine(check_date, dt.min.time()).replace(tzinfo=et)
                 now_et = datetime.now(et)

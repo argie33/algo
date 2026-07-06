@@ -315,7 +315,7 @@ class StockScoresLoader(OptimalLoader):
             if data_count < 6 and data_count >= 3:
                 missing = sorted([k for k, v in all_scores.items() if not is_real_score(v)])
                 logger.warning(
-                    f"[STOCK_SCORES] {symbol}: Score computed with {data_count}/6 metrics ({100.0*data_count/6:.0f}% complete). "
+                    f"[STOCK_SCORES] {symbol}: Score computed with {data_count}/6 metrics ({100.0 * data_count / 6:.0f}% complete). "
                     f"Missing: {', '.join(missing)}. This may introduce bias if critical factors are missing. "
                     f"Check upstream metric loaders for failures."
                 )

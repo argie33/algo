@@ -129,9 +129,7 @@ class OrchestratorPhaseExecutor:
 
             for dep in phase.dependencies:
                 if dep not in self.phases:
-                    errors.append(
-                        f"Phase {phase_num} ({phase.phase_name}) depends on unregistered phase {dep}"
-                    )
+                    errors.append(f"Phase {phase_num} ({phase.phase_name}) depends on unregistered phase {dep}")
 
         if errors:
             logger.error(f"[PHASE VALIDATION FAILED] {len(errors)} issues found:")

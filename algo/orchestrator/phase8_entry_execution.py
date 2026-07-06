@@ -491,9 +491,7 @@ def run(
             alpaca_key = creds["key"]
             alpaca_secret = creds["secret"]
         else:
-            logger.warning(
-                "[PHASE 8] Alpaca credentials not configured - will use paper trading mode"
-            )
+            logger.warning("[PHASE 8] Alpaca credentials not configured - will use paper trading mode")
     except (RuntimeError, ValueError, KeyError) as e:
         # Credentials unavailable - will use paper trading mode
         logger.warning(

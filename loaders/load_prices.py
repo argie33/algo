@@ -1912,7 +1912,9 @@ class PriceLoader(OptimalLoader):
                         new_watermark=datetime.now(timezone.utc).date(),
                         watermark_mgr=self._watermark,
                     )
-                    logger.warning(f"[{self.table_name}] {symbol}: Marked as data_unavailable (no valid prices after validation)")
+                    logger.warning(
+                        f"[{self.table_name}] {symbol}: Marked as data_unavailable (no valid prices after validation)"
+                    )
                 except Exception as e:
                     logger.warning(f"[{self.table_name}] {symbol}: Could not mark as unavailable: {e} (continuing)")
 

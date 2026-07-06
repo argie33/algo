@@ -282,7 +282,9 @@ class FredEconomicDataLoader(OptimalLoader):
                     series_rows = [r for r in all_rows if r.get("series_id") == series_id]
                     for row in series_rows:
                         row["data_unavailable"] = is_data_unavailable
-                        row["data_unavailable_reason"] = f"coverage_pct_{coverage_pct:.1f}_below_80_threshold" if is_data_unavailable else None
+                        row["data_unavailable_reason"] = (
+                            f"coverage_pct_{coverage_pct:.1f}_below_80_threshold" if is_data_unavailable else None
+                        )
                         row["coverage_pct"] = coverage_pct
 
                     # Validate freshness after successful fetch (REQUIRED: economic data drives market exposure)

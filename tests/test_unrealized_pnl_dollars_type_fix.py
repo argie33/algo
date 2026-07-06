@@ -23,14 +23,14 @@ class TestUnrealizedPNLDollarsContract:
     def test_unrealized_pnl_dollars_in_optional_fields(self):
         """Field must be in optional_fields list."""
         port_schema = DASHBOARD_ENDPOINTS["port"]["response_schema"]
-        assert "unrealized_pnl_dollars" in port_schema.optional_fields, \
+        assert "unrealized_pnl_dollars" in port_schema.optional_fields, (
             "unrealized_pnl_dollars must be in optional_fields"
+        )
 
     def test_unrealized_pnl_dollars_in_field_types(self):
         """Field must have type specification."""
         port_schema = DASHBOARD_ENDPOINTS["port"]["response_schema"]
-        assert "unrealized_pnl_dollars" in port_schema.field_types, \
-            "unrealized_pnl_dollars must be in field_types dict"
+        assert "unrealized_pnl_dollars" in port_schema.field_types, "unrealized_pnl_dollars must be in field_types dict"
 
     def test_unrealized_pnl_dollars_type_is_numeric_or_none(self):
         """Type must be float, int, or None (NOT str)."""
@@ -38,9 +38,9 @@ class TestUnrealizedPNLDollarsContract:
         expected_type = (float, int, type(None))
         actual_type = port_schema.field_types["unrealized_pnl_dollars"]
 
-        assert actual_type == expected_type, \
-            f"Expected {expected_type}, got {actual_type}. " \
-            f"String type should NOT be allowed (was the bug)."
+        assert actual_type == expected_type, (
+            f"Expected {expected_type}, got {actual_type}. String type should NOT be allowed (was the bug)."
+        )
 
 
 class TestUnrealizedPNLDollarsValue:
@@ -97,8 +97,7 @@ class TestUnrealizedPNLDollarsValue:
 
         for input_val, expected in test_cases:
             result = round(input_val, 2)
-            assert result == expected, \
-                f"round({input_val}, 2) should be {expected}, got {result}"
+            assert result == expected, f"round({input_val}, 2) should be {expected}, got {result}"
             assert isinstance(result, float)
 
 

@@ -216,9 +216,7 @@ class TestExtraFieldsValidation:
 
         for endpoint, response in test_cases:
             is_valid, error_msg = ResponseValidator.validate_endpoint_response(endpoint, response)
-            assert (
-                not is_valid
-            ), f"Endpoint {endpoint} should reject extra fields. Response: {response}"
+            assert not is_valid, f"Endpoint {endpoint} should reject extra fields. Response: {response}"
             assert "extra" in error_msg, f"Error message should mention 'extra' for {endpoint}"
 
 
@@ -284,9 +282,9 @@ class TestPerformanceEndpointFix:
         }
         is_valid, error_msg = ResponseValidator.validate_endpoint_response("perf", response)
         # Should pass (this example doesn't have the removed fields)
-        assert is_valid or "win_rate_pct_adjusted" not in str(
-            error_msg
-        ), "Performance endpoint fix should work without win_rate_pct_adjusted"
+        assert is_valid or "win_rate_pct_adjusted" not in str(error_msg), (
+            "Performance endpoint fix should work without win_rate_pct_adjusted"
+        )
 
     def test_performance_endpoint_no_portfolio_snapshots(self):
         """Performance endpoint should not include portfolio_snapshots."""
@@ -298,9 +296,9 @@ class TestPerformanceEndpointFix:
             # "portfolio_snapshots": 150,
         }
         is_valid, error_msg = ResponseValidator.validate_endpoint_response("perf", response)
-        assert is_valid or "portfolio_snapshots" not in str(
-            error_msg
-        ), "Performance endpoint fix should work without portfolio_snapshots"
+        assert is_valid or "portfolio_snapshots" not in str(error_msg), (
+            "Performance endpoint fix should work without portfolio_snapshots"
+        )
 
     def test_performance_endpoint_no_confidence_metadata(self):
         """Performance endpoint should not include confidence_metadata dict."""
@@ -315,9 +313,9 @@ class TestPerformanceEndpointFix:
             # },
         }
         is_valid, error_msg = ResponseValidator.validate_endpoint_response("perf", response)
-        assert is_valid or "confidence_metadata" not in str(
-            error_msg
-        ), "Performance endpoint fix should work without confidence_metadata"
+        assert is_valid or "confidence_metadata" not in str(error_msg), (
+            "Performance endpoint fix should work without confidence_metadata"
+        )
 
 
 class TestValidationWithSanitizedResponse:
@@ -345,9 +343,7 @@ class TestValidationWithSanitizedResponse:
             "losing_trades": 40,
             "extra_field": "should_be_caught",
         }
-        is_valid, error_msg, _ = ResponseValidator.validate_and_sanitize(
-            "perf", response, strict=False
-        )
+        is_valid, error_msg, _ = ResponseValidator.validate_and_sanitize("perf", response, strict=False)
         assert not is_valid, "Should detect extra field"
         assert "extra_field" in error_msg
 

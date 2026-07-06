@@ -168,7 +168,7 @@ class GrowthMetricsLoader(SecFinancialsLoader):
                         else:
                             # Same sign: calculate CAGR normally
                             ratio = latest_rev_f / prev_rev_f
-                            rev_growth = (((ratio ** (1.0 / lookback)) - 1) * 100)
+                            rev_growth = ((ratio ** (1.0 / lookback)) - 1) * 100
                             metrics[f"revenue_growth_{lookback}y"] = float(round(rev_growth, 2))
                             metrics[f"revenue_growth_{lookback}y_unavailable_reason"] = None
                     else:
@@ -212,7 +212,7 @@ class GrowthMetricsLoader(SecFinancialsLoader):
                         else:
                             # Same sign: calculate CAGR normally
                             ratio = latest_eps_f / prev_eps_f
-                            eps_growth = (((ratio ** (1.0 / lookback)) - 1) * 100)
+                            eps_growth = ((ratio ** (1.0 / lookback)) - 1) * 100
                             metrics[f"eps_growth_{lookback}y"] = float(round(eps_growth, 2))
                             metrics[f"eps_growth_{lookback}y_unavailable_reason"] = None
                     else:

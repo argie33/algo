@@ -38,7 +38,7 @@ def handle(
             return error_response(405, "method_not_allowed", "Only POST allowed")
 
         # Check authorization
-        if not jwt_claims or jwt_claims.get('role') != 'admin':
+        if not jwt_claims or jwt_claims.get("role") != "admin":
             logger.warning("[SYNC_SCORES] Unauthorized sync attempt")
             return error_response(403, "forbidden", "Admin access required")
 
@@ -51,8 +51,8 @@ def handle(
             WHERE growth_score IS NOT NULL
         """)
         current = cur.fetchone()
-        current_count = current['cnt']
-        current_date = current['latest']
+        current_count = current["cnt"]
+        current_date = current["latest"]
 
         if current_count < 3000:
             # RDS doesn't have fresh data, need to load it
@@ -61,10 +61,7 @@ def handle(
             # Attempt to trigger load_stock_scores via ECS
             try:
                 result = subprocess.run(
-                    [sys.executable, "-m", "loaders.load_stock_scores"],
-                    capture_output=True,
-                    text=True,
-                    timeout=600
+                    [sys.executable, "-m", "loaders.load_stock_scores"], capture_output=True, text=True, timeout=600
                 )
 
                 if result.returncode == 0:
@@ -82,8 +79,8 @@ def handle(
                         "statusCode": 200,
                         "message": "Stock scores synced successfully",
                         "before": {"count": current_count, "date": str(current_date)},
-                        "after": {"count": after['cnt'], "date": str(after['latest'])},
-                        "records_added": after['cnt'] - current_count
+                        "after": {"count": after["cnt"], "date": str(after["latest"])},
+                        "records_added": after["cnt"] - current_count,
                     }
                 else:
                     logger.error(f"[SYNC_SCORES] Loader failed: {result.stderr[:200]}")
@@ -101,7 +98,7 @@ def handle(
                 "statusCode": 200,
                 "message": "RDS already has fresh stock_scores",
                 "count": current_count,
-                "latest_date": str(current_date)
+                "latest_date": str(current_date),
             }
 
     except Exception as e:

@@ -116,9 +116,7 @@ def run(
                     return PhaseResult(6, "exit_execution", "ok", {}, False, None)
                 else:
                     # Live trading mode requires credentials
-                    raise RuntimeError(
-                        f"[PHASE 6 CRITICAL] Live trading mode requires Alpaca credentials: {e}"
-                    ) from e
+                    raise RuntimeError(f"[PHASE 6 CRITICAL] Live trading mode requires Alpaca credentials: {e}") from e
             else:
                 raise
         exit_count = 0

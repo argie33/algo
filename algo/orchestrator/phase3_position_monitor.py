@@ -55,7 +55,7 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
             "ok",  # Return "ok" status so phases 4-8 can execute
             {"recommendations": [], "count": 0},
             False,  # halted=False ensures downstream phases proceed
-            None
+            None,
         )
 
     try:
@@ -104,7 +104,9 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                     # Check for error response from halt check
                     if "error" in halt_check:
                         error_reason = halt_check.get("reason", "unknown")
-                        logger.warning(f"[PHASE 3] {symbol}: halt check failed ({error_reason}) — continuing with caution")
+                        logger.warning(
+                            f"[PHASE 3] {symbol}: halt check failed ({error_reason}) — continuing with caution"
+                        )
                         halt_check_errors.append((symbol, error_reason))
                         continue
 
@@ -114,7 +116,9 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                         if verbose:
                             logger.warning(f"  [WARN] {symbol} halted — pending orders cancelled")
                 except Exception as halt_exc:
-                    logger.warning(f"[PHASE 3] Unexpected error checking halt status for {symbol}: {type(halt_exc).__name__}: {halt_exc}")
+                    logger.warning(
+                        f"[PHASE 3] Unexpected error checking halt status for {symbol}: {type(halt_exc).__name__}: {halt_exc}"
+                    )
                     halt_check_errors.append((symbol, f"exception: {type(halt_exc).__name__}"))
                     continue
 

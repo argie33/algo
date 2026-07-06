@@ -33,7 +33,12 @@ def handle(
 ) -> Any:
     """Handle /api/scores/* and /api/algo/scores/* endpoints."""
     try:
-        if path in ["/api/scores", "/api/scores/stockscores", "/api/algo/scores", "/api/algo/scores/stockscores"] or path.startswith(
+        if path in [
+            "/api/scores",
+            "/api/scores/stockscores",
+            "/api/algo/scores",
+            "/api/algo/scores/stockscores",
+        ] or path.startswith(
             ("/api/scores?", "/api/scores/stockscores?", "/api/algo/scores?", "/api/algo/scores/stockscores?")
         ):
             limit = safe_limit(extract_param(params, "limit"), max_val=1000, default=1000)

@@ -108,7 +108,8 @@ def _industry_list(cur: cursor, params: dict[str, Any]) -> Any:
     from utils.validation import DatabaseResultValidator
 
     try:
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 industry,
                 current_rank,
@@ -120,7 +121,9 @@ def _industry_list(cur: cursor, params: dict[str, Any]) -> Any:
             WHERE date_recorded = (SELECT MAX(date_recorded) FROM industry_ranking)
             ORDER BY current_rank
             LIMIT %s OFFSET %s
-        """, (limit, offset))
+        """,
+            (limit, offset),
+        )
 
         industry_ranking_data = cur.fetchall()
     except Exception as e:
@@ -150,35 +153,41 @@ def _industry_list(cur: cursor, params: dict[str, Any]) -> Any:
         rank_12w = DatabaseResultValidator.safe_get_int(row, "rank_12w_ago", default=0)
 
         momentum_label = (
-            "Strong" if momentum is not None and momentum >= 60
-            else "Moderate" if momentum is not None and momentum >= 45
+            "Strong"
+            if momentum is not None and momentum >= 60
+            else "Moderate"
+            if momentum is not None and momentum >= 45
             else "Weak"
         )
 
-        industries.append({
-            "industry": industry,
-            "sector": "",
-            "current_rank": current_rank,
-            "overall_rank": current_rank,
-            "rank_1w_ago": rank_1w if rank_1w else None,
-            "rank_4w_ago": rank_4w if rank_4w else None,
-            "rank_12w_ago": rank_12w if rank_12w else None,
-            "stock_count": None,
-            "composite_score": momentum,
-            "momentum_score": momentum,
-            "value_score": None,
-            "quality_score": None,
-            "growth_score": None,
-            "stability_score": None,
-            "performance_1d": None,
-            "performance_5d": None,
-            "performance_20d": None,
-            "current_momentum": momentum_label,
-            "current_trend": "Sideways",
-            "pe": {"trailing": None, "percentile": None},
-        })
+        industries.append(
+            {
+                "industry": industry,
+                "sector": "",
+                "current_rank": current_rank,
+                "overall_rank": current_rank,
+                "rank_1w_ago": rank_1w if rank_1w else None,
+                "rank_4w_ago": rank_4w if rank_4w else None,
+                "rank_12w_ago": rank_12w if rank_12w else None,
+                "stock_count": None,
+                "composite_score": momentum,
+                "momentum_score": momentum,
+                "value_score": None,
+                "quality_score": None,
+                "growth_score": None,
+                "stability_score": None,
+                "performance_1d": None,
+                "performance_5d": None,
+                "performance_20d": None,
+                "current_momentum": momentum_label,
+                "current_trend": "Sideways",
+                "pe": {"trailing": None, "percentile": None},
+            }
+        )
 
-    cur.execute("SELECT COUNT(DISTINCT industry) FROM industry_ranking WHERE date_recorded = (SELECT MAX(date_recorded) FROM industry_ranking)")
+    cur.execute(
+        "SELECT COUNT(DISTINCT industry) FROM industry_ranking WHERE date_recorded = (SELECT MAX(date_recorded) FROM industry_ranking)"
+    )
     total_row = cur.fetchone()
     total = total_row["count"] if total_row else len(industries)
 
@@ -262,7 +271,9 @@ def _industry_detail(cur: cursor, industry_name: str) -> Any:
             return error_response(500, "response_validation_error", error_msg)
         else:
             logger.error("[CRITICAL] Industries detail validation failed but error_msg is None. Bug.")
-            return error_response(500, "response_validation_error", "Industries detail validation failed (internal error: no message)")
+            return error_response(
+                500, "response_validation_error", "Industries detail validation failed (internal error: no message)"
+            )
 
     return json_response(200, result)
 
@@ -340,6 +351,8 @@ def _industry_trend(cur: cursor, industry_name: str, params: dict[str, Any]) -> 
             return error_response(500, "response_validation_error", error_msg)
         else:
             logger.error("[CRITICAL] Industries trend validation failed but error_msg is None. Bug.")
-            return error_response(500, "response_validation_error", "Industries trend validation failed (internal error: no message)")
+            return error_response(
+                500, "response_validation_error", "Industries trend validation failed (internal error: no message)"
+            )
 
     return json_response(200, result)

@@ -330,29 +330,7 @@ module "services" {
 # CloudFront domain secret removed - was causing deletion state conflicts
 # CloudFront domain is now retrieved directly from Terraform outputs instead
 
-# Grant Lambda execution role permission to read CloudFront domain secret
-resource "aws_iam_role_policy" "api_lambda_cloudfront_secret" {
-  count = var.cloudfront_enabled ? 1 : 0
-  name  = "${var.project_name}-api-lambda-cloudfront-secret"
-  role  = data.aws_iam_role.lambda_api_role.id
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "secretsmanager:GetSecretValue"
-        ]
-        Resource = aws_secretsmanager_secret.cloudfront_domain[0].arn
-      }
-    ]
-  })
-}
-
-# Data source to get the Lambda API execution role
-data "aws_iam_role" "lambda_api_role" {
-  name = "${var.project_name}-lambda-api-${var.environment}"
-}
+# IAM policy for CloudFront domain secret removed along with the secret
 
 module "security_monitoring" {
   source = "./modules/security-monitoring"

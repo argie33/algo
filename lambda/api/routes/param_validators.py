@@ -206,7 +206,7 @@ class ParamValidator:
                 raise ParamValidationError(400, "BadRequest", "symbol parameter is required")
             # HIGH-008 FIX (line 205): Return default directly without OR fallback
             # Preserve None when intended, uppercase only when not None
-            return (default.upper() if default is not None else "")
+            return default.upper() if default is not None else ""
 
         symbol = str(value).upper()
 

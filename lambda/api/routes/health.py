@@ -206,7 +206,9 @@ def _handle_basic(cur: cursor) -> Any:
                 return error_response(500, "response_validation_error", error_msg_raw)
             else:
                 logger.error("[CRITICAL] Health response validation failed but error_msg_raw is None. Bug.")
-                return error_response(500, "response_validation_error", "Health response validation failed (internal error: no message)")
+                return error_response(
+                    500, "response_validation_error", "Health response validation failed (internal error: no message)"
+                )
 
         return success_response(health)
 

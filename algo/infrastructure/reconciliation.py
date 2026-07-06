@@ -63,8 +63,7 @@ class DailyReconciliation:
                     "Set APCA_API_KEY_ID and APCA_API_SECRET_KEY environment variables."
                 )
                 raise ValueError(
-                    f"Reconciliation initialization failed: {e}. "
-                    f"Live trading requires valid Alpaca credentials."
+                    f"Reconciliation initialization failed: {e}. Live trading requires valid Alpaca credentials."
                 ) from e
 
     def run_daily_reconciliation(self, reconcile_date: Any = None, dry_run: bool = False) -> dict[str, Any]:
@@ -84,11 +83,12 @@ class DailyReconciliation:
             )
             # Query actual positions and portfolio value from database instead of hardcoding
             from decimal import Decimal
+
             with DatabaseContext("read") as cur:
                 # Count open positions (both real and paper_open for paper mode tracking)
                 cur.execute("SELECT COUNT(*) as open_count FROM algo_positions WHERE status IN ('open', 'paper_open')")
                 position_row = cur.fetchone()
-                open_position_count = position_row['open_count'] if position_row and position_row['open_count'] else 0
+                open_position_count = position_row["open_count"] if position_row and position_row["open_count"] else 0
 
                 # Calculate unrealized P&L from positions (both real and paper)
                 cur.execute("""
@@ -98,20 +98,24 @@ class DailyReconciliation:
                     WHERE status IN ('open', 'paper_open')
                 """)
                 pnl_row = cur.fetchone()
-                total_unrealized_pnl = float(pnl_row['total_pnl']) if pnl_row else 0.00
-                total_invested = float(pnl_row['total_invested']) if pnl_row else 0.00
+                total_unrealized_pnl = float(pnl_row["total_pnl"]) if pnl_row else 0.00
+                total_invested = float(pnl_row["total_invested"]) if pnl_row else 0.00
 
                 # Portfolio value = base capital + unrealized P&L
                 portfolio_value = 100000.00 + total_unrealized_pnl
 
-                logger.info(f"[RECONCILIATION PAPER MODE] Found {open_position_count} open positions, portfolio value: ${portfolio_value:.2f}")
+                logger.info(
+                    f"[RECONCILIATION PAPER MODE] Found {open_position_count} open positions, portfolio value: ${portfolio_value:.2f}"
+                )
 
             # Write portfolio snapshot even in paper mode for position monitor and dashboard
             if not reconcile_date:
                 reconcile_date = datetime.now(timezone.utc).date()
 
             try:
-                logger.info(f"[RECONCILIATION] Paper mode: About to write snapshot for {reconcile_date} with {open_position_count} positions")
+                logger.info(
+                    f"[RECONCILIATION] Paper mode: About to write snapshot for {reconcile_date} with {open_position_count} positions"
+                )
                 with DatabaseContext("write") as cur:
                     logger.info("[RECONCILIATION] Paper mode: DatabaseContext opened, role=write")
                     snapshot_params = (
@@ -138,7 +142,9 @@ class DailyReconciliation:
                         0.0,
                         "paper_mode",
                     )
-                    logger.info(f"[RECONCILIATION] Paper mode: INSERT params - date={reconcile_date}, positions={open_position_count}, portfolio_value={portfolio_value}, cash={100000.00 - total_invested}")
+                    logger.info(
+                        f"[RECONCILIATION] Paper mode: INSERT params - date={reconcile_date}, positions={open_position_count}, portfolio_value={portfolio_value}, cash={100000.00 - total_invested}"
+                    )
 
                     cur.execute(
                         """
@@ -167,11 +173,16 @@ class DailyReconciliation:
 
                     # VERIFY the insert worked BEFORE exiting the transaction
                     try:
-                        cur.execute("SELECT position_count FROM algo_portfolio_snapshots WHERE snapshot_date = %s ORDER BY created_at DESC LIMIT 1", (reconcile_date,))
+                        cur.execute(
+                            "SELECT position_count FROM algo_portfolio_snapshots WHERE snapshot_date = %s ORDER BY created_at DESC LIMIT 1",
+                            (reconcile_date,),
+                        )
                         verify_result = cur.fetchone()
                         if verify_result:
-                            actual_count = verify_result['position_count']
-                            logger.info(f"[RECONCILIATION] VERIFICATION: position_count={actual_count} (expected={open_position_count}) - MATCH={actual_count == open_position_count}")
+                            actual_count = verify_result["position_count"]
+                            logger.info(
+                                f"[RECONCILIATION] VERIFICATION: position_count={actual_count} (expected={open_position_count}) - MATCH={actual_count == open_position_count}"
+                            )
                         else:
                             logger.error("[RECONCILIATION] VERIFICATION: No snapshot row found!")
                     except Exception as verify_err:
@@ -184,13 +195,20 @@ class DailyReconciliation:
             # FINAL VERIFICATION: Query immediately after context exit (after commit) to verify data persisted
             try:
                 with DatabaseContext("read") as verify_ctx:
-                    verify_ctx.execute("SELECT position_count FROM algo_portfolio_snapshots WHERE snapshot_date = %s ORDER BY created_at DESC LIMIT 1", (reconcile_date,))
+                    verify_ctx.execute(
+                        "SELECT position_count FROM algo_portfolio_snapshots WHERE snapshot_date = %s ORDER BY created_at DESC LIMIT 1",
+                        (reconcile_date,),
+                    )
                     verify_final = verify_ctx.fetchone()
-                    if verify_final and verify_final['position_count'] == open_position_count:
-                        logger.info(f"[RECONCILIATION] FINAL VERIFICATION SUCCESS: Snapshot persisted with position_count={verify_final['position_count']}")
+                    if verify_final and verify_final["position_count"] == open_position_count:
+                        logger.info(
+                            f"[RECONCILIATION] FINAL VERIFICATION SUCCESS: Snapshot persisted with position_count={verify_final['position_count']}"
+                        )
                     else:
-                        actual = verify_final['position_count'] if verify_final else "NULL"
-                        logger.error(f"[RECONCILIATION] FINAL VERIFICATION FAILED: Expected position_count={open_position_count}, got {actual}")
+                        actual = verify_final["position_count"] if verify_final else "NULL"
+                        logger.error(
+                            f"[RECONCILIATION] FINAL VERIFICATION FAILED: Expected position_count={open_position_count}, got {actual}"
+                        )
             except Exception as final_verify_err:
                 logger.error(f"[RECONCILIATION] FINAL VERIFICATION ERROR: {final_verify_err}")
 
@@ -199,7 +217,7 @@ class DailyReconciliation:
                 "positions": open_position_count,
                 "portfolio_value": portfolio_value,
                 "unrealized_pnl": total_unrealized_pnl,
-                "reason": "Reconciliation skipped: using database state (broker credentials unavailable, paper trading mode)"
+                "reason": "Reconciliation skipped: using database state (broker credentials unavailable, paper trading mode)",
             }
 
         if dry_run:

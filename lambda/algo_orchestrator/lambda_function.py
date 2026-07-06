@@ -54,12 +54,13 @@ def _load_alpaca_credentials_from_secrets() -> None:
 
     try:
         import boto3
-        sm = boto3.client('secretsmanager', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
-        secret = sm.get_secret_value(SecretId='algo/alpaca')
-        data = json.loads(secret['SecretString'])
 
-        os.environ['APCA_API_KEY_ID'] = data['api_key']
-        os.environ['APCA_API_SECRET_KEY'] = data['api_secret']
+        sm = boto3.client("secretsmanager", region_name=os.environ.get("AWS_REGION", "us-east-1"))
+        secret = sm.get_secret_value(SecretId="algo/alpaca")
+        data = json.loads(secret["SecretString"])
+
+        os.environ["APCA_API_KEY_ID"] = data["api_key"]
+        os.environ["APCA_API_SECRET_KEY"] = data["api_secret"]
         logger.info("[CREDENTIALS] Loaded Alpaca API credentials from AWS Secrets Manager")
     except Exception as e:
         logger.warning(
@@ -285,16 +286,26 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
                 except Exception:
                     pass
                 # Add missing columns to metric tables (critical - loaders write these)
-                metric_tables = ['quality_metrics', 'growth_metrics', 'value_metrics', 'positioning_metrics', 'stability_metrics']
+                metric_tables = [
+                    "quality_metrics",
+                    "growth_metrics",
+                    "value_metrics",
+                    "positioning_metrics",
+                    "stability_metrics",
+                ]
                 for table in metric_tables:
                     try:
-                        init_cur.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS data_unavailable BOOLEAN DEFAULT FALSE")
+                        init_cur.execute(
+                            f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS data_unavailable BOOLEAN DEFAULT FALSE"
+                        )
                         init_cur.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS reason VARCHAR(500)")
                     except Exception:
                         pass
                 # Add missing columns to stock_scores
                 try:
-                    init_cur.execute("ALTER TABLE stock_scores ADD COLUMN IF NOT EXISTS data_unavailable BOOLEAN DEFAULT FALSE")
+                    init_cur.execute(
+                        "ALTER TABLE stock_scores ADD COLUMN IF NOT EXISTS data_unavailable BOOLEAN DEFAULT FALSE"
+                    )
                     init_cur.execute("ALTER TABLE stock_scores ADD COLUMN IF NOT EXISTS reason VARCHAR(500)")
                     init_cur.execute("ALTER TABLE stock_scores ADD COLUMN IF NOT EXISTS data_completeness NUMERIC(4,2)")
                 except Exception:
@@ -329,14 +340,15 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
         # This addresses issue where loaders don't run because schedules become disabled
         try:
             import boto3
-            scheduler = boto3.client('scheduler', region_name='us-east-1')
+
+            scheduler = boto3.client("scheduler", region_name="us-east-1")
             schedules = scheduler.list_schedules(MaxResults=50)
-            algo_schedules = [s['Name'] for s in schedules.get('Schedules', []) if 'algo' in s['Name'].lower()]
+            algo_schedules = [s["Name"] for s in schedules.get("Schedules", []) if "algo" in s["Name"].lower()]
             for sched_name in algo_schedules:
                 try:
                     sched = scheduler.get_schedule(Name=sched_name)
-                    if sched.get('State') == 'DISABLED':
-                        scheduler.update_schedule(Name=sched_name, State='ENABLED')
+                    if sched.get("State") == "DISABLED":
+                        scheduler.update_schedule(Name=sched_name, State="ENABLED")
                         logger.info(f"[STARTUP] Re-enabled EventBridge schedule: {sched_name}")
                 except Exception:
                     pass
