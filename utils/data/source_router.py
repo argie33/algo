@@ -275,8 +275,14 @@ class DataSourceRouter:
         self, symbol: str, start: date, end: date, interval: str = "1d"
     ) -> list[dict[str, Any]] | dict[str, Any] | None:
         if yf is None:
-            logger.error("[yfinance] yfinance not installed")
-            return None
+            logger.error("[yfinance] yfinance not installed - dependency missing")
+            # MEDIUM FIX: Return explicit marker instead of None per GOVERNANCE.md
+            # Allows _try_chain() to distinguish dependency failure from missing data
+            return {
+                "data_unavailable": True,
+                "reason": "yfinance_not_installed",
+                "details": "yfinance library required for price history download"
+            }
         logger.debug(f"[yfinance] Fetching {symbol} from {start} to {end} interval={interval}")
         yf_symbol = symbol.replace(".", "-") if "." in symbol else symbol
         try:
@@ -529,7 +535,14 @@ class DataSourceRouter:
                 # Use wrapper's get_ticker to ensure rate-limited access
                 ticker = get_ticker(symbol)
                 if not ticker:
-                    return None
+                    # MEDIUM FIX: Return marker instead of None per GOVERNANCE.md
+                    # Allows _try_chain() to distinguish API failure from missing data
+                    return {
+                        "data_unavailable": True,
+                        "reason": "ticker_fetch_failed",
+                        "symbol": symbol,
+                        "details": "Could not fetch ticker (API error, rate limit, or invalid symbol)"
+                    }
                 return ticker.balance_sheet if period == "annual" else ticker.quarterly_balance_sheet
 
             df = _call_with_timeout(fetch, timeout_sec=30)
@@ -551,7 +564,13 @@ class DataSourceRouter:
                 # Use wrapper's get_ticker to ensure rate-limited access
                 ticker = get_ticker(symbol)
                 if not ticker:
-                    return None
+                    # MEDIUM FIX: Return marker instead of None per GOVERNANCE.md
+                    return {
+                        "data_unavailable": True,
+                        "reason": "ticker_fetch_failed",
+                        "symbol": symbol,
+                        "details": "Could not fetch ticker (API error, rate limit, or invalid symbol)"
+                    }
                 return ticker.income_stmt if period == "annual" else ticker.quarterly_income_stmt
 
             df = _call_with_timeout(fetch, timeout_sec=30)
@@ -573,7 +592,13 @@ class DataSourceRouter:
                 # Use wrapper's get_ticker to ensure rate-limited access
                 ticker = get_ticker(symbol)
                 if not ticker:
-                    return None
+                    # MEDIUM FIX: Return marker instead of None per GOVERNANCE.md
+                    return {
+                        "data_unavailable": True,
+                        "reason": "ticker_fetch_failed",
+                        "symbol": symbol,
+                        "details": "Could not fetch ticker (API error, rate limit, or invalid symbol)"
+                    }
                 return ticker.cashflow if period == "annual" else ticker.quarterly_cashflow
 
             df = _call_with_timeout(fetch, timeout_sec=30)
@@ -603,7 +628,13 @@ class DataSourceRouter:
             def fetch() -> Any:
                 ticker = get_ticker(symbol)
                 if not ticker:
-                    return None
+                    # MEDIUM FIX: Return marker instead of None per GOVERNANCE.md
+                    return {
+                        "data_unavailable": True,
+                        "reason": "ticker_fetch_failed",
+                        "symbol": symbol,
+                        "details": "Could not fetch ticker (API error, rate limit, or invalid symbol)"
+                    }
 
                 df: Any = None
                 try:
@@ -673,7 +704,13 @@ class DataSourceRouter:
                 # Use wrapper's get_ticker to ensure rate-limited access
                 ticker = get_ticker(symbol)
                 if not ticker:
-                    return None
+                    # MEDIUM FIX: Return marker instead of None per GOVERNANCE.md
+                    return {
+                        "data_unavailable": True,
+                        "reason": "ticker_fetch_failed",
+                        "symbol": symbol,
+                        "details": "Could not fetch ticker (API error, rate limit, or invalid symbol)"
+                    }
                 return ticker.eps_revisions
 
             df = _call_with_timeout(fetch, timeout_sec=30)
@@ -702,7 +739,13 @@ class DataSourceRouter:
                 # Use wrapper's get_ticker to ensure rate-limited access
                 ticker = get_ticker(symbol)
                 if not ticker:
-                    return None
+                    # MEDIUM FIX: Return marker instead of None per GOVERNANCE.md
+                    return {
+                        "data_unavailable": True,
+                        "reason": "ticker_fetch_failed",
+                        "symbol": symbol,
+                        "details": "Could not fetch ticker (API error, rate limit, or invalid symbol)"
+                    }
                 return ticker.eps_trend
 
             df = _call_with_timeout(fetch, timeout_sec=30)
