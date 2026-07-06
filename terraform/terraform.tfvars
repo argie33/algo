@@ -53,7 +53,7 @@ dev_mode           = false          # Disable dev mode safety gates - enables no
 enable_data_freshness_monitoring = true # Monitor loader data freshness and alert if stale before 9:30 AM trading window
 
 # Orchestrator configuration (moved from GitHub Secrets)
-execution_mode                      = "live"  # LIVE TRADING MODE - credentials in algo/alpaca secret, will be loaded at runtime
+execution_mode                      = "auto"  # Paper trading mode - credentials loaded from algo/alpaca secret, alpaca_paper_trading=true (line 54)
 orchestrator_dry_run                = false
 orchestrator_log_level              = "info"
 data_patrol_enabled                 = true
