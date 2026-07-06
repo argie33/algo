@@ -806,6 +806,7 @@ def run(
                         sector=signal.get("sector"),  # Optional enrichment
                         industry=signal.get("industry"),  # Optional enrichment
                         rs_percentile=signal.get("rs_percentile"),  # Already validated as required above
+                        execution_mode=config.get("execution_mode", "paper"),  # CRITICAL: Pass execution mode
                     )
 
                     if "success" not in result or result["success"] is None:

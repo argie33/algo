@@ -55,6 +55,9 @@ from .sectors import (
     panel_sector_compact,
     panel_sectors_expanded,
 )
+from .scores import (
+    render_scores,
+)
 from .signals import (
     panel_signals_compact,
     panel_signals_expanded,
@@ -102,6 +105,7 @@ __all__ = [
     "panel_portfolio_perf_expanded",
     # Position panels
     "panel_positions",
+    "render_scores",
     # Trade panels
     "panel_recent_trades",
     # Sector panels

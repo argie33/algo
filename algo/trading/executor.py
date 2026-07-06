@@ -602,7 +602,7 @@ class TradeExecutor:
         from algo.trading import PositionSizer
 
         try:
-            sizer = PositionSizer(self.config)
+            sizer = PositionSizer(self.config.to_dict() if hasattr(self.config, 'to_dict') else self.config)
             pv = sizer.get_portfolio_value()
             return pv
         except PortfolioValueError as e:

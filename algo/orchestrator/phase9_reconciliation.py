@@ -760,27 +760,35 @@ def run(
                         log_phase_result_fn(9, "portfolio_snapshot", "warn", f"snapshot creation failed: {str(snapshot_err)[:60]}")
 
                     # Create snapshot from database state BEFORE returning
+                    logger.info(f"[PHASE 9] Paper mode: Creating snapshot from database state")
                     try:
                         from decimal import Decimal
+                        logger.info(f"[PHASE 9] Paper mode: Starting snapshot creation in DatabaseContext")
                         with DatabaseContext("write") as cur:
+                            logger.info(f"[PHASE 9] Paper mode: DatabaseContext opened, role=write")
                             # Get previous value
                             cur.execute("SELECT total_portfolio_value FROM algo_portfolio_snapshots WHERE snapshot_date < %s ORDER BY snapshot_date DESC LIMIT 1", (run_date,))
                             prev_row = cur.fetchone()
                             prev_value = Decimal(prev_row[0]) if prev_row and prev_row[0] else Decimal("100000.00")
+                            logger.info(f"[PHASE 9] Paper mode: Previous value={prev_value}")
 
                             # Count actual positions and calculate portfolio value
                             cur.execute("SELECT COUNT(*) as open_count FROM algo_positions WHERE status = %s", ('open',))
                             pos_row = cur.fetchone()
                             pos_count = pos_row['open_count'] if pos_row else 0
+                            logger.info(f"[PHASE 9] Paper mode: Position count={pos_count}")
 
                             cur.execute("SELECT COALESCE(SUM(position_value), 0) as total, COALESCE(SUM(unrealized_pnl), 0) as pnl FROM algo_positions WHERE status = %s", ('open',))
                             pos_data = cur.fetchone()
                             total_invested = Decimal(str(pos_data['total'])) if pos_data else Decimal(0)
                             unrealized_pnl = Decimal(str(pos_data['pnl'])) if pos_data else Decimal(0)
+                            logger.info(f"[PHASE 9] Paper mode: Invested={total_invested}, Unrealized={unrealized_pnl}")
 
                             current_value = Decimal("100000.00") + unrealized_pnl
                             daily_return = ((current_value - prev_value) / prev_value * 100) if prev_value > 0 else Decimal(0)
+                            logger.info(f"[PHASE 9] Paper mode: Current value={current_value}, Daily return={daily_return}%")
 
+                            logger.info(f"[PHASE 9] Paper mode: Executing INSERT statement")
                             cur.execute("""
                                 INSERT INTO algo_portfolio_snapshots (snapshot_date, total_portfolio_value, total_cash, position_count, daily_return_pct, created_at)
                                 VALUES (%s, %s, %s, %s, %s, NOW())
@@ -791,10 +799,11 @@ def run(
                                     daily_return_pct = EXCLUDED.daily_return_pct,
                                     updated_at = NOW()
                             """, (run_date, current_value, current_value - total_invested, pos_count, daily_return))
+                            logger.info(f"[PHASE 9] Paper mode: INSERT complete, exiting DatabaseContext to commit")
 
                             logger.info(f"[PHASE 9] Paper mode snapshot created: positions={pos_count}, value=${current_value:.2f}")
                     except Exception as snap_err:
-                        logger.warning(f"[PHASE 9] Paper mode snapshot creation failed: {snap_err}")
+                        logger.warning(f"[PHASE 9] Paper mode snapshot creation failed: {snap_err}", exc_info=True)
 
                     # Refresh materialized view
                     try:
